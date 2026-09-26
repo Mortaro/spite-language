@@ -1,0 +1,17 @@
+singleton
+
+generic $component_type
+
+func add(entity: Integer, value: $component_type) {
+    if $component_type.fits_vector() {
+        var column = Column<$component_type>()
+        column.insert(entity, value)
+    } else {
+        var column = ReferenceColumn<$component_type>()
+        column.insert(entity, value)
+    }
+}
+
+func inline(): Boolean {
+    return $component_type.fits_vector()
+}

@@ -1,0 +1,5 @@
+var lines = List<String>()
+
+func note(line: String) {
+    lines.append(line)
+}

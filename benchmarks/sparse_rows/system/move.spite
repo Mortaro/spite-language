@@ -1,0 +1,15 @@
+type Moving {
+    entity: Entity
+    position: Component.Position
+    velocity: Component.Velocity
+}
+
+var marked = 0
+
+func update_each(moving: Moving) {
+    moving.position.left = moving.position.left + moving.velocity.across
+    moving.position.top = moving.position.top + moving.velocity.down
+    if moving.entity.id % 50000 == 0 {
+        marked = marked + 1
+    }
+}

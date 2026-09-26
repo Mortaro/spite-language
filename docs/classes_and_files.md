@@ -559,7 +559,10 @@ var heap = Memory.Heap()
   ```
 
   A generic singleton (`TypedMemory<Integer>()`) is covered the same way. As with D77, only code the compiler
-  generates is checked: a function nothing calls is not (proposed by Claude, unconfirmed).
+  generates is checked: a function nothing calls is not (proposed by Claude, unconfirmed). A member read on a
+  generic singleton made from a walked attribute's class (`Column<attribute.class>().values`) is not an error,
+  since no attribute can name that type: it is how a walked row reads a sparse column (D217,
+  [memory.md](memory.md#borrowed-items-of-a-vectort--implemented)); passing or returning one still is.
 - **An unread singleton binding is an error everywhere** (D157): `var world = World()` that nothing in the
   program reads is `the attribute 'world' is never read: remove it`, even inside a loaded package, whose other
   unread public attributes are tree-shaken rather than reported ([style.md](style.md#unused-is-an-error--implemented)).

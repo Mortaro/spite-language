@@ -1,0 +1,12 @@
+var runner = Runner<Moving>()
+var positions = Column<Position>()
+
+func SparseRows() {
+    var placed = Position()
+    positions.insert(placed)
+    runner.found.append(0)
+    runner.found.append(0)
+    runner.found.append(0)
+    runner.run(0)
+    runner.shift(0)
+}

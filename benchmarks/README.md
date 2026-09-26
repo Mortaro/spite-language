@@ -24,6 +24,7 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `parallel_calls` | 20 000 rounds of two `Parallel`s |
 | `vector_items` | 200 000 `Velocity` items in a `List<Velocity>` and in a `Vector<Velocity>`, 100 ticks of `each_integrate()` and a fused `filter_moving().sum_across()` on each; prints the microseconds per tick of both |
 | `vector_rows` | 200 000 entities with position and velocity, half with health and regeneration, `Move` and `Regenerate` systems taking a `type` row per entity for 20 ticks: once from four `Vector` columns as rows of borrowed items (D206), once from four `List` columns through a reused row object; prints the microseconds per tick of both |
+| `sparse_rows` | 200 000 entities kept in sparse sets (a generic singleton `Column<T>` per component, each entity at a different place in each), position and velocity for all, health and regeneration for half, `Move` and `Regenerate` taking a walked row per entity for 20 ticks: once with `Vector` columns and rows filled by D217's walk (borrowed items, an `Entity` made in the frame), once with every column a `List` of references and a row object reused across the tick; prints the microseconds per tick of both |
 | `stress` | SlopEngine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
 | `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../docs/standard_library.md#system-classes--implemented)) |
 | `game_maths` | a million `position + velocity.scaled(delta)` steps on `Vector3`, 200 000 `Matrix4` products and a million `transform_point`s; each answer is a new object, so the allocation count is the point |
@@ -198,6 +199,22 @@ attribute, so it cannot hold borrowed items (D212 makes a local filled by a Symb
 its row in an attribute). A copy with `Vector` columns and a hand-written runner that builds a row literal per
 entity for each system ran the whole program (50 000 entities, 20 ticks) in 89 ms against `stress`'s 129 ms, best
 of seven interleaved.
+
+### Walked rows over sparse columns (D217)
+
+`sparse_rows`, the program's own two timers (best of five runs, `clang -O2`, the compiler of the commit that builds
+D217). Both sides keep every component in a sparse set and find each entity's place in each column with the same
+generic walk; they differ only in where the components live and how the row is made:
+
+| layout | microseconds per tick |
+|---|---|
+| `Vector` columns, a walked row per entity (borrowed items, an `Entity` made in the frame, nothing counted) | 7 417 |
+| `List` columns of references (an `Entity` column too), one row object reused across the tick, filled by the ordinary walk | 24 022 |
+
+The 800 115 allocations are filling: 200 000 entities, positions and velocities and 100 000 healths and
+regenerations, each kept in its reference column and copied into its vector, and the sparse sets; the walked rows
+make none. Most of the 7.4 ms is finding the places, a sparse lookup through a generic singleton per attribute,
+which both sides pay.
 
 ### Short text inside the `String` (D203)
 

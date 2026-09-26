@@ -1,0 +1,12 @@
+type Moving {
+    entity: Entity
+    position: Position
+}
+
+var positions = Column<Position>()
+
+func spawn_while_moving(moving: Moving) {
+    moving.position.left = moving.position.left + 1.0
+    var placed = Position()
+    positions.insert(placed)
+}

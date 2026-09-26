@@ -1,0 +1,9 @@
+singleton
+
+generic $component_type
+
+var values = Vector<$component_type>()
+
+func insert(value: $component_type) {
+    values.append(value)
+}

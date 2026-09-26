@@ -136,6 +136,7 @@ var current_path = ""
 var current_line = 0
 var bound_symbol_name = ""
 var bound_field_name = ""
+var bound_field_index = -1
 var bound_field_type: Analysis.SpiteType? = null
 var bound_member_owner_c_name = ""
 var bound_through_caller = false
@@ -154,6 +155,11 @@ var borrowed_names = List<String>()
 var borrow_site = ""
 var lending_rows = false
 var walked_row_filled = false
+var walked_row_mixing = false
+var walk_refused = ""
+var walk_refused_attribute = ""
+var walk_partial: Syntax.Expressions.ObjectLiteralExpression? = null
+var constructed_roots = Dictionary<String>()
 var parallel_handover = ""
 var parallel_keeps = List<String>()
 var argument_callee = ""
@@ -287,6 +293,7 @@ func instantiated_function_source(information: Analysis.ClassInfo, function: Ana
         body = body.replace("{symbol}.value", "'{function.symbol_field_name}'")
     }
     body = body.replace("{symbol}.class", field_type)
+    body = body.replace("{symbol}.index", "{function.symbol_field_index}")
     if not function.symbol_pattern.is_empty() {
         body = body.replace(".{function.symbol_pattern}(", ".{function.symbol_function_name}(")
     }
@@ -785,6 +792,13 @@ func constant_condition(
                     return null
                 }
                 if binary.operator == 'equal' or binary.operator == 'not_equal' {
+                    var walked_same = walked_class_is(binary.left, binary.right, class_information)
+                    if walked_same == true {
+                        return binary.operator == 'equal'
+                    }
+                    if walked_same == false {
+                        return binary.operator == 'not_equal'
+                    }
                     if codegen_is_class(binary.right, class_information) and not shape.as_generic_identifier(binary.left) {
                         return known_codegen_class_test(binary, scope, class_information)
                     }
@@ -831,8 +845,11 @@ func folded_function_question(
     crash call.callee
     var member = shape.as_member(call.callee)
     assert member
-    assert member.name == "has_function" or member.name == "function_waits"
     crash member.object
+    if member.name == "fits_vector" {
+        return fits_vector_question(member.object, call.arguments, class_information)
+    }
+    assert member.name == "has_function" or member.name == "function_waits"
     var symbol_class = shape.as_member(member.object)
     if symbol_class {
         return symbol_function_question(symbol_class, member.name, call.arguments, class_information)
@@ -863,6 +880,75 @@ func folded_function_question(
         "'${bare_name}.{member.name}(...)' is decided while compiling, so the name it asks for is written as a literal: '${bare_name}.{member.name}(\"{example}\")', or a pattern such as \"<phase>_each\"",
     )
     return false
+}
+
+func walked_class_is(
+    left: Syntax.Expressions.Expression,
+    right: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
+    var symbol_class = shape.as_member(left)
+    assert symbol_class
+    assert symbol_class.name == "class" and not bound_symbol_name.is_empty()
+    crash symbol_class.object
+    var symbol_identifier = shape.as_identifier(symbol_class.object)
+    assert symbol_identifier
+    assert symbol_identifier.name == bound_symbol_name
+    assert bound_field_type
+    var field_class = type_shape.as_class_ref(bound_field_type)
+    assert field_class
+    assert not field_class.has_signature
+    var tested = try_resolve_static_path(right, class_information.qualified_dotted)
+    assert tested
+    return field_class.c_name == tested.c_name
+}
+
+func class_fits_vector(described: Analysis.ClassInfo): Boolean {
+    if described.is_value_class {
+        return true
+    }
+    assert not described.is_generic_template
+    var described_type: Analysis.SpiteType = Analysis.Types.ClassRefType(described.c_name)
+    var problem = vector_item_problem(described_type)
+    return problem.is_empty()
+}
+
+func fits_vector_question(
+    subject: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
+    var asked = asked_item_type(subject, class_information)
+    assert asked and arguments.is_empty()
+    var problem = vector_item_problem(asked)
+    return problem.is_empty()
+}
+
+func asked_item_type(
+    subject: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var generic_identifier = shape.as_generic_identifier(subject)
+    if generic_identifier {
+        var bare_name = without_dollar(generic_identifier.name)
+        var bound = codegen_index(class_information, bare_name)
+        assert bound >= 0
+        crash class_information.codegen_codes[bound]
+        assert class_information.codegen_codes[bound].is_empty()
+        return class_information.codegen_types[bound]
+    }
+    var symbol_class = shape.as_member(subject)
+    if symbol_class {
+        crash symbol_class.object
+        var symbol_identifier = shape.as_identifier(symbol_class.object)
+        assert symbol_identifier
+        assert symbol_class.name == "class" and not bound_symbol_name.is_empty()
+        assert symbol_identifier.name == bound_symbol_name
+        return bound_field_type
+    }
+    var named = try_resolve_static_path(subject, class_information.qualified_dotted)
+    assert named
+    return class_type_of(named)
 }
 
 func class_function_answer(
@@ -1564,15 +1650,18 @@ func unwritable_attribute(information: Analysis.ClassInfo, visited: List<String>
 
 func check_vector_item(vector_class: Analysis.ClassInfo) {
     crash vector_class.codegen_types[0]
-    var item_type = vector_class.codegen_types[0]
-    var label = type_display_name(item_type)
+    var problem = vector_item_problem(vector_class.codegen_types[0])
+    if not problem.is_empty() {
+        report(problem)
+    }
+}
+
+func vector_item_problem(item_type: Analysis.SpiteType): String {
     assert not inline_value_type(item_type)
+    var label = type_display_name(item_type)
     var item_class = inline_item_class(item_type)
     if not item_class {
-        report(
-            "a Vector holds each item inline, so an item is a number, a Boolean, an enum, a String or a class made only of those, and {type_with_article(item_type)} is not: keep it in a 'List<{label}>'",
-        )
-        return
+        return "a Vector holds each item inline, so an item is a number, a Boolean, an enum, a String or a class made only of those, and {type_with_article(item_type)} is not: keep it in a 'List<{label}>'"
     }
     crash item_class
     var index = 0
@@ -1580,30 +1669,22 @@ func check_vector_item(vector_class: Analysis.ClassInfo) {
         var field = item_class.fields[index]
         var field_type = field.get_type()
         if not inline_value_type(field_type) and not singleton_type(field_type) {
-            report(
-                "'{label}' cannot be an item of a Vector: its attribute '{field.name}' is {type_with_article(field_type)}, and a Vector holds each item inline, so every attribute is a number, a Boolean, an enum or a String (keep '{label}' in a 'List<{label}>', or keep '{field.name}' somewhere else)",
-            )
-            return
+            return "'{label}' cannot be an item of a Vector: its attribute '{field.name}' is {type_with_article(field_type)}, and a Vector holds each item inline, so every attribute is a number, a Boolean, an enum or a String (keep '{label}' in a 'List<{label}>', or keep '{field.name}' somewhere else)"
         }
         index = index + 1
     }
     if item_class.drop_function {
-        report(
-            "'{label}' cannot be an item of a Vector: it has a 'drop()', and an item inline in a Vector is never an object of its own to drop (keep '{label}' in a 'List<{label}>')",
-        )
-        return
+        return "'{label}' cannot be an item of a Vector: it has a 'drop()', and an item inline in a Vector is never an object of its own to drop (keep '{label}' in a 'List<{label}>')"
     }
     index = 0
     while index < item_class.functions.count() {
         var function = item_class.functions[index]
         if not function.is_constructor and block_uses_this(function.body, item_class) {
-            report(
-                "'{label}.{function.name}' uses 'this' as a value, and an item of a Vector is borrowed from the Vector, never an object to keep or to pass on: read and write its attributes instead",
-            )
-            return
+            return "'{label}.{function.name}' uses 'this' as a value, and an item of a Vector is borrowed from the Vector, never an object to keep or to pass on: read and write its attributes instead"
         }
         index = index + 1
     }
+    return ""
 }
 
 func singleton_type(spite_type: Analysis.SpiteType): Boolean {
@@ -4037,6 +4118,11 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
                 registered_name,
                 null,
             )
+            var walked_names = template_attribute_names(information, chosen)
+            var walked_position = name_position(walked_names, chosen_member)
+            if walked_position < walked_names.count() {
+                instance.symbol_field_index = walked_position
+            }
             describe_range_binding(information, chosen, instance)
             return instance
         }
@@ -4349,6 +4435,7 @@ func bind_symbol_of(function: Analysis.FunctionInfo) {
     bound_range = function.symbol_range
     bound_symbol_name = function.symbol_name
     bound_field_name = function.symbol_field_name
+    bound_field_index = function.symbol_field_index
     bound_field_type = function.symbol_field_type
     bound_member_owner_c_name = function.symbol_owner_c_name
     bound_through_caller = function.symbol_through_caller
@@ -8631,6 +8718,7 @@ func lent_variant_name(
     variant.source_path = original.source_path
     variant.symbol_name = original.symbol_name
     variant.symbol_field_name = original.symbol_field_name
+    variant.symbol_field_index = original.symbol_field_index
     variant.symbol_field_type = original.symbol_field_type
     variant.symbol_owner_c_name = original.symbol_owner_c_name
     variant.symbol_through_caller = original.symbol_through_caller
@@ -11229,6 +11317,9 @@ func emit_class_object_bodies() {
             if described.is_singleton {
                 lines.append("{function_c_name}_cache->_singleton_ = true;")
             }
+            if class_fits_vector(described) {
+                lines.append("{function_c_name}_cache->_fits_vector_ = true;")
+            }
             if namespace_read_used {
                 crash class_object_namespaces[position]
                 var described_namespace = class_object_namespaces[position]
@@ -13783,7 +13874,7 @@ func generate_call(
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
-        if member.name == "has_function" or member.name == "function_waits" {
+        if member.name == "has_function" or member.name == "function_waits" or member.name == "fits_vector" {
             var answered = folded_function_question(call, class_information)
             if answered == true or answered == false {
                 var answer_type: Analysis.SpiteType = Analysis.Types.ScalarType('boolean_kind')
@@ -13926,6 +14017,18 @@ func generate_member_read_raw(
             crash bound_enum
             var bound_enum_type = enum_type_of(bound_enum)
             return ExpressionResult("{bound_enum_c_name}_{bound_field_name}", bound_enum_type)
+        }
+        if symbol_identifier.name == bound_symbol_name and member.name == "index" and not bound_symbol_name.is_empty() {
+            var index_type = integer_type()
+            if bound_field_index < 0 {
+                report(
+                    "'{bound_symbol_name}.index' is the attribute's place among the attributes walked, so it is read in a function a walk of attributes calls, such as 'fill_attribute(attribute: Symbol<Row>, ...)'",
+                )
+                return ExpressionResult("0", index_type)
+            }
+            var place = ExpressionResult("{bound_field_index}", index_type)
+            place.constant_text = "i:{bound_field_index}"
+            return place
         }
         if symbol_identifier.name == bound_symbol_name and member.name == "class" and not bound_symbol_name.is_empty() {
             crash bound_field_type
@@ -14335,6 +14438,13 @@ func receiver_type_of(
         assert field
         return field.get_type()
     }
+    var construction = shape.as_generic_call(expression)
+    if construction {
+        var made = generic_singleton_made(construction, class_information.qualified_dotted)
+        assert made
+        var made_type: Analysis.SpiteType = Analysis.Types.ClassRefType(made.c_name)
+        return made_type
+    }
     var member = shape.as_member(expression)
     assert member
     crash member.object
@@ -14423,8 +14533,16 @@ func proof_dependencies(path: String, scope: Scope, class_information: Analysis.
     var root = scope.path_root(path)
     var current = scope.written_type(root)
     var link = "local"
+    var position = root.length()
+    var constructed = constructed_root_of(path)
     var root_local = scope.unnarrowed_type(root)
-    if not root_local {
+    if not constructed.is_empty() {
+        var made_c_name = constructed_roots.get(constructed)
+        crash made_c_name
+        var made_type: Analysis.SpiteType = Analysis.Types.ClassRefType(made_c_name)
+        current = made_type
+        position = constructed.length()
+    } else if not root_local {
         link = "{class_information.simple_name}#{root}"
         dependencies.append(link)
         var root_field = class_information.find_field(root)
@@ -14432,7 +14550,6 @@ func proof_dependencies(path: String, scope: Scope, class_information: Analysis.
             current = root_field.get_type()
         }
     }
-    var position = root.length()
     var path_length = path.length()
     while position < path_length {
         var code = path.code_at(position)
@@ -14788,6 +14905,49 @@ func lend_item(
         source = Syntax.SourcePrinter().source_expression(object_ast)
     }
     result.borrowed_from = source
+    note_constructed_root(object_ast)
+}
+
+func note_constructed_root(expression: Syntax.Expressions.Expression) {
+    var root = expression
+    var member = shape.as_member(root)
+    while member {
+        crash member.object
+        root = member.object
+        member = shape.as_member(root)
+    }
+    var construction = shape.as_generic_call(root)
+    assert construction
+    var made = generic_singleton_made(construction, current_owner)
+    assert made
+    var printer = Syntax.SourcePrinter()
+    var text = printer.source_expression(root)
+    constructed_roots.set(text, made.c_name)
+}
+
+func generic_singleton_made(
+    construction: Syntax.Expressions.GenericCallExpression,
+    current_namespace: String,
+): Analysis.ClassInfo? {
+    crash construction.callee
+    assert construction.arguments.is_empty() and not construction.names_class
+    var template = try_resolve_static_path(construction.callee, current_namespace)
+    assert template
+    assert template.is_generic_template and template.is_singleton
+    return instantiate_generic(template, construction.type_arguments, current_namespace)
+}
+
+func constructed_root_of(path: String): String {
+    assert constructed_roots.count() > 0
+    var texts = constructed_roots.keys()
+    var index = 0
+    while index < texts.count() {
+        if path.starts_with("{texts[index]}.") {
+            return texts[index]
+        }
+        index = index + 1
+    }
+    return ""
 }
 
 func in_vector_library(class_information: Analysis.ClassInfo): Boolean {
@@ -14879,24 +15039,38 @@ func lends_row(
     var codes = List<String>()
     var paths = List<String>()
     var index = 0
+    var mixing = walked_row_mixing
+    walked_row_mixing = false
     while index < literal.fields.count() {
         var field = literal.fields[index]
         crash field.value
-        var field_result = generate_expression(field.value, scope, class_information)
-        var field_type = field_result.get_type()
-        var borrowed_path = borrowed_path_of(field.value, field_result, scope)
-        if borrowed_path.is_empty() and type_needs_drop(field_type) {
-            report(
-                "'{declaration.name}' borrows items from a Vector, so each of its attributes is a borrowed item or a plain value: '{field.name}' holds {type_with_article(field_type)}, which the row would have to keep",
-            )
-            return true
+        var made = made_in_frame(field.value, mixing, scope, class_information)
+        if made {
+            names.append(field.name)
+            var made_type = made.get_type()
+            types.append(made_type)
+            codes.append(made.code)
+        } else {
+            var field_result = generate_expression(field.value, scope, class_information)
+            var field_type = field_result.get_type()
+            var borrowed_path = borrowed_path_of(field.value, field_result, scope)
+            var field_code = field_result.code
+            if borrowed_path.is_empty() and type_needs_drop(field_type) {
+                if not mixing {
+                    report(
+                        "'{declaration.name}' borrows items from a Vector, so each of its attributes is a borrowed item or a plain value: '{field.name}' holds {type_with_article(field_type)}, which the row would have to keep",
+                    )
+                    return true
+                }
+                field_code = held_for_row(field_result, field.value, field_type, scope)
+            }
+            if not borrowed_path.is_empty() and not paths.contains(borrowed_path) {
+                paths.append(borrowed_path)
+            }
+            names.append(field.name)
+            types.append(field_type)
+            codes.append(field_code)
         }
-        if not borrowed_path.is_empty() and not paths.contains(borrowed_path) {
-            paths.append(borrowed_path)
-        }
-        names.append(field.name)
-        types.append(field_type)
-        codes.append(field_result.code)
         index = index + 1
     }
     var information = literal_class(names, types)
@@ -14941,7 +15115,24 @@ func lends_walked_row(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    var literal = walked_row_literal(declaration, class_information)
+    walk_refused = ""
+    walk_refused_attribute = ""
+    walk_partial = null
+    var literal = walked_row_literal(declaration, scope, class_information)
+    if refused_row(scope, class_information) {
+        report(
+            "'{declaration.name}' is a row filled by the walk on the next line, and its line for '{walk_refused_attribute}' reads '{walk_refused}', which a walked row cannot write out: the line is built from '<value>.attributes[attribute]', attribute reads, '[ ]', calls, the walk's other parameters, 'attribute.index' and whole numbers, so work out '{walk_refused}' before the walk and pass it in",
+        )
+        var refused_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
+        scope.declare(declaration.name, refused_type)
+        scope.check_last(current_line)
+        var filling_statement = borrow_statements.get_at(borrow_index + 1)
+        var mentioned = List<String>()
+        collect_statement_names(filling_statement, mentioned)
+        mentioned.each(scope.mark_used)
+        walked_row_filled = true
+        return true
+    }
     assert literal
     var value: Syntax.Expressions.Expression = literal
     var row_declaration = Syntax.Statements.VariableDeclaration(declaration.name, declaration.type_reference, value)
@@ -14949,14 +15140,86 @@ func lends_walked_row(
     row_declaration.source_path = declaration.source_path
     var saved_index = borrow_index
     borrow_index = borrow_index + 1
+    walked_row_mixing = true
     var lent = lends_row(row_declaration, scope, class_information)
+    walked_row_mixing = false
     borrow_index = saved_index
     walked_row_filled = lent
     return lent
 }
 
+func refused_row(scope: Scope, class_information: Analysis.ClassInfo): Boolean {
+    assert walk_partial
+    return borrows_an_item(walk_partial, scope, class_information)
+}
+
+func made_in_frame(
+    value: Syntax.Expressions.Expression,
+    mixing: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert mixing
+    var call = shape.as_call(value)
+    assert call
+    crash call.callee
+    assert shape.as_identifier(call.callee)
+    var made_class = try_resolve_static_path(call.callee, class_information.qualified_dotted)
+    assert made_class
+    assert not made_class.is_singleton and not made_class.is_value_class and not made_class.is_generic_template
+    assert not is_hot_class(made_class)
+    var made_type: Analysis.SpiteType = Analysis.Types.ClassRefType(made_class.c_name)
+    var problem = vector_item_problem(made_type)
+    assert problem.is_empty()
+    var field_index = 0
+    while field_index < made_class.fields.count() {
+        var field_type = made_class.fields[field_index].get_type()
+        assert not type_needs_drop(field_type) or singleton_type(field_type)
+        field_index = field_index + 1
+    }
+    var expected_types = List<Analysis.SpiteType>()
+    var passed = List<String>()
+    var storage = next_temporary()
+    passed.append("&{storage}")
+    if made_class.constructor {
+        assert not block_uses_this(made_class.constructor.body, made_class)
+        expected_types = parameter_types_of(made_class.constructor.parameters)
+    }
+    var argument_codes = generate_argument_list(call.arguments, expected_types, scope, class_information)
+    builder.add_user("{made_class.c_name} {storage} = \{ \{ 1, {made_class.class_id} } };")
+    builder.add_user("{made_class.c_name}___init(&{storage});")
+    if made_class.constructor {
+        var argument_index = 0
+        while argument_index < argument_codes.count() {
+            passed.append(argument_codes[argument_index])
+            argument_index = argument_index + 1
+        }
+        builder.add_user("{made_class.constructor.c_name}({passed.join(", ")});")
+    }
+    var made = ExpressionResult("(&{storage})", made_type)
+    made.owning_override = false
+    return made
+}
+
+func held_for_row(
+    field_result: ExpressionResult,
+    value: Syntax.Expressions.Expression,
+    field_type: Analysis.SpiteType,
+    scope: Scope,
+): String {
+    var held_code = field_result.code
+    if not owns(field_result, value) {
+        held_code = retain_call(field_type, held_code)
+    }
+    var held_name = next_temporary()
+    builder.add_user("{c_type_name(field_type)} {c_value_name(held_name)} = {held_code};")
+    scope.declare_owned(held_name, field_type)
+    return c_value_name(held_name)
+}
+
 func walked_row_literal(
     declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Syntax.Expressions.ObjectLiteralExpression? {
     crash declaration.value
@@ -15001,26 +15264,94 @@ func walked_row_literal(
     assert plain_argument
     var row_parameter = parameters.get_at(row_position)
     var filling_statement = template_declaration.body.get_at(0)
-    var assigned = shape.as_assignment_statement(filling_statement)
-    assert assigned
-    crash assigned.target
-    crash assigned.value
-    var target_object = walked_object(assigned.target, template.symbol_parameter)
-    assert target_object
-    assert is_identifier_named(target_object, row_parameter)
     var walk = RowWalk(template.symbol_parameter, row_parameter, parameters, call.arguments)
-    var names = range_shape.shape_fields.filter_is_attribute().map_name()
+    var attributes = range_shape.shape_fields.filter_is_attribute()
     var fields = List<Syntax.Expressions.ObjectField>()
     var index = 0
-    while index < names.count() {
-        var name = names.get_at(index)
-        var filled = walked_value(assigned.value, name, walk)
+    while index < attributes.count() {
+        var attribute = attributes.get_at(index)
+        var member_type = template_member_type(class_information, template, attribute.name)
+        assert member_type
+        var filled = walked_field(filling_statement, attribute, index, member_type, walk, scope, class_information)
         assert filled
-        var field = Syntax.Expressions.ObjectField(name, filled)
+        var field = Syntax.Expressions.ObjectField(attribute.name, filled)
         fields.append(field)
         index = index + 1
     }
-    return Syntax.Expressions.ObjectLiteralExpression(fields)
+    var literal = Syntax.Expressions.ObjectLiteralExpression(fields)
+    if walk_refused.is_empty() {
+        return literal
+    }
+    walk_partial = literal
+    return null
+}
+
+func walked_field(
+    filling_statement: Syntax.Statements.Statement,
+    attribute: Syntax.Statements.FieldDeclaration,
+    place: Integer,
+    member_type: Analysis.SpiteType,
+    walk: RowWalk,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Syntax.Expressions.Expression? {
+    var saved_symbol_name = bound_symbol_name
+    var saved_field_name = bound_field_name
+    var saved_field_index = bound_field_index
+    var saved_field_type = bound_field_type
+    bound_symbol_name = walk.symbol_parameter
+    bound_field_name = attribute.name
+    bound_field_index = place
+    bound_field_type = member_type
+    var filled: Syntax.Expressions.Expression? = null
+    var assigned = walked_assignment(filling_statement, scope, class_information)
+    if assigned {
+        filled = walked_assigned_value(assigned, attribute, walk)
+    }
+    if not walk_refused.is_empty() and walk_refused_attribute.is_empty() {
+        walk_refused_attribute = attribute.name
+    }
+    bound_symbol_name = saved_symbol_name
+    bound_field_name = saved_field_name
+    bound_field_index = saved_field_index
+    bound_field_type = saved_field_type
+    return filled
+}
+
+func walked_assignment(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Syntax.Statements.AssignmentStatement? {
+    var assigned = shape.as_assignment_statement(statement)
+    if assigned {
+        return assigned
+    }
+    var chosen = shape.as_if_statement(statement)
+    assert chosen
+    crash chosen.condition
+    var decided = constant_condition(chosen.condition, scope, class_information)
+    if decided == true {
+        assert chosen.then_branch.count() == 1
+        var taken = chosen.then_branch.get_at(0)
+        return walked_assignment(taken, scope, class_information)
+    }
+    assert decided == false and chosen.else_branch.count() == 1
+    var otherwise = chosen.else_branch.get_at(0)
+    return walked_assignment(otherwise, scope, class_information)
+}
+
+func walked_assigned_value(
+    assigned: Syntax.Statements.AssignmentStatement,
+    attribute: Syntax.Statements.FieldDeclaration,
+    walk: RowWalk,
+): Syntax.Expressions.Expression? {
+    crash assigned.target
+    crash assigned.value
+    var target_object = walked_object(assigned.target, walk.symbol_parameter)
+    assert target_object
+    assert is_identifier_named(target_object, walk.row_parameter)
+    return walked_value(assigned.value, attribute, walk)
 }
 
 func walk_template(information: Analysis.ClassInfo, call_name: String): Analysis.TemplateInfo? {
@@ -15085,21 +15416,24 @@ func walked_object(
 
 func walked_value(
     expression: Syntax.Expressions.Expression,
-    attribute_name: String,
+    attribute: Syntax.Statements.FieldDeclaration,
     walk: RowWalk,
 ): Syntax.Expressions.Expression? {
     var walked = walked_object(expression, walk.symbol_parameter)
     if walked {
-        var walked_owner = walked_value(walked, attribute_name, walk)
+        var walked_owner = walked_value(walked, attribute, walk)
         assert walked_owner
-        var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(walked_owner, attribute_name)
+        var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(walked_owner, attribute.name)
         return read
     }
     switch expression {
         Syntax.Expressions.IdentifierExpression: return walk.argument_for(expression)
         Syntax.Expressions.MemberExpression: {
             crash expression.object
-            var member_owner = walked_value(expression.object, attribute_name, walk)
+            if is_identifier_named(expression.object, walk.symbol_parameter) {
+                return walked_symbol_member(expression)
+            }
+            var member_owner = walked_value(expression.object, attribute, walk)
             assert member_owner
             var member: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(
                 member_owner,
@@ -15110,16 +15444,100 @@ func walked_value(
         Syntax.Expressions.IndexExpression: {
             crash expression.object
             crash expression.index
-            var indexed_owner = walked_value(expression.object, attribute_name, walk)
+            var indexed_owner = walked_value(expression.object, attribute, walk)
             assert indexed_owner
-            var position = walked_value(expression.index, attribute_name, walk)
+            var position = walked_value(expression.index, attribute, walk)
             assert position
             var indexed: Syntax.Expressions.Expression = Syntax.Expressions.IndexExpression(indexed_owner, position)
             return indexed
         }
+        Syntax.Expressions.GenericCallExpression: return walked_generic_call(expression, attribute, walk)
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            var callee = walked_value(expression.callee, attribute, walk)
+            assert callee
+            var arguments = walked_arguments(expression.arguments, attribute, walk)
+            assert arguments
+            var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, arguments)
+            return called
+        }
         Syntax.Expressions.IntegerLiteral: return expression
-        _: return null
+        _: return refused_in_walk(expression)
     }
+}
+
+func walked_symbol_member(read: Syntax.Expressions.MemberExpression): Syntax.Expressions.Expression? {
+    if read.name == "index" and bound_field_index >= 0 {
+        var place: Syntax.Expressions.Expression = Syntax.Expressions.IntegerLiteral(bound_field_index)
+        return place
+    }
+    return refused_in_walk(read)
+}
+
+func refused_in_walk(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    if walk_refused.is_empty() {
+        var printer = Syntax.SourcePrinter()
+        walk_refused = printer.source_expression(expression)
+    }
+    var placeholder: Syntax.Expressions.Expression = Syntax.Expressions.IntegerLiteral(0)
+    return placeholder
+}
+
+func walked_arguments(
+    arguments: List<Syntax.Expressions.Expression>,
+    attribute: Syntax.Statements.FieldDeclaration,
+    walk: RowWalk,
+): List<Syntax.Expressions.Expression>? {
+    var walked_arguments_list = List<Syntax.Expressions.Expression>()
+    var index = 0
+    while index < arguments.count() {
+        var written = arguments.get_at(index)
+        var argument = walked_value(written, attribute, walk)
+        assert argument
+        walked_arguments_list.append(argument)
+        index = index + 1
+    }
+    return walked_arguments_list
+}
+
+func walked_generic_call(
+    generic_call: Syntax.Expressions.GenericCallExpression,
+    attribute: Syntax.Statements.FieldDeclaration,
+    walk: RowWalk,
+): Syntax.Expressions.Expression? {
+    crash generic_call.callee
+    assert shape.as_identifier(generic_call.callee) and not generic_call.names_class
+    crash attribute.type_reference
+    var type_arguments = List<Syntax.Types.GenericArgument>()
+    var index = 0
+    while index < generic_call.type_arguments.count() {
+        var type_argument = generic_call.type_arguments.get_at(index)
+        var walked_type = walked_type_argument(type_argument, walk.symbol_parameter)
+        if walked_type {
+            var attribute_class: Syntax.Types.GenericArgument = Syntax.Types.TypeArgument(attribute.type_reference)
+            type_arguments.append(attribute_class)
+        } else {
+            type_arguments.append(type_argument)
+        }
+        index = index + 1
+    }
+    var arguments = walked_arguments(generic_call.arguments, attribute, walk)
+    assert arguments
+    var made: Syntax.Expressions.Expression = Syntax.Expressions.GenericCallExpression(
+        generic_call.callee,
+        type_arguments,
+        arguments,
+    )
+    return made
+}
+
+func walked_type_argument(type_argument: Syntax.Types.GenericArgument, symbol_parameter: String): Boolean {
+    var written = shape.as_type_argument(type_argument)
+    assert written
+    crash written.value
+    var named = shape.as_named_type(written.value)
+    assert named
+    return named.path.count() == 2 and named.path[0] == symbol_parameter and named.path[1] == "class"
 }
 
 func borrows_an_item(
@@ -19466,7 +19884,9 @@ func report_inline_singletons(expression: Syntax.Expressions.Expression, class_i
             crash expression.object
             var receiver = constructed_singleton(expression.object, class_information)
             if receiver {
-                report_unbound_singleton(receiver, expression.object, expression.name)
+                if not made_from_walked_class(expression.object) {
+                    report_unbound_singleton(receiver, expression.object, expression.name)
+                }
                 report_singleton_arguments(expression.object, class_information)
                 return
             }
@@ -19557,6 +19977,12 @@ func singleton_named(
     assert named_class
     assert named_class.is_singleton
     return named_class
+}
+
+func made_from_walked_class(construction: Syntax.Expressions.Expression): Boolean {
+    var printer = Syntax.SourcePrinter()
+    var construction_text = printer.source_expression(construction)
+    return construction_text.contains(".class>") or construction_text.contains(".class,")
 }
 
 func report_unbound_singleton(
