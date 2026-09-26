@@ -3,14 +3,10 @@ var workers = List<Concurrent<Nothing>>()
 var pending = 0
 var done = 0
 
-func start(count: Integer) {
-    pending = count
-    var index = 0
-    while index < count {
-        var worker = Concurrent(drain)
-        workers.append(worker)
-        index = index + 1
-    }
+func start(items: Integer) {
+    pending = items
+    var worker = Concurrent(drain)
+    workers.append(worker)
 }
 
 func drain() {
