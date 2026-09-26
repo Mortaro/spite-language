@@ -1,0 +1,9 @@
+var size = 0
+
+func grow(): Integer {
+    var root = Branch()
+    var leaf = Branch()
+    leaf.parent = Weak(root)
+    size = size + 1
+    return size
+}

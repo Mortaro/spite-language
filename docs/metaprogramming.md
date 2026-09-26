@@ -503,11 +503,11 @@ proposals, not yet confirmed ([the rules in full](#a-classs-functions-a-folders-
 
 ### Asking for a function, and walking its arguments
 
-`$target_type.has_function('run_each')` in a condition is decided while compiling, like `if $is_magic`. Only the
+`$target_type.has_function("run_each")` in a condition is decided while compiling, like `if $is_magic`. Only the
 branch taken is compiled, so it may call what only that type has. The name must be written as a literal. It is
-decided wherever it is written, not only in an `if`: `return $target_type.has_function('run_each') or
-$target_type.has_function('run_all')` returns a constant, and no class's table of functions is built to answer it.
-Inside a template over a folder's classes, `system.class.has_function('run_each')` is decided the same way for
+decided wherever it is written, not only in an `if`: `return $target_type.has_function("run_each") or
+$target_type.has_function("run_all")` returns a constant, and no class's table of functions is built to answer it.
+Inside a template over a folder's classes, `system.class.has_function("run_each")` is decided the same way for
 each class walked ([below](#every-class-in-a-folder)).
 
 `argument: Symbol<$target_type.run_each>` ranges over the arguments of `run_each`. Inside, `argument.name` is the
@@ -537,7 +537,7 @@ var target: $target_type = null
 var console = Console()
 
 func call() {
-    if $target_type.has_function('run_each') {
+    if $target_type.has_function("run_each") {
         describe_arguments()
         target.run_each(made_arguments())
     } else {
@@ -722,7 +722,7 @@ plain calls, `add_system_greet()` and `add_tools_system_sweep()`: the symbol's w
 class's dotted name in snake_case. Written with a generic, `Runner<system.class>()` makes one `Runner` per class
 found.
 
-Each class walked is known while compiling, so `system.class.has_function('run')` is decided for each one, as
+Each class walked is known while compiling, so `system.class.has_function("run")` is decided for each one, as
 `$system_type.has_function` is in a generic class (D167): only the branch taken is compiled for that class, and it
 may call what only that class has.
 
@@ -745,7 +745,7 @@ func FolderAsk() {
 
 func ask_system(system: Symbol<System>) {
     var made: system.class = null
-    if system.class.has_function('run') {
+    if system.class.has_function("run") {
         made.run()
     } else {
         console.print(system.name, "waits", made.seconds)
@@ -1057,7 +1057,7 @@ pattern -- plus one question a generic asks of its type. Everything is decided w
 into ordinary calls, there is no registry and no list walked at run time, and nothing is generated for a name no
 program calls (D177). The spellings below are Claude's, chosen to be the existing forms read one step further:
 
-- **`$system_type.has_function('run_each')` in a condition folds like `if $is_magic`** (D114). The name is a
+- **`$system_type.has_function("run_each")` in a condition folds like `if $is_magic`** (D114). The name is a
   literal -- a symbol, or text holding a pattern such as `"<phase>_each"` (D116), which is true when some
   function's name fits it with a non-empty middle. Only the taken branch is compiled, so it may call what only
   that type has; any other argument is an error: "'$system_type.has_function(...)' is decided while compiling, so
@@ -1265,7 +1265,12 @@ var sword = Weapon<Integer, true>(10)
   value(s), in this order: $held_type -- write them between < and > before the arguments". `Pair("Hero", 7)`,
   `Concurrent(file.read)`, `JsonWriter(order)`.
 - `null` as the default of an attribute typed by a codegen value means that type's own default, not a `T?`
-  (provisional, [open question 1](open_questions.md#open-questions)).
+  (provisional, [open question 1](open_questions.md#open-questions)). Bound to a `type` whose members are all
+  attributes, that default is a real object. **Bound to a `type` that requires a function, it is a compile error
+  naming the attribute** (D211), unless the class's constructor assigns the attribute: no object can supply the
+  function, so there is no default to make. `'held' is a Weapon, a type that requires the function 'strike', so
+  '= null' has no default to make: no object can supply a function it does not have. Make its type nullable, with
+  a '?', and narrow it before use, or give it a real object in the constructor` (`diagnostics/function_shape_default`).
 
 **A `generic` line may name a constraint** (D175, decided by Mortaro). **[implemented]**
 `generic $item_type: Printable` accepts only types that fit the `type` `Printable`, and a use that does not

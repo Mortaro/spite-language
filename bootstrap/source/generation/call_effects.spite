@@ -241,6 +241,7 @@ func settle() {
     var waiting = function_keys.copy()
     while not waiting.is_empty() {
         var key = waiting.remove_last()
+        crash key
         var changed = by_function.get(key)
         crash changed
         changed.waiting = false
@@ -364,6 +365,7 @@ func reached_classes(entries: List<String>): Dictionary<Boolean> {
     var waiting = entries.copy()
     while not waiting.is_empty() {
         var key = waiting.remove_last()
+        crash key
         if not seen.has(key) {
             seen.set(key, true)
             var hash = key.index_of("#")

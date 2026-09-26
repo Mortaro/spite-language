@@ -1,0 +1,8 @@
+var console = Console()
+
+func LoadedFolderNamespace() {
+    load "kitchen"
+    var chef = Chef()
+    var served = chef.serve()
+    console.print(served)
+}

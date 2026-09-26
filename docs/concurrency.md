@@ -648,9 +648,9 @@ $ spite connect 4000 --command="exit"
 ```
 
 A program that never waits is answered too. In a `--repl-port` or `--hot-reload` build, and only there, the
-compiler ends every pass of every `while` in the program's own code with a **check point**: one call that looks
-at whether a command (or a changed file) is waiting and, if one is, answers it there, on the program's thread,
-between two passes of the loop. A busy loop is served between two passes the way a frame loop is served between
+compiler ends every pass of every `while` in the program's own code with a **check point**: one load of a flag
+that the REPL's thread (or the file watcher) raises when a command (or a changed file) is waiting; only then does it
+answer it there, on the program's thread, between two passes of the loop (D211). A busy loop is served between two passes the way a frame loop is served between
 two frames:
 
 ```gdscript title=busy_loop/busy_loop.spite entry
@@ -965,7 +965,17 @@ proven safe for what its functions actually do; the exact conditions are on
    read and write is one atomic instruction.
 4. **Its own lock**, the fallback: each function is emitted as `<name>___unguarded` behind a wrapper that takes
    the singleton's lock (reentrant by owner thread, padded to 64 bytes); a call it makes to itself goes straight
-   to the unguarded body, and a write to its attribute from another class takes the lock too.
+   to the unguarded body, and a write to its attribute from another class takes the lock too, and so does a read
+   of it (D211: `var last = registry.last` in another class loads it under the lock; an atomic singleton's
+   attribute is read with one atomic load; `conformance/stage6/singleton_lock_calls`).
+
+**A loop that cannot end inside a locked singleton function is a compile error** (D211, decided by Claude under
+D205: the lock stays whole-call). A `while true` with no `return`, `assert` or `crash` inside it, in a function of
+a singleton that takes the lock (the fourth form above), would hold the lock for good, so every other call on the
+singleton would wait forever: `'Window.run' holds Window's lock for the whole call, since a Parallel reaches Window,
+and this loop never ends, so every other call on Window would wait forever: move the loop into a class that is not a
+singleton, and call Window from it` (`diagnostics/endless_locked_loop`). **A `Weak` a `Parallel` reaches is a
+compile error** too ([memory.md](memory.md#rules-in-full), `diagnostics/weak_across_threads`).
 
 A program without `Parallel` gets none of it: an atomic singleton compiles to plain reads and writes, and no
 singleton has a lock. **Not built:** D184's buffer per thread for state only appended to, splitting state each

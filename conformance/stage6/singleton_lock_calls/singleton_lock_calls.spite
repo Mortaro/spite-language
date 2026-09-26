@@ -23,4 +23,6 @@ func SingletonLockCalls() {
     var last = registry.last_name()
     console.print("loaded", loaded, "known", known, "counted", total)
     console.print("last written from outside:", last)
+    var read_outside = registry.last
+    console.print("last read from outside:", read_outside)
 }

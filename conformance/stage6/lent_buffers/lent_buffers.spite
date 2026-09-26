@@ -1,0 +1,54 @@
+var console = Console()
+var heap = Memory.Heap()
+var longs = TypedMemory<Long>()
+
+func LentBuffers() {
+    var before = heap.live_allocations()
+    var total = sum_of_squares(6)
+    var after = heap.live_allocations()
+    console.print("sum of squares:", total, "heap allocations left:", after - before)
+    var kept = keep_one()
+    console.print("a buffer a function keeps stays on the heap:", kept)
+}
+
+func sum_of_squares(count: Integer): Long {
+    var before = heap.live_allocations()
+    var squares = heap.allocate(count * 8)
+    fill_squares(squares, count)
+    var total = add_up(squares, count)
+    var during = heap.live_allocations()
+    heap.free(squares)
+    console.print("heap allocations while summing:", during - before)
+    return total
+}
+
+func fill_squares(buffer: Memory.Address, count: Integer) {
+    var index = 0
+    while index < count {
+        longs.write_value(buffer, index, index * index)
+        index = index + 1
+    }
+}
+
+func add_up(buffer: Memory.Address, count: Integer): Long {
+    var total: Long = 0
+    var index = 0
+    while index < count {
+        total = total + longs.read_value(buffer, index)
+        index = index + 1
+    }
+    return total
+}
+
+func keep_one(): Integer {
+    var before = heap.live_allocations()
+    var buffer = heap.allocate(16)
+    var kept = echo(buffer)
+    var during = heap.live_allocations()
+    heap.free(kept)
+    return during - before
+}
+
+func echo(buffer: Memory.Address): Memory.Address {
+    return buffer
+}

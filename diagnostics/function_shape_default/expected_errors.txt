@@ -1,0 +1,1 @@
+diagnostics/function_shape_default/holder.spite:3: error: 'held' is a Weapon, a type that requires the function 'strike', so '= null' has no default to make: no object can supply a function it does not have. Make its type nullable, with a '?', and narrow it before use, or give it a real object in the constructor (in Holder.)

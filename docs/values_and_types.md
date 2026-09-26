@@ -737,9 +737,13 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   - **A count of the width or more shifts every bit out**: the answer is 0, or -1 for a negative signed value
     shifted right. **A negative count halts the program**, naming the function and the count
     (`spite: UnsignedShort.shifted_right was given the count -2, and a shift count is 0 or more`).
-  - **The other operand is cast to the receiver's type**, the ordinary argument-to-parameter cast: a `Byte`'s
-    `bits_and` of a `Long` keeps the `Long`'s low 8 bits and answers a `Byte`; a `Long`'s `bits_and` of a `Byte`
-    widens the `Byte`. The count is an `Integer`. It agrees with D162: arithmetic, too, takes the left side's type.
+  - **The other operand is cast to the receiver's type**, the ordinary argument-to-parameter cast: a `Long`'s
+    `bits_and` of a `Byte` widens the `Byte` and answers a `Long`. **A wider other operand is a compile error**
+    (D211, as D162 made it for arithmetic), since it would be cut to fit: `'flags.bits_and(mask)' works in a Byte,
+    since a bitwise function takes its receiver's type, and 'mask' is a Long, which would be cut to fit: store the
+    receiver in a Long first ('var wide: Long = flags'), or store 'mask' in a Byte first if it fits one`. Wider means
+    what it means for D162, and an integer literal that fits the receiver is not wider (`byte.bits_and(15)`)
+    (`diagnostics/wider_bitwise_operand`). The count is an `Integer`.
   - Called on `Float`, `Double` or `Boolean`, they are an error naming the whole numbers
     (`diagnostics/bitwise_on_float`). `conformance/stage6/bitwise_functions` and `negative_shift` pin them.
 - **`this` works in every class** (D146, decided by Mortaro), only to pass or return the object itself --
@@ -785,6 +789,12 @@ That is all an enum is; the integer it compiles to is a representation detail.
   compile error listing the symbols that enum accepts. There is no widening from a symbol to an enum, and there
   is no untyped symbol literal -- `var choice = 'orange'`, with nothing to check it against, is an error naming
   the missing context.
+- **Text is always written in double quotes** (D211, superseding the 2026-09-24 row that let `'drain'` stand for
+  text no enum named). A symbol literal where a `String` is wanted -- an argument, a `var`, `has_function` -- is an
+  error naming the fix, whether or not an enum has that value: `'world' in single quotes is a symbol, and text is
+  wanted here: text is always written in double quotes, so write "world"` (`diagnostics/symbol_for_text`). Adding
+  an enum value somewhere can then never change what a line passes. Where a `Symbol` is wanted, `'name'` stays
+  the way to write one.
 - **A `Symbol` is text from a precompiled, tree-shaken table** (D70, decided by Mortaro). Every symbol the program uses is an entry in one table the compiler
   writes, so a `Symbol` value costs no allocation -- reading, storing, passing or comparing one never makes new
   text -- and a symbol the program never uses does not exist in it. So all of Spite's own metaprogramming can use

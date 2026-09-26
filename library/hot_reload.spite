@@ -5,8 +5,18 @@ var heap = Memory.Heap()
 var scheduler = Scheduler()
 var build = Build()
 var folder = ""
-var changes: Memory.Address = 0
-var reloading = false
+var ready: Memory.Address = 0
+var compiling = Lock()
+var handing = Lock()
+var ready_library = ""
+var ready_state = ""
+var ready_told = ""
+var ready_problem = ""
+var compiled_for_request = false
+var published: Long = 0
+var ready_stamp: Long = 0
+var requested_stamp: Long = 0
+var installed_stamp: Long = 0
 var succeeded = false
 var last = "nothing has been reloaded yet"
 var answered = false
@@ -15,19 +25,19 @@ var reported = false
 
 func start() {
     folder = build.program
-    changes = heap.allocate(8)
-    changes.write_long(0, 0)
+    ready = heap.allocate(8)
+    ready.write_long(0, 0)
     scheduler.start()
     scheduler.serving = true
-    scheduler.reloads = reload_if_changed
+    scheduler.reloads = install_if_ready
     var entry = watcher_entry()
     var no_argument: Long = 0
     scheduler.start_thread(entry, no_argument)
 }
 
 func drop() {
-    if changes != 0 {
-        heap.free(changes)
+    if ready != 0 {
+        heap.free(ready)
     }
 }
 
@@ -35,46 +45,28 @@ func watch() {
     var watcher = Watcher()
     var watching = watcher.watch(folder)
     assert watching
+    var loaded = loaded_folders().split("\n")
+    var index = 0
+    while index < loaded.count() {
+        if not loaded[index].is_empty() {
+            watcher.watch(loaded[index])
+        }
+        index = index + 1
+    }
     while true {
         watcher.wait_for_changes()
         watcher.changes()
-        changes.write_long_atomically(0, 1)
-        scheduler.signal()
+        compile_changes()
     }
 }
 
-func reload_if_changed() {
-    assert not reloading and changes.read_long_atomically(0) == 1
-    changes.write_long_atomically(0, 0)
-    reload()
-    if reported {
-        console.error("spite: {answer}")
-    }
+func compile_for_request() {
+    requested_stamp = compile_changes()
+    compiled_for_request = true
 }
 
-func reload() {
-    reported = false
-    if reloading {
-        answered = false
-        answer = "a reload is already running"
-        return
-    }
-    reloading = true
-    scheduler.paused = true
-    rebuild()
-    scheduler.paused = false
-    reloading = false
-}
-
-func tell(worked: Boolean, text: String) {
-    answered = worked
-    answer = text
-    succeeded = worked
-    last = text
-    reported = true
-}
-
-func rebuild() {
+func compile_changes(): Long {
+    compiling.lock()
     var arguments = build_arguments().split("\n")
     var running = program_file()
     arguments.prepend("reload")
@@ -84,14 +76,19 @@ func rebuild() {
     var exit_code = rebuilding.run()
     var output = rebuilding.output().trim()
     if exit_code != 0 {
-        tell(false, "the program keeps the code it runs: {output}")
-        return
+        publish("", "", "", "the program keeps the code it runs: {output}")
+    } else if output != "unchanged" {
+        publish_library(output)
+    } else {
+        publish_unchanged()
     }
-    if output == "unchanged" {
-        answered = true
-        answer = "nothing changed since the code the program runs"
-        return
-    }
+    var stamp = published
+    compiling.unlock()
+    scheduler.signal()
+    return stamp
+}
+
+func publish_library(output: String) {
     var told = List<String>()
     var library_path = ""
     var state_path = ""
@@ -109,6 +106,90 @@ func rebuild() {
         }
         index = index + 1
     }
+    var joined = told.join("\n")
+    publish(library_path, state_path, joined, "")
+}
+
+func publish_unchanged() {
+    handing.lock()
+    if ready.read_long_atomically(0) == 0 {
+        published = published + 1
+        ready_stamp = published
+        ready_library = ""
+        ready_state = ""
+        ready_told = ""
+        ready_problem = ""
+        ready.write_long_atomically(0, 1)
+    }
+    handing.unlock()
+}
+
+func publish(library_path: String, state_path: String, told: String, problem: String) {
+    handing.lock()
+    published = published + 1
+    ready_stamp = published
+    ready_library = library_path
+    ready_state = state_path
+    ready_told = told
+    ready_problem = problem
+    ready.write_long_atomically(0, 1)
+    handing.unlock()
+}
+
+func install_if_ready() {
+    assert ready.read_long_atomically(0) == 1
+    install_ready()
+    if reported {
+        console.error("spite: {answer}")
+    }
+}
+
+func reload() {
+    if not compiled_for_request {
+        requested_stamp = compile_changes()
+    }
+    compiled_for_request = false
+    if ready.read_long_atomically(0) == 1 {
+        install_ready()
+    }
+    assert installed_stamp < requested_stamp
+    answered = true
+    answer = "nothing changed since the code the program runs"
+}
+
+func install_ready() {
+    handing.lock()
+    var library_path = ready_library
+    var state_path = ready_state
+    var told = ready_told
+    var problem = ready_problem
+    installed_stamp = ready_stamp
+    ready.write_long_atomically(0, 0)
+    handing.unlock()
+    reported = false
+    if not problem.is_empty() {
+        tell(false, problem)
+        return
+    }
+    if library_path.is_empty() {
+        answered = true
+        answer = "nothing changed since the code the program runs"
+        return
+    }
+    scheduler.paused = true
+    swap_in(library_path, state_path, told)
+    scheduler.paused = false
+}
+
+func tell(worked: Boolean, text: String) {
+    answered = worked
+    answer = text
+    succeeded = worked
+    last = text
+    reported = true
+}
+
+func swap_in(library_path: String, state_path: String, told: String) {
     var library = open(library_path)
     if library == 0 {
         tell(false, "the program keeps the code it runs: '{library_path}' could not be loaded")
@@ -119,9 +200,9 @@ func rebuild() {
         tell(false, "the program keeps the code it runs: it has no '{missing}', which the new code calls")
         return
     }
+    var running = program_file()
     commit(running, state_path)
-    var joined = told.join("\n")
-    tell(true, joined)
+    tell(true, told)
 }
 
 func commit(running: String, state_path: String) {

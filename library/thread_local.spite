@@ -68,6 +68,7 @@ func drop() {
     }
     while not _retired.is_empty() {
         var old_items = _retired.remove_last()
+        crash old_items
         _heap.free(old_items)
     }
     _heap.free(_published)

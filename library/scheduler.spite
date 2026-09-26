@@ -100,7 +100,7 @@ func remove_one(values: List<Long>, value: Long) {
 }
 
 func check_point() {
-    assert started and current_thread() == scheduler_thread
+    assert started and current_thread() == scheduler_thread and _take_check_point()
     if commands {
         commands()
     }
@@ -159,6 +159,7 @@ func offload_done(call: Memory.Address) {
 }
 
 func signal() {
+    _want_check_point()
     signal_event()
 }
 

@@ -1,0 +1,10 @@
+var console = Console()
+
+func WiderBitwiseOperand() {
+    var flags: Byte = 200
+    var mask: Long = 4294967311
+    var kept = flags.bits_and(mask)
+    var small: Tiny = 3
+    var joined = small.bits_or(300)
+    console.print(kept, joined)
+}

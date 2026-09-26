@@ -8,20 +8,43 @@ var used_count: Long = 0
 var allocations: Long = 0
 var frees: Long = 0
 var kinds: Memory.Address = 0
+var sizes: Memory.Address = 0
 var class_names: Memory.Address = 0
 var class_name_count: Long = 0
 
 func resize(address: Long, bytes: Long): Long {
+    var kept_bytes: Long = 0
     if address == 0 {
         allocations = allocations + 1
     } else {
+        kept_bytes = size_of(address)
         forget_live(address, "reallocating a pointer that was already freed (or never allocated)")
     }
-    var result = heap.resize(address, bytes)
+    var result: Memory.Address = heap.resize(address, bytes)
     if result != 0 {
-        remember(result)
+        remember(result, bytes)
+        fill_unwritten(result, kept_bytes, bytes)
     }
     return result
+}
+
+func size_of(address: Long): Long {
+    var slot = find(address)
+    assert slot >= 0
+    return sizes.read_long(slot * 8)
+}
+
+func fill_unwritten(address: Memory.Address, from: Long, bytes: Long) {
+    var position = from
+    while position + 8 <= bytes {
+        address.write_long(position, -6510615555426900571)
+        position = position + 8
+    }
+    while position < bytes {
+        var pattern: Byte = 165
+        address.write_byte(position, pattern)
+        position = position + 1
+    }
 }
 
 func free(address: Long) {
@@ -87,11 +110,11 @@ func forget_live(address: Long, mistake: String) {
     crash was_live
 }
 
-func remember(address: Long) {
+func remember(address: Long, bytes: Long) {
     if (used_count + 1) * 2 >= capacity {
         grow()
     }
-    place(address, -1)
+    place(address, -1, bytes)
     live_count = live_count + 1
     used_count = used_count + 1
 }
@@ -120,7 +143,7 @@ func find(address: Long): Long {
     return -1
 }
 
-func place(address: Long, kind: Long) {
+func place(address: Long, kind: Long, bytes: Long) {
     var slot = slot_of(address)
     var kept = slots.read_long(slot * 8)
     while kept != 0 and kept != 1 {
@@ -129,6 +152,7 @@ func place(address: Long, kind: Long) {
     }
     slots.write_long(slot * 8, address)
     kinds.write_long(slot * 8, kind)
+    sizes.write_long(slot * 8, bytes)
 }
 
 func grow() {
@@ -141,9 +165,11 @@ func grow() {
     }
     var old_slots = slots
     var old_kinds = kinds
+    var old_sizes = sizes
     var old_capacity = capacity
     slots = heap.allocate(new_capacity * 8)
     kinds = heap.allocate(new_capacity * 8)
+    sizes = heap.allocate(new_capacity * 8)
     capacity = new_capacity
     var span: UnsignedLong = new_capacity
     var largest: UnsignedLong = 0 - 1
@@ -158,12 +184,14 @@ func grow() {
         var kept = old_slots.read_long(index * 8)
         if kept != 0 and kept != 1 {
             var kind = old_kinds.read_long(index * 8)
-            place(kept, kind)
+            var kept_bytes = old_sizes.read_long(index * 8)
+            place(kept, kind, kept_bytes)
         }
         index = index + 1
     }
     heap.free(old_slots)
     heap.free(old_kinds)
+    heap.free(old_sizes)
     used_count = live_count
 }
 

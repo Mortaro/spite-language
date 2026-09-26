@@ -455,6 +455,10 @@ func scheduler_members(): List<String> {
     return [
         "func step_frame(frame: Long): Boolean"
         "return (*(bool (**)(void*))(intptr_t)frame_)((void*)(intptr_t)frame_);"
+        "func _want_check_point()"
+        "written by the generator: raises the flag every loop's check point loads, in a build that has check points"
+        "func _take_check_point(): Boolean"
+        "written by the generator: lowers that flag and answers whether it was raised"
     ]
 }
 
@@ -520,6 +524,8 @@ func hot_reload_members(): List<String> {
         "written per build by the generator: what that compiler was given, one per line"
         "func program_file(): String"
         "written per build by the generator: the executable it wrote"
+        "func loaded_folders(): String"
+        "written per build by the generator: every folder the program loads, one per line"
         "func watcher_entry(): Long"
         "written per build by the generator: the address of the watcher thread's entry"
         "func open(file: String): Long"

@@ -1,0 +1,8 @@
+var console = Console()
+var window = Window()
+
+func EndlessLockedLoop() {
+    var counting = Parallel(window.frames)
+    window.run()
+    console.print(counting)
+}

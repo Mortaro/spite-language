@@ -284,7 +284,9 @@ are done with it ([the rules](#memory--implemented)).
 the program exits. A mismatch means something leaked; when the two do not balance, it also prints a
 **leaked-object summary by class name**, naming which classes' instances are still alive -- which is what makes a
 leaked cycle visible instead of an unexplained count. Every program on these pages is run this way, and must
-balance. The table exists only in a `--debug-memory` build ([what it records](#--debug-memory-1)).
+balance. It also fills every byte it hands out that nobody has written yet with the same pattern, so a program that
+reads memory it never wrote fails the same way on every run and from every launcher, instead of reading whatever
+the heap held. The table exists only in a `--debug-memory` build ([what it records](#--debug-memory-1)).
 
 ## `Memory` is the floor, and you can build on it
 
@@ -593,9 +595,14 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
   by address; a class some `Weak` holds tells the table when an instance is freed, so its box answers `null`; the
   box goes when the last `Weak` of it does. A program that never makes a `Weak` carries none of this: the table,
   the boxes and the one check in the freeing of each weakly held class are written only for the classes a `Weak`
-  holds, and `T` must be a class (`Weak<Integer>` is an error, since a number is kept by value). Not safe across
-  threads yet: a `Weak` read on one thread while another frees the object is the program's race
-  (`conformance/stage6/weak_parent`).
+  holds, and `T` must be a class (`Weak<Integer>` is an error, since a number is kept by value)
+  (`conformance/stage6/weak_parent`). **A `Weak` stays on the program's own thread** (D211, decided by Claude under
+  D205): the table has no lock, so a `Parallel(work)` whose work reaches a class some `Weak` holds, or a class with a
+  `Weak` attribute, is a compile error at the `Parallel`: `'Parallel(tree.grow)' runs on another thread, and what it
+  runs reaches 'Branch', which is a Weak or is held by one: a Weak is kept in one table that is not shared between
+  threads, so a Weak and the objects it holds stay on the program's own thread. Hold the object itself in the
+  work, or keep the Weak out of what the Parallel reaches` (`diagnostics/weak_across_threads`). What the work
+  reaches is the same walk over calls that decides which singletons need a lock.
 - Parameters follow the same rule as everything else in [Functions](functions_and_operators.md#functions--implemented): a scalar is passed by value (copied); anything
   else is passed by reference (the same object, retained for the callee's own binding and released when the
   callee's scope ends); nothing is written at the call site.
@@ -619,6 +626,13 @@ is not an object (a list's elements, a string's bytes) is counted but not named.
 named even when it points at a singleton, which is still destroyed at exit (D142). The compiler's own bookkeeping
 -- the list behind `.instances`, the list of singletons to destroy -- is allocated outside the table and not counted
 (D143).
+
+**Fresh memory is filled with a fixed pattern** (D211, decided by Claude under D205; the pattern proposed by
+Claude). Every byte an allocation or a growing `resize` hands out that the program has not written is `0xA5`, so a
+`Long` read from it is -6510615555426900571 and an address read from it points nowhere: reading bytes nobody wrote
+fails the same way on every run, where it used to depend on what the heap held, which the launcher's environment
+decided. A `resize` keeps the bytes it moves and fills only the new ones; the table keeps each allocation's size
+for that. Only a `--debug-memory` build does this.
 
 **Run-time cost (D177).** The table and the summary exist only in a `--debug-memory` build: no other build's C
 has them. Every other build allocates with the C library's `malloc`, `realloc` and `free` and nothing else,
@@ -695,7 +709,10 @@ is the same whichever it makes:
 - **Frame:** `var name = heap.allocate(bytes)` in a function, when a later statement of the same block
   is `heap.free(name)` and every other use of `name` reads or writes through it (`name.read_long(offset)`, also
   as `(name + offset)`), copies or compares with it (`copy_to`, `compare_bytes`), turns it into `text`, or hands
-  it to a `TypedMemory`'s `read_value`, `write_value` or `release_value` -- it is never stored, returned,
+  it to a `TypedMemory`'s `read_value`, `write_value` or `release_value`, or lends it to a function of the same
+  class, called by its bare name, whose `Memory.Address` parameter is proven to keep nothing (D211: the same rules,
+  applied to the parameter in that function's body, and to the functions it lends it on to; a recursive lend and a
+  `--hot-reload` build, whose functions can be swapped, prove nothing) -- it is never stored, returned,
   assigned, resized or passed to anything else, and neither `name` nor `heap` is declared or assigned again
   after it. The compiler gives it a slot of 256 bytes
   in the function's frame (exactly the size, for a literal size up to 256), uses the heap when a run-time size

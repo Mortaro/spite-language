@@ -5,6 +5,7 @@ edsger ada grace
 grace edsger 1
 barbara false
 true
+nothing to remove from an empty list
 16 10 false
 true false
 item0 x0

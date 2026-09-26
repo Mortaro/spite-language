@@ -128,8 +128,8 @@ even use things that would not compile for this build. That covers:
 - a class test the value's type already answers, `if item == $wanted_type`, and one that can never be true for one
   instantiation of a generic, which folds to `false` there instead of being an error
   ([D167](decisions.md));
-- `$system_type.has_function('run_each')` ([D114](decisions.md));
-- `$system_type.function_waits('update_each')` ([D209](decisions.md)), answered from the functions the compiler
+- `$system_type.has_function("run_each")` ([D114](decisions.md));
+- `$system_type.function_waits("update_each")` ([D209](decisions.md)), answered from the functions the compiler
   turns into state machines;
 - `not`, `and`, `or`, `==` and `!=` over any of these.
 
@@ -332,8 +332,8 @@ way to give it back, `heap.free(address)`. Where the bytes live is the compiler'
 - **Register:** a number's own memory (`var _memory = heap.allocate(4)` in `library/integer.spite`) is its C
   scalar. A number is never an object.
 - **Frame:** an allocation a function frees itself, in the same block, whose address it only reads and writes
-  through, copies, compares, turns into `text` or hands to a `TypedMemory` -- never stores, returns, resizes or
-  passes anywhere else -- gets a
+  through, copies, compares, turns into `text`, hands to a `TypedMemory` or lends to a function of its own class
+  proven to keep nothing ([D211](decisions.md)) -- never stores, returns, resizes or passes anywhere else -- gets a
   slot in the function's own frame: 256 bytes, or exactly a literal size up to 256. A larger size at run time
   still goes to the heap, and the program's text is the same either way.
 - **Constant:** the characters of a text literal are part of the program, never counted or freed.
@@ -375,6 +375,13 @@ func sum_of_squares(count: Integer): Long {
 heap allocations while summing: 0
 sum of squares: 55
 ```
+
+A buffer lent to a helper (`fill_squares(squares, count)`, `add_up(squares, count)` in
+`conformance/stage6/lent_buffers`) stays in the frame when the helper only reads and writes through it; one that
+returns or stores it stays on the heap. Measured (a function that allocates 64 to 96 bytes, lends them to two
+helpers and frees them, 5 000 000 times): 210 ms against 106 ms with the helpers not inlined (`clang -O1
+-fno-inline-functions`); with `clang -O2` both are 0 ms, since clang inlines the helpers and removes the heap call
+itself.
 
 **What you notice.** Fewer allocations under `--debug-memory`, and `value.memory.section` answering `'stack'`,
 `'heap'` or `'constant'` ([memory.md](memory.md#where-a-value-lives-memory)). You never choose the stack
@@ -552,11 +559,23 @@ a `type` shape (a `Printable`, a `Debuggable`, an empty `type` that accepts anyt
 attribute, or a class test against a number class.
 
 **What you notice.** One allocation per boxed value under `--debug-memory`. The visible cost today: every value
-given to `console.print` is passed as a `Printable`, so printing a number boxes it, and the `...values` of every
-variadic call arrive in a `List` ([functions_and_operators.md](functions_and_operators.md)); text made while the
-program runs is boxed too, since the sixteen bytes of a `String` are not an object. Whether that list and
-those boxes should live in the caller's frame is `mortaros_missing_decisions.md` item 74. **Built** (D109's print
+given to `console.print` is passed as a `Printable`, so printing a number boxes it; text made while the
+program runs is boxed too, since the sixteen bytes of a `String` are not an object. **Built** (D109's print
 row, and D164's `attribute.value`, filled only in a program that reads it).
+
+### A variadic list the callee only reads lives in the caller's frame
+
+**What it does.** The `...values` of a variadic call arrive in a `List`. When the call is a statement of its own
+(`console.print(name, count)`), outside `and`/`or` and outside a function that waits, and the function called only
+reads its list -- `count()`, `is_empty()`, `[index]`, `get_at`, `find_at`, `first`, `last`, `contains`, `join`, or
+passing it to a function of its own class that only reads it too -- the list and its items are in the caller's
+frame: no allocation for the list or its items, and its elements (the boxes above) are released after the call
+([D211](decisions.md)). A function that stores, returns, grows or passes on its list anywhere else gets a list on
+the heap as before, and so does a function of a `--hot-reload` build's own classes, which can be swapped.
+
+**What you notice.** Two allocations fewer per such call under `--debug-memory`: `text_building` allocates 19 times
+(31 before), `short_text` 73 (100), `fused_chain_allocations` 11 (13), `folded_function_value` 9 (13).
+**Built** (2026-09-26, D211 item 74).
 
 ### Concurrency machinery only where it is used
 
@@ -664,8 +683,10 @@ ask for it:
   `live_allocations()` ([Allocation is the C library's](#allocation-is-the-c-librarys-counted-only-where-read)).
 
 - `--repl-port` and `--hot-reload`: a check point at the end of every pass of every loop in the program's own
-  code ([D174](decisions.md)), one call that answers a waiting command or reload, so a program that
-  never waits still answers.
+  code ([D174](decisions.md)), so a program that never waits still answers. It is one relaxed load of a flag
+  the REPL's thread and the file watcher raise when they have something ([D211](decisions.md)); only then does
+  the pass call `Scheduler.check_point()`. Measured on a loop of 400 000 000 passes in a `--repl-port` build: 1 566 ms
+  when every pass called it, 106 ms with the flag.
 
 **When.** Only in those builds ([D143](decisions.md), [D112](decisions.md)). This is
 not an optimisation an inspectable build turns off: it is the inspecting itself, present only where it is asked
@@ -711,7 +732,8 @@ How the lock is kept cheap:
   (`conformance/stage6/singleton_function_values`).
 - **A write from another class takes the lock too.** `registry.last = name` written anywhere but `Registry` stores
   the value under `Registry`'s lock; the value is computed before the lock is taken, and an object it replaces is
-  released after the lock is let go, so no other code runs while it is held.
+  released after the lock is let go, so no other code runs while it is held. A read from another class
+  (`var last = registry.last`) takes it too, around the one load (and the count of what it reads), since D211.
 - **A singleton is never counted.** Fetching one (`var registry = Registry()` in a function) is one load, and
   letting go of it is nothing: a singleton's retain and release compile to nothing
   ([D142](decisions.md)), in generic singletons too.
@@ -719,8 +741,9 @@ How the lock is kept cheap:
 **When.** Only in programs that make a `Parallel` or run a `parallel_each_` pass, and only for a singleton that a
 `Parallel` can reach; in any other program a write from another class is a plain store. **What you notice.** An
 uncontended lock per call to such a singleton (two atomic operations), and waiting when two threads call it at
-once. `conformance/stage6/singleton_lock_calls` holds all four points from its C in `check.sh`: `Registry` is
-locked, pads its lock, calls itself unlocked and locks the write `registry.last = ...` from the entry class, and
+once. `conformance/stage6/singleton_lock_calls` holds these points from its C in `check.sh`: `Registry` is
+locked, pads its lock, calls itself unlocked and locks the write `registry.last = ...` and the read of
+`registry.last` from the entry class, and
 `Rules` takes no lock. **Built** (the lock; the padding, the unlocked calls to itself, the locked writes from
 outside and the read-only held objects 2026-09-25, proposed by Claude, unconfirmed).
 
@@ -767,8 +790,11 @@ all.
 **What you notice.** Nothing in what a program prints or computes, and no waiting on a counter two threads bump at
 once. What a lock gave and these forms keep: each function of the singleton is still one indivisible step. A
 singleton whose attribute another class assigns is locked instead (its write takes the lock, above); reading a
-singleton's attribute directly from another class takes nothing in any form. **Built** (2026-09-25; proposed by
-Claude, unconfirmed: which forms, their order, and the one-touch rule).
+singleton's attribute directly from another class takes the singleton's form too ([D211](decisions.md)): in a
+program where a `Parallel` reaches it, `registry.last` read from another class takes its lock, an atomic
+counter's attribute is read with one atomic load, and a singleton that never changes is read plainly. `counter.hits
+= counter.hits + 1` from outside is still a read and a write, two steps. **Built** (2026-09-25; proposed by
+Claude, unconfirmed: which forms, their order, and the one-touch rule; the reads 2026-09-26).
 
 ### Smaller ones
 

@@ -19,5 +19,5 @@ long high bit 1099511627776 23 40
 unsigned long 1 9223372036854775808 0
 unsigned long inverted 0 0
 zero counts 0 32 32
-argument cast to the receiver 15 15
+a narrower argument widens 15 15
 receiver keeps its width 224 792

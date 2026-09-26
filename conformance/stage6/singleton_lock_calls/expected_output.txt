@@ -1,2 +1,3 @@
 loaded 3000 known 3000 counted 3000
 last written from outside: texture 2999
+last read from outside: texture 2999

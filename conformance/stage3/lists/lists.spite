@@ -23,6 +23,8 @@ func Lists() {
     console.print(spaced_names)
     var removed_last = names.remove_last()
     var removed_first = names.remove_first()
+    crash removed_last
+    crash removed_first
     names_count = names.count()
     console.print(removed_last, removed_first, names_count)
     names[0] = "barbara"
@@ -31,6 +33,12 @@ func Lists() {
     names.clear()
     var names_is_empty = names.is_empty()
     console.print(names_is_empty)
+    var from_empty = names.remove_last()
+    if from_empty {
+        console.print("removed from an empty list:", from_empty)
+    } else {
+        console.print("nothing to remove from an empty list")
+    }
     scores.append(10)
     scores.reverse()
     crash scores.count() == 4

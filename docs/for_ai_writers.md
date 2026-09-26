@@ -413,7 +413,11 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 | `console.log(object)`, `dbg!`, `__repr__`, `{:?}` | | `console.debug(value)`: every value has `to_debug()`, and a class may declare its own |
 | `"hello " + name` | `text written down is not joined with '+'` | `"hello {name}"`; two values still join with `+` |
 | `"hello ${name}"` | *silent*: prints `hello $` and the name | `"hello {name}"` |
-| `'hello'` for text | `cannot tell which enum 'hello' belongs to here` | `"hello"`: single quotes are enum values |
+| `'hello'` for text | `'hello' in single quotes is a symbol, and text is wanted here: text is always written in double quotes` | `"hello"`: single quotes are symbols and enum values |
+| `flags.bits_and(mask)` with a wider `mask` | `'flags.bits_and(mask)' works in a Byte, since a bitwise function takes its receiver's type` | widen the receiver first: `var wide: Long = flags` |
+| `var held: $held_type = null` bound to a `type` that requires a function | `'held' is a Weapon, a type that requires the function 'strike', so '= null' has no default to make` | `$held_type?`, or set it in the constructor |
+| a `while true` frame loop in a singleton a `Parallel` reaches | `'Window.run' holds Window's lock for the whole call ... and this loop never ends` | put the loop in a plain object that calls the singleton each pass |
+| a `Weak` in something a `Parallel` runs | `'Parallel(tree.grow)' runs on another thread, and what it runs reaches 'Branch', which is a Weak or is held by one` | hold the object itself in the work; keep `Weak` on the program's thread |
 | `for item in list` | `Spite only has 'while' loops; there is no 'for'` | `each_<member>()`, `map_`/`filter_<member>()`, or `list.each(function)` with a function of yours; `while index < list.count()` when the body needs more |
 | `break`, `continue` | `Spite has no 'break': a loop stops in its own condition` | the loop's own condition: `while index < count and not found` |
 | `list.add(x)`, `list.pop()` | `List has no method 'add', which does not say where` | `append`/`prepend`, `remove_last()`/`remove_first()` |

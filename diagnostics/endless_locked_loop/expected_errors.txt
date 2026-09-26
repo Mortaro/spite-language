@@ -1,0 +1,1 @@
+diagnostics/endless_locked_loop/window.spite:6: error: 'Window.run' holds Window's lock for the whole call, since a Parallel reaches Window, and this loop never ends, so every other call on Window would wait forever: move the loop into a class that is not a singleton, and call Window from it (in Window.run)

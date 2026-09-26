@@ -19,6 +19,7 @@ var following_loads = false
 var walking_program = false
 var program_files = List<Syntax.SourceFile>()
 var program_load_names = List<String>()
+var loaded_inside = List<String>()
 var printer = Syntax.SourcePrinter()
 var program_environment = Environment()
 
@@ -372,6 +373,7 @@ func load_root(entry_path: String, entry_directory: String, root_name: String) {
     check_folder_name(root_folder, entry_path)
     assert not has_error
     loaded_folders.append("{root_folder}/")
+    note_loads_inside(root_folder)
     var empty_segments = List<String>()
     var no_skip: String? = null
     var no_exclusions = List<String>()
@@ -663,8 +665,8 @@ func walk_directory(
     var folder_index = 0
     while folder_index < folders.count() {
         var folder_name = folders[folder_index]
-        var excluded = false
-        if segments.is_empty() {
+        var excluded = loaded_inside.contains("{folder_on_disk}/{folder_name}")
+        if segments.is_empty() and not excluded {
             excluded = excluded_top_level.contains(folder_name)
             if walking_library and is_platform_folder(folder_name) {
                 excluded = true
@@ -679,6 +681,56 @@ func walk_directory(
             walk_directory(root_folder, child_segments, skip_basename, excluded_top_level)
         }
         folder_index = folder_index + 1
+    }
+}
+
+func note_loads_inside(root_folder: String) {
+    var directory = Directory(root_folder)
+    assert directory.exists()
+    var files = directory.files()
+    var index = 0
+    while index < files.count() {
+        if files[index].ends_with(".spite") {
+            var file_loads = written_loads("{root_folder}/{files[index]}")
+            note_loaded_names(root_folder, file_loads)
+        }
+        index = index + 1
+    }
+    var folders = directory.folders()
+    index = 0
+    while index < folders.count() {
+        note_loads_inside("{root_folder}/{folders[index]}")
+        index = index + 1
+    }
+}
+
+func written_loads(path: String): List<String> {
+    var names = List<String>()
+    var content = File(path).read()
+    assert content
+    var lexer = Syntax.Lexer(content)
+    assert not lexer.has_error
+    var tokens = lexer.tokens
+    var index = 0
+    while index + 1 < tokens.count() {
+        var word = tokens.get_at(index)
+        var named = tokens.get_at(index + 1)
+        if word.kind == 'identifier' and word.lexeme == "load" and named.kind == 'string_literal' {
+            names.append(named.text)
+        }
+        index = index + 1
+    }
+    return names
+}
+
+func note_loaded_names(folder: String, names: List<String>) {
+    var index = 0
+    while index < names.count() {
+        var inside = "{folder}/{names[index]}"
+        if not names[index].starts_with("../") and not loaded_inside.contains(inside) {
+            loaded_inside.append(inside)
+        }
+        index = index + 1
     }
 }
 
@@ -734,6 +786,12 @@ func read_and_add_file(path: String, segments: List<String>) {
         if follows_loads and segments.is_empty() {
             collect_file_load_names(parsed_file, program_load_names)
         }
+        if follows_loads {
+            var file_loads = List<String>()
+            collect_file_load_names(parsed_file, file_loads)
+            var file_folder = directory_of(path)
+            note_loaded_names(file_folder, file_loads)
+        }
     } else {
         has_error = true
         error_message = "could not read '{path}'"
@@ -780,6 +838,7 @@ func reopen_with_supplied_members() {
         parsed_file.path = prelude.path()
         var segments = class_path.split("/")
         var stem = segments.remove_last()
+        crash stem
         add_parsed_file(parsed_file, segments, stem)
         index = index + 1
     }
