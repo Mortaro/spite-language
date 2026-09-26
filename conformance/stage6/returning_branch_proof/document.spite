@@ -1,0 +1,15 @@
+var elements = ["a", "b"]
+
+func array_text(): String {
+    var inner = to_string()
+    return "[{inner}]"
+}
+
+func to_string(): String {
+    var texts = elements.map(entry_text)
+    return texts.join(", ")
+}
+
+func entry_text(entry: String): String {
+    return "<{entry}>"
+}

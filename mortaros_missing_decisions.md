@@ -288,3 +288,13 @@ Behaviour that does not match the manual. The language was not changed; each is 
      Windows): about 700 ms to a file against about 140 ms buffered until exit; the same to a pipe or the null
      device. Nothing cheaper shows every line promptly without a thread. Keep it for every program, or should a
      program be able to say it prints to a file nobody watches (a build setting, say) and keep the buffer?
+
+## From SlopEngine's MongoDB driver
+
+200. **A default that is a real answer, under D106.** `if document.is_empty() { return 0 }` in a size function
+     is an error naming `assert not document.is_empty()`, though there 0 means "zero bytes", not "no answer".
+     Built, with nothing exempted: the message now says the default "is how a guard is written" and names the way
+     to give a real 0 -- a local set in an `if`/`else` and returned once (`docs/failure.md`). Should functions
+     whose default is a real answer be exempt, and if so, how would the compiler recognise one (a name such as
+     `size`/`count`/`length`, a function returning a number that never returns `null`-like absence elsewhere, a
+     mark written on the function)?

@@ -803,8 +803,9 @@ attribute the proof reads through or shrink a list it reads; so no check is repe
 cannot, and no `const` keyword is needed. To know which function a call reaches, it reads the class of the value
 the call is made on: an attribute's or variable's declared type, the class a constructor makes, the class the
 function that made the value returns (`var address = heap.allocate(8)` is a `Memory.Address`), or the left side
-of a `+` (an address plus an offset is an address); a call on a value whose class it cannot tell may reach every
-function of that name. It runs entirely while compiling and emits nothing. What you can
+of a `+` (an address plus an offset is an address), and `List`, `Dictionary` or `String` for a value of those
+types; a call on a value whose class it cannot tell may reach every function of that name. A `return`'s own
+calls keep every proof, since nothing after the `return` runs. It runs entirely while compiling and emits nothing. What you can
 observe: a proof after a call that may change it must be written again, and a call through a function value
 keeps no proof about attributes or lists ([failure.md](failure.md#a-call-may-undo-a-proof)).
 

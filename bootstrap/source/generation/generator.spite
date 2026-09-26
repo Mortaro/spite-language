@@ -13125,6 +13125,25 @@ func owner_name(spite_type: Analysis.SpiteType?): String {
     if owner_class {
         return owner_class.simple_name
     }
+    return collection_name(spite_type)
+}
+
+func collection_name(spite_type: Analysis.SpiteType?): String {
+    assert spite_type
+    var plain = spite_type
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        plain = nullable.get_inner()
+    }
+    if type_shape.as_list(plain) {
+        return "List"
+    }
+    if type_shape.as_dictionary(plain) {
+        return "Dictionary"
+    }
+    if type_shape.as_string(plain) {
+        return "String"
+    }
     return "*"
 }
 
@@ -15125,6 +15144,10 @@ func generate_statement_list(
         }
     }
     join_overlapped_reads(overlapped_reads, scope)
+    if ended_in_return {
+        pending_calls = List<Syntax.Expressions.Expression>()
+        pending_call_lines = List<Integer>()
+    }
     undo_proofs_after_calls(scope, class_information)
     return ended_in_return
 }
@@ -16654,11 +16677,13 @@ func report_default_guard(if_statement: Syntax.Statements.IfStatement, function_
         )
         return
     }
-    var what = "returns"
-    if not returned.is_empty() {
-        what = "returns the default '{returned}'"
+    if returned.is_empty() {
+        report("this 'if' only returns: write 'assert {proven}' and let the rest run unindented")
+        return
     }
-    report("this 'if' only {what}: write 'assert {proven}' and let the rest run unindented")
+    report(
+        "this 'if' only returns the default '{returned}', which is how a guard is written: write 'assert {proven}' and let the rest run unindented; when '{returned}' is a real answer here, not a guard, set a local to it in an 'if'/'else' and return the local once",
+    )
 }
 
 func generate_if_statement(

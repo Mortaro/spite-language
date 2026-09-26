@@ -1,0 +1,20 @@
+var console = Console()
+var document: Document? = null
+var kind = 3
+
+func ReturningBranchProof() {
+    document = Document()
+    var plain = describe()
+    console.print(plain)
+    kind = 4
+    var array = describe()
+    console.print(array)
+}
+
+func describe(): String {
+    assert document
+    if kind == 4 {
+        return document.array_text()
+    }
+    return document.to_string()
+}

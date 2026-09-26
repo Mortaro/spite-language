@@ -1,0 +1,21 @@
+var console = Console()
+var target: Target? = null
+var kind = 3
+
+func BranchUndoesProof() {
+    target = Target()
+    var text = describe()
+    console.print(text)
+}
+
+func describe(): String {
+    assert target
+    if kind == 4 {
+        forget_target()
+    }
+    return target.name
+}
+
+func forget_target() {
+    target = null
+}

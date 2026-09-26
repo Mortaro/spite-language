@@ -1,0 +1,1 @@
+diagnostics/branch_undoes_proof/branch_undoes_proof.spite:16: error: this value may be null (it is a Target?), so 'name' cannot be read from it yet: narrow it first with 'if value { }', 'assert value' or 'crash value' (in BranchUndoesProof.describe)

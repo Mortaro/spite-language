@@ -1,0 +1,27 @@
+var console = Console()
+var items = List<String>()
+
+func CountUndoesProof() {
+    items.append("apple")
+    counting()
+    trusting()
+}
+
+func counting() {
+    crash items[0]
+    var total = count()
+    var first = items[0]
+    console.print(first, total)
+}
+
+func trusting() {
+    crash items[0]
+    var total = items.count()
+    var first = items[0]
+    console.print(first, total)
+}
+
+func count(): Integer {
+    items = List<String>()
+    return 1
+}

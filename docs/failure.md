@@ -430,7 +430,7 @@ func is_open(): Boolean {
 }
 ```
 ```diagnostic
-this 'if' only returns the default 'false': write 'assert handle != -1' and let the rest run unindented
+this 'if' only returns the default 'false', which is how a guard is written: write 'assert handle != -1' and let the rest run unindented
 ```
 
 The fix reads top to bottom:
@@ -455,6 +455,32 @@ false
 
 The message turns the condition around for you -- `if count < 0 or count > limit` becomes
 `assert count >= 0 and count <= limit` ([how](#null-safety-and-assert-narrowing--implemented)).
+
+Sometimes the default is the real answer and not a guard: an empty text is zero bytes long. The rule still holds,
+so give that answer through a local set in an `if`/`else` and return it once:
+
+```gdscript title=default_answer/default_answer.spite entry
+var console = Console()
+var text = ""
+
+func DefaultAnswer() {
+    var bytes = size()
+    console.print(bytes)
+}
+
+func size(): Integer {
+    var bytes = 0
+    if text.is_empty() {
+        bytes = 0
+    } else {
+        bytes = text.length() + 1
+    }
+    return bytes
+}
+```
+```output
+0
+```
 
 ### The last `if` of a function
 
@@ -671,8 +697,8 @@ a lint error.
 
 ```gdscript
 func is_open(): Boolean {
-    if handle == -1 {        # error: this 'if' only returns the default 'false':
-        return false         #        write 'assert handle != -1' and let the rest run unindented
+    if handle == -1 {        # error: this 'if' only returns the default 'false', which is how a guard is
+        return false         #        written: write 'assert handle != -1' and let the rest run unindented
     }
     return true
 }
@@ -680,7 +706,9 @@ func is_open(): Boolean {
 
 It is the same rule as narrowing, so `if not value { return null }` becomes `assert value` and narrows `value`
 for the rest of the block. Returning anything else -- `return true` from a `Boolean` function, `return -1` -- is an
-answer, not a guard, and is left alone. How the condition is turned around (proposed by Claude, unconfirmed):
+answer, not a guard, and is left alone. A default that is a real answer (an empty text is zero bytes) is still
+caught, and the message names the way to give it: a local set in an `if`/`else` and returned once. How the
+condition is turned around (proposed by Claude, unconfirmed):
 `==` and `!=` swap, `<` becomes `>=` and `>` becomes `<=` (and back), `not x` becomes `x`, anything else becomes
 `not x`, and `and`/`or` are turned around by De Morgan, side by side -- `if count < 0 or count > limit` becomes
 `assert count >= 0 and count <= limit`. An `else if` is covered too. In a constructor, where `assert` is not
@@ -770,8 +798,11 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   `remove_first`, `remove_last`, `remove`); a proof that reads through one of them is undone, and reading it again
   unproven is the usual error. How it is followed (proposed by Claude, unconfirmed): an attribute is known by its
   class and name, so assigning `Scope.owned` does not undo a proof about `Monster.owned`; a receiver's class is
-  read from declared types (a parameter's type, a `var` built by a constructor or annotated), and a call whose
-  receiver's class cannot be told is followed into every function of that name; a list passed to a function that
+  read from declared types (a parameter's type, a `var` built by a constructor or annotated), a `List`,
+  `Dictionary` or `String` receiver included, so `items.count()` reaches only `List.count` and never a program's
+  own `count`; a call whose receiver's class cannot be told (a shape) is followed into every function of that
+  name; the calls a `return` makes undo nothing, since nothing after it runs on that path (a call in a branch
+  before its `return` still undoes proofs after the branch); a list passed to a function that
   shrinks its parameter undoes proofs about the list passed; calling a function value may do anything, so it
   undoes every proof that reads an attribute or a list; operator functions and getters are not followed; a
   constructor's own assignments are to the new object and change nothing proven. A local that aliases an

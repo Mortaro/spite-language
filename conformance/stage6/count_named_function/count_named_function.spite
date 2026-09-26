@@ -1,0 +1,14 @@
+var console = Console()
+
+func CountNamedFunction() {
+    load "count_package"
+    var crate = Shop.Crate()
+    crate.items.append("apple")
+    crate.items.append("pear")
+    var index = 0
+    while index < crate.items.count() {
+        var item = crate.items[index]
+        console.print("{index}: {item}")
+        index = index + 1
+    }
+}

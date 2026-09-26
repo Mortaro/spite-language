@@ -1,0 +1,1 @@
+diagnostics/count_undoes_proof/count_undoes_proof.spite:14: error: this value may be null (it is a String?), but a Printable is needed: narrow it first with 'if value { }', 'assert value' or 'crash value' (in CountUndoesProof.counting)
