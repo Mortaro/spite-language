@@ -301,28 +301,9 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## `JsonWriter`/`JsonReader` and `BinaryWriter`/`BinaryReader` (D208)
 
-201. **A schema hash for binary files and handshakes (D31).** The bytes carry no header, so values can share one
-     buffer; a file or a connection that wants to refuse bytes from a different build of its classes would write a
-     hash of the attribute walk once, ahead of them. Proposed (Claude, unconfirmed; `docs/json.md`, "The binary
-     format"): `BinaryWriter<T>.schema(): Long`, computed while compiling from each attribute's name and type,
-     recursively, and each enum's values in order. Not built: nothing in the language computes a constant from a
-     type walk at compile time yet. Want it, and should the reader check it itself (`BinaryReader<T>` given the
-     hash) or leave the comparison to the program?
 202. **The names.** Built (Claude, unconfirmed): `append_to(bytes)` for writing onto a buffer the program has,
      `read_memory(address, count)` for reading a socket's buffer without a copy, `position` and `remaining()` on the
      reader, and no `read_or_crash()` for bytes (JSON keeps it). Keep them?
-
-## Put back from D211 (building it would measure slower)
-
-203. **Reads overlapping the statements after them (item 149).** D211 settled it as "a read overlaps the
-     statements after it until its name is used, where the compiler proves they do not touch the file", but it
-     measured slower, so under D205 it is not built. The overlap needs the read on a helper thread (a
-     `Concurrent`), and starting one costs more than a small read saves. Measured with a 4 KB file, `clang -O2`,
-     Windows, best of seven, reading it and then doing work that never touches it: with about 20 microseconds of
-     work between the read and its use, 2 000 rounds took 186 ms read in place and 393 ms overlapped; with about
-     450 microseconds of work, 300 rounds took 136 ms against 137 ms. The overlap only wins when the read itself
-     waits long (a cold or remote file), which the compiler cannot know. Keep reads where they are (only reads in a
-     row overlap, as built), or overlap them anyway where the file is large or remote by some rule you choose?
 
 ## Which list is the default (Mortaro, relayed by SlopEngine)
 
@@ -373,8 +354,3 @@ Behaviour that does not match the manual. The language was not changed; each is 
      twins such as `position.add(moved)`, which cost nothing but double the names. Which, if any? And the parts:
      `x_value`...`w_value` because a name is never one letter -- keep them, or allow `x`, `y`, `z`, `w` on these
      classes as the field's own names (as D213 allows `Vector2`)?
-206. **Reading a number's bits allocates.** `Double.bits()`, and now `Float.bits()` and
-     `UnsignedInteger.bits_as_float()` under the half-precision conversion, write the value into a heap block and
-     read it back, because only a `Memory.Address` may read bytes (D178); a half conversion allocates up to four
-     times. A `bits()` and `bits_as_float()` the backend writes as one `memcpy` in place, like D178's reads, would
-     cost nothing (proposed by Claude, unconfirmed: a new primitive of the number classes, so it waits for you).
