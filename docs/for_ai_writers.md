@@ -379,7 +379,10 @@ parts `column_0_row_0` to `column_3_row_3`. Each answer is a new object, so one 
 `var moved = velocity.scaled(delta)` then `position = position + moved`. Culling and picking: `AxisAlignedBox(lowest,
 highest)`, `Plane()` with `set_point_normal`, `Frustum()` with `set_from_view_projection(matrix)` then
 `intersects_box`/`intersects_sphere`, and `Ray(origin, direction)` whose `hit_plane`, `hit_box` and `hit_triangle`
-answer a `Float?` distance, `null` for a miss.
+answer a `Float?` distance, `null` for a miss. Colours: `Color(red, green, blue, alpha)` from 0 to 1, read from
+text with `var color_text = ColorText()` then `color_text.read_color("#ff6347")` (also `rgb()`, `rgba()`, `hsl()`,
+`hsla()` and CSS names; a `Color?`), written with `to_hex()`, `to_rgb_text()`, `to_hsl_text()`, converted with
+`to_linear()` and `to_standard_rgb()`.
 Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
 same name reopens it: `list.spite` adds a member template, `integer.spite` a function on every `Integer`.
 

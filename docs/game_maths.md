@@ -1,8 +1,8 @@
 # Game maths
 
 The standard library has the maths a game engine is built on: `Vector2`, `Vector3` and `Vector4`, `Matrix3` and
-`Matrix4`, and `Quaternion`, with the boxes, planes, frustums and rays that culling and picking need
-([D213](decisions.md)). They are plain classes in `library/` holding `Float`s and
+`Matrix4`, and `Quaternion`, with the boxes, planes, frustums and rays that culling and picking need,
+and `Color` with the web's colour formats ([D213](decisions.md)). They are plain classes in `library/` holding `Float`s and
 nothing else, so a list of them fits a [`Vector<T>`](collections.md) column and a binary writer, and a program that
 uses none of them carries none of their code ([D177](decisions.md)). They are built on the number classes' own
 maths -- `square_root()`, `sine()`, `arc_cosine()` ([values_and_types.md](values_and_types.md#maths-functions)) --
@@ -157,6 +157,44 @@ hit 4 away, at (0, 0, 1)
 nothing behind
 ```
 
+## Colours
+
+`Color(red, green, blue, alpha)` holds four `Float`s from 0 to 1. `ColorText()` reads the colours the web writes --
+`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`, `hsl()` and `hsla()` with commas or spaces and an
+alpha after a `/`, and the 148 CSS colour names -- and answers `null` for text that is none of them
+([D199](decisions.md)). A colour writes itself back as `to_hex()`, `to_rgb_text()` and `to_hsl_text()`, and
+`to_linear()` and `to_standard_rgb()` convert between the sRGB a picker or a texture holds and the linear light a
+shader adds up.
+
+```gdscript title=game_colors_basics/game_colors_basics.spite entry
+var console = Console()
+var color_text = ColorText()
+
+func GameColorsBasics() {
+    var tomato = color_text.read_color("tomato")
+    crash tomato
+    console.print("{tomato} {tomato.to_rgb_text()} {tomato.to_hsl_text()}")
+    var faded = color_text.read_color("hsl(210, 50%, 40%, 0.25)")
+    crash faded
+    console.print("{faded} {faded.to_rgb_text()}")
+    var wrong = color_text.read_color("#12")
+    if wrong {
+        console.print("read")
+    } else {
+        console.print("not a colour")
+    }
+    var linear = tomato.to_linear()
+    var back = linear.to_standard_rgb()
+    console.print("{linear} back to {back}")
+}
+```
+```output
+#ff6347 rgb(255, 99, 71) hsl(9.1, 100%, 63.9%)
+#33669940 rgba(51, 102, 153, 0.25)
+not a colour
+#ff2010 back to #ff6347
+```
+
 ## What they cost
 
 Every function that answers a vector, a matrix or a quaternion makes a new one, and **a new one is an allocation**:
@@ -233,8 +271,20 @@ the layout and the conventions.
   (`null` when parallel or behind), `hit_box(box): Float?` (the distance where the ray enters, or leaves when it
   starts inside; `null` when it misses or the box is behind), `hit_triangle(first, second, third): Float?` (either
   side, Moller and Trumbore's test; `null` when it misses, is parallel or is behind), `to_string()`.
+- **`Color`** (`red`, `green`, `blue`, `alpha`, each 0 to 1 and not clamped when set; made with all four):
+  `equals` (exact), `linear_interpolate(target, amount)`, `to_linear()` and `to_standard_rgb()` (the sRGB curve on
+  red, green and blue, alpha untouched), `to_hex()` (`#rrggbb`, with `aa` when alpha is below 255/255),
+  `to_rgb_text()` (`rgb(255, 99, 71)`, or `rgba(...)` with alpha to three places), `to_hsl_text()` (hue, saturation
+  and lightness to one place), and `to_string()`, which is `to_hex()`. Writing clamps each channel to 0..1 and rounds
+  it to a byte.
+- **`ColorText`** (`read_color(text): Color?`; text is trimmed and read without regard to case): `#` and 3, 4, 6 or 8
+  hex digits, `#rgb` doubling each digit; `rgb(`/`rgba(` with three or four numbers, separated by commas, spaces or
+  a `/` before alpha, each channel 0 to 255 or a percentage and clamped, alpha 0 to 1 or a percentage;
+  `hsl(`/`hsla(` with a hue in degrees (a `deg` suffix allowed, any number of turns), saturation and lightness as
+  percentages; the CSS named colours and `transparent` (`named_hex(name)` answers one's `#rrggbb`, or `""`).
+  Anything else -- a wrong count of digits or numbers, a letter where a number goes, a missing `)` -- is `null`.
 - **Cost.** Each function answering a vector, matrix or quaternion allocates it; the `set_` functions write in
   place and allocate nothing (`benchmarks/game_maths`). Removing the allocations is open
   (`mortaros_missing_decisions.md`).
-- `conformance/stage6/game_vectors`, `game_matrices` and `game_geometry` pin every function, rounding what goes through a sine to
+- `conformance/stage6/game_vectors`, `game_matrices`, `game_geometry` and `game_colors` pin every function, rounding what goes through a sine to
   four places so the C library's last bit does not show.

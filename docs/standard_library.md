@@ -36,7 +36,7 @@ REPL can look at any of it ([D143](decisions.md)).
 | `Instant`, `Duration`, `Date`, `Time`, `DateTime`, `Period`, `TimeZone`, `TimeZones`, `TimeText` | exact time, the calendar, time zones as presentation, ISO 8601 text | [time.md](time.md) |
 | `Environment`, `Build`, `Arguments` | settings and the command line | [programs.md](programs.md) |
 | `Json<T>` | any value to JSON text and back | [json.md](json.md) |
-| `Vector2`, `Vector3`, `Vector4`, `Matrix3`, `Matrix4`, `Quaternion`, `AxisAlignedBox`, `Plane`, `Frustum`, `Ray` | game maths: points, directions, transforms, rotations, culling and picking | [game_maths.md](game_maths.md) |
+| `Vector2`, `Vector3`, `Vector4`, `Matrix3`, `Matrix4`, `Quaternion`, `AxisAlignedBox`, `Plane`, `Frustum`, `Ray`, `Color`, `ColorText` | game maths: points, directions, transforms, rotations, culling and picking, colours in the web's formats | [game_maths.md](game_maths.md) |
 | `Concurrent`, `Parallel`, `ThreadPool` | run a function while waiting, or on the thread pool; the handle is the value | [concurrency.md](concurrency.md) |
 | `ThreadLocal<T>`, `Lock`, `ThreadSlot` | a value per thread, and a lock | [concurrency.md](concurrency.md#a-value-per-thread-and-a-lock) |
 | `Socket` | TCP over IPv4: listen, connect, lines and bytes, waiting or not | [below](#socket) |
