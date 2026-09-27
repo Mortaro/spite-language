@@ -1,0 +1,51 @@
+var console = Console()
+var layouts = Column<Layout>()
+var labels = Column<Label>()
+var scores = Scores()
+
+func LentResults() {
+    var first = Layout(1)
+    layouts.insert(4, first)
+    var second = Layout(2)
+    layouts.insert(7, second)
+    var label = Label()
+    labels.insert(4, label)
+    scores.add(10)
+    scores.add(20)
+    move_layouts()
+    name_labels()
+    add_points()
+}
+
+func move_layouts() {
+    var lookup = Lookup<Layout>()
+    var layout = lookup.of(7)
+    assert layout
+    layout.order = 3
+    layout.widen(2.5)
+    var missing = lookup.of(5)
+    var found = false
+    if missing {
+        found = true
+    }
+    var order = lookup.order_of(7)
+    console.print("layout 7 order", order, "width", layouts.values[1].width, "entity 5 found", found)
+}
+
+func name_labels() {
+    var lookup = Lookup<Label>()
+    var label = lookup.of(4)
+    crash label
+    label.words.append("kept")
+    label.order = 9
+    var words = label.words.join(" ")
+    console.print("label 4", words, labels.values[0].order)
+}
+
+func add_points() {
+    var score = scores.at(1)
+    score.points = score.points + 5
+    scores.at(0).points = 12
+    var first = scores.at(0).points
+    console.print("score 1", scores.values[1].points, "score 0", first)
+}

@@ -246,6 +246,12 @@ func is_alive(): Boolean {
   keep them or resize their columns, and calling `made_position(...)` anywhere else is the error for returning a
   borrowed item. The template's `Symbol` parameter must be a word of its name (`made_argument(argument: ...)`), or
   it has no plural.
+- To hand one stored component to a caller, return it straight from the singleton's storage: `func of(entity:
+  Integer): $component_type?` ending `return column.values[row]` (D230). The caller gets the stored item, so
+  `layout.order = 3` writes the column; never return `.copy()` for this, since writes to a copy are lost. The
+  caller follows every borrow rule (no keeping, passing, second name, reading after a line that may grow or shrink
+  the column), may not return it further, and gives it a name not used before in the block. A function that lends
+  returns only such items or `null`.
 - A runner that treats systems of one row and of several differently asks `if phase.argument_count() == 1 { }`
   inside its walk over `phase: Symbol<$system_type.phase_each>` (or `$system_type.argument_count("update_each")`
   of one function; D219, name provisional). It is decided while compiling, so the branch for the other arity is

@@ -193,6 +193,9 @@ var walk_refused = ""
 var walk_refused_attribute = ""
 var walk_partial: Syntax.Expressions.ObjectLiteralExpression? = null
 var constructed_roots = Dictionary<String>()
+var lent_results = Dictionary<String>()
+var lent_result_singletons = Dictionary<String>()
+var lent_result_labels = Dictionary<String>()
 var parallel_handover = ""
 var parallel_keeps = List<String>()
 var argument_callee = ""
@@ -6884,6 +6887,10 @@ func coerce_for_store(
         var item_type = result.get_type()
         return cast(result.code, item_type, expected_type)
     }
+    if site == "return" and not result.borrowed_from.is_empty() and lends_this_return(expression_ast, class_information) {
+        var lent_type = result.get_type()
+        return cast(result.code, lent_type, expected_type)
+    }
     report_kept_borrow(expression_ast, result, site, scope, class_information)
     var result_type = result.get_type()
     if joins_into(result_type, expected_type) {
@@ -9893,7 +9900,9 @@ func generate_own_function_call(
     if waited {
         return waited
     }
-    return ExpressionResult("{called_c_name}({full_arguments.join(", ")})", function_return_type)
+    var own_called = ExpressionResult("{called_c_name}({full_arguments.join(", ")})", function_return_type)
+    lend_result(own_called, class_information, function)
+    return own_called
 }
 
 func misnamed_plural(information: Analysis.ClassInfo, name: String): String {
@@ -10694,6 +10703,7 @@ func generate_method_call(
         class_information,
     )
     lend_item(called, target_class, member.name, object_ast)
+    lend_result(called, target_class, function)
     return called
 }
 
@@ -17585,6 +17595,222 @@ func lend_item(
     items_sources.set(source, label)
 }
 
+func lend_result(result: ExpressionResult, target_class: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    var source = lent_result_source(target_class, function)
+    assert not source.is_empty()
+    result.owning_override = false
+    result.borrowed_from = source
+    var root_end = source.index_of("().")
+    var root = source.slice(0, root_end + 2)
+    var singleton_c_name = lent_result_singletons.get(source)
+    crash singleton_c_name
+    constructed_roots.set(root, singleton_c_name)
+    var label = lent_result_labels.get(source)
+    crash label
+    items_sources.set(source, label)
+}
+
+func lent_result_source(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    var key = "{information.c_name}.{function.name}"
+    var known = lent_results.get(key)
+    if known {
+        return known
+    }
+    lent_results.set(key, "")
+    var returns = List<Syntax.Expressions.Expression>()
+    var locals = function.parameters.map_name()
+    collect_returned_values(function.body, returns, locals)
+    var index = 0
+    while index < returns.count() {
+        var source = lent_return_source(returns[index], information, locals)
+        if not source.is_empty() {
+            lent_results.set(key, source)
+            return source
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func collect_returned_values(
+    statements: List<Syntax.Statements.Statement>,
+    returns: List<Syntax.Expressions.Expression>,
+    locals: List<String>,
+) {
+    var index = 0
+    while index < statements.count() {
+        collect_statement_returns(statements[index], returns, locals)
+        index = index + 1
+    }
+}
+
+func collect_statement_returns(
+    statement: Syntax.Statements.Statement,
+    returns: List<Syntax.Expressions.Expression>,
+    locals: List<String>,
+) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: locals.append(statement.name)
+        Syntax.Statements.ReturnStatement: {
+            if statement.value {
+                returns.append(statement.value)
+            }
+        }
+        Syntax.Statements.IfStatement: {
+            collect_returned_values(statement.then_branch, returns, locals)
+            collect_returned_values(statement.else_branch, returns, locals)
+        }
+        Syntax.Statements.WhileStatement: collect_returned_values(statement.body, returns, locals)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                collect_returned_values(statement.cases[case_index].body, returns, locals)
+                case_index = case_index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func lent_return_source(
+    value: Syntax.Expressions.Expression,
+    information: Analysis.ClassInfo,
+    locals: List<String>,
+): String {
+    var storage = lent_storage_path(value)
+    assert storage
+    var path = List<String>()
+    assert attribute_path(storage, path)
+    var root = path.first()
+    crash root
+    assert not locals.contains(root)
+    var owner = information
+    var index = 0
+    while index < path.count() - 1 {
+        var field = owner.find_field(path[index])
+        assert field
+        var field_type = field.get_type()
+        var field_class = class_behind(field_type)
+        assert field_class
+        owner = field_class
+        index = index + 1
+    }
+    assert owner.is_singleton
+    var last = path.last()
+    crash last
+    var storage_field = owner.find_field(last)
+    assert storage_field
+    var storage_type = storage_field.get_type()
+    var storage_class = class_behind(storage_type)
+    assert storage_class and holds_items_inline(storage_class) and not copies_items(storage_class)
+    var source = "{singleton_display_name(owner)}().{last}"
+    lent_result_singletons.set(source, owner.c_name)
+    var label = ""
+    if is_items_class(storage_class) {
+        crash storage_class.codegen_types[0]
+        label = type_display_name(storage_class.codegen_types[0])
+    }
+    lent_result_labels.set(source, label)
+    return source
+}
+
+func lent_storage_path(value: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    var indexed = shape.as_index(value)
+    if indexed {
+        return indexed.object
+    }
+    var call = shape.as_call(value)
+    assert call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member and member.name == "get_at"
+    return member.object
+}
+
+func attribute_path(expression: Syntax.Expressions.Expression, path: List<String>): Boolean {
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        path.append(identifier.name)
+        return true
+    }
+    var member = shape.as_member(expression)
+    assert member
+    crash member.object
+    assert attribute_path(member.object, path)
+    path.append(member.name)
+    return true
+}
+
+func singleton_display_name(information: Analysis.ClassInfo): String {
+    var name = information.qualified_dotted
+    if name.is_empty() {
+        name = information.simple_name
+    }
+    if information.codegen_types.is_empty() {
+        return name
+    }
+    var shown = information.codegen_types.map(type_display_name)
+    return "{name}<{shown.join(", ")}>"
+}
+
+func lends_this_return(expression_ast: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Boolean {
+    crash current_class
+    var function = current_class.find_function(current_function)
+    assert function and not function.is_constructor
+    var lent = lent_result_source(class_information, function)
+    assert not lent.is_empty()
+    var locals = function.parameters.map_name()
+    var ignored = List<Syntax.Expressions.Expression>()
+    collect_returned_values(function.body, ignored, locals)
+    return lent_return_source(expression_ast, class_information, locals) == lent
+}
+
+func lent_call_source(
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var call = shape.as_call(value)
+    assert call
+    crash call.callee
+    var own = shape.as_identifier(call.callee)
+    if own {
+        assert not scope.written_type(own.name)
+        var own_function = class_information.find_function(own.name)
+        assert own_function
+        return lent_result_source(class_information, own_function)
+    }
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var receiver_class = lent_receiver_class(member.object, scope, class_information)
+    assert receiver_class
+    var function = receiver_class.find_function(member.name)
+    assert function
+    return lent_result_source(receiver_class, function)
+}
+
+func lent_receiver_class(
+    receiver: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var construction = shape.as_generic_call(receiver)
+    if construction {
+        crash construction.callee
+        assert not construction.names_class
+        var template = try_resolve_static_path(construction.callee, class_information.qualified_dotted)
+        assert template and template.is_generic_template and not template.is_singleton
+        return instantiate_generic(template, construction.type_arguments, class_information.qualified_dotted)
+    }
+    var root = shape.as_identifier(receiver)
+    if root {
+        assert scope.written_type(root.name) or class_information.find_field(root.name)
+    }
+    var receiver_type = receiver_type_of(receiver, scope, class_information)
+    return class_behind(receiver_type)
+}
+
 func note_constructed_root(expression: Syntax.Expressions.Expression) {
     var root = expression
     var member = shape.as_member(root)
@@ -17650,6 +17876,9 @@ func may_lend(value: Syntax.Expressions.Expression, scope: Scope, class_informat
     }
     var call = shape.as_call(value)
     assert call
+    if not lent_call_source(value, scope, class_information).is_empty() {
+        return true
+    }
     crash call.callee
     var member = shape.as_member(call.callee)
     assert member
@@ -17681,7 +17910,16 @@ func lends_to_local(
 ): Boolean {
     crash declaration.value
     assert not declaration.type_reference and may_lend(declaration.value, scope, class_information)
-    assert not scope.entry_names.contains(declaration.name)
+    if scope.entry_names.contains(declaration.name) {
+        var saved_counter = temporary_counter
+        var probe = generate_expression(declaration.value, scope, class_information)
+        rewind_temporaries(saved_counter)
+        report(
+            "{items_choice(probe.borrowed_from)}'{declaration.name}' already names a value earlier in this block, and an item borrowed from '{probe.borrowed_from}' is given a name of its own: call it something new, such as 'var {declaration.name}_item = ...'",
+        )
+        scope.mark_used(declaration.name)
+        return true
+    }
     var lent = generate_expression(declaration.value, scope, class_information)
     var item_type = lent.get_type()
     builder.add_user("{c_type_name(item_type)} {c_value_name(declaration.name)} = {lent.code};")
@@ -18562,7 +18800,8 @@ func walked_generic_call(
         var type_argument = generic_call.type_arguments.get_at(index)
         var walked_type = walked_type_argument(type_argument, walk.symbol_parameter)
         if walked_type {
-            var attribute_class: Syntax.Types.GenericArgument = Syntax.Types.TypeArgument(attribute.type_reference)
+            var walked_reference = qualified_type_reference(bound_field_type, attribute.type_reference)
+            var attribute_class: Syntax.Types.GenericArgument = Syntax.Types.TypeArgument(walked_reference)
             type_arguments.append(attribute_class)
         } else {
             type_arguments.append(type_argument)
@@ -18577,6 +18816,19 @@ func walked_generic_call(
         arguments,
     )
     return made
+}
+
+func qualified_type_reference(spite_type: Analysis.SpiteType?, written: Syntax.Types.Type): Syntax.Types.Type {
+    var walked_class = class_behind(spite_type)
+    if walked_class {
+        if walked_class.codegen_types.is_empty() and not walked_class.qualified_dotted.is_empty() {
+            var no_arguments = List<Syntax.Types.GenericArgument>()
+            var path = walked_class.qualified_dotted.split(".")
+            var qualified: Syntax.Types.Type = Syntax.Types.NamedType(path, no_arguments)
+            return qualified
+        }
+    }
+    return written
 }
 
 func walked_type_argument(type_argument: Syntax.Types.GenericArgument, symbol_parameter: String): Boolean {
@@ -18763,7 +19015,7 @@ func report_kept_borrow(
     var reason = items_choice(source)
     if site == "return" {
         report(
-            "{reason}'{text}' is borrowed from '{source}' and cannot be returned: return {copied}{lent_result_hint()}",
+            "{reason}'{text}' is borrowed from '{source}' and cannot be returned: return {copied}{lent_result_hint()}{handed_on_hint(source)}",
         )
         return
     }
@@ -18796,6 +19048,33 @@ func report_kept_borrow(
         return
     }
     report("{reason}'{text}' is borrowed from '{source}' and cannot be kept past the line that reads it: keep {copied}")
+}
+
+func handed_on_hint(source: String): String {
+    assert lent_result_singletons.has(source)
+    return " -- a function lends its caller an item only by reading it from a singleton's Items or Vector itself, never one that was lent to it (D230)"
+}
+
+func reread_hint(source: String): String {
+    if lent_result_singletons.has(source) {
+        return "ask for the item again"
+    }
+    return "read '{source}[index]' again"
+}
+
+func report_unlent_return(
+    value: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    assert not shape.is_null_literal(value) and not function_information.is_constructor
+    var lent = lent_result_source(class_information, function_information)
+    assert not lent.is_empty()
+    assert not lends_this_return(value, class_information)
+    var written = Syntax.SourcePrinter().source_expression(value)
+    report(
+        "'{function_information.name}' lends its caller an item of '{lent}', which the caller writes in place and never lets go, so each of its returns is an item of '{lent}' or null: '{written}' is neither -- return null for 'none', with a '?' result, or make it a function of its own",
+    )
 }
 
 func lent_result_hint(): String {
@@ -18948,7 +19227,7 @@ func borrow_outlives_resize(
             if mentioned.contains(name) {
                 current_line = statement_line(statement)
                 report(
-                    "{items_choice(source)}'{name}' is borrowed from '{source}', and {resize} may move the items of '{source}', so '{name}' is not read after it: read '{source}[index]' again after that line, or keep '{name}.copy()', an independent object",
+                    "{items_choice(source)}'{name}' is borrowed from '{source}', and {resize} may move the items of '{source}', so '{name}' is not read after it: {reread_hint(source)} after that line, or keep '{name}.copy()', an independent object",
                 )
                 return true
             }
@@ -25644,6 +25923,7 @@ func generate_return_statement(
         return
     }
     if return_statement.value {
+        report_unlent_return(return_statement.value, class_information, function_information)
         assert not returns_object_in_frame(return_statement.value, return_type, scope, class_information)
         var value_code = coerce_for_store(return_statement.value, return_type, scope, class_information)
         var temporary = next_temporary()

@@ -1,0 +1,10 @@
+var order = 0
+var width = 0.0
+
+func Layout(new_order: Integer) {
+    order = new_order
+}
+
+func widen(by: Float) {
+    width = width + by
+}
