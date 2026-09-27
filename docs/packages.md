@@ -271,7 +271,10 @@ func Engine() {
 ```
 
 This works in every file of the program's folder and of a loaded package, so a package can pick its own plugins.
-Each path is relative to the folder of the file it is written in. A condition the compiler cannot decide, such as
+Each path is relative to the folder of the file it is written in, unless it is absolute: `load
+"D:/Projects/slop_engine/slop"` or `load "/home/mortaro/slop_engine/slop"` loads a package that lives in another
+repository (D227). The program then builds only on a machine that has that folder, which the path in its source
+already says. A condition the compiler cannot decide, such as
 one that reads `Arguments()`, is an error rather than a folder that is quietly left out.
 
 Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
@@ -367,7 +370,10 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   (D180, [Types](values_and_types.md#types)). Load order stays the rule even where a package would rather be
   configured by the program it is loaded into: such a package calls a function the program declares (a
   `build.base_folder()` in the program's `build.spite`), which is an error when missing unless the package
-  supplies a default behind `has_function` (D155). The standard library (`library/`) is discovered
+  supplies a default behind `has_function` (D155). **`Build` is the one exception** (D227): a field the program's
+  own `build.spite` declares is not replaced by a loaded package's declaration of it, so the program decides its
+  build and a package's field is only a default ([programs.md](programs.md#build-settings-build--implemented),
+  `conformance/stage6/build_precedence`). The standard library (`library/`) is discovered
   before the program, so a program's own file reopens `Console`, `String`, `File` and the rest the same way.
   `Environment` is made to be reopened: a program's own `environment.spite` adds its settings to it (D76, [Program settings: `Environment`](programs.md#program-settings-environment--implemented)).
   Your foot to shoot. That includes `Spite.Class` (D7, [Functions of `Spite.Class`](reflection.md#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)): reopening it changes what every class object answers, for the whole program.
@@ -406,7 +412,11 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   nothing (D177).
 - `load` takes a literal string, so the compiler always knows every bundle; anything else (a variable, an
   expression) is "a program's 'load' names its folder with text, like 'load "engine"': the compiler reads every
-  loaded folder before it compiles, so the folder cannot be computed". The compiler finds every `load` reachable from the entry file's own constructor at compile time (a `load` inside
+  loaded folder before it compiles, so the folder cannot be computed". The text is a path relative to the folder
+  of the file it is written in, or an absolute one (D227; proposed by Claude, unconfirmed): one starting with `/`,
+  or with a drive letter, `D:/` or `D:\`. An absolute root is never also a namespace of the folder that loads it,
+  and only its own folder's name is held to snake_case (`check.sh` builds a program that loads a folder by its
+  absolute path). The compiler finds every `load` reachable from the entry file's own constructor at compile time (a `load` inside
   already-loaded code counts too), and records each root as a bundle (its name and whether the `load` that introduced it sits
   inside an `if`) in the program model, for dynamic libraries/lazy loading to build on later.
 - **A `load` under an `if` is decided when compiling** (proposed by Claude, unconfirmed, 2026-09-25). The compiler

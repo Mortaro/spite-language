@@ -193,6 +193,32 @@ func UnknownFlagError() {
   beside it on every build, `var run = false` only builds it ([compiler.md](compiler.md#choose-the-outputs)).
   Formatting is not an option: every compile formats first, and `format` is not a field a program may declare.
   `target_operating_system` is the one field only a flag sets ([below](#build-settings-build--implemented)).
+- A loaded package may declare `Build` fields too, and the program decides (D227): a field the program's own
+  `build.spite` declares keeps the program's default even when a package loaded after it declares the same field.
+  An engine's `var plugins_folder = "../../plugins"` is only its default for programs that say nothing. The order
+  is a flag, then the program, then the package:
+
+```gdscript title=build_over_package/engine/build.spite
+var plugins_folder = "../../plugins"
+var engine_name = "slop"
+```
+```gdscript title=build_over_package/build.spite
+var plugins_folder = "plugins"
+```
+```gdscript title=build_over_package/build_over_package.spite entry build=engine_name:theseus
+var build = Build()
+var console = Console()
+
+func BuildOverPackage() {
+    load "engine"
+    console.print("plugins from", build.plugins_folder)
+    console.print("engine", build.engine_name)
+}
+```
+```output
+plugins from plugins
+engine theseus
+```
 
 `Build` costs nothing when the program runs: every field is a constant written into the program, and nothing is
 read or decided at run time.
@@ -402,10 +428,17 @@ with a literal default, and a program adds its own the same way it adds `Environ
 where a decision is named):
 
 - **Every field is a constant.** A `--name=value` before the `--` sets the field of that name; a field nobody
-  sets keeps its declared default -- the program's own `build.spite` if it reopens it, else `library/build.spite`.
+  sets keeps its declared default -- the program's own `build.spite` if it reopens it, else a loaded package's,
+  else `library/build.spite`.
   Either way the value is written into the program: `build.serve` compiles to `true`, a condition on it is decided
   while compiling, the branch not taken is never generated, and nothing is read when the program runs. The field
   still exists on the `Build` singleton with that value, for reflection.
+- **The program decides its own `Build`** (D227): a field the program's own `build.spite` declares keeps the
+  program's default even when a loaded package's `build.spite` declares the same field, although the package is
+  merged later -- the one exception to "a later root replaces" ([packages.md](packages.md#packages-namespaces-and-loading--partial)).
+  The order is a flag, then the program, then the package, and a flag sets a field only a package declares as it
+  sets any other; a field only one side declares is unchanged (`conformance/stage6/build_precedence`). A field
+  that decides a `load` is still read before any package is loaded, so it must be the program's or the library's.
 - **Flags are kebab-case** (D188): `--repl-port=4000` sets the field `repl_port`, and a flag written with `_` is
   an error before anything is read: `'--repl_port' is written '--repl-port': a flag is kebab-case, and it sets
   the Build field 'repl_port'` (`diagnostics/underscore_flag`).

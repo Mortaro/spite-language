@@ -28,9 +28,11 @@ bash check.sh                           the compiler still compiles itself, and 
 A program lives in its own folder, and `spite game` runs it: `launcher/launcher.spite` loads `library/`, then the
 target system's folder of it, then `game/`, whose every sub folder is a
 namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
-folder's own class). `load "folder"` inside a function loads another package; a file at the same namespace path
+folder's own class). `load "folder"` inside a function loads another package (the path is relative to the file,
+or absolute: `load "D:/Projects/engine/slop"`); a file at the same namespace path
 reopens the class: same-named functions and attributes replace, the rest are added, and an enum declared again
-gains the values it lists.
+gains the values it lists. `Build` is the exception: a field the program's own `build.spite` declares keeps the
+program's value over a loaded package's (a flag, then the program, then the package).
 
 ## A file is a class
 
