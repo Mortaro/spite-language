@@ -1,0 +1,5 @@
+var name = ""
+
+func Badge(badge_name: String) {
+    name = badge_name
+}

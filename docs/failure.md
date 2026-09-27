@@ -1248,14 +1248,19 @@ this 'assert' would answer a default Integer (0) that a caller cannot tell from 
 ```
 
 The message names the opposite condition, an answer of the type (`-1`, `-1.0`, `false`, `""`, the enum's first
-value, or `...` for an object), the nullable result (left out for a `Boolean`, since a `Boolean?` is never a
+value, or `Mark()` for a class that is made with no arguments and is not a singleton), the nullable result (left out for a `Boolean`, since a `Boolean?` is never a
 condition) and the `crash`. It is checked against the result type of each function as compiled, so in a generic
 class it is checked per instance, and an `assert` whose condition is decided while compiling
 (`assert $slot_type == Entity`) is held to it too: its instance would answer the default every call. `crash` is
 never limited this way. Which of the three a site takes is the writer's decision (D199): a `T?` when the case is
 met in normal use, a value chosen on purpose when one outside the real answers already means "none", a `crash`
 when asking is the caller's bug (proposed by Claude, unconfirmed: the message, the choice of `-1`, and that
-`String` counts as a value). SlopEngine met it three times in a day: `World.create_entity_from_bundle(): Entity`
+`String` counts as a value). Every answer the message offers is code that compiles where it stands: for a class
+made with arguments, a singleton, or a function of a generic class, it offers no answer at all, only the `T?` and
+the `crash` -- `this 'assert' would answer a default Badge (an object with every attribute at its default) that a
+caller cannot tell from a real one: make the result 'Badge?', or 'crash ready' if this is a developer mistake`
+(before, it offered `'if not ready { return ... }'` and described the default as `(every attribute at its
+default)`, and SlopEngine's `Slot.fetch` was found holding `return every attribute at its default`). SlopEngine met it three times in a day: `World.create_entity_from_bundle(): Entity`
 answered a default `Entity` instead of the one just made, `deform_layer(): Integer` answered offset 0 for a mesh
 without skin, `object_world(): Math.Matrix4` answered a default matrix for an object without a parent
 (`diagnostics/default_answer`, `conformance/stage6/leaving_if`). **[implemented]**

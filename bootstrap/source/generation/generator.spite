@@ -23654,12 +23654,16 @@ func report_default_assert(
     var leaving = printer.source_expression(negated)
     var name = type_display_name(return_type)
     var answer = example_answer(return_type)
+    var answer_choice = ""
+    if not answer.is_empty() {
+        answer_choice = " return a value ('if {leaving} \{ return {answer} }'),"
+    }
     var nullable_choice = " make the result '{name}?',"
     if answer == "false" {
         nullable_choice = ""
     }
     report(
-        "this 'assert' would answer a default {name} ({shown_default(return_type)}) that a caller cannot tell from a real one: return a value ('if {leaving} \{ return {answer} }'),{nullable_choice} or 'crash {condition}' if this is a developer mistake",
+        "this 'assert' would answer a default {name} ({shown_default(return_type)}) that a caller cannot tell from a real one:{answer_choice}{nullable_choice} or 'crash {condition}' if this is a developer mistake",
     )
 }
 
@@ -23677,7 +23681,7 @@ func shown_default(return_type: Analysis.SpiteType): String {
         crash first_value
         return "'{first_value}'"
     }
-    return "every attribute at its default"
+    return "an object with every attribute at its default"
 }
 
 func example_answer(return_type: Analysis.SpiteType): String {
@@ -23700,7 +23704,33 @@ func example_answer(return_type: Analysis.SpiteType): String {
         crash first_value
         return "'{first_value}'"
     }
-    return "..."
+    return made_answer(return_type)
+}
+
+func made_answer(return_type: Analysis.SpiteType): String {
+    var made = ""
+    var class_reference = type_shape.as_class_ref(return_type)
+    if not class_reference or current_class_is_generic() {
+        return made
+    }
+    var made_class = find_class_by_c_name(class_reference.c_name)
+    if not made_class or made_class.is_singleton or not made_class.codegen_types.is_empty() {
+        return made
+    }
+    if made_class.constructor {
+        if not made_class.constructor.parameters.is_empty() {
+            return made
+        }
+    }
+    return "{type_display_name(return_type)}()"
+}
+
+func current_class_is_generic(): Boolean {
+    var instanced = false
+    if current_class {
+        instanced = not current_class.codegen_types.is_empty()
+    }
+    return instanced
 }
 
 func report_default_guard(if_statement: Syntax.Statements.IfStatement, function_information: Analysis.FunctionInfo) {
