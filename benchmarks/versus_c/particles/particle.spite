@@ -1,0 +1,26 @@
+var position_x = 0.0
+var position_y = 0.0
+var position_z = 0.0
+var velocity_x = 0.0
+var velocity_y = 0.0
+var velocity_z = 0.0
+
+func Particle(seed: Integer) {
+    position_x = seed % 100
+    position_y = seed % 37 + 1
+    position_z = seed % 53
+    velocity_x = seed % 7 - 3
+    velocity_y = seed % 11
+    velocity_z = seed % 5 - 2
+}
+
+func step() {
+    velocity_y = velocity_y - 9.8 * 0.016
+    position_x = position_x + velocity_x * 0.016
+    position_y = position_y + velocity_y * 0.016
+    position_z = position_z + velocity_z * 0.016
+    if position_y < 0.0 {
+        position_y = -position_y
+        velocity_y = -velocity_y * 0.8
+    }
+}

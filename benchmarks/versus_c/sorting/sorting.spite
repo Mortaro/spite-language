@@ -1,0 +1,60 @@
+var console = Console()
+
+func Sorting() {
+    var numbers = List<Integer>()
+    var seed: Long = 42
+    var index = 0
+    while index < 2000000 {
+        seed = seed * 48271 % 2147483647
+        var number: Integer = seed % 1000000
+        numbers.append(number)
+        index = index + 1
+    }
+    var last = numbers.count() - 1
+    sort(numbers, 0, last)
+    var checksum: Long = 0
+    var ordered = true
+    index = 0
+    while index < numbers.count() {
+        checksum = checksum + numbers[index] * (index % 7)
+        if index > 0 and numbers.get_at(index - 1) > numbers.get_at(index) {
+            ordered = false
+        }
+        index = index + 1
+    }
+    console.print("ordered", ordered, "checksum", checksum)
+}
+
+func sort(numbers: List<Integer>, low: Integer, high: Integer) {
+    var left = low
+    var right = high
+    while left < right {
+        var middle = left + (right - left) / 2
+        var pivot = numbers.get_at(middle)
+        var lower = left
+        var upper = right
+        while lower <= upper {
+            while numbers.get_at(lower) < pivot {
+                lower = lower + 1
+            }
+            while numbers.get_at(upper) > pivot {
+                upper = upper - 1
+            }
+            if lower <= upper {
+                var swapped = numbers.get_at(lower)
+                var moved = numbers.get_at(upper)
+                numbers[lower] = moved
+                numbers[upper] = swapped
+                lower = lower + 1
+                upper = upper - 1
+            }
+        }
+        if upper - left < right - lower {
+            sort(numbers, left, upper)
+            left = lower
+        } else {
+            sort(numbers, lower, right)
+            right = upper
+        }
+    }
+}

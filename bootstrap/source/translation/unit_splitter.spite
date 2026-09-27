@@ -1,0 +1,451 @@
+var header = List<String>()
+var shared_definitions = List<String>()
+var conditional_definitions = List<String>()
+var function_texts = List<String>()
+var function_units = List<Integer>()
+var header_text = ""
+var unit_texts = List<String>()
+var unit_count = 1
+var source = ""
+var source_length = 0
+var condition_depth = 0
+var start = 0
+var depth = 0
+var line_start = true
+var blank = true
+var last_code = 0
+var saw_equals = false
+
+func split(code: String, wanted_units: Integer): Boolean {
+    source = code
+    source_length = code.length()
+    unit_count = wanted_units
+    var index = 0
+    while index < source_length {
+        index = scanned_from(index)
+    }
+    var rest = source.slice(start, source_length)
+    if not rest.trim().is_empty() {
+        header.append(rest)
+    }
+    header_text = header.join("\n")
+    var unit = 0
+    while unit < unit_count {
+        var unit_code = unit_text(unit)
+        unit_texts.append(unit_code)
+        unit = unit + 1
+    }
+    return not function_texts.is_empty()
+}
+
+func scanned_from(index: Integer): Integer {
+    var code = source.code_at(index)
+    if code == 10 {
+        line_start = true
+        return index + 1
+    }
+    if code == 32 or code == 9 or code == 13 {
+        return index + 1
+    }
+    var next = code_after(index)
+    if code == 47 and next == 42 {
+        return after_block_comment(index)
+    }
+    if code == 47 and next == 47 {
+        return line_end(index)
+    }
+    if code == 35 and line_start and blank and depth == 0 {
+        return after_directive(index)
+    }
+    line_start = false
+    blank = false
+    if code == 34 or code == 39 {
+        last_code = code
+        return after_quoted(index)
+    }
+    if code == 123 and depth == 0 and last_code == 41 and not saw_equals {
+        return after_function(index)
+    }
+    return after_code(code, index)
+}
+
+func code_after(index: Integer): Integer {
+    if index + 1 < source_length {
+        return source.code_at(index + 1)
+    }
+    return 0
+}
+
+func after_code(code: Integer, index: Integer): Integer {
+    if code == 123 or code == 40 or code == 91 {
+        depth = depth + 1
+    }
+    if code == 125 or code == 41 or code == 93 {
+        depth = depth - 1
+    }
+    if code == 61 and depth == 0 {
+        saw_equals = true
+    }
+    last_code = code
+    if code == 59 and depth == 0 {
+        var declaration = source.slice(start, index + 1)
+        take_declaration(declaration)
+        start = index + 1
+        blank = true
+        saw_equals = false
+    }
+    return index + 1
+}
+
+func after_directive(index: Integer): Integer {
+    var end = directive_end(index)
+    var directive = source.slice(start, end)
+    header.append(directive)
+    var word = directive_word(index)
+    if word.starts_with("if") or word == "elif" or word == "else" or word == "endif" {
+        var condition = source.slice(index, end)
+        conditional_definitions.append(condition)
+    }
+    if word.starts_with("if") {
+        condition_depth = condition_depth + 1
+    }
+    if word == "endif" {
+        condition_depth = condition_depth - 1
+    }
+    start = end + 1
+    return start
+}
+
+func after_function(index: Integer): Integer {
+    var end = after_block(index)
+    take_function(start, index, end)
+    start = end
+    blank = true
+    last_code = 0
+    return end
+}
+
+func after_block_comment(index: Integer): Integer {
+    var position = index + 2
+    while position + 1 < source_length {
+        if source.code_at(position) == 42 and source.code_at(position + 1) == 47 {
+            return position + 2
+        }
+        position = position + 1
+    }
+    return source_length
+}
+
+func line_end(index: Integer): Integer {
+    var position = index
+    while position < source_length and source.code_at(position) != 10 {
+        position = position + 1
+    }
+    return position
+}
+
+func directive_end(index: Integer): Integer {
+    var position = line_end(index)
+    while position < source_length and continues_line(position) {
+        position = line_end(position + 1)
+    }
+    return position
+}
+
+func continues_line(newline: Integer): Boolean {
+    var before = newline - 1
+    if before > 0 and source.code_at(before) == 13 {
+        before = before - 1
+    }
+    return before >= 0 and source.code_at(before) == 92
+}
+
+func after_quoted(index: Integer): Integer {
+    var quote = source.code_at(index)
+    var position = index + 1
+    while position < source_length and source.code_at(position) != quote {
+        if source.code_at(position) == 92 {
+            position = position + 1
+        }
+        position = position + 1
+    }
+    return position + 1
+}
+
+func after_block(index: Integer): Integer {
+    var braces = 0
+    var position = index
+    while position < source_length {
+        var code = source.code_at(position)
+        var next = code_after(position)
+        if code == 34 or code == 39 {
+            position = after_quoted(position)
+        } else if code == 47 and next == 42 {
+            position = after_block_comment(position)
+        } else if code == 47 and next == 47 {
+            position = line_end(position)
+        } else {
+            braces = braces + brace_change(code)
+            position = position + 1
+            if braces == 0 {
+                return position
+            }
+        }
+    }
+    return source_length
+}
+
+func brace_change(code: Integer): Integer {
+    if code == 123 {
+        return 1
+    }
+    if code == 125 {
+        return -1
+    }
+    return 0
+}
+
+func directive_word(hash_position: Integer): String {
+    var position = hash_position + 1
+    while position < source_length and source.code_at(position) == 32 {
+        position = position + 1
+    }
+    var word_start = position
+    while position < source_length {
+        var code = source.code_at(position)
+        if not is_name_code(code) {
+            return source.slice(word_start, position)
+        }
+        position = position + 1
+    }
+    return source.slice(word_start, position)
+}
+
+func take_function(function_start: Integer, body_start: Integer, end: Integer) {
+    var written_head = source.slice(function_start, body_start)
+    var head = code_only(written_head).trim()
+    if head.starts_with("static inline ") {
+        var inline_function = source.slice(function_start, end)
+        header.append(inline_function)
+        return
+    }
+    var linked_head = without_static(head)
+    header.append("{linked_head};")
+    var body = source.slice(body_start, end)
+    if condition_depth > 0 {
+        conditional_definitions.append("{linked_head} {body}")
+        return
+    }
+    function_texts.append("{linked_head} {body}")
+    var name = function_name(linked_head)
+    var unit = unit_of(name)
+    function_units.append(unit)
+}
+
+func take_declaration(text: String) {
+    var code = code_only(text).trim()
+    var head = before_equals(code)
+    var kind = declaration_kind(code, head)
+    if kind == "type" {
+        header.append(text)
+        return
+    }
+    if kind == "prototype" {
+        var prototype = linked_prototype(code)
+        header.append(prototype)
+        return
+    }
+    var declared = without_static(head)
+    header.append("extern {declared};")
+    var defined = without_static(code)
+    if condition_depth > 0 {
+        conditional_definitions.append(defined)
+    } else {
+        shared_definitions.append(defined)
+    }
+}
+
+func linked_prototype(code: String): String {
+    if code.starts_with("static inline ") {
+        return code
+    }
+    return without_static(code)
+}
+
+func declaration_kind(code: String, head: String): String {
+    var is_type = code.starts_with("typedef ") or code.starts_with("extern ") or code.starts_with("struct ")
+    if is_type or code.starts_with("union ") or code.starts_with("enum ") or head.contains("\{") {
+        return "type"
+    }
+    var trimmed_head = head.trim()
+    var has_value = head.length() < code.length() - 1
+    if trimmed_head.ends_with(")") and not has_value and not points_to_function(trimmed_head) {
+        return "prototype"
+    }
+    return "variable"
+}
+
+func points_to_function(head: String): Boolean {
+    var position = head.index_of("(") + 1
+    var head_length = head.length()
+    while position > 0 and position < head_length and head.code_at(position) == 32 {
+        position = position + 1
+    }
+    return position > 0 and position < head_length and head.code_at(position) == 42
+}
+
+func before_equals(code: String): String {
+    var nesting = 0
+    var position = 0
+    var code_length = code.length()
+    while position < code_length {
+        var character = code.code_at(position)
+        if character == 34 or character == 39 {
+            position = quoted_end(code, position)
+        } else if nesting == 0 and (character == 61 or character == 59) {
+            return code.slice(0, position)
+        } else {
+            nesting = nesting + nesting_change(character)
+            position = position + 1
+        }
+    }
+    return code
+}
+
+func nesting_change(character: Integer): Integer {
+    if character == 40 or character == 91 or character == 123 {
+        return 1
+    }
+    if character == 41 or character == 93 or character == 125 {
+        return -1
+    }
+    return 0
+}
+
+func quoted_end(code: String, quote_start: Integer): Integer {
+    var quote = code.code_at(quote_start)
+    var position = quote_start + 1
+    var code_length = code.length()
+    while position < code_length and code.code_at(position) != quote {
+        if code.code_at(position) == 92 {
+            position = position + 1
+        }
+        position = position + 1
+    }
+    return position + 1
+}
+
+func code_only(text: String): String {
+    if not text.contains("/*") and not text.contains("//") {
+        return text
+    }
+    var pieces = List<String>()
+    var text_length = text.length()
+    var kept_start = 0
+    var position = 0
+    while position < text_length {
+        var character = text.code_at(position)
+        var next = 0
+        if position + 1 < text_length {
+            next = text.code_at(position + 1)
+        }
+        if character == 34 or character == 39 {
+            position = quoted_end(text, position)
+        } else if character == 47 and (next == 42 or next == 47) {
+            var kept = text.slice(kept_start, position)
+            pieces.append(kept)
+            pieces.append(" ")
+            position = comment_end(text, position, next == 42)
+            kept_start = position
+        } else {
+            position = position + 1
+        }
+    }
+    var last_kept = text.slice(kept_start, text_length)
+    pieces.append(last_kept)
+    return pieces.join("")
+}
+
+func comment_end(text: String, comment_start: Integer, is_block: Boolean): Integer {
+    var text_length = text.length()
+    var position = comment_start + 2
+    while position < text_length {
+        var character = text.code_at(position)
+        if is_block and character == 42 and position + 1 < text_length and text.code_at(position + 1) == 47 {
+            return position + 2
+        }
+        if not is_block and character == 10 {
+            return position
+        }
+        position = position + 1
+    }
+    return text_length
+}
+
+func without_static(code: String): String {
+    var code_length = code.length()
+    if code.starts_with("static ") {
+        return code.slice(7, code_length)
+    }
+    var position = code.index_of(" static ")
+    if position < 0 {
+        return code
+    }
+    return "{code.slice(0, position)}{code.slice(position + 7, code_length)}"
+}
+
+func function_name(head: String): String {
+    var end = head.index_of("(")
+    if end < 0 {
+        return head
+    }
+    while end > 0 and head.code_at(end - 1) == 32 {
+        end = end - 1
+    }
+    var name_start = end
+    while name_start > 0 {
+        var code = head.code_at(name_start - 1)
+        if not is_name_code(code) {
+            return head.slice(name_start, end)
+        }
+        name_start = name_start - 1
+    }
+    return head.slice(name_start, end)
+}
+
+func is_name_code(code: Integer): Boolean {
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
+
+func unit_of(name: String): Integer {
+    var hash: UnsignedLong = 1469598103934665603
+    var prime: UnsignedLong = 1099511628211
+    var index = 0
+    var name_length = name.length()
+    while index < name_length {
+        var code: UnsignedLong = name.code_at(index)
+        hash = hash.bits_exclusive_or(code) * prime
+        index = index + 1
+    }
+    var buckets: UnsignedLong = unit_count
+    var unit: Integer = hash % buckets
+    return unit
+}
+
+func unit_text(unit: Integer): String {
+    var parts = List<String>()
+    if unit == 0 {
+        var definitions = shared_definitions.join("\n")
+        parts.append(definitions)
+        var conditional = conditional_definitions.join("\n")
+        parts.append(conditional)
+    }
+    var index = 0
+    while index < function_texts.count() {
+        if function_units[index] == unit {
+            parts.append(function_texts[index])
+        }
+        index = index + 1
+    }
+    return parts.join("\n")
+}

@@ -1,0 +1,21 @@
+var console = Console()
+
+func VectorMaths() {
+    var position = Vector3(0.0, 0.0, 0.0)
+    var velocity = Vector3(1.0, 0.5, 0.25)
+    var axis = Vector3(0.0, 1.0, 0.0)
+    var total = 0.0
+    var step = 0
+    while step < 5000000 {
+        var moved = velocity.scaled(0.001)
+        position = position + moved
+        var turned = velocity.cross(axis)
+        var nudged = velocity + turned.scaled(0.0001)
+        velocity = nudged.normalized()
+        total = total + position.dot(velocity)
+        step = step + 1
+    }
+    var checksum: Long = total
+    var ended: Long = position.length() * 1000.0
+    console.print("checksum", checksum, "ended at", ended)
+}
