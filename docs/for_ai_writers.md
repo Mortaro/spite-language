@@ -246,6 +246,10 @@ func is_alive(): Boolean {
   keep them or resize their columns, and calling `made_position(...)` anywhere else is the error for returning a
   borrowed item. The template's `Symbol` parameter must be a word of its name (`made_argument(argument: ...)`), or
   it has no plural.
+- `null` is only for `T?`: `var target: Monster = null` is an error (D236); write `var target: Monster? = null`
+  for none yet, or `var target = Monster()` for a default. In a generic class write `var system = $system_type()`,
+  in a template `var made = argument.class()`. `= null` stays only on an attribute the constructor assigns and on
+  a local a walk over its attributes fills (`var row: $row_type = null` then `fill_attributes(row, ...)`).
 - To hand one stored component to a caller, return it straight from the singleton's storage: `func of(entity:
   Integer): $component_type?` ending `return column.values[row]` (D230). The caller gets the stored item, so
   `layout.order = 3` writes the column; never return `.copy()` for this, since writes to a copy are lost. The

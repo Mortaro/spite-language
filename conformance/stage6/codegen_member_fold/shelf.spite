@@ -1,6 +1,6 @@
 generic $holder_type
 
-var holder: $holder_type = null
+var holder = $holder_type()
 
 func describe(): String {
     if $holder_type.held_type == String {

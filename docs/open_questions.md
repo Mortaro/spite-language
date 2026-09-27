@@ -39,7 +39,9 @@ these five are what is left, with where each stands today.
 
 ## Open questions
 
-1. `var damage: $damage_type = null`: `null` otherwise only exists for `T?`. PROVISIONAL: the compiler treats
+1. **(Answered by D236: `var x: T = null` on a non-nullable `T` is a compile error naming `T?` and `T()`, and a
+   generic class writes `$name()` for its default; [values_and_types.md](values_and_types.md#variables-and-values--implemented).
+   The history below is kept.)** `var damage: $damage_type = null`: `null` otherwise only exists for `T?`. PROVISIONAL: the compiler treats
    `= null` on a `$generic`-typed variable/field as "the default value of whatever type the generic is bound to" (not
    `T?`). This is implemented but still provisional -- revisit if it reads confusingly once more code exists.
    When the bound type is a `type` whose members are all attributes, its default is a real object -- the object

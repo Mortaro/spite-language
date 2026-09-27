@@ -3783,7 +3783,11 @@ func resolve_field(
         return
     }
     var field_type = infer_declared_type(declaration.type_reference, declaration.value, scope, information)
+    var errors_before = error_lines.count()
     report_function_shape_default(declaration, field_type, information, file_statements)
+    if error_lines.count() == errors_before and not constructor_assigns(information.simple_name, declaration.name, file_statements) {
+        report_null_default(declaration, field_type, "attribute")
+    }
     var default_code = coerce_for_store(declaration.value, field_type, scope, information)
     if declaration.hardcoded_value {
         default_code = coerce_for_store(declaration.hardcoded_value, field_type, scope, information)
@@ -3792,6 +3796,110 @@ func resolve_field(
     var field = Analysis.FieldInfo(declaration.name, field_type, default_code)
     field.line = declaration.line
     information.fields.append(field)
+}
+
+func report_null_default(
+    declaration: Syntax.Statements.VariableDeclaration,
+    declared: Analysis.SpiteType,
+    kind: String,
+) {
+    crash declaration.value
+    assert declaration.type_reference
+    assert shape.is_null_literal(declaration.value) and not type_shape.as_nullable(declared)
+    assert not type_shape.is_void(declared)
+    var written = Syntax.SourcePrinter().source_type(declaration.type_reference)
+    var made = default_spelling(written, declared)
+    var default_text = ""
+    if not made.is_empty() {
+        default_text = ", or 'var {declaration.name} = {made}' for a default"
+    }
+    if kind == "attribute" {
+        default_text = "{default_text}, or keep '= null' and assign it at the top of the constructor"
+    }
+    report(
+        "the {kind} '{declaration.name}' is declared '{written}', not '{written}?', so '= null' would make a default {written} rather than nothing: write 'var {declaration.name}: {written}? = null' for none yet, narrowed before use{default_text}",
+    )
+}
+
+func default_spelling(written: String, declared: Analysis.SpiteType): String {
+    var scalar = type_shape.as_scalar(declared)
+    if scalar {
+        if scalar.kind == 'boolean_kind' {
+            return "false"
+        }
+        if is_float_kind(scalar.kind) {
+            return "0.0"
+        }
+        return "0"
+    }
+    if type_shape.as_string(declared) {
+        return "\"\""
+    }
+    var named = type_shape.as_class_ref(declared)
+    if named or type_shape.as_list(declared) or type_shape.as_dictionary(declared) {
+        if named {
+            assert not named.has_signature
+        }
+        return "{written}()"
+    }
+    return ""
+}
+
+func filled_by_walk(
+    declaration: Syntax.Statements.VariableDeclaration,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var next_index = borrow_index + 1
+    assert borrow_index < borrow_statements.count() and next_index < borrow_statements.count()
+    var here_statement = borrow_statements.get_at(borrow_index)
+    var here = shape.as_variable_declaration(here_statement)
+    assert here
+    assert here.name == declaration.name and here.line == declaration.line
+    return walks_into(borrow_statements, next_index, declaration.name, class_information)
+}
+
+func walks_into(
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    name: String,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = start
+    while index < statements.count() {
+        var statement = statements.get_at(index)
+        if statement_walks_into(statement, name, class_information) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func statement_walks_into(
+    statement: Syntax.Statements.Statement,
+    name: String,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch statement {
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            var call = shape.as_call(statement.value)
+            assert call
+            crash call.callee
+            var callee = shape.as_identifier(call.callee)
+            assert callee
+            assert walk_template(class_information, callee.name)
+            return row_argument_position(call.arguments, name) < call.arguments.count()
+        }
+        Syntax.Statements.IfStatement: {
+            if walks_into(statement.then_branch, 0, name, class_information) {
+                return true
+            }
+            return walks_into(statement.else_branch, 0, name, class_information)
+        }
+        Syntax.Statements.WhileStatement: return walks_into(statement.body, 0, name, class_information)
+        _: return false
+    }
 }
 
 func report_function_shape_default(
@@ -16502,6 +16610,12 @@ func generate_call(
                 return folded_folder
             }
         }
+        if member.name == "class" {
+            var walked_made = generate_walked_default(member, call.arguments, scope, class_information)
+            if walked_made {
+                return walked_made
+            }
+        }
         if member.name == "argument_count" {
             var counted = folded_argument_count(call, class_information)
             if counted {
@@ -16517,6 +16631,13 @@ func generate_call(
     if identifier {
         return generate_own_function_call(identifier.name, call.arguments, scope, class_information)
     }
+    var codegen = shape.as_generic_identifier(call.callee)
+    if codegen {
+        var made = generate_codegen_default(codegen.name, call.arguments, scope, class_information)
+        if made {
+            return made
+        }
+    }
     var held = generate_expression(call.callee, scope, class_information)
     var held_type = held.get_type()
     var held_function = type_shape.as_class_ref(held_type)
@@ -16527,6 +16648,59 @@ func generate_call(
     }
     report("unsupported call form")
     return void_result()
+}
+
+func generate_codegen_default(
+    name: String,
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    var bound = codegen_index(class_information, name)
+    assert bound >= 0
+    crash class_information.codegen_codes[bound]
+    assert class_information.codegen_codes[bound].is_empty()
+    crash class_information.codegen_types[bound]
+    var made_type = class_information.codegen_types[bound]
+    return generate_default_of(made_type, "${name}", arguments, scope, class_information)
+}
+
+func generate_walked_default(
+    member: Syntax.Expressions.MemberExpression,
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    crash member.object
+    assert member.name == "class" and not bound_symbol_name.is_empty()
+    assert is_identifier_named(member.object, bound_symbol_name) and bound_field_type
+    return generate_default_of(bound_field_type, "{bound_symbol_name}.class", arguments, scope, class_information)
+}
+
+func generate_default_of(
+    made_type: Analysis.SpiteType,
+    written: String,
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    var made_class_type = type_shape.as_class_ref(made_type)
+    if made_class_type {
+        var made_class = find_class_by_c_name(made_class_type.c_name)
+        if made_class {
+            return generate_constructor_call(made_class, arguments, scope, class_information)
+        }
+    }
+    if not arguments.is_empty() {
+        report(
+            "'{written}' is {type_with_article(made_type)} here, which is made with no arguments: '{written}()' is its default",
+        )
+        return void_result()
+    }
+    var default_code = default_value_for_type(made_type)
+    var made = ExpressionResult(default_code, made_type)
+    made.owning_override = true
+    return made
 }
 
 func library_function_value(
@@ -17657,6 +17831,13 @@ func generate_variable_declaration(
     if pending_allocator {
         generate_allocated_declaration(declaration, pending_allocator, scope, class_information)
         return
+    }
+    if declaration.type_reference and shape.is_null_literal(declaration.value) {
+        var null_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
+        var nothing_yet = type_shape.as_nullable(null_type) or type_shape.is_void(null_type)
+        if not nothing_yet and not filled_by_walk(declaration, class_information) {
+            report_null_default(declaration, null_type, "variable")
+        }
     }
     var frame_key = placement.frame_key(declaration)
     var frame_placed = frame_candidates.contains("{current_path}:{current_function}:{frame_key}") and not scope.entry_names.contains(declaration.name) and placed_in_frame(declaration, scope, class_information)

@@ -1,0 +1,7 @@
+generic $held_type
+
+var held: $held_type = null
+
+func value(): $held_type {
+    return held
+}

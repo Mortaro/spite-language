@@ -4,7 +4,7 @@ enum Phase {
     'update'
 }
 
-var system: $system_type = null
+var system = $system_type()
 var console = Console()
 
 func start_waiting(): Concurrent<Nothing> {
@@ -25,7 +25,7 @@ func nap_again(phase: Symbol<$system_type.phase_each>) {
 }
 
 func made_argument(argument: Symbol<$system_type.phase_each>): argument.class {
-    var made: argument.class = null
+    var made = argument.class()
     made.length = 60
     console.print("made", argument.name, "before the wait")
     return made

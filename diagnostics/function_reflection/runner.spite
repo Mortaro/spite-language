@@ -1,6 +1,6 @@
 generic $system_type
 
-var system: $system_type = null
+var system = $system_type()
 var wanted = "run_each"
 
 func run() {
@@ -12,6 +12,6 @@ func run() {
 }
 
 func value_argument(argument: Symbol<$system_type.run_each>): argument.class {
-    var value: argument.class = null
+    var value = argument.class()
     return value
 }

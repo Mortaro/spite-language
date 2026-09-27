@@ -455,7 +455,7 @@ enum Phase {
     'update'
 }
 
-var system: $system_type = null
+var system = $system_type()
 var found = Items<Integer>()
 
 func run(index: Integer) {
