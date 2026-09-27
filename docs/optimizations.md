@@ -71,6 +71,8 @@ nothing at run time because they emit nothing.
 | [A local list of known size lives in the frame](#a-local-list-of-known-size-lives-in-the-frame) | built | every but the inspectable ones | fewer allocations |
 | [A loop over plain values reads its count once and its items unchecked](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked) | built | every but `--repl`, `--repl-port` and `--hot-reload` | nothing but speed |
 | [Objects that never leave their function live in the frame](#objects-that-never-leave-their-function-live-in-the-frame) | built | every but the inspectable ones | fewer allocations; `.memory.section` answers `'stack'` |
+| [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | built | `--optimized` (any build given `--translation-units`), but not `--hot-reload` | nothing but build time; `.spite-cache/objects` grows |
+| [A release build is `-O3` with link-time optimisation](#a-release-build-is--o3-with-link-time-optimisation) | built | `--optimized` | nothing but speed, and a slower link |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -1380,6 +1382,27 @@ rest (2 098 allocations before, 86 after). In a program that starts
 threads, passing a frame object to a function still counts it up and down atomically, as it does any object; the
 count is never read. **Built** (2026-09-26, extending D108/D211 placement to objects under [D149](decisions.md);
 proposed by Claude, unconfirmed, decided under D205/D214).
+
+### The C is compiled in parallel units, and cached
+
+(Proposed by Claude, unconfirmed.) In an `--optimized` build, the C of a program bigger than 1.5 MB is split into
+a header and up to 64 translation units, compiled as many at once as the machine has processors and linked, and each unit's object is
+kept under the hash of what it was compiled from, so a build that changed nothing only links and a build that
+changed one function's body compiles one unit ([compiler.md](compiler.md#translation-units-the-c-compiled-in-parallel-and-cached),
+where the rules are). It changes nothing a program does: the same functions and variables, with `static` dropped so
+another unit can call them. What you could notice: in a build without link-time optimisation a call from one unit
+into another is not inlined by the C compiler -- which the default `-O0` build never does anyway, and which
+`--optimized` recovers ([below](#a-release-build-is--o3-with-link-time-optimisation)); and the object cache in
+`.spite-cache/objects` grows until it is deleted. `--translation-units=1` builds from one file as before.
+
+### A release build is `-O3` with link-time optimisation
+
+(Proposed by Claude, unconfirmed.) `--optimized` asks the C compiler for `-O3`, and a build from several units adds
+ThinLTO (`-flto=thin`, clang) or `-flto=auto` (gcc) so functions are still inlined across units. What you could
+notice: the link takes longer, since it is where the optimisation across units happens. The default build is `-O0`,
+Mortaro's choice to keep; `--tune-for-this-machine` adds `-march=native`, which makes the executable specific to
+processors like the one that built it ([compiler.md](compiler.md#release-builds)). The measurements are in
+[benchmarks/README.md](../benchmarks/README.md#release-builds).
 
 ## Planned
 

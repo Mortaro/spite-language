@@ -137,6 +137,22 @@ if [ "$plain" != "$(tr -d '\r' < "$stages/expected_output.txt")" ]; then
   echo "FAILED: run mode without --debug-memory: parallel_stages"; echo "$plain" | head -5; exit 1
 fi
 echo "run mode: the thread pool runs without --debug-memory"
+# The corpus is small enough to be built from one C file each; an executable is built from several translation units
+# compiled in parallel, each object cached by the hash of what it was compiled from (docs/compiler.md). The same
+# program built from four units must run the same, and built again it compiles no unit: only the link runs.
+split="$work/parallel_stages_split.exe"
+units_output=$("$work/generation_two.exe" "$stages" --translation-units=4 --debug-memory --executable-path="$split" < /dev/null 2>&1 | tr -d '\r')
+if [ "$(echo "$units_output" | grep -v '^allocations: ')" != "$(tr -d '\r' < "$stages/expected_output.txt")" ] \
+   || ! echo "$units_output" | grep -qE '^allocations: ([0-9]+) frees: \1$'; then
+  echo "FAILED: parallel_stages built from four translation units"; echo "$units_output" | head -5; exit 1
+fi
+objects_before=$(ls .spite-cache/objects | grep -c '\.o$')
+"$work/generation_two.exe" "$stages" --translation-units=4 --debug-memory --executable --run=false --executable-path="$split" > /dev/null 2>&1 || {
+  echo "FAILED: parallel_stages could not be built again from its cached units"; exit 1; }
+if [ "$(ls .spite-cache/objects | grep -c '\.o$')" != "$objects_before" ]; then
+  echo "FAILED: building parallel_stages again compiled a unit whose object was cached"; exit 1
+fi
+echo "translation units: a program built from four units runs the same, and building it again only links"
 # A class or namespace object is made once, on whichever thread asks first: threaded_class_objects has eight pool
 # threads ask for the same class objects at once, and a race shows up as a leak or a double free, so the build the
 # corpus made is run a few more times.
@@ -231,8 +247,14 @@ echo "maths: a maths function of constants is a literal in the C"
 
 # The benchmarks (benchmarks/README.md) are timed by hand with benchmarks/run.sh; here they only have to compile.
 benchmarked=0
-for folder in benchmarks/*/; do
+for folder in benchmarks/*/ benchmarks/versus_c/*/; do
   name=$(basename "$folder")
+  [ "$name" == "versus_c" ] && continue   # a suite of programs, each checked on its own
+  # a program measured against C (benchmarks/versus_c/run.sh) brings its C twin, which has to compile too
+  if [ -f "$folder/twin.c" ]; then
+    "$CC_BIN" -fsyntax-only -w "$folder/twin.c" 2> "$work/c_errors.txt" || {
+      echo "FAILED: the C twin of benchmark $name does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  fi
   "$work/generation_two.exe" "$folder" --run=false --c-source --c-path="$work/benchmark_$name.c" > "$work/c_errors.txt" 2>&1 || {
     echo "FAILED: benchmark $name does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
   "$CC_BIN" -fsyntax-only -w "$work/benchmark_$name.c" 2> "$work/c_errors.txt" || {

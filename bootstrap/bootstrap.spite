@@ -646,7 +646,6 @@ func built_executable(): Boolean {
     var output_path = executable_path()
     var output_folder = directory_of(output_path)
     create_folder(output_folder)
-    var c_file_path = c_to_compile(output_path)
     var c_compiler = find_c_compiler()
     if c_compiler.is_empty() {
         console.error(
@@ -654,14 +653,17 @@ func built_executable(): Boolean {
         )
         return false
     }
-    var process_arguments = List<String>()
-    if is_on("optimized") {
-        process_arguments.append("-O2")
-    } else {
-        process_arguments.append("-O0")
+    var splitter = Translation.UnitSplitter()
+    if splits_into_units(splitter) {
+        var built = built_from_units(splitter, c_compiler, output_path)
+        if built {
+            write_companions(output_path)
+        }
+        return built
     }
-    process_arguments.append("-Wno-parentheses-equality")
-    process_arguments.append("-I.")
+    var c_file_path = c_to_compile(output_path)
+    var process_arguments = List<String>()
+    append_code_settings(process_arguments, c_compiler, false)
     if is_on("hot_reload") {
         append_shared_runtime(process_arguments, c_compiler)
     }
@@ -678,6 +680,122 @@ func built_executable(): Boolean {
     }
     write_companions(output_path)
     return true
+}
+
+func splits_into_units(splitter: Translation.UnitSplitter): Boolean {
+    assert not is_on("hot_reload") and not generated_code.contains("#include \"")
+    var wanted = wanted_translation_units(generated_code)
+    return wanted > 1 and splitter.split(generated_code, wanted)
+}
+
+func wanted_translation_units(code: String): Integer {
+    var chosen = option("translation_units").to_integer()
+    if chosen > 0 or not is_on("optimized") {
+        return chosen.maximum(1)
+    }
+    var by_size = code.length() / 786432
+    var by_processors = processor_count()
+    var units = 1
+    while units * 2 <= by_size and units * 2 <= by_processors and units < 64 {
+        units = units * 2
+    }
+    return units
+}
+
+func processor_count(): Integer {
+    var named = program.environment("NUMBER_OF_PROCESSORS")
+    if named {
+        var count = named.trim().to_integer()
+        if count > 0 {
+            return count
+        }
+    }
+    var no_arguments = List<String>()
+    var probe = Process("getconf _NPROCESSORS_ONLN", no_arguments)
+    if probe.run() == 0 {
+        var probed = probe.output()
+        var probed_count = probed.trim().to_integer()
+        if probed_count > 0 {
+            return probed_count
+        }
+    }
+    return 4
+}
+
+func built_from_units(splitter: Translation.UnitSplitter, c_compiler: String, output_path: String): Boolean {
+    var cache_folder = "{language_folder}/.spite-cache/objects"
+    create_folder(cache_folder)
+    var build = Translation.UnitBuild(c_compiler, cache_folder)
+    build.running_limit = processor_count()
+    append_code_settings(build.compile_arguments, c_compiler, true)
+    append_link_settings(build.link_arguments, c_compiler)
+    append_maths_library(build.link_arguments, generated_code)
+    return build.built(splitter.header_text, splitter.unit_texts, output_path)
+}
+
+func append_code_settings(process_arguments: List<String>, c_compiler: String, split: Boolean) {
+    if is_on("optimized") {
+        process_arguments.append("-O3")
+        if split {
+            append_link_time_optimization(process_arguments, c_compiler)
+        }
+    } else {
+        process_arguments.append("-O0")
+    }
+    if is_on("tune_for_this_machine") {
+        append_machine_tuning(process_arguments, c_compiler)
+    }
+    process_arguments.append("-Wno-parentheses-equality")
+    process_arguments.append("-I.")
+}
+
+func append_link_settings(process_arguments: List<String>, c_compiler: String) {
+    if is_on("optimized") {
+        process_arguments.append("-O3")
+        append_link_time_optimization(process_arguments, c_compiler)
+    }
+    if is_on("tune_for_this_machine") {
+        append_machine_tuning(process_arguments, c_compiler)
+    }
+}
+
+func append_link_time_optimization(process_arguments: List<String>, c_compiler: String) {
+    var family = compiler_family(c_compiler)
+    if family == "clang" {
+        process_arguments.append("-flto=thin")
+        if option("operating_system") != "mac" {
+            process_arguments.append("-fuse-ld=lld")
+        }
+    }
+    if family == "gcc" {
+        process_arguments.append("-flto=auto")
+    }
+}
+
+func append_machine_tuning(process_arguments: List<String>, c_compiler: String) {
+    var no_arguments = List<String>()
+    var probe = Process("{c_compiler} -dumpmachine", no_arguments)
+    probe.run()
+    var machine = probe.output()
+    if machine.starts_with("aarch64") or machine.starts_with("arm") {
+        process_arguments.append("-mcpu=native")
+    } else {
+        process_arguments.append("-march=native")
+    }
+}
+
+func compiler_family(c_compiler: String): String {
+    var no_arguments = List<String>()
+    var probe = Process("{c_compiler} --version", no_arguments)
+    probe.run()
+    var version = probe.output()
+    if version.contains("clang") {
+        return "clang"
+    }
+    if version.contains("Free Software Foundation") or version.contains("gcc") {
+        return "gcc"
+    }
+    return ""
 }
 
 func c_to_compile(output_path: String): String {
@@ -836,7 +954,7 @@ func build_library(code: String, library_c_path: String, library_path: String): 
     var process_arguments = List<String>()
     process_arguments.append("-shared")
     if is_on("optimized") {
-        process_arguments.append("-O2")
+        process_arguments.append("-O3")
     } else {
         process_arguments.append("-O0")
     }
