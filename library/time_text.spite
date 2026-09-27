@@ -75,7 +75,9 @@ func write_year(year: Integer): String {
 }
 
 func write_fraction(nanoseconds: Integer): String {
-    assert nanoseconds != 0
+    if nanoseconds == 0 {
+        return ""
+    }
     var digits = write_digits(nanoseconds, 9)
     var length = digits.length()
     while digits.code_at(length - 1) == 48 {

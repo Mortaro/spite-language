@@ -34,7 +34,9 @@ func watch_file(path: String): Boolean {
 
 func open_watch(folder: String, root: String, file_name: String): Boolean {
     var handle = kernel.CreateFileA_as_long(folder, 1, 7, 0, 3, 1107296256, 0)
-    assert handle != -1
+    if handle == -1 {
+        return false
+    }
     var overlap = heap.allocate(32)
     var index: Long = 0
     while index < 32 {

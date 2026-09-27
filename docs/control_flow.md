@@ -50,8 +50,13 @@ func letter_for(grade: Integer): String {
 40 C
 ```
 
-An `if` that only returns the function's default is an `assert` spelled the long way, and is an error naming
-it ([failure.md](failure.md#an-if-that-only-returns-the-default-is-an-assert)).
+An `if` that only returns `null` from a function returning a `T?`, or only returns from one returning nothing, is
+an `assert` spelled the long way, and is an error naming it
+([failure.md](failure.md#an-if-that-only-returns-the-default-is-an-assert)). In a function returning a number, a
+`Boolean`, a text or an object, `if handle == -1 { return false }` is the answer written down, since `assert` may
+not answer a default there. An `if` with no `else` that ends by returning proves the opposite of its condition
+for the rest of the block, so `if not found { return -1 }` narrows `found`
+([failure.md](failure.md#an-if-that-leaves-proves-the-rest)).
 
 **An `if`/`else` directly inside a branch of another `if`/`else` is an error** ([D170](decisions.md)).
 Two stacked decisions are two things to hold in your head at once, so the inner one gets a name: move it into a

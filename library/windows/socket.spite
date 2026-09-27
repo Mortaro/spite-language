@@ -98,7 +98,9 @@ func receive_now(buffer: Long, bytes: Integer): Integer {
     if received > 0 {
         return received
     }
-    assert received >= 0 or not would_block()
+    if received < 0 and would_block() {
+        return 0
+    }
     return -1
 }
 
@@ -108,7 +110,9 @@ func send_now(buffer: Long, bytes: Integer): Integer {
     if sent >= 0 {
         return sent
     }
-    assert not would_block()
+    if would_block() {
+        return 0
+    }
     return -1
 }
 

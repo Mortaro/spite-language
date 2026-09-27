@@ -307,7 +307,9 @@ func float_constant(name: String): String {
     if name == "largest" {
         return "0x1.fffffep+127f"
     }
-    assert name == "smallest"
+    if name != "smallest" {
+        return ""
+    }
     return "-0x1.fffffep+127f"
 }
 
@@ -330,7 +332,9 @@ func double_constant(name: String): String {
     if name == "largest" {
         return "0x1.fffffffffffffp+1023"
     }
-    assert name == "smallest"
+    if name != "smallest" {
+        return ""
+    }
     return "-0x1.fffffffffffffp+1023"
 }
 
@@ -359,7 +363,9 @@ func whole_body(c_name: String, name: String, c_type: String): String {
     if name == "maximum" {
         return "#define {c_name}(self, other) (\{ {c_type} spite_value = (self); {c_type} spite_other = (other); spite_value > spite_other ? spite_value : spite_other; })"
     }
-    assert name == "clamp"
+    if name != "clamp" {
+        return ""
+    }
     return "#define {c_name}(self, low, high) (\{ {c_type} spite_value = (self); {c_type} spite_low = (low); {c_type} spite_high = (high); spite_value = spite_value < spite_low ? spite_low : spite_value; spite_value > spite_high ? spite_high : spite_value; })"
 }
 
@@ -385,7 +391,9 @@ func constant_value(name: String, is_float: Boolean): Double {
     if name == "largest" {
         return Double.largest()
     }
-    assert name == "smallest"
+    if name != "smallest" {
+        return 0.0
+    }
     return Double.smallest()
 }
 
@@ -425,7 +433,9 @@ func folded_question(name: String, value: Double): Boolean {
     if name == "is_infinite" {
         return value.is_infinite()
     }
-    assert name == "is_not_a_number"
+    if name != "is_not_a_number" {
+        return false
+    }
     return value.is_not_a_number()
 }
 
@@ -497,7 +507,9 @@ func folded_double(name: String, value: Double, first: Double, second: Double): 
     if name == "maximum" {
         return value.maximum(first)
     }
-    assert name == "clamp"
+    if name != "clamp" {
+        return 0.0
+    }
     return value.clamp(first, second)
 }
 

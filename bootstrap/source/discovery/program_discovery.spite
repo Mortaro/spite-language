@@ -138,7 +138,6 @@ func load_folder(call: Syntax.Expressions.CallExpression, entry_path: String, en
         error_message = "{launcher_path()}: error: the launcher loads folders known when compiling: text, and Build fields given to the compiler, like 'load \"library/\{build.target_operating_system}\"' beside 'var build = Build()'"
         return
     }
-    crash path
     if path == supplied_settings["program"] {
         discover_program(entry_path, entry_source)
         return
@@ -305,13 +304,19 @@ func check_folder_name(folder: String, named_by: String) {
 }
 
 func is_snake_case(name: String): Boolean {
-    assert not name.is_empty()
+    if name.is_empty() {
+        return false
+    }
     var first = name.code_at(0)
-    assert first >= 97 and first <= 122
+    if first < 97 or first > 122 {
+        return false
+    }
     var index = 1
     while index < name.length() {
         var code = name.code_at(index)
-        assert code >= 97 and code <= 122 or code >= 48 and code <= 57 or code == 95
+        if (code < 97 or code > 122) and (code < 48 or code > 57) and code != 95 {
+            return false
+        }
         index = index + 1
     }
     return not name.ends_with("_") and not name.contains("__")
@@ -340,7 +345,9 @@ func snake_case_of(name: String): String {
 
 func holds_spite_files(folder: String): Boolean {
     var directory = Directory(folder)
-    assert directory.exists()
+    if not directory.exists() {
+        return false
+    }
     var files = directory.files()
     if files.any(is_spite_file) {
         return true
@@ -391,7 +398,9 @@ func is_absolute_path(path: String): Boolean {
     if path.starts_with("/") {
         return true
     }
-    assert path.length() >= 3
+    if path.length() < 3 {
+        return false
+    }
     var letter = path.code_at(0)
     var is_letter = letter >= 65 and letter <= 90 or letter >= 97 and letter <= 122
     return is_letter and path.slice(1, 2) == ":" and (path.slice(2, 3) == "/" or path.slice(2, 3) == "\\")
@@ -452,7 +461,9 @@ func check_entry_constructor(path: String, file: Syntax.SourceFile, class_name: 
 }
 
 func order_rank(statement: Syntax.Statements.Statement, class_name: String): Integer {
-    assert not shape.as_singleton_declaration(statement)
+    if shape.as_singleton_declaration(statement) {
+        return 0
+    }
     if shape.as_generic_declaration(statement) {
         return 1
     }
@@ -548,10 +559,8 @@ func comment_problem(text: String, depth: Integer): String {
     if not content {
         return "this comment links to '{markdown_path}', which does not exist (the path is relative to the entry file's folder, like load)"
     }
-    if content {
-        if not markdown_anchors(content).contains(anchor) {
-            return "this comment links to '{markdown_path}#{anchor}', but that file has no heading with that anchor"
-        }
+    if not markdown_anchors(content).contains(anchor) {
+        return "this comment links to '{markdown_path}#{anchor}', but that file has no heading with that anchor"
     }
     return ""
 }
@@ -612,10 +621,14 @@ func is_program_path(path: String): Boolean {
 }
 
 func overrides_platform(variable: Syntax.Statements.VariableDeclaration): Boolean {
-    assert is_platform_setting(variable.name) and is_program_path(variable.source_path)
+    if not is_platform_setting(variable.name) or not is_program_path(variable.source_path) {
+        return false
+    }
     crash variable.value
     var reader = literal_reader(variable.value)
-    assert not reader.is_empty()
+    if reader.is_empty() {
+        return false
+    }
     var declared = literal_text(variable.value)
     return not declared.is_empty() and declared != supplied_settings[variable.name]
 }
@@ -1330,7 +1343,9 @@ func nested_contains_load(statement: Syntax.Statements.Statement): Boolean {
         return contains_load(while_statement.body)
     }
     var switch_statement = shape.as_switch_statement(statement)
-    assert switch_statement
+    if not switch_statement {
+        return false
+    }
     var index = 0
     while index < switch_statement.cases.count() {
         if contains_load(switch_statement.cases[index].body) {
@@ -1540,7 +1555,9 @@ func pascal_join(segments: List<String>): String {
 }
 
 func compute_namespace(segments: List<String>, stem: String): String {
-    assert not segments.is_empty()
+    if segments.is_empty() {
+        return ""
+    }
     var last_segment = segments[segments.count() - 1]
     if last_segment == stem {
         var leading_segments = all_but_last(segments)

@@ -70,7 +70,9 @@ func record_fields(statements: List<Syntax.Statements.Statement>, class_name: St
 func holds_plain_value(declaration: Syntax.Statements.VariableDeclaration): Boolean {
     if declaration.type_reference {
         var named = shape.as_named_type(declaration.type_reference)
-        assert named and not named.path.is_empty()
+        if not named or named.path.is_empty() {
+            return false
+        }
         var plain = [
             "Integer"
             "Long"
@@ -88,7 +90,9 @@ func holds_plain_value(declaration: Syntax.Statements.VariableDeclaration): Bool
             "Symbol"
         ]
         var last = named.path.last()
-        assert last
+        if not last {
+            return false
+        }
         return named.arguments.is_empty() and plain.contains(last)
     }
     crash declaration.value
@@ -109,7 +113,9 @@ func is_fresh_value(value: Syntax.Expressions.Expression): Boolean {
         return true
     }
     var called = shape.as_call(value)
-    assert called
+    if not called {
+        return false
+    }
     crash called.callee
     var callee_name = last_name(called.callee)
     return names_a_class(callee_name)
@@ -136,16 +142,24 @@ func declared_class_name(declaration: Syntax.Statements.VariableDeclaration): St
 
 func type_class_name(type_reference: Syntax.Types.Type): String {
     var named = shape.as_named_type(type_reference)
-    assert named
-    assert not named.path.is_empty()
+    if not named {
+        return ""
+    }
+    if named.path.is_empty() {
+        return ""
+    }
     var last = named.path.last()
     crash last
     if last != "Nullable" {
         return last
     }
-    assert named.arguments.count() == 1
+    if named.arguments.count() != 1 {
+        return ""
+    }
     var wrapped = shape.as_type_argument(named.arguments[0])
-    assert wrapped
+    if not wrapped {
+        return ""
+    }
     crash wrapped.value
     return type_class_name(wrapped.value)
 }
@@ -156,26 +170,38 @@ func declared_element_name(declaration: Syntax.Statements.VariableDeclaration): 
     }
     crash declaration.value
     var constructed = shape.as_generic_call(declaration.value)
-    assert constructed and not constructed.type_arguments.is_empty()
+    if not constructed or constructed.type_arguments.is_empty() {
+        return ""
+    }
     var first = shape.as_type_argument(constructed.type_arguments[0])
-    assert first
+    if not first {
+        return ""
+    }
     crash first.value
     return type_class_name(first.value)
 }
 
 func element_class_name(type_reference: Syntax.Types.Type): String {
     var named = shape.as_named_type(type_reference)
-    assert named
-    assert not named.path.is_empty() and not named.arguments.is_empty()
+    if not named {
+        return ""
+    }
+    if named.path.is_empty() or named.arguments.is_empty() {
+        return ""
+    }
     var last = named.path.last()
     crash last
     var wrapped = shape.as_type_argument(named.arguments[0])
-    assert wrapped
+    if not wrapped {
+        return ""
+    }
     crash wrapped.value
     if last == "Nullable" {
         return element_class_name(wrapped.value)
     }
-    assert last == "List" or last == "Vector" or last == "Items" or last == "Dictionary"
+    if last != "List" and last != "Vector" and last != "Items" and last != "Dictionary" {
+        return ""
+    }
     return type_class_name(wrapped.value)
 }
 
@@ -190,10 +216,14 @@ func value_class_name(value: Syntax.Expressions.Expression): String {
         return "List"
     }
     var called = shape.as_call(value)
-    assert called
+    if not called {
+        return ""
+    }
     crash called.callee
     var callee_name = last_name(called.callee)
-    assert names_a_class(callee_name)
+    if not names_a_class(callee_name) {
+        return ""
+    }
     return callee_name
 }
 
@@ -208,7 +238,9 @@ func last_name(expression: Syntax.Expressions.Expression): String {
         return identifier.name
     }
     var member = shape.as_member(expression)
-    assert member
+    if not member {
+        return ""
+    }
     return member.name
 }
 
@@ -385,7 +417,9 @@ func resolved_key(key: String): String {
         return key
     }
     var hash = key.index_of("#")
-    assert hash >= 0
+    if hash < 0 {
+        return ""
+    }
     var key_length = key.length()
     var name = key.slice(hash + 1, key_length)
     var any_key = "*#{name}"

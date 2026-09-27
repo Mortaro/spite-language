@@ -413,8 +413,12 @@ func lone_operator_lesson(code: Integer, doubled: Boolean): String {
 }
 
 func names_a_type_next(): Boolean {
-    assert current_code() >= 65 and current_code() <= 90
-    assert not tokens.is_empty()
+    if current_code() < 65 or current_code() > 90 {
+        return false
+    }
+    if tokens.is_empty() {
+        return false
+    }
     var before = last_kind()
     return before == 'colon' or before == 'less' or before == 'left_paren' or before == 'comma'
 }

@@ -1528,10 +1528,13 @@ one, change the call site.
 `$flag`, `$slot_type == Entity` or any other test of a codegen type, `has_function`, `function_waits`,
 `fits_vector` or `argument_count` of a codegen type or of a walked symbol's class, `argument.class == $row_type`,
 and `not`, `and` and `or` over them -- it is decided for each instance, with no test at run time: when it holds,
-nothing is written for it; when it does not, the `assert` returns the function's default (recording its trace
-line), and the statements after it in the same block are not compiled for that instance, exactly as after an `if`
-whose taken branch returns. So `assert $slot_type == Entity` followed by `return value.id` compiles for a
-`Slot<Mover>` whose `Mover` has no `id`, and answers 0 there (`conformance/stage6/folded_checks`).
+nothing is written for it; when it does not, the `assert` answers "nothing" (recording its trace line), and the
+statements after it in the same block are not compiled for that instance, exactly as after an `if` whose taken
+branch returns. A folded `assert` is held to D244 like any other: it is allowed only in a function whose result can
+say "nothing" (a `T?`, `Nothing`, or a collection), so `assert $slot_type == Entity` followed by `return value.id`
+is written in a function returning `Integer?`; in one returning `Integer`, the answer for the other instances is
+written down instead, `if $slot_type != Entity { return 0 }`, which folds the same way
+(`conformance/stage6/folded_checks`, [failure.md](failure.md#a-default-that-looks-like-an-answer-is-an-error)).
 
 **A `crash` that folds to false is a compile error where the program can reach it** (decided by Claude under
 D205; the wording proposed by Claude, unconfirmed). **[implemented]** A `crash` whose condition is decided while

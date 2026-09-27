@@ -26,11 +26,17 @@ func record_host(prototype_text: String, bodies: String) {
 }
 
 func function_name(line: String, shaker: TreeShaker): String {
-    assert line.ends_with(");") and line.contains("(") and not line.starts_with("#") and not line.starts_with("typedef")
-    assert not line.starts_with("static")
+    if not line.ends_with(");") or not line.contains("(") or line.starts_with("#") or line.starts_with("typedef") {
+        return ""
+    }
+    if line.starts_with("static") {
+        return ""
+    }
     var name = shaker.declared_name(line)
     var name_length = name.length()
-    assert name_length > 0 and shaker.find_function(name, 0, name_length) >= 0
+    if name_length <= 0 or shaker.find_function(name, 0, name_length) < 0 {
+        return ""
+    }
     return name
 }
 
@@ -87,7 +93,9 @@ func layout_name(text: String): String {
         crash words[1]
         return words[1]
     }
-    assert text.starts_with("typedef enum")
+    if not text.starts_with("typedef enum") {
+        return ""
+    }
     var text_lines = text.split("\n")
     var line_count = text_lines.count()
     var last_line = text_lines.get_at(line_count - 1)
@@ -191,7 +199,9 @@ func layout_problem(typedefs: List<String>): String {
         }
         index = index + 1
     }
-    assert not changed.is_empty()
+    if changed.is_empty() {
+        return ""
+    }
     return "the attributes of {changed.join(", ")} changed, and the running program's instances were made with the old ones: restart the program to change a class's attributes or enums, or undo that part of the change to reload the rest"
 }
 
@@ -213,7 +223,9 @@ func new_prototypes(prototype_text: String, shaker: TreeShaker): Dictionary<Stri
 func is_bound(name: String, prototypes: Dictionary<String>, local_names: Dictionary<String>): Boolean {
     var running = host_prototypes[name]
     var prototype = prototypes[name]
-    assert running and prototype
+    if not running or not prototype {
+        return false
+    }
     return running == prototype and not local_names.has(name) and not name.starts_with("spite_foreign_library_")
 }
 

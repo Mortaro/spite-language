@@ -146,7 +146,9 @@ func escape_of(code: Integer): String {
     if code == 9 {
         return "\\t"
     }
-    assert code < 32
+    if code >= 32 {
+        return ""
+    }
     var digits = "0123456789abcdef"
     var high = digits.character_at(code / 16)
     var low = digits.character_at(code % 16)

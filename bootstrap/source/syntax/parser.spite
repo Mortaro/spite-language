@@ -182,7 +182,9 @@ func parse_top_level_statement(): Syntax.Statements.Statement {
 }
 
 func at_singleton_line(): Boolean {
-    assert check('identifier') and current().lexeme == "singleton"
+    if not check('identifier') or current().lexeme != "singleton" {
+        return false
+    }
     var following = next_kind()
     return following == 'newline' or following == 'end_of_file' or following == 'comment'
 }
@@ -881,7 +883,9 @@ func parse_type_without_suffix(): Syntax.Types.Type {
 }
 
 func parse_dotted_segment(path: List<String>): Boolean {
-    assert check('dot')
+    if not check('dot') {
+        return false
+    }
     advance()
     if check('identifier') {
         var segment_token = advance()

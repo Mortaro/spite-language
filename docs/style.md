@@ -322,7 +322,7 @@ page:
 
 | Written | Is an error naming | Page |
 |---|---|---|
-| `if not ready { return }`, `if handle == -1 { return false }` | `assert ready`, `assert handle != -1` | [failure.md](failure.md#an-if-that-only-returns-the-default-is-an-assert) |
+| `if not ready { return }`, `if names.is_empty() { return null }` | `assert ready`, `assert not names.is_empty()` | [failure.md](failure.md#an-if-that-only-returns-the-default-is-an-assert) |
 | a last `if value { ... }` with no `else` | `assert value` | [failure.md](failure.md#the-last-if-of-a-function) |
 | `var watcher = tracker` then `assert watcher` | `assert tracker` | [failure.md](failure.md#narrowing-a-path) |
 | `assert tracker` on a value that cannot be null | removing it | [failure.md](failure.md#narrowing-a-path) |

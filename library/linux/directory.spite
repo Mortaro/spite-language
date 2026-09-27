@@ -2,7 +2,9 @@ var library = DynamicLibrary("libc.so.6", 'identity', "")
 
 func exists(): Boolean {
     var directory = library.opendir_as_long(path)
-    assert directory != 0
+    if directory == 0 {
+        return false
+    }
     library.closedir(directory)
     return true
 }

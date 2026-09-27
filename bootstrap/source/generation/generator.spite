@@ -279,9 +279,13 @@ func fallback_line(): Integer {
 }
 
 func function_line_in(owner: Analysis.ClassInfo?, function_name: String): Integer {
-    assert owner
+    if not owner {
+        return 0
+    }
     var owned_function = owner.find_function(function_name)
-    assert owned_function
+    if not owned_function {
+        return 0
+    }
     return owned_function.line
 }
 
@@ -428,7 +432,9 @@ func replace_word(text: String, word: String, replacement: String): String {
 }
 
 func is_word_character_at(text: String, index: Integer): Boolean {
-    assert index >= 0 and index < text.length()
+    if index < 0 or index >= text.length() {
+        return false
+    }
     var character = text.slice(index, index + 1)
     return character == "_" or character == "." or character.lower_case() != character.upper_case() or "0123456789".contains(character)
 }
@@ -586,7 +592,9 @@ func generate(
     var string_layout_code = string_layout()
     builder.replace_typedef(string_layout_position, string_layout_code)
     check_number_memory()
-    assert not has_error
+    if has_error {
+        return ""
+    }
     var index = 0
     while index < classes.count() {
         if not classes[index].is_generic_template {
@@ -663,7 +671,9 @@ func generate(
         finish_outside_writes()
     }
     settle_key_sites()
-    assert not key_sites_changed or not another_pass_follows_a_change
+    if key_sites_changed and another_pass_follows_a_change {
+        return ""
+    }
     if not has_error {
         report_unused_attributes()
     }
@@ -742,11 +752,15 @@ func holds_nothing(entry: Discovery.DiscoveredClass): Boolean {
         var statement = file.statements[statement_index]
         var declaration = shape.as_variable_declaration(statement)
         if declaration {
-            assert declaration.hardcoded_value
+            if not declaration.hardcoded_value {
+                return false
+            }
         }
         var function_declaration = shape.as_function_declaration(statement)
         if function_declaration {
-            assert function_declaration.name != "drop"
+            if function_declaration.name == "drop" {
+                return false
+            }
         }
         statement_index = statement_index + 1
     }
@@ -1018,7 +1032,9 @@ func class_fits_vector(described: Analysis.ClassInfo): Boolean {
     if described.is_value_class {
         return true
     }
-    assert not described.is_generic_template
+    if described.is_generic_template {
+        return false
+    }
     var described_type: Analysis.SpiteType = Analysis.Types.ClassRefType(described.c_name)
     var problem = vector_item_problem(described_type)
     return problem.is_empty()
@@ -1216,7 +1232,9 @@ func class_argument_count(
     asking: Analysis.ClassInfo,
     asked: String,
 ): Integer {
-    assert not pattern.is_empty()
+    if pattern.is_empty() {
+        return 0
+    }
     var wanted = List<String>()
     var opening = pattern.index_of("<")
     var closing = pattern.index_of(">")
@@ -1233,7 +1251,6 @@ func class_argument_count(
             report(missing)
             return 0
         }
-        crash hole_values
         var value_index = 0
         while value_index < hole_values.values.count() {
             var value = hole_values.values[value_index]
@@ -1260,7 +1277,9 @@ func class_argument_count(
         }
         index = index + 1
     }
-    assert first >= 0
+    if first < 0 {
+        return 0
+    }
     if not same {
         report(
             "'{asked}.argument_count(\"{pattern}\")' has no one answer: the functions of '{owner.qualified_dotted}' that fit it take different numbers of arguments ({fitting.join(", ")}), so ask 'phase.argument_count()' in a template over them, where each is walked on its own",
@@ -1363,7 +1382,6 @@ func class_function_waits(owner: Analysis.ClassInfo, pattern: String, asking: An
             report(missing)
             return false
         }
-        crash hole_values
         var value_index = 0
         while value_index < hole_values.values.count() {
             var value = hole_values.values[value_index]
@@ -1613,7 +1631,9 @@ func type_test(
     current_class = class_information
     var kind_type = resolve_type(kind_reference, class_information.qualified_dotted)
     current_class = saved_class
-    assert kind_type
+    if not kind_type {
+        return false
+    }
     var kind_union = type_shape.as_union(kind_type)
     if kind_union {
         var union_information = find_union_by_c_name(kind_union.c_name)
@@ -1939,15 +1959,23 @@ func unwritable_json(spite_type: Analysis.SpiteType, path: String, visited: List
         return unwritable_union(spite_type, named, shown, format)
     }
     var class_ref = type_shape.as_class_ref(spite_type)
-    assert class_ref
+    if not class_ref {
+        return ""
+    }
     if class_ref.has_signature or class_ref.c_name == "Spite_Function" {
         return "{named} is a function value, {shown}, which has no {format} form"
     }
-    assert not visited.contains(class_ref.c_name)
+    if visited.contains(class_ref.c_name) {
+        return ""
+    }
     visited.append(class_ref.c_name)
     var information = find_class_by_c_name(class_ref.c_name)
-    assert information
-    assert not information.is_value_class and not information.is_generic_template
+    if not information {
+        return ""
+    }
+    if information.is_value_class or information.is_generic_template {
+        return ""
+    }
     return unwritable_attribute(information, visited, format)
 }
 
@@ -1984,13 +2012,14 @@ func check_vector_item(vector_class: Analysis.ClassInfo) {
 }
 
 func vector_item_problem(item_type: Analysis.SpiteType): String {
-    assert not inline_value_type(item_type)
+    if inline_value_type(item_type) {
+        return ""
+    }
     var label = type_display_name(item_type)
     var item_class = inline_item_class(item_type)
     if not item_class {
         return "a Vector holds each item inline, so an item is a number, a Boolean, an enum, a String or a class made only of those, and {type_with_article(item_type)} is not: keep it in a 'List<{label}>'"
     }
-    crash item_class
     var index = 0
     while index < item_class.fields.count() {
         var field = item_class.fields[index]
@@ -2016,7 +2045,9 @@ func vector_item_problem(item_type: Analysis.SpiteType): String {
 
 func singleton_type(spite_type: Analysis.SpiteType): Boolean {
     var found = class_behind(spite_type)
-    assert found
+    if not found {
+        return false
+    }
     return found.is_singleton
 }
 
@@ -2129,7 +2160,9 @@ func expression_uses_this(expression: Syntax.Expressions.Expression, item_class:
             return expression_uses_this(expression.operand, item_class)
         }
         Syntax.Expressions.MemberExpression: {
-            assert not is_member_of_this(expression)
+            if is_member_of_this(expression) {
+                return false
+            }
             crash expression.object
             return expression_uses_this(expression.object, item_class)
         }
@@ -2148,10 +2181,14 @@ func expression_uses_this(expression: Syntax.Expressions.Expression, item_class:
 
 func is_member_of_this(expression: Syntax.Expressions.Expression): Boolean {
     var member = shape.as_member(expression)
-    assert member
+    if not member {
+        return false
+    }
     crash member.object
     var object = shape.as_identifier(member.object)
-    assert object
+    if not object {
+        return false
+    }
     return object.name == "this" or object.name == "self"
 }
 
@@ -2201,10 +2238,14 @@ func generic_constraint_name(
     information: Analysis.ClassInfo,
     generic_line: Syntax.Statements.GenericDeclaration,
 ): String {
-    assert generic_line.constraint
+    if not generic_line.constraint {
+        return ""
+    }
     var bare_name = without_dollar(generic_line.name)
     var resolved = resolve_type(generic_line.constraint, information.namespace_dotted)
-    assert resolved
+    if not resolved {
+        return ""
+    }
     var union_type = type_shape.as_union(resolved)
     if union_type {
         var constrained = find_union_by_c_name(union_type.c_name)
@@ -2268,7 +2309,9 @@ func check_constraints_of(instance: Analysis.ClassInfo) {
 
 func constraint_problem(constrained: Analysis.UnionInfo, given: Analysis.SpiteType): String {
     var constrained_type = union_type_of(constrained)
-    assert not types_equal(given, constrained_type)
+    if types_equal(given, constrained_type) {
+        return ""
+    }
     if type_shape.as_nullable(given) {
         return "it may be null, and null has none of what the type needs"
     }
@@ -2471,37 +2514,35 @@ func required_function_problem(
     if not function {
         return "it has no function '{wanted.name}'"
     }
-    if function {
-        var wanted_types = required_parameter_types(information, wanted)
-        if function.parameters.count() != wanted_types.count() {
-            return "its '{wanted.name}' takes {function.parameters.count()} argument(s), but the type needs {wanted_types.count()}"
+    var wanted_types = required_parameter_types(information, wanted)
+    if function.parameters.count() != wanted_types.count() {
+        return "its '{wanted.name}' takes {function.parameters.count()} argument(s), but the type needs {wanted_types.count()}"
+    }
+    var index = 0
+    while index < wanted_types.count() {
+        crash function.parameters[index]
+        var parameter_type = function.parameters[index].get_type()
+        if not types_equal(parameter_type, wanted_types[index]) {
+            var names = type_display_names(parameter_type, wanted_types[index])
+            var found_name = names.first()
+            crash found_name
+            var wanted_name = names.last()
+            crash wanted_name
+            return "argument {index + 1} of its '{wanted.name}' is {with_article(found_name)}, but the type needs {with_article(wanted_name)}"
         }
-        var index = 0
-        while index < wanted_types.count() {
-            crash function.parameters[index]
-            var parameter_type = function.parameters[index].get_type()
-            if not types_equal(parameter_type, wanted_types[index]) {
-                var names = type_display_names(parameter_type, wanted_types[index])
-                var found_name = names.first()
-                crash found_name
-                var wanted_name = names.last()
-                crash wanted_name
-                return "argument {index + 1} of its '{wanted.name}' is {with_article(found_name)}, but the type needs {with_article(wanted_name)}"
-            }
-            index = index + 1
-        }
-        var wanted_return = required_return_type(information, wanted)
-        var function_return_type = function.get_return_type()
-        if not types_equal(function_return_type, wanted_return) {
-            var names = type_display_names(function_return_type, wanted_return)
-            var returned_name = names.first()
-            crash returned_name
-            var needed_name = names.last()
-            crash needed_name
-            var returned = returned_display(function_return_type, returned_name)
-            var needed = returned_display(wanted_return, needed_name)
-            return "its '{wanted.name}' returns {returned}, but the type needs {needed}"
-        }
+        index = index + 1
+    }
+    var wanted_return = required_return_type(information, wanted)
+    var function_return_type = function.get_return_type()
+    if not types_equal(function_return_type, wanted_return) {
+        var names = type_display_names(function_return_type, wanted_return)
+        var returned_name = names.first()
+        crash returned_name
+        var needed_name = names.last()
+        crash needed_name
+        var returned = returned_display(function_return_type, returned_name)
+        var needed = returned_display(wanted_return, needed_name)
+        return "its '{wanted.name}' returns {returned}, but the type needs {needed}"
     }
     return ""
 }
@@ -2743,7 +2784,6 @@ func shape_fit_problem(information: Analysis.UnionInfo, candidate: Analysis.Clas
             if not found {
                 return "it has no attribute '{wanted.name}'"
             }
-            crash found
             var wanted_type = shape_field_type(information, wanted.name)
             if wanted_type {
                 var found_type = found.get_type()
@@ -2958,7 +2998,6 @@ func generate_shape_read(
         report("type '{information.simple_name}' has no attribute '{field_name}'")
         return void_result()
     }
-    crash field_type
     mark_members_read(information.members, field_name)
     var reader = ensure_shape_reader(information, field_name, field_type)
     var lines = List<String>()
@@ -2989,7 +3028,6 @@ func generate_row_read(
         report("type '{information.simple_name}' has no attribute '{field_name}'")
         return void_result()
     }
-    crash field_type
     mark_members_read(information.members, field_name)
     var peeker = ensure_shape_peeker(information, field_name, field_type)
     var read = ExpressionResult("{peeker}({object_result.code})", field_type)
@@ -3006,7 +3044,9 @@ func generate_row_read(
 }
 
 func peeked_code(result: ExpressionResult): String {
-    assert result.peek_union
+    if not result.peek_union {
+        return ""
+    }
     var field_type = result.get_type()
     var peeker = ensure_shape_peeker(result.peek_union, result.peek_field, field_type)
     return "{peeker}({result.peek_object})"
@@ -3268,10 +3308,16 @@ func admit_along_flows(source: Analysis.UnionInfo, candidate: Analysis.ClassInfo
 
 func is_boxed_into_shape(from: Analysis.SpiteType, to: Analysis.SpiteType): Boolean {
     var to_union = type_shape.as_union(to)
-    assert to_union
+    if not to_union {
+        return false
+    }
     var information = find_union_by_c_name(to_union.c_name)
-    assert information
-    assert information.is_shape
+    if not information {
+        return false
+    }
+    if not information.is_shape {
+        return false
+    }
     var boxed_class = boxed_class_of(from)
     if boxed_class {
         return true
@@ -3281,9 +3327,13 @@ func is_boxed_into_shape(from: Analysis.SpiteType, to: Analysis.SpiteType): Bool
 
 func is_shape_type(spite_type: Analysis.SpiteType): Boolean {
     var union_type = type_shape.as_union(spite_type)
-    assert union_type
+    if not union_type {
+        return false
+    }
     var information = find_union_by_c_name(union_type.c_name)
-    assert information
+    if not information {
+        return false
+    }
     return information.is_shape
 }
 
@@ -3662,8 +3712,12 @@ func nearest_declaring_owner(name: String, current_namespace: String): String {
         if declares_type_named(owner, name) {
             return owner
         }
-        assert not find_class_by_qualified("{owner}.{name}")
-        assert segments.last() != name or not find_class_by_qualified(owner)
+        if find_class_by_qualified("{owner}.{name}") {
+            return ""
+        }
+        if segments.last() == name and find_class_by_qualified(owner) {
+            return ""
+        }
         segments.remove_last()
     }
     return ""
@@ -3894,12 +3948,16 @@ func symbol_parameter_of(declaration: Syntax.Statements.FunctionDeclaration): St
 
 func register_template(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo): Boolean {
     var symbol_parameter = symbol_parameter_of(declaration)
-    assert not symbol_parameter.is_empty()
+    if symbol_parameter.is_empty() {
+        return false
+    }
     var padded_name = "_{declaration.name}_"
     var position = padded_name.index_of("_{symbol_parameter}_")
     if position < 0 {
         var passed_range = symbol_range_of(declaration, symbol_parameter)
-        assert passed_range
+        if not passed_range {
+            return false
+        }
         var passed_template_information = Analysis.TemplateInfo(declaration, symbol_parameter, declaration.name, "")
         passed_template_information.range = passed_range
         passed_template_information.passed = true
@@ -3949,7 +4007,6 @@ func template_range_class(information: Analysis.ClassInfo, template: Analysis.Te
     if not template.range {
         return information
     }
-    crash template.range
     var saved_class = current_class
     current_class = information
     var range_type = resolve_type(template.range, information.qualified_dotted)
@@ -3964,7 +4021,9 @@ func template_range_class(information: Analysis.ClassInfo, template: Analysis.Te
 }
 
 func walks_no_class(information: Analysis.ClassInfo, template: Analysis.TemplateInfo, member_name: String): Boolean {
-    assert member_name == "{template.symbol_parameter}s" and not information.is_container and template.range
+    if member_name != "{template.symbol_parameter}s" or information.is_container or not template.range {
+        return false
+    }
     var saved_class = current_class
     current_class = information
     var range_type = resolve_type(template.range, information.qualified_dotted)
@@ -3991,7 +4050,9 @@ func template_range_shape(information: Analysis.ClassInfo, template: Analysis.Te
 }
 
 func template_range_kind(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): String {
-    assert template.range
+    if not template.range {
+        return ""
+    }
     if is_function_range(information, template) {
         var path = range_path(template)
         var last_segment = path.last()
@@ -4152,18 +4213,26 @@ func range_path(template: Analysis.TemplateInfo): List<String> {
 
 func is_function_range(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): Boolean {
     var path = range_path(template)
-    assert path.count() >= 2
+    if path.count() < 2 {
+        return false
+    }
     var last_segment = path.last()
     crash last_segment
     var first_segment = path.first()
     crash first_segment
     if first_segment.starts_with("$") {
-        assert path.count() == 2
+        if path.count() != 2 {
+            return false
+        }
         var bare_name = without_dollar(first_segment)
         var bound = codegen_index(information, bare_name)
-        assert bound >= 0
+        if bound < 0 {
+            return false
+        }
         crash information.codegen_codes[bound]
-        assert information.codegen_codes[bound].is_empty()
+        if not information.codegen_codes[bound].is_empty() {
+            return false
+        }
         crash information.codegen_types[bound]
         var bound_type = information.codegen_types[bound]
         if type_shape.as_list(bound_type) or type_shape.as_dictionary(bound_type) or type_shape.as_nullable(bound_type) {
@@ -4181,10 +4250,16 @@ func is_function_range(information: Analysis.ClassInfo, template: Analysis.Templ
     owner_path.remove_last()
     var joined_owner_path = owner_path.join(".")
     var owner = find_class(joined_owner_path, information.namespace_dotted)
-    assert owner
+    if not owner {
+        return false
+    }
     var joined = path.join(".")
-    assert not find_class(joined, information.namespace_dotted)
-    assert not find_union_qualified(owner.qualified_dotted, last_segment)
+    if find_class(joined, information.namespace_dotted) {
+        return false
+    }
+    if find_union_qualified(owner.qualified_dotted, last_segment) {
+        return false
+    }
     return not find_enum_qualified(owner.qualified_dotted, last_segment)
 }
 
@@ -4245,7 +4320,9 @@ func pattern_prefix(template: Analysis.TemplateInfo): String {
     crash last_segment
     var padded = "_{last_segment}_"
     var position = padded.index_of("_{template.symbol_parameter}_")
-    assert position >= 0
+    if position < 0 {
+        return ""
+    }
     return padded.slice(1, position + 1)
 }
 
@@ -4255,7 +4332,9 @@ func pattern_suffix(template: Analysis.TemplateInfo): String {
     crash last_segment
     var padded = "_{last_segment}_"
     var position = padded.index_of("_{template.symbol_parameter}_")
-    assert position >= 0
+    if position < 0 {
+        return ""
+    }
     var hole_end = position + template.symbol_parameter.length() + 1
     var padded_length = padded.length()
     return padded.slice(hole_end, padded_length - 1)
@@ -4362,17 +4441,25 @@ func value_range_miss(
     name: String,
     member_name: String,
 ): String {
-    assert not member_name.is_empty() and member_name != "{template.symbol_parameter}s"
+    if member_name.is_empty() or member_name == "{template.symbol_parameter}s" {
+        return ""
+    }
     var kind = template_range_owner(information, template)
-    assert kind == "pattern" or kind == "enum"
+    if kind != "pattern" and kind != "enum" {
+        return ""
+    }
     var range_enum = template_range_enum(information, template)
-    assert range_enum
+    if not range_enum {
+        return ""
+    }
     var declaration = template.get_declaration()
     var shown_enum = enum_display_name(range_enum)
     if not range_enum.has_value(member_name) {
         return "'{name}' is '{declaration.name}' for '{member_name}', but '{member_name}' is not a value of '{shown_enum}', which has '{range_enum.values.join("', '")}'"
     }
-    assert kind == "pattern"
+    if kind != "pattern" {
+        return ""
+    }
     var owner = range_function_owner(information, template)
     crash owner
     return "'{name}' is '{declaration.name}' for '{member_name}', a value of '{shown_enum}', but '{owner.qualified_dotted}' has no function '{pattern_prefix(template)}{member_name}{pattern_suffix(template)}'"
@@ -4902,7 +4989,9 @@ func bind_symbol_of(function: Analysis.FunctionInfo) {
 }
 
 func is_bound_member_index(index_expression: Syntax.Expressions.IndexExpression): Boolean {
-    assert not bound_member_owner_c_name.is_empty()
+    if bound_member_owner_c_name.is_empty() {
+        return false
+    }
     crash index_expression.object
     crash index_expression.index
     var member = shape.as_member(index_expression.object)
@@ -4934,28 +5023,44 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
 func bound_member_is_function(): Boolean {
     var owner = find_class_by_c_name(bound_member_owner_c_name)
     if owner {
-        assert not owner.find_field(bound_field_name)
-        assert owner.find_function(bound_field_name)
+        if owner.find_field(bound_field_name) {
+            return false
+        }
+        if not owner.find_function(bound_field_name) {
+            return false
+        }
         return true
     }
     var owner_shape = find_union_by_c_name(bound_member_owner_c_name)
     crash owner_shape
-    assert find_required_function(owner_shape, bound_field_name)
+    if not find_required_function(owner_shape, bound_field_name) {
+        return false
+    }
     return true
 }
 
 func is_shape_member_read(expression: Syntax.Expressions.Expression): Boolean {
-    assert not bound_member_owner_c_name.is_empty()
-    assert find_union_by_c_name(bound_member_owner_c_name)
+    if bound_member_owner_c_name.is_empty() {
+        return false
+    }
+    if not find_union_by_c_name(bound_member_owner_c_name) {
+        return false
+    }
     var indexed = shape.as_index(expression)
-    assert indexed
+    if not indexed {
+        return false
+    }
     return is_bound_member_index(indexed)
 }
 
 func is_caller_call(expression: Syntax.Expressions.Expression): Boolean {
-    assert bound_through_caller
+    if not bound_through_caller {
+        return false
+    }
     var indexed = shape.as_index(expression)
-    assert indexed
+    if not indexed {
+        return false
+    }
     return is_bound_member_index(indexed)
 }
 
@@ -4982,7 +5087,9 @@ func generate_bound_member_read(
 }
 
 func is_bound_attributes_index(index_expression: Syntax.Expressions.IndexExpression): Boolean {
-    assert not bound_symbol_name.is_empty() and bound_member_owner_c_name.is_empty()
+    if bound_symbol_name.is_empty() or not bound_member_owner_c_name.is_empty() {
+        return false
+    }
     if index_expression.object {
         if index_expression.index {
             var object_identifier = shape.as_identifier(index_expression.object)
@@ -5038,7 +5145,9 @@ func emit_pending_only() {
 }
 
 func is_pending(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
-    assert not function.is_emitted
+    if function.is_emitted {
+        return false
+    }
     if not information.is_instantiated {
         return true
     }
@@ -5331,7 +5440,6 @@ func schema_text(spite_type: Analysis.SpiteType, visiting: List<String>): String
     if not information {
         return shown
     }
-    crash information
     if visiting.contains(information.c_name) {
         return information.qualified_dotted
     }
@@ -5406,7 +5514,6 @@ func weak_body(information: Analysis.ClassInfo, name: String): String {
         )
         return ""
     }
-    crash class_ref
     ensure_weak_runtime(class_ref.c_name)
     if name == "_box_of" {
         var released = release_call(value_type, "target_")
@@ -5546,7 +5653,6 @@ func inline_memory_body(information: Analysis.ClassInfo, name: String): String {
         }
         return "return (int64_t)sizeof({c_type_name(value_type)});"
     }
-    crash item_class
     var c_name = item_class.c_name
     var stride = "((int64_t)sizeof({c_name}) - (int64_t)sizeof(SpiteHeader))"
     var slot = "(({c_name}*)((char*)(intptr_t)address_ + (int64_t)index_ * {stride}))"
@@ -5912,7 +6018,6 @@ func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? 
     }
     var index = 1
     while index < named.path.count() {
-        crash bound_type
         var segment = named.path.get_at(index)
         var member_type = codegen_member_type(bound_type, segment)
         if not member_type {
@@ -5963,7 +6068,6 @@ func resolve_generic_argument(argument: Syntax.Types.GenericArgument, current_na
         report("a type argument must be a type")
         return null
     }
-    assert type_argument
     assert type_argument.value
     return resolve_type(type_argument.value, current_namespace)
 }
@@ -6089,7 +6193,6 @@ func resolve_nullable_argument(named: Syntax.Types.NamedType, current_namespace:
         report("Nullable's argument must be a type")
         return null
     }
-    assert type_argument
     assert type_argument.value
     var inner = resolve_type(type_argument.value, current_namespace)
     if inner {
@@ -6509,7 +6612,9 @@ func allocator_text(): String {
 }
 
 func debug_registration(pointer: String, class_id: String): String {
-    assert debug_memory
+    if not debug_memory {
+        return ""
+    }
     return "#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object({pointer}, {class_id});\n#endif\n"
 }
 
@@ -6797,16 +6902,22 @@ func owns(result: ExpressionResult, expression: Syntax.Expressions.Expression): 
     if result.owning_override == true {
         return true
     }
-    assert result.owning_override != false
+    if result.owning_override == false {
+        return false
+    }
     return is_owning_shape(expression)
 }
 
 func is_owning_shape(expression: Syntax.Expressions.Expression): Boolean {
     var identifier = shape.as_identifier(expression)
-    assert not identifier
+    if identifier {
+        return false
+    }
     var indexed = shape.as_index(expression)
     if indexed {
-        assert not is_bound_attributes_index(indexed)
+        if is_bound_attributes_index(indexed) {
+            return false
+        }
         if is_bound_member_index(indexed) {
             var read = bound_member_expression(indexed)
             return is_owning_shape(read)
@@ -6935,7 +7046,9 @@ func joinable_handle(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
 }
 
 func joins_into(result_type: Analysis.SpiteType, expected_type: Analysis.SpiteType): Boolean {
-    assert joinable_handle(result_type)
+    if not joinable_handle(result_type) {
+        return false
+    }
     var expected_inner = expected_type_without_nullable(expected_type)
     return not types_equal(result_type, expected_inner)
 }
@@ -6949,7 +7062,9 @@ func implicit_join_ast(handle_ast: Syntax.Expressions.Expression): Syntax.Expres
 }
 
 func is_implicit_join(member: Syntax.Expressions.MemberExpression): Boolean {
-    assert member.name == "_result"
+    if member.name != "_result" {
+        return false
+    }
     var index = 0
     while index < implicit_joins.count() {
         if implicit_joins.get_at(index) == member {
@@ -6961,8 +7076,12 @@ func is_implicit_join(member: Syntax.Expressions.MemberExpression): Boolean {
 }
 
 func forwards_to_result(handle: Analysis.ClassInfo, name: String): Boolean {
-    assert name != "finished" and name != "class" and not name.starts_with("_")
-    assert not handle.find_function(name)
+    if name == "finished" or name == "class" or name.starts_with("_") {
+        return false
+    }
+    if handle.find_function(name) {
+        return false
+    }
     return true
 }
 
@@ -7182,11 +7301,21 @@ func maths_spelling(name: String): String {
 }
 
 func is_boolean_result_operator(operator: Syntax.Expressions.BinaryOperator): Boolean {
-    assert operator != 'add'
-    assert operator != 'subtract'
-    assert operator != 'multiply'
-    assert operator != 'divide'
-    assert operator != 'modulo'
+    if operator == 'add' {
+        return false
+    }
+    if operator == 'subtract' {
+        return false
+    }
+    if operator == 'multiply' {
+        return false
+    }
+    if operator == 'divide' {
+        return false
+    }
+    if operator == 'modulo' {
+        return false
+    }
     return true
 }
 
@@ -7264,14 +7393,20 @@ func to_string_ast(value_ast: Syntax.Expressions.Expression): Syntax.Expressions
 
 func made_into_text(value_type: Analysis.SpiteType, expected_type: Analysis.SpiteType): Boolean {
     var wanted = expected_type_without_nullable(expected_type)
-    assert type_shape.as_string(wanted)
+    if not type_shape.as_string(wanted) {
+        return false
+    }
     return type_shape.as_scalar(value_type) or is_enum_type(value_type)
 }
 
 func becomes_text(value_type: Analysis.SpiteType, expected_type: Analysis.SpiteType): Boolean {
     var wanted = expected_type_without_nullable(expected_type)
-    assert type_shape.as_string(wanted)
-    assert text_converter(value_type)
+    if not type_shape.as_string(wanted) {
+        return false
+    }
+    if not text_converter(value_type) {
+        return false
+    }
     return true
 }
 
@@ -7365,7 +7500,6 @@ func generate_text_join(
         var empty = render_string_literal("")
         return ExpressionResult(empty, text_type)
     }
-    crash join.codes[0]
     if join.codes.count() == 1 and join.views.contains(join.codes[0]) {
         crash join.originals[0]
         return ExpressionResult(join.originals[0], text_type)
@@ -7459,7 +7593,9 @@ func digits_of(code: String): String {
             var prefix_length = prefix.length()
             var code_length = code.length()
             var inner = code.slice(prefix_length, code_length - 1)
-            assert balanced_parentheses(inner)
+            if not balanced_parentheses(inner) {
+                return ""
+            }
             return inner
         }
         index = index + 1
@@ -7477,7 +7613,9 @@ func balanced_parentheses(code: String): Boolean {
         } else if code_point == 41 {
             depth = depth - 1
         }
-        assert depth >= 0
+        if depth < 0 {
+            return false
+        }
         index = index + 1
     }
     return depth == 0
@@ -7516,7 +7654,9 @@ func maybe_null_only_on_the_right(
 ): Boolean {
     crash binary.left
     crash binary.right
-    assert not shape.is_null_literal(binary.right) and not is_enum_literal(binary.left) and not is_enum_literal(binary.right)
+    if shape.is_null_literal(binary.right) or is_enum_literal(binary.left) or is_enum_literal(binary.right) {
+        return false
+    }
     var saved_counter = temporary_counter
     var left_probe = generate_expression(binary.left, scope, class_information)
     var right_probe = generate_expression(binary.right, scope, class_information)
@@ -7562,7 +7702,9 @@ func is_plain_path(expression: Syntax.Expressions.Expression): Boolean {
         return true
     }
     var member = shape.as_member(expression)
-    assert member
+    if not member {
+        return false
+    }
     crash member.object
     return is_plain_path(member.object)
 }
@@ -7618,7 +7760,9 @@ func codegen_tested_class(name: String, class_information: Analysis.ClassInfo): 
 
 func codegen_is_class(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Boolean {
     var codegen_type = shape.as_generic_identifier(expression)
-    assert codegen_type
+    if not codegen_type {
+        return false
+    }
     if codegen_tested_class(codegen_type.name, class_information) {
         return true
     }
@@ -7694,7 +7838,9 @@ func check_tested_member(information: Analysis.UnionInfo, tested_class: Analysis
 
 func is_class_object_type(spite_type: Analysis.SpiteType): Boolean {
     var class_ref = type_shape.as_class_ref(spite_type)
-    assert class_ref
+    if not class_ref {
+        return false
+    }
     return class_ref.c_name == "Spite_Class" and not class_ref.has_signature
 }
 
@@ -7942,10 +8088,16 @@ func checked_division(
     left_type: Analysis.SpiteType,
     scope: Scope,
 ): String {
-    assert binary.operator == 'divide' or binary.operator == 'modulo'
+    if binary.operator != 'divide' and binary.operator != 'modulo' {
+        return ""
+    }
     var scalar = type_shape.as_scalar(left_type)
-    assert scalar
-    assert scalar.kind != 'boolean_kind' and not is_float_kind(scalar.kind)
+    if not scalar {
+        return ""
+    }
+    if scalar.kind == 'boolean_kind' or is_float_kind(scalar.kind) {
+        return ""
+    }
     crash binary.right
     var printer = Syntax.SourcePrinter()
     var expression: Syntax.Expressions.Expression = binary
@@ -7957,9 +8109,13 @@ func checked_division(
         )
         return ""
     }
-    assert not constant
+    if constant {
+        return ""
+    }
     var divisor_text = operand_text(binary.right)
-    assert divisor_text.is_empty() or not scope.is_path_narrowed("~[{divisor_text}]")
+    if not divisor_text.is_empty() and scope.is_path_narrowed("~[{divisor_text}]") {
+        return ""
+    }
     ensure_division_check()
     var c_type = c_type_name(left_type)
     var dividend = next_temporary()
@@ -7982,11 +8138,19 @@ func checked_overflow(
     right_code: String,
     left_type: Analysis.SpiteType,
 ): String {
-    assert keeps_internals or debug_memory
-    assert binary.operator == 'add' or binary.operator == 'subtract' or binary.operator == 'multiply'
+    if not keeps_internals and not debug_memory {
+        return ""
+    }
+    if binary.operator != 'add' and binary.operator != 'subtract' and binary.operator != 'multiply' {
+        return ""
+    }
     var scalar = type_shape.as_scalar(left_type)
-    assert scalar
-    assert is_signed_kind(scalar.kind)
+    if not scalar {
+        return ""
+    }
+    if not is_signed_kind(scalar.kind) {
+        return ""
+    }
     ensure_overflow_check()
     var printer = Syntax.SourcePrinter()
     var expression: Syntax.Expressions.Expression = binary
@@ -8039,10 +8203,16 @@ func is_wider_right(
 ): Boolean {
     var left_scalar = type_shape.as_scalar(left_type)
     var right_scalar = type_shape.as_scalar(right_type)
-    assert left_scalar and right_scalar
-    assert left_scalar.kind != 'boolean_kind' and right_scalar.kind != 'boolean_kind'
+    if not left_scalar or not right_scalar {
+        return false
+    }
+    if left_scalar.kind == 'boolean_kind' or right_scalar.kind == 'boolean_kind' {
+        return false
+    }
     crash binary.right
-    assert not literal_fits(binary.right, left_scalar.kind)
+    if literal_fits(binary.right, left_scalar.kind) {
+        return false
+    }
     if is_float_kind(right_scalar.kind) and not is_float_kind(left_scalar.kind) {
         return true
     }
@@ -8064,7 +8234,9 @@ func scalar_bits(kind: Analysis.Types.NumericKind): Integer {
 
 func literal_fits(expression: Syntax.Expressions.Expression, kind: Analysis.Types.NumericKind): Boolean {
     var value = literal_value(expression)
-    assert value
+    if not value {
+        return false
+    }
     var lowest: Long = 0
     var highest: Long = 9223372036854775807
     if kind == 'tiny_kind' {
@@ -8457,7 +8629,9 @@ func compares_identity_instead(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    assert function.name == "equals"
+    if function.name != "equals" {
+        return false
+    }
     var saved_counter = temporary_counter
     var probe = generate_expression(right_ast, scope, class_information)
     rewind_temporaries(saved_counter)
@@ -8571,7 +8745,9 @@ func generate_argument_list(
 }
 
 func objects_in_frame_allowed(class_information: Analysis.ClassInfo): Boolean {
-    assert not keeps_internals and not hot_reload and not resumable_mode and remote_loop_port == 0
+    if keeps_internals or hot_reload or resumable_mode or remote_loop_port != 0 {
+        return false
+    }
     return object_frames_open and not read_evaluate_print_loop and not is_hot_class(class_information)
 }
 
@@ -8638,19 +8814,33 @@ func argument_in_frame(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): String {
-    assert lender_class and lender_function and may_be_fresh(argument)
-    assert objects_in_frame_allowed(class_information)
+    if not lender_class or not lender_function or not may_be_fresh(argument) {
+        return ""
+    }
+    if not objects_in_frame_allowed(class_information) {
+        return ""
+    }
     var expected_reference = type_shape.as_class_ref(expected_type)
-    assert expected_reference
+    if not expected_reference {
+        return ""
+    }
     var study = object_study(scope, class_information)
     var made = study.fresh_class(argument)
-    assert made
-    assert made.c_name == expected_reference.c_name
-    assert object_frames.lends(this, lender_class, lender_function, index)
+    if not made {
+        return ""
+    }
+    if made.c_name != expected_reference.c_name {
+        return ""
+    }
+    if not object_frames.lends(this, lender_class, lender_function, index) {
+        return ""
+    }
     var slot = next_object_slot()
     builder.add_user("{made.c_name} {slot};")
     var into = generate_into(argument, study, "&{slot}", scope, class_information)
-    assert into_claimed
+    if not into_claimed {
+        return ""
+    }
     return into.code
 }
 
@@ -8810,7 +9000,9 @@ func generate_spread_arguments(
 }
 
 func framing_variadic(variadic_index: Integer): Boolean {
-    assert frame_variadic_allowed and conditional_depth == 0 and not resumable_mode and not argument_callee.is_empty()
+    if not frame_variadic_allowed or conditional_depth != 0 or resumable_mode or argument_callee.is_empty() {
+        return false
+    }
     var key = "{argument_callee}#{variadic_index}"
     if read_list_answers.has(key) {
         return read_list_answers[key] == true
@@ -8828,7 +9020,9 @@ func callee_only_reads(callee_c_name: String, variadic_index: Integer): Boolean 
         while function_index < owner.declared_functions.count() {
             var function = owner.declared_functions[function_index]
             if function.c_name == callee_c_name {
-                assert not is_hot_class(owner) and function.has_body
+                if is_hot_class(owner) or not function.has_body {
+                    return false
+                }
                 var names = List<String>()
                 var parameter_lists = List<List<String>>()
                 var bodies = List<List<Syntax.Statements.Statement>>()
@@ -8923,32 +9117,48 @@ func frames_local_list(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    assert not keeps_internals and not hot_reload and not resumable_mode and remote_loop_port == 0
-    assert not scope.entry_names.contains(declaration.name)
+    if keeps_internals or hot_reload or resumable_mode or remote_loop_port != 0 {
+        return false
+    }
+    if scope.entry_names.contains(declaration.name) {
+        return false
+    }
     crash declaration.value
     var literal = shape.as_list_literal(declaration.value)
     var literal_count = 0
     if literal {
         literal_count = literal.elements.count()
-        assert literal_count > 0 or declaration.type_reference
-    } else {
-        assert makes_empty_list(declaration.value)
+        if literal_count <= 0 and not declaration.type_reference {
+            return false
+        }
+    } else if not makes_empty_list(declaration.value) {
+        return false
     }
-    assert declares_here(declaration)
+    if not declares_here(declaration) {
+        return false
+    }
     var start = borrow_index + 1
     var appended = counted_appends(declaration.name, borrow_statements, start)
     var capacity = literal_count + appended
-    assert capacity <= 256
-    assert rest_only_reads(declaration.name, borrow_statements, start, class_information)
+    if capacity > 256 {
+        return false
+    }
+    if not rest_only_reads(declaration.name, borrow_statements, start, class_information) {
+        return false
+    }
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     var listed = type_shape.as_list(declared_type)
-    assert listed
+    if not listed {
+        return false
+    }
     var element = listed.get_element()
     var constant = false
     if literal {
         constant = appended == 0 and literal_is_constant(literal, element)
     }
-    assert constant or capacity <= 16
+    if not constant and capacity > 16 {
+        return false
+    }
     var list_name = ensure_list(element)
     if not framed_list_helpers.contains(list_name) {
         ensure_framed_list_helper(list_name)
@@ -8994,24 +9204,40 @@ func frames_local_object(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    assert objects_in_frame_allowed(class_information)
-    assert not scope.entry_names.contains(declaration.name)
+    if not objects_in_frame_allowed(class_information) {
+        return false
+    }
+    if scope.entry_names.contains(declaration.name) {
+        return false
+    }
     crash declaration.value
-    assert may_be_fresh(declaration.value) and declares_here(declaration)
+    if not may_be_fresh(declaration.value) or not declares_here(declaration) {
+        return false
+    }
     var study = object_study(scope, class_information)
     var made = study.fresh_class(declaration.value)
-    assert made
+    if not made {
+        return false
+    }
     if declaration.type_reference {
         var written_type = resolve_type(declaration.type_reference, class_information.qualified_dotted)
-        assert written_type
+        if not written_type {
+            return false
+        }
         var written_reference = type_shape.as_class_ref(written_type)
-        assert written_reference
-        assert written_reference.c_name == made.c_name
+        if not written_reference {
+            return false
+        }
+        if written_reference.c_name != made.c_name {
+            return false
+        }
     }
     var returning = current_return_c_name == made.c_name
     var follower = object_study(scope, class_information)
     follower.follow_local(declaration.name, made, returning)
-    assert follower.stays_after(borrow_statements, borrow_index + 1)
+    if not follower.stays_after(borrow_statements, borrow_index + 1) {
+        return false
+    }
     var slot_code = "spite_result"
     var in_result = into_function_active and returning and result_slot_local.is_empty()
     if not in_result {
@@ -9020,7 +9246,9 @@ func frames_local_object(
         slot_code = "&{slot}"
     }
     var into = generate_into(declaration.value, study, slot_code, scope, class_information)
-    assert into_claimed
+    if not into_claimed {
+        return false
+    }
     if in_result {
         result_slot_local = declaration.name
     }
@@ -9038,8 +9266,12 @@ func frames_local_object(
 
 func framed_object_name(expression: Syntax.Expressions.Expression, scope: Scope): String {
     var named = shape.as_identifier(expression)
-    assert named
-    assert scope.framed_object(named.name)
+    if not named {
+        return ""
+    }
+    if not scope.framed_object(named.name) {
+        return ""
+    }
     return named.name
 }
 
@@ -9051,11 +9283,17 @@ func stores_framed_object(
     crash assignment.target
     crash assignment.value
     var name = framed_object_name(assignment.target, scope)
-    assert not name.is_empty()
+    if name.is_empty() {
+        return false
+    }
     var held_type = scope.written_type(name)
-    assert held_type
+    if not held_type {
+        return false
+    }
     var held_reference = type_shape.as_class_ref(held_type)
-    assert held_reference
+    if not held_reference {
+        return false
+    }
     var c_name = held_reference.c_name
     var local = c_value_name(name)
     var study = object_study(scope, class_information)
@@ -9086,9 +9324,13 @@ func returns_object_in_frame(
     class_information: Analysis.ClassInfo,
 ): Boolean {
     var returned_reference = type_shape.as_class_ref(return_type)
-    assert returned_reference
+    if not returned_reference {
+        return false
+    }
     var returned_class = find_class_by_c_name(returned_reference.c_name)
-    assert returned_class
+    if not returned_class {
+        return false
+    }
     var c_name = returned_class.c_name
     var framed_name = framed_object_name(value, scope)
     if into_function_active {
@@ -9116,7 +9358,9 @@ func returns_object_in_frame(
         builder.add_user("return spite_result;")
         return true
     }
-    assert not framed_name.is_empty()
+    if framed_name.is_empty() {
+        return false
+    }
     ensure_frame_helpers(returned_class)
     scope.mark_used(framed_name)
     var moved = next_temporary()
@@ -9135,8 +9379,12 @@ func returns_made_in_slot(
 ): Boolean {
     var study = object_study(scope, class_information)
     var made = study.fresh_class(value)
-    assert made
-    assert made.c_name == returned_class.c_name
+    if not made {
+        return false
+    }
+    if made.c_name != returned_class.c_name {
+        return false
+    }
     var c_name = returned_class.c_name
     var slot_code = "spite_result"
     if not result_slot_local.is_empty() {
@@ -9145,7 +9393,9 @@ func returns_made_in_slot(
         slot_code = "&{slot}"
     }
     var into = generate_into(value, study, slot_code, scope, class_information)
-    assert into_claimed
+    if not into_claimed {
+        return false
+    }
     var temporary = next_temporary()
     builder.add_user("{c_name}* {temporary} = {into.code};")
     if slot_code != "spite_result" {
@@ -9158,17 +9408,25 @@ func returns_made_in_slot(
 }
 
 func declares_here(declaration: Syntax.Statements.VariableDeclaration): Boolean {
-    assert borrow_index < borrow_statements.count()
+    if borrow_index >= borrow_statements.count() {
+        return false
+    }
     var here = shape.as_variable_declaration(borrow_statements[borrow_index])
-    assert here
+    if not here {
+        return false
+    }
     return here.name == declaration.name and here.line == declaration.line
 }
 
 func makes_empty_list(value: Syntax.Expressions.Expression): Boolean {
     var made = shape.as_generic_call(value)
-    assert made
+    if not made {
+        return false
+    }
     crash made.callee
-    assert is_identifier_named(made.callee, "List")
+    if not is_identifier_named(made.callee, "List") {
+        return false
+    }
     return made.type_arguments.count() == 1 and made.arguments.is_empty()
 }
 
@@ -9186,17 +9444,29 @@ func counted_appends(name: String, statements: List<Syntax.Statements.Statement>
 
 func appends_to(name: String, statement: Syntax.Statements.Statement): Boolean {
     var expression_statement = shape.as_expression_statement(statement)
-    assert expression_statement
+    if not expression_statement {
+        return false
+    }
     crash expression_statement.value
     var call = shape.as_call(expression_statement.value)
-    assert call
-    assert call.arguments.count() == 1
+    if not call {
+        return false
+    }
+    if call.arguments.count() != 1 {
+        return false
+    }
     crash call.callee
     var member = shape.as_member(call.callee)
-    assert member
-    assert member.name == "append"
+    if not member {
+        return false
+    }
+    if member.name != "append" {
+        return false
+    }
     crash member.object
-    assert is_identifier_named(member.object, name)
+    if not is_identifier_named(member.object, name) {
+        return false
+    }
     return placement.expression_only_reads(name, call.arguments[0])
 }
 
@@ -9209,7 +9479,9 @@ func rest_only_reads(
     use_class_read_lists(class_information)
     var index = start
     while index < statements.count() {
-        assert appends_to(name, statements[index]) or placement.statement_only_reads(name, statements[index])
+        if not appends_to(name, statements[index]) and not placement.statement_only_reads(name, statements[index]) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -9235,7 +9507,9 @@ func literal_is_constant(literal: Syntax.Expressions.ListLiteralExpression, elem
     while index < literal.elements.count() {
         var element_ast = literal.elements[index].value
         crash element_ast
-        assert is_constant_element(element_ast, element)
+        if not is_constant_element(element_ast, element) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -9243,10 +9517,14 @@ func literal_is_constant(literal: Syntax.Expressions.ListLiteralExpression, elem
 
 func is_constant_element(element_ast: Syntax.Expressions.Expression, element: Analysis.SpiteType): Boolean {
     if shape.as_string_literal(element_ast) {
-        assert type_shape.as_string(element)
+        if not type_shape.as_string(element) {
+            return false
+        }
         return true
     }
-    assert type_shape.as_scalar(element)
+    if not type_shape.as_scalar(element) {
+        return false
+    }
     if shape.as_integer_literal(element_ast) or shape.as_float_literal(element_ast) {
         return true
     }
@@ -9379,7 +9657,9 @@ func hands_function_to_task(
     arguments_ast: List<Syntax.Expressions.Expression>,
 ): Boolean {
     var task = target_class.qualified_dotted == "Concurrent" or target_class.qualified_dotted == "Parallel"
-    assert task and arguments_ast.count() == 1
+    if not task or arguments_ast.count() != 1 {
+        return false
+    }
     var member = shape.as_member(arguments_ast[0])
     if member {
         return true
@@ -9636,14 +9916,20 @@ func function_type_from(named: Syntax.Types.NamedType, current_namespace: String
 }
 
 func same_signature(left: Analysis.Types.ClassRefType, right: Analysis.Types.ClassRefType): Boolean {
-    assert left.has_signature == right.has_signature
+    if left.has_signature != right.has_signature {
+        return false
+    }
     if not left.has_signature {
         return true
     }
-    assert left.arguments.count() == right.arguments.count()
+    if left.arguments.count() != right.arguments.count() {
+        return false
+    }
     var index = 0
     while index < left.arguments.count() {
-        assert types_equal(left.arguments[index], right.arguments[index])
+        if not types_equal(left.arguments[index], right.arguments[index]) {
+            return false
+        }
         index = index + 1
     }
     if left.returns {
@@ -9702,7 +9988,6 @@ func function_value(
             )
             return void_result()
         }
-        crash argument_class
         var class_type = class_type_of(argument_class)
         var arguments_list_name = ensure_list(class_type)
         var argument_lines = List<String>()
@@ -9867,7 +10152,6 @@ func generate_own_function_call(
         }
         return void_result()
     }
-    crash function
     var into_slot = claimed_slot(function.c_name)
     var parameter_types = parameter_types_of(function.parameters)
     var saved_lending = lending_rows
@@ -9913,12 +10197,18 @@ func misnamed_plural(information: Analysis.ClassInfo, name: String): String {
 }
 
 func misnamed_plural_argument(arguments: List<Syntax.Expressions.Expression>, information: Analysis.ClassInfo): String {
-    assert arguments.count() == 1
+    if arguments.count() != 1 {
+        return ""
+    }
     var call = shape.as_call(arguments[0])
-    assert call
+    if not call {
+        return ""
+    }
     crash call.callee
     var callee = shape.as_identifier(call.callee)
-    assert callee
+    if not callee {
+        return ""
+    }
     return misnamed_plural(information, callee.name)
 }
 
@@ -10070,7 +10360,9 @@ func generate_generic_call(
 }
 
 func claimed_slot(name: String): String {
-    assert into_claim_depth == expression_depth and into_claim_name == name
+    if into_claim_depth != expression_depth or into_claim_name != name {
+        return ""
+    }
     into_claim_depth = -1
     return into_claim_slot
 }
@@ -10169,14 +10461,20 @@ func ensure_frame_helpers(information: Analysis.ClassInfo) {
 
 func is_lent_item_name(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
     var identifier = shape.as_identifier(expression)
-    assert identifier
-    assert scope.row_source(identifier.name).is_empty()
+    if not identifier {
+        return false
+    }
+    if not scope.row_source(identifier.name).is_empty() {
+        return false
+    }
     return not scope.borrow_source(identifier.name).is_empty()
 }
 
 func is_row_name(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
     var identifier = shape.as_identifier(expression)
-    assert identifier
+    if not identifier {
+        return false
+    }
     return not scope.row_source(identifier.name).is_empty()
 }
 
@@ -10226,7 +10524,6 @@ func lent_variant_name(
     if not owner {
         return function_c_name
     }
-    crash owner
     if owner.source_path.starts_with("library/") {
         return function_c_name
     }
@@ -10570,7 +10867,6 @@ func generate_method_call(
         }
         return void_result()
     }
-    crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
     if not is_implicit_join(member) {
@@ -10654,7 +10950,6 @@ func generate_method_call(
         }
         return void_result()
     }
-    crash function
     var asks_functions = member.name == "has_function" or member.name == "function_waits" or member.name == "argument_count"
     if asks_functions and target_class.c_name == "Spite_Class" {
         class_level_functions_used = true
@@ -11004,7 +11299,9 @@ func reported_old_spelling(name: String): Boolean {
         return true
     }
     var spelled = old_spellings.new_spelling(name)
-    assert not spelled.is_empty()
+    if spelled.is_empty() {
+        return false
+    }
     report("'{name}' is spelled '{spelled}'")
     return true
 }
@@ -11098,7 +11395,6 @@ func generate_list_method(
             var void_spite_type = void_type()
             return ExpressionResult("0", void_spite_type)
         }
-        crash parallel
         var empty_types = no_types()
         var nothing_returned = parallel.get_return_type()
         return generate_generic_call(
@@ -11117,12 +11413,10 @@ func generate_list_method(
         report_list_method_missing(name)
         return void_result()
     }
-    crash template
     var function = instantiate_element_template(list_class, element, template, name, class_information)
     if not function {
         return void_result()
     }
-    crash function
     var parameter_types = parameter_types_of(function.parameters)
     var function_return_type = function.get_return_type()
     return generate_generic_call(
@@ -11223,7 +11517,6 @@ func instantiate_element_template(
         report("'{element_label}' has no attribute or zero argument function '{member_name}' for '{name}'{hint}")
         return null
     }
-    crash member_type
     var existing = list_class.find_function(name)
     if existing {
         return existing
@@ -11241,10 +11534,16 @@ func instantiate_element_template(
 }
 
 func passing_hint(caller: Analysis.ClassInfo, prefix: String, member_name: String): String {
-    assert prefix != "find_by_"
+    if prefix == "find_by_" {
+        return ""
+    }
     var function = caller.find_function(member_name)
-    assert function
-    assert not function.is_constructor
+    if not function {
+        return ""
+    }
+    if function.is_constructor {
+        return ""
+    }
     var form_length = prefix.length() - 1
     var form = prefix.slice(0, form_length)
     return ": a template reads a member of each element, never a function of this class, so pass this class's '{member_name}' instead: '{form}({member_name})'"
@@ -11266,7 +11565,9 @@ func element_member_is_field(element: Analysis.SpiteType, member_name: String): 
     }
     var element_shape = shape_of(element)
     crash element_shape
-    assert not find_required_function(element_shape, member_name)
+    if find_required_function(element_shape, member_name) {
+        return false
+    }
     return true
 }
 
@@ -11282,7 +11583,9 @@ func element_owner_c_name(element: Analysis.SpiteType): String {
 
 func is_field_of(element_class: Analysis.ClassInfo, member_name: String): Boolean {
     var field = element_class.find_field(member_name)
-    assert field
+    if not field {
+        return false
+    }
     return true
 }
 
@@ -11511,7 +11814,6 @@ func generate_parallel_each(
         )
         return null
     }
-    crash element_class
     var loop_lines = List<String>()
     var closings = List<String>()
     var indent = "        "
@@ -11544,7 +11846,6 @@ func generate_parallel_each(
         report("'{element_label}' has no zero argument function '{member_name}' for '{last_name}'")
         return null
     }
-    crash member
     var visited = List<String>()
     check_parallel_reach(element_class, member, last_name, visited)
     loop_lines.append("{indent}item.{member_name}()")
@@ -11589,7 +11890,6 @@ func parallel_filter_read(element_class: Analysis.ClassInfo, member_name: String
         )
         return ""
     }
-    crash function
     var returned = function.get_return_type()
     if not is_boolean_type(returned) {
         report(
@@ -11675,7 +11975,9 @@ func reaches_shared(spite_type: Analysis.SpiteType): Boolean {
         return reaches_shared(inner)
     }
     var plain_value = type_shape.as_scalar(spite_type) or type_shape.as_string(spite_type) or is_enum_type(spite_type)
-    assert not plain_value and not type_shape.is_symbol(spite_type)
+    if plain_value or type_shape.is_symbol(spite_type) {
+        return false
+    }
     var class_ref = type_shape.as_class_ref(spite_type)
     if class_ref {
         var held = find_class_by_c_name(class_ref.c_name)
@@ -11738,11 +12040,15 @@ func check_parallel_work(
 
 func handed_over_name(object_ast: Syntax.Expressions.Expression, owner: Analysis.ClassInfo): String {
     var named = shape.as_identifier(object_ast)
-    assert named
+    if not named {
+        return ""
+    }
     var name = named.name
     var statements = borrow_statements
     var here = borrow_index
-    assert here < statements.count()
+    if here >= statements.count() {
+        return ""
+    }
     var made_at = -1
     var index = 0
     while index < here {
@@ -11754,16 +12060,22 @@ func handed_over_name(object_ast: Syntax.Expressions.Expression, owner: Analysis
         }
         index = index + 1
     }
-    assert made_at >= 0
+    if made_at < 0 {
+        return ""
+    }
     index = made_at + 1
     while index < here {
-        assert not statement_hands_out(statements[index], name, owner)
+        if statement_hands_out(statements[index], name, owner) {
+            return ""
+        }
         index = index + 1
     }
     var function_index = 0
     while function_index < owner.declared_functions.count() {
         var function = owner.declared_functions[function_index]
-        assert function.is_constructor or not block_keeps_this(function.body, owner)
+        if not function.is_constructor and block_keeps_this(function.body, owner) {
+            return ""
+        }
         function_index = function_index + 1
     }
     return name
@@ -11821,9 +12133,13 @@ func any_argument_keeps_this(arguments: List<Syntax.Expressions.Expression>, inf
 }
 
 func constructs_class(value: Syntax.Expressions.Expression?, owner: Analysis.ClassInfo): Boolean {
-    assert value
+    if not value {
+        return false
+    }
     var called = shape.as_call(value)
-    assert called
+    if not called {
+        return false
+    }
     crash called.callee
     return called_name_of(called.callee) == owner.simple_name
 }
@@ -11989,9 +12305,13 @@ func any_use_as_value(
 }
 
 func holds_plain_field(holder: Analysis.ClassInfo?, name: String): Boolean {
-    assert holder
+    if not holder {
+        return false
+    }
     var field = holder.find_field(name)
-    assert field
+    if not field {
+        return false
+    }
     var field_type = field.get_type()
     return not reaches_shared(field_type)
 }
@@ -12007,7 +12327,9 @@ func kept_by_task_alone(
     if nullable {
         held = nullable.get_inner()
     }
-    assert kept_inside(owner, name, held)
+    if not kept_inside(owner, name, held) {
+        return false
+    }
     var listed = type_shape.as_list(held)
     if listed {
         var element = listed.get_element()
@@ -12019,7 +12341,9 @@ func kept_by_task_alone(
         return inline_value_type(value_type)
     }
     var held_class = class_behind(held)
-    assert held_class and type_shape.as_class_ref(held)
+    if not held_class or not type_shape.as_class_ref(held) {
+        return false
+    }
     return self_contained(held_class, visited)
 }
 
@@ -12028,32 +12352,44 @@ func self_contained(information: Analysis.ClassInfo, visited: List<String>): Boo
         return true
     }
     visited.append(information.c_name)
-    assert not information.source_path.starts_with("library/") and not information.is_value_class
+    if information.source_path.starts_with("library/") or information.is_value_class {
+        return false
+    }
     var function_index = 0
     while function_index < information.declared_functions.count() {
         var function = information.declared_functions[function_index]
-        assert function.is_constructor or not block_keeps_this(function.body, information)
+        if not function.is_constructor and block_keeps_this(function.body, information) {
+            return false
+        }
         function_index = function_index + 1
     }
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
         var field_type = field.get_type()
-        assert not reaches_shared(field_type) or kept_by_task_alone(information, field.name, field_type, visited)
+        if reaches_shared(field_type) and not kept_by_task_alone(information, field.name, field_type, visited) {
+            return false
+        }
         index = index + 1
     }
     return true
 }
 
 func kept_inside(owner: Analysis.ClassInfo, name: String, held: Analysis.SpiteType): Boolean {
-    assert not call_effects.default_is_shared(owner.simple_name, name)
+    if call_effects.default_is_shared(owner.simple_name, name) {
+        return false
+    }
     var written_outside = call_effects.writes_from_outside(owner.simple_name)
-    assert not written_outside.contains(name)
+    if written_outside.contains(name) {
+        return false
+    }
     var holder = class_behind(held)
     var function_index = 0
     while function_index < owner.declared_functions.count() {
         var function = owner.declared_functions[function_index]
-        assert not block_hands_out(function.body, name, holder)
+        if block_hands_out(function.body, name, holder) {
+            return false
+        }
         function_index = function_index + 1
     }
     return true
@@ -12103,9 +12439,13 @@ func blocks_hand_out(statement: Syntax.Statements.Statement, name: String, holde
 
 func assigns_other_than_fresh(statement: Syntax.Statements.Statement, name: String): Boolean {
     var assigned = shape.as_assignment_statement(statement)
-    assert assigned
+    if not assigned {
+        return false
+    }
     crash assigned.target
-    assert is_identifier_named(assigned.target, name)
+    if not is_identifier_named(assigned.target, name) {
+        return false
+    }
     crash assigned.value
     return not call_effects.is_fresh_value(assigned.value)
 }
@@ -12285,7 +12625,6 @@ func generate_vector_parallel_each(
         var void_spite_type = void_type()
         return ExpressionResult("0", void_spite_type)
     }
-    crash parallel
     var empty_types = no_types()
     var no_arguments = List<Syntax.Expressions.Expression>()
     var nothing_returned = parallel.get_return_type()
@@ -12319,7 +12658,9 @@ func vector_kind(vector_class: Analysis.ClassInfo): String {
 func unpassed_value_miss(vector_class: Analysis.ClassInfo, name: String): String {
     crash vector_class.codegen_types[0]
     var item_type = vector_class.codegen_types[0]
-    assert not inline_item_class(item_type)
+    if inline_item_class(item_type) {
+        return ""
+    }
     var label = type_display_name(item_type)
     return "'{name}' passes each item to a function, which {vector_kind(vector_class)} does only for plain values -- numbers, Boolean and enums, copied as they are read -- and {type_with_article(item_type)} is not one: keep the values in a 'List<{label}>' to pass them on"
 }
@@ -12449,13 +12790,17 @@ func fused_signature_spelling(signature: Analysis.Types.ClassRefType): String {
     var index = 0
     while index < signature.arguments.count() {
         var spelling = fused_type_spelling(signature.arguments[index])
-        assert not spelling.is_empty()
+        if spelling.is_empty() {
+            return ""
+        }
         spellings.append(spelling)
         index = index + 1
     }
     var returned = returned_type(signature)
     var returned_spelling = fused_type_spelling(returned)
-    assert not returned_spelling.is_empty()
+    if returned_spelling.is_empty() {
+        return ""
+    }
     spellings.append(returned_spelling)
     return "Spite.Function<{spellings.join(", ")}>"
 }
@@ -12487,7 +12832,9 @@ func fused_chain_source(
     while index < steps.count() - 1 {
         var owner_count = owners.count()
         var step = fused_step(base_list, current_type, steps[index], owners, scope, class_information)
-        assert step
+        if not step {
+            return ""
+        }
         crash steps[index]
         var step_name = fused_step_name(steps[index], owners, owner_count)
         step_names.append(step_name)
@@ -12499,7 +12846,9 @@ func fused_chain_source(
         } else {
             var mapped_type = step.get_member_type()
             var next_name = fused_value_name(mapped_count)
-            assert not next_name.is_empty() and not fused_type_spelling(mapped_type).is_empty()
+            if next_name.is_empty() or fused_type_spelling(mapped_type).is_empty() {
+                return ""
+            }
             loop_lines.append("{indent}var {next_name} = {stage_read}")
             mapped_count = mapped_count + 1
             current_name = next_name
@@ -12511,7 +12860,9 @@ func fused_chain_source(
     var last_call = steps.last()
     crash last_call
     var last = fused_step(base_list, current_type, last_call, owners, scope, class_information)
-    assert last
+    if not last {
+        return ""
+    }
     var last_step_name = fused_step_name(last_call, owners, owner_count)
     step_names.append(last_step_name)
     var last_member_type = last.get_member_type()
@@ -12539,7 +12890,7 @@ func fused_chain_source(
         after.append("    return false")
     } else if last.prefix == "all_" {
         returns = ": Boolean"
-        loop_lines.append("{indent}assert {read}")
+        loop_lines.append("{indent}if not {read} \{\n{indent}    return false\n{indent}}")
         after.append("    return true")
     } else if last.prefix == "find_by_" {
         parameters.append("value: {member_spelling}")
@@ -12578,7 +12929,9 @@ func fused_chain_source(
         after.append("    return sorted")
     }
     var voided = type_shape.is_void(last_member_type)
-    assert not element_spelling.is_empty() and (not member_spelling.is_empty() or voided)
+    if element_spelling.is_empty() or member_spelling.is_empty() and not voided {
+        return ""
+    }
     var owner_index = 0
     while owner_index < owners.count() {
         var owner_type = owners[owner_index].get_owner_type()
@@ -12688,7 +13041,6 @@ func bound_function_of(
         assert library_class
         return passed_library_function(member.object, probe_type, library_class, member.name)
     }
-    assert owner_ref
     assert not owner_ref.has_signature
     var owner_class = find_class_by_c_name(owner_ref.c_name)
     assert owner_class
@@ -12762,7 +13114,9 @@ func passed_function_problem(
     }
     var returned = passed.get_returned()
     var requirement = form_requirement(name, label, returned)
-    assert not requirement.is_empty()
+    if requirement.is_empty() {
+        return ""
+    }
     var described = described_member(returned)
     if type_shape.as_nullable(returned) {
         described = "returns {type_with_article(returned)}"
@@ -12810,7 +13164,6 @@ func function_form_instance(
         )
         return null
     }
-    crash passed
     var problem = passed_function_problem(name, argument, passed, element)
     if not problem.is_empty() {
         report(problem)
@@ -12872,7 +13225,6 @@ func generate_function_form(
     if not passed {
         return void_result()
     }
-    crash passed
     var function = passed.get_instance()
     var passed_arguments = form_arguments(name)
     var owner = passed.get_owner()
@@ -12967,17 +13319,29 @@ func register_fused_function(
 }
 
 func is_listed_class(information: Analysis.ClassInfo): Boolean {
-    assert not information.is_generic_template
-    assert not information.c_name.starts_with("Object_") and not information.c_name.starts_with("Spite_")
+    if information.is_generic_template {
+        return false
+    }
+    if information.c_name.starts_with("Object_") or information.c_name.starts_with("Spite_") {
+        return false
+    }
     var prelude_path = Prelude().path()
-    assert not information.source_path.starts_with("library/") and not information.source_path.starts_with("launcher/")
-    assert information.source_path != prelude_path
+    if information.source_path.starts_with("library/") or information.source_path.starts_with("launcher/") {
+        return false
+    }
+    if information.source_path == prelude_path {
+        return false
+    }
     return information.c_name != "Nothing"
 }
 
 func describes_members(information: Analysis.ClassInfo): Boolean {
-    assert not information.is_generic_template and not information.is_value_class
-    assert not information.c_name.starts_with("Object_")
+    if information.is_generic_template or information.is_value_class {
+        return false
+    }
+    if information.c_name.starts_with("Object_") {
+        return false
+    }
     return information.c_name != "Nothing"
 }
 
@@ -13485,7 +13849,6 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
         )
         return function_c_name
     }
-    crash attribute_class
     var class_type = class_type_of(attribute_class)
     var list_name = ensure_list(class_type)
     var lines = List<String>()
@@ -13727,8 +14090,6 @@ func emit_functions_function(information: Analysis.ClassInfo) {
         )
         return
     }
-    assert function_class
-    assert argument_class
     var class_type = class_type_of(function_class)
     var list_name = ensure_list(class_type)
     var argument_class_type = class_type_of(argument_class)
@@ -14116,7 +14477,6 @@ func generate_memory_read(
         )
         return null
     }
-    crash memory_class
     var memory_type = class_type_of(memory_class)
     var object_c_type = c_type_name(object_type)
     var owned = owns(object_result, object_ast) and type_needs_drop(object_type)
@@ -14732,7 +15092,6 @@ func ensure_list(element: Analysis.SpiteType): String {
         report("List needs the standard library: library/list.spite was not found from the working directory")
         return list_name
     }
-    crash list_template
     var list_class = instantiated_container(list_template, element, list_name)
     supply_list_functions(list_class, element)
     return list_name
@@ -14819,7 +15178,6 @@ func ensure_dictionary(dictionary: Analysis.Types.DictionaryType): String {
         )
         return dictionary_name
     }
-    crash dictionary_template
     var types = List<Analysis.SpiteType>()
     types.append(element)
     types.append(key_type)
@@ -15221,12 +15579,10 @@ func generate_dictionary_method(
         report("Dictionary has no method '{name}'")
         return void_result()
     }
-    crash template
     var function = instantiate_element_template(list_class, element, template, name, class_information)
     if not function {
         return void_result()
     }
-    crash function
     var empty_types = no_types()
     var list_type = list_type_of(element)
     var no_arguments = List<Syntax.Expressions.Expression>()
@@ -15310,7 +15666,9 @@ func collect_static_segments(expression: Syntax.Expressions.Expression, out: Lis
     if member {
         crash member.object
         var ok = collect_static_segments(member.object, out)
-        assert ok
+        if not ok {
+            return false
+        }
         out.append(member.name)
         return true
     }
@@ -15470,9 +15828,6 @@ func generate_library_constructor(arguments_ast: List<Syntax.Expressions.Express
         report(shape_of_call)
         return void_result()
     }
-    crash file
-    crash naming
-    crash header
     var file_segments = file.value.replace("\\", "/").split("/")
     var file_leaf = file_segments.last()
     crash file_leaf
@@ -15516,7 +15871,9 @@ func library_value(library: Integer): ExpressionResult {
 
 func declared_by_dynamic_library(name: String): Boolean {
     var library_class = find_class_by_c_name("DynamicLibrary")
-    assert library_class
+    if not library_class {
+        return false
+    }
     var declared = library_class.find_function(name)
     if declared {
         return true
@@ -15615,7 +15972,7 @@ func generate_foreign_call(
             while field_index < shaped.shape_fields.count() {
                 var field = shaped.shape_fields[field_index]
                 var field_type = shape_field_type(shaped, field.name)
-                assert field_type
+                crash field_type
                 initial.append("{ensure_shape_reader(shaped, field.name, field_type)}({held_shape})")
                 afters.append(
                     "{ensure_shape_writer(shaped, field.name, field_type)}({held_shape}, {struct_value}.{c_value_name(field.name)});",
@@ -15714,7 +16071,6 @@ func generate_foreign_callback(
         report(shape_of_call)
         return refused_callback(target_class)
     }
-    crash where_context
     var position = where_context.value
     if position != "no_context" and position != "context_first" and position != "context_last" {
         report(
@@ -15722,21 +16078,18 @@ func generate_foreign_callback(
         )
         return refused_callback(target_class)
     }
-    crash arguments_ast[0]
     var work = arguments_ast[0]
     var owner = callback_owner(work, scope, class_information)
     if not owner {
         report(shape_of_call)
         return refused_callback(target_class)
     }
-    crash owner
     var function_name = callback_function_name(work)
     var function = owner.find_function(function_name)
     if not function {
         report(shape_of_call)
         return refused_callback(target_class)
     }
-    crash function
     var printer = Syntax.SourcePrinter()
     var work_text = printer.source_expression(work)
     var call_text = "ForeignCallback({work_text}, '{position}')"
@@ -15831,7 +16184,9 @@ func callback_function_name(work: Syntax.Expressions.Expression): String {
 
 func callback_c_type(spite_type: Analysis.SpiteType): String {
     var scalar = type_shape.as_scalar(spite_type)
-    assert scalar
+    if not scalar {
+        return ""
+    }
     if scalar.kind == 'boolean_kind' {
         return "int32_t"
     }
@@ -15843,7 +16198,9 @@ func callback_returns_nothing(returned: Analysis.SpiteType): Boolean {
         return true
     }
     var returns_class = type_shape.as_class_ref(returned)
-    assert returns_class
+    if not returns_class {
+        return false
+    }
     return returns_class.c_name == "Nothing"
 }
 
@@ -16090,17 +16447,29 @@ func passes_as_array(spite_type: Analysis.SpiteType): Boolean {
 
 func passes_as_struct(spite_type: Analysis.SpiteType): Boolean {
     var passed_union = type_shape.as_union(spite_type)
-    assert passed_union
+    if not passed_union {
+        return false
+    }
     var shaped = find_union_by_c_name(passed_union.c_name)
-    assert shaped
-    assert shaped.is_shape
+    if not shaped {
+        return false
+    }
+    if not shaped.is_shape {
+        return false
+    }
     var index = 0
     while index < shaped.shape_fields.count() {
         var field = shaped.shape_fields[index]
-        assert not field.is_function
+        if field.is_function {
+            return false
+        }
         var field_type = shape_field_type(shaped, field.name)
-        assert field_type
-        assert type_shape.as_scalar(field_type)
+        if not field_type {
+            return false
+        }
+        if not type_shape.as_scalar(field_type) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -16423,15 +16792,23 @@ func type_size_read(
 }
 
 func shape_struct_code(shaped: Analysis.UnionInfo): String {
-    assert shaped.is_shape and not shaped.shape_fields.is_empty()
+    if not shaped.is_shape or shaped.shape_fields.is_empty() {
+        return ""
+    }
     var members = List<String>()
     var index = 0
     while index < shaped.shape_fields.count() {
         var field = shaped.shape_fields[index]
-        assert not field.is_function
+        if field.is_function {
+            return ""
+        }
         var field_type = shape_field_type(shaped, field.name)
-        assert field_type
-        assert type_shape.as_scalar(field_type)
+        if not field_type {
+            return ""
+        }
+        if not type_shape.as_scalar(field_type) {
+            return ""
+        }
         members.append("{c_type_name(field_type)} {c_value_name(field.name)};")
         index = index + 1
     }
@@ -16626,7 +17003,6 @@ func generate_member_read_raw(
         }
         return void_result()
     }
-    crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
     report_private_member(target_class, member.name, class_information)
@@ -16661,7 +17037,6 @@ func generate_member_read_raw(
         report("'{type_display_name(object_result_type)}' has no attribute '{member.name}'")
         return void_result()
     }
-    crash field
     var hardcoded = hardcoded_setting(target_class, member.name)
     if hardcoded {
         return hardcoded_setting_value(hardcoded, scope, class_information)
@@ -16942,7 +17317,9 @@ func resizes_storage(name: String): Boolean {
 
 func resizes_unnamed_collection(member: Syntax.Expressions.MemberExpression, owner: String): Boolean {
     var collections = ["List", "Vector", "Items", "Dictionary", "*"]
-    assert resizes_storage(member.name) and collections.contains(owner)
+    if not resizes_storage(member.name) or not collections.contains(owner) {
+        return false
+    }
     crash member.object
     return not is_name_path(member.object) and not shape.as_generic_call(member.object)
 }
@@ -17112,7 +17489,9 @@ func effect_changes(
 }
 
 func dependency_changes(effect: String, dependency: String): Boolean {
-    assert effect != "release" and not effect.starts_with("grow:")
+    if effect == "release" or effect.starts_with("grow:") {
+        return false
+    }
     var is_list = dependency.starts_with("list:")
     if effect == "field:*" {
         return not is_list
@@ -17122,13 +17501,17 @@ func dependency_changes(effect: String, dependency: String): Boolean {
     }
     var effect_length = effect.length()
     if effect.starts_with("shrink:") {
-        assert is_list
+        if not is_list {
+            return false
+        }
         var shrunk_link = effect.slice(7, effect_length)
         var dependency_length = dependency.length()
         var list_link = dependency.slice(5, dependency_length)
         return links_meet(shrunk_link, list_link)
     }
-    assert not is_list
+    if is_list {
+        return false
+    }
     var written_link = effect.slice(6, effect_length)
     return links_meet(written_link, dependency)
 }
@@ -17136,7 +17519,9 @@ func dependency_changes(effect: String, dependency: String): Boolean {
 func links_meet(changed_link: String, link: String): Boolean {
     var changed_parts = changed_link.split("#")
     var parts = link.split("#")
-    assert changed_parts.count() == 2 and parts.count() == 2
+    if changed_parts.count() != 2 or parts.count() != 2 {
+        return false
+    }
     var same_class = changed_parts[0] == "*" or parts[0] == "*" or changed_parts[0] == parts[0]
     return same_class and changed_parts[1] == parts[1]
 }
@@ -17145,7 +17530,9 @@ func passed_list_path(effect: String, arguments: List<Syntax.Expressions.Express
     var effect_length = effect.length()
     var position_text = effect.slice(10, effect_length)
     var position = position_text.to_integer()
-    assert position < arguments.count()
+    if position >= arguments.count() {
+        return ""
+    }
     return operand_text(arguments[position])
 }
 
@@ -17204,7 +17591,9 @@ func owner_name(spite_type: Analysis.SpiteType?): String {
 }
 
 func collection_name(spite_type: Analysis.SpiteType?): String {
-    assert spite_type
+    if not spite_type {
+        return ""
+    }
     var plain = spite_type
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
@@ -17312,7 +17701,6 @@ func try_nullable_guard(
     if not identifier {
         return try_path_guard(condition_ast, scope, class_information)
     }
-    assert identifier
     var static_type = lookup_static_type(condition_ast, scope, class_information)
     assert static_type
     var handle = joinable_handle(static_type)
@@ -17519,10 +17907,16 @@ func generate_variable_declaration(
 func lends_items(target_class: Analysis.ClassInfo, name: String): Boolean {
     var vector_item = holds_items_inline(target_class) and name == "get_at"
     var inline_item = target_class.qualified_dotted == "InlineMemory" and name == "item_at"
-    assert vector_item or inline_item
-    assert target_class.codegen_types.count() > 0
+    if not vector_item and not inline_item {
+        return false
+    }
+    if target_class.codegen_types.count() <= 0 {
+        return false
+    }
     var item_class = inline_item_class(target_class.codegen_types[0])
-    assert item_class
+    if not item_class {
+        return false
+    }
     return true
 }
 
@@ -17539,7 +17933,9 @@ func plain_item_type(item_type: Analysis.SpiteType): Boolean {
 
 func copies_items(information: Analysis.ClassInfo): Boolean {
     var vector_like = information.qualified_dotted == "Vector" or is_items_class(information)
-    assert vector_like and information.codegen_types.count() > 0
+    if not vector_like or information.codegen_types.count() <= 0 {
+        return false
+    }
     return plain_item_type(information.codegen_types[0])
 }
 
@@ -17620,7 +18016,9 @@ func generic_singleton_made(
 }
 
 func constructed_root_of(path: String): String {
-    assert constructed_roots.count() > 0
+    if constructed_roots.count() <= 0 {
+        return ""
+    }
     var texts = constructed_roots.keys()
     var index = 0
     while index < texts.count() {
@@ -17647,17 +18045,23 @@ func may_lend(value: Syntax.Expressions.Expression, scope: Scope, class_informat
     var row_read = shape.as_member(value)
     if row_read {
         crash row_read.object
-        assert is_row_name(row_read.object, scope)
+        if not is_row_name(row_read.object, scope) {
+            return false
+        }
         var saved_counter = temporary_counter
         var probe = generate_expression(value, scope, class_information)
         rewind_temporaries(saved_counter)
         return not probe.borrowed_from.is_empty()
     }
     var call = shape.as_call(value)
-    assert call
+    if not call {
+        return false
+    }
     crash call.callee
     var member = shape.as_member(call.callee)
-    assert member
+    if not member {
+        return false
+    }
     crash member.object
     return receiver_lends(member.object, member.name, scope, class_information)
 }
@@ -17668,14 +18072,20 @@ func receiver_lends(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    assert name == "get_at" or name == "item_at"
+    if name != "get_at" and name != "item_at" {
+        return false
+    }
     var root = shape.as_identifier(receiver)
     if root {
-        assert scope.written_type(root.name) or class_information.find_field(root.name)
+        if not scope.written_type(root.name) and not class_information.find_field(root.name) {
+            return false
+        }
     }
     var receiver_type = receiver_type_of(receiver, scope, class_information)
     var receiver_class = class_behind(receiver_type)
-    assert receiver_class
+    if not receiver_class {
+        return false
+    }
     return lends_items(receiver_class, name)
 }
 
@@ -17685,8 +18095,12 @@ func lends_to_local(
     class_information: Analysis.ClassInfo,
 ): Boolean {
     crash declaration.value
-    assert not declaration.type_reference and may_lend(declaration.value, scope, class_information)
-    assert not scope.entry_names.contains(declaration.name)
+    if declaration.type_reference or not may_lend(declaration.value, scope, class_information) {
+        return false
+    }
+    if scope.entry_names.contains(declaration.name) {
+        return false
+    }
     var lent = generate_expression(declaration.value, scope, class_information)
     var item_type = lent.get_type()
     builder.add_user("{c_type_name(item_type)} {c_value_name(declaration.name)} = {lent.code};")
@@ -17719,8 +18133,12 @@ func lends_row(
 ): Boolean {
     crash declaration.value
     var literal = shape.as_object_literal(declaration.value)
-    assert literal and not in_vector_library(class_information)
-    assert not scope.entry_names.contains(declaration.name) and borrows_an_item(literal, scope, class_information)
+    if not literal or in_vector_library(class_information) {
+        return false
+    }
+    if scope.entry_names.contains(declaration.name) or not borrows_an_item(literal, scope, class_information) {
+        return false
+    }
     var names = List<String>()
     var types = List<Analysis.SpiteType>()
     var codes = List<String>()
@@ -17820,7 +18238,9 @@ func lends_walked_row(
         walked_row_filled = true
         return true
     }
-    assert literal
+    if not literal {
+        return false
+    }
     var value: Syntax.Expressions.Expression = literal
     var row_declaration = Syntax.Statements.VariableDeclaration(declaration.name, declaration.type_reference, value)
     row_declaration.line = declaration.line
@@ -17841,22 +18261,36 @@ func lends_spread_arguments(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ): Boolean {
-    assert not writing_lent_arguments and not resumable_mode
+    if writing_lent_arguments or resumable_mode {
+        return false
+    }
     crash statement.value
     var call = shape.as_call(statement.value)
-    assert call
+    if not call {
+        return false
+    }
     crash call.callee
     var member = shape.as_member(call.callee)
-    assert member
+    if not member {
+        return false
+    }
     var spread = spread_template(call.arguments, class_information)
-    assert spread
+    if not spread {
+        return false
+    }
     var ranged = range_function(class_information, spread)
-    assert ranged
+    if not ranged {
+        return false
+    }
     var range = range_path(spread)
     var ranged_name = range.last()
-    assert member.name == ranged_name or member.name == ranged.name
+    if member.name != ranged_name and member.name != ranged.name {
+        return false
+    }
     var plural = shape.as_call(call.arguments[0])
-    assert plural
+    if not plural {
+        return false
+    }
     var saved_symbol_name = bound_symbol_name
     var saved_field_name = bound_field_name
     var saved_field_index = bound_field_index
@@ -17890,7 +18324,9 @@ func lends_spread_arguments(
     bound_field_index = saved_field_index
     bound_field_type = saved_field_type
     walk_refused = saved_refused
-    assert lends
+    if not lends {
+        return false
+    }
     var passed = List<Syntax.Expressions.Expression>()
     var name_index = 0
     while name_index < names.count() {
@@ -18025,20 +18461,34 @@ func written_lent_row(
     class_information: Analysis.ClassInfo,
 ): Boolean {
     var row = shape.as_variable_declaration(folded[0])
-    assert row
+    if not row {
+        return false
+    }
     crash row.value
-    assert row.type_reference and shape.is_null_literal(row.value)
+    if not row.type_reference or not shape.is_null_literal(row.value) {
+        return false
+    }
     var filling = shape.as_expression_statement(folded[1])
-    assert filling
+    if not filling {
+        return false
+    }
     crash filling.value
     var fill = shape.as_call(filling.value)
-    assert fill
+    if not fill {
+        return false
+    }
     crash fill.callee
-    assert shape.as_identifier(fill.callee)
+    if not shape.as_identifier(fill.callee) {
+        return false
+    }
     var returned = shape.as_return_statement(folded[2])
-    assert returned
+    if not returned {
+        return false
+    }
     crash returned.value
-    assert is_identifier_named(returned.value, row.name)
+    if not is_identifier_named(returned.value, row.name) {
+        return false
+    }
     walk_refused = ""
     var mentioned = List<String>()
     var arguments = List<Syntax.Expressions.Expression>()
@@ -18057,7 +18507,9 @@ func written_lent_row(
         }
         index = index + 1
     }
-    assert walk_refused.is_empty() and row_index >= 0
+    if not walk_refused.is_empty() or row_index < 0 {
+        return false
+    }
     var name = lent_argument_name(attribute.name, mentioned, names, scope, class_information)
     var row_reference: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(name)
     arguments.set_at(row_index, row_reference)
@@ -18082,7 +18534,9 @@ func written_lent_row(
 
 func symbol_class_type(written: Syntax.Types.Type, symbol_parameter: String): Boolean {
     var named = shape.as_named_type(written)
-    assert named
+    if not named {
+        return false
+    }
     return named.path.count() == 2 and named.path[0] == symbol_parameter and named.path[1] == "class"
 }
 
@@ -18145,8 +18599,12 @@ func lent_name_free(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    assert not mentioned.contains(name) and not names.contains(name)
-    assert not scope.written_type(name) and not class_information.find_field(name)
+    if mentioned.contains(name) or names.contains(name) {
+        return false
+    }
+    if scope.written_type(name) or class_information.find_field(name) {
+        return false
+    }
     return not class_information.find_function(name)
 }
 
@@ -18190,7 +18648,9 @@ func report_lent_argument_resize(name: String, source: String, scope: Scope, cla
 }
 
 func refused_row(scope: Scope, class_information: Analysis.ClassInfo): Boolean {
-    assert walk_partial
+    if not walk_partial {
+        return false
+    }
     return borrows_an_item(walk_partial, scope, class_information)
 }
 
@@ -18586,10 +19046,14 @@ func walked_generic_call(
 
 func walked_type_argument(type_argument: Syntax.Types.GenericArgument, symbol_parameter: String): Boolean {
     var written = shape.as_type_argument(type_argument)
-    assert written
+    if not written {
+        return false
+    }
     crash written.value
     var named = shape.as_named_type(written.value)
-    assert named
+    if not named {
+        return false
+    }
     return named.path.count() == 2 and named.path[0] == symbol_parameter and named.path[1] == "class"
 }
 
@@ -18621,7 +19085,9 @@ func borrowed_path_of(value: Syntax.Expressions.Expression, result: ExpressionRe
         return result.borrowed_from
     }
     var named = shape.as_identifier(value)
-    assert named
+    if not named {
+        return ""
+    }
     return scope.borrow_source(named.name)
 }
 
@@ -18734,8 +19200,12 @@ func borrowed_text_of(expression_ast: Syntax.Expressions.Expression, result: Exp
         return Syntax.SourcePrinter().source_expression(expression_ast)
     }
     var identifier = shape.as_identifier(expression_ast)
-    assert identifier
-    assert not scope.borrow_source(identifier.name).is_empty()
+    if not identifier {
+        return ""
+    }
+    if scope.borrow_source(identifier.name).is_empty() {
+        return ""
+    }
     return identifier.name
 }
 
@@ -18744,7 +19214,9 @@ func borrowed_source_of(expression_ast: Syntax.Expressions.Expression, result: E
         return result.borrowed_from
     }
     var identifier = shape.as_identifier(expression_ast)
-    assert identifier
+    if not identifier {
+        return ""
+    }
     return scope.borrow_source(identifier.name)
 }
 
@@ -18804,7 +19276,9 @@ func report_kept_borrow(
 }
 
 func lent_result_hint(): String {
-    assert not bound_symbol_name.is_empty()
+    if bound_symbol_name.is_empty() {
+        return ""
+    }
     crash current_class
     return lent_result_hint_of(current_class)
 }
@@ -18882,7 +19356,9 @@ func assignment_site(assignment: Syntax.Statements.AssignmentStatement, scope: S
         return "attribute:{identifier.name}"
     }
     var member = shape.as_member(assignment.target)
-    assert member
+    if not member {
+        return ""
+    }
     return "attribute:{member.name}"
 }
 
@@ -18905,9 +19381,13 @@ func report_captured_borrow(
 func report_borrowed_reassignment(assignment: Syntax.Statements.AssignmentStatement, scope: Scope): Boolean {
     crash assignment.target
     var identifier = shape.as_identifier(assignment.target)
-    assert identifier
+    if not identifier {
+        return false
+    }
     var source = scope.borrow_source(identifier.name)
-    assert not source.is_empty()
+    if source.is_empty() {
+        return false
+    }
     if not scope.row_source(identifier.name).is_empty() {
         report(
             "{items_choice(source)}'{identifier.name}' holds items borrowed from '{source}' for this call and is not assigned again: make each row with a new 'var'",
@@ -19248,12 +19728,16 @@ func effect_resizes(
     }
     if not position_text.is_empty() {
         var position = position_text.to_integer()
-        assert position < arguments.count()
+        if position >= arguments.count() {
+            return false
+        }
         var passed = operand_text(arguments[position])
         return not passed.is_empty() and (passed == source or source.starts_with("{passed}."))
     }
     if effect.starts_with("field:") {
-        assert not local_root
+        if local_root {
+            return false
+        }
         if effect == "field:*" {
             return true
         }
@@ -19274,17 +19758,23 @@ func effect_resizes(
     if effect.starts_with("grow:") {
         resized = effect.slice(5, effect_length)
     }
-    assert not resized.is_empty()
+    if resized.is_empty() {
+        return false
+    }
     if local_root {
         if resized.starts_with("*#") {
             return true
         }
         var resized_class = call_effects.field_classes.get(resized)
-        assert resized_class
+        if not resized_class {
+            return false
+        }
         return resized_class == "Vector" or resized_class == "Items"
     }
     var vector_link = links.last()
-    assert vector_link
+    if not vector_link {
+        return false
+    }
     return links_meet(resized, vector_link)
 }
 
@@ -19299,26 +19789,42 @@ func borrowed_element(
     if is_items_class(class_information) {
         holder_name = "references"
     }
-    assert class_information.qualified_dotted == "List" or is_items_class(class_information)
-    assert not declaration.type_reference and not hot_reload
-    assert not scope.entry_names.contains(declaration.name) and class_information.codegen_types.count() > 0
+    if class_information.qualified_dotted != "List" and not is_items_class(class_information) {
+        return ""
+    }
+    if declaration.type_reference or hot_reload {
+        return ""
+    }
+    if scope.entry_names.contains(declaration.name) or class_information.codegen_types.count() <= 0 {
+        return ""
+    }
     crash declaration.value
     var read = shape.as_member(declaration.value)
     if read {
         return borrowed_field(declaration, read, statements, start, scope, class_information)
     }
     var call = shape.as_call(declaration.value)
-    assert call and call.arguments.count() == 2
+    if not call or call.arguments.count() != 2 {
+        return ""
+    }
     crash call.callee
     var member = shape.as_member(call.callee)
-    assert member and member.name == "read_value"
+    if not member or member.name != "read_value" {
+        return ""
+    }
     crash member.object
-    assert is_identifier_named(member.object, holder_name) and is_identifier_named(call.arguments[0], "items")
+    if not is_identifier_named(member.object, holder_name) or not is_identifier_named(call.arguments[0], "items") {
+        return ""
+    }
     var element_type = class_information.codegen_types[0]
-    assert type_needs_drop(element_type) and not type_shape.as_nullable(element_type)
+    if not type_needs_drop(element_type) or type_shape.as_nullable(element_type) {
+        return ""
+    }
     var watch = ReleaseWatch(declaration.name)
     watch.element_owner = watched_owner(element_type)
-    assert watch_statements(watch, statements, start, scope, class_information)
+    if not watch_statements(watch, statements, start, scope, class_information) {
+        return ""
+    }
     var integer_spite_type = integer_type()
     var index_code = coerce_for_store(call.arguments[1], integer_spite_type, scope, class_information)
     return "(({c_type_name(element_type)}*)(intptr_t)self->items_)[{index_code}]"
@@ -19334,17 +19840,27 @@ func borrowed_field(
 ): String {
     crash read.object
     var holder = shape.as_identifier(read.object)
-    assert holder and borrowed_names.contains(holder.name)
+    if not holder or not borrowed_names.contains(holder.name) {
+        return ""
+    }
     var holder_type = scope.written_type(holder.name)
     var holder_class = class_behind(holder_type)
-    assert holder_class and not holder_class.find_function("get_{read.name}")
+    if not holder_class or holder_class.find_function("get_{read.name}") {
+        return ""
+    }
     var field = holder_class.find_field(read.name)
-    assert field
+    if not field {
+        return ""
+    }
     var field_type = field.get_type()
-    assert type_needs_drop(field_type) and not type_shape.as_nullable(field_type)
+    if not type_needs_drop(field_type) or type_shape.as_nullable(field_type) {
+        return ""
+    }
     var watch = ReleaseWatch(declaration.name)
     watch.element_owner = watched_owner(field_type)
-    assert watch_statements(watch, statements, start, scope, class_information)
+    if not watch_statements(watch, statements, start, scope, class_information) {
+        return ""
+    }
     var generated = generate_expression(declaration.value, scope, class_information)
     return generated.code
 }
@@ -19358,7 +19874,9 @@ func watch_statements(
 ): Boolean {
     var index = start
     while index < statements.count() {
-        assert releases_nothing(watch, statements[index], scope, class_information)
+        if not releases_nothing(watch, statements[index], scope, class_information) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -19372,7 +19890,9 @@ func releases_nothing(
 ): Boolean {
     switch statement {
         Syntax.Statements.VariableDeclaration: {
-            assert statement.name != watch.name
+            if statement.name == watch.name {
+                return false
+            }
             watch.locals.append(statement.name)
             crash statement.value
             return watch_expression(watch, statement.value, scope, class_information)
@@ -19381,20 +19901,30 @@ func releases_nothing(
             crash statement.target
             crash statement.value
             var target = shape.as_identifier(statement.target)
-            assert target
+            if not target {
+                return false
+            }
             var local = watch.locals.contains(target.name) or scope.written_type(target.name)
-            assert local and target.name != watch.name and not class_information.find_field(target.name)
+            if not local or target.name == watch.name or class_information.find_field(target.name) {
+                return false
+            }
             return watch_expression(watch, statement.value, scope, class_information)
         }
         Syntax.Statements.IfStatement: {
             crash statement.condition
-            assert watch_expression(watch, statement.condition, scope, class_information)
-            assert watch_statements(watch, statement.then_branch, 0, scope, class_information)
+            if not watch_expression(watch, statement.condition, scope, class_information) {
+                return false
+            }
+            if not watch_statements(watch, statement.then_branch, 0, scope, class_information) {
+                return false
+            }
             return watch_statements(watch, statement.else_branch, 0, scope, class_information)
         }
         Syntax.Statements.WhileStatement: {
             crash statement.condition
-            assert watch_expression(watch, statement.condition, scope, class_information)
+            if not watch_expression(watch, statement.condition, scope, class_information) {
+                return false
+            }
             return watch_statements(watch, statement.body, 0, scope, class_information)
         }
         Syntax.Statements.ExpressionStatement: {
@@ -19423,7 +19953,9 @@ func watch_expressions(
 ): Boolean {
     var index = 0
     while index < expressions.count() {
-        assert watch_expression(watch, expressions[index], scope, class_information)
+        if not watch_expression(watch, expressions[index], scope, class_information) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -19438,20 +19970,28 @@ func watch_expression(
     switch expression {
         Syntax.Expressions.CallExpression: {
             crash expression.callee
-            assert watch_expressions(watch, expression.arguments, scope, class_information)
+            if not watch_expressions(watch, expression.arguments, scope, class_information) {
+                return false
+            }
             return watch_call(watch, expression.callee, scope, class_information)
         }
         Syntax.Expressions.GenericCallExpression: {
             crash expression.callee
-            assert watch_expressions(watch, expression.arguments, scope, class_information)
+            if not watch_expressions(watch, expression.arguments, scope, class_information) {
+                return false
+            }
             var constructed = called_name_of(expression.callee)
             return not any_releases(constructed)
         }
         Syntax.Expressions.BinaryExpression: {
             crash expression.left
             crash expression.right
-            assert not operators_release()
-            assert watch_expression(watch, expression.left, scope, class_information)
+            if operators_release() {
+                return false
+            }
+            if not watch_expression(watch, expression.left, scope, class_information) {
+                return false
+            }
             return watch_expression(watch, expression.right, scope, class_information)
         }
         Syntax.Expressions.UnaryExpression: {
@@ -19460,11 +20000,15 @@ func watch_expression(
         }
         Syntax.Expressions.MemberExpression: {
             crash expression.object
-            assert not any_releases("get_{expression.name}")
+            if any_releases("get_{expression.name}") {
+                return false
+            }
             return watch_expression(watch, expression.object, scope, class_information)
         }
         Syntax.Expressions.IndexExpression: {
-            assert not bound_member_owner_c_name.is_empty() and is_bound_member_index(expression)
+            if bound_member_owner_c_name.is_empty() or not is_bound_member_index(expression) {
+                return false
+            }
             var read = bound_member_expression(expression)
             return watch_expression(watch, read, scope, class_information)
         }
@@ -19488,11 +20032,17 @@ func watch_call(
     var member = shape.as_member(callee)
     if member {
         crash member.object
-        assert member.name != "release_value" and watch_expression(watch, member.object, scope, class_information)
-        assert call_effects.by_function.has("*#{member.name}") or not any_releases("missing_function")
+        if member.name == "release_value" or not watch_expression(watch, member.object, scope, class_information) {
+            return false
+        }
+        if not call_effects.by_function.has("*#{member.name}") and any_releases("missing_function") {
+            return false
+        }
     } else {
         var identifier = shape.as_identifier(callee)
-        assert identifier and class_information.find_function(identifier.name) and not watch.locals.contains(identifier.name)
+        if not identifier or not class_information.find_function(identifier.name) or watch.locals.contains(identifier.name) {
+            return false
+        }
     }
     var effects = watched_effects(watch, callee, scope, class_information)
     return not effects.contains("release") and not effects.contains("field:*")
@@ -19500,9 +20050,13 @@ func watch_call(
 
 func watched_owner(watched_type: Analysis.SpiteType): String {
     var class_reference = type_shape.as_class_ref(watched_type)
-    assert class_reference and not class_reference.has_signature
+    if not class_reference or class_reference.has_signature {
+        return ""
+    }
     var owner = find_class_by_c_name(class_reference.c_name)
-    assert owner
+    if not owner {
+        return ""
+    }
     return owner.simple_name
 }
 
@@ -19528,7 +20082,9 @@ func called_name_of(callee: Syntax.Expressions.Expression): String {
         return identifier.name
     }
     var member = shape.as_member(callee)
-    assert member
+    if not member {
+        return ""
+    }
     return member.name
 }
 
@@ -19557,12 +20113,20 @@ func choose_allocator_after(statements: List<Syntax.Statements.Statement>, index
 
 func allocator_object_name(target: Syntax.Expressions.Expression): String {
     var chosen = shape.as_member(target)
-    assert chosen
-    assert chosen.name == "allocator"
+    if not chosen {
+        return ""
+    }
+    if chosen.name != "allocator" {
+        return ""
+    }
     crash chosen.object
     var memory = shape.as_member(chosen.object)
-    assert memory
-    assert memory.name == "memory"
+    if not memory {
+        return ""
+    }
+    if memory.name != "memory" {
+        return ""
+    }
     crash memory.object
     var object_text = operand_text(memory.object)
     if object_text.is_empty() {
@@ -19576,7 +20140,9 @@ func is_name_path(expression: Syntax.Expressions.Expression): Boolean {
         return true
     }
     var member = shape.as_member(expression)
-    assert member
+    if not member {
+        return false
+    }
     crash member.object
     return is_name_path(member.object)
 }
@@ -19609,7 +20175,9 @@ func allocated_declaration(
     rewind_temporaries(saved_counter)
     var allocator_type = probe.get_type()
     var allocator_class = allocator_class_of(allocator_type)
-    assert allocator_class
+    if not allocator_class {
+        return false
+    }
     var allocating = allocator_class.find_function("allocate")
     var freeing = allocator_class.find_function("free")
     crash allocating
@@ -19630,7 +20198,9 @@ func allocated_declaration(
             "only an object gets an allocator of its own, and '{declaration.name}' is a value of type {display_name}, which the compiler places itself",
         )
     }
-    assert placed_class
+    if not placed_class {
+        return false
+    }
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
     var allocator_name = next_temporary()
     var given_back = ensure_given_back(allocator_class, freeing)
@@ -19716,7 +20286,9 @@ func allocated_code(placed_class: Analysis.ClassInfo, value_code: String, head: 
         return "{placed_class.c_name}___make_in({head}, {made_rest}"
     }
     var copied = "{placed_class.c_name}_copy("
-    assert value_code.starts_with(copied) and not placed_class.find_function("copy")
+    if not value_code.starts_with(copied) or placed_class.find_function("copy") {
+        return ""
+    }
     var copied_length = copied.length()
     var copied_rest = value_code.slice(copied_length, code_length)
     if not copied_in_names.contains(placed_class.c_name) {
@@ -19844,8 +20416,12 @@ func placed_in_frame(
     var receiver_result = generate_expression(allocating.object, scope, class_information)
     var receiver_type = receiver_result.get_type()
     var heap_type = type_shape.as_class_ref(receiver_type)
-    assert heap_type
-    assert heap_type.c_name == "Memory_Heap"
+    if not heap_type {
+        return false
+    }
+    if heap_type.c_name != "Memory_Heap" {
+        return false
+    }
     var placed_type = address_type()
     var bytes_type = long_type()
     var bytes_code = coerce_for_store(allocation.arguments[0], bytes_type, scope, class_information)
@@ -20102,7 +20678,9 @@ func appends_to_itself(
     target: String,
     pieces: List<Syntax.Expressions.Expression>,
 ): Boolean {
-    assert text_base_is(value, target, pieces) and not pieces.is_empty()
+    if not text_base_is(value, target, pieces) or pieces.is_empty() {
+        return false
+    }
     var mentioned = List<String>()
     collect_each_mentioned_name(pieces, mentioned)
     return not mentioned.contains(target)
@@ -20216,7 +20794,6 @@ func generate_store(
             )
             return
         }
-        assert field
         var field_type = field.get_type()
         if atomic_owner == class_information.c_name and atomic_fields.contains(identifier.name) {
             emit_atomic_store(identifier.name, field_type, assignment.value, scope, class_information)
@@ -20383,7 +20960,6 @@ func generate_store(
             }
             return
         }
-        assert object_class_ref
         var target_class = find_class_by_c_name(object_class_ref.c_name)
         assert target_class
         report_private_member(target_class, member.name, class_information)
@@ -20417,7 +20993,6 @@ func generate_store(
             }
             return
         }
-        assert field
         var object_temporary = next_temporary()
         var field_type = field.get_type()
         var watch = ReleaseWatch("")
@@ -20458,17 +21033,23 @@ func generate_store(
 
 func writes_through_local(object: Syntax.Expressions.Expression, result: ExpressionResult, scope: Scope): Boolean {
     var identifier = shape.as_identifier(object)
-    assert identifier and scope.written_type(identifier.name) and not owns(result, object)
+    if not identifier or not scope.written_type(identifier.name) or owns(result, object) {
+        return false
+    }
     return is_c_identifier(result.code)
 }
 
 func is_c_identifier(code: String): Boolean {
-    assert not code.is_empty()
+    if code.is_empty() {
+        return false
+    }
     var index = 0
     while index < code.length() {
         var character = code.code_at(index)
         var letter = character >= 97 and character <= 122 or character >= 65 and character <= 90 or character == 95
-        assert letter or index > 0 and character >= 48 and character <= 57
+        if not letter and (index <= 0 or character < 48 or character > 57) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -20599,7 +21180,9 @@ func overlaps_next_read(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    assert not read_name.is_empty() and index + 1 < statements.count()
+    if read_name.is_empty() or index + 1 >= statements.count() {
+        return false
+    }
     var pending = overlapped_reads.copy()
     pending.append(read_name)
     var next_index = index + 1
@@ -20615,23 +21198,41 @@ func overlapped_read_name(
     class_information: Analysis.ClassInfo,
 ): String {
     var declaration = shape.as_variable_declaration(statement)
-    assert declaration
-    assert not declaration.type_reference and declaration.value
-    assert not body_assigned_paths.contains(declaration.name)
+    if not declaration {
+        return ""
+    }
+    if declaration.type_reference or not declaration.value {
+        return ""
+    }
+    if body_assigned_paths.contains(declaration.name) {
+        return ""
+    }
     var call = shape.as_call(declaration.value)
-    assert call
-    assert call.arguments.is_empty() and call.callee
+    if not call {
+        return ""
+    }
+    if not call.arguments.is_empty() or not call.callee {
+        return ""
+    }
     var callee = shape.as_member(call.callee)
-    assert callee
-    assert callee.name == "read" or callee.name == "read_line"
+    if not callee {
+        return ""
+    }
+    if callee.name != "read" and callee.name != "read_line" {
+        return ""
+    }
     crash callee.object
     var receiver_text = operand_text(callee.object)
-    assert not receiver_text.is_empty() and not receiver_text.contains("(")
+    if receiver_text.is_empty() or receiver_text.contains("(") {
+        return ""
+    }
     var mentioned = List<String>()
     collect_statement_names(statement, mentioned)
     var index = 0
     while index < pending.count() {
-        assert not mentioned.contains(pending[index])
+        if mentioned.contains(pending[index]) {
+            return ""
+        }
         index = index + 1
     }
     var saved_counter = temporary_counter
@@ -20639,10 +21240,14 @@ func overlapped_read_name(
     rewind_temporaries(saved_counter)
     var receiver_type = receiver.get_type()
     var receiver_class = type_shape.as_class_ref(receiver_type)
-    assert receiver_class
+    if not receiver_class {
+        return ""
+    }
     var reads_file = receiver_class.c_name == "File" and callee.name == "read"
     var reads_socket = receiver_class.c_name == "Socket" and callee.name == "read_line"
-    assert reads_file or reads_socket
+    if not reads_file and not reads_socket {
+        return ""
+    }
     return declaration.name
 }
 
@@ -20790,26 +21395,44 @@ func walk_fits_around(
     }
     var read_after = List<String>()
     collect_block_names(after, read_after)
-    assert not read_after.contains(counter)
+    if read_after.contains(counter) {
+        return false
+    }
     if not walk.result_name.is_empty() {
         var result_start = start_before(statements, position, walk.result_name)
-        assert result_start
-        assert is_new_list(result_start)
+        if not result_start {
+            return false
+        }
+        if not is_new_list(result_start) {
+            return false
+        }
     }
     if not walk.total_name.is_empty() {
         var total_start = start_before(statements, position, walk.total_name)
-        assert total_start
-        assert is_zero_literal(total_start)
+        if not total_start {
+            return false
+        }
+        if not is_zero_literal(total_start) {
+            return false
+        }
     }
     if not walk.returned_after.is_empty() {
-        assert not after.is_empty()
+        if after.is_empty() {
+            return false
+        }
         var next = after.first()
         var returned = shape.as_return_statement(next)
-        assert returned
-        assert returned.value
+        if not returned {
+            return false
+        }
+        if not returned.value {
+            return false
+        }
         var printer = Syntax.SourcePrinter()
         var returned_text = printer.source_expression(returned.value)
-        assert returned_text == walk.returned_after
+        if returned_text != walk.returned_after {
+            return false
+        }
     }
     return true
 }
@@ -20836,8 +21459,12 @@ func start_before(
 
 func is_new_list(expression: Syntax.Expressions.Expression): Boolean {
     var construction = shape.as_generic_call(expression)
-    assert construction
-    assert construction.arguments.is_empty()
+    if not construction {
+        return false
+    }
+    if not construction.arguments.is_empty() {
+        return false
+    }
     crash construction.callee
     var callee_text = operand_text(construction.callee)
     return callee_text == "List"
@@ -20848,14 +21475,18 @@ func walked_members_exist(element: Analysis.SpiteType, members: List<String>): B
         return true
     }
     var element_class = element_class_of(element)
-    assert element_class
+    if not element_class {
+        return false
+    }
     return members_exist(element_class, members)
 }
 
 func passed_functions_fit(walk: TemplateWalk, scope: Scope, class_information: Analysis.ClassInfo): Boolean {
     var index = 0
     while index < walk.passed_functions.count() {
-        assert passed_function_fits(walk.passed_functions[index], walk.tests, scope, class_information)
+        if not passed_function_fits(walk.passed_functions[index], walk.tests, scope, class_information) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -20870,20 +21501,28 @@ func passed_function_fits(name: String, tests: Boolean, scope: Scope, class_info
         }
         return takes_one_argument(class_information, name, tests)
     }
-    assert parts.count() == 2
+    if parts.count() != 2 {
+        return false
+    }
     var receiver_name = parts.first()
     crash receiver_name
     var owner_type = scope.lookup_type(receiver_name)
     if not owner_type {
         var owner_field = class_information.find_field(receiver_name)
-        assert owner_field
+        if not owner_field {
+            return false
+        }
         owner_type = owner_field.get_type()
     }
     crash owner_type
     var owner_class_ref = type_shape.as_class_ref(owner_type)
-    assert owner_class_ref
+    if not owner_class_ref {
+        return false
+    }
     var owner_class = find_class_by_c_name(owner_class_ref.c_name)
-    assert owner_class
+    if not owner_class {
+        return false
+    }
     var function_name = parts.last()
     crash function_name
     return takes_one_argument(owner_class, function_name, tests)
@@ -20891,29 +21530,45 @@ func passed_function_fits(name: String, tests: Boolean, scope: Scope, class_info
 
 func takes_one_argument(information: Analysis.ClassInfo, name: String, tests: Boolean): Boolean {
     var function = information.find_function(name)
-    assert function
-    assert function.parameters.count() == 1 and not function.is_constructor
+    if not function {
+        return false
+    }
+    if function.parameters.count() != 1 or function.is_constructor {
+        return false
+    }
     var returned = function.get_return_type()
     return not tests or is_boolean_type(returned)
 }
 
 func is_function_value_type(held: Analysis.SpiteType): Boolean {
     var class_ref = type_shape.as_class_ref(held)
-    assert class_ref
+    if not class_ref {
+        return false
+    }
     return class_ref.has_signature
 }
 
 func passed_call(expression: Syntax.Expressions.Expression, element_text: String): String {
     var called = shape.as_call(expression)
-    assert called
-    assert called.arguments.count() == 1
+    if not called {
+        return ""
+    }
+    if called.arguments.count() != 1 {
+        return ""
+    }
     crash called.callee
     var argument = called.arguments.first()
     var argument_text = operand_text(argument)
-    assert argument_text == element_text
+    if argument_text != element_text {
+        return ""
+    }
     var callee_text = operand_text(called.callee)
-    assert not callee_text.is_empty() and not callee_text.contains("(") and not callee_text.contains("[")
-    assert not callee_text.contains(element_text) and callee_text.split(".").count() <= 2
+    if callee_text.is_empty() or callee_text.contains("(") or callee_text.contains("[") {
+        return ""
+    }
+    if callee_text.contains(element_text) or callee_text.split(".").count() > 2 {
+        return ""
+    }
     return callee_text
 }
 
@@ -20933,7 +21588,9 @@ func members_exist(element_class: Analysis.ClassInfo, members: List<String>): Bo
     var index = 0
     while index < members.count() {
         var member_type = member_type_of(element_class, members[index])
-        assert member_type
+        if not member_type {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -20958,16 +21615,24 @@ func element_member(expression: Syntax.Expressions.Expression, element_text: Str
     var read = expression
     var called = shape.as_call(expression)
     if called {
-        assert called.arguments.is_empty()
+        if not called.arguments.is_empty() {
+            return ""
+        }
         crash called.callee
         read = called.callee
     }
     var member = shape.as_member(read)
-    assert member
+    if not member {
+        return ""
+    }
     crash member.object
     var object_text = operand_text(member.object)
-    assert object_text == element_text
-    assert not member.name.starts_with("_")
+    if object_text != element_text {
+        return ""
+    }
+    if member.name.starts_with("_") {
+        return ""
+    }
     return member.name
 }
 
@@ -21016,7 +21681,6 @@ func walk_by_call(
         assert not passed.is_empty()
         return passed_walk("to call '{passed}' with each", "{list_text}.each({passed})", passed)
     }
-    crash appending
     var result = appended_to(appending)
     assert result != list_text
     var appended = appending.arguments.first()
@@ -21345,7 +22009,9 @@ func starts_at_zero(before: Syntax.Statements.Statement, counter: String): Boole
         return declared.name == counter and is_zero_literal(declared.value)
     }
     var assigned = shape.as_assignment_statement(before)
-    assert assigned
+    if not assigned {
+        return false
+    }
     crash assigned.target
     crash assigned.value
     var target_text = operand_text(assigned.target)
@@ -21354,25 +22020,37 @@ func starts_at_zero(before: Syntax.Statements.Statement, counter: String): Boole
 
 func is_zero_literal(expression: Syntax.Expressions.Expression): Boolean {
     var integer = shape.as_integer_literal(expression)
-    assert integer
+    if not integer {
+        return false
+    }
     return integer.value == 0
 }
 
 func is_counter_step(statement: Syntax.Statements.Statement, counter: String): Boolean {
     var assignment = shape.as_assignment_statement(statement)
-    assert assignment
+    if not assignment {
+        return false
+    }
     crash assignment.target
     crash assignment.value
     var target_text = operand_text(assignment.target)
-    assert target_text == counter
+    if target_text != counter {
+        return false
+    }
     var added = shape.as_binary(assignment.value)
-    assert added
-    assert added.operator == 'add'
+    if not added {
+        return false
+    }
+    if added.operator != 'add' {
+        return false
+    }
     crash added.left
     crash added.right
     var left_text = operand_text(added.left)
     var right = shape.as_integer_literal(added.right)
-    assert right
+    if not right {
+        return false
+    }
     return left_text == counter and right.value == 1
 }
 
@@ -21408,16 +22086,22 @@ func is_lowercase_name(name: String): Boolean {
         var code = name.code_at(index)
         var is_lower = code >= 97 and code <= 122
         var is_digit = code >= 48 and code <= 57
-        assert is_lower or is_digit or code == 95
+        if not is_lower and not is_digit and code != 95 {
+            return false
+        }
         index = index + 1
     }
     return true
 }
 
 func is_pascal_name(name: String): Boolean {
-    assert not name.is_empty()
+    if name.is_empty() {
+        return false
+    }
     var first = name.code_at(0)
-    assert first >= 65 and first <= 90
+    if first < 65 or first > 90 {
+        return false
+    }
     return not name.contains("_")
 }
 
@@ -21863,8 +22547,12 @@ func is_member_read_at(
     receiver: String,
     metadata_receivers: List<String>,
 ): Boolean {
-    assert start > 0 and text.code_at(start - 1) == 46
-    assert end == text.length() or text.code_at(end) != 40
+    if start <= 0 or text.code_at(start - 1) != 46 {
+        return false
+    }
+    if end != text.length() and text.code_at(end) == 40 {
+        return false
+    }
     return not metadata_receivers.contains(receiver)
 }
 
@@ -22011,21 +22699,29 @@ func class_statements(information: Analysis.ClassInfo): List<Syntax.Statements.S
 }
 
 func attributes_are_checked(information: Analysis.ClassInfo): Boolean {
-    assert not information.is_value_class
-    assert information.qualified_dotted != "Build" and information.qualified_dotted != "Environment"
+    if information.is_value_class {
+        return false
+    }
+    if information.qualified_dotted == "Build" or information.qualified_dotted == "Environment" {
+        return false
+    }
     return true
 }
 
 func keeps_callback(information: Analysis.ClassInfo, name: String): Boolean {
     var field = information.find_field(name)
-    assert field
+    if not field {
+        return false
+    }
     var field_type = field.get_type()
     var nullable = type_shape.as_nullable(field_type)
     if nullable {
         field_type = nullable.get_inner()
     }
     var class_ref = type_shape.as_class_ref(field_type)
-    assert class_ref
+    if not class_ref {
+        return false
+    }
     return class_ref.c_name == "ForeignCallback"
 }
 
@@ -22056,7 +22752,9 @@ func report_unread_attributes(information: Analysis.ClassInfo, statements: List<
 func binds_singleton(declaration: Syntax.Statements.VariableDeclaration, information: Analysis.ClassInfo): Boolean {
     crash declaration.value
     var bound = constructed_singleton(declaration.value, information)
-    assert bound
+    if not bound {
+        return false
+    }
     return true
 }
 
@@ -22096,10 +22794,20 @@ func terminal_if_of(body: List<Syntax.Statements.Statement>): Syntax.Statements.
     return null
 }
 
-func report_terminal_if(if_statement: Syntax.Statements.IfStatement, name: String) {
+func report_terminal_if(
+    if_statement: Syntax.Statements.IfStatement,
+    name: String,
+    function_information: Analysis.FunctionInfo,
+) {
     assert not if_statement.has_else_branch
     assert terminal_if
-    if terminal_if == if_statement {
+    var return_type = function_information.get_return_type()
+    if terminal_if == if_statement and not answers_nothing(return_type) {
+        var type_name = type_display_name(return_type)
+        report(
+            "this 'if' is the last thing the function does and has no 'else', so when '{name}' is null the function answers no {type_name} at all: give that case its own 'return' after the 'if', or make the result '{type_name}?' and write 'assert {name}'",
+        )
+    } else if terminal_if == if_statement {
         report(
             "this 'if' is the last thing the function does and has no 'else', so it only checks that '{name}' is there: write 'assert {name}' and let the rest of the function run unindented",
         )
@@ -22196,8 +22904,86 @@ func negated_condition(condition: Syntax.Expressions.Expression): Syntax.Express
     return Syntax.Expressions.UnaryExpression('logical_not', condition)
 }
 
+func answers_nothing(return_type: Analysis.SpiteType): Boolean {
+    if type_shape.is_void(return_type) or type_shape.as_nullable(return_type) {
+        return true
+    }
+    if type_shape.as_list(return_type) or type_shape.as_dictionary(return_type) {
+        return true
+    }
+    var collection = vector_class_of(return_type)
+    if collection {
+        return true
+    }
+    return false
+}
+
+func report_default_assert(
+    assert_statement: Syntax.Statements.AssertStatement,
+    function_information: Analysis.FunctionInfo,
+) {
+    assert not assert_statement.is_crash and not function_information.is_constructor
+    var return_type = function_information.get_return_type()
+    assert not answers_nothing(return_type)
+    crash assert_statement.value
+    var printer = Syntax.SourcePrinter()
+    var condition = printer.source_expression(assert_statement.value)
+    var negated = negated_condition(assert_statement.value)
+    var leaving = printer.source_expression(negated)
+    var name = type_display_name(return_type)
+    var answer = example_answer(return_type)
+    var nullable_choice = " make the result '{name}?',"
+    if answer == "false" {
+        nullable_choice = ""
+    }
+    report(
+        "this 'assert' would answer a default {name} ({shown_default(return_type)}) that a caller cannot tell from a real one: return a value ('if {leaving} \{ return {answer} }'),{nullable_choice} or 'crash {condition}' if this is a developer mistake",
+    )
+}
+
+func shown_default(return_type: Analysis.SpiteType): String {
+    var scalar = type_shape.as_scalar(return_type)
+    if scalar {
+        return default_value_for_type(return_type)
+    }
+    if type_shape.as_string(return_type) {
+        return "\"\""
+    }
+    var enum_type = type_shape.as_enum(return_type)
+    if enum_type {
+        var first_value = enum_type.values.first()
+        crash first_value
+        return "'{first_value}'"
+    }
+    return "every attribute at its default"
+}
+
+func example_answer(return_type: Analysis.SpiteType): String {
+    var scalar = type_shape.as_scalar(return_type)
+    if scalar {
+        if scalar.kind == 'boolean_kind' {
+            return "false"
+        }
+        if scalar.kind == 'float_kind' or scalar.kind == 'double_kind' {
+            return "-1.0"
+        }
+        return "-1"
+    }
+    if type_shape.as_string(return_type) {
+        return "\"\""
+    }
+    var enum_type = type_shape.as_enum(return_type)
+    if enum_type {
+        var first_value = enum_type.values.first()
+        crash first_value
+        return "'{first_value}'"
+    }
+    return "..."
+}
+
 func report_default_guard(if_statement: Syntax.Statements.IfStatement, function_information: Analysis.FunctionInfo) {
     var return_type = function_information.get_return_type()
+    assert answers_nothing(return_type) or function_information.is_constructor
     var returned = returned_default(if_statement, return_type)
     assert returned
     crash if_statement.condition
@@ -22214,7 +23000,7 @@ func report_default_guard(if_statement: Syntax.Statements.IfStatement, function_
         return
     }
     report(
-        "this 'if' only returns the default '{returned}', which is how a guard is written: write 'assert {proven}' and let the rest run unindented; when '{returned}' is a real answer here, not a guard, set a local to it in an 'if'/'else' and return the local once",
+        "this 'if' only returns the default '{returned}', which is how a guard is written: write 'assert {proven}' and let the rest run unindented",
     )
 }
 
@@ -22224,7 +23010,9 @@ func generate_if_statement(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ): Boolean {
-    assert if_statement.condition
+    if not if_statement.condition {
+        return false
+    }
     report_repeated_branch_call(if_statement)
     report_nested_if_else(if_statement)
     var constant = constant_condition(if_statement.condition, scope, class_information)
@@ -22259,9 +23047,16 @@ func generate_unfolded_if(
 ) {
     crash if_statement.condition
     report_default_guard(if_statement, function_information)
+    var leaves = not if_statement.has_else_branch and leaves_function(if_statement.then_branch)
+    var sides = List<Syntax.Expressions.Expression>()
+    collect_or_sides(if_statement.condition, sides)
+    if leaves and sides.any(is_negated_side) {
+        generate_leaving_if(if_statement, sides, scope, class_information, function_information)
+        return
+    }
     var guard = try_nullable_guard(if_statement.condition, scope, class_information)
     if guard {
-        report_terminal_if(if_statement, guard.name)
+        report_terminal_if(if_statement, guard.name, function_information)
         builder.add_user("if ({guard.guard_code}) \{")
         var then_scope = Scope(scope)
         narrow_by_guard(then_scope, guard)
@@ -22277,6 +23072,127 @@ func generate_unfolded_if(
     assert not generate_and_narrowing_if(if_statement, scope, class_information, function_information)
     if not generate_class_narrowing_if(if_statement, scope, class_information, function_information) {
         generate_plain_if(if_statement, scope, class_information, function_information)
+        if leaves {
+            var kept = negated_condition(if_statement.condition)
+            narrow_proven_indices(kept, scope)
+        }
+    }
+}
+
+func leaves_function(body: List<Syntax.Statements.Statement>): Boolean {
+    var last_statement = body.last()
+    var leaves = false
+    if last_statement {
+        leaves = is_leaving_statement(last_statement)
+    }
+    return leaves
+}
+
+func is_leaving_statement(statement: Syntax.Statements.Statement): Boolean {
+    var check = shape.as_assert_statement(statement)
+    var halts = false
+    if check {
+        if check.value {
+            halts = check.is_crash and shape.is_false_literal(check.value)
+        }
+    }
+    return statement == Syntax.Statements.ReturnStatement or halts
+}
+
+func collect_or_sides(expression: Syntax.Expressions.Expression, sides: List<Syntax.Expressions.Expression>) {
+    var joined = shape.as_binary(expression)
+    if joined {
+        if joined.operator == 'logical_or' {
+            crash joined.left
+            crash joined.right
+            collect_or_sides(joined.left, sides)
+            collect_or_sides(joined.right, sides)
+            return
+        }
+    }
+    sides.append(expression)
+}
+
+func is_negated_side(side: Syntax.Expressions.Expression): Boolean {
+    var unary = shape.as_unary(side)
+    var negated = false
+    if unary {
+        negated = unary.operator == 'logical_not'
+    }
+    return negated
+}
+
+func generate_leaving_if(
+    if_statement: Syntax.Statements.IfStatement,
+    sides: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    var probe_scope = Scope(scope)
+    var guards = List<NullableGuard>()
+    var plain_sides = List<Syntax.Expressions.Expression>()
+    var tests = List<String>()
+    var index = 0
+    while index < sides.count() {
+        if index > 0 {
+            conditional_depth = conditional_depth + 1
+        }
+        var kept_test = leaving_side_test(sides[index], probe_scope, guards, plain_sides, class_information)
+        if index > 0 {
+            conditional_depth = conditional_depth - 1
+        }
+        tests.append(kept_test)
+        index = index + 1
+    }
+    adopt_owned(probe_scope, scope)
+    builder.add_user("if (!({tests.join(" && ")})) \{")
+    generate_block(if_statement.then_branch, scope, class_information, function_information)
+    builder.add_user("}")
+    var guard_index = 0
+    while guard_index < guards.count() {
+        narrow_by_guard(scope, guards[guard_index])
+        guard_index = guard_index + 1
+    }
+    var side_index = 0
+    while side_index < plain_sides.count() {
+        var kept = negated_condition(plain_sides[side_index])
+        narrow_proven_indices(kept, scope)
+        side_index = side_index + 1
+    }
+}
+
+func leaving_side_test(
+    side: Syntax.Expressions.Expression,
+    probe_scope: Scope,
+    guards: List<NullableGuard>,
+    plain_sides: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): String {
+    var unary = shape.as_unary(side)
+    if unary {
+        if unary.operator == 'logical_not' and unary.operand {
+            var guard = try_nullable_guard(unary.operand, probe_scope, class_information)
+            if guard {
+                narrow_by_guard(probe_scope, guard)
+                guards.append(guard)
+                return "({guard.guard_code})"
+            }
+        }
+    }
+    var side_result = generate_joined(side, probe_scope, class_information)
+    check_condition(side_result, "if")
+    plain_sides.append(side)
+    return "!({owned_truth(side_result, side)})"
+}
+
+func adopt_owned(probe_scope: Scope, scope: Scope) {
+    var index = 0
+    while index < probe_scope.owned.count() {
+        var owned_local = probe_scope.owned[index]
+        var owned_type = owned_local.get_type()
+        scope.declare_owned(owned_local.name, owned_type)
+        index = index + 1
     }
 }
 
@@ -22309,14 +23225,22 @@ func generate_class_narrowing_if(
 ): Boolean {
     crash if_statement.condition
     var binary = shape.as_binary(if_statement.condition)
-    assert binary
-    assert binary.operator == 'equal'
+    if not binary {
+        return false
+    }
+    if binary.operator != 'equal' {
+        return false
+    }
     crash binary.left
     crash binary.right
     var subject_identifier = shape.as_identifier(binary.left)
-    assert subject_identifier
+    if not subject_identifier {
+        return false
+    }
     var tested_class = tested_class_of(binary.right, class_information)
-    assert tested_class
+    if not tested_class {
+        return false
+    }
     var subject = generate_expression(binary.left, scope, class_information)
     var subject_type = subject.get_type()
     var is_nullable = false
@@ -22326,7 +23250,9 @@ func generate_class_narrowing_if(
         is_nullable = true
     }
     var subject_union = type_shape.as_union(subject_type)
-    assert subject_union
+    if not subject_union {
+        return false
+    }
     var union_information = find_union_by_c_name(subject_union.c_name)
     if union_information {
         check_tested_member(union_information, tested_class)
@@ -22435,7 +23361,6 @@ func generate_union_case(
         report("a switch case must name a class of the union")
         return
     }
-    assert case_class
     if information.has_member(case_class.c_name) {
         covered_names.append(case_class.simple_name)
     } else {
@@ -22561,7 +23486,9 @@ func report_single_case(switch_statement: Syntax.Statements.SwitchStatement) {
 }
 
 func only_returns(body: List<Syntax.Statements.Statement>): Boolean {
-    assert body.count() == 1
+    if body.count() != 1 {
+        return false
+    }
     return body[0] == Syntax.Statements.ReturnStatement
 }
 
@@ -22667,7 +23594,9 @@ func report_if_else_in_branch(branch: List<Syntax.Statements.Statement>) {
 func collect_chain_narrowed_names(if_statement: Syntax.Statements.IfStatement, names: List<String>): Boolean {
     crash if_statement.condition
     collect_narrowed_names(if_statement.condition, names)
-    assert if_statement.has_else_branch
+    if not if_statement.has_else_branch {
+        return false
+    }
     var chained = chained_if(if_statement)
     if chained {
         return collect_chain_narrowed_names(chained, names)
@@ -23515,7 +24444,9 @@ func is_text_value(
     class_information: Analysis.ClassInfo,
 ): Boolean {
     var probe_type = probed_type(expression, scope, class_information)
-    assert type_shape.as_string(probe_type)
+    if not type_shape.as_string(probe_type) {
+        return false
+    }
     return true
 }
 
@@ -23550,7 +24481,9 @@ func declared_type_text(
         var written_type = printer.source_type(declaration.type_reference)
         return ": {written_type}"
     }
-    assert not is_text_value(hole, scope, class_information)
+    if is_text_value(hole, scope, class_information) {
+        return ""
+    }
     return ": String"
 }
 
@@ -23842,7 +24775,6 @@ func generate_switch_statement(
         report("switch needs a union value")
         return
     }
-    assert subject_union
     var information = find_union_by_c_name(subject_union.c_name)
     assert information
     if information.is_shape {
@@ -23961,7 +24893,6 @@ func generate_union_dispatch(
             )
             return void_result()
         }
-        crash first_function
         result_type = first_function.get_return_type()
         expected_types = parameter_types_of(first_function.parameters)
     } else {
@@ -23972,7 +24903,6 @@ func generate_union_dispatch(
             )
             return void_result()
         }
-        crash first_field
         result_type = first_field.get_type()
         mark_members_read(information.members, member_name)
     }
@@ -24076,12 +25006,22 @@ func check_asserted_condition(
 
 func earlier_proof(value: Syntax.Expressions.Expression, condition: ExpressionResult, scope: Scope): String {
     var condition_type = condition.get_type()
-    assert not type_shape.is_void(condition_type)
-    assert not type_shape.as_nullable(condition_type)
-    assert not is_boolean_type(condition_type)
-    assert shape.as_index(value)
+    if type_shape.is_void(condition_type) {
+        return ""
+    }
+    if type_shape.as_nullable(condition_type) {
+        return ""
+    }
+    if is_boolean_type(condition_type) {
+        return ""
+    }
+    if not shape.as_index(value) {
+        return ""
+    }
     var path = operand_text(value)
-    assert not path.is_empty()
+    if path.is_empty() {
+        return ""
+    }
     var proof = scope.proof_of(path)
     if proof.is_empty() {
         return "an earlier check"
@@ -24266,35 +25206,63 @@ func counted_loop_list(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ): String {
-    assert not hot_reload and remote_loop_port == 0 and not read_evaluate_print_loop and not resumable_mode
+    if hot_reload or remote_loop_port != 0 or read_evaluate_print_loop or resumable_mode {
+        return ""
+    }
     crash while_statement.condition
     var binary = shape.as_binary(while_statement.condition)
-    assert binary
+    if not binary {
+        return ""
+    }
     crash binary.left
     crash binary.right
-    assert binary.operator == 'less'
+    if binary.operator != 'less' {
+        return ""
+    }
     var counter = shape.as_identifier(binary.left)
-    assert counter
+    if not counter {
+        return ""
+    }
     var listed = counted_receiver(binary.right)
-    assert not listed.is_empty() and listed != counter.name
-    assert holds_counted_values(listed, scope)
-    assert is_local_counter(counter.name, scope, function_information)
-    assert counter_counts_up(counter.name, function_information.body)
-    assert counted_body_keeps_count(listed, counter.name, while_statement.body, scope, class_information)
+    if listed.is_empty() or listed == counter.name {
+        return ""
+    }
+    if not holds_counted_values(listed, scope) {
+        return ""
+    }
+    if not is_local_counter(counter.name, scope, function_information) {
+        return ""
+    }
+    if not counter_counts_up(counter.name, function_information.body) {
+        return ""
+    }
+    if not counted_body_keeps_count(listed, counter.name, while_statement.body, scope, class_information) {
+        return ""
+    }
     return listed
 }
 
 func counted_receiver(expression: Syntax.Expressions.Expression): String {
     var call = shape.as_call(expression)
-    assert call
-    assert call.arguments.is_empty()
+    if not call {
+        return ""
+    }
+    if not call.arguments.is_empty() {
+        return ""
+    }
     crash call.callee
     var member = shape.as_member(call.callee)
-    assert member
-    assert member.name == "count"
+    if not member {
+        return ""
+    }
+    if member.name != "count" {
+        return ""
+    }
     crash member.object
     var listed = shape.as_identifier(member.object)
-    assert listed
+    if not listed {
+        return ""
+    }
     return listed.name
 }
 
@@ -24317,18 +25285,28 @@ func counted_element_type(list_type: Analysis.SpiteType): Analysis.SpiteType? {
 
 func holds_counted_values(name: String, scope: Scope): Boolean {
     var list_type = scope.written_type(name)
-    assert list_type
+    if not list_type {
+        return false
+    }
     var element = counted_element_type(list_type)
-    assert element
+    if not element {
+        return false
+    }
     return true
 }
 
 func is_local_counter(name: String, scope: Scope, function_information: Analysis.FunctionInfo): Boolean {
     var counter_type = scope.written_type(name)
-    assert counter_type
+    if not counter_type {
+        return false
+    }
     var scalar = type_shape.as_scalar(counter_type)
-    assert scalar
-    assert scalar.kind == 'integer_kind'
+    if not scalar {
+        return false
+    }
+    if scalar.kind != 'integer_kind' {
+        return false
+    }
     var parameter_names = c_parameter_names(function_information.parameters)
     var counter_code = c_value_name(name)
     return not parameter_names.contains(counter_code)
@@ -24337,7 +25315,9 @@ func is_local_counter(name: String, scope: Scope, function_information: Analysis
 func counter_counts_up(counter: String, statements: List<Syntax.Statements.Statement>): Boolean {
     var index = 0
     while index < statements.count() {
-        assert statement_counts_up(counter, statements[index])
+        if not statement_counts_up(counter, statements[index]) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -24359,7 +25339,9 @@ func statement_counts_up(counter: String, statement: Syntax.Statements.Statement
         Syntax.Statements.SwitchStatement: {
             var case_index = 0
             while case_index < statement.cases.count() {
-                assert counter_counts_up(counter, statement.cases[case_index].body)
+                if not counter_counts_up(counter, statement.cases[case_index].body) {
+                    return false
+                }
                 case_index = case_index + 1
             }
             return true
@@ -24370,7 +25352,9 @@ func statement_counts_up(counter: String, statement: Syntax.Statements.Statement
 
 func is_counter_start(value: Syntax.Expressions.Expression): Boolean {
     var start = shape.as_integer_literal(value)
-    assert start
+    if not start {
+        return false
+    }
     return start.value >= 0
 }
 
@@ -24383,29 +25367,45 @@ func loop_counts_up(counter: String, loop: Syntax.Statements.WhileStatement): Bo
 
 func steps_counter_last(counter: String, body: List<Syntax.Statements.Statement>): Boolean {
     var last = body.last()
-    assert last
+    if not last {
+        return false
+    }
     var step = shape.as_assignment_statement(last)
-    assert step
+    if not step {
+        return false
+    }
     crash step.target
     crash step.value
-    assert is_identifier_named(step.target, counter)
+    if not is_identifier_named(step.target, counter) {
+        return false
+    }
     var sum = shape.as_binary(step.value)
-    assert sum
+    if not sum {
+        return false
+    }
     crash sum.left
     crash sum.right
-    assert sum.operator == 'add' and is_identifier_named(sum.left, counter)
+    if sum.operator != 'add' or not is_identifier_named(sum.left, counter) {
+        return false
+    }
     var one = shape.as_integer_literal(sum.right)
-    assert one
+    if not one {
+        return false
+    }
     return one.value == 1
 }
 
 func bounds_counter(counter: String, loop: Syntax.Statements.WhileStatement): Boolean {
     crash loop.condition
     var binary = shape.as_binary(loop.condition)
-    assert binary
+    if not binary {
+        return false
+    }
     crash binary.left
     crash binary.right
-    assert binary.operator == 'less' and is_identifier_named(binary.left, counter)
+    if binary.operator != 'less' or not is_identifier_named(binary.left, counter) {
+        return false
+    }
     if shape.as_integer_literal(binary.right) {
         return true
     }
@@ -24464,11 +25464,15 @@ func counted_body_keeps_count(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    assert steps_counter_last(counter, body)
+    if not steps_counter_last(counter, body) {
+        return false
+    }
     var plain_names = List<String>()
     var index = 0
     while index < body.count() - 1 {
-        assert keeps_count_statement(listed, counter, body[index], plain_names, scope, class_information)
+        if not keeps_count_statement(listed, counter, body[index], plain_names, scope, class_information) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -24484,7 +25488,9 @@ func keeps_count_block(
 ): Boolean {
     var index = 0
     while index < statements.count() {
-        assert keeps_count_statement(listed, counter, statements[index], plain_names, scope, class_information)
+        if not keeps_count_statement(listed, counter, statements[index], plain_names, scope, class_information) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -24500,11 +25506,17 @@ func keeps_count_statement(
 ): Boolean {
     switch statement {
         Syntax.Statements.VariableDeclaration: {
-            assert statement.name != listed and statement.name != counter
+            if statement.name == listed or statement.name == counter {
+                return false
+            }
             crash statement.value
-            assert is_counted_plain(statement.value, plain_names, scope, class_information)
+            if not is_counted_plain(statement.value, plain_names, scope, class_information) {
+                return false
+            }
             if statement.type_reference {
-                assert names_plain_type(statement.type_reference)
+                if not names_plain_type(statement.type_reference) {
+                    return false
+                }
             }
             plain_names.append(statement.name)
             return true
@@ -24519,18 +25531,26 @@ func keeps_count_statement(
             return is_counted_plain(statement.value, plain_names, scope, class_information)
         }
         Syntax.Statements.ReturnStatement: {
-            assert statement.value
+            if not statement.value {
+                return false
+            }
             return is_counted_plain(statement.value, plain_names, scope, class_information)
         }
         Syntax.Statements.IfStatement: {
             crash statement.condition
-            assert is_counted_plain(statement.condition, plain_names, scope, class_information)
-            assert keeps_count_block(listed, counter, statement.then_branch, plain_names, scope, class_information)
+            if not is_counted_plain(statement.condition, plain_names, scope, class_information) {
+                return false
+            }
+            if not keeps_count_block(listed, counter, statement.then_branch, plain_names, scope, class_information) {
+                return false
+            }
             return keeps_count_block(listed, counter, statement.else_branch, plain_names, scope, class_information)
         }
         Syntax.Statements.WhileStatement: {
             crash statement.condition
-            assert is_counted_plain(statement.condition, plain_names, scope, class_information)
+            if not is_counted_plain(statement.condition, plain_names, scope, class_information) {
+                return false
+            }
             return keeps_count_block(listed, counter, statement.body, plain_names, scope, class_information)
         }
         _: return false
@@ -24547,27 +25567,43 @@ func keeps_count_assignment(
 ): Boolean {
     crash assignment.target
     crash assignment.value
-    assert is_counted_plain(assignment.value, plain_names, scope, class_information)
+    if not is_counted_plain(assignment.value, plain_names, scope, class_information) {
+        return false
+    }
     var assigned = shape.as_identifier(assignment.target)
     if assigned {
-        assert assigned.name != listed and assigned.name != counter
-        assert plain_names.contains(assigned.name) or scope.written_type(assigned.name)
+        if assigned.name == listed or assigned.name == counter {
+            return false
+        }
+        if not plain_names.contains(assigned.name) and not scope.written_type(assigned.name) {
+            return false
+        }
         return is_plain_name(assigned.name, plain_names, scope, class_information)
     }
     var indexed = shape.as_index(assignment.target)
-    assert indexed
+    if not indexed {
+        return false
+    }
     crash indexed.object
     crash indexed.index
     var indexed_list = shape.as_identifier(indexed.object)
-    assert indexed_list
-    assert holds_counted_values(indexed_list.name, scope)
+    if not indexed_list {
+        return false
+    }
+    if not holds_counted_values(indexed_list.name, scope) {
+        return false
+    }
     return is_counted_plain(indexed.index, plain_names, scope, class_information)
 }
 
 func names_plain_type(type_reference: Syntax.Types.Type): Boolean {
     var named = shape.as_named_type(type_reference)
-    assert named
-    assert named.path.count() == 1 and named.arguments.is_empty()
+    if not named {
+        return false
+    }
+    if named.path.count() != 1 or not named.arguments.is_empty() {
+        return false
+    }
     var plain = [
         "Integer"
         "Long"
@@ -24598,7 +25634,9 @@ func is_plain_name(
         return is_plain_value_type(local_type)
     }
     var field = class_information.find_field(name)
-    assert field
+    if not field {
+        return false
+    }
     var field_type = field.get_type()
     return is_plain_value_type(field_type)
 }
@@ -24608,9 +25646,13 @@ func is_plain_value_type(spite_type: Analysis.SpiteType): Boolean {
         return true
     }
     var nullable = type_shape.as_nullable(spite_type)
-    assert nullable
+    if not nullable {
+        return false
+    }
     var inner = nullable.get_inner()
-    assert type_shape.as_scalar(inner)
+    if not type_shape.as_scalar(inner) {
+        return false
+    }
     return true
 }
 
@@ -24629,7 +25671,9 @@ func is_counted_plain(
         Syntax.Expressions.BinaryExpression: {
             crash expression.left
             crash expression.right
-            assert is_counted_plain(expression.left, plain_names, scope, class_information)
+            if not is_counted_plain(expression.left, plain_names, scope, class_information) {
+                return false
+            }
             return is_counted_plain(expression.right, plain_names, scope, class_information)
         }
         Syntax.Expressions.UnaryExpression: {
@@ -24640,8 +25684,12 @@ func is_counted_plain(
             crash expression.object
             crash expression.index
             var indexed_list = shape.as_identifier(expression.object)
-            assert indexed_list
-            assert holds_counted_values(indexed_list.name, scope)
+            if not indexed_list {
+                return false
+            }
+            if not holds_counted_values(indexed_list.name, scope) {
+                return false
+            }
             return is_counted_plain(expression.index, plain_names, scope, class_information)
         }
         Syntax.Expressions.CallExpression: return is_counted_call(expression, plain_names, scope, class_information)
@@ -24657,11 +25705,15 @@ func is_counted_call(
 ): Boolean {
     crash call.callee
     var member = shape.as_member(call.callee)
-    assert member
+    if not member {
+        return false
+    }
     crash member.object
     var index = 0
     while index < call.arguments.count() {
-        assert is_counted_plain(call.arguments[index], plain_names, scope, class_information)
+        if not is_counted_plain(call.arguments[index], plain_names, scope, class_information) {
+            return false
+        }
         index = index + 1
     }
     var receiver = shape.as_identifier(member.object)
@@ -24877,10 +25929,16 @@ func collect_counted_call(
 
 func holds_vector_values(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
     var named = shape.as_identifier(expression)
-    assert named
+    if not named {
+        return false
+    }
     var list_type = scope.written_type(named.name)
-    assert list_type
-    assert not type_shape.as_list(list_type)
+    if not list_type {
+        return false
+    }
+    if type_shape.as_list(list_type) {
+        return false
+    }
     return holds_counted_values(named.name, scope)
 }
 
@@ -24909,11 +25967,17 @@ func counted_item(
     class_information: Analysis.ClassInfo,
 ): String {
     var listed = shape.as_identifier(object_ast)
-    assert listed
+    if not listed {
+        return ""
+    }
     var counter = shape.as_identifier(index_ast)
-    assert counter
+    if not counter {
+        return ""
+    }
     var items = scope.counted_items_of("{listed.name}[{counter.name}]")
-    assert not items.is_empty()
+    if items.is_empty() {
+        return ""
+    }
     var counter_result = generate_expression(index_ast, scope, class_information)
     return "{items}[{counter_result.code}]"
 }
@@ -24985,7 +26049,9 @@ func index_key_text(key: Syntax.Expressions.Expression): String {
     if text {
         return "\"{text.value}\""
     }
-    assert is_structural_key(key)
+    if not is_structural_key(key) {
+        return ""
+    }
     var printer = Syntax.SourcePrinter()
     return printer.source_expression(key)
 }
@@ -24999,7 +26065,9 @@ func is_structural_key(key: Syntax.Expressions.Expression): Boolean {
         Syntax.Expressions.EnumLiteralExpression: return true
         Syntax.Expressions.UnaryExpression: return is_structural_part(key.operand)
         Syntax.Expressions.BinaryExpression: {
-            assert not key.is_text_join
+            if key.is_text_join {
+                return false
+            }
             return is_structural_part(key.left) and is_structural_part(key.right)
         }
         Syntax.Expressions.MemberExpression: return is_structural_part(key.object)
@@ -25009,7 +26077,9 @@ func is_structural_key(key: Syntax.Expressions.Expression): Boolean {
 }
 
 func is_structural_part(part: Syntax.Expressions.Expression?): Boolean {
-    assert part
+    if not part {
+        return false
+    }
     return is_structural_key(part)
 }
 
@@ -25074,12 +26144,20 @@ func emit_crash_operand(
 
 func describes_itself(spite_type: Analysis.SpiteType): Boolean {
     var described_ref = type_shape.as_class_ref(spite_type)
-    assert described_ref
-    assert not described_ref.has_signature
+    if not described_ref {
+        return false
+    }
+    if described_ref.has_signature {
+        return false
+    }
     var described_class = find_class_by_c_name(described_ref.c_name)
-    assert described_class
+    if not described_class {
+        return false
+    }
     var described = find_or_instantiate_function(described_class, "to_string")
-    assert described
+    if not described {
+        return false
+    }
     return described.parameters.is_empty()
 }
 
@@ -25243,7 +26321,9 @@ func operand_description(
     class_information: Analysis.ClassInfo,
 ): String {
     var name = operand_text(expression)
-    assert not name.is_empty()
+    if name.is_empty() {
+        return ""
+    }
     var saved_counter = temporary_counter
     var probe = generate_expression(expression, scope, class_information)
     rewind_temporaries(saved_counter)
@@ -25355,7 +26435,9 @@ func generate_and_narrowing_if(
     crash if_statement.condition
     var sides = List<Syntax.Expressions.Expression>()
     collect_and_sides(if_statement.condition, sides)
-    assert sides.count() > 1
+    if sides.count() <= 1 {
+        return false
+    }
     var then_scope = Scope(scope)
     var tests = List<String>()
     var index = 0
@@ -25403,7 +26485,9 @@ func generate_assert_statement(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ): Boolean {
-    assert assert_statement.value
+    if not assert_statement.value {
+        return false
+    }
     var sides = List<Syntax.Expressions.Expression>()
     collect_and_sides(assert_statement.value, sides)
     if sides.count() > 1 {
@@ -25506,7 +26590,9 @@ func note_always_crashing(
 }
 
 func instance_description(class_information: Analysis.ClassInfo): String {
-    assert not class_information.codegen_types.is_empty()
+    if class_information.codegen_types.is_empty() {
+        return ""
+    }
     var names = class_information.codegen_types.map(type_display_name)
     return " in {class_information.simple_name}<{names.join(", ")}>"
 }
@@ -25606,7 +26692,9 @@ func asks_while_compiling(expression: Syntax.Expressions.Expression): Boolean {
         Syntax.Expressions.CallExpression: {
             crash expression.callee
             var member = shape.as_member(expression.callee)
-            assert member
+            if not member {
+                return false
+            }
             var named = member.name
             return named == "has_function" or named == "function_waits" or named == "fits_vector" or named == "argument_count"
         }
@@ -25616,7 +26704,9 @@ func asks_while_compiling(expression: Syntax.Expressions.Expression): Boolean {
 
 func is_symbol_class_read(expression: Syntax.Expressions.Expression): Boolean {
     var read = shape.as_member(expression)
-    assert read and not bound_symbol_name.is_empty()
+    if not read or bound_symbol_name.is_empty() {
+        return false
+    }
     crash read.object
     return read.name == "class" and is_identifier_named(read.object, bound_symbol_name)
 }
@@ -25776,7 +26866,9 @@ func generate_statement_kind(
     }
     var assignment = shape.as_assignment_statement(statement)
     if assignment {
-        assert not report_borrowed_reassignment(assignment, scope)
+        if report_borrowed_reassignment(assignment, scope) {
+            return false
+        }
         borrow_site = assignment_site(assignment, scope)
         generate_assignment(assignment, scope, class_information)
         borrow_site = ""
@@ -25793,6 +26885,7 @@ func generate_statement_kind(
     }
     var assert_statement = shape.as_assert_statement(statement)
     if assert_statement {
+        report_default_assert(assert_statement, function_information)
         return generate_assert_statement(assert_statement, scope, class_information, function_information)
     }
     var return_statement = shape.as_return_statement(statement)
@@ -25822,7 +26915,6 @@ func constructor_parameter_list(information: Analysis.ClassInfo): String {
     if not information.constructor {
         return "void"
     }
-    crash information.constructor
     var parts = List<String>()
     var index = 0
     while index < information.constructor.parameters.count() {
@@ -25931,13 +27023,21 @@ func replaced_by_statement(
     parameter_names: List<String>,
 ): String {
     var assignment = shape.as_assignment_statement(statement)
-    assert assignment
+    if not assignment {
+        return ""
+    }
     crash assignment.target
     crash assignment.value
     var target = shape.as_identifier(assignment.target)
-    assert target
-    assert information.find_field(target.name) and not parameter_names.contains(target.name)
-    assert constant_or_parameter(assignment.value, parameter_names)
+    if not target {
+        return ""
+    }
+    if not information.find_field(target.name) or parameter_names.contains(target.name) {
+        return ""
+    }
+    if not constant_or_parameter(assignment.value, parameter_names) {
+        return ""
+    }
     return target.name
 }
 
@@ -25954,23 +27054,31 @@ func constant_or_parameter(value: Syntax.Expressions.Expression, parameter_names
 
 func pure_construction_code(code: String, visiting: List<String>): Boolean {
     var opening = code.index_of("(")
-    assert opening > 0 and code.ends_with(")")
+    if opening <= 0 or not code.ends_with(")") {
+        return false
+    }
     var code_length = code.length()
     var callee = code.slice(0, opening)
     var arguments = code.slice(opening + 1, code_length - 1)
-    assert callee.ends_with("___make") and (arguments.is_empty() or constant_arguments(arguments))
+    if not callee.ends_with("___make") or not arguments.is_empty() and not constant_arguments(arguments) {
+        return false
+    }
     var callee_length = callee.length()
     var class_c_name = callee.slice(0, callee_length - 7)
     return pure_class(class_c_name, visiting)
 }
 
 func constant_arguments(arguments: String): Boolean {
-    assert not arguments.is_empty()
+    if arguments.is_empty() {
+        return false
+    }
     var parts = arguments.split(", ")
     var index = 0
     while index < parts.count() {
         var part = parts[index]
-        assert constant_texts.has(part) or constant_number(part)
+        if not constant_texts.has(part) and not constant_number(part) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -25981,28 +27089,40 @@ func constant_number(part: String): Boolean {
     while index < part.length() {
         var code = part.code_at(index)
         var digit = code >= 48 and code <= 57
-        assert digit or code == 45 or code == 46
+        if not digit and code != 45 and code != 46 {
+            return false
+        }
         index = index + 1
     }
     return not part.is_empty()
 }
 
 func pure_class(class_c_name: String, visiting: List<String>): Boolean {
-    assert not visiting.contains(class_c_name)
+    if visiting.contains(class_c_name) {
+        return false
+    }
     visiting.append(class_c_name)
     var information = find_class_by_c_name(class_c_name)
-    assert information
+    if not information {
+        return false
+    }
     if information.qualified_dotted == "List" or information.qualified_dotted == "Dictionary" {
         return true
     }
-    assert not information.is_singleton and not information.drop_function and not information.is_value_class
-    assert not is_hot_class(information) and not information.is_generic_template
+    if information.is_singleton or information.drop_function or information.is_value_class {
+        return false
+    }
+    if is_hot_class(information) or information.is_generic_template {
+        return false
+    }
     if information.constructor {
         var parameter_names = information.constructor.parameters.map_name()
         var index = 0
         while index < information.constructor.body.count() {
             var target = replaced_by_statement(information, information.constructor.body[index], parameter_names)
-            assert not target.is_empty()
+            if target.is_empty() {
+                return false
+            }
             index = index + 1
         }
     }
@@ -26011,9 +27131,11 @@ func pure_class(class_c_name: String, visiting: List<String>): Boolean {
         var field = information.fields[field_index]
         var field_type = field.get_type()
         if type_needs_drop(field_type) {
-            assert pure_construction_code(field.default_value_code, visiting) or constant_text_code(field.default_value_code)
-        } else {
-            assert constant_scalar_code(field.default_value_code)
+            if not pure_construction_code(field.default_value_code, visiting) and not constant_text_code(field.default_value_code) {
+                return false
+            }
+        } else if not constant_scalar_code(field.default_value_code) {
+            return false
         }
         field_index = field_index + 1
     }
@@ -26033,7 +27155,9 @@ func constant_scalar_code(code: String): Boolean {
         var digit = code_point >= 48 and code_point <= 57
         if code_point == 40 {
             var called = code.slice(name_start, index)
-            assert called.is_empty() or called.starts_with("Spite") and called.contains("_from_")
+            if not called.is_empty() and (not called.starts_with("Spite") or not called.contains("_from_")) {
+                return false
+            }
         }
         if not letter and not digit {
             name_start = index + 1
@@ -26385,7 +27509,9 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
 func returned_class_name(function: Analysis.FunctionInfo): String {
     var function_return_type = function.get_return_type()
     var returned_reference = type_shape.as_class_ref(function_return_type)
-    assert returned_reference
+    if not returned_reference {
+        return ""
+    }
     return returned_reference.c_name
 }
 
@@ -26744,18 +27870,32 @@ func waiting_kind(information: Analysis.ClassInfo, function: Analysis.FunctionIn
 }
 
 func guards_singleton(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
-    assert information.is_singleton and not information.is_stateless_singleton and not is_library_class(information)
-    assert not function.is_constructor and function.name != "drop" and not function.body.is_empty()
-    assert not is_hot_class(information)
+    if not information.is_singleton or information.is_stateless_singleton or is_library_class(information) {
+        return false
+    }
+    if function.is_constructor or function.name == "drop" or function.body.is_empty() {
+        return false
+    }
+    if is_hot_class(information) {
+        return false
+    }
     var atomic = atomic_singleton_fields(information)
-    assert atomic.is_empty()
+    if not atomic.is_empty() {
+        return false
+    }
     return changes_after_construction(information)
 }
 
 func atomic_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
-    assert information.is_singleton and not information.is_stateless_singleton and not is_library_class(information)
-    assert not function.is_constructor and function.name != "drop" and not function.body.is_empty()
-    assert not is_hot_class(information)
+    if not information.is_singleton or information.is_stateless_singleton or is_library_class(information) {
+        return false
+    }
+    if function.is_constructor or function.name == "drop" or function.body.is_empty() {
+        return false
+    }
+    if is_hot_class(information) {
+        return false
+    }
     var atomic = atomic_singleton_fields(information)
     return not atomic.is_empty()
 }
@@ -26982,7 +28122,9 @@ func self_touches(
         var field_code = leading_name(field_text)
         return changing.contains(field_code)
     }
-    assert not before.ends_with("(void)")
+    if before.ends_with("(void)") {
+        return false
+    }
     if not before.ends_with("(") {
         return true
     }
@@ -26999,13 +28141,17 @@ func self_touches(
 
 func ends_in_name(text: String): Boolean {
     var text_length = text.length()
-    assert text_length != 0
+    if text_length == 0 {
+        return false
+    }
     var last = text.code_at(text_length - 1)
     return is_c_name_code(last)
 }
 
 func starts_with_name(text: String): Boolean {
-    assert not text.is_empty()
+    if text.is_empty() {
+        return false
+    }
     var first = text.code_at(0)
     return is_c_name_code(first)
 }
@@ -27221,7 +28367,9 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
 
 func is_atomic_capable(spite_type: Analysis.SpiteType): Boolean {
     var scalar = type_shape.as_scalar(spite_type)
-    assert scalar
+    if not scalar {
+        return false
+    }
     var kind = scalar.kind
     var signed = kind == 'integer_kind' or kind == 'long_kind' or kind == 'tiny_kind' or kind == 'short_kind'
     var unsigned = kind == 'byte_kind' or kind == 'unsigned_short_kind' or kind == 'unsigned_integer_kind'
@@ -27507,7 +28655,9 @@ func emit_guarded_outside_write(
 }
 
 func reads_changing_singleton(target_class: Analysis.ClassInfo, class_information: Analysis.ClassInfo): Boolean {
-    assert guards_outside_write(target_class) and target_class.c_name != class_information.c_name
+    if not guards_outside_write(target_class) or target_class.c_name == class_information.c_name {
+        return false
+    }
     return changes_after_construction(target_class)
 }
 
@@ -27612,9 +28762,13 @@ func holds_read_only(field_type: Analysis.SpiteType, visiting: List<String>): Bo
         held_type = nullable.get_inner()
     }
     var class_ref = type_shape.as_class_ref(held_type)
-    assert class_ref
+    if not class_ref {
+        return false
+    }
     var held = find_class_by_c_name(class_ref.c_name)
-    assert held
+    if not held {
+        return false
+    }
     return is_read_only_class(held, visiting)
 }
 
@@ -27622,8 +28776,12 @@ func is_read_only_class(information: Analysis.ClassInfo, visiting: List<String>)
     if read_only_classes.has(information.c_name) {
         return read_only_classes[information.c_name] == true
     }
-    assert not visiting.contains(information.c_name) and not information.is_value_class
-    assert not information.is_generic_template
+    if visiting.contains(information.c_name) or information.is_value_class {
+        return false
+    }
+    if information.is_generic_template {
+        return false
+    }
     visiting.append(information.c_name)
     var read_only = not written_from_outside(information)
     var index = 0
@@ -28354,7 +29512,9 @@ func mentions_name(text: String, name: String): Boolean {
     while from < text_length {
         var rest = text.slice(from, text_length)
         var found = rest.index_of(name)
-        assert found >= 0
+        if found < 0 {
+            return false
+        }
         var after = from + found + name_length
         var next_code = text.code_at(after)
         var continues_name = next_code == 95 or next_code >= 48 and next_code <= 57 or next_code >= 65 and next_code <= 90 or next_code >= 97 and next_code <= 122
@@ -28733,11 +29893,17 @@ func folded_question_call(
 }
 
 func folds_on(receiver: FoldedDecimal, name: String): Boolean {
-    assert receiver.is_decimal()
+    if not receiver.is_decimal() {
+        return false
+    }
     var value_class = find_class_by_qualified(receiver.kind)
-    assert value_class
+    if not value_class {
+        return false
+    }
     var function = find_or_instantiate_function(value_class, name)
-    assert function
+    if not function {
+        return false
+    }
     return is_inline_supplied(function)
 }
 

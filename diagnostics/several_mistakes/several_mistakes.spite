@@ -6,7 +6,7 @@ func SeveralMistakes() {
     total = total + missing_function(2)
 }
 
-func helper(): Integer {
+func helper(): Integer? {
     assert 1 > 0
     return 1
 }

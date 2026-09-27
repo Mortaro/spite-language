@@ -17,6 +17,8 @@ What that already means in practice:
   and `first()` answer a `T?` instead of a made-up element ([below](#reading-with--answers-t)).
 - A check that stops proving something -- after an assignment, or a call that may change what it read -- has to
   be made again ([a call may undo a proof](#a-call-may-undo-a-proof)).
+- A guard `assert` stops a function only where its result can say "nothing"; a function answering a number, a
+  `Boolean`, a text or an object writes its answer down ([below](#a-default-that-looks-like-an-answer-is-an-error)).
 - A developer's mistake halts naming the line: a whole number divided by zero, signed arithmetic that does not
   fit while you develop ([values_and_types.md](values_and_types.md#signed-arithmetic-that-does-not-fit-halts-while-you-develop)),
   a `crash` that fails, a native fault ([below](#what-a-native-fault-reports)).
@@ -70,7 +72,8 @@ There is one rule, and every form below follows it.
 | Written | When it is null |
 |---|---|
 | `if value { } else { }` | runs the `else`; inside the `{ }`, `value` is a `T` |
-| `assert value` | the function returns its default; after it, `value` is a `T` for the rest of the block |
+| `assert value` | the function answers "nothing" (below); after it, `value` is a `T` for the rest of the block |
+| `if not value { return ... }` | the block runs and leaves; after it, `value` is a `T` for the rest of the block |
 | `crash value` | the program halts; after it, `value` is a `T` |
 | `while value { }` | the loop ends; inside the body, `value` is a `T` |
 | `switch value { Monster: ... Null: ... }` | runs the `Null` case |
@@ -294,16 +297,15 @@ var console = Console()
 
 func ShadowingDoc() {
     var first_line = read_first_line("  spite\nsecond  ")
+    crash first_line
     console.print("[{first_line}]")
 }
 
-func read_first_line(text: String?): String {
+func read_first_line(text: String?): String? {
     assert text
     var text = text.trim()
     var lines = text.lines()
-    var first = lines.first()
-    crash first
-    return first
+    return lines.first()
 }
 ```
 ```output
@@ -399,84 +401,194 @@ Absence is fine: `assert`. Absence is a bug: `crash`. Absence is a case: `if val
 
 ## `assert` is a guard
 
-`assert condition` is a production feature, not a debug one: when the condition is false, the function returns
-its return type's default immediately -- `false`, `0`, `""`, `null`, an empty value, or nothing -- and no code
-after it runs. It works in a function returning any type, and a failed one is remembered for the crash report
-([below](#what-a-crash-reports)).
+`assert condition` is a production feature, not a debug one: when the condition is false, the function stops
+there and answers "nothing", and no code after it runs. A failed one is remembered for the crash report
+([below](#what-a-crash-reports)). "Nothing" has to be something the caller can see, so a guard `assert` is
+allowed only where the function's result can say it ([D244](decisions.md), [D245](decisions.md)):
+
+- a function that returns nothing just returns;
+- a function returning a `T?` answers `null`;
+- a function returning a `List`, `Dictionary`, `Vector` or `Items` answers an empty one.
 
 ```gdscript title=assert_guard/assert_guard.spite entry
 var console = Console()
-var handle = -1
+var names = ["ada", "bo"]
 
 func AssertGuard() {
-    var closed = is_open()
-    handle = 3
-    var opened = is_open()
-    console.print(closed, opened)
-    var total = sum_positives(2.5, 1.5)
-    var refused = sum_positives(-1.0, 4.0)
-    console.print(total, refused)
+    report(1)
+    report(7)
+    var short = short_names(3)
+    var nothing_short = short_names(0)
+    var short_count = short.count()
+    var nothing_count = nothing_short.count()
+    console.print(short_count, nothing_count)
 }
 
-func is_open(): Boolean {
-    assert handle != -1
-    return true
+func report(index: Integer) {
+    var name = name_at(index)
+    assert name
+    console.print(index, name)
 }
 
-func sum_positives(first: Float, second: Float): Float {
-    assert first > 0 and second > 0
-    return first + second
+func name_at(index: Integer): String? {
+    assert index >= 0 and index < names.count()
+    return names[index]
+}
+
+func short_names(longest: Integer): List<String> {
+    assert longest > 0
+    return names.filter(is_short)
+}
+
+func is_short(name: String): Boolean {
+    return name.length() < 3
 }
 ```
 ```output
-false true
-4 0
+1 bo
+1 0
 ```
 
-When a caller must tell absence from a real `0` or `false`, return a `T?` instead -- or, if absence is a bug,
-`crash`.
+### A default that looks like an answer is an error
 
-### An `if` that only returns the default is an `assert`
+A number, a `Boolean`, a `String`, an enum value or an object cannot say "nothing": its default -- `0`, `false`,
+`""`, the first value, an object with every attribute at its default -- looks exactly like a real answer. A guard
+`assert` in a function returning one is a compile error, since the caller would carry on with a value nobody
+meant (SlopEngine's `row_of(entity)` answered row 0, a real row, and removed the wrong one):
 
-An `if` with no `else` whose whole body returns the function's default -- `false`, `0`, `0.0`, `""`, `null`, or a
-bare `return` in a function returning nothing -- is a guard spelled the long way. It is a compile error wherever
-it stands, inside a loop or a nested `if` included, and the message names the `assert` of the opposite
-condition. Returning anything else (`return -1`, `return true`) is a real answer and is left alone:
-
-```gdscript title=default_guard_error/default_guard_error.spite entry error
+```gdscript title=default_answer_error/default_answer_error.spite entry error
 var console = Console()
-var handle = -1
+var rows = [10, 20, 30]
 
-func DefaultGuardError() {
-    var open = is_open()
-    console.print(open)
+func DefaultAnswerError() {
+    var row = row_of(7)
+    console.print(row)
 }
 
-func is_open(): Boolean {
-    if handle == -1 {
-        return false
-    }
-    return true
+func row_of(entity: Integer): Integer {
+    assert entity < rows.count()
+    return rows[entity]
 }
 ```
 ```diagnostic
-this 'if' only returns the default 'false', which is how a guard is written: write 'assert handle != -1' and let the rest run unindented
+this 'assert' would answer a default Integer (0) that a caller cannot tell from a real one: return a value ('if entity >= rows.count() { return -1 }'), make the result 'Integer?', or 'crash entity < rows.count()' if this is a developer mistake
+```
+
+The message names the three ways out, and which one is right is a decision about the caller:
+
+- **the result says "nothing"**: `Integer?`, and every caller narrows it -- when a missing row is a case the
+  program meets in normal use;
+- **an answer you chose**: an `if` that returns it -- when a value outside the real ones already means "none",
+  as `-1` does for an index;
+- **`crash`**: when asking for a row that is not there is the caller's bug ([D199](decisions.md)).
+
+```gdscript title=default_answer_fixed/default_answer_fixed.spite entry
+var console = Console()
+var rows = [10, 20, 30]
+
+func DefaultAnswerFixed() {
+    var found = row_of(2)
+    crash found
+    var missing = row_or_minus_one(7)
+    var second = row_or_halt(1)
+    console.print(found, missing, second)
+}
+
+func row_of(entity: Integer): Integer? {
+    assert entity < rows.count()
+    return rows[entity]
+}
+
+func row_or_minus_one(entity: Integer): Integer {
+    if entity >= rows.count() {
+        return -1
+    }
+    return rows[entity]
+}
+
+func row_or_halt(entity: Integer): Integer {
+    crash entity < rows.count()
+    return rows[entity]
+}
+```
+```output
+30 -1 20
+```
+
+An `if` that returns a value in such a function is an answer written down, whatever the value, so
+`if text.is_empty() { return 0 }` is how an empty text is zero bytes long, and `if handle == -1 { return false }`
+is how a closed file says it is not open.
+
+### An `if` that leaves proves the rest
+
+An `if` with no `else` whose block ends by leaving the function -- a `return` or a bare `crash` -- proves the
+opposite of its condition for the rest of the block, the way an `assert` does. So `if not found { return -1 }`
+narrows `found`, `if not left or not right { return 0 }` narrows both, and `if index >= names.count() { return
+"" }` proves `names[index]`:
+
+```gdscript title=leaving_if/leaving_if.spite entry
+var console = Console()
+var prices = Dictionary<Integer>()
+
+func LeavingIf() {
+    prices.set("apple", 3)
+    var apple = price_or_zero("apple")
+    var pear = price_or_zero("pear")
+    console.print(apple, pear)
+}
+
+func price_or_zero(name: String): Integer {
+    if not prices[name] {
+        return 0
+    }
+    return prices[name] * 100
+}
+```
+```output
+300 0
+```
+
+### An `if` that only returns the default is an `assert`
+
+Where a guard `assert` is allowed, it is the only way to write a guard. An `if` with no `else` whose whole body
+returns the function's default -- `null` from a function returning a `T?`, or a bare `return` from one returning
+nothing -- is a guard spelled the long way. It is a compile error wherever it stands, inside a loop or a nested
+`if` included, and the message names the `assert` of the opposite condition:
+
+```gdscript title=default_guard_error/default_guard_error.spite entry error
+var console = Console()
+var names = List<String>()
+
+func DefaultGuardError() {
+    var first = first_name()
+    console.print(first == "ada")
+}
+
+func first_name(): String? {
+    if names.is_empty() {
+        return null
+    }
+    return names.first()
+}
+```
+```diagnostic
+this 'if' only returns the default 'null', which is how a guard is written: write 'assert not names.is_empty()' and let the rest run unindented
 ```
 
 The fix reads top to bottom:
 
 ```gdscript title=default_guard_fixed/default_guard_fixed.spite entry
 var console = Console()
-var handle = -1
+var names = List<String>()
 
 func DefaultGuardFixed() {
-    var open = is_open()
-    console.print(open)
+    var first = first_name()
+    console.print(first == "ada")
 }
 
-func is_open(): Boolean {
-    assert handle != -1
-    return true
+func first_name(): String? {
+    assert not names.is_empty()
+    return names.first()
 }
 ```
 ```output
@@ -486,8 +598,9 @@ false
 The message turns the condition around for you -- `if count < 0 or count > limit` becomes
 `assert count >= 0 and count <= limit` ([how](#null-safety-and-assert-narrowing--implemented)).
 
-Sometimes the default is the real answer and not a guard: an empty text is zero bytes long. The rule still holds,
-so give that answer through a local set in an `if`/`else` and return it once:
+In a function returning a number, a `Boolean`, a `String`, an enum or an object, nothing of this applies: `assert`
+is not allowed there ([above](#a-default-that-looks-like-an-answer-is-an-error)), and an `if` returning `0` or
+`false` is the answer written down:
 
 ```gdscript title=default_answer/default_answer.spite entry
 var console = Console()
@@ -499,13 +612,10 @@ func DefaultAnswer() {
 }
 
 func size(): Integer {
-    var bytes = 0
     if text.is_empty() {
-        bytes = 0
-    } else {
-        bytes = text.length() + 1
+        return 0
     }
-    return bytes
+    return text.length() + 1
 }
 ```
 ```output
@@ -762,6 +872,7 @@ word needs a reason, and a place where the compiler lets one through is a bug to
 |---|---|---|
 | reading a value that may be absent as if it were there | `T?` must be narrowed first; `value == null` is an error | [narrowing](#null-safety-and-assert-narrowing--implemented) |
 | an index past the end, a key never set | `[]`, `first()`, `last()`, `remove_first()` answer a `T?` | [reading with `[]`](#reading-with--answers-t) |
+| a guard `assert` answering a `0`, `false`, `""` or default object the caller takes for a real answer | compile error unless the result can say "nothing" (D244, D245) | [a default that looks like an answer](#a-default-that-looks-like-an-answer-is-an-error) |
 | a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is never a condition | [null safety](#null-safety-and-assert-narrowing--implemented) |
 | a proof that went stale after an assignment or a call | the read must be proven again; in a loop, an error naming the call | [a call may undo a proof](#a-call-may-undo-a-proof) |
 | a failed `crash` printing a default that reads as a real zero | the report names the missing link, index and count, or key (D248) | [what a crash reports](#what-a-crash-reports-1) |
@@ -786,8 +897,9 @@ word needs a reason, and a place where the compiler lets one through is a bug to
 a word unless the program runs with `--debug-memory`, which prints the allocation balance
 ([memory.md](memory.md#cycles-leak)); signed arithmetic wraps in production builds and unsigned arithmetic
 wraps in every build (D249); a `Concurrent` polled for `finished` under `resume_only_when_asked()` without
-`run_ready()` never ends ([concurrency.md](concurrency.md#choosing-where-concurrents-resume)); and a function that
-declares a result can reach its end without a `return`, which answers whatever the C compiler leaves there.
+`run_ready()` never ends ([concurrency.md](concurrency.md#choosing-where-concurrents-resume)); a function that
+declares a result can reach its end without a `return`, which answers whatever the C compiler leaves there; and
+`String.to_integer()` and `to_long()` answer `0` for text that is not a number.
 
 
 `assert` doubles as the way to prove a `T?` is not null without nesting: after `assert value` on a
@@ -846,29 +958,41 @@ A narrowing `if` that is not the function's last statement (more statements foll
 another statement (an outer `if`/`while`/switch case) rather than being the function body's own tail, is not
 a lint error.
 
-**An `if` that only returns the default is an `assert`** (D106, decided by Mortaro, 2026-09-24). An `if` with no
-`else` whose whole body is one `return` of the function's default -- `false`, `0`, `0.0`, `""`, `null`, or a bare
-`return` in a function returning nothing -- is a compile error wherever it stands in the function, inside a
-`while` or a nested `if` included, and the message names the `assert` of the opposite condition:
+**An `if` that only returns the default is an `assert`** (D106, decided by Mortaro, 2026-09-24; narrowed by D244
+to the functions where a guard `assert` is allowed). In a function returning nothing, a `T?`, or a `List`,
+`Dictionary`, `Vector` or `Items`, an `if` with no `else` whose whole body is one `return` of the function's
+default -- `null`, or a bare `return` in a function returning nothing -- is a compile error wherever it stands in
+the function, inside a `while` or a nested `if` included, and the message names the `assert` of the opposite
+condition:
 
 ```gdscript
-func is_open(): Boolean {
-    if handle == -1 {        # error: this 'if' only returns the default 'false', which is how a guard is
-        return false         #        written: write 'assert handle != -1' and let the rest run unindented
+func first_name(): String? {
+    if names.is_empty() {    # error: this 'if' only returns the default 'null', which is how a guard is
+        return null          #        written: write 'assert not names.is_empty()' and let the rest run unindented
     }
-    return true
+    return names.first()
 }
 ```
 
 It is the same rule as narrowing, so `if not value { return null }` becomes `assert value` and narrows `value`
-for the rest of the block. Returning anything else -- `return true` from a `Boolean` function, `return -1` -- is an
-answer, not a guard, and is left alone. A default that is a real answer (an empty text is zero bytes) is still
-caught, and the message names the way to give it: a local set in an `if`/`else` and returned once. How the
+for the rest of the block. In a function returning anything else -- a number, a `Boolean`, a `String`, an enum or
+an object -- a guard `assert` is an error (below), so an `if` that returns a value there is an answer written
+down, `return 0` and `return false` included, and is left alone. How the
 condition is turned around (proposed by Claude, unconfirmed):
 `==` and `!=` swap, `<` becomes `>=` and `>` becomes `<=` (and back), `not x` becomes `x`, anything else becomes
 `not x`, and `and`/`or` are turned around by De Morgan, side by side -- `if count < 0 or count > limit` becomes
 `assert count >= 0 and count <= limit`. An `else if` is covered too. In a constructor, where `assert` is not
 allowed (D28), the message names `crash` instead. `diagnostics/default_guard`, `diagnostics/returning_guard`.
+**[implemented]**
+
+**An `if` that leaves proves the opposite of its condition** (proposed by Claude, unconfirmed, 2026-09-27, so that
+D244's explicit answers read as guards do). An `if` with no `else` whose block's last statement is a `return` or a
+bare `crash` proves, for the rest of the enclosing block, what an `assert` of the opposite condition would: each
+side of an `or` in its condition written `not path` narrows that path, as `assert path` does (the later sides
+already see the earlier ones narrowed, so `if not found or found.count() == 0 { return 0 }` is one test), and every
+other side proves the `[]` reads its opposite bounds (`if index >= names.count() { return "" }` proves
+`names[index]`). The block itself sees none of it. A check that the `if` already proves is the usual "proves
+nothing" error (`conformance/stage6/leaving_if`). Compile time only: the emitted test is the condition as written.
 **[implemented]**
 
 **`assert` narrows every link of a chain, not only the last** (D43, decided by Mortaro, 2026-09-20). Walking a
@@ -1032,22 +1156,49 @@ D26 (decided by Mortaro, 2026-09-19): `assert` is a guard clause, not validation
 there is no more logic to do here, but the program is fine and keeps serving everything else". It is why a web
 server or a game written in Spite should rarely crash.
 
-**`assert` is legal in a function returning any type, and a failed one returns that type's default** (D106,
-decided by Mortaro, superseding D27's limit to functions returning nothing or `T?`) -- `false`, `0`, `""`,
-`null`, an empty value, or nothing. `if handle == -1 { return false }` returns the very same default, only spelled
-as an indented `if`, so that `if` is an error naming its `assert`
-([Null safety and `assert` narrowing](#null-safety-and-assert-narrowing--implemented), "An `if` that only returns
-the default is an `assert`").
+**A guard `assert` answers "nothing", so it is allowed only where the result can say it** (D244, decided by
+Mortaro; D245, decided by Claude under D244; superseding D106's "legal in a function returning any type", which
+had relaxed D27's limit to functions returning nothing or `T?`). A failed `assert` returns at once, answering:
+
+- nothing, in a function returning nothing;
+- `null`, in a function returning a `T?`;
+- an empty one, in a function returning a `List`, `Dictionary`, `Vector` or `Items`.
+
+In a function returning anything else -- a whole number or a `Float`/`Double` (`0`), a `Boolean` (`false`), a
+`String` (`""`, since an empty text is a real text), an enum (its first value), a `Memory.Address`, a union or a
+class that cannot be null (an object with every attribute at its default) -- an `assert` is a compile error, since
+the caller would carry on with a default it cannot tell from a real answer:
+
+```
+this 'assert' would answer a default Integer (0) that a caller cannot tell from a real one: return a value ('if entity >= rows.count() { return -1 }'), make the result 'Integer?', or 'crash entity < rows.count()' if this is a developer mistake
+```
+
+The message names the opposite condition, an answer of the type (`-1`, `-1.0`, `false`, `""`, the enum's first
+value, or `...` for an object), the nullable result (left out for a `Boolean`, since a `Boolean?` is never a
+condition) and the `crash`. It is checked against the result type of each function as compiled, so in a generic
+class it is checked per instance, and an `assert` whose condition is decided while compiling
+(`assert $slot_type == Entity`) is held to it too: its instance would answer the default every call. `crash` is
+never limited this way. Which of the three a site takes is the writer's decision (D199): a `T?` when the case is
+met in normal use, a value chosen on purpose when one outside the real answers already means "none", a `crash`
+when asking is the caller's bug (proposed by Claude, unconfirmed: the message, the choice of `-1`, and that
+`String` counts as a value). SlopEngine met it three times in a day: `World.create_entity_from_bundle(): Entity`
+answered a default `Entity` instead of the one just made, `deform_layer(): Integer` answered offset 0 for a mesh
+without skin, `object_world(): Math.Matrix4` answered a default matrix for an object without a parent
+(`diagnostics/default_answer`, `conformance/stage6/leaving_if`). **[implemented]**
 
 ```gdscript
+func first_name(): String? {
+    assert not names.is_empty()      # a failed assert answers null
+    return names.first()
+}
+
 func is_open(): Boolean {
-    assert handle != -1              # a failed assert returns false
+    if handle == -1 {                # a Boolean cannot say "nothing": the answer is written down
+        return false
+    }
     return true
 }
 ```
-
-When the caller must tell absence from a real `0` or `false`, the choice is still deliberate: return `Integer?`, or,
-if absence is a bug rather than a case, `crash`.
 
 D28: **`assert` is banned in a constructor**, including the entry class's own (D29). A constructor is setup, not
 logic: if something can be invalid inside one, function logic has been put where only setup belongs. The caller

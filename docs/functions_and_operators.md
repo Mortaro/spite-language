@@ -405,11 +405,13 @@ func function_name(first: Reference, second: Value): Tiny {
   ([Casting](values_and_types.md#casting)). There is no overloading: one name is one function, and a file that
   declares a name twice is an error, "'Shop' declares 'twice' twice: a later file may reopen a class and replace
   a function, but one file declares each name once".
-- `assert condition` is a production feature, not a debug one: when the condition is falsey the function returns
-  the default value of its return type immediately ([`assert` is control flow](failure.md#assert-is-control-flow)).
+- `assert condition` is a production feature, not a debug one: when the condition is false the function stops and
+  answers "nothing" -- returns, `null`, or an empty collection -- so it is allowed only in a function whose result
+  can say that; anywhere else the answer is written down, or the result made a `T?`
+  ([`assert` is control flow](failure.md#assert-is-control-flow)).
 
 ```gdscript
-func sum_positives(a: Float, b: Float): Float {
+func sum_positives(a: Float, b: Float): Float? {
     assert a > 0 and b > 0
     return a + b
 }

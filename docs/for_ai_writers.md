@@ -252,7 +252,8 @@ func is_alive(): Boolean {
   never compiled: a `Stream<$system_type, argument.class>` that calls `system.phase_each(row)` is made only for
   one-row systems. With a pattern whose functions take different counts, ask inside the walk instead.
 - `assert` and `crash` on a compile-time question fold like `if`: `assert $slot_type == Entity` then `return
-  value.id` compiles for every `Slot<T>`, returning the default where `T` is not `Entity`, with no run-time test;
+  value.id`, in a function returning `Integer?`, compiles for every `Slot<T>`, answering `null` where `T` is not
+  `Entity`, with no run-time test (in one returning `Integer`, write `if $slot_type != Entity { return 0 }`);
   `crash $component_type.fits_vector()` halts every call in an instance whose type does not fit.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
@@ -334,11 +335,18 @@ func is_alive(): Boolean {
   first, or compare it `== true`.
 - There are no exceptions and no error values. Three outcomes only:
   - the compiler can know it: a compile error;
-  - absence is fine: `assert condition` returns the function's default quietly (`false`, `0`, `""`, `null`,
-    nothing), in a function returning any type, never in a constructor (`'assert' is not allowed in a
-    constructor`: take resolved values, or `crash`). `if x { return false }` -- an `if` whose body only returns
-    the default -- is an error naming the `assert` to write (`write 'assert not x'`), and so is a last `if` with no
-    `else` that only checks a value is there (`write 'assert maybe_name'`);
+  - absence is fine: `assert condition` stops the function and answers "nothing" -- it returns, answers `null`
+    from a `T?`, or an empty `List`/`Dictionary`/`Vector`/`Items` -- and is allowed only there, never in a
+    constructor (`'assert' is not allowed in a constructor`: take resolved values, or `crash`). In a function
+    returning a number, `Boolean`, `String`, enum or object it is an error, since its default would pass for a real
+    answer (`this 'assert' would answer a default Integer (0) that a caller cannot tell from a real one: return a
+    value ('if not found { return -1 }'), make the result 'Integer?', or 'crash found' if this is a developer
+    mistake`): write the answer (`if handle == -1 { return false }`), make the result a `T?`, or `crash`. Where
+    `assert` is allowed, `if x { return null }` or a bare `if x { return }` is an error naming the `assert` to write
+    (`write 'assert not x'`), and so is a last `if` with no `else` that only checks a value is there (`write
+    'assert maybe_name'`). An `if` with no `else` that ends in `return` proves the opposite of its condition after
+    it: `if not found { return -1 }` narrows `found`, `if index >= names.count() { return "" }` proves
+    `names[index]`;
   - absence is a bug: `crash condition` halts with
     `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition<TAB>name=value...`, followed by the
     asserts that failed before it. A bare `crash` marks a branch that cannot happen (`crash false` is formatted to it).

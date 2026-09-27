@@ -192,6 +192,8 @@ func fragment_of(hash: UnsignedLong): Integer {
 }
 
 func next_slot(slot: Integer): Integer {
-    assert slot + 1 != slot_count
+    if slot + 1 == slot_count {
+        return 0
+    }
     return slot + 1
 }

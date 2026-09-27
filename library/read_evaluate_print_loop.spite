@@ -187,7 +187,9 @@ func json_escape(code: Integer): String {
     if code == 9 {
         return "\\t"
     }
-    assert code >= 0 and code < 32
+    if code < 0 or code >= 32 {
+        return ""
+    }
     var digits = "0123456789abcdef"
     return "\\u00{digits.character_at(code / 16)}{digits.character_at(code % 16)}"
 }
@@ -352,7 +354,9 @@ func kind_of(attribute: Spite.Attribute): String {
 }
 
 func text_of(attribute: Spite.Attribute): String {
-    assert attribute.value
+    if not attribute.value {
+        return ""
+    }
     return attribute.value.to_string()
 }
 
@@ -468,7 +472,6 @@ func assign(command: String, program: Spite.Attribute): Answer {
     if not found {
         return failure(unresolved)
     }
-    crash found
     var kind = kind_of(found)
     if kind != "scalar" and kind != "text" {
         return failure("{target} is {described(found.class.name)}, which the loop cannot assign")
@@ -477,7 +480,6 @@ func assign(command: String, program: Spite.Attribute): Answer {
     if not text {
         return failure("type mismatch: {target} is {described(found.class.name)}, and {literal} is not one")
     }
-    crash text
     if not found.assign(text) {
         return failure("{literal} is not {described(found.class.name)}, or {target} cannot be assigned")
     }
@@ -505,7 +507,6 @@ func call(command: String, program: Spite.Attribute): Answer {
     if not owner {
         return failure(unresolved)
     }
-    crash owner
     var literals = split_arguments(inside)
     var functions = owner.value_functions()
     var index = 0
@@ -557,7 +558,6 @@ func call_found(function: Spite.Function, literals: List<String>): Answer {
             "'{function.name}' cannot take ({literals.join(", ")}): the loop writes numbers, Boolean, text and an enum's own values",
         )
     }
-    crash result
     if result.class.name == "Nothing" {
         return success("", "Nothing")
     }
