@@ -5195,7 +5195,7 @@ func task_body(information: Analysis.ClassInfo, name: String): String {
     var entry = "{information.c_name}___thread_entry"
     builder.add_prototype("static void* {entry}(void* pool);")
     builder.add_support(
-        "static void* {entry}(void* pool) \{\n{information.c_name}__serve(({information.c_name}*)pool);\nreturn 0;\n}",
+        "static void* {entry}(void* pool) \{\nspite_fault_thread();\n{information.c_name}__serve(({information.c_name}*)pool);\nreturn 0;\n}",
     )
     return "return (int64_t)(intptr_t)&{entry};"
 }
@@ -14620,6 +14620,11 @@ func generate_foreign_call(
         releases.append("DynamicLibrary___release({held});")
     }
     var result = next_temporary()
+    crash library < foreign_library_files.count()
+    var library_file = escape_c_string(foreign_library_files[library])
+    lines.append(
+        "spite_last_foreign_call = \"{symbol_name}\\tlibrary={library_file}\\tfrom={escape_c_string(current_path)}:{current_line}\";",
+    )
     if header.is_empty() {
         lines.append(
             "{returned_c} {result} = (({returned_c} (*)({parameter_types.join(", ")})){pointer})({passed.join(", ")});",
@@ -24057,6 +24062,11 @@ func named_signature(information: Analysis.ClassInfo, function: Analysis.Functio
         index = index + 1
     }
     var function_return_type = function.get_return_type()
+    var file = function.source_path
+    if file.is_empty() {
+        file = information.source_path
+    }
+    builder.name_function(c_name, "{file}\t{information.qualified_dotted}", function.name, function.line)
     return "{c_type_name(function_return_type)} {c_name}({parts.join(", ")})"
 }
 
@@ -25918,7 +25928,7 @@ func finish_waiting_points() {
     )
     builder.add_prototype("static void* spite_offload_thread(void* call);")
     builder.add_support(
-        "static void* spite_offload_thread(void* call) \{\nSpiteOffload* offload = (SpiteOffload*)call;\noffload->perform(call);\nScheduler_offload_done((Scheduler*)offload->scheduler, (int64_t)(intptr_t)call);\nreturn 0;\n}",
+        "static void* spite_offload_thread(void* call) \{\nspite_fault_thread();\nSpiteOffload* offload = (SpiteOffload*)call;\noffload->perform(call);\nScheduler_offload_done((Scheduler*)offload->scheduler, (int64_t)(intptr_t)call);\nreturn 0;\n}",
     )
     var index = 0
     while index < waiting_functions.count() {
@@ -26027,7 +26037,7 @@ func remote_loop_start(entry_class: Analysis.ClassInfo, lines: List<String>) {
     builder.threads = true
     var program_symbol = ensure_symbol("program")
     builder.add_support(
-        "static ReadEvaluatePrintLoop* spite_remote_loop = 0;\nstatic {entry_class.c_name}* spite_remote_program = 0;\nstatic void* spite_remote_loop_thread(void* unused) \{\n(void)unused;\nReadEvaluatePrintLoop_serve(spite_remote_loop, spite_reflect_{entry_class.c_name}({program_symbol}, spite_remote_program));\nreturn 0;\n}",
+        "static ReadEvaluatePrintLoop* spite_remote_loop = 0;\nstatic {entry_class.c_name}* spite_remote_program = 0;\nstatic void* spite_remote_loop_thread(void* unused) \{\n(void)unused;\nspite_fault_thread();\nReadEvaluatePrintLoop_serve(spite_remote_loop, spite_reflect_{entry_class.c_name}({program_symbol}, spite_remote_program));\nreturn 0;\n}",
     )
     lines.append("spite_remote_program = spite_entry_instance;")
     lines.append("spite_remote_loop = ReadEvaluatePrintLoop___make();")
@@ -26265,7 +26275,7 @@ func emit_hot_reload_support() {
     builder.add_prototype("void* spite_hot_realloc(void* pointer, size_t size);")
     builder.add_prototype("void spite_hot_free(void* pointer);")
     builder.add_support(
-        "static void* spite_hot_reload_thread(void* unused) \{\n(void)unused;\nHotReload* spite_hot_reload = {hot_reload_instance};\nHotReload_watch(spite_hot_reload);\nHotReload___release(spite_hot_reload);\nreturn 0;\n}",
+        "static void* spite_hot_reload_thread(void* unused) \{\n(void)unused;\nspite_fault_thread();\nHotReload* spite_hot_reload = {hot_reload_instance};\nHotReload_watch(spite_hot_reload);\nHotReload___release(spite_hot_reload);\nreturn 0;\n}",
     )
     builder.add_support(
         "void* spite_hot_realloc(void* pointer, size_t size) \{\nreturn SPITE_REALLOC(pointer, size);\n}",

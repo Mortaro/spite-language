@@ -1,0 +1,1 @@
+This program is meant to fault: a null read inside a foreign library is reported with the last foreign call and the Spite frames (D244)

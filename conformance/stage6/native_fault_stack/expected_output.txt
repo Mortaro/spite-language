@@ -1,0 +1,4 @@
+spite.fault	stack-overflow	conformance/stage6/native_fault_stack/native_fault_stack.spite:9	NativeFaultStack	descend	code=0xc00000fd	at=native_fault_stack.exe+0x...
+spite.frame	conformance/stage6/native_fault_stack/native_fault_stack.spite:9	NativeFaultStack	descend	repeated=256
+spite.frame	more
+before the fault

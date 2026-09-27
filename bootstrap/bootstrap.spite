@@ -657,6 +657,7 @@ func built_executable(): Boolean {
     if is_on("hot_reload") {
         append_shared_runtime(process_arguments, c_compiler)
     }
+    append_frame_pointers(process_arguments)
     process_arguments.append(c_file_path)
     process_arguments.append("-o")
     process_arguments.append(output_path)
@@ -699,6 +700,13 @@ func append_maths_library(process_arguments: List<String>, written: String) {
     if written.contains("#include <math.h>") and option("operating_system") != "windows" {
         process_arguments.append("-lm")
     }
+}
+
+func append_frame_pointers(process_arguments: List<String>) {
+    var inspectable = is_on("development") or is_on("hot_reload") or is_on("repl") or remote_loop_port() > 0
+    assert inspectable and option("target_operating_system") != "windows"
+    process_arguments.append("-fno-omit-frame-pointer")
+    process_arguments.append("-DSPITE_FRAME_POINTERS")
 }
 
 func append_shared_runtime(process_arguments: List<String>, c_compiler: String) {

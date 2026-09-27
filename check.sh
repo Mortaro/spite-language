@@ -88,7 +88,9 @@ for folder in conformance/*/*/ examples/*/; do   # the examples are held to the 
   allocations=${balance% *}; frees=${balance#* }
   if [ -f "$folder/crashes.txt" ]; then
     # a program that is meant to crash: its whole output (stdout and the crash line) must match, and there is no
-    # balance line because a crash halts before the program would have released anything
+    # balance line because a crash halts before the program would have released anything. A native fault names where
+    # it stopped as module+offset (D244), and the offset is the C compiler's, so it is compared without it.
+    actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g')
     if [ "$actual" == "$expected" ]; then passed=$((passed+1)); else failed=$((failed+1)); echo "FAILED: $name"; echo "$actual" | head -8; fi
     continue
   fi
