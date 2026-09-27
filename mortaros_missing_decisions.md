@@ -431,3 +431,15 @@ Behaviour that does not match the manual. The language was not changed; each is 
      what it was compiled from; nothing deletes old ones, so it grows with every changed build of a big program
      (tens of MB per `--optimized` build of the compiler). Delete the oldest past a size, delete everything older
      than some days, or leave it to the user (`rm -rf .spite-cache/objects`)?
+
+
+## From the Theseus MMO port (D249 onward)
+
+217. **Should unsigned arithmetic that does not fit halt too?** D249 checks `+`, `-` and `*` on the signed whole
+     numbers in development builds and leaves `Byte`, `UnsignedShort`, `UnsignedInteger` and `UnsignedLong`
+     modular, because every hash and noise function in `library/` wraps on purpose and is unsigned. Rust and Zig
+     check unsigned too and give hashes explicit wrapping operations; here that would be functions such as
+     `hash.wrapped_product(prime)` (names provisional). Keep unsigned modular, or check it and add the functions?
+     Also: a production build emits the plain C operator, and C leaves signed overflow undefined, so "wraps" holds
+     for what clang does today rather than by rule; `-fwrapv` would make it the rule at a small cost to loop
+     optimisation.

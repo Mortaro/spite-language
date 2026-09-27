@@ -51,7 +51,7 @@ func shortest_text(significand_limit: Long, lowest_exponent: Long, most_digits: 
     while precision <= most_digits {
         var candidate = number_text.rounded_digits(digits, precision)
         var candidate_exponent = digits_exponent + candidate.length() - precision
-        if candidate.length() > precision {
+        if precision < candidate.length() {
             candidate = candidate.slice(0, precision)
         }
         candidate = number_text.without_trailing_zeros(candidate)
@@ -66,7 +66,7 @@ func shortest_text(significand_limit: Long, lowest_exponent: Long, most_digits: 
     }
     var fallback = number_text.rounded_digits(digits, most_digits)
     var fallback_exponent = digits_exponent + fallback.length() - most_digits
-    if fallback.length() > most_digits {
+    if most_digits < fallback.length() {
         fallback = fallback.slice(0, most_digits)
     }
     fallback = number_text.without_trailing_zeros(fallback)

@@ -1,0 +1,5 @@
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+
+func _unmap() {
+    kernel.UnmapViewOfFile(_address)
+}

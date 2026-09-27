@@ -1,0 +1,69 @@
+generic $value_type
+
+var _heap = Memory.Heap()
+var _cell = _heap.allocate(8)
+
+func Atomic(starting: $value_type) {
+    crash $value_type == Integer or $value_type == Long or $value_type == Short or $value_type == Tiny or $value_type == UnsignedInteger or $value_type == UnsignedLong or $value_type == UnsignedShort or $value_type == Byte or $value_type == Boolean
+    var raw = _raw(starting)
+    _cell.write_long_atomically(0, raw)
+}
+
+func drop() {
+    _heap.free(_cell)
+}
+
+func read(): $value_type {
+    var raw = _cell.read_long_atomically(0)
+    return _value(raw)
+}
+
+func write(value: $value_type) {
+    var raw = _raw(value)
+    _cell.write_long_atomically(0, raw)
+}
+
+func add(amount: $value_type): $value_type {
+    crash $value_type != Boolean
+    var raw_amount = _raw(amount)
+    var raw = _cell.add_long_atomically(0, raw_amount)
+    return _value(raw)
+}
+
+func exchange(value: $value_type): $value_type {
+    var raw_value = _raw(value)
+    var raw = _cell.exchange_long(0, raw_value)
+    return _value(raw)
+}
+
+func compare_and_swap(expected: $value_type, desired: $value_type): Boolean {
+    var wanted = _raw(desired)
+    while true {
+        var raw = _cell.read_long_atomically(0)
+        var current = _value(raw)
+        assert current == expected
+        if _cell.compare_and_swap_long(0, raw, wanted) {
+            return true
+        }
+    }
+    crash
+}
+
+func _raw(value: $value_type): Long {
+    if $value_type == Boolean {
+        if value {
+            return 1
+        }
+        return 0
+    }
+    var raw: Long = value
+    return raw
+}
+
+func _value(raw: Long): $value_type {
+    if $value_type == Boolean {
+        return raw != 0
+    }
+    var value: $value_type = raw
+    return value
+}

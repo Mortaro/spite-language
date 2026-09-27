@@ -40,6 +40,7 @@ REPL can look at any of it ([D143](decisions.md)).
 | `Vector2`, `Vector3`, `Vector4`, `Matrix3`, `Matrix4`, `Quaternion`, `AxisAlignedBox`, `Plane`, `Frustum`, `Ray`, `Color`, `ColorText`, `CubicBezier`, `Easing`, `Noise` | game maths: points, directions, transforms, rotations, culling and picking, colours in the web's formats, curves, easings and noise | [game_maths.md](game_maths.md) |
 | `Concurrent`, `Parallel`, `ThreadPool` | run a function while waiting, or on the thread pool; the handle is the value | [concurrency.md](concurrency.md) |
 | `ThreadLocal<T>`, `Lock`, `ThreadSlot` | a value per thread, and a lock | [concurrency.md](concurrency.md#a-value-per-thread-and-a-lock) |
+| `Atomic<T>` | a whole number or `Boolean` threads share without a lock | [concurrency.md](concurrency.md#a-number-every-thread-shares-atomict) |
 | `Socket` | TCP over IPv4: listen, connect, lines and bytes, waiting or not | [below](#socket) |
 | `Memory.Address`, `Memory.Heap`, `Memory.Arena`, `TypedMemory<T>` | a place in memory, the allocators that own it, and values of any type there: the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
 | `DynamicLibrary` | call a native library | [foreign_libraries.md](foreign_libraries.md) |
@@ -104,6 +105,7 @@ ADA 3 -1 da []
 | `read_bytes(position, count, address)` | `Long?` | reads up to `count` bytes starting `position` bytes in, into memory at `address`; answers how many it read (`0` at the end), `null` when it cannot be opened |
 | `write_bytes(address, count)` | `Boolean` | replaces the content with `count` bytes from memory at `address` |
 | `append_bytes(address, count)` | `Long?` | adds `count` bytes to the end; answers the position they start at, `null` when they could not all be written |
+| `map()` | `MappedFile?` | the whole file mapped into memory, read-only ([below](#a-file-larger-than-memory-map-it)); `null` when it cannot be opened |
 
 ```gdscript title=file_tasks/file_tasks.spite entry
 var console = Console()
@@ -167,6 +169,56 @@ func ByteRecords() {
 ```output
 the second record starts at 8 and holds 2222 of 16 bytes
 ```
+
+### A file larger than memory: map it
+
+`file.map()` maps the whole file into the program's memory, read-only, without reading it: the operating system
+brings each page in the first time it is read and may drop it again, so a file of many gigabytes is walked as if
+it were in memory (the name and members proposed by Claude, unconfirmed). A `MappedFile` answers `size(): Long`,
+and reads by position -- `mapped[position]` (a `Byte`), `read_short`, `read_integer`, `read_long`, `read_float`,
+`read_double` and `text(position, count)` -- each a `T?` that is `null` when the bytes it would read are not all
+inside the file, since a position read from a file is data from outside ([failure.md](failure.md)). The mapping
+is undone when the `MappedFile` is dropped, and a file that is mapped cannot be removed on Windows until then.
+
+```gdscript title=mapped_records/mapped_records.spite entry
+var console = Console()
+var heap = Memory.Heap()
+var longs = TypedMemory<Long>()
+
+func MappedRecords() {
+    var store = File(".spite-cache/documentation_mapped_records.bin")
+    var record = heap.allocate(16)
+    longs.write_value(record, 0, 1111)
+    longs.write_value(record, 1, 2222)
+    store.write_bytes(record, 16)
+    heap.free(record)
+    total_records(store)
+    store.remove()
+}
+
+func total_records(store: File) {
+    var mapped = store.map()
+    crash mapped
+    var total: Long = 0
+    var position: Long = 0
+    while position < mapped.size() {
+        var value = mapped.read_long(position)
+        crash value
+        total = total + value
+        position = position + 8
+    }
+    var past_end = mapped.read_long(16)
+    console.print("the records add up to", total, "and a read past the end is null:", not past_end)
+}
+```
+```output
+the records add up to 3333 and a read past the end is null: true
+```
+
+To stream instead -- a file read once, front to back, with no mapping -- `read_bytes(position, count, address)`
+already covers it: each call opens, seeks and closes the file, which measured about 50 microseconds a call on
+Windows, so a loop reading a megabyte at a time spends almost nothing on it (512 MB in 169 ms, against 572 ms in
+64 KB pieces, warm cache). Read a megabyte or more per call; there is no separate reader to open and close.
 
 **Independent reads overlap.** Two or more untyped `var name = file.read()` in a row (or `socket.read_line()`),
 each on a name or an attribute and none naming an earlier one, are started together and all finished before the next
@@ -508,12 +560,18 @@ slept
 
 | Member | Does |
 |---|---|
-| `elapsed_nanoseconds(): Long` | a monotonic clock with an arbitrary start: subtract two readings to measure |
+| `elapsed_nanoseconds(): Long` | the monotonic clock, in nanoseconds from an arbitrary start: subtract two readings to measure |
 | `elapsed_milliseconds(): Long` | the same, in milliseconds |
 | `now(): Instant` | the wall clock, as an exact [`Instant`](time.md): show it through a time zone |
 
 Each system reads its own clock, in `library/windows/clock.spite` (`QueryPerformanceCounter`,
-`GetSystemTimeAsFileTime`) and the `linux` and `mac` folders (`clock_gettime`), through `DynamicLibrary`.
+`GetSystemTimeAsFileTime`) and the `linux` and `mac` folders (`clock_gettime` with `CLOCK_MONOTONIC` and
+`CLOCK_REALTIME`), through `DynamicLibrary`. A reading allocates nothing: the operating system writes it into a slot
+in the calling function's frame ([placement](memory.md#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)),
+and Windows' counter frequency, fixed at boot, is read once when `Clock()` is first made. The unit is the
+nanosecond on every system; the resolution is the hardware's (100 ns for Windows' usual 10 MHz counter, 1 ns on
+Linux and macOS). A profiler can read it twice per system per frame and measure nothing but the reads
+(`conformance/stage6/clock_reads` pins 1 000 readings at no allocation).
 
 ```gdscript title=clock_basics/clock_basics.spite entry
 var console = Console()
@@ -728,11 +786,12 @@ each member answers is in the section of this page that teaches it.
 
 | Class | Members |
 |---|---|
-| `File(path)` | `path`, `to_string(): String` (the path), `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes (names proposed): `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?` -- [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
+| `File(path)` | `path`, `to_string(): String` (the path), `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes (names proposed): `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?`, `map(): MappedFile?` -- [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
+| `MappedFile` | made by `File.map()` (decided by Claude under D205; the names provisional under D214): a read-only mapping of the whole file -- `CreateFileMappingA`/`MapViewOfFile` on Windows, `mmap` with `PROT_READ` and `MAP_PRIVATE` on Linux and macOS, the file itself closed once mapped -- undone by `drop()` (`UnmapViewOfFile`, `munmap`). `size(): Long`; `get_at(position): Byte?` (`mapped[position]`), `read_short`, `read_integer`, `read_long`, `read_float`, `read_double` (each `(position): T?`) and `text(position, count): String?` answer `null` unless every byte they would read is inside the file, so a bad offset read from the file cannot read outside it; a read inside is one load from the mapping. An empty file maps to a `MappedFile` of size 0, since the operating systems refuse to map nothing. `conformance/stage6/mapped_files`; Linux and macOS are held to compiling -- [A file larger than memory](#a-file-larger-than-memory-map-it) |
 | `Directory(path)` | `path`, `entries(): List<Directory.Entry>` (D93, below), `files(): List<String>`, `folders(): List<String>`, `exists(): Boolean`, `create(): Boolean` -- [List a directory](#list-a-directory) |
 | `Process(command, arguments)` | `working_directory`, `environment_variables` (names proposed), `run(): Integer`, `output(): String`, `run_attached(): Integer` (proposed) -- [Run a process](#run-a-process). Each argument reaches the child whole: single-quoted for the shell on Linux and macOS, and quoted by the `CommandLineToArgvW` rules on Windows, a `key=value` argument quoting only its value (`-script="a b"`). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
 | `Program()` | a singleton (D121): `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String` (proposed), `live_allocations(): Integer` -- [Program](#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |
-| `Clock()` | a singleton (names proposed): `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant` (D127; it replaced `unix_milliseconds(): Long`) -- [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed) |
+| `Clock()` | a singleton (names proposed): `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant` (D127; it replaced `unix_milliseconds(): Long`); `elapsed_nanoseconds()` is the monotonic clock, with a nanosecond unit and no allocation per reading (decided by Claude under D205 and D214) -- [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed) |
 | `Console()` | a singleton (D52): `print(...values)`, `write(...values)`, `error(...values)`, `debug(...values)`, `flush()`, `read_line(): String?` -- [Console](#console), and below |
 | `Watcher()` | D194 (the name and the members proposed; `mortaros_missing_decisions.md` asks for the final name): `watch(path): Boolean`, `changes(): List<String>`, `wait_for_changes()` -- [Watch files and folders](#watch-files-and-folders), which is the rule. `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
 | `Socket()` | public library surface (D126; the members proposed): `listen_locally(port): Boolean`, `listen_everywhere(port): Boolean`, `listen_at(host, port): Boolean`, `connect_locally(port): Boolean`, `connect(host, port): Boolean`, `accept_client(): Socket?`, `read_line(): String?`, `read_bytes(address, count): Integer`, `write_line(text): Boolean`, `write_bytes(address, count): Boolean`, the calls that never wait `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer` and `write_bytes_now(address, count): Integer`, `closed: Boolean`, `close()` -- TCP over IPv4 on every system ([Socket](#socket), and below); `--repl-port` and `spite connect` use `listen_locally` and `connect_locally` ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |

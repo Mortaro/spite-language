@@ -11,7 +11,8 @@ func NumericTypes() {
     var long_value: Long = 3000000000
     console.print(level, wrapped, small, octet, port)
     console.print(wide, huge, long_value)
-    var total: Integer = level + octet
+    var level_wide: Integer = level
+    var total = level_wide + octet
     var ratio: Double = 1.5
     var rounded: Short = ratio * 3
     var added_bytes = add_bytes(250, 10)

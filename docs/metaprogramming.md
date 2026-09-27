@@ -1529,10 +1529,22 @@ one, change the call site.
 `fits_vector` or `argument_count` of a codegen type or of a walked symbol's class, `argument.class == $row_type`,
 and `not`, `and` and `or` over them -- it is decided for each instance, with no test at run time: when it holds,
 nothing is written for it; when it does not, the `assert` returns the function's default (recording its trace
-line) and the `crash` halts with its report, unconditionally, and the statements after it in the same block are
-not compiled for that instance, exactly as after an `if` whose taken branch returns. So `assert $slot_type ==
-Entity` followed by `return value.id` compiles for a `Slot<Mover>` whose `Mover` has no `id`, and answers 0 there
-(`conformance/stage6/folded_checks`, `conformance/stage6/folded_crash`). Before, such a condition was compiled as
+line), and the statements after it in the same block are not compiled for that instance, exactly as after an `if`
+whose taken branch returns. So `assert $slot_type == Entity` followed by `return value.id` compiles for a
+`Slot<Mover>` whose `Mover` has no `id`, and answers 0 there (`conformance/stage6/folded_checks`).
+
+**A `crash` that folds to false is a compile error where the program can reach it** (decided by Claude under
+D205; the wording proposed by Claude, unconfirmed). **[implemented]** A `crash` whose condition is decided while
+compiling and is false would halt every time its function runs, so it is a developer's mistake the compiler can
+prove (D199), and it is reported while compiling, at the `crash`, naming the instance: `'crash
+$slot_type.fits_vector()' always halts in Slot<List<String>>: its condition is decided while compiling and is
+false, so the program would stop here every time this function runs: call it only where the condition holds, or
+change what the condition asks` (`diagnostics/folded_crash`). Only a function the program reaches counts -- the
+same reach tree shaking keeps in a production build, worked out for an inspectable build too, where nothing is
+shaken -- so an instance whose function nobody calls compiles (`conformance/stage6/folded_crash_uncalled`). This
+is how a library turns its rules into compile errors: a `crash $system_type.has_function("update_each")` in the
+function that runs a system fails the build for the class that breaks the rule, not the run. A `crash` whose
+condition also reads a run-time value is unchanged. Before, such a condition was compiled as
 a value and was the error "'$slot_type' is a type here, so it cannot be used as a value". A condition that also
 reads a run-time value is compiled as before.
 

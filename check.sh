@@ -180,6 +180,10 @@ fi
 if grep -qE "AllocationTable|spite_debug_|spite_live_allocation|SPITE_DEBUG_MEMORY" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C carries --debug-memory's table or an allocation counter"; exit 1
 fi
+# Signed arithmetic is checked for overflow only in a --debug-memory or inspectable build: production is the plain operator.
+if grep -qE "__builtin_(add|sub|mul)_overflow|spite_overflowed" "$work/hello_shaken.c"; then
+  echo "FAILED: examples/hello's C checks arithmetic for overflow in a production build"; exit 1
+fi
 # The maths functions are the C library's, and <math.h> is included only when one survives tree shaking (D177).
 if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C includes math.h or a maths function it never calls"; exit 1
@@ -468,6 +472,13 @@ for operating_system in windows linux mac; do
     echo "FAILED: Watcher does not compile with library/$operating_system"; exit 1; }
   "$CC_BIN" -fsyntax-only -w "$work/watching_$operating_system.c" 2> "$work/c_errors.txt" || {
     echo "FAILED: the Watcher C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  # Clock readings and mapped files ask each kernel their own way.
+  for system_program in clock_reads mapped_files; do
+    "$work/generation_two.exe" conformance/stage6/$system_program --run=false --c-source --c-path="$work/${system_program}_$operating_system.c" --target-operating-system=$operating_system || {
+      echo "FAILED: $system_program does not compile with library/$operating_system"; exit 1; }
+    "$CC_BIN" -fsyntax-only -w "$work/${system_program}_$operating_system.c" 2> "$work/c_errors.txt" || {
+      echo "FAILED: the C of $system_program written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  done
   # The compiler only talks lines on 127.0.0.1, so programs that resolve names and move bytes, waiting and not, are too.
   for socket_program in socket_bytes socket_waits; do
     "$work/generation_two.exe" conformance/stage6/$socket_program --run=false --c-source --c-path="$work/${socket_program}_$operating_system.c" --target-operating-system=$operating_system || {
@@ -476,7 +487,7 @@ for operating_system in windows linux mac; do
       echo "FAILED: the C of $socket_program written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
   done
 done
-echo "operating systems: the compiler, a time zone program, a file watching program and a socket program compile with the windows, linux and mac library folders"
+echo "operating systems: the compiler, a time zone program, a file watching program, a clock program, a mapped file program and a socket program compile with the windows, linux and mac library folders"
 
 # bin/spite passes a program's own arguments through untouched: Git for Windows' bash would rewrite ones that look
 # like POSIX paths (`/Game/Legacy/` into `C:/Program Files/Git/Game/Legacy/`) on their way to a Windows program.

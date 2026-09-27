@@ -1,0 +1,3 @@
+spite: 'amount * factor' does not fit in an Integer (2000000000 * 2), at conformance/stage6/integer_overflow/integer_overflow.spite:17 in IntegerOverflow.scaled
+127 3410065408
+-9223372036854775807

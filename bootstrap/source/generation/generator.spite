@@ -34,6 +34,13 @@ var console_loop = false
 var remote_loop_port = 0
 var refused_serialiser = false
 var division_check_written = false
+var overflow_check_written = false
+var always_crashing_functions = List<String>()
+var always_crashing_paths = List<String>()
+var always_crashing_lines = List<Integer>()
+var always_crashing_owners = List<String>()
+var always_crashing_names = List<String>()
+var always_crashing_messages = List<String>()
 var weak_runtime_written = false
 var weak_classes = List<String>()
 var scheduler_used = false
@@ -664,7 +671,11 @@ func generate(
     builder.shakes = not keeps_internals
     builder.hot_reload = hot_reload
     builder.debug_memory = debug_memory
-    return builder.render()
+    var rendered = builder.render()
+    if not always_crashing_functions.is_empty() {
+        report_always_crashing()
+    }
+    return rendered
 }
 
 func register_classes(discovered: List<Discovery.DiscoveredClass>) {
@@ -5242,6 +5253,12 @@ func address_body(function: Analysis.FunctionInfo): String {
     if name == "write_long_atomically" {
         return "#define {function.c_name}(self, offset, value) __atomic_store_n((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
     }
+    if name == "add_long_atomically" {
+        return "#define {function.c_name}(self, offset, value) __atomic_add_fetch((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
+    }
+    if name == "compare_and_swap_long" {
+        return "#define {function.c_name}(self, offset, expected, desired) (\{ int64_t spite_expected = (int64_t)(expected); __atomic_compare_exchange_n((int64_t*){at}, &spite_expected, (int64_t)(desired), false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); })"
+    }
     var value_type = function.get_return_type()
     if name.starts_with("write_") {
         crash function.parameters[1]
@@ -7896,6 +7913,9 @@ func generate_binary(
         if not is_boolean_result_operator(binary.operator) and is_wider_right(binary, left_type, right_type) {
             report_wider_right(binary, left_type, right_type)
         }
+        if is_boolean_result_operator(binary.operator) and is_wider_right(binary, left_type, right_type) {
+            report_wider_comparison(binary, left_type, right_type)
+        }
         report_constant_overflow(binary)
     }
     var symbol = binary_operator_symbol(binary.operator)
@@ -7903,6 +7923,10 @@ func generate_binary(
     var checked = checked_division(binary, left.code, right_code, left_type, scope)
     if not checked.is_empty() {
         code = checked
+    }
+    var guarded = checked_overflow(binary, left.code, right_code, left_type)
+    if not guarded.is_empty() {
+        code = guarded
     }
     if is_boolean_result_operator(binary.operator) {
         var result_type = Analysis.Types.ScalarType('boolean_kind')
@@ -7950,6 +7974,49 @@ func checked_division(
         computed = "{divisor} == -1 ? ({c_type})0 : {dividend} % {divisor}"
     }
     return "(\{ {c_type} {dividend} = {left_code}; {c_type} {divisor} = {right_code}; if ({divisor} == 0) spite_divided_by_zero(\"{operation}\", \"{where}\"); ({c_type})({computed}); })"
+}
+
+func checked_overflow(
+    binary: Syntax.Expressions.BinaryExpression,
+    left_code: String,
+    right_code: String,
+    left_type: Analysis.SpiteType,
+): String {
+    assert keeps_internals or debug_memory
+    assert binary.operator == 'add' or binary.operator == 'subtract' or binary.operator == 'multiply'
+    var scalar = type_shape.as_scalar(left_type)
+    assert scalar
+    assert is_signed_kind(scalar.kind)
+    ensure_overflow_check()
+    var printer = Syntax.SourcePrinter()
+    var expression: Syntax.Expressions.Expression = binary
+    var written = printer.source_expression(expression)
+    var c_type = c_type_name(left_type)
+    var left_value = next_temporary()
+    var right_value = next_temporary()
+    var result = next_temporary()
+    var where = escape_c_string("{current_path}:{current_line} in {current_owner}.{current_function}")
+    var operation = escape_c_string(written)
+    var type_name = type_display_name(left_type)
+    var builtin = "__builtin_add_overflow"
+    if binary.operator == 'subtract' {
+        builtin = "__builtin_sub_overflow"
+    }
+    if binary.operator == 'multiply' {
+        builtin = "__builtin_mul_overflow"
+    }
+    return "(\{ {c_type} {left_value} = {left_code}; {c_type} {right_value} = {right_code}; {c_type} {result}; if ({builtin}({left_value}, {right_value}, &{result})) spite_overflowed(\"{operation}\", \"{with_article(type_name)}\", \"{binary_operator_symbol(binary.operator)}\", (int64_t){left_value}, (int64_t){right_value}, \"{where}\"); {result}; })"
+}
+
+func ensure_overflow_check() {
+    assert not overflow_check_written
+    overflow_check_written = true
+    builder.add_prototype(
+        "static void spite_overflowed(const char* operation, const char* type, const char* symbol, int64_t left, int64_t right, const char* where) __attribute__((noreturn, cold));",
+    )
+    builder.add_support(
+        "static void spite_overflowed(const char* operation, const char* type, const char* symbol, int64_t left, int64_t right, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' does not fit in %s (%lld %s %lld), at %s\\n\", operation, type, (long long)left, symbol, (long long)right, where);\nexit(1);\n}",
+    )
 }
 
 func is_signed_kind(kind: Analysis.Types.NumericKind): Boolean {
@@ -8089,6 +8156,41 @@ func report_wider_right(
     report(
         "'{left_text} {symbol} {right_text}' is {operation_name(binary.operator)} in {left_name}, since arithmetic takes the left side's type, and the right side is {with_article(right_name)}, which would be cut to fit: {fix}, or store the right side in {with_article(left_name)} first if it fits one",
     )
+}
+
+func report_wider_comparison(
+    binary: Syntax.Expressions.BinaryExpression,
+    left_type: Analysis.SpiteType,
+    right_type: Analysis.SpiteType,
+) {
+    crash binary.left
+    crash binary.right
+    var printer = Syntax.SourcePrinter()
+    var left_text = printer.source_expression(binary.left)
+    var right_text = printer.source_expression(binary.right)
+    var symbol = binary_operator_symbol(binary.operator)
+    var mirrored = mirrored_comparison_symbol(binary.operator)
+    var left_name = type_display_name(left_type)
+    var right_name = type_display_name(right_type)
+    report(
+        "'{left_text} {symbol} {right_text}' compares in {left_name}, since a comparison takes the left side's type, and the right side is {with_article(right_name)}, which would be cut to fit: write the {right_name} first ('{right_text} {mirrored} {left_text}'), or store the right side in {with_article(left_name)} first if it fits one",
+    )
+}
+
+func mirrored_comparison_symbol(operator: Syntax.Expressions.BinaryOperator): String {
+    if operator == 'less' {
+        return ">"
+    }
+    if operator == 'less_equal' {
+        return ">="
+    }
+    if operator == 'greater' {
+        return "<"
+    }
+    if operator == 'greater_equal' {
+        return "<="
+    }
+    return binary_operator_symbol(operator)
 }
 
 func type_with_article(spite_type: Analysis.SpiteType): String {
@@ -10808,7 +10910,8 @@ func generate_value_method(
 }
 
 func is_memory_access(name: String): Boolean {
-    return name.starts_with("read_") or name.starts_with("write_") or name == "exchange_long"
+    var atomics = ["exchange_long", "add_long_atomically", "compare_and_swap_long"]
+    return name.starts_with("read_") or name.starts_with("write_") or atomics.contains(name)
 }
 
 func generate_written_string_call(
@@ -11584,7 +11687,8 @@ func reaches_shared(spite_type: Analysis.SpiteType): Boolean {
 }
 
 func is_thread_safe_class(information: Analysis.ClassInfo): Boolean {
-    return information.qualified_dotted == "Lock" or information.qualified_dotted == "ThreadLocal"
+    var shared = ["Lock", "ThreadLocal", "Atomic"]
+    return shared.contains(information.qualified_dotted)
 }
 
 func check_parallel_work(
@@ -20386,6 +20490,24 @@ func study_lent_parameters_of(information: Analysis.ClassInfo) {
     placement.study_lent_parameters(names, parameter_lists, bodies)
 }
 
+func foreign_library_attributes(information: Analysis.ClassInfo): List<String> {
+    var names = List<String>()
+    assert current_path.starts_with("library/")
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        var class_ref = type_shape.as_class_ref(field_type)
+        if class_ref {
+            if class_ref.c_name == "DynamicLibrary" {
+                names.append(field.name)
+            }
+        }
+        index = index + 1
+    }
+    return names
+}
+
 func address_parameter_names(function: Analysis.FunctionInfo): List<String> {
     var names = List<String>()
     var index = 0
@@ -25345,6 +25467,9 @@ func emit_folded_check(
     if assert_statement.is_crash {
         site_kind = "crash"
     }
+    if assert_statement.is_crash {
+        note_always_crashing(assert_statement, class_information, function_information)
+    }
     site_ordinal = site_ordinal + 1
     current_site_id = content_hash(
         "{current_owner}/{function_information.name}/{site_ordinal}/{assert_statement.condition_text}",
@@ -25354,6 +25479,56 @@ func emit_folded_check(
     )
     builder.add_user("\{")
     emit_check_failure(assert_statement, null, false, scope, class_information, function_information)
+}
+
+func note_always_crashing(
+    assert_statement: Syntax.Statements.AssertStatement,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    var instance = instance_description(class_information)
+    var condition = assert_statement.condition_text
+    var message = "'crash {condition}' always halts{instance}: its condition is decided while compiling and is false, so the program would stop here every time this function runs: call it only where the condition holds, or change what the condition asks"
+    if condition.is_empty() {
+        message = "this 'crash' always halts{instance}, and this function is called: take the call out"
+    }
+    always_crashing_functions.append(current_function_c_name)
+    always_crashing_paths.append(current_path)
+    always_crashing_lines.append(current_line)
+    always_crashing_owners.append(current_owner)
+    always_crashing_names.append(function_information.name)
+    always_crashing_messages.append(message)
+}
+
+func instance_description(class_information: Analysis.ClassInfo): String {
+    assert not class_information.codegen_types.is_empty()
+    var names = class_information.codegen_types.map(type_display_name)
+    return " in {class_information.simple_name}<{names.join(", ")}>"
+}
+
+func report_always_crashing() {
+    var reached = builder.reached_functions(always_crashing_functions)
+    var index = 0
+    while index < reached.count() {
+        if reached[index] == true {
+            report_always_crashing_at(index)
+        }
+        index = index + 1
+    }
+}
+
+func report_always_crashing_at(index: Integer) {
+    var site_path = always_crashing_paths[index]
+    var site_line = always_crashing_lines[index]
+    var site_owner = always_crashing_owners[index]
+    var site_function = always_crashing_names[index]
+    var site_message = always_crashing_messages[index]
+    crash site_path and site_line and site_owner and site_function and site_message
+    current_path = site_path
+    current_line = site_line
+    current_owner = site_owner
+    current_function = site_function
+    report(site_message)
 }
 
 func emit_check_failure(
@@ -26120,6 +26295,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     }
     bind_symbol_of(function)
     study_lent_parameters_of(information)
+    placement.foreign_libraries = foreign_library_attributes(information)
     var waiting = waiting_kind(information, function)
     if not waiting.is_empty() {
         waiting_classes.append(information)

@@ -1024,8 +1024,10 @@ same object is where an allocator is set ([below](#allocators-memoryallocator--i
   `text(length)` and `terminated_text()` are open to every program.
 - **Reading and writing** (D178): `read_byte`, `read_short`, `read_unsigned_short`, `read_integer`,
   `read_unsigned_integer`, `read_long`, `read_float` and `read_double`, each `(offset)`, the matching
-  `write_*(offset, value)`, and `exchange_long`, `read_long_atomically` and `write_long_atomically` for memory
-  threads share. Each is a primitive of the language, like `+`: the compiler writes it where it is called as one
+  `write_*(offset, value)`, and `exchange_long`, `read_long_atomically`, `write_long_atomically`,
+  `add_long_atomically` (answering the sum) and `compare_and_swap_long(offset, expected, desired)` (answering
+  whether it swapped) for memory threads share; a program uses them through `Atomic<T>`
+  ([concurrency.md](concurrency.md#a-number-every-thread-shares-atomict)). Each is a primitive of the language, like `+`: the compiler writes it where it is called as one
   load, store or atomic instruction, with no call and no check, so reading a field costs what it costs in C
   ([optimizations.md](optimizations.md#reading-an-address-is-one-machine-operation)). **Only `library/` may call
   them**: a function of a class the standard library declares, including one a program reopens (so
@@ -1075,7 +1077,10 @@ is the same whichever it makes:
   it to a `TypedMemory`'s `read_value`, `write_value` or `release_value`, or lends it to a function of the same
   class, called by its bare name, whose `Memory.Address` parameter is proven to keep nothing (D211: the same rules,
   applied to the parameter in that function's body, and to the functions it lends it on to; a recursive lend and a
-  `--hot-reload` build, whose functions can be swapped, prove nothing) -- it is never stored, returned,
+  `--hot-reload` build, whose functions can be swapped, prove nothing), or, in a file of `library/` only, lends it
+  to a function of a `DynamicLibrary` attribute of the same class (`kernel.QueryPerformanceCounter(counter)`: the
+  standard library's own operating-system calls, which fill the memory and keep nothing; a program's foreign
+  library could keep the address, so its calls still move it to the heap; proposed by Claude, unconfirmed) -- it is never stored, returned,
   assigned, resized or passed to anything else, and neither `name` nor `heap` is declared or assigned again
   after it. The compiler gives it a slot of 256 bytes
   in the function's frame (exactly the size, for a literal size up to 256), uses the heap when a run-time size

@@ -155,8 +155,10 @@ func is_alive(): Boolean {
   text of one hole and nothing else, `"{clicks}"`, is an error naming the direct form; elsewhere write
   `clicks.to_string()`. Arithmetic is done in the left side's type, so write the wider operand first: `total * count` with a `Long`
   `total`, never `count * total`, which is an error (so is an `Integer` plus a `Float`); a literal on the right that
-  fits is fine. A constant that overflows `Integer` (`65536 * 65536`) is an error: write the number. Comparisons are
-  not checked and still cast the right side toward the left. A value that does not fit wraps. A whole number divided by zero (`/` or `%`) halts naming the line, and a divisor written as zero is an error; after `assert divisor != 0` the check is gone. Floats keep infinity and not-a-number.
+  fits is fine. A constant that overflows `Integer` (`65536 * 65536`) is an error: write the number. Comparisons follow
+  the same rule: `count < total` with a `Long` `total` is an error, write `total > count`. A value converted to a narrower type wraps, and so does
+  unsigned arithmetic (use `UnsignedInteger`/`UnsignedLong` for a hash); signed `+ - *` that does not fit halts
+  naming the line in a `--debug-memory` or development build and wraps in production. A whole number divided by zero (`/` or `%`) halts naming the line, and a divisor written as zero is an error; after `assert divisor != 0` the check is gone. Floats keep infinity and not-a-number.
 - Bits are functions on the whole numbers, never symbols: `value.shifted_left(count)`, `shifted_right(count)`
   (arithmetic on a signed type, logical on an unsigned one), `bits_and(mask)`, `bits_or(mask)`,
   `bits_exclusive_or(mask)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`.
@@ -355,6 +357,9 @@ func is_alive(): Boolean {
   tested the same way, `else if $value_type.element_type == Float`, in any branch of a chain. Only
   what the taken branch reaches is compiled -- helper functions, and the code after a chain whose branch returns
   -- so keep one generic class with a helper per kind, not one class per kind.
+- `assert`/`crash` on such a condition folds too, and a `crash` that folds to false in a function the program calls
+  is a compile error naming the instance (`Slot<List<String>>`): write a library's rules as `crash $row_type.has_function("update_each")`
+  and a class that breaks one fails the build.
 - A getter with no setter makes a read-only attribute: `get_fahrenheit()` answers `.fahrenheit`, and assigning
   it is an error.
 - `person.age = 1` calls `set_age(1)` and `person.age` calls `get_age()` when the class has them.
@@ -409,7 +414,7 @@ func is_alive(): Boolean {
 
 `Console()` (`print`, `write`, `error`, `debug`, `read_line(): String?`; each value printed is its `to_string()`, so
 a class prints once it declares `func to_string(): String`, and `debug` shows any value's state, a class as
-`Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`read(): String?`, `write`,
+`Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`map(): MappedFile?` for a file too big to read: `size()`, `mapped[position]`, `read_long(position)`, ... each a `T?`; `read(): String?`, `write`,
 `append`, `exists`, `remove`), `Directory(path)` (`path`, `entries(): List<Directory.Entry>` -- each a `Directory` or a `File`, switched on --,
 `files`, `folders`, `exists`, `create`),
 `Process(command, arguments)` (`run(): Integer`, `output()`: standard output only; each argument reaches the child whole, `-key=value with spaces` as `-key="value with spaces"` on Windows; `working_directory` and `environment_variables["NAME"] = "value"` set for the child alone), `Program()` (`exit(code)`, `sleep(milliseconds)`,
@@ -429,7 +434,7 @@ in for what the function returns and reading it is the wait (there is no `.wait(
 'wait'`), `finished` answers without waiting, `finished_value(): T?` is the value once finished and `null` before
 (never a wait, so a system that only collects finished work keeps `function_waits` false: `var found =
 handle.finished_value()`, then `if found { }`), and dropping the handle waits for it. A `parallel_each_<member>()`
-member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock` or a `ThreadLocal`; anything else is an error naming the attribute. One exception: `var crafter = Crafter(first)` then `var run = Parallel(crafter.craft)` hands the object over, so its task may keep lists of values (`List<Integer>`, `List<String>`) and objects of its own that it made itself; touching `crafter` after that line is `'crafter' was handed to 'Parallel(crafter.craft)', which keeps its 'recipe_ids' on another thread, so it is not used after that line`. Keep a list of ids as a `List<Integer>`, never as comma-joined text. There is no `async`/`await`: a function
+member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock`, a `ThreadLocal` or an `Atomic<T>` (a shared whole number or `Boolean`: `read`, `write`, `add`, `exchange`, `compare_and_swap`); anything else is an error naming the attribute. One exception: `var crafter = Crafter(first)` then `var run = Parallel(crafter.craft)` hands the object over, so its task may keep lists of values (`List<Integer>`, `List<String>`) and objects of its own that it made itself; touching `crafter` after that line is `'crafter' was handed to 'Parallel(crafter.craft)', which keeps its 'recipe_ids' on another thread, so it is not used after that line`. Keep a list of ids as a `List<Integer>`, never as comma-joined text. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
 run ([concurrency.md](concurrency.md)).
 `$system_type.function_waits("update_each")` is decided while compiling like `has_function` (and
@@ -456,6 +461,7 @@ the start of a file or connection and compare it with `reader.schema()` before r
 of both. A union, a `type` (`Anything` included) or a function value anywhere in what they see is a compile error at
 the line that makes the writer or reader (`JsonWriter cannot write 'Owner': 'Owner.pet' is the union Pet, ...`):
 keep what they see to the kinds above ([json.md](json.md)). `Json` no longer exists: it is the two classes above.
+Measure with `clock.elapsed_nanoseconds()`, the monotonic clock: a `Long`, no allocation, subtract two readings.
 Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(since_1970)` with
 `var since_1970 = Duration(1710054000, 'seconds')`.
 `Duration(90, 'minutes')` is exact time (no days: `Duration(1, 'days')` is an error); `Period(1, 'months')` is

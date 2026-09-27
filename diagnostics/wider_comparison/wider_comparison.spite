@@ -1,0 +1,10 @@
+var console = Console()
+
+func WiderComparison() {
+    var count = 3
+    var total: Long = 4294967296
+    var progress = 0
+    var small: Byte = 7
+    console.print(count < total, count == total, progress > -0.5, small <= 300)
+    console.print(total > count, -0.5 < progress, small < 10, count >= 2)
+}

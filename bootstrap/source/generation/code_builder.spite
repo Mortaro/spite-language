@@ -24,6 +24,11 @@ var scanned_support = 0
 var scanned_user = 0
 var scanned_main = 0
 var scanned_slots = 0
+var last_shaker: TreeShaker? = null
+var rendered_types = ""
+var rendered_prototypes = ""
+var rendered_main = ""
+var rendered_bodies = ""
 
 func mentions(name: String): Boolean {
     scanned_typedefs = scan_from(typedefs, scanned_typedefs)
@@ -258,6 +263,7 @@ func render(): String {
         shaker.guard_lines = guard_lines
         shaker.shaken_macros = shaken_macros
         bodies = shaker.shake_program(typedef_text, prototype_lines, main_function, bodies)
+        last_shaker = shaker
         main_function = guarded(main_function, shaker, false)
         var kept_types = shaker.kept_types()
         typedef_text = guarded_types(kept_types, shaker, false)
@@ -265,6 +271,10 @@ func render(): String {
         var kept_bindings = shaker.kept_watched_names()
         bodies = bound(bodies, kept_bindings)
     } else {
+        rendered_types = typedef_text
+        rendered_prototypes = prototype_lines
+        rendered_main = main_function
+        rendered_bodies = bodies
         bodies = bound(bodies, binding_names)
         var unused_shaker = TreeShaker()
         main_function = guarded(main_function, unused_shaker, true)
@@ -285,6 +295,24 @@ func render(): String {
         bodies = "{bodies}\n{symbol_table}"
     }
     return "{defines}{typedef_text}\n{prototype_lines}\n{slot_text}{bodies}\n{main_function}\n"
+}
+
+func reached_functions(names: List<String>): List<Boolean> {
+    var shaker = reaching_shaker()
+    return names.map(shaker.is_kept_name)
+}
+
+func reaching_shaker(): TreeShaker {
+    if last_shaker {
+        return last_shaker
+    }
+    var probe = TreeShaker()
+    probe.watched_names = binding_names
+    probe.guard_names = guard_names
+    probe.guard_lines = guard_lines
+    probe.shaken_macros = shaken_macros
+    probe.shake_program(rendered_types, rendered_prototypes, rendered_main, rendered_bodies)
+    return probe
 }
 
 func bodies_text(): String {
