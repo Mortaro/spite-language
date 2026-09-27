@@ -10,12 +10,16 @@ func code_at(index: Integer): Integer
 func slice(start: Integer, end: Integer): String {
     var first = _clamped(start)
     var last = _clamped(end)
-    assert last > first
+    if last <= first {
+        return ""
+    }
     return (_bytes + first).text(last - first)
 }
 
 func _clamped(position: Integer): Integer {
-    assert position >= 0
+    if position < 0 {
+        return 0
+    }
     if _length < position {
         return _length
     }
@@ -53,10 +57,14 @@ func character_at(index: Integer): String {
 }
 
 func matches_at(text: String, start: Integer): Boolean {
-    assert start >= 0 and start + text.length() <= length()
+    if start < 0 or start + text.length() > length() {
+        return false
+    }
     var index = 0
     while index < text.length() {
-        assert code_at(start + index) == text.code_at(index)
+        if code_at(start + index) != text.code_at(index) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -194,14 +202,18 @@ func to_long(): Long {
     var value: Long = 0
     while index < length() and code_at(index) >= 48 and code_at(index) <= 57 {
         var digit: Long = code_at(index) - 48
-        assert value >= (Long.smallest() + digit) / 10
+        if value < (Long.smallest() + digit) / 10 {
+            return 0
+        }
         value = value * 10 - digit
         index = index + 1
     }
     if negative {
         return value
     }
-    assert value != Long.smallest()
+    if value == Long.smallest() {
+        return 0
+    }
     return -value
 }
 

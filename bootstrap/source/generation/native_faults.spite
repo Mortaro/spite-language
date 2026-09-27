@@ -34,11 +34,17 @@ func places_table(
 }
 
 func is_function_definition(piece: String, name: String): Boolean {
-    assert not name.is_empty()
+    if name.is_empty() {
+        return false
+    }
     var first_line_end = piece.index_of("\n")
-    assert first_line_end > 0
+    if first_line_end <= 0 {
+        return false
+    }
     var first_line = piece.slice(0, first_line_end)
-    assert not first_line.contains("=")
+    if first_line.contains("=") {
+        return false
+    }
     var keywords = [
         "void"
         "int"

@@ -29,7 +29,9 @@ func append(text: String): Boolean {
 
 func exists(): Boolean {
     var handle = open_file("rb")
-    assert handle != 0
+    if handle == 0 {
+        return false
+    }
     close_file(handle)
     return true
 }
@@ -66,7 +68,9 @@ func read_bytes(position: Long, count: Long, address: Long): Long? {
 
 func write_bytes(address: Long, count: Long): Boolean {
     var handle = open_file("wb")
-    assert handle != 0
+    if handle == 0 {
+        return false
+    }
     var written = write_from(address, count, handle)
     close_file(handle)
     return written == count
@@ -85,7 +89,9 @@ func append_bytes(address: Long, count: Long): Long? {
 
 func put(text: String, mode: String): Boolean {
     var handle = open_file(mode)
-    assert handle != 0
+    if handle == 0 {
+        return false
+    }
     var written = write_text(text, handle)
     close_file(handle)
     return written == text.length()

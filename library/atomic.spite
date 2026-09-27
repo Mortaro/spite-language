@@ -41,7 +41,9 @@ func compare_and_swap(expected: $value_type, desired: $value_type): Boolean {
     while true {
         var raw = _cell.read_long_atomically(0)
         var current = _value(raw)
-        assert current == expected
+        if current != expected {
+            return false
+        }
         if _cell.compare_and_swap_long(0, raw, wanted) {
             return true
         }

@@ -19,6 +19,8 @@ func show_attribute(attribute: Symbol<Lamp>, shown: Lamp, lines: List<String>) {
 }
 
 func text_of(attribute: Spite.Attribute): String {
-    assert attribute.value
+    if not attribute.value {
+        return ""
+    }
     return attribute.value.to_string()
 }

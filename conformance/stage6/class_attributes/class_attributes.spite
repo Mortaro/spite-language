@@ -19,6 +19,8 @@ func ClassAttributes() {
 }
 
 func text_of(attribute: Spite.Attribute): String {
-    assert attribute.value
+    if not attribute.value {
+        return ""
+    }
     return attribute.value.to_string()
 }

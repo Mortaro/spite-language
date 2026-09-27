@@ -735,7 +735,7 @@ A program reopens `List` by putting a `list.spite` in its own folder, and a func
 library's:
 
 ```gdscript title=list_average/list.spite
-func average_member(member: Symbol<$element_type>): Float {
+func average_member(member: Symbol<$element_type>): Float? {
     assert item_count != 0
     var total = 0.0
     var index = 0
@@ -764,6 +764,7 @@ func ListAverage() {
     var four = Score(4)
     scores.append(four)
     var average = scores.average_points()
+    crash average
     console.print(average)
 }
 ```

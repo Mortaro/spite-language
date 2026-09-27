@@ -30,7 +30,9 @@ func clamp(value: Float, low: Float, high: Float): Float {
 }
 
 func square_root(value: Float): Float {
-    assert value > 0.0
+    if value <= 0.0 {
+        return 0.0
+    }
     var guess = value
     if guess < 1.0 {
         guess = 1.0

@@ -82,9 +82,13 @@ func is_whole_number(text: String): Boolean {
     if text.starts_with("-") {
         index = 1
     }
-    assert index != text.length()
+    if index == text.length() {
+        return false
+    }
     while index < text.length() {
-        assert text.code_at(index) >= 48 and text.code_at(index) <= 57
+        if text.code_at(index) < 48 or text.code_at(index) > 57 {
+            return false
+        }
         index = index + 1
     }
     return true

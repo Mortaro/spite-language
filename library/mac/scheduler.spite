@@ -48,7 +48,9 @@ func start_thread(entry: Long, argument: Long): Long {
     var created = library.pthread_create(slot, no_value, entry, argument)
     var thread = slot.read_long(0)
     heap.free(slot)
-    assert created == 0
+    if created != 0 {
+        return 0
+    }
     return thread
 }
 

@@ -1,0 +1,63 @@
+enum Light {
+    'red'
+    'amber'
+    'green'
+}
+
+var console = Console()
+
+func SwitchChain() {
+    var day = day_name(2)
+    var wait = seconds_for('amber')
+    var sign = sign_for("fr")
+    var short = two_arms(1)
+    console.print(day, wait, sign, short)
+}
+
+func day_name(index: Integer): String {
+    if index == 0 {
+        return "monday"
+    }
+    if index == 1 {
+        return "tuesday"
+    }
+    if index == 2 {
+        return "wednesday"
+    }
+    return "later"
+}
+
+func seconds_for(light: Light): Integer {
+    if light == 'red' {
+        return 30
+    } else if light == 'amber' {
+        return 5
+    } else if light == 'green' {
+        return 20
+    }
+    crash
+}
+
+func sign_for(language: String): String {
+    if language == "es" {
+        return "hola"
+    }
+    if language == "fr" {
+        return "bonjour"
+    }
+    if language == "de" {
+        return "hallo"
+    }
+    var fallback = "hello"
+    return fallback
+}
+
+func two_arms(index: Integer): String {
+    if index == 0 {
+        return "zero"
+    }
+    if index == 1 {
+        return "one"
+    }
+    return "many"
+}

@@ -343,7 +343,9 @@ func fresh_function_result(called_owner: Analysis.ClassInfo, function: Analysis.
 func returns_fresh_in(statements: List<Syntax.Statements.Statement>, returned: Analysis.ClassInfo): Boolean {
     var index = 0
     while index < statements.count() {
-        assert statement_returns_fresh(statements[index], returned)
+        if not statement_returns_fresh(statements[index], returned) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -352,7 +354,9 @@ func returns_fresh_in(statements: List<Syntax.Statements.Statement>, returned: A
 func statement_returns_fresh(statement: Syntax.Statements.Statement, returned: Analysis.ClassInfo): Boolean {
     switch statement {
         Syntax.Statements.ReturnStatement: {
-            assert statement.value
+            if not statement.value {
+                return false
+            }
             return value_is_fresh(statement.value, returned)
         }
         Syntax.Statements.IfStatement: return returns_fresh_in(statement.then_branch, returned) and returns_fresh_in(statement.else_branch, returned)
@@ -360,7 +364,9 @@ func statement_returns_fresh(statement: Syntax.Statements.Statement, returned: A
         Syntax.Statements.SwitchStatement: {
             var case_index = 0
             while case_index < statement.cases.count() {
-                assert returns_fresh_in(statement.cases[case_index].body, returned)
+                if not returns_fresh_in(statement.cases[case_index].body, returned) {
+                    return false
+                }
                 case_index = case_index + 1
             }
             return true
@@ -375,18 +381,26 @@ func value_is_fresh(value: Syntax.Expressions.Expression, returned: Analysis.Cla
         return returned_local_stays(named.name, returned)
     }
     var made = fresh_class(value)
-    assert made
+    if not made {
+        return false
+    }
     return made.c_name == returned.c_name
 }
 
 func returned_local_stays(name: String, returned: Analysis.ClassInfo): Boolean {
     var holder = DeclarationHolder()
-    assert holder.find(name, whole_body) and holder.found_count == 1
+    if not holder.find(name, whole_body) or holder.found_count != 1 {
+        return false
+    }
     crash holder.declaration
     crash holder.declaration.value
     var made = fresh_class(holder.declaration.value)
-    assert made
-    assert made.c_name == returned.c_name
+    if not made {
+        return false
+    }
+    if made.c_name != returned.c_name {
+        return false
+    }
     var frame_table = frames()
     var generation = generating()
     var information = studied()
@@ -399,7 +413,9 @@ func returned_local_stays(name: String, returned: Analysis.ClassInfo): Boolean {
 func stays_after(statements: List<Syntax.Statements.Statement>, start: Integer): Boolean {
     var index = start
     while index < statements.count() {
-        assert statement_keeps(statements[index])
+        if not statement_keeps(statements[index]) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -432,7 +448,9 @@ func statement_keeps(statement: Syntax.Statements.Statement): Boolean {
         }
         Syntax.Statements.SwitchStatement: {
             crash statement.subject
-            assert keeps(statement.subject)
+            if not keeps(statement.subject) {
+                return false
+            }
             return statement.cases.all(case_keeps)
         }
         _: return false
@@ -444,9 +462,13 @@ func case_keeps(switch_case: Syntax.Statements.SwitchCase): Boolean {
 }
 
 func declaration_keeps(declaration: Syntax.Statements.VariableDeclaration): Boolean {
-    assert declaration.name != followed
+    if declaration.name == followed {
+        return false
+    }
     crash declaration.value
-    assert keeps(declaration.value)
+    if not keeps(declaration.value) {
+        return false
+    }
     learn_declaration(declaration)
     return true
 }
@@ -461,7 +483,9 @@ func assignment_keeps(assignment: Syntax.Statements.AssignmentStatement): Boolea
     if written {
         crash written.object
         if is_followed(written.object) {
-            assert followed_field(written.name)
+            if not followed_field(written.name) {
+                return false
+            }
             return keeps(assignment.value)
         }
     }
@@ -472,11 +496,17 @@ func reassignment_keeps(value: Syntax.Expressions.Expression): Boolean {
     if reassign_any {
         return keeps(value)
     }
-    assert reassign_fresh
+    if not reassign_fresh {
+        return false
+    }
     var made = fresh_class(value)
-    assert made
+    if not made {
+        return false
+    }
     crash followed_class
-    assert made.c_name == followed_class.c_name
+    if made.c_name != followed_class.c_name {
+        return false
+    }
     return keeps(value)
 }
 
@@ -492,7 +522,9 @@ func return_keeps(statement: Syntax.Statements.ReturnStatement): Boolean {
 
 func is_followed(expression: Syntax.Expressions.Expression): Boolean {
     var named = shape.as_identifier(expression)
-    assert named
+    if not named {
+        return false
+    }
     if following_self {
         return named.name == "this" or named.name == "self"
     }
@@ -500,9 +532,13 @@ func is_followed(expression: Syntax.Expressions.Expression): Boolean {
 }
 
 func followed_field(name: String): Boolean {
-    assert followed_class
+    if not followed_class {
+        return false
+    }
     var field = followed_class.find_field(name)
-    assert field
+    if not field {
+        return false
+    }
     return true
 }
 
@@ -538,8 +574,12 @@ func object_field_keeps(field: Syntax.Expressions.ObjectField): Boolean {
 
 func name_keeps(name: String): Boolean {
     if following_self {
-        assert name != "this" and name != "self"
-        assert not studied().find_function(name)
+        if name == "this" or name == "self" {
+            return false
+        }
+        if studied().find_function(name) {
+            return false
+        }
         return true
     }
     return name != followed
@@ -579,10 +619,14 @@ func call_keeps(call: Syntax.Expressions.CallExpression): Boolean {
 func resolved_call_keeps(resolved: ResolvedCall, arguments: List<Syntax.Expressions.Expression>): Boolean {
     var own_call = not resolved.constructs and not resolved.receiver
     if resolved.receiver {
-        assert keeps(resolved.receiver)
+        if not keeps(resolved.receiver) {
+            return false
+        }
     }
     if following_self and own_call {
-        assert argument_lent(resolved, -1)
+        if not argument_lent(resolved, -1) {
+            return false
+        }
     }
     return arguments_keep(resolved, arguments)
 }
@@ -590,13 +634,17 @@ func resolved_call_keeps(resolved: ResolvedCall, arguments: List<Syntax.Expressi
 func unknown_call_keeps(call: Syntax.Expressions.CallExpression): Boolean {
     crash call.callee
     if not shape.as_identifier(call.callee) {
-        assert keeps(call.callee)
+        if not keeps(call.callee) {
+            return false
+        }
     }
     return call.arguments.all(keeps)
 }
 
 func followed_call_keeps(name: String, arguments: List<Syntax.Expressions.Expression>): Boolean {
-    assert followed_class
+    if not followed_class {
+        return false
+    }
     return class_call_keeps(followed_class, name, arguments)
 }
 
@@ -618,7 +666,9 @@ func found_call_keeps(
     function: Analysis.FunctionInfo,
     arguments: List<Syntax.Expressions.Expression>,
 ): Boolean {
-    assert lent_to(information, function, -1)
+    if not lent_to(information, function, -1) {
+        return false
+    }
     var resolved = ResolvedCall()
     resolved.owner = information
     resolved.function = function
@@ -636,9 +686,11 @@ func arguments_keep(resolved: ResolvedCall, arguments: List<Syntax.Expressions.E
     while index < arguments.count() {
         var argument = arguments[index]
         if is_followed(argument) {
-            assert argument_lent(resolved, index)
-        } else {
-            assert keeps(argument)
+            if not argument_lent(resolved, index) {
+                return false
+            }
+        } else if not keeps(argument) {
+            return false
         }
         index = index + 1
     }
@@ -646,7 +698,9 @@ func arguments_keep(resolved: ResolvedCall, arguments: List<Syntax.Expressions.E
 }
 
 func argument_lent(resolved: ResolvedCall, index: Integer): Boolean {
-    assert resolved.owner and resolved.function
+    if not resolved.owner or not resolved.function {
+        return false
+    }
     return lent_to(resolved.owner, resolved.function, index)
 }
 
@@ -660,7 +714,9 @@ func operator_keeps(binary: Syntax.Expressions.BinaryExpression): Boolean {
     if resolved {
         return operands_lent(resolved, binary.left, binary.right)
     }
-    assert binary.operator == 'equal' or binary.operator == 'not_equal'
+    if binary.operator != 'equal' and binary.operator != 'not_equal' {
+        return false
+    }
     return keeps_unless_followed(binary.left) and keeps_unless_followed(binary.right)
 }
 
@@ -670,14 +726,18 @@ func operands_lent(
     right: Syntax.Expressions.Expression,
 ): Boolean {
     if is_followed(left) {
-        assert argument_lent(resolved, -1)
-    } else {
-        assert keeps(left)
+        if not argument_lent(resolved, -1) {
+            return false
+        }
+    } else if not keeps(left) {
+        return false
     }
     if is_followed(right) {
-        assert argument_lent(resolved, 0)
-    } else {
-        assert keeps(right)
+        if not argument_lent(resolved, 0) {
+            return false
+        }
+    } else if not keeps(right) {
+        return false
     }
     return true
 }
@@ -695,7 +755,9 @@ func negation_keeps(unary: Syntax.Expressions.UnaryExpression): Boolean {
         return keeps(unary.operand)
     }
     var resolved = negate_call(unary)
-    assert resolved
+    if not resolved {
+        return false
+    }
     return argument_lent(resolved, -1)
 }
 
@@ -709,7 +771,9 @@ func text_keeps(text: String): Boolean {
         if closing >= 0 {
             hole = piece.slice(0, closing)
         }
-        assert hole_keeps(hole)
+        if not hole_keeps(hole) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -724,7 +788,9 @@ func hole_keeps(hole: String): Boolean {
         return true
     }
     var parts = hole.split(".")
-    assert parts.count() == 2
+    if parts.count() != 2 {
+        return false
+    }
     var object_name = parts.first()
     var field_name = parts.last()
     crash object_name
@@ -737,7 +803,9 @@ func names_self(word: String): Boolean {
         return true
     }
     var function = studied().find_function(word)
-    assert function
+    if not function {
+        return false
+    }
     return true
 }
 

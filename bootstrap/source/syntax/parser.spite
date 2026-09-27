@@ -182,7 +182,9 @@ func parse_top_level_statement(): Syntax.Statements.Statement {
 }
 
 func at_singleton_line(): Boolean {
-    assert check('identifier') and current().lexeme == "singleton"
+    if not check('identifier') or current().lexeme != "singleton" {
+        return false
+    }
     var following = next_kind()
     return following == 'newline' or following == 'end_of_file' or following == 'comment'
 }
@@ -718,10 +720,7 @@ func parse_switch_statement(): Syntax.Statements.Statement {
     var cases = List<Syntax.Statements.SwitchCase>()
     var finished = check('right_brace') or check('end_of_file')
     while not finished {
-        var case_type = parse_type()
-        expect('colon', "':' followed by the case body")
-        var body = parse_switch_case_body()
-        var switch_case = Syntax.Statements.SwitchCase(case_type, body)
+        var switch_case = parse_switch_case()
         cases.append(switch_case)
         skip_trivia()
         if check('right_brace') or check('end_of_file') or has_error {
@@ -730,6 +729,24 @@ func parse_switch_statement(): Syntax.Statements.Statement {
     }
     expect('right_brace', "'}' to close the switch body")
     return Syntax.Statements.SwitchStatement(subject, cases)
+}
+
+func parse_switch_case(): Syntax.Statements.SwitchCase {
+    var names_value = check('enum_literal') or check('integer_literal') or check('string_literal') or check('minus')
+    if names_value {
+        var value = parse_expression()
+        expect('colon', "':' followed by the case body")
+        var value_body = parse_switch_case_body()
+        var value_case = Syntax.Statements.SwitchCase(value_body)
+        value_case.value = value
+        return value_case
+    }
+    var case_type = parse_type()
+    expect('colon', "':' followed by the case body")
+    var body = parse_switch_case_body()
+    var type_case = Syntax.Statements.SwitchCase(body)
+    type_case.type_reference = case_type
+    return type_case
 }
 
 func parse_switch_case_body(): List<Syntax.Statements.Statement> {
@@ -881,7 +898,9 @@ func parse_type_without_suffix(): Syntax.Types.Type {
 }
 
 func parse_dotted_segment(path: List<String>): Boolean {
-    assert check('dot')
+    if not check('dot') {
+        return false
+    }
     advance()
     if check('identifier') {
         var segment_token = advance()
@@ -1120,43 +1139,21 @@ func binary_operator_precedence(kind: TokenKind): Integer {
 }
 
 func binary_operator_for(kind: TokenKind): Syntax.Expressions.BinaryOperator {
-    if kind == 'keyword_or' {
-        return 'logical_or'
+    switch kind {
+        'keyword_or': return 'logical_or'
+        'keyword_and': return 'logical_and'
+        'equal_equal': return 'equal'
+        'bang_equal': return 'not_equal'
+        'less': return 'less'
+        'less_equal': return 'less_equal'
+        'greater': return 'greater'
+        'greater_equal': return 'greater_equal'
+        'plus': return 'add'
+        'minus': return 'subtract'
+        'star': return 'multiply'
+        'slash': return 'divide'
+        _: return 'modulo'
     }
-    if kind == 'keyword_and' {
-        return 'logical_and'
-    }
-    if kind == 'equal_equal' {
-        return 'equal'
-    }
-    if kind == 'bang_equal' {
-        return 'not_equal'
-    }
-    if kind == 'less' {
-        return 'less'
-    }
-    if kind == 'less_equal' {
-        return 'less_equal'
-    }
-    if kind == 'greater' {
-        return 'greater'
-    }
-    if kind == 'greater_equal' {
-        return 'greater_equal'
-    }
-    if kind == 'plus' {
-        return 'add'
-    }
-    if kind == 'minus' {
-        return 'subtract'
-    }
-    if kind == 'star' {
-        return 'multiply'
-    }
-    if kind == 'slash' {
-        return 'divide'
-    }
-    return 'modulo'
 }
 
 func parse_binary_expression(minimum_precedence: Integer): Syntax.Expressions.Expression {

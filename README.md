@@ -18,8 +18,11 @@ That goes for everyone who writes it -- people, AI agents and the language's own
 - **The compiler refuses mistakes instead of guessing.** An error names the problem and the fix -- a race, a
   value that may be null, a borrowed item kept too long, a misspelt or abbreviated name -- and there is no
   warning to ignore: it compiles or it tells you why not.
-- **Nothing fails silently.** Something that can be absent is a `T?` you must handle; a real developer mistake
-  crashes with the line that made it.
+- **Anything that can go wrong silently is a bug** ([D244](docs/decisions.md)). Every failure is loud -- a compile
+  error, or a crash that names its cause -- and never a wrong value, a lost write, a skipped step, a leak or a
+  hang. Something that can be absent is a `T?` you must handle; a real developer mistake crashes with the line
+  that made it; a fault below Spite still prints where it happened. What the language already refuses, and what
+  is still open, is listed in [docs/failure.md](docs/failure.md#nothing-fails-silently).
 - **Every optimisation is written down.** What the compiler does behind your back is listed in
   [docs/optimizations.md](docs/optimizations.md), so it surprises nobody.
 

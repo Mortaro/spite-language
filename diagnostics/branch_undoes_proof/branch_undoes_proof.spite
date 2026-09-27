@@ -9,7 +9,7 @@ func BranchUndoesProof() {
 }
 
 func describe(): String {
-    assert target
+    crash target
     if kind == 4 {
         forget_target()
     }

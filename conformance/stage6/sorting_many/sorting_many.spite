@@ -39,7 +39,9 @@ func ascends(numbers: List<Integer>): Boolean {
         crash numbers[index - 1]
         var before = numbers[index - 1] / 10
         var here = numbers[index] / 10
-        assert before <= here
+        if before > here {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -51,7 +53,9 @@ func keeps_ties(numbers: List<Integer>): Boolean {
         crash numbers[index - 1]
         var before = numbers[index - 1]
         var here = numbers[index]
-        assert before / 10 != here / 10 or first_position(before) < first_position(here)
+        if before / 10 == here / 10 and first_position(before) >= first_position(here) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -74,7 +78,9 @@ func in_order(names: List<String>): Boolean {
         crash names[index - 1]
         var before = names[index - 1]
         var here = names[index]
-        assert before < here
+        if before >= here {
+            return false
+        }
         index = index + 1
     }
     return true

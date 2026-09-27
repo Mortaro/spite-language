@@ -17,6 +17,5 @@ func row_of(entity: Integer): Integer {
     if entity >= rows.count() {
         return -1
     }
-    crash rows[entity]
     return rows[entity] - 1
 }

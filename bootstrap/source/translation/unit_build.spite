@@ -34,7 +34,9 @@ func built(header_code: String, units: List<String>, output_path: String): Boole
     }
     compiled_units = missing.count()
     reused_units = objects.count() - compiled_units
-    assert compiled_all(missing)
+    if not compiled_all(missing) {
+        return false
+    }
     return linked(objects, output_path)
 }
 

@@ -1,2 +1,2 @@
-spite: 'total / parts' divided by zero, at conformance/stage6/division_by_zero/division_by_zero.spite:22 in DivisionByZero.share
+spite: 'total / parts' divided by zero, at conformance/stage6/division_by_zero/division_by_zero.spite:24 in DivisionByZero.share
 5 0

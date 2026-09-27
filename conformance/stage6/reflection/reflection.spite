@@ -28,6 +28,8 @@ func console_class_name(): String {
 }
 
 func text_of(attribute: Spite.Attribute): String {
-    assert attribute.value
+    if not attribute.value {
+        return ""
+    }
     return attribute.value.to_string()
 }

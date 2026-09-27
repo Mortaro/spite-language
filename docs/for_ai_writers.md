@@ -98,7 +98,8 @@ func is_alive(): Boolean {
 - The two branches of an `if`/`else` never compute the same call (`'measure(2)' is computed in both branches`):
   compute it once before the `if`.
 - An `if`/`else` never sits directly inside a branch of another `if`/`else`: move the inner decision into a
-  function named for what it decides, or use one `switch` when both test which member of a union a value is. A
+  function named for what it decides, or use one `switch` when both test which member of a union or which value
+  of an enum a value is. A
   flat `else if` chain, and an `if` with no `else`, are fine. The error: `this 'if'/'else' is inside a branch of
   another 'if'/'else': move it into a function named for what it decides`.
 
@@ -265,7 +266,8 @@ func is_alive(): Boolean {
   never compiled: a `Stream<$system_type, argument.class>` that calls `system.phase_each(row)` is made only for
   one-row systems. With a pattern whose functions take different counts, ask inside the walk instead.
 - `assert` and `crash` on a compile-time question fold like `if`: `assert $slot_type == Entity` then `return
-  value.id` compiles for every `Slot<T>`, returning the default where `T` is not `Entity`, with no run-time test;
+  value.id`, in a function returning `Integer?`, compiles for every `Slot<T>`, answering `null` where `T` is not
+  `Entity`, with no run-time test (in one returning `Integer`, write `if $slot_type != Entity { return 0 }`);
   `crash $component_type.fits_vector()` halts every call in an instance whose type does not fit.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
@@ -319,6 +321,11 @@ func is_alive(): Boolean {
 
 ## Nothing, null, and failure
 
+- **Anything that can go wrong silently is a bug** (D244). Write every failure loud: a compile error where the
+  compiler can know, a `crash` naming its cause where only the run can. Never let a caller get a default it cannot
+  tell from a real answer, lose a write, skip a step, leak or hang. When a function cannot answer, its result says
+  so (`T?`, or an empty list), or it returns a value you chose on purpose, or it crashes because a caller broke the
+  rule ([failure.md](failure.md#nothing-fails-silently)).
 - `Monster?` is a value that may be `null`. It must be narrowed before use: `if target { }` (with `else`),
   `assert target`, `crash target`, `while target { }`, or `switch target { Monster: ... Null: ... }`. One
   `assert a.b.c` narrows the whole path. `null` is never compared against: `value == null` is an error.
@@ -330,8 +337,12 @@ func is_alive(): Boolean {
   before it. A call that cannot change it keeps the proof. Calling a function value keeps no proof about
   attributes or lists.
 - A `switch` is over a union or a `T?` and covers every member; `_:` as the last case answers for the rest, and
-  two cases doing the same thing are an error: write it once as `_:`. An enum is compared with `==` in an `if`
-  chain: `switch` over an enum is not built (it fails with `expected a type name but found ''red''`).
+  two cases doing the same thing are an error: write it once as `_:`. A `switch` over an enum, a whole number or
+  a text has value cases: `'red': return 30`, `-1: ...`, `"es": ...`; over an enum it covers every value or ends
+  with `_:` (`has no case for 'amber'`), over a number or a text it always ends with `_:`. Three `if`s in a row
+  that each compare one name with a constant and only return are an error that writes the switch for you (`these 3
+  'if's each compare 'index' with a value and return, which is what a 'switch' says: write 'switch index { ... }'`);
+  an `else if` chain of three is the same.
 - `value == Monster` is a class test (false for `null`), and `if value == Monster { }` narrows `value` inside. A
   switch that is one class case and `_:`, each a `return`, is an error: write the `if`, or `return value == Monster`.
   In a generic class, `value == $wanted_type` tests for the class the codegen value is bound to.
@@ -342,11 +353,18 @@ func is_alive(): Boolean {
   first, or compare it `== true`.
 - There are no exceptions and no error values. Three outcomes only:
   - the compiler can know it: a compile error;
-  - absence is fine: `assert condition` returns the function's default quietly (`false`, `0`, `""`, `null`,
-    nothing), in a function returning any type, never in a constructor (`'assert' is not allowed in a
-    constructor`: take resolved values, or `crash`). `if x { return false }` -- an `if` whose body only returns
-    the default -- is an error naming the `assert` to write (`write 'assert not x'`), and so is a last `if` with no
-    `else` that only checks a value is there (`write 'assert maybe_name'`);
+  - absence is fine: `assert condition` stops the function and answers "nothing" -- it returns, answers `null`
+    from a `T?`, or an empty `List`/`Dictionary`/`Vector`/`Items` -- and is allowed only there, never in a
+    constructor (`'assert' is not allowed in a constructor`: take resolved values, or `crash`). In a function
+    returning a number, `Boolean`, `String`, enum or object it is an error, since its default would pass for a real
+    answer (`this 'assert' would answer a default Integer (0) that a caller cannot tell from a real one: return a
+    value ('if not found { return -1 }'), make the result 'Integer?', or 'crash found' if this is a developer
+    mistake`): write the answer (`if handle == -1 { return false }`), make the result a `T?`, or `crash`. Where
+    `assert` is allowed, `if x { return null }` or a bare `if x { return }` is an error naming the `assert` to write
+    (`write 'assert not x'`), and so is a last `if` with no `else` that only checks a value is there (`write
+    'assert maybe_name'`). An `if` with no `else` that ends in `return` proves the opposite of its condition after
+    it: `if not found { return -1 }` narrows `found`, `if index >= names.count() { return "" }` proves
+    `names[index]`;
   - absence is a bug: `crash condition` halts with
     `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition<TAB>name=value...`, followed by the
     asserts that failed before it. A bare `crash` marks a branch that cannot happen (`crash false` is formatted to it).
