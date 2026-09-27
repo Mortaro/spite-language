@@ -502,6 +502,11 @@ the same at run time. A system never says that it does IO. `Scheduler().resume_o
 `Concurrent`s out of the stages: they then resume only at `Scheduler().run_ready()`, which the frame loop calls
 between frames, or where one's value is read or its handle dropped. A loop polling `finished` in that mode must call
 `run_ready()`, or it never ends.
+`$system_type.function_writes_parameter("last_each", 1)` is decided while compiling the same way: `true` when the
+function, or anything it calls, writes what its parameter number 1 (from 0) is given or anything reached through it
+(`true` too where it cannot tell, such as a call through a function value); an engine writes `crash not
+$system_type.function_writes_parameter("last_each", 1)` to make a system that breaks its rule a compile error that
+names the writing line ([metaprogramming.md](metaprogramming.md#asking-whether-a-function-writes-a-parameter)).
 `JsonWriter(value).write(): String` writes JSON and `JsonReader<T>(text).read(): T?` reads it
 (`read_or_crash(): T` halts instead), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`;
 `read` skips unknown keys, keeps defaults for missing ones, reads a camelCase or PascalCase key (`buyPrice`,

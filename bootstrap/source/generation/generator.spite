@@ -281,6 +281,8 @@ var pending_constraint_owners = List<String>()
 var pending_constraint_functions = List<String>()
 var failed_constraints = List<String>()
 var call_effects = CallEffects()
+var parameter_writes = ParameterWrites()
+var writes_reasons = List<String>()
 var schema_hash = SchemaHash()
 var pending_calls = List<Syntax.Expressions.Expression>()
 var pending_call_lines = List<Integer>()
@@ -983,6 +985,9 @@ func folded_function_question(
     if member.name == "fits_vector" {
         return fits_vector_question(member.object, call.arguments, class_information)
     }
+    if member.name == "function_writes_parameter" {
+        return parameter_write_question(member.object, call.arguments, class_information)
+    }
     assert member.name == "has_function" or member.name == "function_waits"
     var symbol_class = shape.as_member(member.object)
     if symbol_class {
@@ -1380,29 +1385,129 @@ func class_has_function(owner: Analysis.ClassInfo, pattern: String, asking: Anal
     return false
 }
 
-func class_function_waits(owner: Analysis.ClassInfo, pattern: String, asking: Analysis.ClassInfo): Boolean {
+func wanted_function_names(pattern: String, asking: Analysis.ClassInfo): List<String> {
     var wanted = List<String>()
     var opening = pattern.index_of("<")
     var closing = pattern.index_of(">")
     if opening < 0 or closing < opening {
         wanted.append(pattern)
-    } else {
-        var pattern_length = pattern.length()
-        var prefix = pattern.slice(0, opening)
-        var suffix = pattern.slice(closing + 1, pattern_length)
-        var hole = pattern.slice(opening + 1, closing)
-        var hole_values = hole_enum(asking, hole)
-        if not hole_values {
-            var missing = missing_hole_enum(asking, hole, pattern)
-            report(missing)
+        return wanted
+    }
+    var pattern_length = pattern.length()
+    var prefix = pattern.slice(0, opening)
+    var suffix = pattern.slice(closing + 1, pattern_length)
+    var hole = pattern.slice(opening + 1, closing)
+    var hole_values = hole_enum(asking, hole)
+    if not hole_values {
+        var missing = missing_hole_enum(asking, hole, pattern)
+        report(missing)
+        return wanted
+    }
+    var value_index = 0
+    while value_index < hole_values.values.count() {
+        var value = hole_values.values[value_index]
+        wanted.append("{prefix}{value}{suffix}")
+        value_index = value_index + 1
+    }
+    return wanted
+}
+
+func parameter_write_question(
+    object: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
+    var asked = Syntax.SourcePrinter().source_expression(object)
+    var pattern_literal: Syntax.Expressions.StringLiteralExpression? = null
+    var index_literal: Syntax.Expressions.IntegerLiteral? = null
+    if arguments.count() == 2 {
+        pattern_literal = shape.as_string_literal(arguments[0])
+        index_literal = shape.as_integer_literal(arguments[1])
+    }
+    if not pattern_literal or not index_literal {
+        report(
+            "'{asked}.function_writes_parameter(...)' is decided while compiling, so it takes the function's name as text and the parameter's number, counted from 0, as literals: '{asked}.function_writes_parameter(\"last_each\", 1)'",
+        )
+        return false
+    }
+    var symbol_class = shape.as_member(object)
+    if symbol_class {
+        assert symbol_class.name == "class" and not bound_symbol_name.is_empty()
+        crash symbol_class.object
+        var symbol_identifier = shape.as_identifier(symbol_class.object)
+        assert symbol_identifier
+        assert symbol_identifier.name == bound_symbol_name
+        assert bound_field_type
+        var walked_class_ref = type_shape.as_class_ref(bound_field_type)
+        if not walked_class_ref {
             return false
         }
-        var value_index = 0
-        while value_index < hole_values.values.count() {
-            var value = hole_values.values[value_index]
-            wanted.append("{prefix}{value}{suffix}")
-            value_index = value_index + 1
+        var walked_owner = find_class_by_c_name(walked_class_ref.c_name)
+        crash walked_owner
+        return class_writes_parameter(walked_owner, pattern_literal.value, index_literal.value, class_information)
+    }
+    var generic_identifier = shape.as_generic_identifier(object)
+    assert generic_identifier
+    var bare_name = without_dollar(generic_identifier.name)
+    var bound = codegen_index(class_information, bare_name)
+    assert bound >= 0
+    crash class_information.codegen_codes[bound]
+    assert class_information.codegen_codes[bound].is_empty()
+    crash class_information.codegen_types[bound]
+    var bound_class_ref = type_shape.as_class_ref(class_information.codegen_types[bound])
+    if not bound_class_ref {
+        return false
+    }
+    var owner = find_class_by_c_name(bound_class_ref.c_name)
+    crash owner
+    return class_writes_parameter(owner, pattern_literal.value, index_literal.value, class_information)
+}
+
+func class_writes_parameter(
+    owner: Analysis.ClassInfo,
+    pattern: String,
+    asked_index: Long,
+    asking: Analysis.ClassInfo,
+): Boolean {
+    var wanted = wanted_function_names(pattern, asking)
+    var functions = declared_functions_of(owner)
+    var writes = false
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if wanted.contains(function.name) and asks_about_parameter(owner, function, asked_index) {
+            writes = true
         }
+        index = index + 1
+    }
+    return writes
+}
+
+func asks_about_parameter(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, asked_index: Long): Boolean {
+    var position = 0
+    while position < function.parameters.count() {
+        if asked_index == position {
+            var parameter = function.parameters[position]
+            var slot: String = position
+            if not parameter_writes.answer(this, owner, function, slot) {
+                return false
+            }
+            var why = parameter_writes.reason_of(function.c_name, slot)
+            writes_reasons.append("'{owner.simple_name}.{function.name}' writes its parameter '{parameter.name}' {why}")
+            return true
+        }
+        position = position + 1
+    }
+    report(
+        "'{owner.simple_name}.{function.name}' takes {function.parameters.count()} arguments, so it has no parameter {asked_index} to ask about: 'function_writes_parameter' counts parameters from 0",
+    )
+    return false
+}
+
+func class_function_waits(owner: Analysis.ClassInfo, pattern: String, asking: Analysis.ClassInfo): Boolean {
+    var wanted = wanted_function_names(pattern, asking)
+    if wanted.is_empty() {
+        return false
     }
     settle_wait_facts()
     var functions = declared_functions_of(owner)
@@ -17111,7 +17216,7 @@ func generate_call(
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
-        if member.name == "has_function" or member.name == "function_waits" or member.name == "fits_vector" {
+        if member.name == "has_function" or member.name == "function_waits" or member.name == "fits_vector" or member.name == "function_writes_parameter" {
             var answered = folded_function_question(call, class_information)
             if answered == true or answered == false {
                 var answer_type: Analysis.SpiteType = Analysis.Types.ScalarType('boolean_kind')
@@ -28263,6 +28368,9 @@ func note_always_crashing(
     if condition.is_empty() {
         message = "this 'crash' always halts{instance}, and this function is called: take the call out"
     }
+    if not writes_reasons.is_empty() {
+        message = "{message} -- {writes_reasons.join("; ")}"
+    }
     always_crashing_functions.append(current_function_c_name)
     always_crashing_paths.append(current_path)
     always_crashing_lines.append(current_line)
@@ -28347,6 +28455,7 @@ func folded_check(
     class_information: Analysis.ClassInfo,
 ): Boolean? {
     assert asks_while_compiling(assertion)
+    writes_reasons.clear()
     return constant_condition(assertion, scope, class_information)
 }
 
@@ -28378,7 +28487,7 @@ func asks_while_compiling(expression: Syntax.Expressions.Expression): Boolean {
                 return false
             }
             var named = member.name
-            return named == "has_function" or named == "function_waits" or named == "fits_vector" or named == "argument_count"
+            return named == "has_function" or named == "function_waits" or named == "fits_vector" or named == "argument_count" or named == "function_writes_parameter"
         }
         _: return false
     }

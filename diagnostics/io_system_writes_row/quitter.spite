@@ -1,0 +1,6 @@
+var log = File(".spite-cache/io_system_writes_row.txt")
+
+func last_each(checked: Checked, quitting: Quitting) {
+    log.append("checked {checked.count}")
+    quitting.quit.requested = true
+}

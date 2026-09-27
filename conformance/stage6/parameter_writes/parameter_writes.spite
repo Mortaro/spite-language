@@ -1,0 +1,4 @@
+func ParameterWrites() {
+    var asker = Asker<Systems>()
+    asker.report()
+}

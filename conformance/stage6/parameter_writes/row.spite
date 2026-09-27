@@ -1,0 +1,5 @@
+var health = 0
+var label = "row"
+var counter = Counter()
+var flags = List<Integer>()
+var requests = Vector<Request>()

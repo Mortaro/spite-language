@@ -1,0 +1,7 @@
+var console = Console()
+
+func ParameterWriteQuestion() {
+    var asker = Asker<Mover>()
+    var answer = asker.ask()
+    console.print(answer)
+}

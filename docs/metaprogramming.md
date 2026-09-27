@@ -716,6 +716,111 @@ answers the same at run time. A function that asks cannot be asked about itself:
 whether it waits, and that is an error ([the rules](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)).
 [concurrency.md](concurrency.md#choosing-where-concurrents-resume) shows the frame loop that polls what it starts.
 
+### Asking whether a function writes a parameter
+
+`$system_type.function_writes_parameter("last_each", 1)` asks a third question: does this function change the
+object its parameter number 1 (counted from 0) is given, or anything reached through it? An attribute set on it
+(`quitting.quit.requested = true`), an item written or a list grown, a function called on it that changes its own
+object, or the parameter handed to another function that does any of these -- followed through every call, however
+deep, recursion included -- all count; reading does not, and neither does giving the parameter's name a new object
+(`quitting = Quitting()`). The answer is a constant, like `function_waits`'s, so only the branch taken is compiled
+([D261](decisions.md); the name is provisional). An engine asks it of a system it will run on a copy of its row:
+
+```gdscript title=writes_question/quitting.spite
+var requested = false
+```
+```gdscript title=writes_question/quitter.spite
+func last_each(quitting: Quitting) {
+    quitting.requested = true
+}
+```
+```gdscript title=writes_question/watcher.spite
+var console = Console()
+
+func last_each(quitting: Quitting) {
+    console.print("quit requested:", quitting.requested)
+}
+```
+```gdscript title=writes_question/stage.spite
+generic $system_type
+
+var system = $system_type()
+var console = Console()
+
+func run(quitting: Quitting) {
+    var name = $system_type.name
+    if $system_type.function_writes_parameter("last_each", 0) {
+        console.print(name, "changes its row, so it runs on the row itself")
+    } else {
+        console.print(name, "only reads its row, so a copy will do")
+    }
+    system.last_each(quitting)
+}
+```
+```gdscript title=writes_question/writes_question.spite entry
+func WritesQuestion() {
+    var quitting = Quitting()
+    var watching = Stage<Watcher>()
+    watching.run(quitting)
+    var quitting_stage = Stage<Quitter>()
+    quitting_stage.run(quitting)
+    watching.run(quitting)
+}
+```
+```output
+Watcher only reads its row, so a copy will do
+quit requested: false
+Quitter changes its row, so it runs on the row itself
+Watcher only reads its row, so a copy will do
+quit requested: true
+```
+
+When the answer means a program is wrong, a `crash` on it turns it into a compile error, as for every question
+decided while compiling ([below](#codegen-values---implemented)): the engine writes the rule it keeps, and a system
+that breaks it fails the build with the line that breaks it. A system that can wait runs between frames on a copy of
+its row, so a write to that row would be lost -- silently, which D244 forbids -- and the engine refuses it:
+
+```gdscript title=io_row_error/quitting.spite
+var requested = false
+```
+```gdscript title=io_row_error/saver.spite
+var log = File(".spite-cache/documentation_io_row.txt")
+
+func last_each(quitting: Quitting) {
+    log.append("saved")
+    quitting.requested = true
+}
+```
+```gdscript title=io_row_error/runner.spite
+generic $system_type
+
+var system = $system_type()
+
+func run(quitting: Quitting) {
+    if $system_type.function_waits("last_each") {
+        crash not $system_type.function_writes_parameter("last_each", 0)
+    }
+    system.last_each(quitting)
+}
+```
+```gdscript title=io_row_error/io_row_error.spite entry error
+var console = Console()
+
+func IoRowError() {
+    var quitting = Quitting()
+    var runner = Runner<Saver>()
+    runner.run(quitting)
+    console.print(quitting.requested)
+}
+```
+```diagnostic
+'crash not $system_type.function_writes_parameter("last_each", 0)' always halts in Runner<Saver>: its condition is decided while compiling and is false
+```
+
+The error goes on to name the line of the system that writes, `-- 'Saver.last_each' writes its parameter
+'quitting' at .../saver.spite:5: 'quitting.requested = true'`. A `crash` carries no message of its own
+([failure.md](failure.md#crash)): its condition is its message, so the engine's rule reads as what it asks.
+
 ### Asking how many arguments a function takes
 
 A runner that treats a one-row system differently from a system of several rows asks how many arguments the
@@ -1279,6 +1384,43 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
     comparing a function's address against those of the functions it makes into values or lists in a
     `.functions` that can wait, and keeps those functions (`conformance/stage6/waiting_systems`,
     `conformance/stage6/default_handles`).
+- **`$system_type.function_writes_parameter("last_each", 1)` is whether a function changes what its parameter
+  is given, as a constant** (D261, decided by Claude under D205, requested by SlopEngine, an instance of D244; the
+  name provisional under D214).  **[implemented]** The first argument is the function's name as a literal, or a
+  pattern read as `has_function` reads it; the second is the parameter's number, counted from 0, as a literal.
+  Anything else is the error "'$system_type.function_writes_parameter(...)' is decided while compiling, so it
+  takes the function's name as text and the parameter's number, counted from 0, as literals", and a number the
+  function does not have is "'Mover.move' takes 2 arguments, so it has no parameter 2 to ask about"
+  (`diagnostics/parameter_write_question`). It folds wherever it is written, as `function_waits` does, for a
+  codegen type and for the class a `Symbol<...>` walk visits (`system.class.function_writes_parameter(...)`); it
+  is `true` when a function the class declares whose name fits writes that parameter, `false` otherwise, also for
+  a name the class does not declare and for a codegen type that is not a class. It has no run-time form.
+  - **What counts as a write.** The object the parameter is given, and every object reached through it, is
+    written when the function, or any function it calls, however deep: assigns an attribute of it
+    (`p.a = x`, `p.a.b = x`) or an item of it (`p.list[i] = x`); calls a function on it that writes its own
+    object (`p.list.append(x)`, `p.counter.bump()`, the standard library's functions included -- a function
+    whose body the compiler supplies writes when it writes memory: `write_value`, `copy_to`, `free`, `resize`
+    and the like); passes it, or anything reached through it, to a parameter of a function that writes that
+    parameter, a D257 lent argument included; or stores such an object in an attribute or a collection, where
+    a later write could reach it. A local that names something reached through the parameter (`var list =
+    p.flags`) is the parameter's for this question, through `if`, `while` and `switch`. Reading is not a write;
+    neither is giving the parameter's name, or such a local, a new object (`p = Row()` and writes to that new
+    object after it), and neither is copying a number, a `Boolean`, text or an enum out of it. Recursion, direct
+    or mutual, is followed to a fixed point.
+  - **Where it cannot decide, the answer is `true`** (D244: never a silent `false`). A call through a function
+    value counts as writing every parameter of the function that makes it, since the value may be anything; so
+    does a call the compiler cannot follow to one function (a union's dispatch, a `type`, a template a class
+    generates, a value whose class it cannot tell), for the parameter's objects handed to it; reading a walked
+    `value.attributes[member]` counts as writing `value`, since the member may be a function.
+  - **A `crash` on it is the engine's compile error.** `crash not $system_type.function_writes_parameter(...)`
+    in a function the program reaches folds, and where the answer is `true` it is the error of a folded `crash`,
+    naming the instance and, after it, what writes: "... always halts in Runner<Quitter>: ... -- 'Quitter.last_each'
+    writes its parameter 'quitting' at .../quitter.spite:5: 'quitting.quit.requested = true'"
+    (`diagnostics/io_system_writes_row`). This is how an engine refuses a system that can wait (it runs between
+    frames on a snapshot of its row, where a write would be lost) and still writes its row.
+  - **Cost.** Nothing at run time: the question is answered from the functions' source while compiling, each
+    function studied once and remembered, and folds to a constant, so a program that does not ask carries none
+    of it (`conformance/stage6/parameter_writes`).
 - **`phase.argument_count()` and `$system_type.argument_count("update_each")` are the number of arguments a
   function takes, as a constant** (D219, decided by Claude under D205; the name provisional under D214, the readings
   below proposed by Claude, unconfirmed).  **[implemented]** Inside a template over the functions a pattern matches
@@ -1529,7 +1671,7 @@ one, change the call site.
 **An `assert` or `crash` on such a condition folds the same way** (proposed by Claude, unconfirmed).
 **[implemented]** When the condition of an `assert` or `crash` asks only what is decided while compiling -- a
 `$flag`, `$slot_type == Entity` or any other test of a codegen type, `has_function`, `function_waits`,
-`fits_vector` or `argument_count` of a codegen type or of a walked symbol's class, `argument.class == $row_type`,
+`function_writes_parameter`, `fits_vector` or `argument_count` of a codegen type or of a walked symbol's class, `argument.class == $row_type`,
 and `not`, `and` and `or` over them -- it is decided for each instance, with no test at run time: when it holds,
 nothing is written for it; when it does not, the `assert` answers "nothing" (recording its trace line), and the
 statements after it in the same block are not compiled for that instance, exactly as after an `if` whose taken
