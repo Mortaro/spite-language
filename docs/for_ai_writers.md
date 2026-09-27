@@ -36,6 +36,10 @@ gains the values it lists. `Build` is the exception: a field the program's own `
 program's value over a loaded package's (a flag, then the program, then the package). A package opens the files
 beside its own source through `class.source_folder()` (or `$item_type.source_folder()`), the absolute folder of
 the class's file on the machine that built it, never through a path relative to where the program runs.
+A name that resolves to no class is `unknown type 'X'`, with `did you mean
+'Component.Eye'?` when a class ends the same way: an environment's folder (`server/`) is not part of the name.
+What follows `--` reaches the program as typed, from bash, PowerShell or `cmd` alike:
+`/Game/Legacy/` stays `/Game/Legacy/`, so do not work around Git for Windows' path rewriting.
 
 ## A file is a class
 
@@ -124,6 +128,10 @@ func is_alive(): Boolean {
   can name a variable or a parameter either: `var none: Long = 0` says to write `null`. Pick another name
   (`no_handle`, `empty`). `load` is reserved too: it always loads a package, so a function that loads something
   says what (`load_texture`).
+- `class`, `attributes`, `functions`, `instances` and `memory` never name an attribute or a function (nor a
+  `get_`/`set_` one): reflection gives every object those members, and `JsonReader` and every attribute walk read
+  through `value.attributes`. The error suggests the class's name in front (`table_attributes`). A local may use
+  them.
 - No name is taken by the C that Spite compiles to (D168): `short`, `default`, `register`, `static`, `unsigned`,
   `stdout`, `near`, `far` and `pascal` are ordinary names for a variable, attribute, parameter or function, and
   so are `allocate`, `make`, `retain` and `release`. Do not rename around C. (`int`, `char`, `bool`, `min` and
@@ -138,7 +146,9 @@ func is_alive(): Boolean {
 ## Values
 
 - Numbers: `Integer` (32 bit, the default), `Long`, `Tiny`, `Short`, `Byte`, `UnsignedShort`, `UnsignedInteger`,
-  `UnsignedLong`, `Float` (the default for decimals), `Double`. `Boolean`. `String` (double quotes only).
+  `UnsignedLong`, `Float` (the default for decimals), `Double`. `Boolean`. `String` (double quotes only; escapes
+  `\n`, `\t`, `\r`, `\\`, `\"` and `\{` for a literal brace, in any order: `"\\\{"` is a backslash and a brace; a
+  text inside a hole keeps its own escapes and holes).
 - No cast syntax: the right side is cast toward the left. `"age {3}"` is `"age 3"`; `var total: Integer = "12"` parses
   it. Anything with a `to_string()` (numbers, `Boolean`, enums, a class that declares one) casts to text wherever a
   `String` is wanted: `label.text = clicks`, `show(clicks)`, `return clicks`, `names[badge]` on a `Dictionary` (a whole number there keys it by numbers instead). So a
@@ -336,7 +346,8 @@ func is_alive(): Boolean {
 - `attribute: Symbol<Label>` ranges over another class's members, read as `label.attributes[attribute]`, and the
   plural (`show_attributes(label)` for `show_attribute`) calls the template once per attribute, in order.
 - In a generic class, `if $value_type == List { }` (also `Dictionary`, `Null` for any `T?`, `Symbol` for any enum or `Symbol`, `Enum` for an enum only,
-  or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds. Only
+  or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds -- and is
+  tested the same way, `else if $value_type.element_type == Float`, in any branch of a chain. Only
   what the taken branch reaches is compiled -- helper functions, and the code after a chain whose branch returns
   -- so keep one generic class with a helper per kind, not one class per kind.
 - A getter with no setter makes a read-only attribute: `get_fahrenheit()` answers `.fahrenheit`, and assigning
@@ -425,7 +436,9 @@ between frames, or where one's value is read or its handle dropped. A loop polli
 `run_ready()`, or it never ends.
 `JsonWriter(value).write(): String` writes JSON and `JsonReader<T>(text).read(): T?` reads it
 (`read_or_crash(): T` halts instead), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`;
-`read` skips unknown keys, keeps defaults for missing ones, and is `null` on a value of the wrong kind; a `Symbol`
+`read` skips unknown keys, keeps defaults for missing ones, reads a camelCase or PascalCase key (`buyPrice`,
+`BuyPrice`) into its snake_case attribute (`buy_price`) when no attribute has the key's exact name, so never
+rename attributes to match foreign JSON, and is `null` on a value of the wrong kind; a `Symbol`
 reads back only as a name the program already uses. Writing a `Float` or `Double` that is infinity or not-a-number
 to JSON crashes naming the attribute (`'Order.price' is infinity, which JSON cannot hold`): check the number first
 if `null` is wanted. **Between Spite programs, and for files a Spite program reads back, use bytes instead**:

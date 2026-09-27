@@ -617,6 +617,7 @@ func parse_type_declaration(): Syntax.Statements.Statement {
             expect('colon', "':' followed by the field's type")
             var field_type = parse_type()
             var field = Syntax.Statements.FieldDeclaration(field_name.text, field_type)
+            field.line = field_name.line
             fields.append(field)
         }
         consume_declaration_entry("type")

@@ -7,6 +7,7 @@ var class_by_qualified = Dictionary<Integer>()
 var class_by_c_name = Dictionary<Integer>()
 var enums = List<Analysis.EnumInfo>()
 var unions = List<Analysis.UnionInfo>()
+var unknown_simple_name = ""
 var list_names = List<String>()
 var class_object_names = List<String>()
 var attributes_function_names = List<String>()
@@ -262,11 +263,30 @@ var pending_calls = List<Syntax.Expressions.Expression>()
 var pending_call_lines = List<Integer>()
 var schema_pending = "0 /* the schema hash, written when the function is emitted */"
 
+func fallback_line(): Integer {
+    var known_line = function_line_in(current_class, current_function)
+    if known_line > 0 {
+        return known_line
+    }
+    return 1
+}
+
+func function_line_in(owner: Analysis.ClassInfo?, function_name: String): Integer {
+    assert owner
+    var owned_function = owner.find_function(function_name)
+    assert owned_function
+    return owned_function.line
+}
+
 func report(message: String) {
     has_error = true
     assert not statement_poisoned
     assert not refused_serialiser or not is_serialiser_path(current_path)
-    var line = "{current_path}:{current_line}: error: {message} (in {current_owner}.{current_function})"
+    var shown_line = current_line
+    if shown_line == 0 {
+        shown_line = fallback_line()
+    }
+    var line = "{current_path}:{shown_line}: error: {message} (in {current_owner}.{current_function})"
     assert not error_lines.contains(line)
     if error_lines.count() == 25 {
         error_lines.append("too many errors: stopping at 25")
@@ -294,8 +314,8 @@ func generated_functions_source(qualified: String): String {
         var information = classes[index]
         if information.qualified_dotted == qualified and information.codegen_names.is_empty() {
             var function_index = 0
-            while function_index < information.functions.count() {
-                var function = information.functions[function_index]
+            while function_index < information.declared_functions.count() {
+                var function = information.declared_functions[function_index]
                 if not function.symbol_name.is_empty() and function.symbol_owner_c_name.is_empty() and function.has_body {
                     text = "{text}\n\n{instantiated_function_source(information, function)}"
                 }
@@ -417,8 +437,8 @@ func class_view_source(information: Analysis.ClassInfo, display_name: String): S
         field_index = field_index + 1
     }
     var index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if not function.is_constructor {
             lines.append("    {built_in_signature(function)}")
         }
@@ -834,6 +854,11 @@ func constant_condition(
             if binary.right {
                 if binary.operator == 'logical_and' or binary.operator == 'logical_or' {
                     var left_constant = constant_condition(binary.left, scope, class_information)
+                    var decided_by_left = left_constant == false and binary.operator == 'logical_and' or left_constant == true and binary.operator == 'logical_or'
+                    if decided_by_left {
+                        mark_names_used_in(binary.right, scope)
+                        return left_constant == true
+                    }
                     var right_constant = constant_condition(binary.right, scope, class_information)
                     if (left_constant == true or left_constant == false) and (right_constant == true or right_constant == false) {
                         if binary.operator == 'logical_and' {
@@ -869,6 +894,14 @@ func constant_condition(
                             }
                             return not same_kind
                         }
+                    }
+                    var member_type = codegen_member_chain_type(binary.left, class_information)
+                    if member_type {
+                        var same_member_kind = type_test(member_type, binary.right, class_information)
+                        if binary.operator == 'equal' {
+                            return same_member_kind
+                        }
+                        return not same_member_kind
                     }
                     var left_text = folded_text(binary.left, scope, class_information)
                     var right_text = constant_text(binary.right)
@@ -958,12 +991,16 @@ func walked_class_is(
         assert right_type
         return exact_type_label(bound_field_type) == exact_type_label(right_type)
     }
-    var field_class = type_shape.as_class_ref(bound_field_type)
-    assert field_class
-    assert not field_class.has_signature
     var tested = try_resolve_static_path(right, class_information.qualified_dotted)
     assert tested
-    return field_class.c_name == tested.c_name
+    if type_shape.as_nullable(bound_field_type) {
+        return false
+    }
+    var field_class = class_of_type(bound_field_type)
+    if field_class {
+        return field_class.c_name == tested.c_name
+    }
+    return false
 }
 
 func class_fits_vector(described: Analysis.ClassInfo): Boolean {
@@ -1956,8 +1993,8 @@ func vector_item_problem(item_type: Analysis.SpiteType): String {
         return "'{label}' cannot be an item of a Vector: it has a 'drop()', and an item inline in a Vector is never an object of its own to drop (keep '{label}' in a 'List<{label}>')"
     }
     index = 0
-    while index < item_class.functions.count() {
-        var function = item_class.functions[index]
+    while index < item_class.declared_functions.count() {
+        var function = item_class.declared_functions[index]
         if not function.is_constructor and block_uses_this(function.body, item_class) {
             return "'{label}.{function.name}' uses 'this' as a value, and an item of a Vector is borrowed from the Vector, never an object to keep or to pass on: read and write its attributes instead"
         }
@@ -2303,6 +2340,7 @@ func register_shapes(entry: Discovery.DiscoveredClass) {
             )
             information.is_shape = true
             information.shape_fields = declaration.fields
+            information.shape_path = file.path
             var reopened = shape_position(information.c_name)
             if reopened < 0 {
                 unions.append(information)
@@ -2332,9 +2370,20 @@ func shape_field_type(information: Analysis.UnionInfo, field_name: String): Anal
         if field.name == field_name {
             if field.type_reference {
                 var saved_owner = current_owner
+                var saved_path = current_path
+                var saved_line = current_line
+                var saved_function = current_function
                 current_owner = information.owner_qualified
+                if not information.shape_path.is_empty() and field.line > 0 {
+                    current_path = information.shape_path
+                    current_line = field.line
+                    current_function = ""
+                }
                 var resolved = resolve_type(field.type_reference, information.owner_namespace)
                 current_owner = saved_owner
+                current_path = saved_path
+                current_line = saved_line
+                current_function = saved_function
                 return resolved
             }
         }
@@ -2804,7 +2853,7 @@ func emit_shape_peekers(information: Analysis.UnionInfo) {
     while index < information.peeker_names.count() {
         var field_name = information.peeker_names[index]
         var field_type = shape_field_type(information, field_name)
-        crash field_type
+        assert field_type
         var lines = List<String>()
         lines.append("{c_type_name(field_type)} {information.c_name}___peek_{field_name}({information.c_name} self) \{")
         var member_index = 0
@@ -3034,7 +3083,9 @@ func shape_default(information: Analysis.UnionInfo): String {
             return "0"
         }
         var field_type = shape_field_type(information, field.name)
-        crash field_type
+        if not field_type {
+            return "0"
+        }
         names.append(field.name)
         types.append(field_type)
         label = "{label}_{field.name}_{type_label(field_type)}"
@@ -3294,7 +3345,7 @@ func automatic_debug(information: Analysis.ClassInfo): Analysis.FunctionInfo? {
     function.has_body = false
     var body = "{debug_class.c_name}* spite_debug = {singleton_call(debug_class)};\nSpiteString spite_text = {described.c_name}(spite_debug, {retain_call(debugged_type, "self")});\n{debug_class.c_name}___release(spite_debug);\nreturn spite_text;"
     function.supplied_body = body
-    information.functions.append(function)
+    information.declared_functions.append(function)
     if synthetic_value_types.has(information.c_name) {
         function.is_emitted = true
         var signature = "SpiteString {function.c_name}({c_type_name(debugged_type)} self)"
@@ -3345,7 +3396,7 @@ func synthetic_value_class(c_name: String, value_type: Analysis.SpiteType, to_st
         false,
     )
     to_string.is_emitted = true
-    created.functions.append(to_string)
+    created.declared_functions.append(to_string)
     synthetic_value_classes.append(created)
     synthetic_value_types[c_name] = value_type
     var signature = "SpiteString {c_name}_to_string({c_type_name(value_type)} self)"
@@ -3699,6 +3750,7 @@ func resolve_field(
 ) {
     assert declaration.value
     check_value_name(declaration.name, "attribute")
+    check_reflection_name(declaration.name, "attribute", information)
     report_nested_calls_in(declaration.value)
     report_singletons_in_declared(declaration.value, information)
     report_written_handle_type(declaration)
@@ -4166,8 +4218,8 @@ func range_function(information: Analysis.ClassInfo, template: Analysis.Template
 func declared_functions_of(owner: Analysis.ClassInfo): List<Analysis.FunctionInfo> {
     var declared = List<Analysis.FunctionInfo>()
     var index = 0
-    while index < owner.functions.count() {
-        var function = owner.functions[index]
+    while index < owner.declared_functions.count() {
+        var function = owner.declared_functions[index]
         if not function.is_constructor and function.symbol_name.is_empty() and not function.name.starts_with("_") {
             declared.append(function)
         }
@@ -4598,6 +4650,42 @@ func template_member_type(
     return field.get_type()
 }
 
+func clashing_function(information: Analysis.ClassInfo, instance_name: String): Analysis.FunctionInfo? {
+    var written = information.find_function(instance_name)
+    assert written
+    assert written.symbol_name.is_empty() and written.line > 0 and not written.is_constructor
+    return written
+}
+
+func report_template_clash(
+    information: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    attribute_name: String,
+    clashing: Analysis.FunctionInfo,
+) {
+    var declaration = template.get_declaration()
+    var range_owner = information.simple_name
+    var range_class = template_range_class(information, template)
+    if range_class {
+        range_owner = range_class.simple_name
+    }
+    var saved_path = current_path
+    var saved_line = current_line
+    var saved_function = current_function
+    current_path = clashing.source_path
+    if current_path.is_empty() {
+        current_path = information.source_path
+    }
+    current_line = clashing.line
+    current_function = clashing.name
+    report(
+        "the template '{declaration.name}' makes '{clashing.name}' for the attribute '{attribute_name}' of '{range_owner}', which is already a function of '{information.simple_name}': rename the function or the template",
+    )
+    current_path = saved_path
+    current_line = saved_line
+    current_function = saved_function
+}
+
 func instantiate_every_attribute(
     information: Analysis.ClassInfo,
     template: Analysis.TemplateInfo,
@@ -4651,7 +4739,11 @@ func instantiate_every_attribute(
     }
     while field_index < attribute_names.count() {
         var attribute_name = attribute_names[field_index]
-        if private_readable or not attribute_name.starts_with("_") {
+        var clashing = clashing_function(information, "{template.prefix}{attribute_name}{template.suffix}")
+        if clashing {
+            report_template_clash(information, template, attribute_name, clashing)
+        }
+        if not clashing and (private_readable or not attribute_name.starts_with("_")) {
             var arguments = List<Syntax.Expressions.Expression>()
             var argument_index = 0
             while argument_index < parameters.count() {
@@ -4680,7 +4772,9 @@ func instantiate_every_attribute(
         false,
     )
     function.symbol_name = template.symbol_parameter
-    information.functions.append(function)
+    function.line = declaration.line
+    function.source_path = declaration.source_path
+    information.declared_functions.append(function)
     builder.add_prototype("{function_signature(information, function)};")
     return function
 }
@@ -4759,7 +4853,7 @@ func instantiate_template(
             )
         }
     }
-    information.functions.append(function)
+    information.declared_functions.append(function)
     if not is_inline_supplied(function) {
         builder.add_prototype("{function_signature(information, function)};")
     }
@@ -4918,10 +5012,10 @@ func emit_pending_only() {
                     emitted_any = true
                 }
                 var function_index = 0
-                while function_index < information.functions.count() {
-                    if is_pending(information, information.functions[function_index]) {
+                while function_index < information.declared_functions.count() {
+                    if is_pending(information, information.declared_functions[function_index]) {
                         current_owner = information.qualified_dotted
-                        emit_user_function(information, information.functions[function_index])
+                        emit_user_function(information, information.declared_functions[function_index])
                         emitted_any = true
                     }
                     function_index = function_index + 1
@@ -5004,6 +5098,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     var is_conversion = information.is_value_class and declaration.name.starts_with("to_")
     if not is_constructor and not is_conversion and declaration.has_body {
         check_value_name(declaration.name, "function")
+        check_reflection_name(declaration.name, "function", information)
     }
     var c_name = "{information.c_name}_{declaration.name}"
     var function = Analysis.FunctionInfo(
@@ -5030,8 +5125,8 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         information.drop_function = function
     }
     var existing = 0
-    while existing < information.functions.count() {
-        if information.functions[existing].name == declaration.name {
+    while existing < information.declared_functions.count() {
+        if information.declared_functions[existing].name == declaration.name {
             var saved_line = current_line
             current_line = declaration.line
             report(
@@ -5041,7 +5136,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         }
         existing = existing + 1
     }
-    information.functions.append(function)
+    information.declared_functions.append(function)
 }
 
 func is_inline_supplied(function: Analysis.FunctionInfo): Boolean {
@@ -5654,7 +5749,8 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
             return union_type_of(found_union)
         }
         if not reported_old_spelling(name) {
-            report("unknown type '{name}'")
+            var unknown_single = unknown_type_message(name, current_namespace)
+            report(unknown_single)
         }
         return null
     }
@@ -5700,8 +5796,39 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
         var resolved: Analysis.SpiteType = Analysis.Types.ClassRefType(qualified_class.c_name)
         return resolved
     }
-    report("unknown type '{joined}'")
+    var unknown_path = unknown_type_message(joined, current_namespace)
+    report(unknown_path)
     return null
+}
+
+func unknown_type_message(written: String, current_namespace: String): String {
+    var segments = written.split(".")
+    var dropped = 1
+    while dropped < segments.count() {
+        var shorter = segments.copy()
+        var removed = 0
+        while removed < dropped {
+            shorter.remove_first()
+            removed = removed + 1
+        }
+        var shorter_path = shorter.join(".")
+        var found = find_class(shorter_path, current_namespace)
+        if found {
+            return "unknown type '{written}': did you mean '{found.qualified_dotted}'?"
+        }
+        dropped = dropped + 1
+    }
+    unknown_simple_name = written
+    var named_alike = classes.filter(is_named_alike)
+    var only_alike = named_alike.first()
+    if only_alike and segments.count() == 1 and named_alike.count() == 1 {
+        return "unknown type '{written}': did you mean '{only_alike.qualified_dotted}'?"
+    }
+    return "unknown type '{written}'"
+}
+
+func is_named_alike(candidate: Analysis.ClassInfo): Boolean {
+    return candidate.simple_name == unknown_simple_name and candidate.qualified_dotted != unknown_simple_name
 }
 
 func resolve_single_type_argument(named: Syntax.Types.NamedType, current_namespace: String): Analysis.SpiteType? {
@@ -5731,6 +5858,25 @@ func bound_type_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
         index = index + 1
     }
     return bound_type
+}
+
+func codegen_member_chain_type(
+    expression: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var member = shape.as_member(expression)
+    assert member
+    crash member.object
+    var owner_type: Analysis.SpiteType? = null
+    var generic_identifier = shape.as_generic_identifier(member.object)
+    if generic_identifier {
+        var bare_name = without_dollar(generic_identifier.name)
+        owner_type = codegen_bound_type(bare_name, class_information)
+    } else {
+        owner_type = codegen_member_chain_type(member.object, class_information)
+    }
+    assert owner_type
+    return codegen_member_type(owner_type, member.name)
 }
 
 func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
@@ -7363,6 +7509,47 @@ func maybe_null_only_on_the_right(
     return type_shape.as_nullable(right_probe_type) and not type_shape.as_nullable(left_probe_type)
 }
 
+func static_class_read(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var read = shape.as_member(expression)
+    assert read
+    assert read.name == "class"
+    crash read.object
+    assert is_plain_path(read.object)
+    var walked = shape.as_identifier(read.object)
+    if walked {
+        if walked.name == bound_symbol_name and not bound_symbol_name.is_empty() {
+            assert bound_field_type
+            assert not type_shape.as_nullable(bound_field_type)
+            return class_of_type(bound_field_type)
+        }
+    }
+    var saved_counter = temporary_counter
+    var probe = generate_expression(read.object, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var probe_type = probe.get_type()
+    var probe_class = type_shape.as_class_ref(probe_type)
+    assert probe_class
+    assert not probe_class.has_signature
+    var found = find_class_by_c_name(probe_class.c_name)
+    assert found
+    assert found.c_name != "Spite_Class" and not found.is_generic_template
+    return found
+}
+
+func is_plain_path(expression: Syntax.Expressions.Expression): Boolean {
+    if shape.as_identifier(expression) {
+        return true
+    }
+    var member = shape.as_member(expression)
+    assert member
+    crash member.object
+    return is_plain_path(member.object)
+}
+
 func tested_class_of(
     expression: Syntax.Expressions.Expression,
     class_information: Analysis.ClassInfo,
@@ -7613,6 +7800,10 @@ func generate_binary(
             if not try_resolve_static_path(binary.left, class_information.qualified_dotted) {
                 return generate_class_test(binary, tested_class, scope, class_information)
             }
+        }
+        var read_class = static_class_read(binary.right, scope, class_information)
+        if read_class {
+            return generate_class_test(binary, read_class, scope, class_information)
         }
         if maybe_null_only_on_the_right(binary, scope, class_information) {
             var mirrored: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression(
@@ -8392,7 +8583,7 @@ func lists_instances(simple_name: String): Boolean {
 }
 
 func study_instance_lists(information: Analysis.ClassInfo) {
-    information.functions.each(study_function_instance_lists)
+    information.declared_functions.each(study_function_instance_lists)
 }
 
 func study_function_instance_lists(function: Analysis.FunctionInfo) {
@@ -8532,8 +8723,8 @@ func callee_only_reads(callee_c_name: String, variadic_index: Integer): Boolean 
     while class_index < classes.count() {
         var owner = classes[class_index]
         var function_index = 0
-        while function_index < owner.functions.count() {
-            var function = owner.functions[function_index]
+        while function_index < owner.declared_functions.count() {
+            var function = owner.declared_functions[function_index]
             if function.c_name == callee_c_name {
                 assert not is_hot_class(owner) and function.has_body
                 var names = List<String>()
@@ -8557,8 +8748,8 @@ func collect_list_parameters(
     bodies: List<List<Syntax.Statements.Statement>>,
 ) {
     var index = 0
-    while index < owner.functions.count() {
-        var function = owner.functions[index]
+    while index < owner.declared_functions.count() {
+        var function = owner.declared_functions[index]
         if function.has_body and not function.is_constructor {
             names.append(function.name)
             var list_names = list_parameter_names(function)
@@ -9820,7 +10011,7 @@ func ensure_into_variant(owner: Analysis.ClassInfo, function: Analysis.FunctionI
     variant.symbol_range = function.symbol_range
     variant.symbol_enum_c_name = function.symbol_enum_c_name
     variant.result_slot = true
-    owner.functions.append(variant)
+    owner.declared_functions.append(variant)
     builder.add_prototype("{function_signature(owner, variant)};")
     return variant_c_name
 }
@@ -9939,8 +10130,8 @@ func lent_variant_name(
     }
     var variant_c_name = "{function_c_name}___lent_{positions.join("_")}"
     var function_index = 0
-    while function_index < owner.functions.count() {
-        var candidate = owner.functions[function_index]
+    while function_index < owner.declared_functions.count() {
+        var candidate = owner.declared_functions[function_index]
         if candidate.c_name == variant_c_name {
             return variant_c_name
         }
@@ -9978,7 +10169,7 @@ func lent_variant_name(
         }
         parameter_index = parameter_index + 1
     }
-    owner.functions.append(variant)
+    owner.declared_functions.append(variant)
     builder.add_prototype("{function_signature(owner, variant)};")
     return variant_c_name
 }
@@ -9997,8 +10188,8 @@ func class_of_function_c_name(function_c_name: String): Analysis.ClassInfo? {
 
 func function_by_c_name(information: Analysis.ClassInfo, function_c_name: String): Analysis.FunctionInfo? {
     var index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if function.c_name == function_c_name and function.has_body {
             return function
         }
@@ -11048,8 +11239,8 @@ func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
         index = index + 1
     }
     index = 0
-    while index < element_class.functions.count() {
-        var function = element_class.functions[index]
+    while index < element_class.declared_functions.count() {
+        var function = element_class.declared_functions[index]
         if not function.is_constructor and function.parameters.is_empty() {
             member_names.append(function.name)
             if function.name.starts_with("get_") {
@@ -11466,8 +11657,8 @@ func handed_over_name(object_ast: Syntax.Expressions.Expression, owner: Analysis
         index = index + 1
     }
     var function_index = 0
-    while function_index < owner.functions.count() {
-        var function = owner.functions[function_index]
+    while function_index < owner.declared_functions.count() {
+        var function = owner.declared_functions[function_index]
         assert function.is_constructor or not block_keeps_this(function.body, owner)
         function_index = function_index + 1
     }
@@ -11735,8 +11926,8 @@ func self_contained(information: Analysis.ClassInfo, visited: List<String>): Boo
     visited.append(information.c_name)
     assert not information.source_path.starts_with("library/") and not information.is_value_class
     var function_index = 0
-    while function_index < information.functions.count() {
-        var function = information.functions[function_index]
+    while function_index < information.declared_functions.count() {
+        var function = information.declared_functions[function_index]
         assert function.is_constructor or not block_keeps_this(function.body, information)
         function_index = function_index + 1
     }
@@ -11756,8 +11947,8 @@ func kept_inside(owner: Analysis.ClassInfo, name: String, held: Analysis.SpiteTy
     assert not written_outside.contains(name)
     var holder = class_behind(held)
     var function_index = 0
-    while function_index < owner.functions.count() {
-        var function = owner.functions[function_index]
+    while function_index < owner.declared_functions.count() {
+        var function = owner.declared_functions[function_index]
         assert not block_hands_out(function.body, name, holder)
         function_index = function_index + 1
     }
@@ -13450,8 +13641,8 @@ func emit_functions_function(information: Analysis.ClassInfo) {
     lines.append("{list_name}* {defined_name}({information.c_name}* self) \{")
     lines.append("{list_name}* result = {list_name}___make();")
     var index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         var listed = not information.is_container or not function.symbol_owner_c_name.is_empty()
         if listed and not function.is_constructor and not function.symbol_through_caller {
             lines.append("\{")
@@ -14480,15 +14671,15 @@ func supply_list_functions(list_class: Analysis.ClassInfo, element: Analysis.Spi
     var comparable = type_shape.as_string(element) or type_shape.is_symbol(element) or is_enum_type(element) or type_shape.as_scalar(element)
     var kept = List<Analysis.FunctionInfo>()
     var index = 0
-    while index < list_class.functions.count() {
-        var function = list_class.functions[index]
+    while index < list_class.declared_functions.count() {
+        var function = list_class.declared_functions[index]
         var unsupported = function.name == "contains" and not comparable or function.name == "join" and not joins_as_text(element)
         if not unsupported {
             kept.append(function)
         }
         index = index + 1
     }
-    list_class.functions = kept
+    list_class.declared_functions = kept
 }
 
 func supply_concurrency_functions(instance: Analysis.ClassInfo) {
@@ -15320,7 +15511,7 @@ func generate_foreign_call(
             while field_index < shaped.shape_fields.count() {
                 var field = shaped.shape_fields[field_index]
                 var field_type = shape_field_type(shaped, field.name)
-                crash field_type
+                assert field_type
                 initial.append("{ensure_shape_reader(shaped, field.name, field_type)}({held_shape})")
                 afters.append(
                     "{ensure_shape_writer(shaped, field.name, field_type)}({held_shape}, {struct_value}.{c_value_name(field.name)});",
@@ -16183,6 +16374,16 @@ func generate_member_read_raw(
             var rendered_string_literal = render_string_literal(shown_name)
             var string_spite_type = string_type()
             return ExpressionResult(rendered_string_literal, string_spite_type)
+        }
+        var spelled = member.name == "camel_case_name" or member.name == "pascal_case_name"
+        if symbol_identifier.name == bound_symbol_name and spelled and not bound_symbol_name.is_empty() {
+            var capitalised_first = member.name == "pascal_case_name"
+            var spelling = joined_case_spelling(bound_field_name, capitalised_first)
+            var rendered_spelling = render_string_literal(spelling)
+            var spelling_type = string_type()
+            var spelled_result = ExpressionResult(rendered_spelling, spelling_type)
+            spelled_result.constant_text = "s:{spelling}"
+            return spelled_result
         }
         if symbol_identifier.name == bound_symbol_name and member.name == "value" and not bound_enum_c_name.is_empty() {
             var bound_enum = enums.find_by_c_name(bound_enum_c_name)
@@ -20165,8 +20366,8 @@ func study_lent_parameters_of(information: Analysis.ClassInfo) {
     var bodies = List<List<Syntax.Statements.Statement>>()
     var index = 0
     var swappable = is_hot_class(information)
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if function.has_body and not function.is_constructor and not swappable {
             names.append(function.name)
             var address_names = address_parameter_names(function)
@@ -21365,6 +21566,86 @@ func check_value_name(name: String, what: String) {
         return
     }
     check_abbreviations(bare)
+}
+
+func check_reflection_name(name: String, what: String, information: Analysis.ClassInfo) {
+    assert not information.qualified_dotted.starts_with("Spite.")
+    var member = name
+    var accessor = ""
+    if name.starts_with("get_") or name.starts_with("set_") {
+        var name_length = name.length()
+        member = name.slice(4, name_length)
+        accessor = name.slice(0, 4)
+    }
+    var meaning = reflection_member_meaning(member)
+    assert not meaning.is_empty()
+    var owner = snake_words(information.simple_name)
+    var suggestion = "{accessor}{owner}_{member}"
+    if accessor.is_empty() {
+        report(
+            "the {what} '{name}' has a name reflection gives every object: {meaning}, and one of its own would hide it. Name it something else, like '{suggestion}'",
+        )
+        return
+    }
+    report(
+        "the {what} '{name}' is read as '{member}', a name reflection gives every object: {meaning}, and one of its own would hide it. Name it something else, like '{suggestion}'",
+    )
+}
+
+func reflection_member_meaning(member: String): String {
+    if member == "class" {
+        return "'value.class' is its class"
+    }
+    if member == "attributes" {
+        return "'value.attributes' lists its attributes, and JsonReader, JsonWriter and every attribute walk read through it"
+    }
+    if member == "functions" {
+        return "'value.functions' lists its functions"
+    }
+    if member == "instances" {
+        return "'Monster.instances' lists every live instance of a class"
+    }
+    if member == "memory" {
+        return "'value.memory' says where the value lives"
+    }
+    return ""
+}
+
+func joined_case_spelling(snake: String, capitalised_first: Boolean): String {
+    var words = snake.split("_")
+    var capitalised_words = words.map(capitalised_word)
+    var pascal_spelling = capitalised_words.join("")
+    if capitalised_first or pascal_spelling.is_empty() {
+        return pascal_spelling
+    }
+    var first_letter = snake.slice(0, 1)
+    var pascal_length = pascal_spelling.length()
+    var rest = pascal_spelling.slice(1, pascal_length)
+    return first_letter + rest
+}
+
+func capitalised_word(word: String): String {
+    var word_length = word.length()
+    var first_letter = word.slice(0, 1)
+    var upper_first = first_letter.upper_case()
+    var rest = word.slice(1, word_length)
+    return upper_first + rest
+}
+
+func snake_words(pascal: String): String {
+    var words = ""
+    var index = 0
+    while index < pascal.length() {
+        var code = pascal.code_at(index)
+        var character = pascal.character_at(index)
+        if code >= 65 and code <= 90 and index > 0 {
+            words = "{words}_"
+        }
+        var lowered = character.lower_case()
+        words = words + lowered
+        index = index + 1
+    }
+    return words
 }
 
 func check_type_name(name: String, what: String) {
@@ -25159,6 +25440,9 @@ func generate_statement(
 ): Boolean {
     undo_proofs_after_calls(scope, class_information)
     current_line = statement.line
+    if statement.line == 0 {
+        current_line = function_information.line
+    }
     var saved_poisoned = statement_poisoned
     var mentioned = List<String>()
     if mentions_poisoned(statement, mentioned) {
@@ -25483,9 +25767,9 @@ func emit_class_prototypes(information: Analysis.ClassInfo) {
         builder.add_prototype("void {information.drop_function.c_name}({information.c_name}* self);")
     }
     var function_index = 0
-    while function_index < information.functions.count() {
-        if not is_inline_supplied(information.functions[function_index]) {
-            builder.add_prototype("{function_signature(information, information.functions[function_index])};")
+    while function_index < information.declared_functions.count() {
+        if not is_inline_supplied(information.declared_functions[function_index]) {
+            builder.add_prototype("{function_signature(information, information.declared_functions[function_index])};")
         }
         function_index = function_index + 1
     }
@@ -25891,8 +26175,8 @@ func emit_class(information: Analysis.ClassInfo) {
     emit_class_support(information)
     assert not information.is_instantiated
     var function_index = 0
-    while function_index < information.functions.count() {
-        emit_user_function(information, information.functions[function_index])
+    while function_index < information.declared_functions.count() {
+        emit_user_function(information, information.declared_functions[function_index])
         function_index = function_index + 1
     }
 }
@@ -25907,16 +26191,16 @@ func emit_value_class(information: Analysis.ClassInfo) {
         return
     }
     var function_index = 0
-    while function_index < information.functions.count() {
-        var declared = information.functions[function_index]
+    while function_index < information.declared_functions.count() {
+        var declared = information.declared_functions[function_index]
         if not is_inline_supplied(declared) {
             builder.add_prototype("{function_signature(information, declared)};")
         }
         function_index = function_index + 1
     }
     function_index = 0
-    while function_index < information.functions.count() {
-        emit_user_function(information, information.functions[function_index])
+    while function_index < information.declared_functions.count() {
+        emit_user_function(information, information.declared_functions[function_index])
         function_index = function_index + 1
     }
     if information.c_name == "SpiteString" {
@@ -26198,8 +26482,8 @@ func changes_after_construction(information: Analysis.ClassInfo): Boolean {
     }
     var targets = List<String>()
     index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if not function.is_constructor {
             collect_assigned_roots(function.body, targets)
         }
@@ -26345,8 +26629,8 @@ func spread_touches(touching: Dictionary<Boolean>) {
 func changing_field_codes(information: Analysis.ClassInfo): List<String> {
     var assigned = List<String>()
     var index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if not function.is_constructor {
             collect_assigned_roots(function.body, assigned)
         }
@@ -26608,8 +26892,8 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
     }
     var targets = List<String>()
     index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if not function.is_constructor {
             collect_assigned_roots(function.body, targets)
         }
@@ -26629,8 +26913,8 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
         index = index + 1
     }
     index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if not function.is_constructor and function.name != "drop" {
             var visiting = List<String>()
             if function_state_uses(information, function, mutable, visiting) > 1 {
@@ -27060,8 +27344,8 @@ func is_read_only_class(information: Analysis.ClassInfo, visiting: List<String>)
     }
     var targets = List<String>()
     index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if not function.is_constructor {
             collect_assigned_roots(function.body, targets)
         }
@@ -27107,8 +27391,8 @@ func finish_outside_writes() {
 
 func called_implicitly(information: Analysis.ClassInfo): Boolean {
     var index = 0
-    while index < information.functions.count() {
-        var name = information.functions[index].name
+    while index < information.declared_functions.count() {
+        var name = information.declared_functions[index].name
         var operator = name == "sum" or name == "subtract" or name == "multiply" or name == "divide" or name == "remainder"
         var compares = name == "equals" or name == "less_than" or name == "greater_than" or name == "negate"
         var indexes = name == "get_at" or name == "set_at" or name == "missing_function"
@@ -27553,8 +27837,8 @@ func program_source_paths(): List<String> {
         if is_hot_class(information) {
             append_new_path(paths, information.source_path)
             var function_index = 0
-            while function_index < information.functions.count() {
-                append_new_path(paths, information.functions[function_index].source_path)
+            while function_index < information.declared_functions.count() {
+                append_new_path(paths, information.declared_functions[function_index].source_path)
                 function_index = function_index + 1
             }
         }
@@ -27577,8 +27861,8 @@ func classes_of_paths(paths: List<String>): List<String> {
         var class_paths = List<String>()
         append_new_path(class_paths, information.source_path)
         var function_index = 0
-        while function_index < information.functions.count() {
-            append_new_path(class_paths, information.functions[function_index].source_path)
+        while function_index < information.declared_functions.count() {
+            append_new_path(class_paths, information.declared_functions[function_index].source_path)
             function_index = function_index + 1
         }
         var path_index = 0

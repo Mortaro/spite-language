@@ -40,6 +40,12 @@ if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
     $CC -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$binary" $maths_library || exit 1
 fi
 
+# Git for Windows' bash rewrites every argument that looks like a POSIX path when it starts a Windows program, so
+# `-- --prefixes=/Game/` would reach the program as `C:/Program Files/Git/Game/`. The launcher writes its own paths
+# as Windows paths and turns the rewriting off, so everything after `--` arrives exactly as it was typed.
+windows_paths=false
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) windows_paths=true; export MSYS2_ARG_CONV_EXCL="*" ;; esac
+
 # `spite connect <port> [--command="..."]` talks to a program running with --repl-port; nothing in it is a path.
 if [ "$1" == "connect" ]; then
     exec "$binary" "$@"
@@ -50,10 +56,14 @@ fi
 # Folder arguments and flags that name a path are made absolute, so messages name them the same way everywhere.
 absolute() {
     case "$1" in
-        /*)         echo "$1" ;;
-        [A-Za-z]:*) cygpath -u "$1" 2>/dev/null || echo "$1" ;;
-        *)          echo "$(pwd)/$1" ;;
+        /*|[A-Za-z]:*) native "$1" ;;
+        *)             native "$(pwd)/$1" ;;
     esac
+}
+
+# A path the way the compiler reads it: `C:/...` on Windows, where it is a Windows program, and unchanged elsewhere.
+native() {
+    if $windows_paths; then cygpath -m "$1" 2>/dev/null || echo "$1"; else echo "$1"; fi
 }
 
 # `spite format [--check] <file-or-folder> ...` formats every .spite file it names or finds, without compiling;
@@ -78,6 +88,7 @@ for argument in "$@"; do
         --final-classes=*)    arguments+=("--final-classes=$(absolute "${argument#*=}")") ;;
         --executable-path=*)  arguments+=("--executable-path=$(absolute "${argument#*=}")") ;;
         --c-path=*)           arguments+=("--c-path=$(absolute "${argument#*=}")") ;;
+        -*=/*)                arguments+=("${argument%%=*}=$(native "${argument#*=}")") ;;
         -*)                   arguments+=("$argument") ;;
         *)                    arguments+=("$(absolute "$argument")") ;;
     esac

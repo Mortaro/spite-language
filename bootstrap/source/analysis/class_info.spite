@@ -28,7 +28,7 @@ var codegen_texts = List<String>()
 var codegen_constraints = List<String>()
 var source_path = ""
 var fields = List<FieldInfo>()
-var functions = List<FunctionInfo>()
+var declared_functions = List<FunctionInfo>()
 var templates = List<TemplateInfo>()
 var constructor: FunctionInfo? = null
 var drop_function: FunctionInfo? = null
@@ -52,5 +52,5 @@ func find_field(name: String): FieldInfo? {
 }
 
 func find_function(name: String): FunctionInfo? {
-    return functions.find_by_name(name)
+    return declared_functions.find_by_name(name)
 }

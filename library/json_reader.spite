@@ -78,6 +78,9 @@ func parse(cursor: JsonCursor): $value_type {
             cursor.matched = false
             read_attributes(created, key, cursor)
             if not cursor.matched {
+                read_camel_attributes(created, key, cursor)
+            }
+            if not cursor.matched {
                 cursor.skip_value()
             }
             more = cursor.consume(",")
@@ -107,8 +110,18 @@ func read_symbol(cursor: JsonCursor): $value_type {
 
 func read_attribute(attribute: Symbol<$value_type>, created: $value_type, key: String, cursor: JsonCursor) {
     if key == attribute.name {
-        var attribute_json = JsonReader<attribute.class>("")
-        created.attributes[attribute] = attribute_json.parse(cursor)
-        cursor.matched = true
+        store_value(attribute, created, cursor)
     }
+}
+
+func read_camel_attribute(attribute: Symbol<$value_type>, created: $value_type, key: String, cursor: JsonCursor) {
+    if key == attribute.camel_case_name or key == attribute.pascal_case_name {
+        store_value(attribute, created, cursor)
+    }
+}
+
+func store_value(attribute: Symbol<$value_type>, created: $value_type, cursor: JsonCursor) {
+    var attribute_json = JsonReader<attribute.class>("")
+    created.attributes[attribute] = attribute_json.parse(cursor)
+    cursor.matched = true
 }

@@ -1,0 +1,4 @@
+var name = ""
+var buy_price = 0
+var sell_price_each = 0.0
+var is_stackable = false

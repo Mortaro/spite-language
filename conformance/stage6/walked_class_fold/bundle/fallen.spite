@@ -1,0 +1,5 @@
+var health = 0
+
+func Fallen(starting_health: Integer) {
+    health = starting_health
+}
