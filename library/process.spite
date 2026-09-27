@@ -1,5 +1,7 @@
 var command = ""
 var arguments = List<String>()
+var working_directory = ""
+var environment_variables = Dictionary<String>()
 var last_output = ""
 var heap = Memory.Heap()
 
@@ -19,7 +21,8 @@ func run(): Integer {
     var chunk = heap.allocate(4096)
     var got = read_into(chunk, 4096, handle)
     while got > 0 {
-        output_text = "{output_text}{chunk.text(got)}"
+        var piece = chunk.text(got)
+        output_text = output_text + piece
         got = read_into(chunk, 4096, handle)
     }
     heap.free(chunk)
@@ -39,8 +42,28 @@ func command_line(): String {
     }
     var index = 0
     while index < arguments.count() {
-        line = "{line} \"{arguments[index]}\""
+        var quoted = quoted_argument(arguments[index])
+        line = "{line} {quoted}"
         index = index + 1
     }
-    return shell_line(line, command_is_path)
+    var prefix = settings_prefix()
+    return shell_line("{prefix}{line}")
+}
+
+func settings_prefix(): String {
+    var prefix = ""
+    if not working_directory.is_empty() {
+        var changed = change_directory(working_directory)
+        prefix = "{changed} && "
+    }
+    var names = environment_variables.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        crash environment_variables[name]
+        var assigned = set_variable(name, environment_variables[name])
+        prefix = "{prefix}{assigned} && "
+        index = index + 1
+    }
+    return prefix
 }
