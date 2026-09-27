@@ -8166,12 +8166,29 @@ func generate_binary(
         return ExpressionResult(joined, result_type)
     }
     var right_code = ""
+    var left_code = left.code
+    var held = List<String>()
+    var releases = List<String>()
+    var comparing = is_boolean_result_operator(binary.operator)
+    if comparing and owns(left, binary.left) and type_needs_drop(left_type) {
+        var left_held = next_temporary()
+        held.append("{c_type_name(left_type)} {left_held} = {left.code};")
+        releases.append("{release_call(left_type, left_held)};")
+        left_code = left_held
+    }
     if is_enum_literal(binary.right) and is_enum_type(left_type) {
         right_code = coerce_for_store(binary.right, left_type, scope, class_information)
     } else {
         var right = generate_joined(binary.right, scope, class_information)
         var right_type = right.get_type()
-        right_code = cast(right.code, right_type, left_type)
+        var right_value = right.code
+        if comparing and owns(right, binary.right) and type_needs_drop(right_type) {
+            var right_held = next_temporary()
+            held.append("{c_type_name(right_type)} {right_held} = {right.code};")
+            releases.append("{release_call(right_type, right_held)};")
+            right_value = right_held
+        }
+        right_code = cast(right_value, right_type, left_type)
         if not is_boolean_result_operator(binary.operator) and is_wider_right(binary, left_type, right_type) {
             report_wider_right(binary, left_type, right_type)
         }
@@ -8181,16 +8198,19 @@ func generate_binary(
         report_constant_overflow(binary)
     }
     var symbol = binary_operator_symbol(binary.operator)
-    var code = "({left.code} {symbol} {right_code})"
-    var checked = checked_division(binary, left.code, right_code, left_type, scope)
+    var code = "({left_code} {symbol} {right_code})"
+    var checked = checked_division(binary, left_code, right_code, left_type, scope)
     if not checked.is_empty() {
         code = checked
     }
-    var guarded = checked_overflow(binary, left.code, right_code, left_type)
+    var guarded = checked_overflow(binary, left_code, right_code, left_type)
     if not guarded.is_empty() {
         code = guarded
     }
-    if is_boolean_result_operator(binary.operator) {
+    if comparing {
+        if not held.is_empty() {
+            code = "(\{ {held.join(" ")} bool spite_same = {code}; {releases.join(" ")} spite_same; })"
+        }
         var result_type = Analysis.Types.ScalarType('boolean_kind')
         return ExpressionResult(code, result_type)
     }

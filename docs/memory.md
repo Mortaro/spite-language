@@ -1034,6 +1034,8 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
   parameters and returns nothing; the compiler calls it automatically, never by name.
 - **Identity vs equality.** `==` on two class instances calls `equals` if the class defines one ([Operators](functions_and_operators.md#operators--implemented));
   otherwise it compares **identity** -- are these two references the same object.
+  A union compares identity the same way. A comparison releases whatever operand it produced itself -- an item
+  read with `[]`, a call's result -- so `kept[index] == shape` holds nothing afterwards ([D258](decisions.md)).
   `String` always compares by content, never by identity (sharing a `String`'s buffer is unobservable, since it is
   immutable, and so is its absence: text of up to 15 bytes has no buffer to share, each holder keeping it in its
   own sixteen bytes, [D203](decisions.md)).
