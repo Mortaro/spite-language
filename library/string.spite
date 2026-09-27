@@ -193,13 +193,16 @@ func to_long(): Long {
     }
     var value: Long = 0
     while index < length() and code_at(index) >= 48 and code_at(index) <= 57 {
-        value = value * 10 + code_at(index) - 48
+        var digit: Long = code_at(index) - 48
+        assert value >= (Long.smallest() + digit) / 10
+        value = value * 10 - digit
         index = index + 1
     }
     if negative {
-        return -value
+        return value
     }
-    return value
+    assert value != Long.smallest()
+    return -value
 }
 
 func to_integer(): Integer {

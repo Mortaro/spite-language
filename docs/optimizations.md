@@ -1132,6 +1132,20 @@ that cannot change `parts` and drops across one that may. The check, where it st
 branch the CPU predicts. What you can observe: nothing but speed; `check.sh` holds that
 `conformance/stage6/division_by_zero`'s proven `whole / pieces` carries no check in its C.
 
+### Signed arithmetic is checked only while developing
+
+**Built.** In a `--debug-memory` or an inspectable build, every `+`, `-` and `*` done in `Tiny`, `Short`,
+`Integer` or `Long` is the C compiler's overflow builtin in that type, and an answer that does not fit halts
+([values_and_types.md](values_and_types.md#numeric-types--implemented-provisional)). A production build -- the
+ordinary one and `--optimized` -- emits the plain operator, so its C is the same as before the check existed and
+the answer wraps. The unsigned whole numbers are never checked. What you can observe: in a development build, a
+halt instead of a wrapped answer; in a production build, nothing. **Cost, measured** (best of seven runs, each
+benchmark built with `--development` by the compiler before and after the check, C at `-O2`, on a machine other
+sessions were loading): `plain_loops` 201 -> 216 ms, `fused_chain` 240 -> 345 ms, `game_maths` 180 -> 189 ms,
+`dictionary_keys` 177 -> 179 ms. The compiler built with `--debug-memory` compiling itself carries 1 506 checked
+operations and took 5.2 s before and 4.7 s after, best of eight: inside the noise. **Planned:** leave out the check
+where a proof already bounds the operands, as a proven divisor leaves out its zero check.
+
 ### Short text lives inside the `String`
 
 **What it does.** A `String` is sixteen bytes wherever it is kept -- a local, an attribute, a list's element, a

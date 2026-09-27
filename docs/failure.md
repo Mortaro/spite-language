@@ -853,7 +853,8 @@ tend to be useless: they tell us a message we have no action to take about them"
 
 **What `crash` is for** (D199, decided by Mortaro): what the compiler can prove away, so a program written with
 its help never meets it; what leaves the program unable to work at all; and a developer's mistake -- a whole
-number divided by zero (D201, [values_and_types.md](values_and_types.md)), a `Float` gone to infinity that `JsonWriter`
+number divided by zero (D201, [values_and_types.md](values_and_types.md)), signed arithmetic that does not fit its
+type in a development build ([values_and_types.md](values_and_types.md#numeric-types--implemented-provisional)), a `Float` gone to infinity that `JsonWriter`
 is asked to write (D198, [json.md](json.md)). A condition the program can meet in normal use -- a missing file,
 a user's bad input, an absent record -- answers `T?` or an empty value (D24, D26), never a crash, and a library
 `crash` must be one the compiler can show the program how to avoid, or a bug in the program that made the value.

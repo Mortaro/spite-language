@@ -5,8 +5,8 @@ func test_an_integer_divides_toward_zero() {
 }
 
 func test_a_narrow_type_wraps_rather_than_crashing() {
-    var small: Tiny = 127
-    small = small + 1
+    var wide = 128
+    var small: Tiny = wide
     crash small == -128
     var never_negative: Byte = 255
     never_negative = never_negative + 1

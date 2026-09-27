@@ -385,3 +385,13 @@ Behaviour that does not match the manual. The language was not changed; each is 
      optimisation do. Not built. Is `Float` arithmetic rounded to `Float` after each operation (then the literal
      is a bug fix), or is double precision inside one expression the rule?
 
+## From the Theseus MMO port (D227 onward)
+
+211. **Should unsigned arithmetic that does not fit halt too?** D227 checks `+`, `-` and `*` on the signed whole
+     numbers in development builds and leaves `Byte`, `UnsignedShort`, `UnsignedInteger` and `UnsignedLong`
+     modular, because every hash and noise function in `library/` wraps on purpose and is unsigned. Rust and Zig
+     check unsigned too and give hashes explicit wrapping operations; here that would be functions such as
+     `hash.wrapped_product(prime)` (names provisional). Keep unsigned modular, or check it and add the functions?
+     Also: a production build emits the plain C operator, and C leaves signed overflow undefined, so "wraps" holds
+     for what clang does today rather than by rule; `-fwrapv` would make it the rule at a small cost to loop
+     optimisation.

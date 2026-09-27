@@ -30,6 +30,7 @@ var console_loop = false
 var remote_loop_port = 0
 var refused_serialiser = false
 var division_check_written = false
+var overflow_check_written = false
 var weak_runtime_written = false
 var weak_classes = List<String>()
 var scheduler_used = false
@@ -7628,6 +7629,10 @@ func generate_binary(
     if not checked.is_empty() {
         code = checked
     }
+    var guarded = checked_overflow(binary, left.code, right_code, left_type)
+    if not guarded.is_empty() {
+        code = guarded
+    }
     if is_boolean_result_operator(binary.operator) {
         var result_type = Analysis.Types.ScalarType('boolean_kind')
         return ExpressionResult(code, result_type)
@@ -7674,6 +7679,49 @@ func checked_division(
         computed = "{divisor} == -1 ? ({c_type})0 : {dividend} % {divisor}"
     }
     return "(\{ {c_type} {dividend} = {left_code}; {c_type} {divisor} = {right_code}; if ({divisor} == 0) spite_divided_by_zero(\"{operation}\", \"{where}\"); ({c_type})({computed}); })"
+}
+
+func checked_overflow(
+    binary: Syntax.Expressions.BinaryExpression,
+    left_code: String,
+    right_code: String,
+    left_type: Analysis.SpiteType,
+): String {
+    assert keeps_internals or debug_memory
+    assert binary.operator == 'add' or binary.operator == 'subtract' or binary.operator == 'multiply'
+    var scalar = type_shape.as_scalar(left_type)
+    assert scalar
+    assert is_signed_kind(scalar.kind)
+    ensure_overflow_check()
+    var printer = Syntax.SourcePrinter()
+    var expression: Syntax.Expressions.Expression = binary
+    var written = printer.source_expression(expression)
+    var c_type = c_type_name(left_type)
+    var left_value = next_temporary()
+    var right_value = next_temporary()
+    var result = next_temporary()
+    var where = escape_c_string("{current_path}:{current_line} in {current_owner}.{current_function}")
+    var operation = escape_c_string(written)
+    var type_name = type_display_name(left_type)
+    var builtin = "__builtin_add_overflow"
+    if binary.operator == 'subtract' {
+        builtin = "__builtin_sub_overflow"
+    }
+    if binary.operator == 'multiply' {
+        builtin = "__builtin_mul_overflow"
+    }
+    return "(\{ {c_type} {left_value} = {left_code}; {c_type} {right_value} = {right_code}; {c_type} {result}; if ({builtin}({left_value}, {right_value}, &{result})) spite_overflowed(\"{operation}\", \"{with_article(type_name)}\", \"{binary_operator_symbol(binary.operator)}\", (int64_t){left_value}, (int64_t){right_value}, \"{where}\"); {result}; })"
+}
+
+func ensure_overflow_check() {
+    assert not overflow_check_written
+    overflow_check_written = true
+    builder.add_prototype(
+        "static void spite_overflowed(const char* operation, const char* type, const char* symbol, int64_t left, int64_t right, const char* where) __attribute__((noreturn, cold));",
+    )
+    builder.add_support(
+        "static void spite_overflowed(const char* operation, const char* type, const char* symbol, int64_t left, int64_t right, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' does not fit in %s (%lld %s %lld), at %s\\n\", operation, type, (long long)left, symbol, (long long)right, where);\nexit(1);\n}",
+    )
 }
 
 func is_signed_kind(kind: Analysis.Types.NumericKind): Boolean {

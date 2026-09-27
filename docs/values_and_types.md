@@ -14,20 +14,45 @@ assignment, a function argument (toward the parameter type), and `return` (towar
 | `Float` (default decimal) | `float` (32-bit) | | `Double` | `double` (64-bit) |
 
 An integer literal is `Integer`; one too big for `Integer` becomes `Long` automatically. Converting between numeric
-types **wraps** on overflow (plain C narrowing, not a crash or a saturate):
+types **wraps** on overflow (plain C narrowing, not a crash or a saturate), and so does arithmetic on the unsigned
+whole numbers, which is what a hash or a noise function wants:
 
 ```gdscript title=numeric_overflow/numeric_overflow.spite entry
 var console = Console()
 
 func NumericOverflow() {
-    var tiny_value: Tiny = 127
-    tiny_value = tiny_value + 1
+    var wide = 200
+    var tiny_value: Tiny = wide
     console.print("wraps to", tiny_value)
+    var hash: UnsignedInteger = 4000000000
+    hash = hash * 3
+    console.print("wraps to", hash)
 }
 ```
 ```output
-wraps to -128
+wraps to -56
+wraps to 3410065408
 ```
+
+### Signed arithmetic that does not fit halts while you develop
+
+`+`, `-` and `*` on a signed whole number (`Tiny`, `Short`, `Integer`, `Long`) whose answer does not fit its type
+is a developer's mistake, like dividing by zero ([D199](decisions.md)). A build you develop with -- `--debug-memory`,
+`--development`, `--hot-reload`, `--repl` or `--repl-port` -- checks each one and halts at the first that does not fit,
+naming the operation, the type, the operands and the line:
+
+```gdscript
+func scaled(amount: Integer, factor: Integer): Integer {
+    return amount * factor          # scaled(2000000000, 2)
+}
+```
+```
+spite: 'amount * factor' does not fit in an Integer (2000000000 * 2), at game/game.spite:17 in Game.scaled
+```
+
+A production build -- the ordinary one and `--optimized` -- has no check and wraps, so the checks cost nothing where
+the program ships. The fix is a wider type written first (`Long` for a total of `Integer`s), or an unsigned type
+when wrapping is what you meant ([the rules](#numeric-types--implemented-provisional)).
 
 ### Wider arithmetic goes wider operand first
 
@@ -788,6 +813,20 @@ assignment parses it (defaulting to `0`/`0.0` on failure), through `String`'s on
 `to_tiny()`, `to_short()`, `to_integer()`, `to_long()`, `to_byte()`, `to_unsigned_short()`,
 `to_unsigned_integer()`, `to_unsigned_long()`, `to_float()`, `to_double()`. `count()`, `length()`, and
 `index_of()` always return `Integer`, never a wider type.
+
+**Signed arithmetic that does not fit halts in a development build** (decided by Claude under D205; the
+message and the unsigned exemption proposed by Claude, unconfirmed). **[implemented]** In a `--debug-memory` or an
+inspectable build (`--development`, `--hot-reload`, `--repl`, `--repl-port`, D143), every `+`, `-` and `*` whose
+left side -- the type the arithmetic is done in -- is `Tiny`, `Short`, `Integer` or `Long` is compiled with the C
+compiler's overflow builtin (`__builtin_add_overflow`, `__builtin_sub_overflow`, `__builtin_mul_overflow`) in that
+type, and an answer that does not fit halts, since it is the developer's mistake (D199): `spite: 'amount * factor'
+does not fit in an Integer (2000000000 * 2), at game/game.spite:17 in Game.scaled`
+(`conformance/stage6/integer_overflow`). A production build (the ordinary one and `--optimized`) emits the plain C
+operator, so the check costs nothing there and the answer wraps. The unsigned whole numbers (`Byte`,
+`UnsignedShort`, `UnsignedInteger`, `UnsignedLong`) are modular in every build: their arithmetic wraps, which is
+what the hashes (`Dictionary`'s, the allocation table's) and `Noise` rely on. A constant expression that overflows
+is still a compile error (D162), and `/` and `%` keep D201's check. Measured on the compiler compiling itself with
+`--debug-memory` (every signed `+`, `-` and `*` of the compiler checked): see [optimizations.md](optimizations.md#signed-arithmetic-is-checked-only-while-developing).
 
 **Division by zero follows Go** (D201, decided by Mortaro). A whole-number `/` or `%` whose divisor is zero halts
 the program, naming the operation and the line -- `spite: 'total / parts' divided by zero, at
