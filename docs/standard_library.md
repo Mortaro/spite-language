@@ -40,6 +40,7 @@ REPL can look at any of it ([D143](decisions.md)).
 | `Vector2`, `Vector3`, `Vector4`, `Matrix3`, `Matrix4`, `Quaternion`, `AxisAlignedBox`, `Plane`, `Frustum`, `Ray`, `Color`, `ColorText`, `CubicBezier`, `Easing`, `Noise` | game maths: points, directions, transforms, rotations, culling and picking, colours in the web's formats, curves, easings and noise | [game_maths.md](game_maths.md) |
 | `Concurrent`, `Parallel`, `ThreadPool` | run a function while waiting, or on the thread pool; the handle is the value | [concurrency.md](concurrency.md) |
 | `ThreadLocal<T>`, `Lock`, `ThreadSlot` | a value per thread, and a lock | [concurrency.md](concurrency.md#a-value-per-thread-and-a-lock) |
+| `Atomic<T>` | a whole number or `Boolean` threads share without a lock | [concurrency.md](concurrency.md#a-number-every-thread-shares-atomict) |
 | `Socket` | TCP over IPv4: listen, connect, lines and bytes, waiting or not | [below](#socket) |
 | `Memory.Address`, `Memory.Heap`, `Memory.Arena`, `TypedMemory<T>` | a place in memory, the allocators that own it, and values of any type there: the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
 | `DynamicLibrary` | call a native library | [foreign_libraries.md](foreign_libraries.md) |

@@ -1,0 +1,9 @@
+var console = Console()
+
+func AtomicMisuse() {
+    var name = Atomic<Float>(1.5)
+    var flag = Atomic<Boolean>(false)
+    var raised = flag.add(true)
+    var held = name.read()
+    console.print(held, raised)
+}

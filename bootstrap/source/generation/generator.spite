@@ -5074,6 +5074,12 @@ func address_body(function: Analysis.FunctionInfo): String {
     if name == "write_long_atomically" {
         return "#define {function.c_name}(self, offset, value) __atomic_store_n((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
     }
+    if name == "add_long_atomically" {
+        return "#define {function.c_name}(self, offset, value) __atomic_add_fetch((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
+    }
+    if name == "compare_and_swap_long" {
+        return "#define {function.c_name}(self, offset, expected, desired) (\{ int64_t spite_expected = (int64_t)(expected); __atomic_compare_exchange_n((int64_t*){at}, &spite_expected, (int64_t)(desired), false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); })"
+    }
     var value_type = function.get_return_type()
     if name.starts_with("write_") {
         crash function.parameters[1]
@@ -10115,7 +10121,8 @@ func generate_value_method(
 }
 
 func is_memory_access(name: String): Boolean {
-    return name.starts_with("read_") or name.starts_with("write_") or name == "exchange_long"
+    var atomics = ["exchange_long", "add_long_atomically", "compare_and_swap_long"]
+    return name.starts_with("read_") or name.starts_with("write_") or atomics.contains(name)
 }
 
 func generate_written_string_call(
@@ -10885,7 +10892,8 @@ func reaches_shared(spite_type: Analysis.SpiteType): Boolean {
 }
 
 func is_thread_safe_class(information: Analysis.ClassInfo): Boolean {
-    return information.qualified_dotted == "Lock" or information.qualified_dotted == "ThreadLocal"
+    var shared = ["Lock", "ThreadLocal", "Atomic"]
+    return shared.contains(information.qualified_dotted)
 }
 
 func check_parallel_work(

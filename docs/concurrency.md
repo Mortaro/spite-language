@@ -464,12 +464,52 @@ Both classes are the operating system's own (`TlsAlloc` and `SRWLOCK` on Windows
 `pthread_mutex_t` elsewhere), reached through each system's folder, and a program that makes neither carries
 neither.
 
+### A number every thread shares: `Atomic<T>`
+
+A counter or a flag that several threads change without a lock is an `Atomic<T>`, for a whole number or a
+`Boolean` (the name and the members proposed by Claude, unconfirmed): `read()`, `write(value)`, `add(amount)`
+(answering the value after the add), `exchange(value)` (answering the one before) and
+`compare_and_swap(expected, desired)` (answering whether it held `expected` and now holds `desired`). Each is one
+atomic instruction, sequentially consistent, with no lock and no call, and a `Parallel` may reach one like a
+`Lock`:
+
+```gdscript title=atomic_counter/atomic_counter.spite entry
+var console = Console()
+var jobs_done = Atomic<Integer>(0)
+
+func AtomicCounter() {
+    var first = Parallel(finish_jobs)
+    var second = Parallel(finish_jobs)
+    var finished = first + second
+    var counted = jobs_done.read()
+    var claimed = jobs_done.compare_and_swap(200, 0)
+    var now_held = jobs_done.read()
+    console.print(finished, "finished,", counted, "counted, reset:", claimed, now_held)
+}
+
+func finish_jobs(): Integer {
+    var index = 0
+    while index < 100 {
+        jobs_done.add(1)
+        index = index + 1
+    }
+    return index
+}
+```
+```output
+200 finished, 200 counted, reset: true 0
+```
+
+`add` wraps like the operating system's own atomic add, in every build. An `Atomic` of anything else -- a
+`Float`, a `String`, an object -- and `add` on an `Atomic<Boolean>` are compile errors where the program calls them
+([failure.md](failure.md#crash)): share an object through a `Lock`, or give each thread its own.
+
 A program that makes a `Parallel` (or a `Concurrent`, or is built with `--repl-port` or `--hot-reload`) counts
 references with atomic operations, because an object can now be shared between threads; every other program keeps
 the plain, cheaper counts. `Parallel(work)` is checked while compiling (D179; the reading proposed by Claude, unconfirmed): the function it
 runs, and every function of the same class that function calls by name, may read and write only the attributes of
 its own instance that hold values -- numbers, `Boolean`, enums, text -- its locals and parameters, singletons (which
-[D183](decisions.md) makes safe) and a `Lock` or `ThreadLocal`, which are made to be shared. An attribute holding a
+[D183](decisions.md) makes safe) and a `Lock`, `ThreadLocal` or `Atomic`, which are made to be shared. An attribute holding a
 list, a dictionary or another object is an error naming it, since another thread may hold the same object:
 `'Parallel(tally.count_up)' runs 'record' on another thread, so it may reach only the attributes of its own
 'Tally' that hold values, its locals and singletons (D179): 'marks' holds a List<Integer>, which another thread may
@@ -836,6 +876,17 @@ classes, each system's folder supplying the calls, and each carried only by a pr
   array's address is read with one atomic load. `set` takes the `Lock`; a thread's first `set` may grow the array,
   copying it into one twice the size and publishing that with an atomic store, and the arrays it replaced are freed
   with the `ThreadLocal`, so a thread still reading one reads its own unchanged value there.
+
+- **`Atomic<T>`** (`library/atomic.spite`; decided by Claude under D205, the names provisional under D214): a whole
+  number or a `Boolean` that threads share, in an 8-byte cell of its own that the `Atomic` frees when it is dropped.
+  `read()`, `write(value)`, `add(amount)`, `exchange(value)` and `compare_and_swap(expected, desired)` are
+  the D178 primitives `read_long_atomically`, `write_long_atomically`, `add_long_atomically`, `exchange_long` and
+  `compare_and_swap_long` on that cell, each one sequentially consistent atomic instruction; a narrower `T` is
+  stored widened and read back cut to its width, so `add` wraps in `T` (`Atomic<Byte>(250).add(10)` is `4`), and
+  `compare_and_swap` compares the value as a `T`, retrying when another thread changed the cell's upper bits in
+  between. The constructor holds a `crash` on `$value_type` and `add` one on `Boolean`, which fold, so a wrong `T`
+  is a compile error where the program makes it (`diagnostics/atomic_misuse`). A `Parallel` may reach an `Atomic`
+  attribute, as it may a `Lock` (`conformance/stage6/atomic_values`). A program that makes none carries none of it.
 
 A value per pool worker (`worker_index()` into a list) needs no system call but covers only the pool's workers,
 not the program's thread or a `Concurrent`'s helpers. `conformance/stage6/thread_locals`,

@@ -446,6 +446,10 @@ func address_members(): List<String> {
         "written by the generator: one machine operation"
         "func write_long_atomically(offset: Long, value: Long)"
         "written by the generator: one machine operation"
+        "func add_long_atomically(offset: Long, value: Long): Long"
+        "written by the generator: one machine operation"
+        "func compare_and_swap_long(offset: Long, expected: Long, desired: Long): Boolean"
+        "written by the generator: one machine operation"
     ]
     var types = ["Byte", "Short", "UnsignedShort", "Integer", "UnsignedInteger", "Long", "Float", "Double"]
     var words = ["byte", "short", "unsigned_short", "integer", "unsigned_integer", "long", "float", "double"]
