@@ -133,7 +133,9 @@ func is_alive(): Boolean {
 ## Values
 
 - Numbers: `Integer` (32 bit, the default), `Long`, `Tiny`, `Short`, `Byte`, `UnsignedShort`, `UnsignedInteger`,
-  `UnsignedLong`, `Float` (the default for decimals), `Double`. `Boolean`. `String` (double quotes only).
+  `UnsignedLong`, `Float` (the default for decimals), `Double`. `Boolean`. `String` (double quotes only; escapes
+  `\n`, `\t`, `\r`, `\\`, `\"` and `\{` for a literal brace, in any order: `"\\\{"` is a backslash and a brace; a
+  text inside a hole keeps its own escapes and holes).
 - No cast syntax: the right side is cast toward the left. `"age {3}"` is `"age 3"`; `var total: Integer = "12"` parses
   it. Anything with a `to_string()` (numbers, `Boolean`, enums, a class that declares one) casts to text wherever a
   `String` is wanted: `label.text = clicks`, `show(clicks)`, `return clicks`, `names[badge]` on a `Dictionary` (a whole number there keys it by numbers instead). So a

@@ -231,6 +231,11 @@ than joined to it with `+`: `"hello {name}"`, where `{ }` holds one value of any
 `Boolean`, and enum format themselves) and `\{` is a brace meant literally. Two values still join with `+`, and
 joining written text with `+` is an error naming the form above. `==`/`!=`/`<`/`>` compare by content.
 
+A backslash writes a character a text cannot hold as itself: `\n` (line break), `\t` (tab), `\r` (carriage
+return), `\\` (backslash), `\"` (double quote) and `\{` (brace). Escapes follow each other freely, so `"\\\{"` is a
+backslash and a brace, and a text written inside a hole keeps its own escapes and holes
+([the rule](#text-escapes--implemented)).
+
 A text that is one hole and nothing else, `"{clicks}"`, is an error ([D223](decisions.md)): it is the value
 itself, so the value is written directly, and where text is wanted it becomes text on its own
 ([the rules](#casting)). The error gives the line to write:
@@ -703,6 +708,19 @@ var content = content.trim()     # String
 
   The unused rule ([Unused is an error](style.md#unused-is-an-error--implemented)) still applies to the binding being shadowed: shadowing a name that was never read
   is an error, which is what catches an accidental reuse rather than a deliberate one.
+
+#### Text escapes  **[implemented]**
+
+- Inside `"..."`, a backslash and the character after it are one character of the text: `\n` line feed, `\t`
+  tab, `\r` carriage return, `\\` backslash, `\"` double quote, `\{` an opening brace that starts no hole. Any
+  other character after a backslash is that character; the formatter writes `\'` as `'`.
+- A `{` not escaped opens a hole, which ends at its matching `}`. A text written inside a hole is read as a text
+  of its own, with its own escapes and holes, to any depth: `"{name.replace("x", "a{name.replace("x",
+  "\\\{")}b")}"` is one text. A hole that reaches the end of the file without its `}` is `this '{' inside text
+  never closes: ...`, and a text that reaches the end of its line is `this text never closes: ...`.
+- Every escape alone, in pairs and in threes -- plain, after a hole, inside a hole, and inside a text inside a
+  hole -- is `conformance/stage3/text_escapes`. (Fixed 2026-09-26: a text inside a text inside a hole was not
+  read as a text, so a `\{` there opened a hole that never closed.)
 
 #### Casting
 
