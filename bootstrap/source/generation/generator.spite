@@ -134,6 +134,8 @@ var number_key_uses = Dictionary<KeyUse>()
 var number_key_types = Dictionary<Analysis.SpiteType>()
 var learned_key_sites = Dictionary<Analysis.SpiteType>()
 var key_sites_changed = false
+var namespace_walks = Dictionary<NamespaceWalk>()
+var class_member_names = Dictionary<String>()
 var class_names_by_id = List<String>()
 var current_owner = ""
 var nullable_scalar_labels = List<String>()
@@ -4190,19 +4192,49 @@ func pattern_matches(information: Analysis.ClassInfo, template: Analysis.Templat
 }
 
 func namespace_classes(template: Analysis.TemplateInfo): List<Analysis.ClassInfo> {
+    var walk = namespace_walk(template)
+    return walk.classes
+}
+
+func namespace_walk(template: Analysis.TemplateInfo): NamespaceWalk {
     var path = range_path(template)
     var joined = path.join(".")
-    var found = List<Analysis.ClassInfo>()
-    var index = 0
-    while index < classes.count() {
-        var candidate = classes[index]
+    if not namespace_walks.has(joined) {
+        var created = NamespaceWalk()
+        namespace_walks.set(joined, created)
+    }
+    var walk = namespace_walks.get(joined)
+    crash walk
+    var grew = false
+    while walk.scanned < classes.count() {
+        var candidate = classes[walk.scanned]
         var in_namespace = candidate.namespace_dotted == joined or candidate.namespace_dotted.ends_with(".{joined}")
         if in_namespace and not candidate.is_generic_template and not is_instantiated_class(candidate) {
-            found.append(candidate)
+            walk.classes.append(candidate)
+            grew = true
         }
+        walk.scanned = walk.scanned + 1
+    }
+    if grew {
+        index_namespace_walk(walk)
+    }
+    return walk
+}
+
+func index_namespace_walk(walk: NamespaceWalk) {
+    walk.classes = walk.classes.sort_by_qualified_dotted()
+    walk.member_names = walk.classes.map(class_member_name)
+    walk.first_positions = Dictionary<Integer>()
+    walk.last_positions = Dictionary<Integer>()
+    var index = 0
+    while index < walk.member_names.count() {
+        var member_name = walk.member_names.get_at(index)
+        if not walk.first_positions.has(member_name) {
+            walk.first_positions.set(member_name, index)
+        }
+        walk.last_positions.set(member_name, index)
         index = index + 1
     }
-    return found.sort_by_qualified_dotted()
 }
 
 func range_miss(information: Analysis.ClassInfo, name: String): String {
@@ -4256,7 +4288,17 @@ func value_range_miss(
 }
 
 func class_member_name(candidate: Analysis.ClassInfo): String {
-    var segments = candidate.qualified_dotted.split(".")
+    var known = class_member_names.get(candidate.qualified_dotted)
+    if known {
+        return known
+    }
+    var member_name = member_name_of(candidate.qualified_dotted)
+    class_member_names.set(candidate.qualified_dotted, member_name)
+    return member_name
+}
+
+func member_name_of(qualified_dotted: String): String {
+    var segments = qualified_dotted.split(".")
     var words = List<String>()
     var index = 0
     while index < segments.count() {
@@ -4312,8 +4354,8 @@ func template_attribute_names(information: Analysis.ClassInfo, template: Analysi
         return range_enum.values.copy()
     }
     if kind == "namespace" {
-        var found = namespace_classes(template)
-        return found.map(class_member_name)
+        var walk = namespace_walk(template)
+        return walk.member_names.copy()
     }
     var range_class = template_range_class(information, template)
     if range_class {
@@ -4385,9 +4427,8 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
                 registered_name,
                 null,
             )
-            var walked_names = template_attribute_names(information, chosen)
-            var walked_position = name_position(walked_names, chosen_member)
-            if walked_position < walked_names.count() {
+            var walked_position = attribute_position(information, chosen, chosen_member)
+            if walked_position >= 0 {
                 instance.symbol_field_index = walked_position
             }
             describe_range_binding(information, chosen, instance)
@@ -4428,15 +4469,34 @@ func describe_range_binding(
         instance.symbol_enum_c_name = range_enum.c_name
     }
     if kind == "namespace" {
-        var found = namespace_classes(template)
-        var index = 0
-        while index < found.count() {
-            if class_member_name(found[index]) == instance.symbol_field_name {
-                instance.symbol_display_name = found[index].qualified_dotted
-            }
-            index = index + 1
+        var walk = namespace_walk(template)
+        var last = walk.last_positions.get(instance.symbol_field_name)
+        if last {
+            var named = walk.classes.get_at(last)
+            instance.symbol_display_name = named.qualified_dotted
         }
     }
+}
+
+func attribute_position(
+    information: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    member_name: String,
+): Integer {
+    if template.range and template_range_owner(information, template) == "namespace" {
+        var walk = namespace_walk(template)
+        var first = walk.first_positions.get(member_name)
+        if first {
+            return first
+        }
+        return -1
+    }
+    var walked_names = template_attribute_names(information, template)
+    var walked_position = name_position(walked_names, member_name)
+    if walked_position < walked_names.count() {
+        return walked_position
+    }
+    return -1
 }
 
 func answers_through_pattern(information: Analysis.ClassInfo, name: String): Boolean {
@@ -4488,15 +4548,11 @@ func template_member_type(
             return enum_type_of(range_enum)
         }
         if kind == "namespace" {
-            var found = namespace_classes(template)
-            var index = 0
-            while index < found.count() {
-                if class_member_name(found[index]) == member_name {
-                    return class_type_of(found[index])
-                }
-                index = index + 1
-            }
-            return null
+            var walk = namespace_walk(template)
+            var first = walk.first_positions.get(member_name)
+            assert first
+            var named = walk.classes.get_at(first)
+            return class_type_of(named)
         }
         var range_class = template_range_class(information, template)
         if range_class {

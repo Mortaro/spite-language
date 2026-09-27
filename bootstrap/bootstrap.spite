@@ -187,7 +187,7 @@ func formatted_program_files(discovery: Discovery.DiscoveryResult): Formatting {
     var outcome = 'unchanged'
     var index = 0
     while index < discovery.program_paths.count() {
-        var file_outcome = formatted_program_file(discovery.program_paths[index])
+        var file_outcome = formatted_program_file(discovery, discovery.program_paths[index])
         if file_outcome == 'refused' or outcome == 'unchanged' {
             outcome = file_outcome
         }
@@ -196,8 +196,11 @@ func formatted_program_files(discovery: Discovery.DiscoveryResult): Formatting {
     return outcome
 }
 
-func formatted_program_file(path: String): Formatting {
-    var content = File(path).read()
+func formatted_program_file(discovery: Discovery.DiscoveryResult, path: String): Formatting {
+    var content = discovery.program_texts[path]
+    if not content {
+        content = File(path).read()
+    }
     if not content {
         console.error("error: could not read '{path}'")
         return 'refused'
