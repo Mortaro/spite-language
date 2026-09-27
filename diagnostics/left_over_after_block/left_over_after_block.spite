@@ -1,0 +1,13 @@
+var console = Console()
+var total = 0
+
+func LeftOverAfterBlock() {
+    add(2)
+    console.print(total)
+}
+
+func add(amount: Integer) {
+    while total < amount {
+        total = total + 1
+    } console.print(total)
+}

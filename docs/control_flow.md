@@ -580,6 +580,15 @@ alike (D3 gave it its `else`; the `if value do name { }` form it had is gone, an
 one with an `else` already handles the missing case explicitly, so there is nothing left to rewrite with
 `assert`. `else if` is written on one line; the formatter joins an `else { if ... }` into it.
 
+**A statement ends with its line** (D244; the messages proposed by Claude, unconfirmed). Anything left on the line
+after a statement is a parse error at the first word left over, so nothing written there is silently dropped or
+read as a second statement: `return every attribute at its default` is `'attribute' is left over after the end of
+the statement: a statement ends with its line, so remove it, or put it on a line of its own if it is a statement`
+(`diagnostics/left_over_after_return`). An `if`, `while` or `switch` ends with the `}` that closes it (after its
+`else` chain, for an `if`), and a word after that `}` on the same line is `'console' is left over after the '}'
+that closes this statement: ...` (`diagnostics/left_over_after_block`). Before, `while ... { ... } console.print(total)`
+compiled as two statements and the formatter moved the second onto a line of its own without a word. **[implemented]**
+
 There is deliberately no `break`/`continue` (D2): `while` is the only loop construct Spite has, full stop.
 Neither is a keyword, but either written as a statement of its own is an error naming the form (`Spite has no
 'break': a loop stops in its own condition, like 'while index < count and not found', ...`,

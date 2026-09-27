@@ -94,7 +94,9 @@ func consume_statement_terminator() {
         return
     }
     assert not (check('right_brace') or check('end_of_file'))
-    fail("expected end of statement but found {found_text()}")
+    fail(
+        "{found_text()} is left over after the end of the statement: a statement ends with its line, so remove it, or put it on a line of its own if it is a statement",
+    )
 }
 
 func consume_field_separator(closing: TokenKind) {
@@ -226,7 +228,21 @@ func parse_statement(): Syntax.Statements.Statement {
     switch statement {
         _: statement.line = line
     }
+    if ends_in_block(statement) and not has_error and not at_statement_end() {
+        fail(
+            "{found_text()} is left over after the '}' that closes this statement: a statement ends with its line, so remove it, or put it on a line of its own if it is a statement",
+        )
+    }
     return statement
+}
+
+func ends_in_block(statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.IfStatement: return true
+        Syntax.Statements.WhileStatement: return true
+        Syntax.Statements.SwitchStatement: return true
+        _: return false
+    }
 }
 
 func parse_interpolation(hole: Token): Syntax.Expressions.Expression {

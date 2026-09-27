@@ -556,6 +556,10 @@ union), so use them rather than writing a value into memory to read its bytes.
 Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
 same name reopens it: `list.spite` adds a member template, `integer.spite` a function on every `Integer`.
 
+A statement is one line: anything after it on the same line -- after a `return` value, a call, or the `}` that
+closes an `if`, `while` or `switch` -- is a parse error (`'attribute' is left over after the end of the statement`),
+never a second statement.
+
 ## Habits from other languages that Spite rejects
 
 Almost every one of these is a compile error naming the Spite form -- the middle column is the start of what the
