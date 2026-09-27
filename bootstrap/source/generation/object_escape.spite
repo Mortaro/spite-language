@@ -1,0 +1,765 @@
+var shape = Analysis.AstShape()
+var type_shape = Analysis.TypeShape()
+var table: ObjectFrames? = null
+var generator: Generator? = null
+var owner: Analysis.ClassInfo? = null
+var scope: Scope? = null
+var local_classes = Dictionary<String>()
+var whole_body = List<Syntax.Statements.Statement>()
+var followed = ""
+var followed_class: Analysis.ClassInfo? = null
+var following_self = false
+var return_allowed = false
+var reassign_fresh = false
+var reassign_any = false
+var claim_name = ""
+var claim_owner: Analysis.ClassInfo? = null
+var claim_function: Analysis.FunctionInfo? = null
+
+func ObjectEscape(frame_table: ObjectFrames, generation: Generator, studied_class: Analysis.ClassInfo) {
+    table = frame_table
+    generator = generation
+    owner = studied_class
+}
+
+func frames(): ObjectFrames {
+    crash table
+    return table
+}
+
+func generating(): Generator {
+    crash generator
+    return generator
+}
+
+func studied(): Analysis.ClassInfo {
+    crash owner
+    return owner
+}
+
+func take_parameters(function: Analysis.FunctionInfo) {
+    function.parameters.each(take_parameter)
+}
+
+func take_parameter(parameter: Analysis.ParamInfo) {
+    var parameter_type = parameter.get_type()
+    learn_type(parameter.name, parameter_type)
+}
+
+func learn_type(name: String, spite_type: Analysis.SpiteType) {
+    var learned = class_of_type(spite_type)
+    assert learned
+    local_classes.set(name, learned.c_name)
+}
+
+func class_of_type(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var inner = spite_type
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        inner = nullable.get_inner()
+    }
+    var class_reference = type_shape.as_class_ref(inner)
+    assert class_reference
+    return generating().find_class_by_c_name(class_reference.c_name)
+}
+
+func follow_self() {
+    following_self = true
+    followed = "this"
+    followed_class = owner
+}
+
+func follow_parameter(name: String, spite_type: Analysis.SpiteType) {
+    followed = name
+    followed_class = class_of_type(spite_type)
+    reassign_any = true
+}
+
+func follow_local(name: String, information: Analysis.ClassInfo, returning: Boolean) {
+    followed = name
+    followed_class = information
+    reassign_fresh = true
+    return_allowed = returning
+    local_classes.set(name, information.c_name)
+}
+
+func learn_block(statements: List<Syntax.Statements.Statement>) {
+    statements.each(learn_statement)
+}
+
+func learn_statement(statement: Syntax.Statements.Statement) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: learn_declaration(statement)
+        Syntax.Statements.IfStatement: {
+            learn_block(statement.then_branch)
+            learn_block(statement.else_branch)
+        }
+        Syntax.Statements.WhileStatement: learn_block(statement.body)
+        Syntax.Statements.SwitchStatement: statement.cases.each(learn_case)
+        _: return
+    }
+}
+
+func learn_case(switch_case: Syntax.Statements.SwitchCase) {
+    learn_block(switch_case.body)
+}
+
+func learn_declaration(declaration: Syntax.Statements.VariableDeclaration) {
+    var generation = generating()
+    var information = studied()
+    if declaration.type_reference {
+        assert information.codegen_types.is_empty()
+        var resolved = generation.resolve_type(declaration.type_reference, information.qualified_dotted)
+        assert resolved
+        learn_type(declaration.name, resolved)
+        return
+    }
+    crash declaration.value
+    var learned = class_of(declaration.value)
+    assert learned
+    local_classes.set(declaration.name, learned.c_name)
+}
+
+func class_of(expression: Syntax.Expressions.Expression): Analysis.ClassInfo? {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return named_class(expression.name)
+        Syntax.Expressions.MemberExpression: return field_class(expression)
+        Syntax.Expressions.CallExpression: return call_class(expression)
+        Syntax.Expressions.BinaryExpression: return operator_class(expression)
+        Syntax.Expressions.UnaryExpression: return negated_class(expression)
+        _: return null
+    }
+}
+
+func named_class(name: String): Analysis.ClassInfo? {
+    if name == "this" or name == "self" {
+        return owner
+    }
+    var generation = generating()
+    if local_classes.has(name) {
+        crash local_classes[name]
+        return generation.find_class_by_c_name(local_classes[name])
+    }
+    if scope {
+        var written = scope.written_type(name)
+        if written {
+            return class_of_type(written)
+        }
+    }
+    var field = studied().find_field(name)
+    assert field
+    var field_type = field.get_type()
+    return class_of_type(field_type)
+}
+
+func field_class(member: Syntax.Expressions.MemberExpression): Analysis.ClassInfo? {
+    crash member.object
+    var object_class = class_of(member.object)
+    assert object_class
+    var field = object_class.find_field(member.name)
+    assert field
+    var field_type = field.get_type()
+    return class_of_type(field_type)
+}
+
+func call_class(call: Syntax.Expressions.CallExpression): Analysis.ClassInfo? {
+    var resolved = resolve_call(call)
+    assert resolved
+    if resolved.constructs {
+        return resolved.owner
+    }
+    if resolved.function {
+        var function_return_type = resolved.function.get_return_type()
+        return class_of_type(function_return_type)
+    }
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    assert member.name == "copy" or member.name == "deep_copy"
+    return resolved.owner
+}
+
+func operator_class(binary: Syntax.Expressions.BinaryExpression): Analysis.ClassInfo? {
+    var resolved = operator_call(binary)
+    assert resolved
+    crash resolved.function
+    var function_return_type = resolved.function.get_return_type()
+    return class_of_type(function_return_type)
+}
+
+func operator_call(binary: Syntax.Expressions.BinaryExpression): ResolvedCall? {
+    crash binary.left
+    var left_class = class_of(binary.left)
+    assert left_class
+    var operator_name = generating().operator_function_name(binary.operator)
+    assert not operator_name.is_empty()
+    var function = left_class.find_function(operator_name)
+    assert function
+    assert function.parameters.count() == 1
+    var resolved = ResolvedCall()
+    resolved.owner = left_class
+    resolved.function = function
+    return resolved
+}
+
+func negated_class(unary: Syntax.Expressions.UnaryExpression): Analysis.ClassInfo? {
+    var resolved = negate_call(unary)
+    assert resolved
+    crash resolved.function
+    var function_return_type = resolved.function.get_return_type()
+    return class_of_type(function_return_type)
+}
+
+func negate_call(unary: Syntax.Expressions.UnaryExpression): ResolvedCall? {
+    assert unary.operator == 'negate'
+    crash unary.operand
+    var operand_class = class_of(unary.operand)
+    assert operand_class
+    var function = operand_class.find_function("negate")
+    assert function
+    assert function.parameters.is_empty()
+    var resolved = ResolvedCall()
+    resolved.owner = operand_class
+    resolved.function = function
+    return resolved
+}
+
+func resolve_call(call: Syntax.Expressions.CallExpression): ResolvedCall? {
+    crash call.callee
+    var resolved = ResolvedCall()
+    var constructed = constructed_class(call.callee)
+    if constructed {
+        resolved.owner = constructed
+        resolved.function = constructed.constructor
+        resolved.constructs = true
+        return resolved
+    }
+    var own = shape.as_identifier(call.callee)
+    if own {
+        var own_function = studied().find_function(own.name)
+        assert own_function
+        resolved.owner = owner
+        resolved.function = own_function
+        return resolved
+    }
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var receiver_class = class_of(member.object)
+    assert receiver_class
+    resolved.owner = receiver_class
+    resolved.function = receiver_class.find_function(member.name)
+    resolved.receiver = member.object
+    return resolved
+}
+
+func constructed_class(callee: Syntax.Expressions.Expression): Analysis.ClassInfo? {
+    var generation = generating()
+    var information = studied()
+    var named = shape.as_identifier(callee)
+    if named {
+        assert own_constructor_or_none(information, named.name)
+        var first_code = named.name.code_at(0)
+        assert first_code >= 65 and first_code <= 90
+    }
+    var found = generation.try_resolve_static_path(callee, information.qualified_dotted)
+    assert found
+    assert not found.is_generic_template and not found.is_value_class and not found.is_singleton
+    return found
+}
+
+func own_constructor_or_none(information: Analysis.ClassInfo, name: String): Boolean {
+    var function = information.find_function(name)
+    if function {
+        return function.is_constructor
+    }
+    return true
+}
+
+func fresh_class(expression: Syntax.Expressions.Expression): Analysis.ClassInfo? {
+    switch expression {
+        Syntax.Expressions.CallExpression: return fresh_call(expression)
+        Syntax.Expressions.BinaryExpression: {
+            var operator_resolved = operator_call(expression)
+            assert operator_resolved
+            return fresh_resolved(operator_resolved)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            var negate_resolved = negate_call(expression)
+            assert negate_resolved
+            return fresh_resolved(negate_resolved)
+        }
+        _: return null
+    }
+}
+
+func fresh_call(call: Syntax.Expressions.CallExpression): Analysis.ClassInfo? {
+    var resolved = resolve_call(call)
+    assert resolved
+    crash resolved.owner
+    if resolved.constructs {
+        return fresh_construction(resolved.owner, "___make")
+    }
+    if resolved.function {
+        return fresh_function_result(resolved.owner, resolved.function)
+    }
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    assert call.arguments.is_empty()
+    if member.name == "deep_copy" {
+        return fresh_construction(resolved.owner, "___deep_copy")
+    }
+    assert member.name == "copy"
+    return fresh_construction(resolved.owner, "_copy")
+}
+
+func fresh_resolved(resolved: ResolvedCall): Analysis.ClassInfo? {
+    assert resolved.owner and resolved.function
+    return fresh_function_result(resolved.owner, resolved.function)
+}
+
+func fresh_construction(made: Analysis.ClassInfo, suffix: String): Analysis.ClassInfo? {
+    var frame_table = frames()
+    var generation = generating()
+    assert frame_table.frames_class(generation, made)
+    claim_name = "{made.c_name}{suffix}"
+    claim_owner = made
+    claim_function = null
+    return made
+}
+
+func fresh_function_result(called_owner: Analysis.ClassInfo, function: Analysis.FunctionInfo): Analysis.ClassInfo? {
+    var frame_table = frames()
+    var generation = generating()
+    var made = frame_table.fresh_result(generation, called_owner, function)
+    assert made
+    claim_name = function.c_name
+    claim_owner = called_owner
+    claim_function = function
+    return made
+}
+
+func returns_fresh_in(statements: List<Syntax.Statements.Statement>, returned: Analysis.ClassInfo): Boolean {
+    var index = 0
+    while index < statements.count() {
+        assert statement_returns_fresh(statements[index], returned)
+        index = index + 1
+    }
+    return true
+}
+
+func statement_returns_fresh(statement: Syntax.Statements.Statement, returned: Analysis.ClassInfo): Boolean {
+    switch statement {
+        Syntax.Statements.ReturnStatement: {
+            assert statement.value
+            return value_is_fresh(statement.value, returned)
+        }
+        Syntax.Statements.IfStatement: return returns_fresh_in(statement.then_branch, returned) and returns_fresh_in(statement.else_branch, returned)
+        Syntax.Statements.WhileStatement: return returns_fresh_in(statement.body, returned)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                assert returns_fresh_in(statement.cases[case_index].body, returned)
+                case_index = case_index + 1
+            }
+            return true
+        }
+        _: return true
+    }
+}
+
+func value_is_fresh(value: Syntax.Expressions.Expression, returned: Analysis.ClassInfo): Boolean {
+    var named = shape.as_identifier(value)
+    if named {
+        return returned_local_stays(named.name, returned)
+    }
+    var made = fresh_class(value)
+    assert made
+    return made.c_name == returned.c_name
+}
+
+func returned_local_stays(name: String, returned: Analysis.ClassInfo): Boolean {
+    var holder = DeclarationHolder()
+    assert holder.find(name, whole_body) and holder.found_count == 1
+    crash holder.declaration
+    crash holder.declaration.value
+    var made = fresh_class(holder.declaration.value)
+    assert made
+    assert made.c_name == returned.c_name
+    var frame_table = frames()
+    var generation = generating()
+    var information = studied()
+    var follower = ObjectEscape(frame_table, generation, information)
+    follower.local_classes = local_classes
+    follower.follow_local(name, returned, true)
+    return follower.stays_after(holder.block, holder.index + 1)
+}
+
+func stays_after(statements: List<Syntax.Statements.Statement>, start: Integer): Boolean {
+    var index = start
+    while index < statements.count() {
+        assert statement_keeps(statements[index])
+        index = index + 1
+    }
+    return true
+}
+
+func block_keeps(statements: List<Syntax.Statements.Statement>): Boolean {
+    return stays_after(statements, 0)
+}
+
+func statement_keeps(statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: return declaration_keeps(statement)
+        Syntax.Statements.AssignmentStatement: return assignment_keeps(statement)
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            return keeps(statement.value)
+        }
+        Syntax.Statements.ReturnStatement: return return_keeps(statement)
+        Syntax.Statements.AssertStatement: {
+            crash statement.value
+            return keeps(statement.value)
+        }
+        Syntax.Statements.IfStatement: {
+            crash statement.condition
+            return keeps(statement.condition) and block_keeps(statement.then_branch) and block_keeps(statement.else_branch)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            return keeps(statement.condition) and block_keeps(statement.body)
+        }
+        Syntax.Statements.SwitchStatement: {
+            crash statement.subject
+            assert keeps(statement.subject)
+            return statement.cases.all(case_keeps)
+        }
+        _: return false
+    }
+}
+
+func case_keeps(switch_case: Syntax.Statements.SwitchCase): Boolean {
+    return block_keeps(switch_case.body)
+}
+
+func declaration_keeps(declaration: Syntax.Statements.VariableDeclaration): Boolean {
+    assert declaration.name != followed
+    crash declaration.value
+    assert keeps(declaration.value)
+    learn_declaration(declaration)
+    return true
+}
+
+func assignment_keeps(assignment: Syntax.Statements.AssignmentStatement): Boolean {
+    crash assignment.target
+    crash assignment.value
+    if is_followed(assignment.target) {
+        return reassignment_keeps(assignment.value)
+    }
+    var written = shape.as_member(assignment.target)
+    if written {
+        crash written.object
+        if is_followed(written.object) {
+            assert followed_field(written.name)
+            return keeps(assignment.value)
+        }
+    }
+    return keeps(assignment.target) and keeps(assignment.value)
+}
+
+func reassignment_keeps(value: Syntax.Expressions.Expression): Boolean {
+    if reassign_any {
+        return keeps(value)
+    }
+    assert reassign_fresh
+    var made = fresh_class(value)
+    assert made
+    crash followed_class
+    assert made.c_name == followed_class.c_name
+    return keeps(value)
+}
+
+func return_keeps(statement: Syntax.Statements.ReturnStatement): Boolean {
+    if not statement.value {
+        return true
+    }
+    if is_followed(statement.value) {
+        return return_allowed
+    }
+    return keeps(statement.value)
+}
+
+func is_followed(expression: Syntax.Expressions.Expression): Boolean {
+    var named = shape.as_identifier(expression)
+    assert named
+    if following_self {
+        return named.name == "this" or named.name == "self"
+    }
+    return named.name == followed
+}
+
+func followed_field(name: String): Boolean {
+    assert followed_class
+    var field = followed_class.find_field(name)
+    assert field
+    return true
+}
+
+func keeps(expression: Syntax.Expressions.Expression): Boolean {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return name_keeps(expression.name)
+        Syntax.Expressions.MemberExpression: return member_keeps(expression)
+        Syntax.Expressions.CallExpression: return call_keeps(expression)
+        Syntax.Expressions.BinaryExpression: return operator_keeps(expression)
+        Syntax.Expressions.UnaryExpression: return negation_keeps(expression)
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            return keeps(expression.object) and keeps(expression.index)
+        }
+        Syntax.Expressions.GenericCallExpression: return expression.arguments.all(keeps)
+        Syntax.Expressions.ListLiteralExpression: return expression.elements.all(element_keeps)
+        Syntax.Expressions.ObjectLiteralExpression: return expression.fields.all(object_field_keeps)
+        Syntax.Expressions.StringLiteralExpression: return text_keeps(expression.value)
+        _: return true
+    }
+}
+
+func element_keeps(element: Syntax.Expressions.ListElement): Boolean {
+    crash element.value
+    return keeps(element.value)
+}
+
+func object_field_keeps(field: Syntax.Expressions.ObjectField): Boolean {
+    crash field.value
+    return keeps(field.value)
+}
+
+func name_keeps(name: String): Boolean {
+    if following_self {
+        assert name != "this" and name != "self"
+        assert not studied().find_function(name)
+        return true
+    }
+    return name != followed
+}
+
+func member_keeps(member: Syntax.Expressions.MemberExpression): Boolean {
+    crash member.object
+    if is_followed(member.object) {
+        return member.name == "memory" or followed_field(member.name)
+    }
+    var inner = shape.as_member(member.object)
+    if inner {
+        crash inner.object
+        if is_followed(inner.object) and inner.name == "memory" {
+            return member.name == "section" or member.name == "bytes" or member.name == "address"
+        }
+    }
+    return keeps(member.object)
+}
+
+func call_keeps(call: Syntax.Expressions.CallExpression): Boolean {
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    if member {
+        crash member.object
+        if is_followed(member.object) {
+            return followed_call_keeps(member.name, call.arguments)
+        }
+    }
+    var resolved = resolve_call(call)
+    if resolved {
+        return resolved_call_keeps(resolved, call.arguments)
+    }
+    return unknown_call_keeps(call)
+}
+
+func resolved_call_keeps(resolved: ResolvedCall, arguments: List<Syntax.Expressions.Expression>): Boolean {
+    var own_call = not resolved.constructs and not resolved.receiver
+    if resolved.receiver {
+        assert keeps(resolved.receiver)
+    }
+    if following_self and own_call {
+        assert argument_lent(resolved, -1)
+    }
+    return arguments_keep(resolved, arguments)
+}
+
+func unknown_call_keeps(call: Syntax.Expressions.CallExpression): Boolean {
+    crash call.callee
+    if not shape.as_identifier(call.callee) {
+        assert keeps(call.callee)
+    }
+    return call.arguments.all(keeps)
+}
+
+func followed_call_keeps(name: String, arguments: List<Syntax.Expressions.Expression>): Boolean {
+    assert followed_class
+    return class_call_keeps(followed_class, name, arguments)
+}
+
+func class_call_keeps(
+    information: Analysis.ClassInfo,
+    name: String,
+    arguments: List<Syntax.Expressions.Expression>,
+): Boolean {
+    var function = information.find_function(name)
+    if function {
+        return found_call_keeps(information, function, arguments)
+    }
+    var copies = name == "copy" or name == "deep_copy"
+    return copies and arguments.is_empty()
+}
+
+func found_call_keeps(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    arguments: List<Syntax.Expressions.Expression>,
+): Boolean {
+    assert lent_to(information, function, -1)
+    var resolved = ResolvedCall()
+    resolved.owner = information
+    resolved.function = function
+    return arguments_keep(resolved, arguments)
+}
+
+func lent_to(called_owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, index: Integer): Boolean {
+    var frame_table = frames()
+    var generation = generating()
+    return frame_table.lends(generation, called_owner, function, index)
+}
+
+func arguments_keep(resolved: ResolvedCall, arguments: List<Syntax.Expressions.Expression>): Boolean {
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        if is_followed(argument) {
+            assert argument_lent(resolved, index)
+        } else {
+            assert keeps(argument)
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func argument_lent(resolved: ResolvedCall, index: Integer): Boolean {
+    assert resolved.owner and resolved.function
+    return lent_to(resolved.owner, resolved.function, index)
+}
+
+func operator_keeps(binary: Syntax.Expressions.BinaryExpression): Boolean {
+    crash binary.left
+    crash binary.right
+    if not is_followed(binary.left) and not is_followed(binary.right) {
+        return keeps(binary.left) and keeps(binary.right)
+    }
+    var resolved = operator_call(binary)
+    if resolved {
+        return operands_lent(resolved, binary.left, binary.right)
+    }
+    assert binary.operator == 'equal' or binary.operator == 'not_equal'
+    return keeps_unless_followed(binary.left) and keeps_unless_followed(binary.right)
+}
+
+func operands_lent(
+    resolved: ResolvedCall,
+    left: Syntax.Expressions.Expression,
+    right: Syntax.Expressions.Expression,
+): Boolean {
+    if is_followed(left) {
+        assert argument_lent(resolved, -1)
+    } else {
+        assert keeps(left)
+    }
+    if is_followed(right) {
+        assert argument_lent(resolved, 0)
+    } else {
+        assert keeps(right)
+    }
+    return true
+}
+
+func keeps_unless_followed(expression: Syntax.Expressions.Expression): Boolean {
+    if is_followed(expression) {
+        return true
+    }
+    return keeps(expression)
+}
+
+func negation_keeps(unary: Syntax.Expressions.UnaryExpression): Boolean {
+    crash unary.operand
+    if not is_followed(unary.operand) {
+        return keeps(unary.operand)
+    }
+    var resolved = negate_call(unary)
+    assert resolved
+    return argument_lent(resolved, -1)
+}
+
+func text_keeps(text: String): Boolean {
+    var holes = text.split("\{")
+    var index = 1
+    while index < holes.count() {
+        var piece = holes[index]
+        var closing = piece.index_of("}")
+        var hole = piece
+        if closing >= 0 {
+            hole = piece.slice(0, closing)
+        }
+        assert hole_keeps(hole)
+        index = index + 1
+    }
+    return true
+}
+
+func hole_keeps(hole: String): Boolean {
+    var words = words_of(hole)
+    if following_self {
+        return not words.any(names_self)
+    }
+    if not words.contains(followed) {
+        return true
+    }
+    var parts = hole.split(".")
+    assert parts.count() == 2
+    var object_name = parts.first()
+    var field_name = parts.last()
+    crash object_name
+    crash field_name
+    return object_name == followed and followed_field(field_name)
+}
+
+func names_self(word: String): Boolean {
+    if word == "this" or word == "self" {
+        return true
+    }
+    var function = studied().find_function(word)
+    assert function
+    return true
+}
+
+func words_of(text: String): List<String> {
+    var words = List<String>()
+    var start = 0
+    var index = 0
+    var text_length = text.length()
+    while index <= text_length {
+        var in_word = false
+        if index < text_length {
+            var code_point = text.code_at(index)
+            in_word = code_point >= 65 and code_point <= 90 or code_point >= 97 and code_point <= 122 or code_point >= 48 and code_point <= 57 or code_point == 95
+        }
+        if not in_word {
+            if index > start {
+                var word = text.slice(start, index)
+                words.append(word)
+            }
+            start = index + 1
+        }
+        index = index + 1
+    }
+    return words
+}

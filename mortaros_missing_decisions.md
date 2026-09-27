@@ -345,15 +345,10 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## Game maths (D213)
 
-205. **Vectors and matrices allocate on every answer.** Built (proposed by Claude, unconfirmed): `Vector3` and the
-     others are classes, so `position + velocity.scaled(delta)` makes two heap objects and frees one
-     (`benchmarks/game_maths`: 26 ms and two allocations per step for a million steps; clang removed them only
-     where nothing but a sum survived). Ways to remove them, none built: (a) extend D108's placement to a class
-     instance that never outlives its statement or loop pass, so the temporary lives in the frame; (b) let a class
-     of only numbers be a value kept inline like a number (D149 makes every class a reference today); (c) in-place
-     twins such as `position.add(moved)`, which cost nothing but double the names. Which, if any? And the parts:
-     `x_value`...`w_value` because a name is never one letter -- keep them, or allow `x`, `y`, `z`, `w` on these
-     classes as the field's own names (as D213 allows `Vector2`)?
+205. **The parts of vectors and quaternions are `x_value`...`w_value`**, because a name is never one letter -- keep
+     them, or allow `x`, `y`, `z`, `w` on these classes as the field's own names (as D213 allows `Vector2`)? (The
+     allocations this item also asked about are gone: an answer that stays in its function lives in the frame,
+     built under D205/D214, [optimizations.md](docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame).)
 
 ## Borrowed rows for systems of several row types (low priority, from SlopEngine)
 
