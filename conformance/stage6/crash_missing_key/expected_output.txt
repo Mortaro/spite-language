@@ -1,0 +1,2 @@
+spite.crash	474c3f17	conformance/stage6/crash_missing_key/crash_missing_key.spite:11	CrashMissingKey	show	scores [player]	scores[player] is missing: key "bea"
+ann 0

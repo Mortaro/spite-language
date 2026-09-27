@@ -1,0 +1,16 @@
+var console = Console()
+
+func CrashMissingLink() {
+    var rig = Rig()
+    var skeleton = Skeleton()
+    skeleton.heights.append(0.0)
+    rig.skeleton = skeleton
+    show(rig)
+    rig.skeleton = null
+    show(rig)
+}
+
+func show(rig: Rig) {
+    crash rig.skeleton.heights[0]
+    console.print("height", rig.skeleton.heights[0])
+}
