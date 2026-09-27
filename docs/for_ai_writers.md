@@ -119,6 +119,10 @@ func is_alive(): Boolean {
   can name a variable or a parameter either: `var none: Long = 0` says to write `null`. Pick another name
   (`no_handle`, `empty`). `load` is reserved too: it always loads a package, so a function that loads something
   says what (`load_texture`).
+- `class`, `attributes`, `functions`, `instances` and `memory` never name an attribute or a function (nor a
+  `get_`/`set_` one): reflection gives every object those members, and `JsonReader` and every attribute walk read
+  through `value.attributes`. The error suggests the class's name in front (`table_attributes`). A local may use
+  them.
 - No name is taken by the C that Spite compiles to (D168): `short`, `default`, `register`, `static`, `unsigned`,
   `stdout`, `near`, `far` and `pascal` are ordinary names for a variable, attribute, parameter or function, and
   so are `allocate`, `make`, `retain` and `release`. Do not rename around C. (`int`, `char`, `bool`, `min` and

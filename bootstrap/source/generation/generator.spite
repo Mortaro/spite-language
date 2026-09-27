@@ -265,8 +265,8 @@ func generated_functions_source(qualified: String): String {
         var information = classes[index]
         if information.qualified_dotted == qualified and information.codegen_names.is_empty() {
             var function_index = 0
-            while function_index < information.functions.count() {
-                var function = information.functions[function_index]
+            while function_index < information.declared_functions.count() {
+                var function = information.declared_functions[function_index]
                 if not function.symbol_name.is_empty() and function.symbol_owner_c_name.is_empty() and function.has_body {
                     text = "{text}\n\n{instantiated_function_source(information, function)}"
                 }
@@ -388,8 +388,8 @@ func class_view_source(information: Analysis.ClassInfo, display_name: String): S
         field_index = field_index + 1
     }
     var index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if not function.is_constructor {
             lines.append("    {built_in_signature(function)}")
         }
@@ -1926,8 +1926,8 @@ func vector_item_problem(item_type: Analysis.SpiteType): String {
         return "'{label}' cannot be an item of a Vector: it has a 'drop()', and an item inline in a Vector is never an object of its own to drop (keep '{label}' in a 'List<{label}>')"
     }
     index = 0
-    while index < item_class.functions.count() {
-        var function = item_class.functions[index]
+    while index < item_class.declared_functions.count() {
+        var function = item_class.declared_functions[index]
         if not function.is_constructor and block_uses_this(function.body, item_class) {
             return "'{label}.{function.name}' uses 'this' as a value, and an item of a Vector is borrowed from the Vector, never an object to keep or to pass on: read and write its attributes instead"
         }
@@ -3264,7 +3264,7 @@ func automatic_debug(information: Analysis.ClassInfo): Analysis.FunctionInfo? {
     function.has_body = false
     var body = "{debug_class.c_name}* spite_debug = {singleton_call(debug_class)};\nSpiteString spite_text = {described.c_name}(spite_debug, {retain_call(debugged_type, "self")});\n{debug_class.c_name}___release(spite_debug);\nreturn spite_text;"
     function.supplied_body = body
-    information.functions.append(function)
+    information.declared_functions.append(function)
     if synthetic_value_types.has(information.c_name) {
         function.is_emitted = true
         var signature = "SpiteString {function.c_name}({c_type_name(debugged_type)} self)"
@@ -3315,7 +3315,7 @@ func synthetic_value_class(c_name: String, value_type: Analysis.SpiteType, to_st
         false,
     )
     to_string.is_emitted = true
-    created.functions.append(to_string)
+    created.declared_functions.append(to_string)
     synthetic_value_classes.append(created)
     synthetic_value_types[c_name] = value_type
     var signature = "SpiteString {c_name}_to_string({c_type_name(value_type)} self)"
@@ -3669,6 +3669,7 @@ func resolve_field(
 ) {
     assert declaration.value
     check_value_name(declaration.name, "attribute")
+    check_reflection_name(declaration.name, "attribute", information)
     report_nested_calls_in(declaration.value)
     report_singletons_in_declared(declaration.value, information)
     report_written_handle_type(declaration)
@@ -4136,8 +4137,8 @@ func range_function(information: Analysis.ClassInfo, template: Analysis.Template
 func declared_functions_of(owner: Analysis.ClassInfo): List<Analysis.FunctionInfo> {
     var declared = List<Analysis.FunctionInfo>()
     var index = 0
-    while index < owner.functions.count() {
-        var function = owner.functions[index]
+    while index < owner.declared_functions.count() {
+        var function = owner.declared_functions[index]
         if not function.is_constructor and function.symbol_name.is_empty() and not function.name.starts_with("_") {
             declared.append(function)
         }
@@ -4596,7 +4597,7 @@ func instantiate_every_attribute(
         false,
     )
     function.symbol_name = template.symbol_parameter
-    information.functions.append(function)
+    information.declared_functions.append(function)
     builder.add_prototype("{function_signature(information, function)};")
     return function
 }
@@ -4675,7 +4676,7 @@ func instantiate_template(
             )
         }
     }
-    information.functions.append(function)
+    information.declared_functions.append(function)
     if not is_inline_supplied(function) {
         builder.add_prototype("{function_signature(information, function)};")
     }
@@ -4834,10 +4835,10 @@ func emit_pending_only() {
                     emitted_any = true
                 }
                 var function_index = 0
-                while function_index < information.functions.count() {
-                    if is_pending(information, information.functions[function_index]) {
+                while function_index < information.declared_functions.count() {
+                    if is_pending(information, information.declared_functions[function_index]) {
                         current_owner = information.qualified_dotted
-                        emit_user_function(information, information.functions[function_index])
+                        emit_user_function(information, information.declared_functions[function_index])
                         emitted_any = true
                     }
                     function_index = function_index + 1
@@ -4920,6 +4921,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     var is_conversion = information.is_value_class and declaration.name.starts_with("to_")
     if not is_constructor and not is_conversion and declaration.has_body {
         check_value_name(declaration.name, "function")
+        check_reflection_name(declaration.name, "function", information)
     }
     var c_name = "{information.c_name}_{declaration.name}"
     var function = Analysis.FunctionInfo(
@@ -4946,8 +4948,8 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         information.drop_function = function
     }
     var existing = 0
-    while existing < information.functions.count() {
-        if information.functions[existing].name == declaration.name {
+    while existing < information.declared_functions.count() {
+        if information.declared_functions[existing].name == declaration.name {
             var saved_line = current_line
             current_line = declaration.line
             report(
@@ -4957,7 +4959,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         }
         existing = existing + 1
     }
-    information.functions.append(function)
+    information.declared_functions.append(function)
 }
 
 func is_inline_supplied(function: Analysis.FunctionInfo): Boolean {
@@ -8239,8 +8241,8 @@ func callee_only_reads(callee_c_name: String, variadic_index: Integer): Boolean 
     while class_index < classes.count() {
         var owner = classes[class_index]
         var function_index = 0
-        while function_index < owner.functions.count() {
-            var function = owner.functions[function_index]
+        while function_index < owner.declared_functions.count() {
+            var function = owner.declared_functions[function_index]
             if function.c_name == callee_c_name {
                 assert not is_hot_class(owner) and function.has_body
                 var names = List<String>()
@@ -8264,8 +8266,8 @@ func collect_list_parameters(
     bodies: List<List<Syntax.Statements.Statement>>,
 ) {
     var index = 0
-    while index < owner.functions.count() {
-        var function = owner.functions[index]
+    while index < owner.declared_functions.count() {
+        var function = owner.declared_functions[index]
         if function.has_body and not function.is_constructor {
             names.append(function.name)
             var list_names = list_parameter_names(function)
@@ -9346,8 +9348,8 @@ func lent_variant_name(
     }
     var variant_c_name = "{function_c_name}___lent_{positions.join("_")}"
     var function_index = 0
-    while function_index < owner.functions.count() {
-        var candidate = owner.functions[function_index]
+    while function_index < owner.declared_functions.count() {
+        var candidate = owner.declared_functions[function_index]
         if candidate.c_name == variant_c_name {
             return variant_c_name
         }
@@ -9385,7 +9387,7 @@ func lent_variant_name(
         }
         parameter_index = parameter_index + 1
     }
-    owner.functions.append(variant)
+    owner.declared_functions.append(variant)
     builder.add_prototype("{function_signature(owner, variant)};")
     return variant_c_name
 }
@@ -9404,8 +9406,8 @@ func class_of_function_c_name(function_c_name: String): Analysis.ClassInfo? {
 
 func function_by_c_name(information: Analysis.ClassInfo, function_c_name: String): Analysis.FunctionInfo? {
     var index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if function.c_name == function_c_name and function.has_body {
             return function
         }
@@ -10450,8 +10452,8 @@ func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
         index = index + 1
     }
     index = 0
-    while index < element_class.functions.count() {
-        var function = element_class.functions[index]
+    while index < element_class.declared_functions.count() {
+        var function = element_class.declared_functions[index]
         if not function.is_constructor and function.parameters.is_empty() {
             member_names.append(function.name)
             if function.name.starts_with("get_") {
@@ -10862,8 +10864,8 @@ func handed_over_name(object_ast: Syntax.Expressions.Expression, owner: Analysis
         index = index + 1
     }
     var function_index = 0
-    while function_index < owner.functions.count() {
-        var function = owner.functions[function_index]
+    while function_index < owner.declared_functions.count() {
+        var function = owner.declared_functions[function_index]
         assert function.is_constructor or not block_keeps_this(function.body, owner)
         function_index = function_index + 1
     }
@@ -11131,8 +11133,8 @@ func self_contained(information: Analysis.ClassInfo, visited: List<String>): Boo
     visited.append(information.c_name)
     assert not information.source_path.starts_with("library/") and not information.is_value_class
     var function_index = 0
-    while function_index < information.functions.count() {
-        var function = information.functions[function_index]
+    while function_index < information.declared_functions.count() {
+        var function = information.declared_functions[function_index]
         assert function.is_constructor or not block_keeps_this(function.body, information)
         function_index = function_index + 1
     }
@@ -11152,8 +11154,8 @@ func kept_inside(owner: Analysis.ClassInfo, name: String, held: Analysis.SpiteTy
     assert not written_outside.contains(name)
     var holder = class_behind(held)
     var function_index = 0
-    while function_index < owner.functions.count() {
-        var function = owner.functions[function_index]
+    while function_index < owner.declared_functions.count() {
+        var function = owner.declared_functions[function_index]
         assert not block_hands_out(function.body, name, holder)
         function_index = function_index + 1
     }
@@ -12745,8 +12747,8 @@ func emit_functions_function(information: Analysis.ClassInfo) {
     lines.append("{list_name}* {defined_name}({information.c_name}* self) \{")
     lines.append("{list_name}* result = {list_name}___make();")
     var index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         var listed = not information.is_container or not function.symbol_owner_c_name.is_empty()
         if listed and not function.is_constructor and not function.symbol_through_caller {
             lines.append("\{")
@@ -13771,15 +13773,15 @@ func supply_list_functions(list_class: Analysis.ClassInfo, element: Analysis.Spi
     var comparable = type_shape.as_string(element) or type_shape.is_symbol(element) or is_enum_type(element) or type_shape.as_scalar(element)
     var kept = List<Analysis.FunctionInfo>()
     var index = 0
-    while index < list_class.functions.count() {
-        var function = list_class.functions[index]
+    while index < list_class.declared_functions.count() {
+        var function = list_class.declared_functions[index]
         var unsupported = function.name == "contains" and not comparable or function.name == "join" and not joins_as_text(element)
         if not unsupported {
             kept.append(function)
         }
         index = index + 1
     }
-    list_class.functions = kept
+    list_class.declared_functions = kept
 }
 
 func supply_concurrency_functions(instance: Analysis.ClassInfo) {
@@ -19020,8 +19022,8 @@ func study_lent_parameters_of(information: Analysis.ClassInfo) {
     var bodies = List<List<Syntax.Statements.Statement>>()
     var index = 0
     var swappable = is_hot_class(information)
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if function.has_body and not function.is_constructor and not swappable {
             names.append(function.name)
             var address_names = address_parameter_names(function)
@@ -20220,6 +20222,65 @@ func check_value_name(name: String, what: String) {
         return
     }
     check_abbreviations(bare)
+}
+
+func check_reflection_name(name: String, what: String, information: Analysis.ClassInfo) {
+    assert not information.qualified_dotted.starts_with("Spite.")
+    var member = name
+    var accessor = ""
+    if name.starts_with("get_") or name.starts_with("set_") {
+        var name_length = name.length()
+        member = name.slice(4, name_length)
+        accessor = name.slice(0, 4)
+    }
+    var meaning = reflection_member_meaning(member)
+    assert not meaning.is_empty()
+    var owner = snake_words(information.simple_name)
+    var suggestion = "{accessor}{owner}_{member}"
+    if accessor.is_empty() {
+        report(
+            "the {what} '{name}' has a name reflection gives every object: {meaning}, and one of its own would hide it. Name it something else, like '{suggestion}'",
+        )
+        return
+    }
+    report(
+        "the {what} '{name}' is read as '{member}', a name reflection gives every object: {meaning}, and one of its own would hide it. Name it something else, like '{suggestion}'",
+    )
+}
+
+func reflection_member_meaning(member: String): String {
+    if member == "class" {
+        return "'value.class' is its class"
+    }
+    if member == "attributes" {
+        return "'value.attributes' lists its attributes, and JsonReader, JsonWriter and every attribute walk read through it"
+    }
+    if member == "functions" {
+        return "'value.functions' lists its functions"
+    }
+    if member == "instances" {
+        return "'Monster.instances' lists every live instance of a class"
+    }
+    if member == "memory" {
+        return "'value.memory' says where the value lives"
+    }
+    return ""
+}
+
+func snake_words(pascal: String): String {
+    var words = ""
+    var index = 0
+    while index < pascal.length() {
+        var code = pascal.code_at(index)
+        var character = pascal.character_at(index)
+        if code >= 65 and code <= 90 and index > 0 {
+            words = "{words}_"
+        }
+        var lowered = character.lower_case()
+        words = words + lowered
+        index = index + 1
+    }
+    return words
 }
 
 func check_type_name(name: String, what: String) {
@@ -24255,9 +24316,9 @@ func emit_class_prototypes(information: Analysis.ClassInfo) {
         builder.add_prototype("void {information.drop_function.c_name}({information.c_name}* self);")
     }
     var function_index = 0
-    while function_index < information.functions.count() {
-        if not is_inline_supplied(information.functions[function_index]) {
-            builder.add_prototype("{function_signature(information, information.functions[function_index])};")
+    while function_index < information.declared_functions.count() {
+        if not is_inline_supplied(information.declared_functions[function_index]) {
+            builder.add_prototype("{function_signature(information, information.declared_functions[function_index])};")
         }
         function_index = function_index + 1
     }
@@ -24648,8 +24709,8 @@ func emit_class(information: Analysis.ClassInfo) {
     emit_class_support(information)
     assert not information.is_instantiated
     var function_index = 0
-    while function_index < information.functions.count() {
-        emit_user_function(information, information.functions[function_index])
+    while function_index < information.declared_functions.count() {
+        emit_user_function(information, information.declared_functions[function_index])
         function_index = function_index + 1
     }
 }
@@ -24664,16 +24725,16 @@ func emit_value_class(information: Analysis.ClassInfo) {
         return
     }
     var function_index = 0
-    while function_index < information.functions.count() {
-        var declared = information.functions[function_index]
+    while function_index < information.declared_functions.count() {
+        var declared = information.declared_functions[function_index]
         if not is_inline_supplied(declared) {
             builder.add_prototype("{function_signature(information, declared)};")
         }
         function_index = function_index + 1
     }
     function_index = 0
-    while function_index < information.functions.count() {
-        emit_user_function(information, information.functions[function_index])
+    while function_index < information.declared_functions.count() {
+        emit_user_function(information, information.declared_functions[function_index])
         function_index = function_index + 1
     }
     if information.c_name == "SpiteString" {
@@ -24955,8 +25016,8 @@ func changes_after_construction(information: Analysis.ClassInfo): Boolean {
     }
     var targets = List<String>()
     index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if not function.is_constructor {
             collect_assigned_roots(function.body, targets)
         }
@@ -25102,8 +25163,8 @@ func spread_touches(touching: Dictionary<Boolean>) {
 func changing_field_codes(information: Analysis.ClassInfo): List<String> {
     var assigned = List<String>()
     var index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if not function.is_constructor {
             collect_assigned_roots(function.body, assigned)
         }
@@ -25365,8 +25426,8 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
     }
     var targets = List<String>()
     index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if not function.is_constructor {
             collect_assigned_roots(function.body, targets)
         }
@@ -25386,8 +25447,8 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
         index = index + 1
     }
     index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if not function.is_constructor and function.name != "drop" {
             var visiting = List<String>()
             if function_state_uses(information, function, mutable, visiting) > 1 {
@@ -25817,8 +25878,8 @@ func is_read_only_class(information: Analysis.ClassInfo, visiting: List<String>)
     }
     var targets = List<String>()
     index = 0
-    while index < information.functions.count() {
-        var function = information.functions[index]
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
         if not function.is_constructor {
             collect_assigned_roots(function.body, targets)
         }
@@ -25864,8 +25925,8 @@ func finish_outside_writes() {
 
 func called_implicitly(information: Analysis.ClassInfo): Boolean {
     var index = 0
-    while index < information.functions.count() {
-        var name = information.functions[index].name
+    while index < information.declared_functions.count() {
+        var name = information.declared_functions[index].name
         var operator = name == "sum" or name == "subtract" or name == "multiply" or name == "divide" or name == "remainder"
         var compares = name == "equals" or name == "less_than" or name == "greater_than" or name == "negate"
         var indexes = name == "get_at" or name == "set_at" or name == "missing_function"
@@ -26310,8 +26371,8 @@ func program_source_paths(): List<String> {
         if is_hot_class(information) {
             append_new_path(paths, information.source_path)
             var function_index = 0
-            while function_index < information.functions.count() {
-                append_new_path(paths, information.functions[function_index].source_path)
+            while function_index < information.declared_functions.count() {
+                append_new_path(paths, information.declared_functions[function_index].source_path)
                 function_index = function_index + 1
             }
         }
@@ -26334,8 +26395,8 @@ func classes_of_paths(paths: List<String>): List<String> {
         var class_paths = List<String>()
         append_new_path(class_paths, information.source_path)
         var function_index = 0
-        while function_index < information.functions.count() {
-            append_new_path(class_paths, information.functions[function_index].source_path)
+        while function_index < information.declared_functions.count() {
+            append_new_path(class_paths, information.declared_functions[function_index].source_path)
             function_index = function_index + 1
         }
         var path_index = 0

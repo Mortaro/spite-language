@@ -1,0 +1,8 @@
+var console = Console()
+
+func ReflectionNames() {
+    var table = Table()
+    var writer = JsonWriter(table)
+    var text = writer.write()
+    console.print(text)
+}
