@@ -1,0 +1,1 @@
+This program is meant to fault: a stack overflow from endless recursion is reported with the function that overflowed (D244)

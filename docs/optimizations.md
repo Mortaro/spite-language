@@ -55,6 +55,7 @@ nothing at run time because they emit nothing.
 | [The thread pool only where a `Parallel` is made](#the-thread-pool-only-where-a-parallel-is-made) | built | every, decided per program | nothing until the first `Parallel` |
 | [Singletons a `Parallel` reaches take a lock](#singletons-a-parallel-reaches-take-a-lock) | built (the fallback) | every but `--hot-reload`, decided per program | an uncontended lock per call, only with `Parallel` |
 | [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | built: nothing, atomics, one-thread; planned: the rest | every but `--hot-reload`, decided per program | no lock where one is not needed |
+| [The fault handler is in every program](#the-fault-handler-is-in-every-program) | built (a cost, not an optimisation) | every | about 3.7 KB of code and 32 bytes and a name per function; one store per foreign call |
 | [Smaller ones](#smaller-ones) | built | every | nothing |
 | [Proofs that survive a call](#proofs-that-survive-a-call) | built | every | a proof after a call that may change it is written again |
 | [Text joined in one piece](#text-joined-in-one-piece) | built | every | fewer allocations; a text made only of constants is constant |
@@ -836,6 +837,39 @@ program where a `Parallel` reaches it, `registry.last` read from another class t
 counter's attribute is read with one atomic load, and a singleton that never changes is read plainly. `counter.hits
 = counter.hits + 1` from outside is still a read and a write, two steps. **Built** (2026-09-25; proposed by
 Claude, unconfirmed: which forms, their order, and the one-touch rule; the reads 2026-09-26).
+
+### The fault handler is in every program
+
+**What it is.** The one piece of C nothing tree-shakes: a program can meet a native fault -- a null read inside a
+foreign library, a stack overflow -- whatever it uses, and [D244](decisions.md) makes a silent end a bug, so every
+program installs a handler that reports it ([failure.md](failure.md#what-a-native-fault-reports)). It is fixed
+code, not a runtime system ([D177](decisions.md)): nothing runs until a fault, and it is written once, after every
+other function, from what tree shaking kept.
+
+**What it costs**, measured on x64 Windows with the C compiler `check.sh` uses:
+
+- **Code**: about 3.7 KB of machine code (3 707 bytes at `-O0`, 3 678 at `-O2`), 0.4 KB of fixed text, and its unwind
+  data. Installing it is two system calls at start, and one more in each thread the program starts.
+- **The function table**: 32 bytes per function the C keeps, plus its name; the file and class text is shared by a
+  class's functions. `examples/hello` keeps 73 functions, about 4 KB; the compiler keeps about 3 360, about 210 KB of
+  its 4.3 MB. In an `--optimized` build, taking every function's address keeps an out-of-line copy of a small
+  `static` function the C compiler would otherwise have inlined everywhere and dropped: 1.7 KB more code in
+  `examples/hello`; calls to it stay inlined.
+- **One store per foreign call**: each call writes a pointer to a fixed text, naming what it calls and from where,
+  into a thread-local before it goes in, in every build. A loop of 300 000 000 calls into a one-line C function
+  measured 1.33 ns a call with the store and 1.33 ns without (thread-local or not; best of seven runs each), so it
+  is not kept to inspectable builds ([D214](decisions.md)).
+- **Frame pointers**, which the stack walk needs on Linux and macOS, are kept only where they are free or asked
+  for: a build without `--optimized` has them anyway, and an inspectable build is compiled with
+  `-fno-omit-frame-pointer` there. The compiler compiling itself at `-O2` took 1 847-1 879 ms without them and
+  1 856-1 918 ms with them (about 1% slower, four runs each, alternating), so an `--optimized` production build does
+  not keep them and its report names the faulting function without the chain. Windows walks the stack from the
+  unwind data every 64-bit program carries, in every build, at no cost.
+- **Stack**: 16 KB of each thread's stack on Windows, and a 64 KB alternate signal stack per thread on Linux and
+  macOS, are kept back so a stack overflow can still be reported.
+
+**When.** Every build. **What you notice.** A fault prints a report instead of nothing, and the program is a few
+kilobytes larger. **Built.**
 
 ### Smaller ones
 

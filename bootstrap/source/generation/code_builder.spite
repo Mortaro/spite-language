@@ -18,6 +18,10 @@ var threads = false
 var hot_reload = false
 var debug_memory = false
 var host = HotReloadLibrary()
+var faults = NativeFaults()
+var function_owners = Dictionary<String>()
+var function_names = Dictionary<String>()
+var function_lines = Dictionary<Integer>()
 var mentioned_names = Dictionary<Boolean>()
 var scanned_typedefs = 0
 var scanned_support = 0
@@ -153,6 +157,12 @@ func take_user_from(start: Integer): List<String> {
     return taken
 }
 
+func name_function(c_name: String, owner: String, name: String, line: Integer) {
+    function_owners[c_name] = owner
+    function_names[c_name] = name
+    function_lines[c_name] = line
+}
+
 func add_main(line: String) {
     main_lines.append(line)
 }
@@ -245,6 +255,7 @@ func include_maths_library(macro_name: String) {
 func render(): String {
     var main_text = List<String>()
     main_text.append("int main(int argument_count, char** argument_values) \{")
+    main_text.append("spite_fault_install();")
     main_text.append(
         "spite_program_arguments = (SpiteArguments)\{ .count = argument_count - 1, .items = (const char**)(argument_values + 1) };",
     )
@@ -294,7 +305,17 @@ func render(): String {
         var symbol_table = host.symbol_table()
         bodies = "{bodies}\n{symbol_table}"
     }
-    return "{defines}{typedef_text}\n{prototype_lines}\n{slot_text}{bodies}\n{main_function}\n"
+    var fault_text = native_fault_text(typedef_text, bodies)
+    return "{defines}{typedef_text}\n{prototype_lines}\n{slot_text}{bodies}\n{fault_text}\n{main_function}\n"
+}
+
+func native_fault_text(typedef_text: String, bodies: String): String {
+    var table = faults.places_table("{typedef_text}\n{bodies}", function_owners, function_names, function_lines)
+    var records_foreign = typedef_text.contains("spite_last_foreign_call = 0;")
+    var traces_asserts = typedef_text.contains("spite_assert_total = 0;")
+    var fault_defines = faults.defines(records_foreign, traces_asserts)
+    var handler = faults.handler()
+    return "{table}\n{fault_defines}\n{handler}"
 }
 
 func reached_functions(names: List<String>): List<Boolean> {

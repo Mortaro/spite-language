@@ -88,7 +88,9 @@ for folder in conformance/*/*/ examples/*/; do   # the examples are held to the 
   allocations=${balance% *}; frees=${balance#* }
   if [ -f "$folder/crashes.txt" ]; then
     # a program that is meant to crash: its whole output (stdout and the crash line) must match, and there is no
-    # balance line because a crash halts before the program would have released anything
+    # balance line because a crash halts before the program would have released anything. A native fault names where
+    # it stopped as module+offset (D244), and the offset is the C compiler's, so it is compared without it.
+    actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g')
     if [ "$actual" == "$expected" ]; then passed=$((passed+1)); else failed=$((failed+1)); echo "FAILED: $name"; echo "$actual" | head -8; fi
     continue
   fi
@@ -153,6 +155,14 @@ if [ "$(ls .spite-cache/objects | grep -c '\.o$')" != "$objects_before" ]; then
   echo "FAILED: building parallel_stages again compiled a unit whose object was cached"; exit 1
 fi
 echo "translation units: a program built from four units runs the same, and building it again only links"
+# The fault handler and its function table are written after every function (D255), and must still report when the
+# C is split into units and linked with link-time optimisation: an --optimized native_fault_foreign from four units.
+faulted=$("$work/generation_two.exe" conformance/stage6/native_fault_foreign --optimized --translation-units=4 --executable-path="$work/native_fault_units.exe" < /dev/null 2>&1 | tr -d '\r')
+if ! echo "$faulted" | grep -qE "^spite.fault	[a-z]+-violation	-	-	-	address=0x0	.*	at=fixture.dll\+0x[0-9a-f]+	foreign=read_integer_at	library=conformance/stage6/native_fault_foreign/fixture.dll	from=conformance/stage6/native_fault_foreign/native_fault_foreign.spite:13$" \
+   || ! echo "$faulted" | grep -q "^spite.frame	" || ! echo "$faulted" | grep -q "^before the fault 5$"; then
+  echo "FAILED: native_fault_foreign built --optimized from four translation units"; echo "$faulted" | head -8; exit 1
+fi
+echo "native faults: an --optimized program built from four units reports its fault, its last foreign call and its frames"
 # A class or namespace object is made once, on whichever thread asks first: threaded_class_objects has eight pool
 # threads ask for the same class objects at once, and a race shows up as a leak or a double free, so the build the
 # corpus made is run a few more times.

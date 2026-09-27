@@ -331,6 +331,15 @@ their functions replace or add members by the ordinary reopening rule ([packages
 Only the Windows folder runs today; `check.sh` holds the Linux and macOS folders to compiling, by writing the
 compiler out once for each.
 
+## When a foreign call faults
+
+C can do what Spite cannot: read through a null pointer, write past an array, run out of stack. When it does, the
+program still says so ([D244](decisions.md)): it prints a `spite.fault` line naming the library the fault is in
+(`at=fixture.dll+0x1029`), the last foreign function the thread called and the line of Spite that called it
+(`foreign=read_integer_at	library=...	from=native_fault_foreign.spite:13`), and then the Spite functions on the
+stack. Each foreign call names itself before it goes in, which costs one store; how to read the whole report is in
+[failure.md](failure.md#what-a-native-fault-reports).
+
 ## What the compiler supplies
 
 The members whose bodies stay C -- opening a library, finding a symbol, `Memory.Heap`'s allocation -- are
@@ -600,6 +609,10 @@ or a pointer, `_as_double` for a `double`, `_as_text` for a `const char*` copied
   per call.
 - A missing library or a missing symbol aborts at construction, naming the file, the symbol and the Spite function
   that wanted it. This is a program-stopping error and is not reported any other way.
+- Each call first stores, in a thread-local, a pointer to a fixed text naming the C function, the library file and
+  the calling line, in every build; a native fault's report prints it as `foreign=`, `library=` and `from=`
+  ([failure.md](failure.md#what-a-native-fault-reports-1), D244; proposed by Claude, unconfirmed). One store per
+  call measured as nothing against the call itself ([optimizations.md](optimizations.md#the-fault-handler-is-in-every-program)).
 - `drop()` closes the library at exit, when singletons are destroyed in reverse creation order (D142: a singleton
   is not reference counted).
 - D4's design had `--final-classes` print each binding with its resolved name and library as a `#` comment; as

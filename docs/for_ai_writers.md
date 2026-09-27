@@ -355,6 +355,13 @@ func is_alive(): Boolean {
     a key never set, not as a zero.
 - Narrowing tests presence, never the value: `crash keys[index]` passes on an element holding `0.0`, and `if count`
   runs on an `Integer?` holding `0`.
+- A native fault -- a null read or an illegal instruction inside a foreign library, a stack overflow -- is never
+  silent either: the program prints `spite.fault<TAB>kind<TAB>path:line<TAB>Class<TAB>function<TAB>...`, then
+  `spite.frame` lines, innermost Spite function first, and ends. `-	-	-` in the place means the fault is outside
+  Spite: `at=` names the library and offset, `foreign=` the last C function this thread called, and `from=` the
+  Spite line that called it -- start there. `stack-overflow` with `repeated=` on a frame is a recursion that never
+  stops. The line in `path:line` is where the function starts, not the faulting line
+  ([failure.md](failure.md#what-a-native-fault-reports)).
 - A test is a function named `test_...` that takes nothing and crashes when wrong, in a class of its own (the entry
   class's functions are not found). `tests/tests.spite` finds them all by itself ([testing.md](testing.md)).
 

@@ -647,6 +647,45 @@ match, a read past the end), and those would push the program's own entries out 
 the record out of a library `assert` altogether, so it costs what an `if` costs. A crash inside the library still
 reports its own site ([D189](decisions.md)).
 
+### What a native fault reports
+
+Some failures happen below Spite: a foreign library reads through a null pointer, a recursion runs out of stack, a
+driver runs an instruction the processor refuses. The program cannot survive them, but it never ends silently
+([D244](decisions.md)): every program installs a fault handler before its first line runs, and a fault writes a
+`spite.fault` line to the error stream, then the failed asserts as a crash does, then the Spite functions on the
+stack, and ends the program:
+
+```
+spite.fault	read-violation	-	-	-	address=0x0	code=0xc0000005	at=fixture.dll+0x1029	foreign=read_integer_at	library=conformance/stage6/native_fault_foreign/fixture.dll	from=conformance/stage6/native_fault_foreign/native_fault_foreign.spite:13
+spite.frame	conformance/stage6/native_fault_foreign/native_fault_foreign.spite:11	NativeFaultForeign	read_nothing
+spite.frame	conformance/stage6/native_fault_foreign/native_fault_foreign.spite:4	NativeFaultForeign	NativeFaultForeign
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
+```
+
+Read it left to right:
+
+- **What happened**: `read-violation`, `write-violation` or `execute-violation` (on Linux and macOS,
+  `access-violation`), `stack-overflow`, `illegal-instruction`, `integer-division-by-zero`, `misaligned-access`,
+  `bus-error`, `breakpoint`, `floating-point-exception`, or `exception` for any other code the system raises.
+- **Where**, as `path:line`, class and function: the Spite function the faulting instruction is in, with the line
+  that function starts on -- a fault has no Spite line of its own. `-	-	-` means it is in no Spite function:
+  inside a foreign library or the C library, and the first `spite.frame` is the Spite function that called in.
+- `address=`: the address that could not be read or written. `code=` (Windows) is the exception code, `signal=`
+  (Linux, macOS) the signal number.
+- `at=`: the file the faulting instruction is in -- the program itself or a foreign library -- and its offset from
+  the start of that file, which `llvm-objdump -d` or a debugger turns into the instruction.
+- `foreign=`: the last foreign function this thread called, the `library=` it is in, and `from=` the line of Spite
+  that called it. It stays set after the call returns, so when `at=` names a library it is the call that went in,
+  and when it does not it is the last C that touched the program's data -- the fact most worth having when a Vulkan
+  or Win32 call goes wrong.
+- Each `spite.frame` is a Spite function on the stack, innermost first; `repeated=` counts the same function called
+  from itself, and `spite.frame	more` says the stack goes deeper than the 256 frames walked or the 16 lines written.
+
+The program then ends with the status the system gives that fault, exactly as it would have without the report:
+on Windows the exception code (`0xC0000005` for an access violation), on Linux and macOS death by the signal, so
+a core dump is still written where the system keeps them. What the program printed is flushed after the report.
+
 ## What it costs at run time
 
 - **Narrowing costs nothing.** Every proof -- `assert`, `crash`, `if`, `while`, a proven `[]` read, following a
@@ -661,6 +700,11 @@ reports its own site ([D189](decisions.md)).
   executable, which nothing reads at run time.
 - As built, the ring and the function that prints it are in every program, since the standard library has
   `crash` sites of its own; they are 32 pointers, a counter and one function.
+- **The fault handler is in every program and costs nothing until a fault.** It is about 3.7 KB of machine code, and
+  a table of every function the program kept -- its start address and name, 32 bytes and the name each (73
+  functions, about 4 KB, in `examples/hello`). Installing it is two system calls when the program starts, and one
+  more when a thread starts. Each foreign call stores one pointer before it goes in, which measured as nothing
+  ([optimizations.md](optimizations.md#the-fault-handler-is-in-every-program)).
 
 ## Rules in full
 
@@ -1036,3 +1080,57 @@ is safe because an index with a call in it is not a path. The value report of D2
 that is not a narrowing (`conformance/stage6/crash_missing_item`, `crash_missing_key`, `crash_missing_link`,
 `crash_missing_value`). Cost: only on the failure path, which already halts; a passing `crash` is the same
 presence test it always was.
+time.
+
+#### What a native fault reports
+
+D244 (decided by Mortaro): anything that can go wrong silently is a bug, and a native fault -- an access violation
+or `SIGSEGV`, a stack overflow, an illegal instruction, `SIGBUS`, `SIGFPE` -- used to end a program with nothing
+printed. The design below is Claude's (proposed by Claude, unconfirmed; the field names provisional under D214).
+
+- **Every program installs a fault handler**, in every build, as the first line of `main`: on Windows
+  `SetUnhandledExceptionFilter` and `SetThreadStackGuarantee` (16 KB kept back, so a stack overflow can still be
+  reported on the thread that overflowed); on Linux and macOS `sigaction` for `SIGSEGV`, `SIGBUS`, `SIGILL`,
+  `SIGFPE` and `SIGTRAP`, run on an alternate signal stack of 64 KB per thread. Every thread the program starts --
+  a pool runner, a waiting call's thread, the REPL's and the file watcher's -- sets up its own room the same way.
+  An unhandled exception only: a fault a foreign library catches itself never reaches it.
+- **The handler allocates nothing and calls nothing that could**: it builds each line in a buffer on its stack and
+  writes it with `WriteFile` or `write`. It writes the `spite.fault` line first, from what is safe to read (the
+  fault record, the faulting address, the function table, the thread's last foreign call), then the assert trace,
+  then walks the stack, so a stack too damaged to walk still leaves the first line. A second fault on the same
+  thread while reporting ends the program at once; a fault on another thread waits for the first report.
+- `spite.fault<TAB>kind<TAB>path:line<TAB>Class<TAB>function<TAB>address=...<TAB>code=...<TAB>at=file+offset<TAB>foreign=...<TAB>library=...<TAB>from=path:line`,
+  with `address=` only for a memory fault and `foreign=` only once the thread has called a foreign function; then
+  one `spite.assert` line per failed assert still in the ring, exactly as a crash prints them, when the program keeps
+  the ring; then `spite.frame<TAB>path:line<TAB>Class<TAB>function` per Spite function on the stack, innermost
+  first, consecutive calls of one function as one line with `repeated=<count>`, at most 16 lines from at most 256
+  frames, and `spite.frame<TAB>more` when there were more. Then stdout is flushed and the program ends with the
+  system's own status for the fault: `TerminateProcess` with the exception code on Windows, and on Linux and macOS
+  the default action of the signal, raised again (a core dump where enabled).
+- **Which function** comes from a table the compiler writes after every other function: each function the C
+  keeps after tree shaking, with its start address, the file and class, the Spite name and the line it starts on
+  (`-` and the C name for the C the compiler writes itself, such as a class's `___release`). On 64-bit Windows the
+  system's unwind data gives the exact start of the function an address is in, which the table then names, and the
+  same data walks the stack in every build, `--optimized` included, with no frame pointers. On Linux and macOS the
+  function is the one whose start is the nearest below the address, inside the program's own file, and the stack is
+  walked by frame pointers: a build without `--optimized` always keeps them, and an inspectable build
+  (`--development`, `--hot-reload`, `--repl`, `--repl-port`) is compiled with `-fno-omit-frame-pointer` there, so
+  only an `--optimized` production build on Linux or macOS names the faulting function alone. Keeping them in
+  production too was measured and not taken (the numbers are in
+  [optimizations.md](optimizations.md#the-fault-handler-is-in-every-program)).
+- In an `--optimized` build a function the C compiler inlined into its caller is reported as the caller. A
+  function `--hot-reload` swapped in lives in the reload's library, so a fault in it names that library in `at=`
+  and no Spite function.
+- **The last foreign call**: each foreign call first stores a pointer to a fixed text naming the C function, its
+  library and the calling line in a thread-local, in every build (D214: one store per call measured as nothing
+  against the call itself, so it is not kept to inspectable builds). A library reopened by `--hot-reload` records
+  into its own copy, which the host's report does not see.
+- **Not reported**: what the system ends without asking the program -- Windows' fast fail on a corrupted heap or a
+  `__fastfail` -- and anything while a debugger is attached, which sees the fault first. A fault on a thread a
+  foreign library started is reported, but without room kept for a stack overflow and without a last foreign call.
+
+**Implemented** on Windows, and compiled (not run) for Linux and macOS: `conformance/stage6/native_fault_foreign`
+(a null read inside a fixture library), `native_fault_stack` (endless recursion) and `native_fault_illegal` (an
+illegal instruction inside a fixture library). `check.sh` compares their reports with the offset after `+0x`
+left out, since it is the C compiler's, and also builds `native_fault_foreign` `--optimized` from four translation
+units, where the handler and the table land in the first unit and the functions it names are spread over all four.
