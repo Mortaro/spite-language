@@ -16,6 +16,7 @@ var last_hot_state = ""
 var language_folder = "."
 var reloading = false
 var flag_error = ""
+var maximum_passes = 8
 
 func Bootstrap() {
     load "source"
@@ -187,7 +188,7 @@ func formatted_program_files(discovery: Discovery.DiscoveryResult): Formatting {
     var outcome = 'unchanged'
     var index = 0
     while index < discovery.program_paths.count() {
-        var file_outcome = formatted_program_file(discovery.program_paths[index])
+        var file_outcome = formatted_program_file(discovery, discovery.program_paths[index])
         if file_outcome == 'refused' or outcome == 'unchanged' {
             outcome = file_outcome
         }
@@ -196,8 +197,11 @@ func formatted_program_files(discovery: Discovery.DiscoveryResult): Formatting {
     return outcome
 }
 
-func formatted_program_file(path: String): Formatting {
-    var content = File(path).read()
+func formatted_program_file(discovery: Discovery.DiscoveryResult, path: String): Formatting {
+    var content = discovery.program_texts[path]
+    if not content {
+        content = File(path).read()
+    }
     if not content {
         console.error("error: could not read '{path}'")
         return 'refused'
@@ -304,12 +308,12 @@ func generated(discovery: Discovery.DiscoveryResult): Generation.Generator? {
 
 func keyed_generator(discovery: Discovery.DiscoveryResult, host_classes: List<String>): Generation.Generator {
     var number_keys = Dictionary<Analysis.SpiteType>()
-    var generator = generator_pass(discovery, host_classes, number_keys)
+    var generator = generator_pass(discovery, host_classes, number_keys, 1)
     var passes = 1
-    while generator.key_sites_changed and passes < 8 {
+    while generator.key_sites_changed and passes < maximum_passes {
         number_keys = generator.learned_key_sites
-        generator = generator_pass(discovery, host_classes, number_keys)
         passes = passes + 1
+        generator = generator_pass(discovery, host_classes, number_keys, passes)
     }
     return generator
 }
@@ -318,9 +322,11 @@ func generator_pass(
     discovery: Discovery.DiscoveryResult,
     host_classes: List<String>,
     number_keys: Dictionary<Analysis.SpiteType>,
+    pass: Integer,
 ): Generation.Generator {
     var generator = Generation.Generator()
     configure(generator)
+    generator.another_pass_follows_a_change = pass < maximum_passes
     generator.seed_class_names(host_classes)
     generator.number_key_sites = number_keys
     var prelude = Generation.Prelude()

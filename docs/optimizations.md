@@ -845,6 +845,10 @@ All **built**, and none of them needs anything from you:
   only to be printed by a crash, so each `assert` of such a program compiles to its test and its `return`, and
   the trace's 32 entries are not in the program ([D177](decisions.md)). A program that can crash records
   exactly as before.
+- An attribute written through a local or a parameter, `item.index = 293`, is written through that local,
+  `(item_)->index_ = 293;`, with no temporary holding the reference first: a local cannot change while the value
+  is worked out. An object that is any other expression is still evaluated once into a temporary. Nothing a
+  program can observe changes; the C is shorter, by about one line in twenty for a folder of data records.
 - A foreign library is closed at exit only if the function that opens it is in the program, so a library nothing
   opens leaves neither its handle nor the code to close it in the program ([D177](decisions.md)). `Console` still
   opens the C library when it is made, since D144 binds its `DynamicLibrary` as an attribute: a program that only

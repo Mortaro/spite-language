@@ -14,6 +14,7 @@ var entry_qualified = ""
 var entry_file_path = ""
 var loaded_folders = List<String>()
 var program_paths = List<String>()
+var program_texts = Dictionary<String>()
 var pending_files = List<Syntax.SourceFile>()
 var following_loads = false
 var walking_program = false
@@ -57,6 +58,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     discovered.launcher_mangled_name = "Launcher"
     discovered.loaded_folders = loaded_folders
     discovered.program_paths = program_paths
+    discovered.program_texts = program_texts
     return discovered
 }
 
@@ -249,6 +251,7 @@ func mark_program_load() {
 
 func discover_program(entry_path: String, entry_source: String) {
     program_paths.append(entry_path)
+    program_texts[entry_path] = entry_source
     var lexer = Syntax.Lexer(entry_source)
     if lexer.has_error {
         has_error = true
@@ -766,6 +769,9 @@ func read_and_add_file(path: String, segments: List<String>) {
     var content = program_file.read()
     if not walking_library {
         program_paths.append(path)
+        if content {
+            program_texts[path] = content
+        }
     }
     if content {
         var lexer = Syntax.Lexer(content)
