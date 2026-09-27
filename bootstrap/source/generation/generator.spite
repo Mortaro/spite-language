@@ -186,7 +186,12 @@ var borrow_index = 0
 var borrowed_names = List<String>()
 var items_sources = Dictionary<String>()
 var borrow_site = ""
-var lending_rows = false
+var lent_argument_positions = List<String>()
+var lent_argument_sources = List<String>()
+var lent_callers = Dictionary<String>()
+var lent_parameter_names = List<String>()
+var lent_parameter_caller = ""
+var argument_expected_type: Analysis.SpiteType? = null
 var walked_row_filled = false
 var walked_row_mixing = false
 var writing_lent_arguments = false
@@ -7076,19 +7081,17 @@ func coerce_for_store(
     borrow_site = ""
     var saved_counter = temporary_counter
     var result = generate_expression(expression_ast, scope, class_information)
-    if lending_rows and site.starts_with("argument:") and is_row_name(expression_ast, scope) {
-        var row_type = result.get_type()
-        return cast(result.code, row_type, expected_type)
-    }
-    if lending_rows and writing_lent_arguments and site.starts_with("argument:") and is_lent_item_name(expression_ast, scope) {
-        var item_type = result.get_type()
-        return cast(result.code, item_type, expected_type)
+    if site.starts_with("lent:") {
+        var lent_type = result.get_type()
+        return cast(result.code, lent_type, expected_type)
     }
     if site == "return" and not result.borrowed_from.is_empty() and lends_this_return(expression_ast, class_information) {
         var lent_type = result.get_type()
         return cast(result.code, lent_type, expected_type)
     }
+    argument_expected_type = expected_type
     report_kept_borrow(expression_ast, result, site, scope, class_information)
+    argument_expected_type = null
     var result_type = result.get_type()
     if joins_into(result_type, expected_type) {
         rewind_temporaries(saved_counter)
@@ -8740,6 +8743,10 @@ func generate_argument_list(
     var lender_function = argument_lender_function
     argument_lender_class = null
     argument_lender_function = null
+    var lent_positions = lent_argument_positions
+    var lent_sources = lent_argument_sources
+    lent_argument_positions = List<String>()
+    lent_argument_sources = List<String>()
     var variadic = variadic_list(expected_types)
     if variadic {
         return generate_spread_arguments(arguments_ast, expected_types, variadic, scope, class_information)
@@ -8752,16 +8759,26 @@ func generate_argument_list(
     var index = 0
     while index < arguments_ast.count() {
         borrow_site = ""
-        var framed_code = argument_in_frame(
-            arguments_ast[index],
-            expected_types[index],
-            lender_class,
-            lender_function,
-            index,
-            scope,
-            class_information,
-        )
-        if framed_code.is_empty() {
+        var lent_at = position_in(lent_positions, index)
+        var framed_code = ""
+        if lent_at < 0 {
+            framed_code = argument_in_frame(
+                arguments_ast[index],
+                expected_types[index],
+                lender_class,
+                lender_function,
+                index,
+                scope,
+                class_information,
+            )
+        }
+        if lent_at >= 0 {
+            crash lent_sources[lent_at]
+            report_lent_call_resize(arguments_ast[index], lent_sources[lent_at], callee, scope, class_information)
+            borrow_site = "lent:{callee}"
+            var lent_code = coerce_for_store(arguments_ast[index], expected_types[index], scope, class_information)
+            result.append(lent_code)
+        } else if framed_code.is_empty() {
             borrow_site = "argument:{callee}"
             var stored_code = coerce_for_store(arguments_ast[index], expected_types[index], scope, class_information)
             result.append(stored_code)
@@ -8772,6 +8789,17 @@ func generate_argument_list(
     }
     borrow_site = ""
     return result
+}
+
+func position_in(positions: List<String>, index: Integer): Integer {
+    var found = 0
+    while found < positions.count() {
+        if positions[found] == index.to_string() {
+            return found
+        }
+        found = found + 1
+    }
+    return -1
 }
 
 func objects_in_frame_allowed(class_information: Analysis.ClassInfo): Boolean {
@@ -10079,13 +10107,12 @@ func generate_own_function_call(
     crash function
     var into_slot = claimed_slot(function.c_name)
     var parameter_types = parameter_types_of(function.parameters)
-    var saved_lending = lending_rows
-    var called_c_name = lent_variant_name(function.c_name, arguments_ast, parameter_types, scope)
-    lending_rows = called_c_name != function.c_name
+    var called_c_name = lent_variant_name(function.c_name, arguments_ast, parameter_types, scope, class_information)
     argument_lender_class = class_information
     argument_lender_function = function
+    argument_callee = function.c_name
     var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
-    lending_rows = saved_lending
+    argument_callee = ""
     var full_arguments = argument_codes.copy()
     full_arguments.prepend("self")
     if not into_slot.is_empty() and called_c_name == function.c_name {
@@ -10261,15 +10288,12 @@ func generate_generic_call(
     var into_slot = claimed_slot(function_c_name)
     var into_owner = into_claim_owner
     var into_function = into_claim_function
-    var saved_lending = lending_rows
-    var called_c_name = lent_variant_name(function_c_name, arguments_ast, expected_types, scope)
-    lending_rows = called_c_name != function_c_name
+    var called_c_name = lent_variant_name(function_c_name, arguments_ast, expected_types, scope, class_information)
     argument_callee = function_c_name
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
     argument_callee = ""
     argument_lender_class = null
     argument_lender_function = null
-    lending_rows = saved_lending
     if not into_slot.is_empty() and called_c_name == function_c_name {
         var into_name = into_callee(into_owner, into_function, function_c_name)
         into_claimed_slot = into_slot
@@ -10378,11 +10402,37 @@ func ensure_frame_helpers(information: Analysis.ClassInfo) {
     )
 }
 
-func is_lent_item_name(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
+func lendable_item_source(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    assert not in_vector_library(class_information)
     var identifier = shape.as_identifier(expression)
-    assert identifier
-    assert scope.row_source(identifier.name).is_empty()
-    return not scope.borrow_source(identifier.name).is_empty()
+    if identifier {
+        return scope.borrow_source(identifier.name)
+    }
+    var indexed = shape.as_index(expression)
+    if indexed {
+        crash indexed.object
+        assert may_lend(expression, scope, class_information)
+        var indexed_source = operand_text(indexed.object)
+        if indexed_source.is_empty() {
+            indexed_source = Syntax.SourcePrinter().source_expression(indexed.object)
+        }
+        return indexed_source
+    }
+    var member = shape.as_member(expression)
+    if member {
+        crash member.object
+        var row = shape.as_identifier(member.object)
+        if row {
+            if not scope.row_source(row.name).is_empty() and may_lend(expression, scope, class_information) {
+                return row.name
+            }
+        }
+    }
+    return ""
 }
 
 func is_row_name(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
@@ -10396,8 +10446,12 @@ func lent_variant_name(
     arguments_ast: List<Syntax.Expressions.Expression>,
     expected_types: List<Analysis.SpiteType>,
     scope: Scope,
+    class_information: Analysis.ClassInfo,
 ): String {
+    lent_argument_positions = List<String>()
+    lent_argument_sources = List<String>()
     var positions = List<String>()
+    var item_sources = List<String>()
     var sources = ""
     var index = 0
     while index < arguments_ast.count() {
@@ -10409,23 +10463,24 @@ func lent_variant_name(
                 return function_c_name
             }
             positions.append(index)
+            item_sources.append("")
             var row_identifier = shape.as_identifier(arguments_ast[index])
             crash row_identifier
             if sources.is_empty() {
                 sources = scope.row_source(row_identifier.name)
             }
-        } else if writing_lent_arguments and is_lent_item_name(arguments_ast[index], scope) {
-            if index >= expected_types.count() or variadic_list(expected_types) {
-                return function_c_name
+        } else {
+            var item_source = lendable_item_source(arguments_ast[index], scope, class_information)
+            var fits = index < expected_types.count() and not variadic_list(expected_types)
+            if fits {
+                fits = not type_shape.as_union(expected_types[index])
             }
-            if type_shape.as_union(expected_types[index]) {
-                return function_c_name
-            }
-            positions.append(index)
-            var item_identifier = shape.as_identifier(arguments_ast[index])
-            crash item_identifier
-            if sources.is_empty() {
-                sources = scope.borrow_source(item_identifier.name)
+            if not item_source.is_empty() and fits {
+                positions.append(index)
+                item_sources.append(item_source)
+                if sources.is_empty() {
+                    sources = item_source
+                }
             }
         }
         index = index + 1
@@ -10441,6 +10496,8 @@ func lent_variant_name(
     if owner.source_path.starts_with("library/") {
         return function_c_name
     }
+    lent_argument_positions = positions
+    lent_argument_sources = item_sources
     var variant_c_name = "{function_c_name}___lent_{positions.join("_")}"
     var function_index = 0
     while function_index < owner.declared_functions.count() {
@@ -10450,6 +10507,7 @@ func lent_variant_name(
         }
         function_index = function_index + 1
     }
+    lent_callers.set(variant_c_name, "the call on line {current_line} of '{current_function}'")
     var original = function_by_c_name(owner, function_c_name)
     crash original
     var original_return_type = original.get_return_type()
@@ -18894,6 +18952,50 @@ func syntax_type_for(spite_type: Analysis.SpiteType): Syntax.Types.Type? {
     return named_union_type
 }
 
+func report_lent_call_resize(
+    argument: Syntax.Expressions.Expression,
+    source: String,
+    callee: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert not writing_lent_arguments and not source.is_empty() and borrow_index < borrow_statements.count()
+    assert not lent_parameter_names.contains(source)
+    var argument_root = operand_text(argument)
+    assert not lent_parameter_names.contains(argument_root)
+    var paths = List<String>()
+    if scope.row_source(source).is_empty() {
+        paths.append(source)
+    } else {
+        paths = scope.paths_of_row(source)
+    }
+    var statement = borrow_statements[borrow_index]
+    var text = Syntax.SourcePrinter().source_expression(argument)
+    var index = 0
+    while index < paths.count() {
+        var path = paths[index]
+        var resize = resize_in_statement(statement, path, scope, class_information)
+        if not resize.is_empty() {
+            report(
+                "{items_choice(path)}'{text}' is borrowed from '{path}' and lent to '{called_display_name(callee)}' for its call, and {resize} may move the items of '{path}': a function lent a borrowed item may not append to or remove from the collection it is borrowed from, directly or through what it calls -- change the size of '{path}' before or after the call (D257)",
+            )
+            return
+        }
+        index = index + 1
+    }
+}
+
+func called_display_name(callee: String): String {
+    var owner = class_of_function_c_name(callee)
+    if owner {
+        var function = function_by_c_name(owner, callee)
+        if function {
+            return function.name
+        }
+    }
+    return callee
+}
+
 func report_lent_argument_resize(name: String, source: String, scope: Scope, class_information: Analysis.ClassInfo) {
     var statements = borrow_statements
     var call_statement = statements.last()
@@ -19497,6 +19599,10 @@ func report_kept_borrow(
         report_kept_row(text, source, site)
         return
     }
+    if result.borrowed_from.is_empty() and lent_parameter_names.contains(text) {
+        report_kept_lent(text, site)
+        return
+    }
     var copied = "'{text}.copy()', an independent object"
     var reason = items_choice(source)
     if site == "return" {
@@ -19528,12 +19634,80 @@ func report_kept_borrow(
         return
     }
     if site.starts_with("argument:") {
+        var callee = site.slice(9, site_length)
         report(
-            "{reason}'{text}' is borrowed from '{source}' and cannot be passed as an argument: pass {copied}, or the attributes the function needs",
+            "{reason}'{text}' is borrowed from '{source}', and {unlent_argument_reason(text, callee, expression_ast)}",
         )
         return
     }
     report("{reason}'{text}' is borrowed from '{source}' and cannot be kept past the line that reads it: keep {copied}")
+}
+
+func unlent_argument_reason(text: String, callee: String, expression: Syntax.Expressions.Expression): String {
+    var name = called_display_name(callee)
+    if name.is_empty() {
+        name = "the function"
+    } else {
+        name = "'{name}'"
+    }
+    var owner = class_of_function_c_name(callee)
+    if owner {
+        if owner.source_path.starts_with("library/") {
+            return "{name} is a library function, which is never lent an item: pass the attributes it needs, or '{text}.copy()' where a snapshot is what it wants"
+        }
+    }
+    if argument_expected_type {
+        if type_shape.as_union(argument_expected_type) {
+            return "{name} takes it as a union, which holds its own values and is never lent an item: pass the attributes it needs, or give {name} a parameter of the item's own class"
+        }
+    }
+    var identifier = shape.as_identifier(expression)
+    var indexed = shape.as_index(expression)
+    if not identifier and not indexed {
+        return "only a named item, an item read with '[ ]' or a row's attribute is lent to a call (D257): name it first, 'var item = {text}', and pass 'item'"
+    }
+    return "{name} is not lent it for the call: pass the attributes it needs"
+}
+
+func report_kept_lent(text: String, site: String) {
+    var lent = "'{text}' is lent to '{current_function}' for one call (D257), by {lent_parameter_caller}: it is the caller's item, read and written in place,"
+    if lent_parameter_caller.is_empty() {
+        lent = "'{text}' is lent to '{current_function}' for one call (D257): it is the caller's item, read and written in place,"
+    }
+    var site_length = site.length()
+    if site == "return" {
+        report("{lent} so '{current_function}' does not return it: return the values the caller needs")
+        return
+    }
+    if site.starts_with("attribute:") {
+        var attribute = site.slice(10, site_length)
+        report(
+            "{lent} so '{current_function}' does not keep it in the attribute '{attribute}': keep the values it needs, or have the caller pass something '{current_function}' may keep",
+        )
+        return
+    }
+    if site.starts_with("local:") {
+        var local = site.slice(6, site_length)
+        report("{lent} and a lent item has one name: use '{text}' itself instead of '{local}'")
+        return
+    }
+    var into_list = site == "list"
+    if site.starts_with("argument:List_") {
+        into_list = site.ends_with("_append") or site.ends_with("_prepend") or site.ends_with("_insert") or site.ends_with("_set_at")
+    }
+    if into_list {
+        report(
+            "{lent} so '{current_function}' does not put it in a list, which would keep it: keep the values it needs",
+        )
+        return
+    }
+    if site.starts_with("argument:") {
+        var callee = site.slice(9, site_length)
+        var named: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(text)
+        report("{lent} and {unlent_argument_reason(text, callee, named)}")
+        return
+    }
+    report("{lent} so '{current_function}' keeps it no longer than the call: keep the values it needs")
 }
 
 func handed_on_hint(source: String): String {
@@ -19657,6 +19831,12 @@ func report_captured_borrow(
     var text = borrowed_text_of(member.object, object_result, scope)
     assert not text.is_empty()
     var source = borrowed_source_of(member.object, object_result, scope)
+    if object_result.borrowed_from.is_empty() and lent_parameter_names.contains(text) {
+        report(
+            "'{text}.{member.name}' would keep '{text}' in a function value, and '{text}' is lent to '{current_function}' for one call (D257), so '{current_function}' does not keep it: call '{text}.{member.name}()' directly, or keep the values it needs",
+        )
+        return
+    }
     report(
         "{items_choice(source)}'{text}.{member.name}' would keep '{text}', which is borrowed from '{source}', in a function value: make it from a copy, 'var kept = {text}.copy()' and then 'kept.{member.name}'",
     )
@@ -27175,6 +27355,12 @@ func declare_lent_parameter(name: String, parameter_type: Analysis.SpiteType, so
 func parameter_scope(function: Analysis.FunctionInfo): Scope {
     var scope = Scope(null)
     arguments_parameter_names.clear()
+    lent_parameter_names = function.lent_parameters
+    lent_parameter_caller = ""
+    var caller = lent_callers.get(function.c_name)
+    if caller {
+        lent_parameter_caller = caller
+    }
     var parameter_index = 0
     while parameter_index < function.parameters.count() {
         var parameter = function.parameters[parameter_index]

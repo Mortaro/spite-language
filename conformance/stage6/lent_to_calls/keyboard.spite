@@ -1,0 +1,7 @@
+var device = 0
+var last_key = 0
+var strokes = 0
+
+func Keyboard(new_device: Integer) {
+    device = new_device
+}

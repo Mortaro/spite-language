@@ -1,0 +1,16 @@
+enum Kind {
+    'pointer_moved'
+    'button_pressed'
+    'key_pressed'
+    'wheel_turned'
+}
+
+var kind: Kind = 'pointer_moved'
+var left = 0
+var top = 0
+
+func Event(new_kind: Kind, new_left: Integer, new_top: Integer) {
+    kind = new_kind
+    left = new_left
+    top = new_top
+}

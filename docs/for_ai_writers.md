@@ -196,10 +196,17 @@ func is_alive(): Boolean {
   `clear`, `copy`, and `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `parallel_each_` templates).
   An item is a number, `Boolean`, enum, `String`, or a class of only those (a `List` attribute is an error naming
   it). `var velocity = velocities[index]` is the item itself, borrowed: `velocity.across = 3.0` writes the vector.
-  A borrowed item is used through its members only and never kept: storing it in an attribute or a list,
-  returning it, passing it as an argument, `velocity.integrate` as a function value, `var alias = velocity`, and
-  reading it after a line that may resize the vector (`append`, `remove_at`, `clear`, or a call that may do one)
-  are errors, each naming the fix: `velocity.copy()`, an independent object, or reading `velocities[index]` again.
+  A borrowed item is never kept: storing it in an attribute or a list, returning it, `velocity.integrate` as a
+  function value, `var alias = velocity`, and reading it after a line that may resize the vector (`append`,
+  `remove_at`, `clear`, or a call that may do one) are errors, each naming the fix: `velocity.copy()`, an
+  independent object, or reading `velocities[index]` again.
+- Pass a borrowed item (a name read from a vector, `velocities[index]`, a row's attribute, an item a lookup lent
+  you) to your own functions freely: it is lent for the call (D257). `apply(event, mouse, keyboard)` writes the
+  stored items in place and may pass them on to `press(mouse)`; nothing is copied. The function may not keep it
+  (attribute, list, return, function value) or reach a call that appends to or removes from its collection;
+  each is an error naming the parameter and the call that lent it. Never pass `.copy()` to a function that
+  writes the item: the writes would land on the copy and vanish (D244). A library function or a union parameter
+  is not lent an item: pass the attributes it needs.
   A class kept in a `Vector` may not use `this` as a value, nor have a `drop()`.
 - Only a class item is borrowed. An item that is a number, `Boolean` or enum is copied when read (D221): keep,
   pass or return `numbers[index]` freely, and pass functions as on a list: `numbers.each(found.append)`,
@@ -243,7 +250,7 @@ func is_alive(): Boolean {
   Symbol<$system_type.phase_each>, rows: Items<Integer>): argument.class` is the one line `return
   Column<argument.class>().values[rows[argument.index]]` (an `if` on `argument.class == Entity` may choose another
   line, such as `return Entity(entity)`). The items are borrowed for that one call only (D220): the system may not
-  keep them or resize their columns, and calling `made_position(...)` anywhere else is the error for returning a
+  keep them or resize their columns (it may lend them on to its own helpers, D257), and calling `made_position(...)` anywhere else is the error for returning a
   borrowed item. The template's `Symbol` parameter must be a word of its name (`made_argument(argument: ...)`), or
   it has no plural.
 - A dictionary's key kind (text or whole numbers) comes from the keys your own code gives it and follows it
@@ -256,8 +263,8 @@ func is_alive(): Boolean {
 - To hand one stored component to a caller, return it straight from the singleton's storage: `func of(entity:
   Integer): $component_type?` ending `return column.values[row]` (D230). The caller gets the stored item, so
   `layout.order = 3` writes the column; never return `.copy()` for this, since writes to a copy are lost. The
-  caller follows every borrow rule (no keeping, passing, second name, reading after a line that may grow or shrink
-  the column), may not return it further, and gives it a name not used before in the block. A function that lends
+  caller follows every borrow rule (no keeping, second name, reading after a line that may grow or shrink the
+  column; lending it to a call is fine), may not return it further, and gives it a name not used before in the block. A function that lends
   returns only such items or `null`.
 - A runner that treats systems of one row and of several differently asks `if phase.argument_count() == 1 { }`
   inside its walk over `phase: Symbol<$system_type.phase_each>` (or `$system_type.argument_count("update_each")`
