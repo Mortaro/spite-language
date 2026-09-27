@@ -346,8 +346,9 @@ way to give it back, `heap.free(address)`. Where the bytes live is the compiler'
   scalar. A number is never an object.
 - **Frame:** an allocation a function frees itself, in the same block, whose address it only reads and writes
   through, copies, compares, turns into `text`, hands to a `TypedMemory` or lends to a function of its own class
-  proven to keep nothing ([D211](decisions.md)) -- never stores, returns, resizes or passes anywhere else -- gets a
-  slot in the function's own frame: 256 bytes, or exactly a literal size up to 256. A larger size at run time
+  proven to keep nothing ([D211](decisions.md)) -- or, in `library/`, lends to a function of a `DynamicLibrary`
+  the class holds, the operating system call that fills it -- never stores, returns, resizes or passes anywhere
+  else -- gets a slot in the function's own frame: 256 bytes, or exactly a literal size up to 256. A larger size at run time
   still goes to the heap, and the program's text is the same either way.
 - **Constant:** the characters of a text literal are part of the program, never counted or freed.
 - **Heap:** everything else.

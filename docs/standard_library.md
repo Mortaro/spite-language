@@ -491,12 +491,18 @@ slept
 
 | Member | Does |
 |---|---|
-| `elapsed_nanoseconds(): Long` | a monotonic clock with an arbitrary start: subtract two readings to measure |
+| `elapsed_nanoseconds(): Long` | the monotonic clock, in nanoseconds from an arbitrary start: subtract two readings to measure |
 | `elapsed_milliseconds(): Long` | the same, in milliseconds |
 | `now(): Instant` | the wall clock, as an exact [`Instant`](time.md): show it through a time zone |
 
 Each system reads its own clock, in `library/windows/clock.spite` (`QueryPerformanceCounter`,
-`GetSystemTimeAsFileTime`) and the `linux` and `mac` folders (`clock_gettime`), through `DynamicLibrary`.
+`GetSystemTimeAsFileTime`) and the `linux` and `mac` folders (`clock_gettime` with `CLOCK_MONOTONIC` and
+`CLOCK_REALTIME`), through `DynamicLibrary`. A reading allocates nothing: the operating system writes it into a slot
+in the calling function's frame ([placement](memory.md#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)),
+and Windows' counter frequency, fixed at boot, is read once when `Clock()` is first made. The unit is the
+nanosecond on every system; the resolution is the hardware's (100 ns for Windows' usual 10 MHz counter, 1 ns on
+Linux and macOS). A profiler can read it twice per system per frame and measure nothing but the reads
+(`conformance/stage6/clock_reads` pins 1 000 readings at no allocation).
 
 ```gdscript title=clock_basics/clock_basics.spite entry
 var console = Console()
@@ -715,7 +721,7 @@ each member answers is in the section of this page that teaches it.
 | `Directory(path)` | `path`, `entries(): List<Directory.Entry>` (D93, below), `files(): List<String>`, `folders(): List<String>`, `exists(): Boolean`, `create(): Boolean` -- [List a directory](#list-a-directory) |
 | `Process(command, arguments)` | `run(): Integer`, `output(): String`, `run_attached(): Integer` (proposed) -- [Run a process](#run-a-process). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
 | `Program()` | a singleton (D121): `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String` (proposed), `live_allocations(): Integer` -- [Program](#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |
-| `Clock()` | a singleton (names proposed): `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant` (D127; it replaced `unix_milliseconds(): Long`) -- [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed) |
+| `Clock()` | a singleton (names proposed): `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant` (D127; it replaced `unix_milliseconds(): Long`); `elapsed_nanoseconds()` is the monotonic clock, with a nanosecond unit and no allocation per reading (decided by Claude under D205 and D214) -- [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed) |
 | `Console()` | a singleton (D52): `print(...values)`, `write(...values)`, `error(...values)`, `debug(...values)`, `flush()`, `read_line(): String?` -- [Console](#console), and below |
 | `Watcher()` | D194 (the name and the members proposed; `mortaros_missing_decisions.md` asks for the final name): `watch(path): Boolean`, `changes(): List<String>`, `wait_for_changes()` -- [Watch files and folders](#watch-files-and-folders), which is the rule. `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
 | `Socket()` | public library surface (D126; the members proposed): `listen_locally(port): Boolean`, `listen_everywhere(port): Boolean`, `listen_at(host, port): Boolean`, `connect_locally(port): Boolean`, `connect(host, port): Boolean`, `accept_client(): Socket?`, `read_line(): String?`, `read_bytes(address, count): Integer`, `write_line(text): Boolean`, `write_bytes(address, count): Boolean`, the calls that never wait `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer` and `write_bytes_now(address, count): Integer`, `closed: Boolean`, `close()` -- TCP over IPv4 on every system ([Socket](#socket), and below); `--repl-port` and `spite connect` use `listen_locally` and `connect_locally` ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |

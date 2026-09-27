@@ -435,6 +435,7 @@ the start of a file or connection and compare it with `reader.schema()` before r
 of both. A union, a `type` (`Anything` included) or a function value anywhere in what they see is a compile error at
 the line that makes the writer or reader (`JsonWriter cannot write 'Owner': 'Owner.pet' is the union Pet, ...`):
 keep what they see to the kinds above ([json.md](json.md)). `Json` no longer exists: it is the two classes above.
+Measure with `clock.elapsed_nanoseconds()`, the monotonic clock: a `Long`, no allocation, subtract two readings.
 Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(since_1970)` with
 `var since_1970 = Duration(1710054000, 'seconds')`.
 `Duration(90, 'minutes')` is exact time (no days: `Duration(1, 'days')` is an error); `Period(1, 'months')` is

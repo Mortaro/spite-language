@@ -1074,7 +1074,10 @@ is the same whichever it makes:
   it to a `TypedMemory`'s `read_value`, `write_value` or `release_value`, or lends it to a function of the same
   class, called by its bare name, whose `Memory.Address` parameter is proven to keep nothing (D211: the same rules,
   applied to the parameter in that function's body, and to the functions it lends it on to; a recursive lend and a
-  `--hot-reload` build, whose functions can be swapped, prove nothing) -- it is never stored, returned,
+  `--hot-reload` build, whose functions can be swapped, prove nothing), or, in a file of `library/` only, lends it
+  to a function of a `DynamicLibrary` attribute of the same class (`kernel.QueryPerformanceCounter(counter)`: the
+  standard library's own operating-system calls, which fill the memory and keep nothing; a program's foreign
+  library could keep the address, so its calls still move it to the heap; proposed by Claude, unconfirmed) -- it is never stored, returned,
   assigned, resized or passed to anything else, and neither `name` nor `heap` is declared or assigned again
   after it. The compiler gives it a slot of 256 bytes
   in the function's frame (exactly the size, for a literal size up to 256), uses the heap when a run-time size

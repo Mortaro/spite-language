@@ -96,7 +96,10 @@ true true
 ```
 
 `Clock()` keeps its monotonic readings, `elapsed_nanoseconds()` and `elapsed_milliseconds()`, for measuring a
-frame or a request: the wall clock can jump when the machine's time is corrected, and a monotonic clock cannot.
+frame or a request: the wall clock can jump when the machine's time is corrected, and a monotonic clock cannot. A
+reading is a `Long` of nanoseconds and allocates nothing, so a profiler can take one around every system of every
+frame; a `Duration` reading would be an object made per read, so the monotonic clock answers the number
+(D214: the faster of two similar ways).
 `now()` is the wall clock, and each system reads it its own way (`GetSystemTimeAsFileTime` on Windows,
 `clock_gettime` on Linux and macOS).
 
@@ -456,7 +459,7 @@ and the lenient reading of text are still open as `mortaros_missing_decisions.md
   path is untested**: `check.sh` holds it to compiling (it writes `conformance/stage6/daylight_saving` for each
   system), and `conformance/stage6/zone_files` runs the TZif reader on Windows over three files written for the
   test and checked with Python's `zoneinfo`.
-- **Clock** keeps `elapsed_nanoseconds()` and `elapsed_milliseconds()` for measuring, and `now()` answers an
+- **Clock** keeps `elapsed_nanoseconds()` (the monotonic clock: a `Long` of nanoseconds, no allocation per reading) and `elapsed_milliseconds()` for measuring, and `now()` answers an
   `Instant`.
 
 Not built: calendars other than ISO 8601's, leap seconds, formatting patterns and localized names, zone

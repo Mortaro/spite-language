@@ -1,6 +1,7 @@
 var shape = Analysis.AstShape()
 var lent_parameters = List<String>()
 var read_lists = List<String>()
+var foreign_libraries = List<String>()
 
 func frame_candidates(statements: List<Syntax.Statements.Statement>): List<String> {
     var names = List<String>()
@@ -277,6 +278,9 @@ func lends_address(callee: Syntax.Expressions.Expression, receiver: String): Boo
     crash member.object
     var called_on = shape.as_identifier(member.object)
     assert called_on
+    if foreign_libraries.contains(called_on.name) {
+        return true
+    }
     return called_on.name == receiver and member.name == "free"
 }
 
