@@ -185,7 +185,7 @@ way ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-
 |---|---|---|
 | `path` | `String` | |
 | `entries()` | `List<Directory.Entry>` | every folder and file inside it, as `Directory` and `File` values |
-| `folders()` / `files()` | `List<String>` | names only, sorted |
+| `folders()` / `files()` | `List<String>` | names only, sorted by a merge sort (`n log n`), so a folder of thousands of files lists quickly |
 | `exists()` / `create()` | `Boolean` | |
 
 ```gdscript title=directory_tasks/directory_tasks.spite entry

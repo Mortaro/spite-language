@@ -346,7 +346,7 @@ names a program calls.
 | `any_<member>()` / `all_<member>()` | `Boolean` | take nothing, return `Boolean` |
 | `sum_<member>()` | the member's number type | take nothing, return a number |
 | `find_by_<member>(value)` | `T?`, the first element whose member equals `value` | return something comparable to `value` |
-| `sort_by_<member>()` | `List<T>`, sorted ascending | return a number or a `String` |
+| `sort_by_<member>()` | `List<T>`, sorted ascending, stable, in `n log n` time | return a number or a `String` |
 | `map_<member>()` | `List<U>`, one value per element | return a value |
 | `each_<member>()` | nothing: calls it on every element | be a function that takes nothing; what it returns is discarded |
 
@@ -825,7 +825,9 @@ of them name a fix: `count()` is only ever a collection's own size, so `count_<m
 `but 'count_' needs it to return Boolean (to add up a numeric member use 'sum_stars')`; and `each_<member>()` on an
 attribute says `'each_size': the member 'size' of 'Thing' is an Integer, but 'each_' needs it to be a function:
 reading an attribute and discarding it does nothing`. `sort_by_` is stable (equal keys keep their order) and
-sorts by insertion, so it suits short lists: its time grows with the square of the length.
+is a merge sort, so its time grows as `n log n`: it reads each key once, then merges runs of an index list, and
+makes the key list, two index lists and the result (`sort_by(f)` is the same template, and `Directory`'s
+`files()` and `folders()` sort through it; `conformance/stage6/sorting_many`).
 
 **How the templates are written** (D91, decided by Mortaro; the binding rule is proposed by Claude,
 unconfirmed). They are Symbol codegen templates in `library/list.spite`, each a `while` over the list's
