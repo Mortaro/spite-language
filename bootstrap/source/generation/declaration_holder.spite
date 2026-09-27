@@ -1,0 +1,52 @@
+var found_count = 0
+var declaration: Syntax.Statements.VariableDeclaration? = null
+var block = List<Syntax.Statements.Statement>()
+var index = 0
+var wanted = ""
+
+func find(name: String, statements: List<Syntax.Statements.Statement>): Boolean {
+    wanted = name
+    search(statements)
+    return found_count > 0
+}
+
+func search(statements: List<Syntax.Statements.Statement>) {
+    var position = 0
+    while position < statements.count() {
+        search_statement(statements[position], statements, position)
+        position = position + 1
+    }
+}
+
+func search_statement(
+    statement: Syntax.Statements.Statement,
+    statements: List<Syntax.Statements.Statement>,
+    position: Integer,
+) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: note_declaration(statement, statements, position)
+        Syntax.Statements.IfStatement: {
+            search(statement.then_branch)
+            search(statement.else_branch)
+        }
+        Syntax.Statements.WhileStatement: search(statement.body)
+        Syntax.Statements.SwitchStatement: statement.cases.each(search_case)
+        _: return
+    }
+}
+
+func note_declaration(
+    found: Syntax.Statements.VariableDeclaration,
+    statements: List<Syntax.Statements.Statement>,
+    position: Integer,
+) {
+    assert found.name == wanted
+    found_count = found_count + 1
+    declaration = found
+    block = statements
+    index = position
+}
+
+func search_case(switch_case: Syntax.Statements.SwitchCase) {
+    search(switch_case.body)
+}

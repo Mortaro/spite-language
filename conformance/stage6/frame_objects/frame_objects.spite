@@ -1,0 +1,88 @@
+var console = Console()
+var heap = Memory.Heap()
+var kept = List<Point>()
+
+func FrameObjects() {
+    var moved = stepped(1000)
+    console.print("stepped to", moved)
+    var measured = measured_length()
+    console.print("length squared", measured)
+    show_sections()
+    show_sharing()
+    show_turns()
+    show_kept()
+    show_copies()
+}
+
+func show_copies() {
+    var original = Point(3.0, 4.0)
+    var before = heap.live_allocations()
+    var snapshot = original.copy()
+    var deep = original.deep_copy()
+    var during = heap.live_allocations()
+    snapshot.x_value = 10.0
+    deep.move_by(snapshot)
+    var total = snapshot.length_squared() + deep.length_squared()
+    console.print(
+        "copies made on the heap:",
+        during - before,
+        "total",
+        total,
+        "original",
+        original.x_value,
+        original.y_value,
+    )
+}
+
+func stepped(count: Integer): Point {
+    var position = Point(0.0, 0.0)
+    var velocity = Point(1.0, 0.5)
+    var step = 0
+    while step < count {
+        var nudge = velocity.scaled(0.25)
+        position = position + nudge
+        position.move_by(nudge)
+        step = step + 1
+    }
+    return position
+}
+
+func measured_length(): Float {
+    var first = Point(1.0, 2.0)
+    var second = Point(3.0, 4.0)
+    var third = Point(-1.0, 0.5)
+    var total = first + second + -third
+    return total.length_squared() + (first + second).length_squared()
+}
+
+func show_sections() {
+    var local = Point(1.0, 2.0)
+    var local_memory = local.memory
+    var stored = Point(3.0, 4.0)
+    kept.append(stored)
+    var stored_memory = stored.memory
+    console.print("a local point lives in the", local_memory.section, "and a kept one on the", stored_memory.section)
+}
+
+func show_sharing() {
+    var first = Point(1.0, 1.0)
+    var second = first
+    second.x_value = 5.0
+    console.print("shared:", first, second)
+}
+
+func show_turns() {
+    var start = Point(2.0, 1.0)
+    var quarter = start.turned()
+    var half = quarter.turned()
+    console.print("turned", quarter, "twice", half, "start", start)
+}
+
+func show_kept() {
+    var first = kept.first()
+    crash first
+    first.move_by(first)
+    var again = kept.first()
+    crash again
+    console.print("kept point moved to", again)
+}

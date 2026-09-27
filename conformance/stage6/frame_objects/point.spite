@@ -1,0 +1,39 @@
+var x_value: Float = 0.0
+var y_value: Float = 0.0
+
+func Point(starting_x: Float, starting_y: Float) {
+    x_value = starting_x
+    y_value = starting_y
+}
+
+func sum(other: Point): Point {
+    return Point(x_value + other.x_value, y_value + other.y_value)
+}
+
+func scaled(factor: Float): Point {
+    return Point(x_value * factor, y_value * factor)
+}
+
+func negate(): Point {
+    return Point(-x_value, -y_value)
+}
+
+func turned(): Point {
+    var result = Point(0.0, 0.0)
+    result.x_value = -y_value
+    result.y_value = x_value
+    return result
+}
+
+func length_squared(): Float {
+    return x_value * x_value + y_value * y_value
+}
+
+func move_by(offset: Point) {
+    x_value = x_value + offset.x_value
+    y_value = y_value + offset.y_value
+}
+
+func to_string(): String {
+    return "({x_value}, {y_value})"
+}

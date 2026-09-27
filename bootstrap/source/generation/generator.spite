@@ -191,6 +191,26 @@ var frame_variadic_allowed = false
 var framed_cleanups = List<String>()
 var framed_list_counter = 0
 var framed_list_helpers = List<String>()
+var object_frames = ObjectFrames()
+var expression_depth = 0
+var into_claim_depth = -1
+var into_claim_name = ""
+var into_claim_slot = ""
+var into_claim_owner: Analysis.ClassInfo? = null
+var into_claim_function: Analysis.FunctionInfo? = null
+var into_claimed = false
+var into_claimed_slot = ""
+var into_function_active = false
+var object_frames_open = false
+var current_return_c_name = ""
+var result_slot_local = ""
+var object_slot_counter = 0
+var argument_lender_class: Analysis.ClassInfo? = null
+var argument_lender_function: Analysis.FunctionInfo? = null
+var frame_helper_classes = List<String>()
+var instance_lists_studied = false
+var every_class_listed = false
+var instance_listed_names = List<String>()
 var read_list_answers = Dictionary<Boolean>()
 var class_read_lists = Dictionary<String>()
 var pending_allocator: Syntax.Statements.AssignmentStatement? = null
@@ -7553,7 +7573,8 @@ func generate_binary(
             return joined_text
         }
     }
-    var left = generate_joined(binary.left, scope, class_information)
+    var operator_name = operator_function_name(binary.operator)
+    var left = operand_in_frame(binary.left, operator_name, scope, class_information)
     var left_type = left.get_type()
     var left_nullable = type_shape.as_nullable(left_type)
     if left_nullable {
@@ -8024,6 +8045,8 @@ func generate_class_binary(
             operator_arguments.append(right_ast)
             var parameter_types = parameter_types_of(function.parameters)
             var function_return_type = function.get_return_type()
+            argument_lender_class = left_class
+            argument_lender_function = function
             var called = generate_generic_call(
                 function.c_name,
                 left_result,
@@ -8103,7 +8126,11 @@ func generate_unary(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     crash unary.operand
-    var operand = generate_joined(unary.operand, scope, class_information)
+    var negation_name = ""
+    if unary.operator == 'negate' {
+        negation_name = "negate"
+    }
+    var operand = operand_in_frame(unary.operand, negation_name, scope, class_information)
     var operand_type = operand.get_type()
     var operand_class_ref = type_shape.as_class_ref(operand_type)
     if operand_class_ref {
@@ -8148,6 +8175,10 @@ func generate_argument_list(
     class_information: Analysis.ClassInfo,
 ): List<String> {
     var result = List<String>()
+    var lender_class = argument_lender_class
+    var lender_function = argument_lender_function
+    argument_lender_class = null
+    argument_lender_function = null
     var variadic = variadic_list(expected_types)
     if variadic {
         return generate_spread_arguments(arguments_ast, expected_types, variadic, scope, class_information)
@@ -8159,13 +8190,211 @@ func generate_argument_list(
     var callee = argument_callee
     var index = 0
     while index < arguments_ast.count() {
-        borrow_site = "argument:{callee}"
-        var stored_code = coerce_for_store(arguments_ast[index], expected_types[index], scope, class_information)
-        result.append(stored_code)
+        borrow_site = ""
+        var framed_code = argument_in_frame(
+            arguments_ast[index],
+            expected_types[index],
+            lender_class,
+            lender_function,
+            index,
+            scope,
+            class_information,
+        )
+        if framed_code.is_empty() {
+            borrow_site = "argument:{callee}"
+            var stored_code = coerce_for_store(arguments_ast[index], expected_types[index], scope, class_information)
+            result.append(stored_code)
+        } else {
+            result.append(framed_code)
+        }
         index = index + 1
     }
     borrow_site = ""
     return result
+}
+
+func objects_in_frame_allowed(class_information: Analysis.ClassInfo): Boolean {
+    assert not keeps_internals and not hot_reload and not resumable_mode and remote_loop_port == 0
+    return object_frames_open and not read_evaluate_print_loop and not is_hot_class(class_information)
+}
+
+func may_be_fresh(expression: Syntax.Expressions.Expression): Boolean {
+    if shape.as_call(expression) or shape.as_binary(expression) {
+        return true
+    }
+    if shape.as_unary(expression) {
+        return true
+    }
+    return false
+}
+
+func object_study(scope: Scope, class_information: Analysis.ClassInfo): ObjectEscape {
+    var study = ObjectEscape(object_frames, this, class_information)
+    study.scope = scope
+    return study
+}
+
+func next_object_slot(): String {
+    object_slot_counter = object_slot_counter + 1
+    return "spite_slot_{object_slot_counter}"
+}
+
+func generate_into(
+    expression: Syntax.Expressions.Expression,
+    study: ObjectEscape,
+    slot: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var outer_depth = into_claim_depth
+    var outer_name = into_claim_name
+    var outer_slot = into_claim_slot
+    var outer_owner = into_claim_owner
+    var outer_function = into_claim_function
+    into_claim_depth = expression_depth + 1
+    into_claim_name = study.claim_name
+    into_claim_slot = slot
+    into_claim_owner = study.claim_owner
+    into_claim_function = study.claim_function
+    var saved_counter = temporary_counter
+    var result = generate_expression(expression, scope, class_information)
+    into_claim_depth = outer_depth
+    into_claim_name = outer_name
+    into_claim_slot = outer_slot
+    into_claim_owner = outer_owner
+    into_claim_function = outer_function
+    into_claimed = into_claimed_slot == slot
+    into_claimed_slot = ""
+    if not into_claimed {
+        rewind_temporaries(saved_counter)
+    }
+    result.owning_override = true
+    return result
+}
+
+func argument_in_frame(
+    argument: Syntax.Expressions.Expression,
+    expected_type: Analysis.SpiteType,
+    lender_class: Analysis.ClassInfo?,
+    lender_function: Analysis.FunctionInfo?,
+    index: Integer,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    assert lender_class and lender_function and may_be_fresh(argument)
+    assert objects_in_frame_allowed(class_information)
+    var expected_reference = type_shape.as_class_ref(expected_type)
+    assert expected_reference
+    var study = object_study(scope, class_information)
+    var made = study.fresh_class(argument)
+    assert made
+    assert made.c_name == expected_reference.c_name
+    assert object_frames.lends(this, lender_class, lender_function, index)
+    var slot = next_object_slot()
+    builder.add_user("{made.c_name} {slot};")
+    var into = generate_into(argument, study, "&{slot}", scope, class_information)
+    assert into_claimed
+    return into.code
+}
+
+func receiver_in_frame(
+    object_ast: Syntax.Expressions.Expression,
+    function_name: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert may_be_fresh(object_ast) and not function_name.is_empty()
+    assert objects_in_frame_allowed(class_information)
+    var study = object_study(scope, class_information)
+    var made = study.fresh_class(object_ast)
+    assert made
+    var function = made.find_function(function_name)
+    assert function
+    assert object_frames.lends(this, made, function, -1)
+    var slot = next_object_slot()
+    builder.add_user("{made.c_name} {slot};")
+    var into = generate_into(object_ast, study, "&{slot}", scope, class_information)
+    assert into_claimed
+    into.owning_override = false
+    return into
+}
+
+func lists_instances(simple_name: String): Boolean {
+    if not instance_lists_studied {
+        instance_lists_studied = true
+        classes.each(study_instance_lists)
+    }
+    return every_class_listed or instance_listed_names.contains(simple_name)
+}
+
+func study_instance_lists(information: Analysis.ClassInfo) {
+    information.functions.each(study_function_instance_lists)
+}
+
+func study_function_instance_lists(function: Analysis.FunctionInfo) {
+    var expressions = List<Syntax.Expressions.Expression>()
+    collect_block_expressions(function.body, expressions)
+    expressions.each(note_instance_lists)
+}
+
+func note_instance_lists(expression: Syntax.Expressions.Expression) {
+    switch expression {
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            if expression.name == "instances" {
+                note_listed_class(expression.object)
+            }
+            note_instance_lists(expression.object)
+        }
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            note_instance_lists(expression.callee)
+            expression.arguments.each(note_instance_lists)
+        }
+        Syntax.Expressions.GenericCallExpression: expression.arguments.each(note_instance_lists)
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            note_instance_lists(expression.left)
+            note_instance_lists(expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            note_instance_lists(expression.operand)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            note_instance_lists(expression.object)
+            note_instance_lists(expression.index)
+        }
+        Syntax.Expressions.ListLiteralExpression: expression.elements.each(note_element_instance_lists)
+        Syntax.Expressions.StringLiteralExpression: {
+            if expression.value.contains("instances") {
+                every_class_listed = true
+            }
+        }
+        _: return
+    }
+}
+
+func note_element_instance_lists(element: Syntax.Expressions.ListElement) {
+    crash element.value
+    note_instance_lists(element.value)
+}
+
+func note_listed_class(listed: Syntax.Expressions.Expression) {
+    var named = shape.as_identifier(listed)
+    if named {
+        instance_listed_names.append(named.name)
+        return
+    }
+    var member = shape.as_member(listed)
+    if member {
+        instance_listed_names.append(member.name)
+        return
+    }
+    every_class_listed = true
 }
 
 func variadic_list(expected_types: List<Analysis.SpiteType>): Analysis.SpiteType? {
@@ -8400,6 +8629,174 @@ func frames_local_list(
     }
     scope.check_last(current_line)
     check_value_name(declaration.name, "variable")
+    return true
+}
+
+func frames_local_object(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    assert objects_in_frame_allowed(class_information)
+    assert not scope.entry_names.contains(declaration.name)
+    crash declaration.value
+    assert may_be_fresh(declaration.value) and declares_here(declaration)
+    var study = object_study(scope, class_information)
+    var made = study.fresh_class(declaration.value)
+    assert made
+    if declaration.type_reference {
+        var written_type = resolve_type(declaration.type_reference, class_information.qualified_dotted)
+        assert written_type
+        var written_reference = type_shape.as_class_ref(written_type)
+        assert written_reference
+        assert written_reference.c_name == made.c_name
+    }
+    var returning = current_return_c_name == made.c_name
+    var follower = object_study(scope, class_information)
+    follower.follow_local(declaration.name, made, returning)
+    assert follower.stays_after(borrow_statements, borrow_index + 1)
+    var slot_code = "spite_result"
+    var in_result = into_function_active and returning and result_slot_local.is_empty()
+    if not in_result {
+        var slot = next_object_slot()
+        builder.add_user("{made.c_name} {slot};")
+        slot_code = "&{slot}"
+    }
+    var into = generate_into(declaration.value, study, slot_code, scope, class_information)
+    assert into_claimed
+    if in_result {
+        result_slot_local = declaration.name
+    }
+    builder.add_user("{made.c_name}* {c_value_name(declaration.name)} = {into.code};")
+    var declared_type = class_type_of(made)
+    scope.declare_owned(declaration.name, declared_type)
+    var owned_local = scope.owned.last()
+    crash owned_local
+    owned_local.framed = true
+    owned_local.framed_object = true
+    scope.check_last(current_line)
+    check_value_name(declaration.name, "variable")
+    return true
+}
+
+func framed_object_name(expression: Syntax.Expressions.Expression, scope: Scope): String {
+    var named = shape.as_identifier(expression)
+    assert named
+    assert scope.framed_object(named.name)
+    return named.name
+}
+
+func stores_framed_object(
+    assignment: Syntax.Statements.AssignmentStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash assignment.target
+    crash assignment.value
+    var name = framed_object_name(assignment.target, scope)
+    assert not name.is_empty()
+    var held_type = scope.written_type(name)
+    assert held_type
+    var held_reference = type_shape.as_class_ref(held_type)
+    assert held_reference
+    var c_name = held_reference.c_name
+    var local = c_value_name(name)
+    var study = object_study(scope, class_information)
+    var made = study.fresh_class(assignment.value)
+    if made {
+        if made.c_name == c_name {
+            var slot = next_object_slot()
+            builder.add_user("{c_name} {slot};")
+            var into = generate_into(assignment.value, study, "&{slot}", scope, class_information)
+            if into_claimed {
+                builder.add_user("{c_name}___copy_fields({local}, {into.code});")
+                return true
+            }
+        }
+    }
+    var value_code = coerce_for_store(assignment.value, held_type, scope, class_information)
+    var temporary = next_temporary()
+    builder.add_user("{c_name}* {temporary} = {value_code};")
+    builder.add_user("{c_name}___copy_fields({local}, {temporary});")
+    builder.add_user("{release_call(held_type, temporary)};")
+    return true
+}
+
+func returns_object_in_frame(
+    value: Syntax.Expressions.Expression,
+    return_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var returned_reference = type_shape.as_class_ref(return_type)
+    assert returned_reference
+    var returned_class = find_class_by_c_name(returned_reference.c_name)
+    assert returned_class
+    var c_name = returned_class.c_name
+    var framed_name = framed_object_name(value, scope)
+    if into_function_active {
+        ensure_frame_helpers(returned_class)
+        if not framed_name.is_empty() {
+            scope.mark_used(framed_name)
+            if framed_name != result_slot_local {
+                builder.add_user(
+                    "{c_name}___copy_fields({c_name}___framed(spite_result), {c_value_name(framed_name)});",
+                )
+            }
+            emit_scope_drops(scope, true)
+            builder.add_user("return spite_result;")
+            return true
+        }
+        if returns_made_in_slot(value, returned_class, scope, class_information) {
+            return true
+        }
+        var value_code = coerce_for_store(value, return_type, scope, class_information)
+        var temporary = next_temporary()
+        builder.add_user("{c_name}* {temporary} = {value_code};")
+        builder.add_user("{c_name}___copy_fields({c_name}___framed(spite_result), {temporary});")
+        builder.add_user("{release_call(return_type, temporary)};")
+        emit_scope_drops(scope, true)
+        builder.add_user("return spite_result;")
+        return true
+    }
+    assert not framed_name.is_empty()
+    ensure_frame_helpers(returned_class)
+    scope.mark_used(framed_name)
+    var moved = next_temporary()
+    builder.add_user("{c_name}* {moved} = {c_name}___allocate();")
+    builder.add_user("{c_name}___copy_fields({moved}, {c_value_name(framed_name)});")
+    emit_scope_drops(scope, true)
+    builder.add_user("return {moved};")
+    return true
+}
+
+func returns_made_in_slot(
+    value: Syntax.Expressions.Expression,
+    returned_class: Analysis.ClassInfo,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var study = object_study(scope, class_information)
+    var made = study.fresh_class(value)
+    assert made
+    assert made.c_name == returned_class.c_name
+    var c_name = returned_class.c_name
+    var slot_code = "spite_result"
+    if not result_slot_local.is_empty() {
+        var slot = next_object_slot()
+        builder.add_user("{c_name} {slot};")
+        slot_code = "&{slot}"
+    }
+    var into = generate_into(value, study, slot_code, scope, class_information)
+    assert into_claimed
+    var temporary = next_temporary()
+    builder.add_user("{c_name}* {temporary} = {into.code};")
+    if slot_code != "spite_result" {
+        builder.add_user("{c_name}___copy_fields({c_name}___framed(spite_result), {temporary});")
+        builder.add_user("{temporary} = spite_result;")
+    }
+    emit_scope_drops(scope, true)
+    builder.add_user("return {temporary};")
     return true
 }
 
@@ -8684,6 +9081,11 @@ func generate_constructor_call(
     if hands_over_value {
         task_value_arguments = task_value_arguments + 1
     }
+    var into_slot = claimed_slot("{target_class.c_name}___make")
+    if target_class.constructor {
+        argument_lender_class = target_class
+        argument_lender_function = target_class.constructor
+    }
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
     if hands_over_value {
         task_value_arguments = task_value_arguments - 1
@@ -8692,6 +9094,12 @@ func generate_constructor_call(
         concurrent_arguments = concurrent_arguments - 1
     }
     var call_code = "{target_class.c_name}___make({argument_codes.join(", ")})"
+    if not into_slot.is_empty() {
+        ensure_frame_helpers(target_class)
+        into_claimed_slot = into_slot
+        argument_codes.prepend(into_slot)
+        call_code = "{target_class.c_name}___make_into({argument_codes.join(", ")})"
+    }
     if target_class.is_value_class {
         if not target_class.constructor {
             report(
@@ -9100,14 +9508,22 @@ func generate_own_function_call(
         return void_result()
     }
     crash function
+    var into_slot = claimed_slot(function.c_name)
     var parameter_types = parameter_types_of(function.parameters)
     var saved_lending = lending_rows
     var called_c_name = lent_variant_name(function.c_name, arguments_ast, parameter_types, scope)
     lending_rows = called_c_name != function.c_name
+    argument_lender_class = class_information
+    argument_lender_function = function
     var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
     lending_rows = saved_lending
     var full_arguments = argument_codes.copy()
     full_arguments.prepend("self")
+    if not into_slot.is_empty() and called_c_name == function.c_name {
+        called_c_name = ensure_into_variant(class_information, function)
+        into_claimed_slot = into_slot
+        full_arguments.append(into_slot)
+    }
     var function_return_type = function.get_return_type()
     record_call(called_c_name)
     var self_type = value_class_type(class_information)
@@ -9271,14 +9687,124 @@ func generate_generic_call(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
+    var into_slot = claimed_slot(function_c_name)
+    var into_owner = into_claim_owner
+    var into_function = into_claim_function
     var saved_lending = lending_rows
     var called_c_name = lent_variant_name(function_c_name, arguments_ast, expected_types, scope)
     lending_rows = called_c_name != function_c_name
     argument_callee = function_c_name
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
     argument_callee = ""
+    argument_lender_class = null
+    argument_lender_function = null
     lending_rows = saved_lending
+    if not into_slot.is_empty() and called_c_name == function_c_name {
+        var into_name = into_callee(into_owner, into_function, function_c_name)
+        into_claimed_slot = into_slot
+        var into_arguments = argument_codes.copy()
+        into_arguments.append(into_slot)
+        return finish_generic_call(into_name, object_result, object_ast, into_arguments, return_type)
+    }
     return finish_generic_call(called_c_name, object_result, object_ast, argument_codes, return_type)
+}
+
+func claimed_slot(name: String): String {
+    assert into_claim_depth == expression_depth and into_claim_name == name
+    into_claim_depth = -1
+    return into_claim_slot
+}
+
+func into_callee(owner: Analysis.ClassInfo?, function: Analysis.FunctionInfo?, function_c_name: String): String {
+    crash owner
+    if function {
+        return ensure_into_variant(owner, function)
+    }
+    crash function_c_name == "{owner.c_name}_copy" or function_c_name == "{owner.c_name}___deep_copy"
+    ensure_frame_helpers(owner)
+    return "{owner.c_name}___copy_into"
+}
+
+func ensure_into_variant(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    var variant_c_name = "{function.c_name}___into"
+    if function_by_c_name(owner, variant_c_name) {
+        return variant_c_name
+    }
+    var variant_return_type = function.get_return_type()
+    var variant = Analysis.FunctionInfo(
+        function.name,
+        variant_c_name,
+        function.parameters,
+        variant_return_type,
+        function.body,
+        false,
+    )
+    variant.line = function.line
+    variant.source_path = function.source_path
+    variant.symbol_name = function.symbol_name
+    variant.symbol_field_name = function.symbol_field_name
+    variant.symbol_field_index = function.symbol_field_index
+    variant.symbol_field_type = function.symbol_field_type
+    variant.symbol_owner_c_name = function.symbol_owner_c_name
+    variant.symbol_through_caller = function.symbol_through_caller
+    variant.symbol_pattern = function.symbol_pattern
+    variant.symbol_function_name = function.symbol_function_name
+    variant.symbol_display_name = function.symbol_display_name
+    variant.symbol_range = function.symbol_range
+    variant.symbol_enum_c_name = function.symbol_enum_c_name
+    variant.result_slot = true
+    owner.functions.append(variant)
+    builder.add_prototype("{function_signature(owner, variant)};")
+    return variant_c_name
+}
+
+func ensure_frame_helpers(information: Analysis.ClassInfo) {
+    var c_name = information.c_name
+    assert not frame_helper_classes.contains(c_name)
+    if frame_helper_classes.is_empty() {
+        builder.add_typedef("#define SPITE_FRAMED_COUNT 1073741824")
+    }
+    frame_helper_classes.append(c_name)
+    var class_id_text: String = information.class_id
+    var parameters = constructor_parameter_list(information)
+    var into_parameters = "{c_name}* self"
+    if parameters != "void" {
+        into_parameters = "{c_name}* self, {parameters}"
+    }
+    builder.add_prototype("static {c_name}* {c_name}___framed({c_name}* self);")
+    builder.add_prototype("static void {c_name}___copy_fields({c_name}* target, {c_name}* source);")
+    builder.add_prototype("static {c_name}* {c_name}___make_into({into_parameters});")
+    builder.add_prototype("static {c_name}* {c_name}___copy_into({c_name}* self, {c_name}* spite_result);")
+    builder.add_support(
+        "static {c_name}* {c_name}___framed({c_name}* self) \{\nself->header.ref_count = SPITE_FRAMED_COUNT;\nself->header.class_id = {class_id_text};\nreturn self;\n}",
+    )
+    var copy_lines = List<String>()
+    copy_lines.append("static void {c_name}___copy_fields({c_name}* target, {c_name}* source) \{")
+    var field_index = 0
+    while field_index < information.fields.count() {
+        var field_code = c_value_name(information.fields[field_index].name)
+        copy_lines.append("target->{field_code} = source->{field_code};")
+        field_index = field_index + 1
+    }
+    copy_lines.append("}")
+    var joined_copy_lines = copy_lines.join("\n")
+    builder.add_support(joined_copy_lines)
+    var make_lines = List<String>()
+    make_lines.append("static {c_name}* {c_name}___make_into({into_parameters}) \{")
+    make_lines.append("{c_name}___framed(self);")
+    make_lines.append("{c_name}___init(self);")
+    if information.constructor {
+        var arguments = c_parameter_names(information.constructor.parameters)
+        arguments.prepend("self")
+        make_lines.append("{information.constructor.c_name}({arguments.join(", ")});")
+    }
+    make_lines.append("return self;")
+    make_lines.append("}")
+    var joined_make_lines = make_lines.join("\n")
+    builder.add_support(joined_make_lines)
+    builder.add_support(
+        "static {c_name}* {c_name}___copy_into({c_name}* self, {c_name}* spite_result) \{\n{c_name}___copy_fields({c_name}___framed(spite_result), self);\nreturn spite_result;\n}",
+    )
 }
 
 func is_lent_item_name(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
@@ -9564,7 +10090,7 @@ func generate_method_call(
         }
     }
     var object_counter = temporary_counter
-    var generated_member_object = generate_member_object(object_ast, scope, class_information)
+    var generated_member_object = member_object_in_frame(object_ast, member.name, scope, class_information)
     var object_result = as_text(generated_member_object)
     var object_result_type = object_result.get_type()
     var handle = joinable_handle(object_result_type)
@@ -9792,6 +10318,8 @@ func generate_method_call(
             class_information,
         )
     }
+    argument_lender_class = target_class
+    argument_lender_function = function
     var called = generate_generic_call(
         function.c_name,
         object_result,
@@ -13098,6 +13626,7 @@ func string_storage_code(name: String, code: String, field_type: Analysis.SpiteT
 func generate_memory_read(
     object_result: ExpressionResult,
     object_ast: Syntax.Expressions.Expression,
+    in_frame: Boolean,
 ): ExpressionResult? {
     var object_type = object_result.get_type()
     var described_ref = type_shape.as_class_ref(object_type)
@@ -13158,6 +13687,9 @@ func generate_memory_read(
     } else if not type_needs_drop(object_type) or type_shape.as_nullable(object_type) or type_shape.as_union(object_type) {
         report("{type_with_article(object_type)} has no memory of its own to describe")
         return null
+    }
+    if in_frame {
+        section = "Spite_Memory_Section_stack"
     }
     var release_object = ""
     if owned {
@@ -14324,6 +14856,32 @@ func try_resolve_static_path(
     return find_class(joined, current_namespace)
 }
 
+func member_object_in_frame(
+    object_ast: Syntax.Expressions.Expression,
+    function_name: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var framed = receiver_in_frame(object_ast, function_name, scope, class_information)
+    if framed {
+        return framed
+    }
+    return generate_member_object(object_ast, scope, class_information)
+}
+
+func operand_in_frame(
+    operand_ast: Syntax.Expressions.Expression,
+    function_name: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var framed = receiver_in_frame(operand_ast, function_name, scope, class_information)
+    if framed {
+        return framed
+    }
+    return generate_joined(operand_ast, scope, class_information)
+}
+
 func generate_member_object(
     object_ast: Syntax.Expressions.Expression,
     scope: Scope,
@@ -15145,7 +15703,8 @@ func generate_member_read_raw(
         }
     }
     if member.name == "memory" {
-        var memory_read = generate_memory_read(object_result, member.object)
+        var in_frame = not framed_object_name(member.object, scope).is_empty()
+        var memory_read = generate_memory_read(object_result, member.object, in_frame)
         if memory_read {
             return memory_read
         }
@@ -15281,6 +15840,17 @@ func generate_member_read_raw(
 }
 
 func generate_expression(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    expression_depth = expression_depth + 1
+    var result = generate_expression_kind(expression, scope, class_information)
+    expression_depth = expression_depth - 1
+    return result
+}
+
+func generate_expression_kind(
     expression: Syntax.Expressions.Expression,
     scope: Scope,
     class_information: Analysis.ClassInfo,
@@ -16054,6 +16624,7 @@ func generate_variable_declaration(
     assert not lends_row(declaration, scope, class_information)
     assert not lends_walked_row(declaration, scope, class_information)
     assert not frames_local_list(declaration, scope, class_information)
+    assert not frames_local_object(declaration, scope, class_information)
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     borrow_site = "local:{declaration.name}"
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
@@ -18652,7 +19223,9 @@ func generate_assignment(
             return
         }
     }
-    generate_store(assignment, scope, class_information)
+    if not stores_framed_object(assignment, scope, class_information) {
+        generate_store(assignment, scope, class_information)
+    }
     forget_narrowing_under(assignment.target, assignment.value, scope, class_information)
 }
 
@@ -23857,6 +24430,7 @@ func generate_return_statement(
         return
     }
     if return_statement.value {
+        assert not returns_object_in_frame(return_statement.value, return_type, scope, class_information)
         var value_code = coerce_for_store(return_statement.value, return_type, scope, class_information)
         var temporary = next_temporary()
         builder.add_user("{c_type_name(return_type)} {temporary} = {value_code};")
@@ -24057,6 +24631,9 @@ func named_signature(information: Analysis.ClassInfo, function: Analysis.Functio
         index = index + 1
     }
     var function_return_type = function.get_return_type()
+    if function.result_slot {
+        parts.append("{c_type_name(function_return_type)} restrict spite_result")
+    }
     return "{c_type_name(function_return_type)} {c_name}({parts.join(", ")})"
 }
 
@@ -24527,7 +25104,12 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     }
     current_function_c_name = function.c_name
     borrowed_names = List<String>()
-    if not guarded and not function.is_constructor and not is_hot_class(information) and waiting.is_empty() {
+    into_function_active = function.result_slot
+    object_frames_open = true
+    current_return_c_name = returned_class_name(function)
+    result_slot_local = ""
+    var candidate = not function.result_slot
+    if candidate and not guarded and not function.is_constructor and not is_hot_class(information) and waiting.is_empty() {
         machine_candidate_names.append(function.c_name)
         machine_candidate_classes.append(information)
         machine_candidate_functions.append(function)
@@ -24563,10 +25145,20 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     }
     close_rebindings(scope)
     builder.add_user("}")
+    into_function_active = false
+    object_frames_open = false
+    current_return_c_name = ""
     if guarded {
         var guarded_end = builder.user_count()
         guarded_ends.append(guarded_end)
     }
+}
+
+func returned_class_name(function: Analysis.FunctionInfo): String {
+    var function_return_type = function.get_return_type()
+    var returned_reference = type_shape.as_class_ref(function_return_type)
+    assert returned_reference
+    return returned_reference.c_name
 }
 
 func declare_lent_parameter(name: String, parameter_type: Analysis.SpiteType, sources: String, scope: Scope) {

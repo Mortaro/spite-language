@@ -1005,7 +1005,8 @@ counter and each free subtracts one, which is what it answers
 #### Where a value lives: `.memory`
 
 Every named value has a read-only `.memory`, a `Spite.Memory` (`library/spite/memory.spite`): `address`, `bytes`,
-and `section`, one of `'heap'`, `'stack'` or `'constant'`. A class instance or a list answers with its object, a
+and `section`, one of `'heap'`, `'stack'` or `'constant'`. A class instance or a list answers with its object
+(`'stack'` for an object the compiler placed in the frame, [Placement](#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)), a
 `String` with its characters (`'constant'` for a literal, whose characters are part of the program; for text made
 while the program runs, `'heap'` when it is longer than 15 bytes and lives in a block, and otherwise wherever the
 value itself is, since the characters are in it: `'stack'` in a local, `'heap'` in an attribute, [D203](decisions.md)),
@@ -1084,6 +1085,15 @@ is the same whichever it makes:
 - **In the value:** text of up to 15 bytes is kept in the sixteen bytes of the `String` itself ([D203](decisions.md),
   [optimizations.md](optimizations.md#short-text-lives-inside-the-string)).
 - **Constant:** a `String` literal's characters are part of the program (its `.memory.section` is `'constant'`).
+- **Frame, for objects** (proposed by Claude, unconfirmed; decided under D205/D214): an instance of a class of only
+  numbers, `Boolean`s, enum values and singletons -- no `drop()`, not a singleton, a constructor that keeps nothing, no
+  `.instances` read of its class -- that never leaves the function that made it lives in that function's frame,
+  and so does the fresh answer a function writes into its caller's slot and a temporary inside an expression. Never
+  leaving means: read and written only through its attributes, handed only to functions proven to keep nothing
+  (the same proof as D211's, run on each parameter and on the object a function is called on), compared, asked for
+  its `.memory`, given a new fresh object, and returned only from a function that answers its class (copied to
+  the heap there). Its `.memory.section` is `'stack'`. Not in the inspectable builds, nor in a function that waits
+  ([optimizations.md](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)).
 - **Heap:** everything else.
 
 There is no way to ask for the stack by name (D98's `allocate_stack_bytes` is gone): it would be a second way to

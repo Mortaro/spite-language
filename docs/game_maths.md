@@ -253,15 +253,21 @@ func HalfPrecisionBasics() {
 
 ## What they cost
 
-Every function that answers a vector, a matrix or a quaternion makes a new one, and **a new one is an allocation**:
-these are classes, and a class instance is a reference-counted object on the heap ([memory.md](memory.md)). So
-`position + velocity.scaled(delta)` allocates twice and frees the old `position` once. `benchmarks/game_maths`
-measures it: a million such steps take about 26 ms with `clang -O2` on Mortaro's machine, two allocations each, and
-200 000 `Matrix4` products take about 6 ms, one allocation each; setting a matrix in place (`set_perspective`,
-`set_transform`, ...) allocates nothing. What would remove the allocations is a question for Mortaro
-(`mortaros_missing_decisions.md`), not built: placing a result that never outlives its statement or its loop pass
-in the frame, as [D108](decisions.md)'s placement already does for buffers; or letting these classes be kept
-inline like numbers, which [D149](decisions.md)'s reference semantics forbid today.
+Every function that answers a vector, a matrix or a quaternion answers a new one, and these are classes: a class
+instance is a reference-counted object ([memory.md](memory.md)), passed by reference ([D149](decisions.md)). What
+it costs depends on where the answer goes. When it stays in the function that asked for it -- read, handed to
+functions that keep nothing, given a new value, or returned -- the compiler keeps it in that function's frame and
+the function that made it writes it straight there
+([optimizations.md](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)), so
+`position = position + velocity.scaled(delta)` in a loop allocates nothing, and neither do `a + b + c` or
+`(first - second).length()`. An answer that is stored -- in an attribute, a list, a `Vector<T>` column -- or printed
+is an object on the heap, one allocation, as any object is.
+
+`benchmarks/game_maths` measures it against the same passes written in C with plain structs
+(`benchmarks/game_maths/game_maths.c`), `clang -O2` on Mortaro's machine: a million `position +
+velocity.scaled(delta)` steps take about 0.7 ms, as the C does (35-46 ms and two allocations a step before objects
+went into the frame); 200 000 `Matrix4` products about 1.5 ms against 1 ms in C (8-11 ms before); a million
+`transform_point`s about 0.7 ms either way. The whole program makes 37 allocations, where it made 3 200 046.
 
 ## Rules in full
 
@@ -358,8 +364,10 @@ the layout and the conventions.
   **Cost**: none beyond the arithmetic. Each bit view is a primitive the compiler writes in place, a C union of
   the two types ([D215](decisions.md)), so no memory is touched and nothing is allocated; `benchmarks/half_precision`
   (ten million round trips) takes 13 ms with `clang -O2` and makes no allocation of its own.
-- **Cost.** Each function answering a vector, matrix or quaternion allocates it; the `set_` functions write in
-  place and allocate nothing (`benchmarks/game_maths`). Removing the allocations is open
-  (`mortaros_missing_decisions.md`).
+- **Cost.** These classes hold only numbers, so an answer that never leaves the function that asked for it lives
+  in that function's frame and is written there by the function that makes it; one that is stored or printed is
+  one heap allocation ([optimizations.md](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame),
+  proposed by Claude, unconfirmed, decided under D205/D214). The `set_` functions write in place.
+  `benchmarks/game_maths` measures both against the same passes in C (`game_maths.c`).
 - `conformance/stage6/game_vectors`, `game_matrices`, `game_geometry`, `game_colors`, `game_curves` and `half_precision` pin every function, rounding what goes through a sine to
   four places so the C library's last bit does not show.

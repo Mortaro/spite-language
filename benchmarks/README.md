@@ -31,7 +31,7 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `lent_arguments` | 200 000 entities in sparse sets over `Items` columns, systems taking their components as arguments (`Move(position, velocity)`, `Regenerate(health, regeneration)`, `Drift(velocity)`), 20 ticks: once with `system.phase_each(made_arguments(found))` passing borrowed items (D220), once copying each argument out of its column, passing it and storing it back; three rounds, each printing microseconds per tick of both. Measured 6.9 ms against 34.3 ms a tick (best of five, `clang -O2`) |
 | `stress` | SlopEngine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
 | `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../docs/standard_library.md#system-classes--implemented)) |
-| `game_maths` | a million `position + velocity.scaled(delta)` steps on `Vector3`, 200 000 `Matrix4` products and a million `transform_point`s; each answer is a new object, so the allocation count is the point |
+| `game_maths` | a million `position + velocity.scaled(delta)` steps on `Vector3`, 200 000 `Matrix4` products and a million `transform_point`s, printing microseconds; each answer is a new object, so the allocation count is the point. `game_maths.c` beside it is the same program in C with plain structs, built and run by hand (`clang -O2 benchmarks/game_maths/game_maths.c`), the number "as fast as C" is measured against |
 | `half_precision` | ten million `Float.to_half_precision()` and `half_precision_to_float()` round trips, over the bit views `Float.bits()` and `UnsignedInteger.bits_as_float()` (D215); prints the milliseconds. Before the bit views were C unions: 482 ms at `-O0`, 13 ms from `-O1`; after: 416 ms and 13 ms; 15 allocations either way, none per conversion |
 | `maths_stopgaps` | two million passes of sine, cosine, arc tangent, square root, floor and a power of two on a `Float`, first through the pure-Spite stopgaps SlopEngine wrote while Spite had no maths (`slop/math/scalar.spite`, copied in as `stopgap_scalar.spite`), then through the number classes' own maths functions; prints the milliseconds of each and the largest error of the stopgap `sine` over one turn |
 | `plain_loops` | a million `Float`s and `Integer`s: `into[index] = from.get_at(index) * 1.5 + 0.25` over two `List<Float>`, the same in place over a `Vector<Float>`, a `Float` sum and an `Integer` sum, each a plain `while` over `count()`; three rounds, each printing microseconds per pass of all four. The loops the C compiler vectorises once the count is read once and the items unchecked ([optimizations.md](../docs/optimizations.md#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked)) |
@@ -333,6 +333,29 @@ allocations, which is one per answer -- two per vector step, one per matrix prod
 | a million `position + velocity.scaled(delta)` on `Vector3` | 26 |
 | 200 000 `Matrix4` products | 6 |
 | a million `Matrix4.transform_point` | 0 (clang removes the allocation and the loop, since only a sum survives) |
+
+After objects that never leave their function went into the frame
+([optimizations.md](../docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)), the
+program prints microseconds. Best of five interleaved runs, `clang -O2`, on a machine other sessions were loading;
+the C column is `game_maths.c`, the same passes with `Vector3` and `Matrix4` as structs passed by value:
+
+| pass | before µs | after µs | C µs |
+|---|---|---|---|
+| a million `position + velocity.scaled(delta)` | 34 748 | 656 | 660 |
+| 200 000 `Matrix4` products | 8 049 | 1 502 | 935 |
+| a million `Matrix4.transform_point` | 709 | 665 | 667 |
+| allocations, whole program | 3 200 046 | 37 | -- |
+
+The whole of `run.sh`, the compiler before and after, prints the same answers and the same allocation counts for
+every benchmark but two: `game_maths` (3 200 046 → 37) and `small_allocations` (9 004 007 → 3 004 007: each pass's
+`step` and `scaled_step` are in the frame, while `moved`, which is kept in a list and becomes `sum`, stays on the
+heap). The machine was running several other compilers' checks at the time, so `run.sh`'s milliseconds moved by up
+to three times between runs of the same binary and are not reported; the table above comes from interleaved runs.
+
+Every answer prints the same. The vector steps and the transforms are the C program's speed. The products are
+about 1.6 times the C: each product is written into a slot and then copied into `accumulated` (64 bytes), where
+the C compiler keeps the struct in registers across the loop, and `step_matrix` is still counted up and down
+around each call.
 
 ### Dictionaries keyed by numbers (D224)
 

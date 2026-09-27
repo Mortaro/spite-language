@@ -70,6 +70,7 @@ nothing at run time because they emit nothing.
 | [Maths on constants is worked out while compiling](#maths-on-constants-is-worked-out-while-compiling) | built | every | nothing but speed; a folded call is the compiling machine's C library's answer |
 | [A local list of known size lives in the frame](#a-local-list-of-known-size-lives-in-the-frame) | built | every but the inspectable ones | fewer allocations |
 | [A loop over plain values reads its count once and its items unchecked](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked) | built | every but `--repl`, `--repl-port` and `--hot-reload` | nothing but speed |
+| [Objects that never leave their function live in the frame](#objects-that-never-leave-their-function-live-in-the-frame) | built | every but the inspectable ones | fewer allocations; `.memory.section` answers `'stack'` |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -1307,6 +1308,75 @@ two loops would take about 100 and 70 µs, but some results would change in thei
 for Mortaro and is not done (`mortaros_missing_decisions.md`, item 210). **Built** (2026-09-26, the second part of
 [D222](decisions.md); proposed by Claude, unconfirmed).
 
+### Objects that never leave their function live in the frame
+
+**What it does.** Every class is passed by reference ([D149](decisions.md)), so `var moved = position +
+velocity.scaled(delta)` reads as two new objects. When the compiler can prove an object never outlives the call
+that made it, it is not made on the heap at all: it gets a slot in the function's own frame, the way a buffer
+([D108](decisions.md), [D211](decisions.md)) and a list ([D222](decisions.md)) already do. Four places use it:
+
+- **A local.** `var name = <a fresh object>` gets a frame slot when nothing after it in its block lets the object
+  go: it is only read and written through its attributes, handed as the receiver or as an argument to functions
+  proven to keep nothing, compared, or asked for its `.memory`. It may be given a new fresh object
+  (`position = position + moved`), which is worked out in a second slot and copied into the first; and when the
+  function returns its class, `return name` copies it to the heap once, at the return, instead of once per step.
+  Anything else lets it go and keeps it on the heap as before: storing it in an attribute, a list or a dictionary,
+  returning it from a function that answers some other type, naming it in another variable (`var other = name`),
+  passing it to a function that keeps it, to a `Parallel` or a `Concurrent` (their constructors keep it), as a
+  function value (`name.update`, which holds the object), to a variadic list (`console.print(name)`), or naming it
+  in a text's hole other than as `{name.attribute}`.
+- **A result, into the caller's slot.** A function whose every `return` gives a fresh object -- `return
+  Vector3(...)`, a local that lives in the frame, or another such call -- gets a second, hidden version that writes
+  its answer into a slot its caller passes, a calling convention chosen per call site ([D36](decisions.md): both
+  versions may exist, and neither is visible). So `var moved = velocity.scaled(delta)`, whose `moved` stays in the
+  frame, calls the hidden version with `moved`'s slot, and nothing is allocated. `Matrix4.multiply`, which builds
+  its product in a local and returns it, becomes the same.
+- **A temporary.** In `a + b + c`, `(first + second).length_squared()` or `transform.transform_point(point)` passed
+  to a function that keeps nothing, each intermediate answer is written into a frame slot of its own.
+- **A copy used as a value.** This is D149's answer to value classes, which Spite does not have: "instead we can
+  copy() a instance because thats user intention, but if a copy is only used as a value, we internally compile it
+  as a value, the compiler is smart, the users arent". `var local = other.copy()` (or `other.deep_copy()`, the
+  same thing for a class of numbers) whose `local` never leaves the function is a frame slot filled by copying the
+  attributes -- a `memcpy` of the object's numbers after the C compiler is done -- with no heap allocation and no
+  count kept anywhere. Changing `local` never changes `other`, as with any copy.
+  `conformance/stage6/frame_objects` pins it: two such copies change `heap.live_allocations()` by 0 (by 2 before).
+
+**Which objects.** An instance of a class whose attributes are all numbers, `Boolean`s, enum values or singletons
+([D144](decisions.md) binds a singleton as an attribute, and it is never counted) -- `Vector3`, `Matrix4`,
+`Quaternion`, a program's own `Velocity`, SlopEngine's `Math.Matrix4` -- with no `drop()`, that is not a singleton and whose
+constructor keeps nothing, and whose class is not read with `.instances` anywhere in the program. What "keeps
+nothing" means is proven from the source of each function, parameter by parameter and for the object it is called
+on: a parameter kept nowhere in the body -- not stored, returned, captured, named in another variable, or passed on
+to a function that keeps it -- is lent. A function without a body the compiler reads (a foreign or built-in one) and
+a recursive call are assumed to keep.
+
+**How it stays safe.** A frame object starts with a reference count of 2^30 that its frame never lets go, so the
+count's ordinary ups and downs around calls never free it, and it is never on the heap to be freed. Nothing is kept
+anywhere, so no reference outlives the frame, and none reaches another thread: a program cannot tell where it lives
+except by asking.
+
+**When.** Every build but the inspectable ones (`--repl`, `--repl-port`, `--hot-reload`, `--development`), where
+every object stays an ordinary heap object that reflection and reloading can see, and not in a function that
+waits. Objects of classes holding text, lists or other objects are not placed yet: their attributes would have to
+be let go at the end of the frame, which is planned (below).
+
+**What you notice.** Fewer allocations under `--debug-memory`, and `value.memory.section` answering `'stack'` for a
+local that lives in the frame ([memory.md](memory.md#where-a-value-lives-memory)). `benchmarks/game_maths` (a
+million `position + velocity.scaled(delta)` steps, 200 000 `Matrix4` products, a million `transform_point`s): 3 200
+046 allocations before, 37 after, and the hand-written C with the same structs in `benchmarks/game_maths/game_maths.c`
+is the measure of speed -- see [the benchmarks](../benchmarks/README.md#game-maths-d213); `small_allocations` makes
+3 004 007 (9 004 007), and every other benchmark the same as before. On a copy of SlopEngine,
+whose `Math.Matrix4` holds its two singletons as attributes: `flex_layout` makes 99 789 allocations (100 514
+before), `scene_probe` 32 413 (32 518), `render_parity` 14 142 (14 171), with the same output; `stress` keeps
+its components in columns and makes the same 5 606 191. The pins that moved in `conformance/`: `lent_arguments`
+allocates 122 times (130), because the `Entity` a generic runner makes for each entity it hands to a system that
+keeps nothing is now in the frame; `singleton_counts` 65 times (200 065), because the `TallyHolder` each of its
+200 000 passes makes holds only a singleton and is only read, so it is in the frame; `frame_objects` pins the
+rest (2 098 allocations before, 86 after). In a program that starts
+threads, passing a frame object to a function still counts it up and down atomically, as it does any object; the
+count is never read. **Built** (2026-09-26, extending D108/D211 placement to objects under [D149](decisions.md);
+proposed by Claude, unconfirmed, decided under D205/D214).
+
 ## Planned
 
 Decided by Mortaro, not built yet. When one is built, it moves up to **Built** in the same change.
@@ -1330,7 +1400,12 @@ optimises behind it ([D149](decisions.md)): a copy used only once is passed by v
 allocated; a copy that is never changed shares the original, when that is cheaper; an object that never escapes
 its function is laid out inline or in registers; and reference counting is left out wherever ownership is
 provable. You keep writing `copy()` where you mean an independent object. (D152's allocator set right after
-construction, the one part of this already built, is [above](#an-allocator-set-after-construction-is-where-the-object-is-made).)
+construction is [above](#an-allocator-set-after-construction-is-where-the-object-is-made), and so is the first
+part of objects that never escape: [objects of numbers in the frame](#objects-that-never-leave-their-function-live-in-the-frame),
+including a `copy()` of one.) Not built yet: frame objects of classes that hold text, lists or other objects
+(their attributes let go at the end of the frame), an attribute object laid inline in a frame-held object where
+the attribute is never shared, and leaving out the count on a frame object passed to a function, which needs
+callees that borrow their parameters rather than taking a count.
 
 ### Other planned optimisations
 

@@ -9,12 +9,12 @@ func GameMaths() {
     var matrices_end = clock.elapsed_nanoseconds()
     var transformed = transform_pass()
     var transforms_end = clock.elapsed_nanoseconds()
-    var vector_milliseconds = (vectors_end - start) / 1000000
-    var matrix_milliseconds = (matrices_end - vectors_end) / 1000000
-    var transform_milliseconds = (transforms_end - matrices_end) / 1000000
-    console.print("1 000 000 Vector3 steps (a + b.scaled(t)) milliseconds", vector_milliseconds, "ended at", moved)
-    console.print("200 000 Matrix4 products milliseconds", matrix_milliseconds, "diagonal", combined)
-    console.print("1 000 000 Matrix4 point transforms milliseconds", transform_milliseconds, "total", transformed)
+    var vector_microseconds = (vectors_end - start) / 1000
+    var matrix_microseconds = (matrices_end - vectors_end) / 1000
+    var transform_microseconds = (transforms_end - matrices_end) / 1000
+    console.print("1 000 000 Vector3 steps (a + b.scaled(t)) microseconds", vector_microseconds, "ended at", moved)
+    console.print("200 000 Matrix4 products microseconds", matrix_microseconds, "diagonal", combined)
+    console.print("1 000 000 Matrix4 point transforms microseconds", transform_microseconds, "total", transformed)
 }
 
 func vector_pass(): Vector3 {

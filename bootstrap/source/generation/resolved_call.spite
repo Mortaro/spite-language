@@ -1,0 +1,4 @@
+var owner: Analysis.ClassInfo? = null
+var function: Analysis.FunctionInfo? = null
+var receiver: Syntax.Expressions.Expression? = null
+var constructs = false
