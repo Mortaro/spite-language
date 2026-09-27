@@ -200,19 +200,19 @@ func UnknownFlagError() {
 
 ```gdscript title=build_over_package/engine/build.spite
 var plugins_folder = "../../plugins"
-var engine_name = "slop"
+var engine = "slop"
 ```
 ```gdscript title=build_over_package/build.spite
 var plugins_folder = "plugins"
 ```
-```gdscript title=build_over_package/build_over_package.spite entry build=engine_name:theseus
+```gdscript title=build_over_package/build_over_package.spite entry build=engine:theseus
 var build = Build()
 var console = Console()
 
 func BuildOverPackage() {
     load "engine"
     console.print("plugins from", build.plugins_folder)
-    console.print("engine", build.engine_name)
+    console.print("engine", build.engine)
 }
 ```
 ```output
