@@ -334,7 +334,8 @@ func is_alive(): Boolean {
 - `attribute: Symbol<Label>` ranges over another class's members, read as `label.attributes[attribute]`, and the
   plural (`show_attributes(label)` for `show_attribute`) calls the template once per attribute, in order.
 - In a generic class, `if $value_type == List { }` (also `Dictionary`, `Null` for any `T?`, `Symbol` for any enum or `Symbol`, `Enum` for an enum only,
-  or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds. Only
+  or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds -- and is
+  tested the same way, `else if $value_type.element_type == Float`, in any branch of a chain. Only
   what the taken branch reaches is compiled -- helper functions, and the code after a chain whose branch returns
   -- so keep one generic class with a helper per kind, not one class per kind.
 - A getter with no setter makes a read-only attribute: `get_fahrenheit()` answers `.fahrenheit`, and assigning

@@ -1,0 +1,13 @@
+generic $holder_type
+
+var holder: $holder_type = null
+
+func describe(): String {
+    if $holder_type.held_type == String {
+        return holder.held.upper_case()
+    } else if $holder_type.held_type == Float {
+        var halved = holder.held / 2.0
+        return "half is {halved}"
+    }
+    return "other"
+}

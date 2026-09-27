@@ -140,7 +140,13 @@ even use things that would not compile for this build. That covers:
   system's arity;
 - `$component_type.fits_vector()` and `attribute.class.fits_vector()` ([D217](decisions.md)), which is how
   `Items<T>` picks inline or reference storage ([below](#an-items-storage-is-chosen-while-compiling));
-- `not`, `and`, `or`, `==` and `!=` over any of these.
+- a test on a codegen value's own codegen values, `$list_type.element_type == Float`,
+  `$map_type.value_type == Item`, `$holder_type.held_type == String`, to any depth, in every branch of an
+  `else if` chain (`conformance/stage6/codegen_member_fold`; fixed 2026-09-26, when only a plain `$T` folded);
+- `not`, `and`, `or`, `==` and `!=` over any of these. An `and` whose left side folds to `false`, and an `or` whose
+  left side folds to `true`, fold whatever the right side is, as the run-time `and` and `or` would never look at
+  it: so `$list_type.element_type == List and $list_type.element_type.element_type == Float` folds for a list of
+  text, whose items have no `element_type` to ask about.
 
 An `assert` or `crash` whose condition is one of these folds the same way: a check that holds writes nothing,
 and one that fails writes its failure (the default returned, or the crash report) with no test, the rest of its

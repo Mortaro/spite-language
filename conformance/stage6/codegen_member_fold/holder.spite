@@ -1,0 +1,3 @@
+generic $held_type
+
+var held: $held_type = null

@@ -375,7 +375,8 @@ func write(value: $value_type): String {
 
 Inside such a branch the types it was built from are named after the container's own codegen values:
 `$value_type.element_type` for a `List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>`
-or a `$value_type?`, and a generic class's own names for one of its instances.
+or a `$value_type?`, and a generic class's own names for one of its instances. They are tested like `$value_type`
+itself, `else if $list_type.element_type == Float`, and fold in every branch of the chain.
 
 ```gdscript title=describe_kind/kind.spite
 generic $kind_type
@@ -1542,6 +1543,12 @@ class's own names for one of its instances -- the names this section already giv
 the type does not have is an error listing them: "a List<Integer> has no codegen value named '$value_type' --
 List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own"
 (`diagnostics/every_attribute`). `conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
+Compared in a condition, a name read this way folds like `$value_type` itself: `if $list_type.element_type ==
+Float`, `else if $map_type.key_type == String`, `$holder_type.held_type != Item`, to any depth and in every
+branch of an `else if` chain, so a branch that does not fit the instantiation is not compiled (fixed 2026-09-26,
+proposed by Claude, unconfirmed; `conformance/stage6/codegen_member_fold`). An `and` whose left side folds to
+`false`, or an `or` whose left folds to `true`, folds without its right side, which may then ask what the type does
+not have: `$list_type.element_type == List and $list_type.element_type.element_type == Float`.
 
 **A codegen value that is a type reads as its class** (proposed by Claude, unconfirmed): a member
 read through it, `$component_type.name` or `$component_type.attributes`, is read from the bound class's

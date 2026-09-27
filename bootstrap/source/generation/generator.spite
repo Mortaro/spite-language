@@ -804,6 +804,11 @@ func constant_condition(
             if binary.right {
                 if binary.operator == 'logical_and' or binary.operator == 'logical_or' {
                     var left_constant = constant_condition(binary.left, scope, class_information)
+                    var decided_by_left = left_constant == false and binary.operator == 'logical_and' or left_constant == true and binary.operator == 'logical_or'
+                    if decided_by_left {
+                        mark_names_used_in(binary.right, scope)
+                        return left_constant == true
+                    }
                     var right_constant = constant_condition(binary.right, scope, class_information)
                     if (left_constant == true or left_constant == false) and (right_constant == true or right_constant == false) {
                         if binary.operator == 'logical_and' {
@@ -839,6 +844,14 @@ func constant_condition(
                             }
                             return not same_kind
                         }
+                    }
+                    var member_type = codegen_member_chain_type(binary.left, class_information)
+                    if member_type {
+                        var same_member_kind = type_test(member_type, binary.right, class_information)
+                        if binary.operator == 'equal' {
+                            return same_member_kind
+                        }
+                        return not same_member_kind
                     }
                     var left_text = folded_text(binary.left, scope, class_information)
                     var right_text = constant_text(binary.right)
@@ -5649,6 +5662,25 @@ func bound_type_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
         index = index + 1
     }
     return bound_type
+}
+
+func codegen_member_chain_type(
+    expression: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var member = shape.as_member(expression)
+    assert member
+    crash member.object
+    var owner_type: Analysis.SpiteType? = null
+    var generic_identifier = shape.as_generic_identifier(member.object)
+    if generic_identifier {
+        var bare_name = without_dollar(generic_identifier.name)
+        owner_type = codegen_bound_type(bare_name, class_information)
+    } else {
+        owner_type = codegen_member_chain_type(member.object, class_information)
+    }
+    assert owner_type
+    return codegen_member_type(owner_type, member.name)
 }
 
 func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {

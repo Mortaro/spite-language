@@ -1,0 +1,56 @@
+var console = Console()
+
+func CodegenMemberFold() {
+    describe_columns()
+    describe_ledgers()
+    describe_shelves()
+}
+
+func describe_columns() {
+    var texts = Column<List<String>>()
+    texts.values.append("ada")
+    var floats = Column<List<Float>>()
+    floats.values.append(1.5)
+    var flags = Column<List<Boolean>>()
+    flags.values.append(true)
+    var items = Column<List<Item>>()
+    var item = Item()
+    items.values.append(item)
+    var nested = Column<List<List<Float>>>()
+    var inner = [1.0, 2.0]
+    nested.values.append(inner)
+    var numbers = Column<List<Integer>>()
+    numbers.values.append(4)
+    var text_line = texts.describe()
+    var float_line = floats.describe()
+    var flag_line = flags.describe()
+    var item_line = items.describe()
+    var nested_line = nested.describe()
+    var number_line = numbers.describe()
+    console.print(text_line, float_line, flag_line, item_line, nested_line, number_line)
+    var float_after = floats.describe_after_a_test()
+    var item_after = items.describe_after_a_test()
+    var text_after = texts.describe_after_a_test()
+    console.print(float_after, item_after, text_after)
+}
+
+func describe_ledgers() {
+    var counts = Ledger<Dictionary<Integer>>()
+    counts.entries.set("apples", 3)
+    var stock = Ledger<Dictionary<Item>>()
+    var sword = Item()
+    stock.entries.set("first", sword)
+    var count_line = counts.describe()
+    var stock_line = stock.describe()
+    console.print(count_line, stock_line)
+}
+
+func describe_shelves() {
+    var named = Shelf<Holder<String>>()
+    named.holder.held = "ada"
+    var weighed = Shelf<Holder<Float>>()
+    weighed.holder.held = 3.0
+    var named_line = named.describe()
+    var weighed_line = weighed.describe()
+    console.print(named_line, weighed_line)
+}
