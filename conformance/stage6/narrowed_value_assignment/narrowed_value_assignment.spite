@@ -1,0 +1,83 @@
+var console = Console()
+var readings = List<Long>()
+var weights = List<Float>()
+var counts = List<Integer>()
+
+func NarrowedValueAssignment() {
+    readings.append(3)
+    readings.append(7)
+    readings.append(11)
+    weights.append(0.5)
+    weights.append(2.5)
+    counts.append(4)
+    counts.append(9)
+    latest_reading()
+    heaviest()
+    last_count()
+    cleared()
+}
+
+func latest_reading() {
+    var got = reading_at(0)
+    assert got
+    var index = 1
+    while index < 3 {
+        var next = reading_at(index)
+        if next {
+            got = next
+        }
+        index = index + 1
+    }
+    got = got + 1
+    console.print("latest reading", got)
+}
+
+func heaviest() {
+    var best = weight_at(0)
+    assert best
+    var index = 1
+    while index < 2 {
+        var next = weight_at(index)
+        if next {
+            if next > best {
+                best = next
+            }
+        }
+        index = index + 1
+    }
+    console.print("heaviest", best)
+}
+
+func last_count() {
+    var seen = count_at(0)
+    assert seen
+    var next = count_at(1)
+    assert next
+    seen = next
+    seen = seen * 2
+    console.print("last count doubled", seen)
+}
+
+func cleared() {
+    var got = reading_at(2)
+    assert got
+    var missing = reading_at(5)
+    got = missing
+    var present = false
+    if got {
+        present = true
+    }
+    console.print("after clearing, present", present)
+}
+
+func reading_at(index: Integer): Long? {
+    return readings[index]
+}
+
+func weight_at(index: Integer): Float? {
+    return weights[index]
+}
+
+func count_at(index: Integer): Integer? {
+    return counts[index]
+}

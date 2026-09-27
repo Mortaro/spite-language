@@ -680,7 +680,10 @@ exactly like overwriting any other owning slot). `assert value and
 other_condition` narrows `value` too, and `other_condition` itself already sees the narrowed type. Assigning
 the narrowed name something that may be null (`value = null`) makes it a `T?` again from that line, so reading
 through it afterwards is the usual may-be-null error (`diagnostics/narrowed_name_reassigned`; the full rule is
-under D43 below).
+under D43 below). A value type's narrowed `T?` is assigned the same way: `got = next`, with `got` and `next` both
+narrowed `Long?`s, stores the whole `Long?` -- its presence and its value -- into `got`, inside a loop too, and
+`got = missing` with a `Long?` that may be null makes it a `Long?` again (`conformance/stage6/narrowed_value_assignment`;
+before, the C written for it did not compile).
 
 ```gdscript
 var content = program_file.read()

@@ -20852,6 +20852,18 @@ func generate_assignment(
     forget_narrowing_under(assignment.target, assignment.value, scope, class_information)
 }
 
+func narrowed_value_holder(override: String, declared: Analysis.SpiteType): String {
+    var nullable = type_shape.as_nullable(declared)
+    if nullable {
+        var inner = nullable.get_inner()
+        if not type_is_reference(inner) and override.starts_with("(") and override.ends_with(").value") {
+            var override_length = override.length()
+            return override.slice(1, override_length - 7)
+        }
+    }
+    return override
+}
+
 func appends_to_itself(
     value: Syntax.Expressions.Expression,
     target: String,
@@ -20946,6 +20958,7 @@ func generate_store(
                 var declared = scope.unnarrowed_type(identifier.name)
                 if declared {
                     storage_type = declared
+                    target_code = narrowed_value_holder(override, declared)
                 } else {
                     var narrowed_field = class_information.find_field(identifier.name)
                     if narrowed_field {
