@@ -416,6 +416,35 @@ func reached_classes(entries: List<String>): Dictionary<Boolean> {
     return classes
 }
 
+func reached_functions(entries: List<String>): Dictionary<Boolean> {
+    var seen = Dictionary<Boolean>()
+    var waiting = entries.copy()
+    while not waiting.is_empty() {
+        var key = waiting.remove_last()
+        crash key
+        if not seen.has(key) {
+            seen.set(key, true)
+            var effects = by_function.get(key)
+            if effects {
+                add_placed_callees(effects, waiting)
+            }
+        }
+    }
+    return seen
+}
+
+func add_placed_callees(effects: FunctionEffects, waiting: List<String>) {
+    var index = 0
+    while index < effects.calls.count() {
+        var call = effects.calls[index]
+        var key = "{call.callee_class}#{call.callee}"
+        if call.callee_class != "*" and by_function.has(key) {
+            waiting.append(key)
+        }
+        index = index + 1
+    }
+}
+
 func add_callees(effects: FunctionEffects, waiting: List<String>) {
     var index = 0
     while index < effects.calls.count() {

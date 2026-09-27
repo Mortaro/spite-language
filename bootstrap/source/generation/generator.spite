@@ -25083,6 +25083,7 @@ func finish_singleton_guards() {
     }
     emitted_guards = guarded_names
     call_unguarded_inside(wrapped)
+    report_locked_waits(wrapped)
 }
 
 func state_touching_functions(): Dictionary<Boolean> {
@@ -25271,6 +25272,232 @@ func report_endless_locked_loop(information: Analysis.ClassInfo, function: Analy
     report(
         "'{information.simple_name}.{function.name}' holds {information.simple_name}'s lock for the whole call, since a Parallel reaches {information.simple_name}, and this loop never ends, so every other call on {information.simple_name} would wait forever: move the loop into a class that is not a singleton, and call {information.simple_name} from it",
     )
+}
+
+func report_locked_waits(wrapped: List<Integer>) {
+    var locked_keys = Dictionary<String>()
+    var index = 0
+    while index < wrapped.count() {
+        var position = wrapped[index]
+        var information = guarded_classes.get_at(position)
+        var function = guarded_functions.get_at(position)
+        if not is_instantiated_class(information) {
+            locked_keys.set("{information.simple_name}#{function.name}", information.simple_name)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < wrapped.count() {
+        var position = wrapped[index]
+        var information = guarded_classes.get_at(position)
+        var function = guarded_functions.get_at(position)
+        if not is_instantiated_class(information) {
+            report_waits_in(function.body, function.body, information, function, locked_keys)
+        }
+        index = index + 1
+    }
+}
+
+func report_waits_in(
+    statements: List<Syntax.Statements.Statement>,
+    whole: List<Syntax.Statements.Statement>,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    locked_keys: Dictionary<String>,
+) {
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        var declared = shape.as_variable_declaration(statement)
+        if declared {
+            report_joined_parallel(declared, whole, information, function, locked_keys)
+        }
+        var branched = shape.as_if_statement(statement)
+        if branched {
+            report_waits_in(branched.then_branch, whole, information, function, locked_keys)
+            report_waits_in(branched.else_branch, whole, information, function, locked_keys)
+        }
+        var looped = shape.as_while_statement(statement)
+        if looped {
+            report_waits_in(looped.body, whole, information, function, locked_keys)
+        }
+        index = index + 1
+    }
+}
+
+func report_joined_parallel(
+    declared: Syntax.Statements.VariableDeclaration,
+    whole: List<Syntax.Statements.Statement>,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    locked_keys: Dictionary<String>,
+) {
+    crash declared.value
+    var called = shape.as_call(declared.value)
+    assert called
+    assert called.arguments.count() == 1
+    crash called.callee
+    var starter = shape.as_identifier(called.callee)
+    assert starter
+    assert starter.name == "Parallel" and not handle_escapes(declared.name, whole)
+    var site = parallel_site_at(declared.line, information, function)
+    assert site >= 0
+    var work_key = parallel_site_keys.get_at(site)
+    var entries = [work_key]
+    var reached = call_effects.reached_functions(entries)
+    var reached_keys = reached.keys()
+    var index = 0
+    while index < reached_keys.count() {
+        var key = reached_keys[index]
+        var owner = locked_keys.get(key)
+        if owner {
+            if owner == information.simple_name {
+                report_locked_wait(declared, information, function, site, key)
+                return
+            }
+        }
+        index = index + 1
+    }
+}
+
+func parallel_site_at(line: Integer, information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Integer {
+    var index = 0
+    while index < parallel_site_places.count() {
+        var site_place = parallel_site_places.get_at(index)
+        var place = site_place.split("\n")
+        var same_line = place.get_at(1) == line.to_string()
+        if same_line and place.get_at(2) == information.qualified_dotted and place.get_at(3) == function.name {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func report_locked_wait(
+    declared: Syntax.Statements.VariableDeclaration,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    site: Integer,
+    key: String,
+) {
+    var site_place = parallel_site_places.get_at(site)
+    var place = site_place.split("\n")
+    current_path = place.get_at(0)
+    current_line = declared.line
+    current_owner = information.qualified_dotted
+    current_function = function.name
+    var work_text = parallel_site_texts.get_at(site)
+    var hash = key.index_of("#")
+    var key_length = key.length()
+    var locked_name = key.slice(hash + 1, key_length)
+    var name = information.simple_name
+    report(
+        "'{name}.{function.name}' waits for 'Parallel({work_text})' while it holds {name}'s lock, since a Parallel reaches {name}, and what '{work_text}' runs calls '{name}.{locked_name}', which takes that lock: each would wait for the other forever. Wait for the Parallel outside {name}'s functions, or do not call {name} from its work",
+    )
+}
+
+func handle_escapes(name: String, statements: List<Syntax.Statements.Statement>): Boolean {
+    var index = 0
+    while index < statements.count() {
+        if statement_hands_on(statements[index], name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func statement_hands_on(statement: Syntax.Statements.Statement, name: String): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: return optional_hands_on(statement.value, name)
+        Syntax.Statements.AssignmentStatement: {
+            if names_identifier(statement.value, name) {
+                return true
+            }
+            return optional_hands_on(statement.value, name)
+        }
+        Syntax.Statements.ReturnStatement: {
+            if names_identifier(statement.value, name) {
+                return true
+            }
+            return optional_hands_on(statement.value, name)
+        }
+        Syntax.Statements.ExpressionStatement: return optional_hands_on(statement.value, name)
+        Syntax.Statements.IfStatement: {
+            if optional_hands_on(statement.condition, name) {
+                return true
+            }
+            if handle_escapes(name, statement.then_branch) {
+                return true
+            }
+            return handle_escapes(name, statement.else_branch)
+        }
+        Syntax.Statements.WhileStatement: {
+            if optional_hands_on(statement.condition, name) {
+                return true
+            }
+            return handle_escapes(name, statement.body)
+        }
+        Syntax.Statements.SwitchStatement: return true
+        _: return false
+    }
+}
+
+func names_identifier(expression: Syntax.Expressions.Expression?, name: String): Boolean {
+    assert expression
+    var identifier = shape.as_identifier(expression)
+    assert identifier
+    return identifier.name == name
+}
+
+func optional_hands_on(expression: Syntax.Expressions.Expression?, name: String): Boolean {
+    assert expression
+    return expression_hands_on(expression, name)
+}
+
+func expression_hands_on(expression: Syntax.Expressions.Expression, name: String): Boolean {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            if arguments_hand_on(expression.arguments, name) {
+                return true
+            }
+            return optional_hands_on(expression.callee, name)
+        }
+        Syntax.Expressions.GenericCallExpression: return arguments_hand_on(expression.arguments, name)
+        Syntax.Expressions.BinaryExpression: {
+            if optional_hands_on(expression.left, name) {
+                return true
+            }
+            return optional_hands_on(expression.right, name)
+        }
+        Syntax.Expressions.UnaryExpression: return optional_hands_on(expression.operand, name)
+        Syntax.Expressions.MemberExpression: return optional_hands_on(expression.object, name)
+        Syntax.Expressions.IndexExpression: {
+            if optional_hands_on(expression.object, name) {
+                return true
+            }
+            return optional_hands_on(expression.index, name)
+        }
+        Syntax.Expressions.ListLiteralExpression: return true
+        Syntax.Expressions.ObjectLiteralExpression: return true
+        _: return false
+    }
+}
+
+func arguments_hand_on(arguments: List<Syntax.Expressions.Expression>, name: String): Boolean {
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        if names_identifier(argument, name) {
+            return true
+        }
+        if expression_hands_on(argument, name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func endless_loop_line(statements: List<Syntax.Statements.Statement>): Integer {

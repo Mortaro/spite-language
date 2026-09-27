@@ -458,6 +458,60 @@ func record_many(): Integer {
 3000 recorded, 3000 counted
 ```
 
+A singleton that takes a lock holds it for the whole of each call, so one of its functions must not wait for a
+`Parallel` whose work calls back into the same singleton: the work would wait for the lock, and the function holding
+it would wait for the work, forever. When the compiler can see it -- the `Parallel` made and read (or dropped, which
+waits) inside the locked function, and its work calling a locked function of that singleton -- it is an error
+naming both functions:
+
+```gdscript title=locked_wait_doc/remover.spite
+var columns = Columns()
+var last = 0
+
+func Remover(new_last: Integer) {
+    last = new_last
+}
+
+func run(): Integer {
+    var entity = 0
+    while entity < last {
+        columns.remove_row(entity)
+        entity = entity + 1
+    }
+    return last
+}
+```
+```gdscript title=locked_wait_doc/columns.spite
+singleton
+
+var removed = List<Integer>()
+
+func despawn_all(last: Integer): Integer {
+    var remover = Remover(last)
+    var removing = Parallel(remover.run)
+    var done: Integer = removing
+    return done
+}
+
+func remove_row(entity: Integer) {
+    removed.append(entity)
+}
+```
+```gdscript title=locked_wait_doc/locked_wait_doc.spite entry error
+var console = Console()
+var columns = Columns()
+
+func LockedWaitDoc() {
+    var removed = columns.despawn_all(10)
+    console.print(removed)
+}
+```
+```diagnostic
+'Columns.despawn_all' waits for 'Parallel(remover.run)' while it holds Columns's lock
+```
+
+Start the `Parallel` and read it in the class that asks for the despawn, and let only the work call `Columns`.
+
 A `ThreadLocal` keeps every thread's value until it is dropped itself, so a thread that ends does not take its
 value with it. `get()` takes no lock and costs the same with one thread or thirty; `set` takes the lock briefly.
 Both classes are the operating system's own (`TlsAlloc` and `SRWLOCK` on Windows, `pthread_key_t` and
@@ -1007,7 +1061,34 @@ D205: the lock stays whole-call). A `while true` with no `return`, `assert` or `
 a singleton that takes the lock (the fourth form above), would hold the lock for good, so every other call on the
 singleton would wait forever: `'Window.run' holds Window's lock for the whole call, since a Parallel reaches Window,
 and this loop never ends, so every other call on Window would wait forever: move the loop into a class that is not a
-singleton, and call Window from it` (`diagnostics/endless_locked_loop`). **A `Weak` a `Parallel` reaches is a
+singleton, and call Window from it` (`diagnostics/endless_locked_loop`).
+
+**A locked singleton function that waits for work calling back into it is a compile error** (D228, decided by
+Claude under D205; the shapes covered and the wording proposed by Claude, unconfirmed). A function of a singleton
+that takes the lock (the fourth form above) holds it while it waits, and a `Parallel`'s work runs on a pool thread,
+so work that calls a locked function of the same singleton waits for the lock while the function waits for the
+work: SlopEngine hung this way, silently, with no diagnostic. The compiler refuses it where it can prove it:
+
+- **The wait.** The locked function makes the `Parallel` in a `var` of its own (`var removing =
+  Parallel(remover.run)`, at any depth of `if` and `while`) and the handle stays there -- it is never passed as an
+  argument, assigned to anything, returned, or put in a list literal -- so the function reads it (a join, whether
+  or not it polled `finished` or `finished_value()` first) or drops it at its end, which waits too.
+- **The call back.** What the work runs reaches a function of the same singleton that takes the lock, following
+  D169's call effects through every call whose class is known (`columns.remove_row(entity)` on an attribute bound
+  to `Columns()`, a constructor, a function of the work's own class), the work's function itself included when it
+  is one of the singleton's.
+- **The error** is at the `var` line and names both functions and both ways out: `'Columns.despawn_all' waits for
+  'Parallel(remover.run)' while it holds Columns's lock, since a Parallel reaches Columns, and what 'remover.run'
+  runs calls 'Columns.remove_row', which takes that lock: each would wait for the other forever. Wait for the
+  Parallel outside Columns's functions, or do not call Columns from its work` (`diagnostics/locked_wait`).
+
+What it does not see, and so still leaves to the program: a handle that escapes the function (stored in an
+attribute or a list, passed, returned) and is read by another locked function later; a call the call effects
+cannot place on a class (through a function value, a union, or a receiver whose class is not known); work that
+reaches the singleton only by reading or writing its attributes from outside (D211 takes the lock for those too);
+`parallel_each_` passes, whose members are found by name on every class; and generic singletons (`Column<T>`),
+whose call effects do not tell one instance's lock from another's. A `Concurrent` cannot hang this way: it runs on
+the thread that waits for it, and the lock is re-entered by the thread that owns it. **A `Weak` a `Parallel` reaches is a
 compile error** too ([memory.md](memory.md#rules-in-full), `diagnostics/weak_across_threads`).
 
 A program without `Parallel` gets none of it: an atomic singleton compiles to plain reads and writes, and no

@@ -1,0 +1,17 @@
+var columns = Columns()
+var first = 0
+var last = 0
+
+func Remover(new_first: Integer, new_last: Integer) {
+    first = new_first
+    last = new_last
+}
+
+func run(): Integer {
+    var entity = first
+    while entity < last {
+        columns.remove_row(entity)
+        entity = entity + 1
+    }
+    return last - first
+}
