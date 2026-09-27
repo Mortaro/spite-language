@@ -510,7 +510,9 @@ A template sees only the element and the list: `names.each_say_hello()` looks fo
 name, never for a function of the class the call is written in. A function of yours is passed as a value
 instead: `names.each(say_hello)` calls `say_hello` once for every name, in order, and there is no
 `say_hello_to_everyone` to write. The function is bound to whoever owns it ([functions_and_operators.md](functions_and_operators.md#functions-are-values)):
-`say_hello` alone is this instance's, and `people.each(greeter.greet)` calls `greet` on `greeter`.
+`say_hello` alone is this instance's, and `people.each(greeter.greet)` calls `greet` on `greeter`. The library's
+classes are no different: `keys.filter(counts.has)` asks the dictionary `counts`, and
+`words.filter(greeting.contains)` asks the text `greeting`.
 
 `each`, `map`, `filter`, `any`, `all`, `count`, `find`, `sort_by` and `sum` each take such a function, which takes
 the element as its only argument: `filter`, `any`, `all`, `count` and `find` want one returning `Boolean` (`find`
@@ -877,7 +879,15 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 - **The owner.** `say_hello` alone is bound to this instance; `greeter.greet` to `greeter`; a variable holding a
   `Spite.Function<T, R>` is called through the value. `people.map(greeter.label).filter(is_short)` mixes owners.
   A list's own function is bound to the list the same way (`numbers.each(found.append)`, proposed by Claude,
-  unconfirmed); a chain that passes one is not fused, and runs step by step.
+  unconfirmed); a chain that passes one is not fused, and runs step by step. So is every library class's
+  (proposed by Claude, unconfirmed): a `Dictionary`'s (`keys.filter(counts.has)`, `keys.map(counts.get)`), and a
+  `String`'s or a number's (`words.filter(greeting.contains)`). A `List`'s or a `Dictionary`'s function may also
+  be held as a value, `var lookup = counts.get`, bound to that dictionary; a `String`'s or a number's may only be
+  passed to a form, since a value of text is no object a function value can keep: `var check =
+  greeting.contains` is "'contains' of a String is passed straight to a form, like 'names.filter(text.contains)',
+  and cannot be held as a value yet ...". What the function answers is what the form sees, so `counts.get`
+  answers `Integer?` (D225), and `keys.sort_by(counts.get)` is an error naming the fix: a function of your own
+  that narrows it (`conformance/stage6/library_functions_passed`, `diagnostics/library_function_mistakes`).
 - **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
   Symbol<$element_type>)`) is instantiated once per function and owner class, with a last hidden parameter holding
   the owner (the function's instance, passed at the call site), and `item.attributes[member]` reads as

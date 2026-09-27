@@ -1,0 +1,10 @@
+var console = Console()
+
+func LibraryFunctionMistakes() {
+    var counts = Dictionary<Integer>()
+    counts["pear"] = 3
+    var keys = counts.keys()
+    var ordered = keys.sort_by(counts.get)
+    var greeting = "hello"
+    var check = greeting.contains
+}

@@ -1,0 +1,5 @@
+pear, apple, fig
+amounts 3
+hell, lo
+apples 7
+hell a lo x y

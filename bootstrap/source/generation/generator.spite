@@ -11780,9 +11780,15 @@ func bound_function_of(
     var listed = type_shape.as_list(probe_type)
     if listed {
         var listed_element = listed.get_element()
-        return passed_list_function(member.object, probe_type, listed_element, member.name)
+        var list_class = list_class_of(listed_element)
+        return passed_library_function(member.object, probe_type, list_class, member.name)
     }
     var owner_ref = type_shape.as_class_ref(probe_type)
+    if not owner_ref {
+        var library_class = class_of_type(probe_type)
+        assert library_class
+        return passed_library_function(member.object, probe_type, library_class, member.name)
+    }
     assert owner_ref
     assert not owner_ref.has_signature
     var owner_class = find_class_by_c_name(owner_ref.c_name)
@@ -11808,21 +11814,20 @@ func passed_member_function(
     return passed
 }
 
-func passed_list_function(
+func passed_library_function(
     owner: Syntax.Expressions.Expression,
     owner_type: Analysis.SpiteType,
-    element: Analysis.SpiteType,
+    library_class: Analysis.ClassInfo,
     name: String,
 ): PassedFunction? {
     assert not name.starts_with("_")
-    var list_class = list_class_of(element)
-    var function = find_or_instantiate_function(list_class, name)
+    var function = find_or_instantiate_function(library_class, name)
     assert function
     assert not function.is_constructor
     var returned = function.get_return_type()
     var passed = PassedFunction(owner, owner_type, name, returned)
     passed.parameter_types = parameter_types_of(function.parameters)
-    passed.label = "{name}_for_{list_class.c_name.lower_case()}"
+    passed.label = "{name}_for_{library_class.c_name.lower_case()}"
     return passed
 }
 
@@ -11859,7 +11864,11 @@ func passed_function_problem(
     var returned = passed.get_returned()
     var requirement = form_requirement(name, label, returned)
     assert not requirement.is_empty()
-    return "'{name}({label})': '{label}' {described_member(returned)}, but '{name}' needs it to {requirement}"
+    var described = described_member(returned)
+    if type_shape.as_nullable(returned) {
+        described = "returns {type_with_article(returned)}"
+    }
+    return "'{name}({label})': '{label}' {described}, but '{name}' needs it to {requirement}"
 }
 
 func form_requirement(name: String, label: String, returned: Analysis.SpiteType): String {
@@ -11877,6 +11886,9 @@ func form_requirement(name: String, label: String, returned: Analysis.SpiteType)
         return "return a value (to only call it for each element, write 'each({label})')"
     }
     var ordered = is_numeric_type(returned) or type_shape.as_string(returned)
+    if name == "sort_by" and type_shape.as_nullable(returned) {
+        return "return something ordered, a number or a String, and a value that may be null has no place in the order: pass a function of your own that narrows it and returns the plain value"
+    }
     if name == "sort_by" and not ordered {
         return "return something ordered: a number or a String"
     }
@@ -14966,6 +14978,31 @@ func generate_call(
     return void_result()
 }
 
+func library_function_value(
+    member: Syntax.Expressions.MemberExpression,
+    object_result: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert not member.name.starts_with("_")
+    var object_type = object_result.get_type()
+    var owner_class = class_of_type(object_type)
+    assert owner_class
+    var function = find_or_instantiate_function(owner_class, member.name)
+    assert function
+    assert not function.is_constructor
+    var container = container_class_of(object_type)
+    if not container {
+        report(
+            "'{member.name}' of {type_with_article(object_type)} is passed straight to a form, like 'names.filter(text.{member.name})', and cannot be held as a value yet: a {type_display_name(object_type)} is not an object a function value can keep. To keep one, write a function of your own that calls it",
+        )
+        return void_result()
+    }
+    crash member.object
+    report_captured_borrow(member, object_result, scope, class_information)
+    return function_value(owner_class, function, object_result, member.object)
+}
+
 func generate_member_read(
     member: Syntax.Expressions.MemberExpression,
     scope: Scope,
@@ -15188,6 +15225,10 @@ func generate_member_read_raw(
     }
     var object_class_ref = type_shape.as_class_ref(object_result_type)
     if not object_class_ref {
+        var held = library_function_value(member, object_result, scope, class_information)
+        if held {
+            return held
+        }
         switch object_result_type {
             Analysis.Types.NullableType: {
                 report(

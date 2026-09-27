@@ -261,7 +261,9 @@ func is_alive(): Boolean {
   `names.map(measure)`, `names.filter(is_short)`, and `any`, `all`, `count`, `find` (the first element it is true
   for, a `T?`), `sort_by` and `sum` the same way, on a list or dictionary of anything, chained with the member
   templates or not (`people.filter_active().map(greeter.label)`). The function takes the element as its only
-  argument and is bound to its owner: `greeter.label` is `greeter`'s. A function that needs more than the element
+  argument and is bound to its owner: `greeter.label` is `greeter`'s, and a library value's works the same:
+  `keys.filter(counts.has)`, `words.filter(greeting.contains)`. `counts.get` answers `T?`, so it cannot order a
+  `sort_by`: pass a function of yours that narrows it. A function that needs more than the element
   (`print_statement(statement, depth)`) keeps its `while`; `map(f)` of a function that returns nothing is an
   error naming `each(f)`.
 - `enum`, `union` and `type` declarations take no `=`, one entry per line, no commas:
