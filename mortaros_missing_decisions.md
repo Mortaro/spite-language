@@ -385,3 +385,29 @@ Behaviour that does not match the manual. The language was not changed; each is 
      optimisation do. Not built. Is `Float` arithmetic rounded to `Float` after each operation (then the literal
      is a bug fix), or is double precision inside one expression the rule?
 
+
+## Release builds and compile time (from the Theseus port; numbers in benchmarks/README.md)
+
+211. **The default build's optimisation level.** It is `-O0`, yours to change, and was left alone. Measured on
+     `benchmarks/versus_c` (the Spite programs' own C, microseconds): `-O0` is 3-7x slower than `-O2` on every
+     program (`vector_maths` 1 081 065 against 312 885, `number_dictionary` 725 624 against 109 304, `sorting`
+     496 780 against 164 525), and the compiler compiling itself takes 5 875 CPU ms built at `-O0` against 1 938 at
+     `-O1` and 1 656 at `-O2`. Building costs the other way: the compiler's 7.2 MB of C is 6-11 s from one file at
+     `-O0`, about 40 s at `-O1`/`-O2` and 38-51 s at `-O3` (14.5 s at `-O3` from eight units, cold). Keep `-O0`,
+     move to `-O1` (most of the speed, compile time several times `-O0`'s), or build the default from units at
+     `-O1` too?
+212. **`--optimized` is now `-O3` with link-time optimisation (proposed by Claude, unconfirmed), as asked for the
+     Theseus port.** Against the old `-O2`, `-O3` is a wash: `number_dictionary` 18% and `text_building` 13% faster,
+     `vector_maths` 3% and the compiler itself 6% slower, the rest equal. Split into units with ThinLTO it runs
+     exactly as fast as one file at `-O3` (1 766 CPU ms for the compiler either way), and builds 2.6-3.6x faster
+     cold. Keep `-O3`, or go back to `-O2` (under D214 the measurements do not pick a clear winner)?
+213. **The names: `tune_for_this_machine` (`--tune-for-this-machine`, `-march=native`/`-mcpu=native`, off by
+     default because the executable may not run on an older processor) and `translation_units`
+     (`--translation-units=N`; `0` chooses: one file in a default build, a power of two by size in an
+     `--optimized` one).** Both proposed by Claude, unconfirmed. Also: splitting a default build was measured and
+     made it slower (every unit reads the whole header again, and `-O0` spends its time reading), so `0` does not
+     split it -- agree?
+214. **The object cache (`.spite-cache/objects`) is never cleaned.** Each unit's object is kept under the hash of
+     what it was compiled from; nothing deletes old ones, so it grows with every changed build of a big program
+     (tens of MB per `--optimized` build of the compiler). Delete the oldest past a size, delete everything older
+     than some days, or leave it to the user (`rm -rf .spite-cache/objects`)?

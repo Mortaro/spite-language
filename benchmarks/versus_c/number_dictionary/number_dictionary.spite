@@ -1,6 +1,8 @@
 var console = Console()
+var clock = Clock()
 
 func NumberDictionary() {
+    var start = clock.elapsed_nanoseconds()
     var scores = Dictionary<Integer>()
     var index = 0
     while index < 500000 {
@@ -23,5 +25,7 @@ func NumberDictionary() {
         round = round + 1
     }
     var entries = scores.count()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
     console.print("entries", entries, "found", found, "total", total)
+    console.error("microseconds {microseconds}")
 }

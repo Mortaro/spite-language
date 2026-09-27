@@ -1,6 +1,8 @@
 var console = Console()
+var clock = Clock()
 
 func Sorting() {
+    var start = clock.elapsed_nanoseconds()
     var numbers = List<Integer>()
     var seed: Long = 42
     var index = 0
@@ -22,7 +24,9 @@ func Sorting() {
         }
         index = index + 1
     }
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
     console.print("ordered", ordered, "checksum", checksum)
+    console.error("microseconds {microseconds}")
 }
 
 func sort(numbers: List<Integer>, low: Integer, high: Integer) {

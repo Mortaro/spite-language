@@ -1,6 +1,8 @@
 var console = Console()
+var clock = Clock()
 
 func Particles() {
+    var start = clock.elapsed_nanoseconds()
     var particles = Vector<Particle>()
     var index = 0
     while index < 100000 {
@@ -24,5 +26,7 @@ func Particles() {
     }
     var height_checksum: Long = height
     var spread_checksum: Long = spread
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
     console.print("height", height_checksum, "spread", spread_checksum)
+    console.error("microseconds {microseconds}")
 }

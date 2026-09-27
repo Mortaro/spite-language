@@ -1,6 +1,8 @@
 var console = Console()
+var clock = Clock()
 
 func TextBuilding() {
+    var start = clock.elapsed_nanoseconds()
     var built = ""
     var index = 0
     while index < 3000000 {
@@ -16,5 +18,7 @@ func TextBuilding() {
     var joined = words.join(", ")
     var built_length = built.length()
     var joined_length = joined.length()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
     console.print("built", built_length, "joined", joined_length)
+    console.error("microseconds {microseconds}")
 }
