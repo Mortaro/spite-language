@@ -23625,10 +23625,42 @@ func emit_crash_operand(
     if is_enum_type(probe_type) {
         printable = true
     }
+    var shown = expression
+    if not printable and describes_itself(probe_type) {
+        var no_arguments = List<Syntax.Expressions.Expression>()
+        var described: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(expression, "to_string")
+        shown = Syntax.Expressions.CallExpression(described, no_arguments)
+        printable = true
+    }
     assert printable
     builder.add_user("fputs(\"\\t{escape_c_string(name)}=\", stderr);")
-    var operand_statement = crash_operand_statement(expression, scope, class_information)
+    var operand_statement = crash_operand_statement(shown, scope, class_information)
     builder.add_user(operand_statement)
+}
+
+func describes_itself(spite_type: Analysis.SpiteType): Boolean {
+    var described_ref = type_shape.as_class_ref(spite_type)
+    assert described_ref
+    assert not described_ref.has_signature
+    var described_class = find_class_by_c_name(described_ref.c_name)
+    assert described_class
+    var described = find_or_instantiate_function(described_class, "to_string")
+    assert described
+    return described.parameters.is_empty()
+}
+
+func called_receiver(condition: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    var negated = shape.as_unary(condition)
+    if negated {
+        crash negated.operand
+        return called_receiver(negated.operand)
+    }
+    var call = shape.as_call(condition)
+    assert call
+    crash call.callee
+    var called = shape.as_member(call.callee)
+    assert called
+    return called.object
 }
 
 func emit_crash_operands(
@@ -23644,6 +23676,11 @@ func emit_crash_operands(
         if binary.right {
             emit_crash_operand(binary.right, scope, class_information)
         }
+        return
+    }
+    var receiver = called_receiver(condition)
+    if receiver {
+        emit_crash_operand(receiver, scope, class_information)
         return
     }
     emit_crash_operand(condition, scope, class_information)
@@ -23709,7 +23746,12 @@ func record_site(
                 }
             }
         } else {
-            var single = operand_description(assert_statement.value, scope, class_information)
+            var described_operand = assert_statement.value
+            var receiver = called_receiver(assert_statement.value)
+            if receiver {
+                described_operand = receiver
+            }
+            var single = operand_description(described_operand, scope, class_information)
             if not single.is_empty() {
                 operands.append(single)
             }

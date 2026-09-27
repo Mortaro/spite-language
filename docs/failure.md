@@ -608,6 +608,14 @@ spite.crash	64b935f1	crash_report/crash_report.spite:14	CrashReport	check	value 
 spite.assert	0aae5005	crash_report/crash_report.spite:18	CrashReport	announce	amount > 0
 ```
 
+When the condition is a call on a value, `crash settings.exists()` (or `crash not names.contains(name)`), the
+value the call was made on is the operand: text, a number or an enum is written as it is, and an object whose class
+has a `to_string()` as that text, so a missing `File` names its path:
+
+```
+spite.crash	00b7d810	crash_receiver/crash_receiver.spite:6	CrashReceiver	CrashReceiver	settings.exists()	settings=.spite-cache/crash_receiver/missing_settings.txt
+```
+
 The id is derived from the site's content, so it stays the same when unrelated lines move. Each build also writes
 a `.crashes` file beside the executable it builds: one line per `assert` and `crash` site, sorted by id, with its file,
 line, class, function, kind and condition, so `grep 64b935f1 program.crashes` finds a site from a report.
@@ -977,4 +985,9 @@ spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition
 
 The condition is rebuilt from its own tokens and the line ends with the named operands of the failed
 comparison and their values -- `value > limit<TAB>value=-9<TAB>limit=0` -- with calls never evaluated a second
-time.
+time. **A condition that is a call on a value** (D228), `crash file.exists()` or `crash not list.contains(x)`,
+has that value as its operand when it is a name or a path: text, a number or an enum is written as it is, and an
+object whose class declares `to_string()` with no arguments is written as what that answers, called once on the
+way out -- `settings.exists()<TAB>settings=saves/settings.txt`, since `File`'s `to_string()` is its path. A value
+with no `to_string()` (a `List`) adds nothing, and the call itself is not evaluated again. The `.crashes` map
+lists it with its type (`settings:File`; `conformance/stage5/crash_receiver`).
