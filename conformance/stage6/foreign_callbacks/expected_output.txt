@@ -1,0 +1,18 @@
+30 9
+main got message 15 with 21
+tools got message 16 with 5
+42 10
+visit 0 0
+visit 1 0.5
+visit 2 1
+visit 3 1.5
+visited 3
+tally 10 true
+tally 11 true
+tally 12 true
+total 33
+voice 1 started true
+voice 1 ended with buffer 100
+voice 2 started true
+voice 2 ended with buffer 200
+buffers ended 2

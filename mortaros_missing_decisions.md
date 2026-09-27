@@ -385,3 +385,15 @@ Behaviour that does not match the manual. The language was not changed; each is 
      optimisation do. Not built. Is `Float` arithmetic rounded to `Float` after each operation (then the literal
      is a bug fix), or is double precision inside one expression the rule?
 
+
+## Callbacks from C (D231-D234)
+
+211. **The names, and two limits of the design.** Built under D205 with provisional names (D214):
+     `ForeignCallback(function, where_context)`, its literals `'no_context'`, `'context_first'` and
+     `'context_last'`, and its `address` and `context`
+     ([foreign_libraries.md](docs/foreign_libraries.md#calling-back-into-spite)). Two limits only you can weigh:
+     (a) a call C makes through a context after its `ForeignCallback` was dropped is not caught -- the owner's
+     `drop()` must unregister from C first; catching it would need a table of live contexts in every program
+     that makes one, and a lookup per call. (b) `'no_context'` takes only a function of a singleton, one
+     `ForeignCallback` per function at a time, so a window procedure lives on a singleton that finds the window by
+     its handle; a static slot per construction site would allow any object, checked only at run time. Keep both?

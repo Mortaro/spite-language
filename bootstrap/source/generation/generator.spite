@@ -25,6 +25,9 @@ var foreign_symbol_names = List<String>()
 var foreign_symbol_wanted = List<String>()
 var foreign_headers_included = List<String>()
 var function_value_makers = List<String>()
+var callback_trampolines = List<String>()
+var callback_signature_keys = List<String>()
+var callback_runtime_written = false
 var read_evaluate_print_loop = false
 var console_loop = false
 var remote_loop_port = 0
@@ -8646,6 +8649,9 @@ func generate_constructor_call(
     if target_class.c_name == "DynamicLibrary" {
         return generate_library_constructor(arguments_ast)
     }
+    if target_class.qualified_dotted == "ForeignCallback" {
+        return generate_foreign_callback(target_class, arguments_ast, scope, class_information)
+    }
     if target_class.qualified_dotted == "Parallel" and target_class.is_instantiated {
         check_parallel_work(arguments_ast, scope, class_information)
     }
@@ -10752,6 +10758,12 @@ func check_parallel_name(
             }
             report(
                 "'{template_name}' runs '{function.name}' on another thread, so it may reach only the attributes of its own '{owner.simple_name}' that hold values, its locals and singletons (D179): '{name}' holds {type_with_article(field_type)}, which another thread may share. Give the work what it needs as numbers or text of its own, or make an object for the work alone that nothing else holds or touches after 'Parallel(...)' (D207)",
+            )
+            return
+        }
+        if reaches_shared(field_type) and template_name.starts_with("ForeignCallback(") {
+            report(
+                "'{template_name}' may be called by C on a thread of its own, so '{function.name}' may reach only the attributes of its own '{owner.simple_name}' that hold values, its locals and singletons (D179): '{name}' holds {type_with_article(field_type)}, which another thread may share. Keep it in a singleton the callback calls, which is made safe for threads (D183), or give the callback numbers and text of its own",
             )
             return
         }
@@ -14604,6 +14616,10 @@ func generate_foreign_call(
             }
             parameter_types.append("void*")
             passed.append("(void*)&{struct_value}")
+        } else if is_function_value_type(argument_type) {
+            parameter_types.append("void*")
+            var trampoline_address = direct_callback_argument(argument, arguments_ast[index], lines, afters, releases)
+            passed.append(trampoline_address)
         } else {
             report(
                 "{type_with_article(argument_type)} cannot cross into C: a foreign function takes numbers, Boolean, enum values, text and a type whose attributes are all numbers",
@@ -14657,6 +14673,344 @@ func foreign_argument_c_name(kind: Analysis.Types.NumericKind): String {
 func declared_foreign_call(symbol_name: String, pointer: String, passed: List<String>, returned_c: String): String {
     var call = "((__typeof__(&{symbol_name})){pointer})({passed.join(", ")})"
     return "({returned_c})__builtin_choose_expr(__builtin_types_compatible_p(__typeof__({call}), void), ({call}, ({returned_c})0), {call})"
+}
+
+func generate_foreign_callback(
+    target_class: Analysis.ClassInfo,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var shape_of_call = "ForeignCallback(...) takes a function named directly, like 'mixer.voice_ended', and where C passes it back its context: 'no_context', 'context_first' or 'context_last'"
+    if arguments_ast.count() != 2 {
+        report(shape_of_call)
+        return refused_callback(target_class)
+    }
+    var where_context = shape.as_enum_literal(arguments_ast[1])
+    if not where_context {
+        report(shape_of_call)
+        return refused_callback(target_class)
+    }
+    crash where_context
+    var position = where_context.value
+    if position != "no_context" and position != "context_first" and position != "context_last" {
+        report(
+            "'{position}' is not where C passes a callback its context: write 'no_context', 'context_first' or 'context_last'",
+        )
+        return refused_callback(target_class)
+    }
+    crash arguments_ast[0]
+    var work = arguments_ast[0]
+    var owner = callback_owner(work, scope, class_information)
+    if not owner {
+        report(shape_of_call)
+        return refused_callback(target_class)
+    }
+    crash owner
+    var function_name = callback_function_name(work)
+    var function = owner.find_function(function_name)
+    if not function {
+        report(shape_of_call)
+        return refused_callback(target_class)
+    }
+    crash function
+    var printer = Syntax.SourcePrinter()
+    var work_text = printer.source_expression(work)
+    var call_text = "ForeignCallback({work_text}, '{position}')"
+    var parameter_types = parameter_types_of(function.parameters)
+    var parameter_names = function.parameters.map_name()
+    var returned = function.get_return_type()
+    if not callback_types_cross(call_text, parameter_types, parameter_names, returned) {
+        return refused_callback(target_class)
+    }
+    builder.threads = true
+    parallel_used = true
+    if position == "no_context" and not owner.is_singleton {
+        report(
+            "'{call_text}' gives C no context to find its '{owner.simple_name}' by, so '{function_name}' must belong to a singleton: move it into a singleton that tells them apart by what C passes, or hand C the context with 'context_first' or 'context_last'",
+        )
+        return refused_callback(target_class)
+    }
+    if not owner.is_singleton {
+        var visited = List<String>()
+        check_parallel_reach(owner, function, call_text, visited)
+    }
+    crash target_class.constructor
+    var expected_types = parameter_types_of(target_class.constructor.parameters)
+    var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
+    ensure_callback_runtime()
+    var called = escape_c_string("'{owner.simple_name}.{function_name}' ({current_path}:{current_line})")
+    var handle = next_temporary()
+    var lines = List<String>()
+    lines.append("{target_class.c_name}* {handle} = {target_class.c_name}___make({argument_codes.join(", ")});")
+    if position == "no_context" {
+        var trampoline = "{function.c_name}___from_c"
+        var slot = "{trampoline}_owner"
+        if not callback_trampolines.contains(trampoline) {
+            callback_trampolines.append(trampoline)
+            builder.add_typedef("static void* {slot} = 0;")
+            var fetch = "void* spite_owner = __atomic_load_n(&{slot}, __ATOMIC_ACQUIRE);\nif (spite_owner == 0) spite_callback_late(\"{called}\", \"after its ForeignCallback was dropped: keep the ForeignCallback for as long as C may call it\");"
+            var target = "{function.c_name}(({owner.c_name}*)spite_owner"
+            emit_callback_trampoline(trampoline, parameter_types, returned, position, fetch, target)
+        }
+        lines.append(
+            "spite_callback_register(&{slot}, ((Spite_Function*){handle}->_function_)->spite_owner, \"{called}\");",
+        )
+        lines.append("{handle}->_registration_ = (int64_t)(intptr_t)&{slot};")
+        lines.append("{handle}->_address_ = (int64_t)(intptr_t)&{trampoline};")
+    } else {
+        var trampoline = shared_context_trampoline(parameter_types, returned, position)
+        lines.append("{handle}->_context_ = (int64_t)(intptr_t){handle}->_function_;")
+        lines.append("{handle}->_address_ = (int64_t)(intptr_t)&{trampoline};")
+    }
+    lines.append("{handle};")
+    var class_type = Analysis.Types.ClassRefType(target_class.c_name)
+    return ExpressionResult("(\{ {lines.join(" ")} })", class_type)
+}
+
+func refused_callback(target_class: Analysis.ClassInfo): ExpressionResult {
+    var class_type = Analysis.Types.ClassRefType(target_class.c_name)
+    return ExpressionResult("(({target_class.c_name}*)0)", class_type)
+}
+
+func callback_owner(
+    work: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var named = shape.as_identifier(work)
+    if named {
+        assert not scope.lookup_type(named.name)
+        return class_information
+    }
+    var member = shape.as_member(work)
+    assert member
+    crash member.object
+    var saved_counter = temporary_counter
+    var probe = generate_expression(member.object, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var probe_type = probe.get_type()
+    var owner_ref = type_shape.as_class_ref(probe_type)
+    assert owner_ref
+    assert not owner_ref.has_signature
+    return find_class_by_c_name(owner_ref.c_name)
+}
+
+func callback_function_name(work: Syntax.Expressions.Expression): String {
+    var named = shape.as_identifier(work)
+    if named {
+        return named.name
+    }
+    var member = shape.as_member(work)
+    crash member
+    return member.name
+}
+
+func callback_c_type(spite_type: Analysis.SpiteType): String {
+    var scalar = type_shape.as_scalar(spite_type)
+    assert scalar
+    if scalar.kind == 'boolean_kind' {
+        return "int32_t"
+    }
+    return numeric_c_name(scalar.kind)
+}
+
+func callback_returns_nothing(returned: Analysis.SpiteType): Boolean {
+    if type_shape.is_void(returned) {
+        return true
+    }
+    var returns_class = type_shape.as_class_ref(returned)
+    assert returns_class
+    return returns_class.c_name == "Nothing"
+}
+
+func callback_types_cross(
+    call_text: String,
+    parameter_types: List<Analysis.SpiteType>,
+    parameter_names: List<String>,
+    returned: Analysis.SpiteType,
+): Boolean {
+    var index = 0
+    while index < parameter_types.count() {
+        if callback_c_type(parameter_types[index]).is_empty() {
+            crash parameter_names[index]
+            report(
+                "'{call_text}' is called by C, which passes numbers and addresses: '{parameter_names[index]}' is {type_with_article(parameter_types[index])}, so take it as a number, a Boolean or a Memory.Address (text C passes is read with 'terminated_text()')",
+            )
+            return false
+        }
+        index = index + 1
+    }
+    if not callback_returns_nothing(returned) and callback_c_type(returned).is_empty() {
+        report(
+            "'{call_text}' is called by C, which takes back a number, a Boolean or nothing: it returns {type_with_article(returned)}",
+        )
+        return false
+    }
+    return true
+}
+
+func shared_context_trampoline(
+    parameter_types: List<Analysis.SpiteType>,
+    returned: Analysis.SpiteType,
+    position: String,
+): String {
+    var key_parts = List<String>()
+    key_parts.append(position)
+    var returned_c = callback_c_type(returned)
+    key_parts.append(returned_c)
+    var index = 0
+    while index < parameter_types.count() {
+        var parameter_c = c_type_name(parameter_types[index])
+        key_parts.append(parameter_c)
+        index = index + 1
+    }
+    var key = key_parts.join(",")
+    var found = 0
+    while found < callback_signature_keys.count() {
+        if callback_signature_keys[found] == key {
+            return "spite_callback_with_context_{found}"
+        }
+        found = found + 1
+    }
+    var trampoline = "spite_callback_with_context_{callback_signature_keys.count()}"
+    callback_signature_keys.append(key)
+    var fetch = "Spite_Function* spite_function = (Spite_Function*)spite_context;"
+    var target = "{typed_call_cast(parameter_types, returned)}spite_function->spite_typed_call)(spite_function->spite_owner"
+    emit_callback_trampoline(trampoline, parameter_types, returned, position, fetch, target)
+    return trampoline
+}
+
+func typed_call_cast(parameter_types: List<Analysis.SpiteType>, returned: Analysis.SpiteType): String {
+    var pointer_parameters = List<String>()
+    pointer_parameters.append("void*")
+    var index = 0
+    while index < parameter_types.count() {
+        var parameter_c = c_type_name(parameter_types[index])
+        pointer_parameters.append(parameter_c)
+        index = index + 1
+    }
+    var returned_c = "void"
+    if not callback_returns_nothing(returned) {
+        returned_c = c_type_name(returned)
+    }
+    return "(({returned_c} (*)({pointer_parameters.join(", ")}))"
+}
+
+func emit_callback_trampoline(
+    trampoline: String,
+    parameter_types: List<Analysis.SpiteType>,
+    returned: Analysis.SpiteType,
+    position: String,
+    fetch: String,
+    target: String,
+) {
+    var parameters = List<String>()
+    var passed = List<String>()
+    if position == "context_first" {
+        parameters.append("void* spite_context")
+    }
+    var index = 0
+    while index < parameter_types.count() {
+        var parameter_type = parameter_types[index]
+        parameters.append("{callback_c_type(parameter_type)} spite_argument_{index}")
+        if is_boolean_type(parameter_type) {
+            passed.append("spite_argument_{index} != 0")
+        } else {
+            passed.append("spite_argument_{index}")
+        }
+        index = index + 1
+    }
+    if position == "context_last" {
+        parameters.append("void* spite_context")
+    }
+    if parameters.is_empty() {
+        parameters.append("void")
+    }
+    var call = target
+    if passed.is_empty() {
+        call = "{call})"
+    } else {
+        call = "{call}, {passed.join(", ")})"
+    }
+    var returned_c = "void"
+    var body = "{call};"
+    if not callback_returns_nothing(returned) {
+        returned_c = callback_c_type(returned)
+        body = "return ({returned_c})({call});"
+    }
+    var header = "static {returned_c} {trampoline}({parameters.join(", ")})"
+    builder.add_prototype("{header};")
+    builder.add_support("{header} \{\n{fetch}\n{body}\n}")
+}
+
+func ensure_callback_runtime() {
+    assert not callback_runtime_written
+    callback_runtime_written = true
+    builder.add_prototype("static void spite_callback_late(const char* called, const char* reason);")
+    builder.add_prototype("static void spite_callback_register(void** slot, void* owner, const char* called);")
+    var lines = List<String>()
+    lines.append("static void spite_callback_late(const char* called, const char* reason) \{")
+    lines.append("fflush(stdout);")
+    lines.append("fprintf(stderr, \"spite: C called %s %s\\n\", called, reason);")
+    lines.append("exit(1);")
+    lines.append("}")
+    lines.append("static void spite_callback_register(void** slot, void* owner, const char* called) \{")
+    lines.append("if (__atomic_exchange_n(slot, owner, __ATOMIC_ACQ_REL) != 0) \{")
+    lines.append("fflush(stdout);")
+    lines.append(
+        "fprintf(stderr, \"spite: %s was handed to C by a second ForeignCallback while the first is alive: C calls it with no context, so a function has one at a time -- keep the first and hand C its address\\n\", called);",
+    )
+    lines.append("exit(1);")
+    lines.append("}")
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_support(joined_lines)
+}
+
+func direct_callback_argument(
+    argument: ExpressionResult,
+    argument_ast: Syntax.Expressions.Expression,
+    lines: List<String>,
+    afters: List<String>,
+    releases: List<String>,
+): String {
+    var argument_type = argument.get_type()
+    var signature = type_shape.as_class_ref(argument_type)
+    crash signature
+    var printer = Syntax.SourcePrinter()
+    var argument_text = printer.source_expression(argument_ast)
+    var names = List<String>()
+    var index = 0
+    while index < signature.arguments.count() {
+        names.append("argument {index + 1}")
+        index = index + 1
+    }
+    var returned = returned_type(signature)
+    if not callback_types_cross(argument_text, signature.arguments, names, returned) {
+        return "0"
+    }
+    var held = next_temporary()
+    var trampoline = "spite_callback_{temporary_counter}"
+    var saved = next_temporary()
+    var slot = "{trampoline}_slot"
+    if not callback_trampolines.contains(trampoline) {
+        callback_trampolines.append(trampoline)
+        ensure_callback_runtime()
+        builder.add_typedef("static _Thread_local void* {slot} = 0;")
+        var called = escape_c_string("'{argument_text}' ({current_path}:{current_line})")
+        var fetch = "Spite_Function* spite_function = (Spite_Function*){slot};\nif (spite_function == 0) spite_callback_late(\"{called}\", \"after the foreign call that handed it over had returned, or on another thread: a function C keeps, or calls from a thread of its own, is handed over as a ForeignCallback the program keeps for as long as C may call it\");"
+        var target = "{typed_call_cast(signature.arguments, returned)}spite_function->spite_typed_call)(spite_function->spite_owner"
+        emit_callback_trampoline(trampoline, signature.arguments, returned, "direct", fetch, target)
+    }
+    lines.append("Spite_Function* {held} = {argument.code};")
+    lines.append("void* {saved} = {slot};")
+    lines.append("{slot} = (void*){held};")
+    afters.append("{slot} = {saved};")
+    if owns(argument, argument_ast) {
+        releases.append("Spite_Function___release({held});")
+    }
+    return "(void*)&{trampoline}"
 }
 
 func is_reflection_member(name: String): Boolean {
@@ -20456,6 +20810,19 @@ func attributes_are_checked(information: Analysis.ClassInfo): Boolean {
     return true
 }
 
+func keeps_callback(information: Analysis.ClassInfo, name: String): Boolean {
+    var field = information.find_field(name)
+    assert field
+    var field_type = field.get_type()
+    var nullable = type_shape.as_nullable(field_type)
+    if nullable {
+        field_type = nullable.get_inner()
+    }
+    var class_ref = type_shape.as_class_ref(field_type)
+    assert class_ref
+    return class_ref.c_name == "ForeignCallback"
+}
+
 func report_unread_attributes(information: Analysis.ClassInfo, statements: List<Syntax.Statements.Statement>) {
     var index = 0
     while index < statements.count() {
@@ -20466,7 +20833,7 @@ func report_unread_attributes(information: Analysis.ClassInfo, statements: List<
             if not declaration.source_path.is_empty() {
                 declared_path = declaration.source_path
             }
-            var read = read_attributes.has("{information.qualified_dotted}.{name}") or folded_words.has(name)
+            var read = read_attributes.has("{information.qualified_dotted}.{name}") or folded_words.has(name) or keeps_callback(information, name)
             var seen_whole = name.starts_with("_") or not is_in_loaded_folder(declared_path) or binds_singleton(declaration, information)
             if not read and seen_whole {
                 current_path = declared_path

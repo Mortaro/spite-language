@@ -443,6 +443,16 @@ reads a local reading: `var zones = TimeZones()`, `zones.find("America/New_York"
 `DynamicLibrary("ucrtbase.dll", 'identity', "")` calls a native library's functions as members
 (`c_runtime.strlen(text)`, `_as_long`/`_as_double`/`_as_text` for wider results); the standard library's
 `library/windows/`, `linux/` and `mac/` folders reopen the classes each system changes (docs/foreign_libraries.md).
+C calls back into Spite without any C written: a function value given as a foreign call's argument is a C function
+pointer for that call only (`c_runtime.qsort(values, count, 4, ascending)`); a function C keeps or calls from its
+own thread is handed over as `var handler = ForeignCallback(owner.function, 'context_last')` (or `'context_first'`),
+passing `handler.address` as the pointer and `handler.context` as C's user data, or `'no_context'` for a function
+of a singleton when C gives none (a window procedure; the singleton tells objects apart by the handle C passes). A
+callback takes and returns only numbers, `Boolean` (a 32-bit `BOOL`) and `Memory.Address`; text C passes is an
+address read with `terminated_text()`. Keep the `ForeignCallback` in an attribute of the object that owns the C
+registration and unregister in its `drop()`: C may call only while it is kept. A handed-over function follows a
+`Parallel`'s rules (its own value attributes, locals, singletons). A COM-style interface is a `Memory.Heap` block
+whose first word points at a table filled with `TypedMemory<Long>` and each `ForeignCallback`'s `address`.
 Game maths (docs/game_maths.md): `Vector2`, `Vector3`, `Vector4` are made with their parts, `Vector3(1.0, 2.0, 3.0)`,
 read as `x_value`, `y_value`, `z_value`, `w_value` (never `.x`), with `+ - * /` part by part, `scaled(factor)`,
 `dot`, `cross`, `length()`, `normalized()`, `distance_to`, `linear_interpolate(target, amount)`. `Matrix4()` and
