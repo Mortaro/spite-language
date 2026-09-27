@@ -290,8 +290,9 @@ error.
 An index or a key may not be there, so `names[index]` and `table["key"]` are `T?` and are narrowed like any other
 path. The compiler also understands the usual proofs, so most reads need nothing extra:
 
-- **A proven count proves the indices below it**: after `crash names.count() == 3`, `names[0]` to `names[2]`
-  are plain values.
+- **A proven count proves the indices below it**: after `crash names.count() == 3`, or `>= 3`, or `> 2`,
+  `names[0]` to `names[2]` are plain values, and `crash not names.is_empty()` proves `names[0]`. A
+  `Dictionary`'s count proves no key, since its keys need not be `0`, `1`, `2`.
 - **A bound proves its index**: `while index < names.count()` proves `names[index]` in the loop body, and
   `while index < lines.count() and lines[index] != "end"` needs nothing more.
 - **The index may be any expression without a call**: `crash glyphs[code - 32]` proves `glyphs[code - 32]`
@@ -771,7 +772,11 @@ quoted text makes the read a path that narrows like any other: `crash names[inde
 How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked for them):
 
 - **A proven count proves the indices below it.** After `crash names.count() == 3` (or `>= 3`, or `> 2`),
-  `names[0]` to `names[2]` are plain values; so are they inside `if names.count() > 2 { }`.
+  `names[0]` to `names[2]` are plain values; so are they inside `if names.count() > 2 { }`. `names.count() != 0`
+  and `not names.is_empty()` prove `names[0]` the same way (proposed by Claude, unconfirmed;
+  `conformance/stage6/count_bound_proofs`). A count proves indices of a `List` only: a `Dictionary`'s keys need
+  not be `0` to `count() - 1`, so after `crash names.count() == 1` a number-keyed `names[0]` is still a `T?`
+  (`diagnostics/count_proves_no_key`).
 - **A bound proves its index.** `index < names.count()` (or `names.count() > index`) in an `assert`, a
   `crash`, an `if`, or a `while` proves `names[index]` in what follows -- the loop body, for a `while` -- and
   `index < names.count() - 1` does too. On the left of an `and`, it proves the right side, so

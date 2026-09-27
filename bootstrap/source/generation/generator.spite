@@ -13668,7 +13668,7 @@ func generate_index_read(
             scope,
             class_information,
         )
-        if not proven {
+        if not proven or not scope.is_present_narrowed(read_path) {
             return lookup
         }
         var lookup_temporary = next_temporary()
@@ -16078,8 +16078,7 @@ func lends_items(target_class: Analysis.ClassInfo, name: String): Boolean {
     var vector_item = holds_items_inline(target_class) and name == "get_at"
     var inline_item = target_class.qualified_dotted == "InlineMemory" and name == "item_at"
     assert vector_item or inline_item
-    assert not target_class.codegen_types.is_empty()
-    crash target_class.codegen_types[0]
+    assert target_class.codegen_types.count() > 0
     var item_class = inline_item_class(target_class.codegen_types[0])
     assert item_class
     return true
@@ -16098,8 +16097,7 @@ func plain_item_type(item_type: Analysis.SpiteType): Boolean {
 
 func copies_items(information: Analysis.ClassInfo): Boolean {
     var vector_like = information.qualified_dotted == "Vector" or is_items_class(information)
-    assert vector_like and not information.codegen_types.is_empty()
-    crash information.codegen_types[0]
+    assert vector_like and information.codegen_types.count() > 0
     return plain_item_type(information.codegen_types[0])
 }
 
@@ -17861,7 +17859,7 @@ func borrowed_element(
     }
     assert class_information.qualified_dotted == "List" or is_items_class(class_information)
     assert not declaration.type_reference and not hot_reload
-    assert not scope.entry_names.contains(declaration.name) and not class_information.codegen_types.is_empty()
+    assert not scope.entry_names.contains(declaration.name) and class_information.codegen_types.count() > 0
     crash declaration.value
     var read = shape.as_member(declaration.value)
     if read {
@@ -17874,7 +17872,6 @@ func borrowed_element(
     assert member and member.name == "read_value"
     crash member.object
     assert is_identifier_named(member.object, holder_name) and is_identifier_named(call.arguments[0], "items")
-    crash class_information.codegen_types[0]
     var element_type = class_information.codegen_types[0]
     assert type_needs_drop(element_type) and not type_shape.as_nullable(element_type)
     var watch = ReleaseWatch(declaration.name)
@@ -22534,6 +22531,11 @@ func check_condition(condition: ExpressionResult, keyword: String) {
 }
 
 func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scope) {
+    var negated = shape.as_unary(condition)
+    if negated {
+        narrow_not_empty(negated, scope)
+        return
+    }
     var binary = shape.as_binary(condition)
     assert binary
     crash binary.left
@@ -22563,12 +22565,31 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
         proven = bound.value
     } else if binary.operator == 'greater' {
         proven = bound.value + 1
+    } else if binary.operator == 'not_equal' and bound.value == 0 {
+        proven = 1
     }
     var index = 0
     while index < proven and index < 64 {
         scope.narrow_bound_path("{counted}[{index}]", condition_text)
         index = index + 1
     }
+}
+
+func narrow_not_empty(negated: Syntax.Expressions.UnaryExpression, scope: Scope) {
+    assert negated.operator == 'logical_not'
+    crash negated.operand
+    var call = shape.as_call(negated.operand)
+    assert call
+    crash call.callee
+    assert call.arguments.is_empty()
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    assert member.name == "is_empty"
+    var emptied = operand_text(member.object)
+    assert not emptied.is_empty()
+    var condition_text = Syntax.SourcePrinter().source_expression(negated)
+    scope.narrow_bound_path("{emptied}[0]", condition_text)
 }
 
 func narrow_nonzero(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {

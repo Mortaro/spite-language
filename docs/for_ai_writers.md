@@ -167,7 +167,8 @@ func is_alive(): Boolean {
   or an enum only: on a list of a class use `any(f)` or `find_by_<member>`), `is_empty`, `clear`, `reverse`,
   `join` (text, numbers, `Boolean` and enum values all join), never `add` or `pop`, `list[index]` (a `T?`: out of range gives nothing -- `crash names[index]` narrows it like a path,
   and so does `crash glyphs[code - 32]`, or any index with no call in it, with no copy into a local first;
-  `crash names.count() == 3` proves `names[0]` to `names[2]`, and `while index < names.count()` proves
+  `crash names.count() == 3` (or `>= 3`, or `> 2`) proves `names[0]` to `names[2]`, `crash not names.is_empty()`
+  proves `names[0]` (a list's, never a dictionary's), and `while index < names.count()` proves
   `names[index]` in the loop body, so a `crash names[index]` inside that loop is an error saying so: delete it).
   `Dictionary<T>` (insertion order): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`,
   `values`, `dictionary["key"]` (a `T?`, like `list[index]`: `inventory["shield"] == 0` is false for an absent
