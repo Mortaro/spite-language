@@ -18578,10 +18578,20 @@ func asks_only_codegen(condition: Syntax.Expressions.Expression): Boolean {
         return false
     }
     crash member.object
-    if shape.as_generic_identifier(member.object) {
-        return true
+    if not shape.as_generic_identifier(member.object) {
+        return false
     }
-    return false
+    if member.name == "fits_vector" {
+        return call.arguments.is_empty()
+    }
+    if member.name != "has_function" or call.arguments.count() != 1 {
+        return false
+    }
+    var asked = shape.as_string_literal(call.arguments[0])
+    if not asked {
+        return false
+    }
+    return not asked.value.contains("<") and not asked.value.contains("\{")
 }
 
 func names_a_class_path(expression: Syntax.Expressions.Expression): Boolean {
