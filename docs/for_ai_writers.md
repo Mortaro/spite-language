@@ -367,7 +367,9 @@ func is_alive(): Boolean {
     `names[index]`;
   - absence is a bug: `crash condition` halts with
     `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition<TAB>name=value...`, followed by the
-    asserts that failed before it. A bare `crash` marks a branch that cannot happen (`crash false` is formatted to it).
+    asserts that failed before it. Every name and call the condition read is there with its value, whatever its
+    shape: `crash record or cooked.count() > 2` reports `record is null	cooked.count()=1`; a part an `and` or `or`
+    skipped is left out. A bare `crash` marks a branch that cannot happen (`crash false` is formatted to it).
     A failed narrowing names what is absent instead of a value: `clip.keys[start + 9] is missing: index 11990,
     count 11500`, `scores[key] is missing: key "bea"`, `rig.skeleton is null`. Read it as an index past the end or
     a key never set, not as a zero.

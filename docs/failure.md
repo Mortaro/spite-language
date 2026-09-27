@@ -811,7 +811,7 @@ is a compile error at the `crash`, since the program would halt there every time
 
 A crash flushes what the program printed, writes one tab-separated line to the error stream and exits with
 status 1. The line starts `spite.crash` and carries the site's id, its place, its class and function, the
-condition, and the named operands with their values -- then a `spite.assert` line for each `assert` that failed
+condition, and every name and call in the condition with its value -- then a `spite.assert` line for each `assert` that failed
 before it, because those are usually the trail that explains how the program got there:
 
 ```
@@ -825,6 +825,15 @@ has a `to_string()` as that text, so a missing `File` names its path:
 
 ```
 spite.crash	00b7d810	crash_receiver/crash_receiver.spite:6	CrashReceiver	CrashReceiver	settings.exists()	settings=.spite-cache/crash_receiver/missing_settings.txt
+```
+
+A condition of any shape -- `or`, `not`, comparisons, arithmetic, calls inside it -- reports every part it read,
+left to right and each once: a name or a path with its value, a call with the answer it gave while the condition
+ran (it is never called a second time), and a value that is not there in the words of a failed narrowing
+(`is null`, `is missing: ...`). A part that an `and` or an `or` skipped is left out, since it never ran:
+
+```
+spite.crash	01478395	crash_compound/crash_compound.spite:21	CrashCompound	finish	record or cooked.count() > 2 or never_cooked_id != name	record is null	cooked.count()=1	never_cooked_id=cake	name=cake
 ```
 
 A crash that narrows a `T?` fails because something is not there, so it never prints a value for it -- a default
@@ -897,7 +906,9 @@ a core dump is still written where the system keeps them. What the program print
 - **A passing `assert` or `crash` is one branch.** A failed `assert` in the program or a loaded package also
   stores one pointer into the 32-entry ring and counts it; one in `library/` does not.
 - **A crash's report is written only when it fires**: each site's place and condition are fixed text in the
-  program, and the operand values are turned into text on the way out. The `.crashes` map is a file beside the
+  program, and the operand values are turned into text on the way out. A `crash` whose condition has a call inside
+  a comparison, an `and` or an `or` keeps that call's answer and a flag in locals as it runs, so the report can name
+  the answer without calling again: two stores only the failure branch reads. The `.crashes` map is a file beside the
   executable, which nothing reads at run time.
 - As built, the ring and the function that prints it are in every program, since the standard library has
   `crash` sites of its own; they are 32 pointers, a counter and one function.
@@ -1388,9 +1399,29 @@ status 1:
 spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition
 ```
 
-The condition is rebuilt from its own tokens and the line ends with the named operands of the failed
-comparison and their values -- `value > limit<TAB>value=-9<TAB>limit=0` -- with calls never evaluated a second
-time. **A condition that is a call on a value** (D228), `crash file.exists()` or `crash not list.contains(x)`,
+The condition is rebuilt from its own tokens and the line ends with every part of it and its value --
+`value > limit<TAB>value=-9<TAB>limit=0` -- with calls never evaluated a second time. **Every name and call in a
+condition of any shape is reported** (D244: `crash record or never_cooked_id == ""` printed only its text, the
+very report that has to explain it; the reading of each shape proposed by Claude, unconfirmed). The compiler walks
+the condition as written and reports, left to right and each once by its text: every name or path (a `[]` read
+whose index has no call included) with its value, every call with the answer it gave, and inside a call its
+receiver and its arguments. `and` and `or` are followed into, and so are `not`, comparisons and arithmetic; a
+literal adds nothing. A value is written as for one operand: text, a number or an enum as it is, an object through
+its `to_string()`, anything else left out; a `T?` that is null is `name is null`, and a `[]` read that is missing
+is `list[index] is missing: index 5, count 2` or `table[key] is missing: key "bea"`, as D248 words a failed
+narrowing. **Only what ran is reported:** when the crash fires, each side of a failed `or` ran, and so did each side
+of an `and` under a `not`; a side an `and` or `or` may have skipped is reported only if it ran, which a flag set as
+it runs records, and a path there is reported only when it is a bare name, so nothing is read that the condition
+did not prove readable. **A call is never evaluated twice:** a call whose answer is reported is kept, as the
+condition runs, in a local beside a flag saying it ran, and the report reads the local; a call answering an object
+it owns hands it to that local, which releases it after the check. A call that is the whole condition, or its
+`not`, is not reported, since its answer is what failed. A name that is a class or a namespace (`Math.pi()`'s
+`Math`) is not a value and is left out. **Cost:** the report is written only when the crash fires; on the passing
+path, a condition with a reported call inside it stores the call's answer and a flag, and one with a skippable side
+stores a flag -- stores into locals that only the failure branch reads, which the C compiler keeps in registers or
+drops; a condition of names and comparisons stores nothing. The `.crashes` map lists every part with its type
+(`record:String? cooked.count():Integer cooked:List<String> never_cooked_id:String name:String`, a receiver whose value the report leaves out included). `conformance/stage6/crash_compound`.
+**A condition that is a call on a value** (D228), `crash file.exists()` or `crash not list.contains(x)`,
 has that value as its operand when it is a name or a path: text, a number or an enum is written as it is, and an
 object whose class declares `to_string()` with no arguments is written as what that answers, called once on the
 way out -- `settings.exists()<TAB>settings=saves/settings.txt`, since `File`'s `to_string()` is its path. A value
