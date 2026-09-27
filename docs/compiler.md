@@ -28,7 +28,9 @@ write its C and write its final classes.
 `bin/spite` (and `bin/spite.cmd`, which runs it from a Windows prompt) is the command itself: it builds the
 compiler from `bootstrap/seed/spite_compiler.c` into `.spite-cache/spite.exe` the first time, and again whenever the
 seed is newer, finds a C compiler, makes the folder and path arguments absolute, and passes everything else
-through.
+through. What follows `--` reaches the program exactly as it was typed, from bash or from PowerShell or `cmd`
+through `spite.cmd`: `spite tool -- --prefixes=/Game/Legacy/` gives the program `--prefixes=/Game/Legacy/`, not
+the path Git for Windows' bash would make of it ([the rule](#the-launcher-passes-the-programs-arguments-untouched)).
 
 ## Name the program
 
@@ -441,6 +443,20 @@ caller's. The launcher's `load` paths are relative to that folder, and the execu
 `conformance/stage6/working_directory` from another folder). A program built with `--repl`, `--repl-port` or
 `--hot-reload` runs attached to the terminal; any other run's output is printed when it ends, and the compiler
 exits with the program's exit code.
+
+### The launcher passes the program's arguments untouched
+
+(Fixes a bug found converting Theseus's game data; proposed by Claude, unconfirmed.) `bin/spite` is a bash
+script, and `bin/spite.cmd` runs it with the bash on the `PATH`, which on Windows is Git for Windows' bash. That
+bash rewrites every argument that looks like a POSIX path when it starts a Windows program, so
+`spite tool -- --prefixes=/Game/Legacy/` reached the program as `--prefixes=C:/Program Files/Git/Game/Legacy/`,
+from PowerShell as well, and `MSYS_NO_PATHCONV=1` broke the launcher's own paths instead. Now the launcher writes
+its own paths as Windows paths itself (`cygpath -m`: the folder, `--executable-path`, `--c-path`,
+`--final-classes`, and any other `--name=/...` before `--`, which the rewriting used to convert) and turns the
+rewriting off for the compiler it starts (`MSYS2_ARG_CONV_EXCL="*"`), so every argument after `--` -- and every
+argument of `spite connect` -- arrives exactly as typed. On Linux and macOS nothing is rewritten and nothing
+changes. `check.sh` runs `conformance/stage6/launcher_arguments` through `bin/spite` with `--prefixes=/Game/Legacy/`,
+`/usr/share` and `a b` after `--`.
 
 ### Formatting before compiling, and `spite format`
 

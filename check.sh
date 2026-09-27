@@ -437,6 +437,14 @@ for operating_system in windows linux mac; do
 done
 echo "operating systems: the compiler, a time zone program, a file watching program and a socket program compile with the windows, linux and mac library folders"
 
+# bin/spite passes a program's own arguments through untouched: Git for Windows' bash would rewrite ones that look
+# like POSIX paths (`/Game/Legacy/` into `C:/Program Files/Git/Game/Legacy/`) on their way to a Windows program.
+launched=$(bin/spite conformance/stage6/launcher_arguments --executable-path="$work/launched.exe" -- --prefixes=/Game/Legacy/ /usr/share "a b" < /dev/null 2>&1 | tr -d '\r' | grep -v '^spite: building the compiler')
+if [ "$launched" != "$(printf '[--prefixes=/Game/Legacy/]\n[/usr/share]\n[a b]')" ]; then
+  echo "FAILED: bin/spite changed the program's arguments after --"; echo "$launched" | head -5; exit 1
+fi
+echo "launcher: bin/spite passes the program's arguments after -- as they were typed"
+
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would
 # change and fails; a docs/ program that must fail may be wrong on purpose, formatting included.

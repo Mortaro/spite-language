@@ -30,7 +30,8 @@ target system's folder of it, then `game/`, whose every sub folder is a
 namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
 folder's own class). `load "folder"` inside a function loads another package; a file at the same namespace path
 reopens the class: same-named functions and attributes replace, the rest are added, and an enum declared again
-gains the values it lists.
+gains the values it lists. What follows `--` reaches the program as typed, from bash, PowerShell or `cmd` alike:
+`/Game/Legacy/` stays `/Game/Legacy/`, so do not work around Git for Windows' path rewriting.
 
 ## A file is a class
 
