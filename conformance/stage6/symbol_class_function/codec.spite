@@ -1,6 +1,6 @@
 generic $component_type
 
-var sample: $component_type = null
+var sample = $component_type()
 
 func mirror(lines: List<String>) {
     var mirrored = sample.mirrored_from("server")

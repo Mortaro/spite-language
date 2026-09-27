@@ -1,0 +1,5 @@
+var level = 3
+
+func Gauge() {
+    level = 7
+}

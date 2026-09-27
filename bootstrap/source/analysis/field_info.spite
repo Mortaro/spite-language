@@ -1,6 +1,7 @@
 var name = ""
 var spite_type: SpiteType? = null
 var default_value_code = ""
+var line = 0
 
 func FieldInfo(starting_name: String, starting_spite_type: SpiteType, starting_default_value_code: String) {
     name = starting_name

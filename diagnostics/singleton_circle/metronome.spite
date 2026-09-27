@@ -1,0 +1,7 @@
+singleton
+
+var first = Tick()
+
+func first_beat(): Integer {
+    return first.count()
+}

@@ -1,0 +1,5 @@
+var order = 0
+
+func raise() {
+    order = order + 1
+}

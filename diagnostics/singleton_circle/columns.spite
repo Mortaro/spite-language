@@ -1,0 +1,8 @@
+singleton
+
+var count = 0
+var world = World()
+
+func parents(): Integer {
+    return world.parent_count()
+}

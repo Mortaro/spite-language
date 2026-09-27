@@ -208,8 +208,9 @@ that lists the class's values in order (the second program below). A generic cla
 `library/list.spite` is `generic $element_type` and its functions -- and when the constructor's arguments say
 every value, the `<...>` may be left out: `Pair("Hero", 7)` is a `Pair<String, Integer>`, `JsonWriter(order)` a
 `JsonWriter<Order>` ([json.md](json.md)) and `Concurrent(file.read)` a `Concurrent<String?>`
-([concurrency.md](concurrency.md)). `null` as the default of a field typed `$left_type` means that type's own
-default, not a `T?` (provisional: [open question 1](open_questions.md#open-questions)).
+([concurrency.md](concurrency.md)). `Pair` may declare `var left: $left_type = null` because its constructor
+assigns `left` at once; anywhere else `null` belongs to `T?` alone (D236), and `var left = $left_type()` makes
+the default of whatever `$left_type` is bound to.
 
 Only a class has codegen values. A function never lists its own (`func pick<$value_type>(...)` is an error), and
 there are no generic functions to write instead ([D123](decisions.md)): a function that takes any class takes a
@@ -583,7 +584,7 @@ func run_each(hero: Hero, pet: Pet) {
 ```gdscript title=function_arguments/caller.spite
 generic $target_type
 
-var target: $target_type = null
+var target = $target_type()
 var console = Console()
 
 func call() {
@@ -601,7 +602,7 @@ func describe_argument(argument: Symbol<$target_type.run_each>) {
 }
 
 func made_argument(argument: Symbol<$target_type.run_each>): argument.class {
-    var made: argument.class = null
+    var made = argument.class()
     return made
 }
 ```
@@ -678,7 +679,7 @@ func update_each() {
 ```gdscript title=waiting_question/stage.spite
 generic $system_type
 
-var system: $system_type = null
+var system = $system_type()
 var console = Console()
 
 func run() {
@@ -751,7 +752,7 @@ enum Phase {
     'update'
 }
 
-var target: $target_type = null
+var target = $target_type()
 var console = Console()
 
 func call() {
@@ -828,7 +829,7 @@ func FolderWalk() {
 }
 
 func add_system(system: Symbol<System>) {
-    var made: system.class = null
+    var made = system.class()
     runners.append(made)
     console.print("found", system.name)
 }
@@ -867,7 +868,7 @@ func FolderAsk() {
 }
 
 func ask_system(system: Symbol<System>) {
-    var made: system.class = null
+    var made = system.class()
     if system.class.has_function("run") {
         made.run()
     } else {
@@ -916,7 +917,7 @@ func update_all() {
 ```gdscript title=name_phases/runner.spite
 generic $system_type
 
-var system: $system_type = null
+var system = $system_type()
 var placed_in: NamePhases.Phase = 'update'
 
 func Runner() {
@@ -1022,7 +1023,7 @@ enum Phase {
     'leave'
 }
 
-var system: $system_type = null
+var system = $system_type()
 var console = Console()
 
 func run() {
@@ -1483,11 +1484,13 @@ var sword = Weapon<Integer, true>(10)
   Only when every `$name` is found; otherwise the error asks for them between `<` and `>`: "'Box' takes 1 codegen
   value(s), in this order: $held_type -- write them between < and > before the arguments". `Pair("Hero", 7)`,
   `Concurrent(file.read)`, `JsonWriter(order)`.
-- `null` as the default of an attribute typed by a codegen value means that type's own default, not a `T?`
-  (provisional, [open question 1](open_questions.md#open-questions)). Bound to a `type` whose members are all
-  attributes, that default is a real object. **Bound to a `type` that requires a function, it is a compile error
-  naming the attribute** (D211), unless the class's constructor assigns the attribute: no object can supply the
-  function, so there is no default to make. `'held' is a Weapon, a type that requires the function 'strike', so
+- `$name()` makes the default of what `$name` is bound to (D236; proposed by Claude, unconfirmed): a class through
+  its constructor with no arguments, an empty `List` or `Dictionary`, `0`, `""`, and for a `type` whose members
+  are all attributes a real object. `var held: $held_type = null` is D236's error, since `null` belongs to `T?`
+  alone ([values_and_types.md](values_and_types.md#variables-and-values--implemented)), except on an attribute the
+  constructor assigns and a local a walk fills. **Bound to a `type` that requires a function, `= null` is a
+  compile error naming the attribute** (D211), unless the class's constructor assigns the attribute: no object
+  can supply the function, so there is no default to make. `'held' is a Weapon, a type that requires the function 'strike', so
   '= null' has no default to make: no object can supply a function it does not have. Make its type nullable, with
   a '?', and narrow it before use, or give it a real object in the constructor` (`diagnostics/function_shape_default`).
 

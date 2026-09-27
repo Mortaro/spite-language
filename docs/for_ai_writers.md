@@ -247,6 +247,19 @@ func is_alive(): Boolean {
   keep them or resize their columns, and calling `made_position(...)` anywhere else is the error for returning a
   borrowed item. The template's `Symbol` parameter must be a word of its name (`made_argument(argument: ...)`), or
   it has no plural.
+- A dictionary's key kind (text or whole numbers) comes from the keys your own code gives it and follows it
+  wherever it is assigned or passed. An error naming `a Dictionary<String> keyed by whole numbers` against one
+  `keyed by text` says which key decided each: give both the same kind of key.
+- `null` is only for `T?`: `var target: Monster = null` is an error (D236); write `var target: Monster? = null`
+  for none yet, or `var target = Monster()` for a default. In a generic class write `var system = $system_type()`,
+  in a template `var made = argument.class()`. `= null` stays only on an attribute the constructor assigns and on
+  a local a walk over its attributes fills (`var row: $row_type = null` then `fill_attributes(row, ...)`).
+- To hand one stored component to a caller, return it straight from the singleton's storage: `func of(entity:
+  Integer): $component_type?` ending `return column.values[row]` (D230). The caller gets the stored item, so
+  `layout.order = 3` writes the column; never return `.copy()` for this, since writes to a copy are lost. The
+  caller follows every borrow rule (no keeping, passing, second name, reading after a line that may grow or shrink
+  the column), may not return it further, and gives it a name not used before in the block. A function that lends
+  returns only such items or `null`.
 - A runner that treats systems of one row and of several differently asks `if phase.argument_count() == 1 { }`
   inside its walk over `phase: Symbol<$system_type.phase_each>` (or `$system_type.argument_count("update_each")`
   of one function; D219, name provisional). It is decided while compiling, so the branch for the other arity is
@@ -423,7 +436,9 @@ func is_alive(): Boolean {
   `return Console()` are errors (`'Console' is a singleton: bind it once beside the attributes`), and so are a
   binding nothing reads, even in a loaded package, and a binding inside a function (`'Build' is a singleton, bound
   here as a local`). One of the program's own that a `Parallel` reaches is made thread-safe by the
-  compiler; write no lock for it.
+  compiler; write no lock for it. Singletons whose attributes make each other, even through an ordinary object
+  (`World` binds `Column<Entity>`, which makes an `Entity`, which binds `World`), are an error naming the circle
+  (`singletons initialise each other in a circle`): bind one of them in the class that uses both instead.
 - `value.memory` is where a named value lives (`.address`, `.bytes`, `.section`: `'heap'` or `'constant'`); a
   computed value has none (`give this value a name with 'var' first`). A container of your own is a generic class over `var heap = Memory.Heap()` (`allocate`,
   `resize`, `free`, each on a `Memory.Address`; the compiler places each allocation) and a

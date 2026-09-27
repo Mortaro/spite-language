@@ -438,3 +438,12 @@ Behaviour that does not match the manual. The language was not changed; each is 
      Also: a production build emits the plain C operator, and C leaves signed overflow undefined, so "wraps" holds
      for what clang does today rather than by rule; `-fwrapv` would make it the rule at a small cost to loop
      optimisation.
+
+## Crash messages (from SlopEngine, D244)
+
+218. **A message on `crash`.** Today a crash report prints the condition and the values in it; authors smuggle
+     context in with tricks like `crash record or never_cooked_id == ""`. Proposal (Claude, unconfirmed): an optional
+     text after a comma, `crash record, "never cooked: {id}"`, printed in the report beside the condition and its
+     values -- the most readable form for people and AI alike. It is new syntax, so it is yours: add it, spell it
+     differently, or keep crash reports to the condition and its values only?
+

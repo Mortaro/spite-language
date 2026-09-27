@@ -1,0 +1,8 @@
+generic $component_type
+
+var column = Column<$component_type>()
+
+func of(row: Integer): $component_type? {
+    assert row < column.values.count()
+    return column.values[row]
+}

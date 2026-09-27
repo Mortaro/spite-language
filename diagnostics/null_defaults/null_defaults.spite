@@ -1,0 +1,10 @@
+var console = Console()
+var target: Monster = null
+var holder = Holder<Monster>()
+var names: List<String> = null
+
+func NullDefaults() {
+    var count: Integer = null
+    var held = holder.value()
+    console.print(count, target.health, held.health, names.count())
+}

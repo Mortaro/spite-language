@@ -147,6 +147,8 @@ var text_key_uses = Dictionary<KeyUse>()
 var number_key_uses = Dictionary<KeyUse>()
 var number_key_types = Dictionary<Analysis.SpiteType>()
 var learned_key_sites = Dictionary<Analysis.SpiteType>()
+var key_use_notes = Dictionary<String>()
+var learned_key_use_notes = Dictionary<String>()
 var key_sites_changed = false
 var another_pass_follows_a_change = false
 var namespace_walks = Dictionary<NamespaceWalk>()
@@ -193,6 +195,9 @@ var walk_refused = ""
 var walk_refused_attribute = ""
 var walk_partial: Syntax.Expressions.ObjectLiteralExpression? = null
 var constructed_roots = Dictionary<String>()
+var lent_results = Dictionary<String>()
+var lent_result_singletons = Dictionary<String>()
+var lent_result_labels = Dictionary<String>()
 var parallel_handover = ""
 var parallel_keeps = List<String>()
 var argument_callee = ""
@@ -1818,6 +1823,30 @@ func instantiate_generic(
     return instantiated_with(template, types, codes, texts, label)
 }
 
+func fixed_key_type(spite_type: Analysis.SpiteType): Analysis.SpiteType {
+    var dictionary = type_shape.as_dictionary(spite_type)
+    if dictionary {
+        var element = dictionary.get_element()
+        var fixed_element = fixed_key_type(element)
+        var key = dictionary.get_key()
+        var fixed: Analysis.SpiteType = Analysis.Types.DictionaryType(fixed_element, key, "")
+        return fixed
+    }
+    var listed = type_shape.as_list(spite_type)
+    if listed {
+        var listed_element = listed.get_element()
+        var fixed_listed = fixed_key_type(listed_element)
+        return list_type_of(fixed_listed)
+    }
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.get_inner()
+        var fixed_inner = fixed_key_type(inner)
+        return nullable_type_of(fixed_inner)
+    }
+    return spite_type
+}
+
 func instantiated_with(
     template: Analysis.ClassInfo,
     types: List<Analysis.SpiteType>,
@@ -1837,6 +1866,9 @@ func instantiated_with(
     instance.entry_index = template.entry_index
     instance.codegen_names = template.codegen_names
     instance.codegen_types = types
+    if template.qualified_dotted == "Spite.Debug" or template.qualified_dotted == "Spite.DebugInstance" {
+        instance.codegen_types = types.map(fixed_key_type)
+    }
     instance.codegen_codes = codes
     instance.codegen_texts = texts
     instance.codegen_constraints = template.codegen_constraints
@@ -3823,14 +3855,137 @@ func resolve_field(
         return
     }
     var field_type = infer_declared_type(declaration.type_reference, declaration.value, scope, information)
+    var errors_before = error_lines.count()
     report_function_shape_default(declaration, field_type, information, file_statements)
+    if error_lines.count() == errors_before and not constructor_assigns(information.simple_name, declaration.name, file_statements) {
+        report_null_default(declaration, field_type, "attribute")
+    }
     var default_code = coerce_for_store(declaration.value, field_type, scope, information)
     if declaration.hardcoded_value {
         default_code = coerce_for_store(declaration.hardcoded_value, field_type, scope, information)
         hardcoded_settings.append(declaration)
     }
     var field = Analysis.FieldInfo(declaration.name, field_type, default_code)
+    field.line = declaration.line
     information.fields.append(field)
+}
+
+func report_null_default(
+    declaration: Syntax.Statements.VariableDeclaration,
+    declared: Analysis.SpiteType,
+    kind: String,
+) {
+    crash declaration.value
+    assert declaration.type_reference
+    assert shape.is_null_literal(declaration.value) and not type_shape.as_nullable(declared)
+    assert not type_shape.is_void(declared)
+    var written = Syntax.SourcePrinter().source_type(declaration.type_reference)
+    var made = default_spelling(written, declared)
+    var default_text = ""
+    if not made.is_empty() {
+        default_text = ", or 'var {declaration.name} = {made}' for a default"
+    }
+    if kind == "attribute" {
+        default_text = "{default_text}, or keep '= null' and assign it at the top of the constructor"
+    }
+    report(
+        "the {kind} '{declaration.name}' is declared '{written}', not '{written}?', so '= null' would make a default {written} rather than nothing: write 'var {declaration.name}: {written}? = null' for none yet, narrowed before use{default_text}",
+    )
+}
+
+func default_spelling(written: String, declared: Analysis.SpiteType): String {
+    var scalar = type_shape.as_scalar(declared)
+    if scalar {
+        if scalar.kind == 'boolean_kind' {
+            return "false"
+        }
+        if is_float_kind(scalar.kind) {
+            return "0.0"
+        }
+        return "0"
+    }
+    if type_shape.as_string(declared) {
+        return "\"\""
+    }
+    var named = type_shape.as_class_ref(declared)
+    if named or type_shape.as_list(declared) or type_shape.as_dictionary(declared) {
+        if named {
+            if named.has_signature {
+                return ""
+            }
+        }
+        return "{written}()"
+    }
+    return ""
+}
+
+func filled_by_walk(
+    declaration: Syntax.Statements.VariableDeclaration,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var next_index = borrow_index + 1
+    if borrow_index >= borrow_statements.count() or next_index >= borrow_statements.count() {
+        return false
+    }
+    var here_statement = borrow_statements.get_at(borrow_index)
+    var here = shape.as_variable_declaration(here_statement)
+    if not here {
+        return false
+    }
+    if here.name != declaration.name or here.line != declaration.line {
+        return false
+    }
+    return walks_into(borrow_statements, next_index, declaration.name, class_information)
+}
+
+func walks_into(
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    name: String,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = start
+    while index < statements.count() {
+        var statement = statements.get_at(index)
+        if statement_walks_into(statement, name, class_information) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func statement_walks_into(
+    statement: Syntax.Statements.Statement,
+    name: String,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch statement {
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            var call = shape.as_call(statement.value)
+            if not call {
+                return false
+            }
+            crash call.callee
+            var callee = shape.as_identifier(call.callee)
+            if not callee {
+                return false
+            }
+            if not walk_template(class_information, callee.name) {
+                return false
+            }
+            return row_argument_position(call.arguments, name) < call.arguments.count()
+        }
+        Syntax.Statements.IfStatement: {
+            if walks_into(statement.then_branch, 0, name, class_information) {
+                return true
+            }
+            return walks_into(statement.else_branch, 0, name, class_information)
+        }
+        Syntax.Statements.WhileStatement: return walks_into(statement.body, 0, name, class_information)
+        _: return false
+    }
 }
 
 func report_function_shape_default(
@@ -6758,7 +6913,70 @@ func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
         )
         return
     }
+    assert first_name != last_name or not reported_key_kinds(from, to)
     report("{found_name} cannot be used where {wanted_name} is needed")
+}
+
+func reported_key_kinds(from: Analysis.SpiteType, to: Analysis.SpiteType): Boolean {
+    var found = type_shape.as_dictionary(from)
+    var wanted = type_shape.as_dictionary(to)
+    if not found or not wanted {
+        return false
+    }
+    var found_key = found.get_key()
+    var wanted_key = wanted.get_key()
+    if type_label(found_key) == type_label(wanted_key) {
+        return false
+    }
+    var shown = type_display_name(from)
+    report(
+        "{with_article(shown)} keyed by {key_kind_text(found)} cannot be used where {with_article(shown)} keyed by {key_kind_text(wanted)} is needed: a dictionary is keyed by text or by whole numbers, decided while compiling by the keys it is given, and these two were decided apart -- give both the same kind of key, or copy the entries across one by one",
+    )
+    return true
+}
+
+func key_kind_text(dictionary: Analysis.Types.DictionaryType): String {
+    var key = dictionary.get_key()
+    var numbered = not type_shape.as_string(key)
+    var kind = "text"
+    if numbered {
+        kind = "whole numbers ({type_display_name(key)})"
+    }
+    if dictionary.site.is_empty() {
+        return "{kind}, fixed where it was made"
+    }
+    var root = key_site_root(dictionary.site)
+    if numbered and number_key_uses[root] {
+        return "{kind}, from the key at {key_use_text(number_key_uses[root])}"
+    }
+    if not numbered and text_key_uses[root] {
+        return "{kind}, from the key at {key_use_text(text_key_uses[root])}"
+    }
+    if key_use_notes[dictionary.site] {
+        return "{kind}, from the key at {key_use_notes[dictionary.site]}"
+    }
+    if numbered {
+        return kind
+    }
+    return "text, since nothing gives it a whole-number key"
+}
+
+func key_use_text(use: KeyUse): String {
+    return "{use.path}:{use.line} (in {use.owner}.{use.function_name})"
+}
+
+func note_key_uses() {
+    var index = 0
+    while index < key_sites.count() {
+        var site = key_sites[index]
+        var root = key_site_root(site)
+        if number_key_types[root] and number_key_uses[root] {
+            learned_key_use_notes[site] = key_use_text(number_key_uses[root])
+        } else if text_key_uses[root] {
+            learned_key_use_notes[site] = key_use_text(text_key_uses[root])
+        }
+        index = index + 1
+    }
 }
 
 func retain_call(spite_type: Analysis.SpiteType, code: String): String {
@@ -6915,6 +7133,10 @@ func coerce_for_store(
     if lending_rows and writing_lent_arguments and site.starts_with("argument:") and is_lent_item_name(expression_ast, scope) {
         var item_type = result.get_type()
         return cast(result.code, item_type, expected_type)
+    }
+    if site == "return" and not result.borrowed_from.is_empty() and lends_this_return(expression_ast, class_information) {
+        var lent_type = result.get_type()
+        return cast(result.code, lent_type, expected_type)
     }
     report_kept_borrow(expression_ast, result, site, scope, class_information)
     var result_type = result.get_type()
@@ -9499,14 +9721,19 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
         lines.append("}")
         lines.append("static int32_t {function_c_name}_lock = 0;")
         lines.append("{target_class.c_name}* {function_c_name}(void) \{")
+        var display_name = singleton_display_name(target_class)
+        var shown_name = escape_c_string(display_name)
         lines.append("{target_class.c_name}* found = SPITE_SINGLETON_FOUND({function_c_name}_cache);")
         lines.append("if (found != 0) return found;")
+        lines.append("spite_singleton_check_circle(\"{shown_name}\");")
         lines.append("SPITE_LOCK({function_c_name}_lock);")
         lines.append("if ({function_c_name}_cache == 0) \{")
         lines.append(
             "if ({function_c_name}_destroyed) spite_singleton_used_after_exit(\"{escape_c_string(target_class.qualified_dotted)}\");",
         )
+        lines.append("spite_singleton_making(\"{shown_name}\");")
         lines.append("{target_class.c_name}* made = {target_class.c_name}___make();")
+        lines.append("spite_singleton_made();")
         lines.append("spite_singleton_created({function_c_name}_teardown);")
         lines.append("SPITE_SINGLETON_PUBLISH({function_c_name}_cache, made);")
         lines.append("}")
@@ -10044,7 +10271,9 @@ func generate_own_function_call(
     if waited {
         return waited
     }
-    return ExpressionResult("{called_c_name}({full_arguments.join(", ")})", function_return_type)
+    var own_called = ExpressionResult("{called_c_name}({full_arguments.join(", ")})", function_return_type)
+    lend_result(own_called, class_information, function)
+    return own_called
 }
 
 func misnamed_plural(information: Analysis.ClassInfo, name: String): String {
@@ -10856,6 +11085,7 @@ func generate_method_call(
         class_information,
     )
     lend_item(called, target_class, member.name, object_ast)
+    lend_result(called, target_class, function)
     return called
 }
 
@@ -15210,12 +15440,49 @@ func settle_key_sites() {
         index = index + 1
     }
     key_sites_changed = not same_key_sites(learned_key_sites, number_key_sites)
+    note_key_uses()
+    if key_sites_changed and not another_pass_follows_a_change {
+        report_unsettled_keys()
+        return
+    }
     assert not key_sites_changed
     index = 0
     while index < key_sites.count() {
         var site = key_sites[index]
         if key_site_root(site) == site {
             report_mixed_keys(site)
+        }
+        index = index + 1
+    }
+}
+
+func report_unsettled_keys() {
+    var index = 0
+    while index < key_sites.count() {
+        var site = key_sites[index]
+        if key_label(learned_key_sites[site]) != key_label(number_key_sites[site]) {
+            var place = site.split("@").last()
+            crash place
+            var parts = place.split(":")
+            assert parts.count() >= 3
+            var line_text = parts[parts.count() - 2]
+            crash line_text
+            current_line = line_text.to_integer()
+            parts.remove_last()
+            parts.remove_last()
+            current_path = parts.join(":")
+            var learned_kind = "text"
+            if learned_key_sites[site] {
+                learned_kind = "whole numbers"
+            }
+            var decided = ""
+            if learned_key_use_notes[site] {
+                decided = ", from the key at {learned_key_use_notes[site]}"
+            }
+            report(
+                "the dictionary made here never settles on text or whole-number keys: each pass of the compiler decides it the other way (last as {learned_kind}{decided}), since what decides it flows back into it -- give it a key the program itself writes, of one kind",
+            )
+            return
         }
         index = index + 1
     }
@@ -16400,12 +16667,183 @@ func owned_c_text(text: String): String {
     return "spite_string_from_cstring_owned(\"{escape_c_string(text)}\")"
 }
 
+func report_singleton_circles() {
+    var reported = List<String>()
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        var checked = information.is_singleton and not information.is_stateless_singleton
+        if checked and not information.is_generic_template and not reported.contains(information.c_name) {
+            var path = List<String>()
+            var visited = List<String>()
+            if circle_from(information.c_name, information.c_name, path, visited) {
+                reported.append(information.c_name)
+                path.each(reported.append)
+                report_singleton_circle(information, path)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func circle_from(start: String, current: String, path: List<String>, visited: List<String>): Boolean {
+    var information = find_class_by_c_name(current)
+    if not information {
+        return false
+    }
+    var index = 0
+    while index < information.fields.count() {
+        var made = classes_made_by(information.fields[index].default_value_code)
+        var made_index = 0
+        while made_index < made.count() {
+            var target = made[made_index]
+            if target == start {
+                path.append(target)
+                return true
+            }
+            if not visited.contains(target) {
+                visited.append(target)
+                path.append(target)
+                if circle_from(start, target, path, visited) {
+                    return true
+                }
+                path.remove_last()
+            }
+            made_index = made_index + 1
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func classes_made_by(code: String): List<String> {
+    var made = List<String>()
+    var code_length = code.length()
+    var position = 0
+    while position < code_length {
+        var name_end = position
+        var character = code.code_at(name_end)
+        while name_end < code_length and is_c_name_code(character) {
+            name_end = name_end + 1
+            character = code.code_at(name_end)
+        }
+        if name_end > position {
+            var name = code.slice(position, name_end)
+            note_made_class(name, made)
+            position = name_end
+        } else {
+            position = position + 1
+        }
+    }
+    return made
+}
+
+func note_made_class(name: String, made: List<String>) {
+    var made_name = ""
+    if name.starts_with("spite_singleton_") {
+        var name_length = name.length()
+        made_name = name.slice(16, name_length)
+    }
+    var suffixes = ["___make_into", "___make", "___default", "___allocate"]
+    var index = 0
+    while made_name.is_empty() and index < suffixes.count() {
+        var suffix = suffixes[index]
+        if name.ends_with(suffix) {
+            var name_length = name.length()
+            var suffix_length = suffix.length()
+            made_name = name.slice(0, name_length - suffix_length)
+        }
+        index = index + 1
+    }
+    assert not made_name.is_empty() and not made.contains(made_name)
+    if find_class_by_c_name(made_name) {
+        made.append(made_name)
+    }
+}
+
+func report_singleton_circle(information: Analysis.ClassInfo, path: List<String>) {
+    var parts = List<String>()
+    var index = 0
+    while index < path.count() {
+        var step = find_class_by_c_name(path[index])
+        crash step
+        var verb = "makes"
+        if step.is_singleton {
+            verb = "binds"
+        }
+        var shown = "{verb} '{singleton_display_name(step)}'"
+        if index > 0 {
+            shown = "which {shown}"
+        }
+        parts.append(shown)
+        index = index + 1
+    }
+    current_path = information.source_path
+    current_line = circle_field_line(information, path)
+    current_owner = information.qualified_dotted
+    current_function = ""
+    report(
+        "singleton '{singleton_display_name(information)}' {parts.join(", ")}: singletons initialise each other in a circle -- one of them has to reach the other some other way, such as by binding it in the class that uses both",
+    )
+}
+
+func circle_field_line(information: Analysis.ClassInfo, path: List<String>): Integer {
+    var first = path.first()
+    crash first
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var made = classes_made_by(field.default_value_code)
+        if made.contains(first) {
+            return field.line
+        }
+        index = index + 1
+    }
+    return 1
+}
+
 func emit_singleton_teardown() {
     builder.add_prototype("bool spite_singleton_tracked(void);")
     builder.add_prototype("void spite_singleton_created(void (*teardown)(void));")
     builder.add_prototype("void spite_singleton_used_after_exit(const char* name);")
     builder.add_prototype("void spite_singletons_destroy(void);")
+    builder.add_prototype("void spite_singleton_check_circle(const char* name);")
+    builder.add_prototype("void spite_singleton_making(const char* name);")
+    builder.add_prototype("void spite_singleton_made(void);")
     var lines = List<String>()
+    lines.append("static SPITE_THREAD_LOCAL const char* spite_singletons_making[64];")
+    lines.append("static SPITE_THREAD_LOCAL int32_t spite_singletons_making_count = 0;")
+    lines.append("void spite_singleton_check_circle(const char* name) \{")
+    lines.append("int32_t kept = spite_singletons_making_count < 64 ? spite_singletons_making_count : 64;")
+    lines.append("int32_t first = 0;")
+    lines.append("while (first < kept && strcmp(spite_singletons_making[first], name) != 0) first = first + 1;")
+    lines.append("if (first == kept) return;")
+    lines.append("fflush(stdout);")
+    lines.append("if (first + 1 == kept) \{")
+    lines.append(
+        "fprintf(stderr, \"spite: singleton '%s' is asked for while it is being made: a singleton cannot reach itself as it initialises\\n\", name);",
+    )
+    lines.append("exit(1);")
+    lines.append("}")
+    lines.append("fprintf(stderr, \"spite: singleton '%s'\", name);")
+    lines.append("for (int32_t step = first + 1; step < kept; step = step + 1) \{")
+    lines.append(
+        "fprintf(stderr, step == first + 1 ? \" binds '%s'\" : \", which binds '%s'\", spite_singletons_making[step]);",
+    )
+    lines.append("}")
+    lines.append("fprintf(stderr, \", which binds '%s'\", name);")
+    lines.append("fputs(\": singletons initialise each other in a circle\\n\", stderr);")
+    lines.append("exit(1);")
+    lines.append("}")
+    lines.append("void spite_singleton_making(const char* name) \{")
+    lines.append(
+        "if (spite_singletons_making_count < 64) spite_singletons_making[spite_singletons_making_count] = name;",
+    )
+    lines.append("spite_singletons_making_count = spite_singletons_making_count + 1;")
+    lines.append("}")
+    lines.append("void spite_singleton_made(void) \{")
+    lines.append("spite_singletons_making_count = spite_singletons_making_count - 1;")
+    lines.append("}")
     lines.append("static void (**spite_singleton_teardowns)(void) = 0;")
     lines.append("static int32_t spite_singleton_total = 0;")
     lines.append("static int32_t spite_singleton_capacity = 0;")
@@ -16558,6 +16996,12 @@ func generate_call(
                 return folded_folder
             }
         }
+        if member.name == "class" {
+            var walked_made = generate_walked_default(member, call.arguments, scope, class_information)
+            if walked_made {
+                return walked_made
+            }
+        }
         if member.name == "argument_count" {
             var counted = folded_argument_count(call, class_information)
             if counted {
@@ -16573,6 +17017,13 @@ func generate_call(
     if identifier {
         return generate_own_function_call(identifier.name, call.arguments, scope, class_information)
     }
+    var codegen = shape.as_generic_identifier(call.callee)
+    if codegen {
+        var made = generate_codegen_default(codegen.name, call.arguments, scope, class_information)
+        if made {
+            return made
+        }
+    }
     var held = generate_expression(call.callee, scope, class_information)
     var held_type = held.get_type()
     var held_function = type_shape.as_class_ref(held_type)
@@ -16583,6 +17034,59 @@ func generate_call(
     }
     report("unsupported call form")
     return void_result()
+}
+
+func generate_codegen_default(
+    name: String,
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    var bound = codegen_index(class_information, name)
+    assert bound >= 0
+    crash class_information.codegen_codes[bound]
+    assert class_information.codegen_codes[bound].is_empty()
+    crash class_information.codegen_types[bound]
+    var made_type = class_information.codegen_types[bound]
+    return generate_default_of(made_type, "${name}", arguments, scope, class_information)
+}
+
+func generate_walked_default(
+    member: Syntax.Expressions.MemberExpression,
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    crash member.object
+    assert member.name == "class" and not bound_symbol_name.is_empty()
+    assert is_identifier_named(member.object, bound_symbol_name) and bound_field_type
+    return generate_default_of(bound_field_type, "{bound_symbol_name}.class", arguments, scope, class_information)
+}
+
+func generate_default_of(
+    made_type: Analysis.SpiteType,
+    written: String,
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    var made_class_type = type_shape.as_class_ref(made_type)
+    if made_class_type {
+        var made_class = find_class_by_c_name(made_class_type.c_name)
+        if made_class {
+            return generate_constructor_call(made_class, arguments, scope, class_information)
+        }
+    }
+    if not arguments.is_empty() {
+        report(
+            "'{written}' is {type_with_article(made_type)} here, which is made with no arguments: '{written}()' is its default",
+        )
+        return void_result()
+    }
+    var default_code = default_value_for_type(made_type)
+    var made = ExpressionResult(default_code, made_type)
+    made.owning_override = true
+    return made
 }
 
 func library_function_value(
@@ -17733,6 +18237,13 @@ func generate_variable_declaration(
         generate_allocated_declaration(declaration, pending_allocator, scope, class_information)
         return
     }
+    if declaration.type_reference and shape.is_null_literal(declaration.value) {
+        var null_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
+        var nothing_yet = type_shape.as_nullable(null_type) or type_shape.is_void(null_type)
+        if not nothing_yet and not filled_by_walk(declaration, class_information) {
+            report_null_default(declaration, null_type, "variable")
+        }
+    }
     var frame_key = placement.frame_key(declaration)
     var frame_placed = frame_candidates.contains("{current_path}:{current_function}:{frame_key}") and not scope.entry_names.contains(declaration.name) and placed_in_frame(declaration, scope, class_information)
     assert not frame_placed
@@ -17853,6 +18364,258 @@ func lend_item(
     items_sources.set(source, label)
 }
 
+func lend_result(result: ExpressionResult, target_class: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    var source = lent_result_source(target_class, function)
+    assert not source.is_empty()
+    result.owning_override = false
+    result.borrowed_from = source
+    var root_end = source.index_of("().")
+    var root = source.slice(0, root_end + 2)
+    var singleton_c_name = lent_result_singletons.get(source)
+    crash singleton_c_name
+    constructed_roots.set(root, singleton_c_name)
+    var label = lent_result_labels.get(source)
+    crash label
+    items_sources.set(source, label)
+}
+
+func lent_result_source(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    var key = "{information.c_name}.{function.name}"
+    var known = lent_results.get(key)
+    if known {
+        return known
+    }
+    lent_results.set(key, "")
+    var returns = List<Syntax.Expressions.Expression>()
+    var locals = function.parameters.map_name()
+    collect_returned_values(function.body, returns, locals)
+    var index = 0
+    while index < returns.count() {
+        var source = lent_return_source(returns[index], information, locals)
+        if not source.is_empty() {
+            lent_results.set(key, source)
+            return source
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func collect_returned_values(
+    statements: List<Syntax.Statements.Statement>,
+    returns: List<Syntax.Expressions.Expression>,
+    locals: List<String>,
+) {
+    var index = 0
+    while index < statements.count() {
+        collect_statement_returns(statements[index], returns, locals)
+        index = index + 1
+    }
+}
+
+func collect_statement_returns(
+    statement: Syntax.Statements.Statement,
+    returns: List<Syntax.Expressions.Expression>,
+    locals: List<String>,
+) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: locals.append(statement.name)
+        Syntax.Statements.ReturnStatement: {
+            if statement.value {
+                returns.append(statement.value)
+            }
+        }
+        Syntax.Statements.IfStatement: {
+            collect_returned_values(statement.then_branch, returns, locals)
+            collect_returned_values(statement.else_branch, returns, locals)
+        }
+        Syntax.Statements.WhileStatement: collect_returned_values(statement.body, returns, locals)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                collect_returned_values(statement.cases[case_index].body, returns, locals)
+                case_index = case_index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func lent_return_source(
+    value: Syntax.Expressions.Expression,
+    information: Analysis.ClassInfo,
+    locals: List<String>,
+): String {
+    var storage = lent_storage_path(value)
+    if not storage {
+        return ""
+    }
+    var path = List<String>()
+    if not attribute_path(storage, path) {
+        return ""
+    }
+    var root = path.first()
+    crash root
+    if locals.contains(root) {
+        return ""
+    }
+    var owner = information
+    var index = 0
+    while index < path.count() - 1 {
+        var field = owner.find_field(path[index])
+        if not field {
+            return ""
+        }
+        var field_type = field.get_type()
+        var field_class = class_behind(field_type)
+        if not field_class {
+            return ""
+        }
+        owner = field_class
+        index = index + 1
+    }
+    if not owner.is_singleton {
+        return ""
+    }
+    var last = path.last()
+    crash last
+    var storage_field = owner.find_field(last)
+    if not storage_field {
+        return ""
+    }
+    var storage_type = storage_field.get_type()
+    var storage_class = class_behind(storage_type)
+    if not storage_class or not holds_items_inline(storage_class) or copies_items(storage_class) {
+        return ""
+    }
+    var source = "{singleton_display_name(owner)}().{last}"
+    lent_result_singletons.set(source, owner.c_name)
+    var label = ""
+    if is_items_class(storage_class) {
+        crash storage_class.codegen_types[0]
+        label = type_display_name(storage_class.codegen_types[0])
+    }
+    lent_result_labels.set(source, label)
+    return source
+}
+
+func lent_storage_path(value: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    var indexed = shape.as_index(value)
+    if indexed {
+        return indexed.object
+    }
+    var call = shape.as_call(value)
+    assert call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member and member.name == "get_at"
+    return member.object
+}
+
+func attribute_path(expression: Syntax.Expressions.Expression, path: List<String>): Boolean {
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        path.append(identifier.name)
+        return true
+    }
+    var member = shape.as_member(expression)
+    if not member {
+        return false
+    }
+    crash member.object
+    if not attribute_path(member.object, path) {
+        return false
+    }
+    path.append(member.name)
+    return true
+}
+
+func singleton_display_name(information: Analysis.ClassInfo): String {
+    var name = information.qualified_dotted
+    if name.is_empty() {
+        name = information.simple_name
+    }
+    if information.codegen_types.is_empty() {
+        return name
+    }
+    var shown = information.codegen_types.map(type_display_name)
+    return "{name}<{shown.join(", ")}>"
+}
+
+func lends_this_return(expression_ast: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Boolean {
+    crash current_class
+    var function = current_class.find_function(current_function)
+    if not function or function.is_constructor {
+        return false
+    }
+    var lent = lent_result_source(class_information, function)
+    if lent.is_empty() {
+        return false
+    }
+    var locals = function.parameters.map_name()
+    var ignored = List<Syntax.Expressions.Expression>()
+    collect_returned_values(function.body, ignored, locals)
+    return lent_return_source(expression_ast, class_information, locals) == lent
+}
+
+func lent_call_source(
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var call = shape.as_call(value)
+    if not call {
+        return ""
+    }
+    crash call.callee
+    var own = shape.as_identifier(call.callee)
+    if own {
+        if scope.written_type(own.name) {
+            return ""
+        }
+        var own_function = class_information.find_function(own.name)
+        if not own_function {
+            return ""
+        }
+        return lent_result_source(class_information, own_function)
+    }
+    var member = shape.as_member(call.callee)
+    if not member {
+        return ""
+    }
+    crash member.object
+    var receiver_class = lent_receiver_class(member.object, scope, class_information)
+    if not receiver_class {
+        return ""
+    }
+    var function = receiver_class.find_function(member.name)
+    if not function {
+        return ""
+    }
+    return lent_result_source(receiver_class, function)
+}
+
+func lent_receiver_class(
+    receiver: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var construction = shape.as_generic_call(receiver)
+    if construction {
+        crash construction.callee
+        assert not construction.names_class
+        var template = try_resolve_static_path(construction.callee, class_information.qualified_dotted)
+        assert template and template.is_generic_template and not template.is_singleton
+        return instantiate_generic(template, construction.type_arguments, class_information.qualified_dotted)
+    }
+    var root = shape.as_identifier(receiver)
+    if root {
+        assert scope.written_type(root.name) or class_information.find_field(root.name)
+    }
+    var receiver_type = receiver_type_of(receiver, scope, class_information)
+    return class_behind(receiver_type)
+}
+
 func note_constructed_root(expression: Syntax.Expressions.Expression) {
     var root = expression
     var member = shape.as_member(root)
@@ -17924,6 +18687,9 @@ func may_lend(value: Syntax.Expressions.Expression, scope: Scope, class_informat
     if not call {
         return false
     }
+    if not lent_call_source(value, scope, class_information).is_empty() {
+        return true
+    }
     crash call.callee
     var member = shape.as_member(call.callee)
     if not member {
@@ -17966,7 +18732,14 @@ func lends_to_local(
         return false
     }
     if scope.entry_names.contains(declaration.name) {
-        return false
+        var saved_counter = temporary_counter
+        var probe = generate_expression(declaration.value, scope, class_information)
+        rewind_temporaries(saved_counter)
+        report(
+            "{items_choice(probe.borrowed_from)}'{declaration.name}' already names a value earlier in this block, and an item borrowed from '{probe.borrowed_from}' is given a name of its own: call it something new, such as 'var {declaration.name}_item = ...'",
+        )
+        scope.mark_used(declaration.name)
+        return true
     }
     var lent = generate_expression(declaration.value, scope, class_information)
     var item_type = lent.get_type()
@@ -18894,7 +19667,8 @@ func walked_generic_call(
         var type_argument = generic_call.type_arguments.get_at(index)
         var walked_type = walked_type_argument(type_argument, walk.symbol_parameter)
         if walked_type {
-            var attribute_class: Syntax.Types.GenericArgument = Syntax.Types.TypeArgument(attribute.type_reference)
+            var walked_reference = qualified_type_reference(bound_field_type, attribute.type_reference)
+            var attribute_class: Syntax.Types.GenericArgument = Syntax.Types.TypeArgument(walked_reference)
             type_arguments.append(attribute_class)
         } else {
             type_arguments.append(type_argument)
@@ -18909,6 +19683,19 @@ func walked_generic_call(
         arguments,
     )
     return made
+}
+
+func qualified_type_reference(spite_type: Analysis.SpiteType?, written: Syntax.Types.Type): Syntax.Types.Type {
+    var walked_class = class_behind(spite_type)
+    if walked_class {
+        if walked_class.codegen_types.is_empty() and not walked_class.qualified_dotted.is_empty() {
+            var no_arguments = List<Syntax.Types.GenericArgument>()
+            var path = walked_class.qualified_dotted.split(".")
+            var qualified: Syntax.Types.Type = Syntax.Types.NamedType(path, no_arguments)
+            return qualified
+        }
+    }
+    return written
 }
 
 func walked_type_argument(type_argument: Syntax.Types.GenericArgument, symbol_parameter: String): Boolean {
@@ -19107,7 +19894,7 @@ func report_kept_borrow(
     var reason = items_choice(source)
     if site == "return" {
         report(
-            "{reason}'{text}' is borrowed from '{source}' and cannot be returned: return {copied}{lent_result_hint()}",
+            "{reason}'{text}' is borrowed from '{source}' and cannot be returned: return {copied}{lent_result_hint()}{handed_on_hint(source)}",
         )
         return
     }
@@ -19140,6 +19927,35 @@ func report_kept_borrow(
         return
     }
     report("{reason}'{text}' is borrowed from '{source}' and cannot be kept past the line that reads it: keep {copied}")
+}
+
+func handed_on_hint(source: String): String {
+    if not lent_result_singletons.has(source) {
+        return ""
+    }
+    return " -- a function lends its caller an item only by reading it from a singleton's Items or Vector itself, never one that was lent to it (D230)"
+}
+
+func reread_hint(source: String): String {
+    if lent_result_singletons.has(source) {
+        return "ask for the item again"
+    }
+    return "read '{source}[index]' again"
+}
+
+func report_unlent_return(
+    value: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    assert not shape.is_null_literal(value) and not function_information.is_constructor
+    var lent = lent_result_source(class_information, function_information)
+    assert not lent.is_empty()
+    assert not lends_this_return(value, class_information)
+    var written = Syntax.SourcePrinter().source_expression(value)
+    report(
+        "'{function_information.name}' lends its caller an item of '{lent}', which the caller writes in place and never lets go, so each of its returns is an item of '{lent}' or null: '{written}' is neither -- return null for 'none', with a '?' result, or make it a function of its own",
+    )
 }
 
 func lent_result_hint(): String {
@@ -19300,7 +20116,7 @@ func borrow_outlives_resize(
             if mentioned.contains(name) {
                 current_line = statement_line(statement)
                 report(
-                    "{items_choice(source)}'{name}' is borrowed from '{source}', and {resize} may move the items of '{source}', so '{name}' is not read after it: read '{source}[index]' again after that line, or keep '{name}.copy()', an independent object",
+                    "{items_choice(source)}'{name}' is borrowed from '{source}', and {resize} may move the items of '{source}', so '{name}' is not read after it: {reread_hint(source)} after that line, or keep '{name}.copy()', an independent object",
                 )
                 return true
             }
@@ -20540,6 +21356,18 @@ func generate_assignment(
     forget_narrowing_under(assignment.target, assignment.value, scope, class_information)
 }
 
+func narrowed_value_holder(override: String, declared: Analysis.SpiteType): String {
+    var nullable = type_shape.as_nullable(declared)
+    if nullable {
+        var inner = nullable.get_inner()
+        if not type_is_reference(inner) and override.starts_with("(") and override.ends_with(").value") {
+            var override_length = override.length()
+            return override.slice(1, override_length - 7)
+        }
+    }
+    return override
+}
+
 func appends_to_itself(
     value: Syntax.Expressions.Expression,
     target: String,
@@ -20636,6 +21464,7 @@ func generate_store(
                 var declared = scope.unnarrowed_type(identifier.name)
                 if declared {
                     storage_type = declared
+                    target_code = narrowed_value_holder(override, declared)
                 } else {
                     var narrowed_field = class_information.find_field(identifier.name)
                     if narrowed_field {
@@ -27001,6 +27830,7 @@ func generate_return_statement(
         return
     }
     if return_statement.value {
+        report_unlent_return(return_statement.value, class_information, function_information)
         assert not returns_object_in_frame(return_statement.value, return_type, scope, class_information)
         var value_code = coerce_for_store(return_statement.value, return_type, scope, class_information)
         var temporary = next_temporary()
@@ -29323,6 +30153,7 @@ func emit_main(launcher_mangled_name: String) {
         builder.add_main("{launcher_class.constructor.c_name}(spite_launcher);")
     }
     builder.add_main("{launcher_class.c_name}___release(spite_launcher);")
+    report_singleton_circles()
     emit_singleton_teardown()
     singleton_releases.each(builder.add_main)
     var listed_name = ""
