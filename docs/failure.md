@@ -548,6 +548,71 @@ func price_or_zero(name: String): Integer {
 300 0
 ```
 
+### Every path ends in a `return`
+
+A function that declares a result answers it on every path. A path that reaches the end of the function without
+a `return` is a compile error at the function's last line, naming the path, since the caller would otherwise get
+a `0` or a `""` that nobody wrote ([D244](decisions.md)). A bare `crash` ends a path as a `return` does, and so
+does a `while true`, which Spite leaves only by returning:
+
+```gdscript title=falling_end_error/falling_end_error.spite entry error
+var console = Console()
+
+func FallingEndError() {
+    var sign = sign_of(3)
+    console.print(sign)
+}
+
+func sign_of(value: Integer): String {
+    if value > 0 {
+        return "positive"
+    }
+    if value < 0 {
+        return "negative"
+    }
+}
+```
+```diagnostic
+'sign_of' answers a String, but when 'value < 0' is false (line 12, an 'if' with no 'else') it reaches its end without a 'return', so a caller would get a String nobody wrote: end that path with 'return <value>', or with 'crash' if it cannot happen
+```
+
+A `switch` covers every case, so one whose cases all return needs nothing after it:
+
+```gdscript title=falling_end_fixed/falling_end_fixed.spite entry
+enum Light {
+    'red'
+    'green'
+}
+
+var console = Console()
+
+func FallingEndFixed() {
+    var sign = sign_of(0)
+    var wait = wait_for('green')
+    console.print(sign, wait)
+}
+
+func sign_of(value: Integer): String {
+    if value > 0 {
+        return "positive"
+    }
+    if value < 0 {
+        return "negative"
+    }
+    return "zero"
+}
+
+func wait_for(light: Light): Integer {
+    switch light {
+        'red': return 30
+        'green': return 20
+    }
+}
+```
+```output
+zero 20
+```
+
 ### An `if` that only returns the default is an `assert`
 
 Where a guard `assert` is allowed, it is the only way to write a guard. An `if` with no `else` whose whole body
@@ -874,6 +939,7 @@ word needs a reason, and a place where the compiler lets one through is a bug to
 | an index past the end, a key never set | `[]`, `first()`, `last()`, `remove_first()` answer a `T?` | [reading with `[]`](#reading-with--answers-t) |
 | a guard `assert` answering a `0`, `false`, `""` or default object the caller takes for a real answer | compile error unless the result can say "nothing" (D244, D245) | [a default that looks like an answer](#a-default-that-looks-like-an-answer-is-an-error) |
 | a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is never a condition | [null safety](#null-safety-and-assert-narrowing--implemented) |
+| a function that declares a result reaching its end without a `return` | compile error at its last line naming the path | [every path ends in a `return`](#every-path-ends-in-a-return) |
 | a proof that went stale after an assignment or a call | the read must be proven again; in a loop, an error naming the call | [a call may undo a proof](#a-call-may-undo-a-proof) |
 | a failed `crash` printing a default that reads as a real zero | the report names the missing link, index and count, or key (D248) | [what a crash reports](#what-a-crash-reports-1) |
 | a native fault ending the program with nothing printed | `spite.fault` with the place, the last foreign call and the stack (D255) | [what a native fault reports](#what-a-native-fault-reports-1) |
@@ -897,9 +963,9 @@ word needs a reason, and a place where the compiler lets one through is a bug to
 a word unless the program runs with `--debug-memory`, which prints the allocation balance
 ([memory.md](memory.md#cycles-leak)); signed arithmetic wraps in production builds and unsigned arithmetic
 wraps in every build (D249); a `Concurrent` polled for `finished` under `resume_only_when_asked()` without
-`run_ready()` never ends ([concurrency.md](concurrency.md#choosing-where-concurrents-resume)); a function that
-declares a result can reach its end without a `return`, which answers whatever the C compiler leaves there; and
-`String.to_integer()` and `to_long()` answer `0` for text that is not a number.
+`run_ready()` never ends ([concurrency.md](concurrency.md#choosing-where-concurrents-resume)); a `List`'s
+`set_at` and `remove_at` do nothing out of range ([collections.md](collections.md#listt-additions--implemented));
+and `String.to_integer()` and `to_long()` answer `0` for text that is not a number.
 
 
 `assert` doubles as the way to prove a `T?` is not null without nesting: after `assert value` on a
@@ -1099,8 +1165,9 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   attribute's list is not tracked (a proven read still checks its bounds). Inside a `while`, a call that undoes a
   proof made before the loop and read inside it is an error naming the call (`diagnostics/call_undoes_proof`).
   All of it happens while compiling; nothing is emitted. **[implemented]**
-- **A proven read still checks its bounds at runtime** and answers the default out of range, so a counter that
-  went negative gives a wrong value rather than reading memory it does not own.
+- **A proven read still checks its bounds at runtime** and halts out of range, naming the index and the count
+  (`List.get_at`'s own `crash`, as `Vector.get_at` already had), so a counter that went negative stops the program
+  rather than reading memory it does not own or answering a default (D244; before, a `List` answered the default).
 - **A `Boolean?` cannot be a condition** -- not in `if`, `while`, `assert` or `crash`, and not under `not`, `and`
   or `or`: `if flags[index]` would test that the element is there, not that it is true, and the two mean
   opposite things for `false`. Prove the element is there first, or `switch` over it; `== true` also works,
@@ -1199,6 +1266,33 @@ func is_open(): Boolean {
     return true
 }
 ```
+
+**Every path of a function that declares a result ends in a `return`** (D244, decided by Mortaro; the check, its
+reach and the message proposed by Claude, unconfirmed). A path that reaches the end of the function's body is a
+compile error at the line of the function's closing `}`, and the message names the path, one step per branch it
+took: `'sign_of' answers a String, but when 'value < 0' is false (line 12, an 'if' with no 'else') it reaches its
+end without a 'return', so a caller would get a String nobody wrote: end that path with 'return <value>', or with
+'crash' if it cannot happen`. Before, the C the compiler wrote answered the type's default there, so the function
+quietly answered `0`, `""`, `false`, a default object or `null`. A path ends:
+
+- at a `return`, or at a bare `crash` (`crash false` is formatted to it);
+- at an `if` with an `else` whose two branches both end, and at a `switch` whose cases all end -- a `switch`
+  covers every member or value, or has `_:`, so there is no other way through it;
+- at a `while true`, which ends only by leaving the function, since Spite has no `break` (D2);
+- at an `if` whose condition is decided while compiling (a codegen value, `has_function`, ...) and whose branch
+  taken ends, and at an `assert` so decided to be false, read per instance of a generic class, as they are
+  compiled.
+
+Everything else -- an `if` with no `else` (the path where its condition is false), a `while` with any other
+condition (the path after it ends), an `assert` or a `crash` with a condition, any other statement -- lets the
+path through. A result that is a `T?` is held to it too: `return null` is written where that is the answer. The
+check reads each function as it is compiled, so a function the program never reaches is not checked, and a
+generic class's function is reported once, for the first instance that falls off, naming it (`'get_at' answers a
+String in List<String>`). It costs nothing at run time. `diagnostics/falling_end`. Migrated: `List.get_at` (an
+index outside the list now halts, as `Vector.get_at` already did, instead of answering the default), and
+`JsonReader.read_symbol` and `BinaryFormat.read_symbol`, which after recording a failure now answer a placeholder
+symbol written down (the reader answers `null` once it has failed, so it never reaches the caller).
+**[implemented]**
 
 D28: **`assert` is banned in a constructor**, including the entry class's own (D29). A constructor is setup, not
 logic: if something can be invalid inside one, function logic has been put where only setup belongs. The caller

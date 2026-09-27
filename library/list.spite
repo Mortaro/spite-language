@@ -39,9 +39,8 @@ func insert(index: Integer, value: $element_type) {
 }
 
 func get_at(index: Integer): $element_type {
-    if index >= 0 and index < item_count {
-        return values.read_value(items, index)
-    }
+    crash index >= 0 and index < item_count
+    return values.read_value(items, index)
 }
 
 func find_at(index: Integer): $element_type? {

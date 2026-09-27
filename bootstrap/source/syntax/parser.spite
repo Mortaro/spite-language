@@ -471,7 +471,15 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         return supplied
     }
     var body = parse_block()
-    return Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
+    var declared = Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
+    declared.end_line = previous_line()
+    return declared
+}
+
+func previous_line(): Integer {
+    var before = position - 1
+    crash tokens[before]
+    return tokens[before].line
 }
 
 func is_list_type(type_reference: Syntax.Types.Type): Boolean {

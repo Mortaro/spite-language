@@ -8,6 +8,7 @@ var is_emitted = false
 var has_body = true
 var supplied_body = ""
 var line = 0
+var end_line = 0
 var source_path = ""
 var symbol_name = ""
 var symbol_field_name = ""

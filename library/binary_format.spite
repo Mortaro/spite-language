@@ -165,10 +165,11 @@ func read_symbol(input: BinaryInput): $value_type {
     }
     var name = input.read_text()
     var found = Symbol(name)
-    if found {
-        return found
+    if not found {
+        input.fail()
+        return input.class.name
     }
-    input.fail()
+    return found
 }
 
 func count_value(value: Symbol<$value_type>, input: BinaryInput) {

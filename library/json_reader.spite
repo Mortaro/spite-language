@@ -102,10 +102,11 @@ func read_symbol(cursor: JsonCursor): $value_type {
         return symbol
     }
     var found = Symbol(name)
-    if found {
-        return found
+    if not found {
+        cursor.fail("a name the program already uses as a Symbol")
+        return cursor.class.name
     }
-    cursor.fail("a name the program already uses as a Symbol")
+    return found
 }
 
 func read_attribute(attribute: Symbol<$value_type>, created: $value_type, key: String, cursor: JsonCursor) {

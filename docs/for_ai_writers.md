@@ -360,6 +360,11 @@ func is_alive(): Boolean {
     a key never set, not as a zero.
 - Narrowing tests presence, never the value: `crash keys[index]` passes on an element holding `0.0`, and `if count`
   runs on an `Integer?` holding `0`.
+- A function that declares a result ends every path with a `return` (or a bare `crash`): a path that reaches the
+  closing `}` is an error naming it (`'sign_of' answers a String, but when 'value < 0' is false (line 12, an 'if'
+  with no 'else') it reaches its end without a 'return'`). An `if`/`else` whose branches both return, a `switch`
+  whose cases all return and a `while true` end the path; an `if` with no `else` and any other `while` do not, so
+  write the last `return` after them, `return null` included.
 - A native fault -- a null read or an illegal instruction inside a foreign library, a stack overflow -- is never
   silent either: the program prints `spite.fault<TAB>kind<TAB>path:line<TAB>Class<TAB>function<TAB>...`, then
   `spite.frame` lines, innermost Spite function first, and ends. `-	-	-` in the place means the fault is outside

@@ -1,0 +1,98 @@
+enum Light {
+    'red'
+    'amber'
+    'green'
+}
+
+var console = Console()
+
+func FallingEnd() {
+    var sign = sign_of(3)
+    var word = word_for(2)
+    var wait = wait_for('red')
+    var size = size_of("abc")
+    var label = label_for(1)
+    var found = find(4)
+    crash found
+    var first = first_long(5)
+    var answer = forever(1)
+    var halted = halts(2)
+    var left = leaves(1)
+    console.print(sign, word, wait, size, label, found, first, answer, halted, left)
+}
+
+func sign_of(value: Integer): String {
+    if value > 0 {
+        return "positive"
+    }
+    if value < 0 {
+        return "negative"
+    }
+}
+
+func word_for(count: Integer): String {
+    if count > 1 {
+        return "many"
+    } else {
+        console.print("one or none")
+    }
+}
+
+func wait_for(light: Light): Integer {
+    switch light {
+        'red': return 30
+        'amber': console.print("hurry")
+        'green': return 20
+    }
+}
+
+func size_of(text: String): Integer {
+    var length = text.length()
+    console.print(length)
+}
+
+func label_for(index: Integer): String {
+    if index > 5 {
+        return "far"
+    } else if index > 2 {
+        return "near"
+    } else if index > 0 {
+        console.print("close")
+    } else {
+        return "here"
+    }
+}
+
+func find(value: Integer): Integer? {
+    while value > 0 {
+        return value
+    }
+}
+
+func first_long(value: Long): Long {
+    while true {
+        return value
+    }
+}
+
+func forever(value: Integer): Integer {
+    if value > 0 {
+        return value
+    }
+    crash
+}
+
+func halts(value: Integer): Integer {
+    switch value {
+        1: return 10
+        _: crash
+    }
+}
+
+func leaves(value: Integer): Integer {
+    if value > 0 {
+        return value
+    } else {
+        return 0 - value
+    }
+}

@@ -14,6 +14,8 @@ var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
 var terminal_if: Syntax.Statements.IfStatement? = null
+var leaving_statements = List<Syntax.Statements.Statement>()
+var falling_ends = List<String>()
 var symbol_names = List<String>()
 var symbol_lookup_used = false
 var symbol_positions = Dictionary<Integer>()
@@ -5228,6 +5230,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         )
     }
     function.line = declaration.line
+    function.end_line = declaration.end_line
     if is_constructor {
         information.constructor = function
     } else if declaration.name == "drop" {
@@ -10259,6 +10262,7 @@ func ensure_into_variant(owner: Analysis.ClassInfo, function: Analysis.FunctionI
         false,
     )
     variant.line = function.line
+    variant.end_line = function.end_line
     variant.source_path = function.source_path
     variant.symbol_name = function.symbol_name
     variant.symbol_field_name = function.symbol_field_name
@@ -27091,6 +27095,9 @@ func generate_statement(
     var errors_before = error_lines.count()
     var waits_before = wait_mark_counters.count()
     var ended_in_return = generate_statement_kind(statement, scope, class_information, function_information)
+    if ended_in_return {
+        leaving_statements.append(statement)
+    }
     if resumable_mode {
         drop_unread_waits(waits_before)
     }
@@ -27747,9 +27754,15 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     body_narrowed_names = List<String>()
     body_assigned_paths = List<String>()
     collect_body_facts(function.body)
+    var outer_leaving = leaving_statements
+    leaving_statements = List<Syntax.Statements.Statement>()
     var ended_in_return = generate_statement_list(function.body, scope, information, function)
     terminal_if = null
     report_unused(scope)
+    if not ended_in_return {
+        report_falling_end(information, function)
+    }
+    leaving_statements = outer_leaving
     if not ended_in_return {
         emit_scope_drops(scope, true)
         var function_return_type = function.get_return_type()
@@ -28495,6 +28508,132 @@ func statement_endless_loop_line(statement: Syntax.Statements.Statement): Intege
         }
         _: return 0
     }
+}
+
+func report_falling_end(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    var return_type = function.get_return_type()
+    assert not type_shape.is_void(return_type)
+    var path = falling_path(function.body)
+    assert path
+    current_line = function.end_line
+    if current_line == 0 {
+        current_line = function.line
+    }
+    var place = "{current_path}:{current_line}"
+    assert not falling_ends.contains(place)
+    falling_ends.append(place)
+    var answered = type_with_article(return_type)
+    var unwritten = answered
+    if type_shape.as_nullable(return_type) {
+        unwritten = "a null"
+    }
+    var reaches = "it reaches its end without a 'return'"
+    var ending = "end it with 'return <value>', or with 'crash' if it cannot get there"
+    if not path.is_empty() {
+        reaches = "{path} it reaches its end without a 'return'"
+        ending = "end that path with 'return <value>', or with 'crash' if it cannot happen"
+    }
+    report(
+        "'{function.name}' answers {answered}{instance_description(information)}, but {reaches}, so a caller would get {unwritten} nobody wrote: {ending}",
+    )
+}
+
+func falling_path(statements: List<Syntax.Statements.Statement>): String? {
+    assert statements.all(statement_can_finish)
+    var last = statements.last()
+    var path = ""
+    if last {
+        return statement_falling_path(last)
+    }
+    return path
+}
+
+func statement_can_finish(statement: Syntax.Statements.Statement): Boolean {
+    var path = statement_falling_path(statement)
+    var finishes = false
+    if path {
+        finishes = true
+    }
+    return finishes
+}
+
+func statement_falling_path(statement: Syntax.Statements.Statement): String? {
+    assert not left_the_function(statement)
+    var path = ""
+    switch statement {
+        Syntax.Statements.ReturnStatement: return null
+        Syntax.Statements.AssertStatement: {
+            if statement.is_crash {
+                assert statement.value and not shape.is_false_literal(statement.value)
+            }
+            return path
+        }
+        Syntax.Statements.IfStatement: return if_falling_path(statement)
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            assert not shape.is_true_literal(statement.condition)
+            return "when the 'while' at line {statement.line} ends"
+        }
+        Syntax.Statements.SwitchStatement: return switch_falling_path(statement)
+        _: return path
+    }
+}
+
+func if_falling_path(if_statement: Syntax.Statements.IfStatement): String? {
+    crash if_statement.condition
+    var condition = Syntax.SourcePrinter().source_expression(if_statement.condition)
+    if not if_statement.has_else_branch {
+        return "when '{condition}' is false (line {if_statement.line}, an 'if' with no 'else')"
+    }
+    var then_path = falling_path(if_statement.then_branch)
+    if then_path {
+        return path_with_step("when '{condition}' is true (line {if_statement.line})", then_path)
+    }
+    var else_path = falling_path(if_statement.else_branch)
+    assert else_path
+    return path_with_step("when '{condition}' is false (line {if_statement.line})", else_path)
+}
+
+func switch_falling_path(switch_statement: Syntax.Statements.SwitchStatement): String? {
+    var index = 0
+    while index < switch_statement.cases.count() {
+        var switch_case = switch_statement.cases[index]
+        var case_path = falling_path(switch_case.body)
+        if case_path {
+            var step = "in the case {case_label(switch_case)} of the 'switch' at line {switch_statement.line}"
+            return path_with_step(step, case_path)
+        }
+        index = index + 1
+    }
+    assert switch_statement.cases.is_empty()
+    return ""
+}
+
+func case_label(switch_case: Syntax.Statements.SwitchCase): String {
+    if switch_case.value {
+        return Syntax.SourcePrinter().source_expression(switch_case.value)
+    }
+    crash switch_case.type_reference
+    return Syntax.SourcePrinter().source_type(switch_case.type_reference)
+}
+
+func path_with_step(step: String, rest: String): String {
+    if rest.is_empty() {
+        return step
+    }
+    return "{step}, then {rest}"
+}
+
+func left_the_function(statement: Syntax.Statements.Statement): Boolean {
+    var index = 0
+    while index < leaving_statements.count() {
+        var left = leaving_statements[index]
+        if left == statement {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func can_leave(statements: List<Syntax.Statements.Statement>): Boolean {
