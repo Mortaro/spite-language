@@ -1,0 +1,54 @@
+var console = Console()
+var plain = DynamicLibrary("conformance/stage6/foreign_callbacks/fixture.dll", 'identity', "")
+var declared = DynamicLibrary(
+    "conformance/stage6/foreign_callbacks/fixture.dll",
+    'identity',
+    "conformance/stage6/foreign_callbacks/fixture.h",
+)
+var scale = 3
+var windows = Windows()
+var mixer = Mixer()
+
+func ForeignCallbacks() {
+    var mapped = plain.sum_mapped(4, scaled)
+    var declared_mapped = declared.sum_mapped(2, scaled)
+    console.print(mapped, declared_mapped)
+    window_messages()
+    visits()
+    thread_reports()
+    voices()
+}
+
+func scaled(value: Integer): Integer {
+    return value * scale
+}
+
+func window_messages() {
+    windows.open(7, "main")
+    windows.open(9, "tools")
+    var procedure = ForeignCallback(windows.handle_message, 'no_context')
+    declared.keep_procedure(procedure.address)
+    var answer = declared.send_message_as_long(7, 15, 21)
+    var other = declared.send_message_as_long(9, 16, 5)
+    console.print(answer, other)
+}
+
+func visits() {
+    var visitor = Visitor(1.2)
+    var visiting = ForeignCallback(visitor.visit, 'context_last')
+    var visited = plain.visit_each(4, visiting.address, visiting.context)
+    console.print("visited", visited)
+}
+
+func thread_reports() {
+    var tally = Tally("tally")
+    var reporting = ForeignCallback(tally.report, 'context_first')
+    plain.run_on_thread(reporting.address, reporting.context, 10)
+    console.print("total", tally.total)
+}
+
+func voices() {
+    plain.play_voice(mixer.listener, 1)
+    plain.play_voice(mixer.listener, 2)
+    console.print("buffers ended", mixer.buffers_ended)
+}

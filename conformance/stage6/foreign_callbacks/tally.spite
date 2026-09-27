@@ -1,0 +1,12 @@
+var console = Console()
+var name = ""
+var total = 0
+
+func Tally(starting_name: String) {
+    name = starting_name
+}
+
+func report(value: Integer, on_another_thread: Boolean) {
+    total = total + value
+    console.print(name, value, on_another_thread)
+}

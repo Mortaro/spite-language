@@ -1,0 +1,34 @@
+singleton
+
+var console = Console()
+var heap = Memory.Heap()
+var words = TypedMemory<Long>()
+var started: ForeignCallback? = null
+var ended: ForeignCallback? = null
+var table = heap.allocate(16)
+var listener = heap.allocate(8)
+var buffers_ended = 0
+
+func Mixer() {
+    var starting = ForeignCallback(voice_started, 'no_context')
+    var ending = ForeignCallback(voice_ended, 'no_context')
+    words.write_value(table, 0, starting.address)
+    words.write_value(table, 1, ending.address)
+    words.write_value(listener, 0, table)
+    started = starting
+    ended = ending
+}
+
+func voice_started(listening: Memory.Address, voice: Integer) {
+    console.print("voice", voice, "started", listening == listener)
+}
+
+func voice_ended(_listening: Memory.Address, voice: Integer, buffer: Long) {
+    buffers_ended = buffers_ended + 1
+    console.print("voice", voice, "ended with buffer", buffer)
+}
+
+func drop() {
+    heap.free(listener)
+    heap.free(table)
+}

@@ -464,8 +464,9 @@ Both classes are the operating system's own (`TlsAlloc` and `SRWLOCK` on Windows
 `pthread_mutex_t` elsewhere), reached through each system's folder, and a program that makes neither carries
 neither.
 
-A program that makes a `Parallel` (or a `Concurrent`, or is built with `--repl-port` or `--hot-reload`) counts
-references with atomic operations, because an object can now be shared between threads; every other program keeps
+A program that makes a `Parallel` (or a `Concurrent`, or a `ForeignCallback` C may call from a thread of its own
+([foreign_libraries.md](foreign_libraries.md#calling-back-into-spite)), or is built with `--repl-port` or
+`--hot-reload`) counts references with atomic operations, because an object can now be shared between threads; every other program keeps
 the plain, cheaper counts. `Parallel(work)` is checked while compiling (D179; the reading proposed by Claude, unconfirmed): the function it
 runs, and every function of the same class that function calls by name, may read and write only the attributes of
 its own instance that hold values -- numbers, `Boolean`, enums, text -- its locals and parameters, singletons (which
@@ -936,8 +937,8 @@ functions for a program that wants `Concurrent`s to resume only between its own 
   at `run_ready()`, never inside a stage. Without `resume_only_when_asked()` the same program's reader resumes
   inside a stage's sleep.
 
-**Soundness.** A program that starts a thread (a `Concurrent`'s helpers, a `Parallel`, or `--repl-port`) is compiled
-with `SPITE_THREADS`: every retain and release is an atomic operation, and the `--debug-memory` table takes a lock.
+**Soundness.** A program that starts a thread (a `Concurrent`'s helpers, a `Parallel`, or `--repl-port`), or hands C
+a `ForeignCallback` it may call from one, is compiled with `SPITE_THREADS`: every retain and release is an atomic operation, and the `--debug-memory` table takes a lock.
 Every other program keeps the plain counts. Spite code on the program's thread only ever changes hands at a wait,
 so state machines need nothing more. A singleton first used from two threads at once is made once: the fetch takes
 the singleton's own lock only while its slot is empty (`conformance/stage6/singleton_race`). D35's rule is checked

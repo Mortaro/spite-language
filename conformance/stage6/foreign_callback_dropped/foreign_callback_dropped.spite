@@ -1,0 +1,15 @@
+var console = Console()
+var plain = DynamicLibrary("conformance/stage6/foreign_callback_dropped/fixture.dll", 'identity', "")
+var clicks = Clicks()
+
+func ForeignCallbackDropped() {
+    keep_and_click()
+    console.print("the callback is dropped")
+    plain.click(3)
+}
+
+func keep_and_click() {
+    var clicking = ForeignCallback(clicks.clicked, 'no_context')
+    plain.keep_click(clicking.address)
+    plain.click(1)
+}
