@@ -133,7 +133,7 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 | `final_classes` | `""` | writes the merged classes to this folder |
 | `optimized` | `false` | a release build: `-O3` instead of `-O0`, and link-time optimisation across the [translation units](#translation-units-the-c-compiled-in-parallel-and-cached) |
 | `tune_for_this_machine` | `false` | lets the C compiler use every instruction this machine has (`-march=native`, or `-mcpu=native` on ARM); the executable may not run on an older processor ([below](#release-builds)) |
-| `translation_units` | `0` (by size) | how many C files the executable is compiled from: `0` chooses by the size of the C and the number of processors, `1` is one file as before ([below](#translation-units-the-c-compiled-in-parallel-and-cached)) |
+| `translation_units` | `0` (chosen) | how many C files the executable is compiled from: `0` is one file in a default build and, in an `--optimized` one, a number chosen by the size of the C and the processors; `1` is one file ([below](#translation-units-the-c-compiled-in-parallel-and-cached)) |
 | `development` | `false` | an [inspectable build](#development-builds-and-tree-shaking): nothing tree-shaken, internals as ordinary objects |
 | `repl` | `false` | runs the program, then opens a REPL on it at the terminal ([repl.md](repl.md)) |
 | `repl_port` | `0` (off) | serves the remote REPL on `127.0.0.1` at this port while the program runs ([repl.md](repl.md)) |
@@ -195,8 +195,8 @@ How fast each build is, against C written by hand, is `bash benchmarks/versus_c/
 
 ## Translation units: the C compiled in parallel and cached
 
-An executable is built from several C files, compiled at the same time and remembered (proposed by Claude,
-unconfirmed). The generated C is split into one header -- every type, macro and prototype, and an `extern` line for
+A release build (`--optimized`) of a big program is built from several C files, compiled at the same time and
+remembered (proposed by Claude, unconfirmed). The generated C is split into one header -- every type, macro and prototype, and an `extern` line for
 each variable at file level -- and a number of units that include it. Each function goes into the unit a hash of
 its name picks, so editing a function leaves every other function where it was; the variables are defined in the
 first unit; the small `static inline` helpers stay in the header, a copy for each unit. The C compiler compiles as
@@ -210,14 +210,29 @@ function, changes a type, or adds or removes a piece of constant text changes th
 file-level variables numbered in order), and every unit is compiled again.
 
 How many units: `--translation-units` (`Build.translation_units`, proposed by Claude, unconfirmed) gives the
-number; `0`, the default, chooses the largest power of two that is no more than one unit per 128 KiB of C, no more
-than twice the number of processors, and at most 64. A small program -- everything in `conformance/` -- is below
-256 KiB and stays one file, compiled as before and not cached. A `--hot-reload` build, and a program whose C
+number, in any build. `0`, the default, is one file in a default build: at `-O0` the C compiler spends its time
+reading, and every unit reads the whole header again, so splitting the compiler's own C made a cold `-O0` build
+slower, not faster ([the numbers](../benchmarks/README.md#compile-time-at-scale)). In an `--optimized` build `0`
+chooses the largest power of two that is no more than one unit per 768 KiB of C, no more than the number of
+processors, and at most 64: eight units for the compiler's 7 MB of C. A program under 1.5 MB of C stays one file,
+compiled as before and not cached. A `--hot-reload` build, and a program whose C
 includes a foreign library's header (a `DynamicLibrary` given one), are always one file. `--c-source` still
 writes the program's C as one file, which is what `check.sh` compares to prove the compiler reproduces itself.
 
-The numbers, measured on the compiler, a SlopEngine example and a generated 200 000-line program, are in
-[benchmarks/README.md](../benchmarks/README.md#compile-time-at-scale), and `bash benchmarks/build_times.sh` measures
+An `--optimized` build, in seconds of the whole `spite` command on Mortaro's machine (32 logical processors,
+clang 19.1.5): from one file as before, and from units with the cache empty (cold), full (warm) and after one
+function's body changed:
+
+| program | C | one file | cold | warm | one edit |
+|---|---|---|---|---|---|
+| the compiler | 7.2 MB | 37.7 | 14.5 | 11.4 | 13.3 |
+| SlopEngine's `kal_character` | 14.1 MB | 80.1 | 45.7 | 30.7 | 67.2 |
+| a generated 209 206-line program | 20.5 MB | 181.2 | 50.0 | 34.3 | 37.3 |
+
+A warm build is the Spite compile plus a ThinLTO link, which optimises the whole program again each time; the
+SlopEngine edit was in a generic class, which changes every instantiation of it. The default build of the same
+three took 11.3, 26.1 and 16.5 s from one file. How they were measured, and the unit counts tried, are in
+[benchmarks/README.md](../benchmarks/README.md#compile-time-at-scale); `bash benchmarks/build_times.sh` measures
 them again.
 
 ## Compile for another system
@@ -431,9 +446,9 @@ before any output is written.
   would never hold ([self_hosting.md](self_hosting.md)).
 - **Final classes** are described in full [above](#inspect-merged-classes): a program, not a report.
 - **The executable is built from translation units** (proposed by Claude, unconfirmed: the behaviour, the name
-  `translation_units` and its rule). The number is `translation_units` when it is above `0`; at `0` it is the largest
-  power of two that is at most the C's size divided by 128 KiB, at most twice the processors (`NUMBER_OF_PROCESSORS`
-  on Windows, `getconf _NPROCESSORS_ONLN` elsewhere, else 4) and at most 64. One unit is the one C file as before.
+  `translation_units` and its rule). The number is `translation_units` when it is above `0`; at `0` it is 1 unless
+  `optimized` is on, and then the largest power of two that is at most the C's size divided by 768 KiB, at most the
+  processors (`NUMBER_OF_PROCESSORS` on Windows, `getconf _NPROCESSORS_ONLN` elsewhere, else 4) and at most 64. One unit is the one C file as before.
   A `--hot-reload` build and C holding `#include "` (a foreign library's header) are one file whatever the number.
   The split keeps what the C means: every preprocessor line, type and prototype goes into the header in its order;
   a function at file level loses `static` and goes to the unit `FNV-1a(name) mod units` picks, its prototype into

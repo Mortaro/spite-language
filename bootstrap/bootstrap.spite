@@ -682,11 +682,11 @@ func splits_into_units(splitter: Translation.UnitSplitter): Boolean {
 
 func wanted_translation_units(code: String): Integer {
     var chosen = option("translation_units").to_integer()
-    if chosen > 0 {
-        return chosen
+    if chosen > 0 or not is_on("optimized") {
+        return chosen.maximum(1)
     }
-    var by_size = code.length() / 131072
-    var by_processors = processor_count() * 2
+    var by_size = code.length() / 786432
+    var by_processors = processor_count()
     var units = 1
     while units * 2 <= by_size and units * 2 <= by_processors and units < 64 {
         units = units * 2

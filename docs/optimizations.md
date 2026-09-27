@@ -70,7 +70,7 @@ nothing at run time because they emit nothing.
 | [Maths on constants is worked out while compiling](#maths-on-constants-is-worked-out-while-compiling) | built | every | nothing but speed; a folded call is the compiling machine's C library's answer |
 | [A local list of known size lives in the frame](#a-local-list-of-known-size-lives-in-the-frame) | built | every but the inspectable ones | fewer allocations |
 | [A loop over plain values reads its count once and its items unchecked](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked) | built | every but `--repl`, `--repl-port` and `--hot-reload` | nothing but speed |
-| [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | built | every but `--hot-reload`, by the size of the C | nothing but build time; `.spite-cache/objects` grows |
+| [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | built | `--optimized` (any build given `--translation-units`), but not `--hot-reload` | nothing but build time; `.spite-cache/objects` grows |
 | [A release build is `-O3` with link-time optimisation](#a-release-build-is--o3-with-link-time-optimisation) | built | `--optimized` | nothing but speed, and a slower link |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
@@ -1311,8 +1311,8 @@ for Mortaro and is not done (`mortaros_missing_decisions.md`, item 210). **Built
 
 ### The C is compiled in parallel units, and cached
 
-(Proposed by Claude, unconfirmed.) The C of a program bigger than 256 KiB is split into a header and up to 64
-translation units, compiled as many at once as the machine has processors and linked, and each unit's object is
+(Proposed by Claude, unconfirmed.) In an `--optimized` build, the C of a program bigger than 1.5 MB is split into
+a header and up to 64 translation units, compiled as many at once as the machine has processors and linked, and each unit's object is
 kept under the hash of what it was compiled from, so a build that changed nothing only links and a build that
 changed one function's body compiles one unit ([compiler.md](compiler.md#translation-units-the-c-compiled-in-parallel-and-cached),
 where the rules are). It changes nothing a program does: the same functions and variables, with `static` dropped so
