@@ -1128,7 +1128,13 @@ person.set_age(2)
 ```
 
 A function with the exact name always wins over codegen, for that one name: an exact `set_name` answers a write
-of `name` while its read still goes through `get_attribute`. Only the names actually called are generated, in
+of `name` while its read still goes through `get_attribute`. A plural cannot use that exception: when
+`store_attributes` would call `store_row` for an attribute `row` and the class already has an ordinary `store_row`,
+it is an error at that function's line -- "the template 'store_attribute' makes 'store_row' for the attribute
+'row' of 'RowView', which is already a function of 'Row': rename the function or the template" -- where it used
+to be an argument mismatch at line 0 (fixed 2026-09-27, proposed by Claude, unconfirmed;
+`diagnostics/template_function_clash`). An error raised in code the compiler wrote for a template names the
+template's line, never line 0. Only the names actually called are generated, in
 every build; the template itself emits nothing, and each instance is an ordinary function that costs what its
 body costs. A generated `get_<attribute>()` of an owning attribute (a `String`, `List<T>` or `Dictionary<T>`)
 returns a retained, independent value, exactly as an explicit getter does, which is what lets D15 treat a field

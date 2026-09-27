@@ -234,11 +234,30 @@ var pending_calls = List<Syntax.Expressions.Expression>()
 var pending_call_lines = List<Integer>()
 var schema_pending = "0 /* the schema hash, written when the function is emitted */"
 
+func fallback_line(): Integer {
+    var known_line = function_line_in(current_class, current_function)
+    if known_line > 0 {
+        return known_line
+    }
+    return 1
+}
+
+func function_line_in(owner: Analysis.ClassInfo?, function_name: String): Integer {
+    assert owner
+    var owned_function = owner.find_function(function_name)
+    assert owned_function
+    return owned_function.line
+}
+
 func report(message: String) {
     has_error = true
     assert not statement_poisoned
     assert not refused_serialiser or not is_serialiser_path(current_path)
-    var line = "{current_path}:{current_line}: error: {message} (in {current_owner}.{current_function})"
+    var shown_line = current_line
+    if shown_line == 0 {
+        shown_line = fallback_line()
+    }
+    var line = "{current_path}:{shown_line}: error: {message} (in {current_owner}.{current_function})"
     assert not error_lines.contains(line)
     if error_lines.count() == 25 {
         error_lines.append("too many errors: stopping at 25")
@@ -4543,6 +4562,42 @@ func template_member_type(
     return field.get_type()
 }
 
+func clashing_function(information: Analysis.ClassInfo, instance_name: String): Analysis.FunctionInfo? {
+    var written = information.find_function(instance_name)
+    assert written
+    assert written.symbol_name.is_empty() and written.line > 0 and not written.is_constructor
+    return written
+}
+
+func report_template_clash(
+    information: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    attribute_name: String,
+    clashing: Analysis.FunctionInfo,
+) {
+    var declaration = template.get_declaration()
+    var range_owner = information.simple_name
+    var range_class = template_range_class(information, template)
+    if range_class {
+        range_owner = range_class.simple_name
+    }
+    var saved_path = current_path
+    var saved_line = current_line
+    var saved_function = current_function
+    current_path = clashing.source_path
+    if current_path.is_empty() {
+        current_path = information.source_path
+    }
+    current_line = clashing.line
+    current_function = clashing.name
+    report(
+        "the template '{declaration.name}' makes '{clashing.name}' for the attribute '{attribute_name}' of '{range_owner}', which is already a function of '{information.simple_name}': rename the function or the template",
+    )
+    current_path = saved_path
+    current_line = saved_line
+    current_function = saved_function
+}
+
 func instantiate_every_attribute(
     information: Analysis.ClassInfo,
     template: Analysis.TemplateInfo,
@@ -4596,7 +4651,11 @@ func instantiate_every_attribute(
     }
     while field_index < attribute_names.count() {
         var attribute_name = attribute_names[field_index]
-        if private_readable or not attribute_name.starts_with("_") {
+        var clashing = clashing_function(information, "{template.prefix}{attribute_name}{template.suffix}")
+        if clashing {
+            report_template_clash(information, template, attribute_name, clashing)
+        }
+        if not clashing and (private_readable or not attribute_name.starts_with("_")) {
             var arguments = List<Syntax.Expressions.Expression>()
             var argument_index = 0
             while argument_index < parameters.count() {
@@ -4625,6 +4684,8 @@ func instantiate_every_attribute(
         false,
     )
     function.symbol_name = template.symbol_parameter
+    function.line = declaration.line
+    function.source_path = declaration.source_path
     information.declared_functions.append(function)
     builder.add_prototype("{function_signature(information, function)};")
     return function
@@ -24105,6 +24166,9 @@ func generate_statement(
 ): Boolean {
     undo_proofs_after_calls(scope, class_information)
     current_line = statement.line
+    if statement.line == 0 {
+        current_line = function_information.line
+    }
     var saved_poisoned = statement_poisoned
     var mentioned = List<String>()
     if mentions_poisoned(statement, mentioned) {
