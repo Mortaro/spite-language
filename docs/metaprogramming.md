@@ -1151,6 +1151,13 @@ In the same templates **`attribute.class == Entity` is decided while compiling**
 `$component_type == Entity` in a generic, and only the branch taken is compiled (proposed by Claude,
 unconfirmed; `conformance/stage6/sparse_rows`).
 
+**`attribute.camel_case_name` and `attribute.pascal_case_name` are the attribute's name in other systems'
+spellings** (D230, decided by Claude under D205; the names provisional under D214).  **[implemented]** In a
+template, each is a text constant the compiler writes: the name with its underscores dropped and every word after
+the first capitalised (`buy_price` is `buyPrice`), or every word capitalised (`BuyPrice`). They cost what
+`attribute.name` costs, nothing at run time, and describe the attribute without reading it. `JsonReader` matches a
+camelCase key with them ([json.md](json.md#a-camelcase-or-pascalcase-key)).
+
 **Another class's attributes, and every attribute at once** (proposed by Claude, unconfirmed; built for D95's
 `Json`).  **[implemented]**
 

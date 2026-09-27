@@ -15110,6 +15110,16 @@ func generate_member_read_raw(
             var string_spite_type = string_type()
             return ExpressionResult(rendered_string_literal, string_spite_type)
         }
+        var spelled = member.name == "camel_case_name" or member.name == "pascal_case_name"
+        if symbol_identifier.name == bound_symbol_name and spelled and not bound_symbol_name.is_empty() {
+            var capitalised_first = member.name == "pascal_case_name"
+            var spelling = joined_case_spelling(bound_field_name, capitalised_first)
+            var rendered_spelling = render_string_literal(spelling)
+            var spelling_type = string_type()
+            var spelled_result = ExpressionResult(rendered_spelling, spelling_type)
+            spelled_result.constant_text = "s:{spelling}"
+            return spelled_result
+        }
         if symbol_identifier.name == bound_symbol_name and member.name == "value" and not bound_enum_c_name.is_empty() {
             var bound_enum = enums.find_by_c_name(bound_enum_c_name)
             crash bound_enum
@@ -20297,6 +20307,27 @@ func reflection_member_meaning(member: String): String {
         return "'value.memory' says where the value lives"
     }
     return ""
+}
+
+func joined_case_spelling(snake: String, capitalised_first: Boolean): String {
+    var words = snake.split("_")
+    var capitalised_words = words.map(capitalised_word)
+    var pascal_spelling = capitalised_words.join("")
+    if capitalised_first or pascal_spelling.is_empty() {
+        return pascal_spelling
+    }
+    var first_letter = snake.slice(0, 1)
+    var pascal_length = pascal_spelling.length()
+    var rest = pascal_spelling.slice(1, pascal_length)
+    return first_letter + rest
+}
+
+func capitalised_word(word: String): String {
+    var word_length = word.length()
+    var first_letter = word.slice(0, 1)
+    var upper_first = first_letter.upper_case()
+    var rest = word.slice(1, word_length)
+    return upper_first + rest
 }
 
 func snake_words(pascal: String): String {

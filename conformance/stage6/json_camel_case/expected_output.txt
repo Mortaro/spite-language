@@ -1,0 +1,4 @@
+potion 30 7.5 true
+2
+4 5
+{"name":"potion","buy_price":30,"sell_price_each":7.5,"is_stackable":true}

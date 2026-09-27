@@ -424,7 +424,9 @@ between frames, or where one's value is read or its handle dropped. A loop polli
 `run_ready()`, or it never ends.
 `JsonWriter(value).write(): String` writes JSON and `JsonReader<T>(text).read(): T?` reads it
 (`read_or_crash(): T` halts instead), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`;
-`read` skips unknown keys, keeps defaults for missing ones, and is `null` on a value of the wrong kind; a `Symbol`
+`read` skips unknown keys, keeps defaults for missing ones, reads a camelCase or PascalCase key (`buyPrice`,
+`BuyPrice`) into its snake_case attribute (`buy_price`) when no attribute has the key's exact name, so never
+rename attributes to match foreign JSON, and is `null` on a value of the wrong kind; a `Symbol`
 reads back only as a name the program already uses. Writing a `Float` or `Double` that is infinity or not-a-number
 to JSON crashes naming the attribute (`'Order.price' is infinity, which JSON cannot hold`): check the number first
 if `null` is wanted. **Between Spite programs, and for files a Spite program reads back, use bytes instead**:
