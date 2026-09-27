@@ -1,0 +1,21 @@
+var console = Console()
+var mice = Vector<Mouse>()
+var input = Input()
+
+func LentToCalls() {
+    var made = Mouse()
+    mice.append(made)
+    var mouse = mice[0]
+    input.keep(mouse)
+    input.list(mouse)
+    input.hand_back(mouse)
+    input.capture(mouse)
+    console.print(mouse.left)
+    grown()
+}
+
+func grown() {
+    var mouse = mice[0]
+    input.grow(mouse)
+    input.grow(mice[0])
+}

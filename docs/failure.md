@@ -986,6 +986,11 @@ wraps in every build (D249); a `Concurrent` polled for `finished` under `resume_
 `set_at` and `remove_at` do nothing out of range ([collections.md](collections.md#listt-additions--implemented));
 and text assigned to an enum that names none of its values becomes the enum's first value
 ([values_and_types.md](values_and_types.md)).
+Also open: a write to the attributes of a copy that nothing reads afterwards is lost without a word -- a function
+answers `values[row].copy()`, the caller sets `layout.width` on it, and the copy dies. Proposed by Claude,
+unconfirmed: a compile error when an object only this function holds (escape analysis already proves a
+function's result fresh) has its attributes written and then dies unread, unpassed, unreturned and unkept;
+checked while compiling, it costs nothing at run time.
 
 
 `assert` doubles as the way to prove a `T?` is not null without nesting: after `assert value` on a

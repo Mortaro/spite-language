@@ -1149,6 +1149,15 @@ per argument that borrows (`conformance/stage6/lent_arguments` pins its count), 
 against 34.3 ms when each argument is copied out of its column, passed and stored back. **Built** (2026-09-26;
 proposed by Claude, unconfirmed).
 
+Any borrowed item passed as an ordinary argument (D257, [memory.md](memory.md#an-item-lent-to-a-call)) takes the
+same `___lent_<positions>` copy: `apply(event, mouse, keyboard)` with `mouse` and `keyboard` read from a row calls
+`apply___lent_1_2`, which receives the items' addresses and neither retains nor releases them, and a lent
+parameter passed on (`press(mouse)`) calls `press___lent_0` in turn. One copy is written per function and set of
+lent positions, and only for those a program reaches, so a program that lends nothing carries none. **What you
+notice.** No copy and no count per lent argument (`conformance/stage6/lent_to_calls` balances with the writes
+read back from the vectors); the `___lent_` functions appear in the C, and the ordinary function is shaken out
+when no caller passes it a counted object. **Built** (2026-09-27; proposed by Claude, unconfirmed).
+
 ### An `Items`' storage is chosen while compiling
 
 **What it does.** `Items<T>` ([collections.md](collections.md#itemst-the-storage-chosen-for-you), D218) is one

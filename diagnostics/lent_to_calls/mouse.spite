@@ -1,0 +1,5 @@
+var left = 0
+
+func move() {
+    left = left + 1
+}
