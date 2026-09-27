@@ -397,3 +397,15 @@ Behaviour that does not match the manual. The language was not changed; each is 
      that makes one, and a lookup per call. (b) `'no_context'` takes only a function of a singleton, one
      `ForeignCallback` per function at a time, so a window procedure lives on a singleton that finds the window by
      its handle; a static slot per construction site would allow any object, checked only at run time. Keep both?
+
+
+## From the Theseus port (outputs)
+
+212. **Should `--run=false` alone build the executable?** Today every output off is "only check that it
+     compiles" ([compiler.md](docs/compiler.md#choose-the-outputs), Claude's reading of D128, unconfirmed): nothing
+     is written, so an executable an earlier build left beside the program stays there, and running it runs the
+     old code. The Theseus exporter was caught by this. D128 and D129 do not say what "no output" means. Three
+     readings: (a) keep it, as the checking mode `check.sh` compiles every diagnostic with, and teach
+     `--executable --run=false` for "build, don't run" (what the docs now say); (b) `--run=false` alone builds the
+     executable, and checking only becomes its own flag or command (`spite check game`); (c) checking only also
+     deletes the executable beside the program, so nothing stale is left to run. (a) is what is built.

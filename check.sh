@@ -117,6 +117,17 @@ rm -f "$beside.crashes" "$beside.exe"
 [ -f "$beside" ] && rm -f "$beside"
 echo "working directory: a program opens relative paths in the folder spite was run from, and is built beside itself"
 
+# D227: 'load' also takes an absolute path, for a package that lives in another repository. The path is written
+# into a program in the work folder, since no committed program can know where this run's folder is.
+absolute_root=$(pwd -W 2>/dev/null || pwd)
+mkdir -p "$work/absolute/far_engine" "$work/absolute/absolute_load"
+printf 'func name(): String {\n    return "far engine"\n}\n' > "$work/absolute/far_engine/engine.spite"
+printf 'var console = Console()\n\nfunc AbsoluteLoad() {\n    load "%s"\n    var engine = Engine()\n    var named = engine.name()\n    console.print(named)\n}\n' \
+  "$absolute_root/$work/absolute/far_engine" > "$work/absolute/absolute_load/absolute_load.spite"
+absolute=$("$work/generation_two.exe" "$work/absolute/absolute_load" --executable-path="$work/absolute_load.exe" < /dev/null 2>&1 | tr -d '\r')
+if [ "$absolute" != "far engine" ]; then echo "FAILED: a program could not load a folder by its absolute path"; echo "$absolute" | head -5; exit 1; fi
+echo "absolute load: a program loads a folder named by its absolute path"
+
 # Every program above is built with --debug-memory, whose allocations go through a locked table. The thread pool is
 # also run the way a user runs it -- `spite <program>`, compile and run, no flags -- with runners started from a
 # stage, a singleton reached from the pool, a ThreadLocal and a Lock.

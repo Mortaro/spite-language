@@ -20,3 +20,12 @@ func executable_path(): String {
     heap.free(buffer)
     return path
 }
+
+func working_directory(): String {
+    var buffer = heap.allocate(1024)
+    buffer.write_byte(0, 0)
+    library.getcwd_as_long(buffer, 1024)
+    var path = buffer.terminated_text()
+    heap.free(buffer)
+    return path
+}

@@ -290,8 +290,9 @@ error.
 An index or a key may not be there, so `names[index]` and `table["key"]` are `T?` and are narrowed like any other
 path. The compiler also understands the usual proofs, so most reads need nothing extra:
 
-- **A proven count proves the indices below it**: after `crash names.count() == 3`, `names[0]` to `names[2]`
-  are plain values.
+- **A proven count proves the indices below it**: after `crash names.count() == 3`, or `>= 3`, or `> 2`,
+  `names[0]` to `names[2]` are plain values, and `crash not names.is_empty()` proves `names[0]`. A
+  `Dictionary`'s count proves no key, since its keys need not be `0`, `1`, `2`.
 - **A bound proves its index**: `while index < names.count()` proves `names[index]` in the loop body, and
   `while index < lines.count() and lines[index] != "end"` needs nothing more.
 - **The index may be any expression without a call**: `crash glyphs[code - 32]` proves `glyphs[code - 32]`
@@ -607,6 +608,14 @@ spite.crash	64b935f1	crash_report/crash_report.spite:14	CrashReport	check	value 
 spite.assert	0aae5005	crash_report/crash_report.spite:18	CrashReport	announce	amount > 0
 ```
 
+When the condition is a call on a value, `crash settings.exists()` (or `crash not names.contains(name)`), the
+value the call was made on is the operand: text, a number or an enum is written as it is, and an object whose class
+has a `to_string()` as that text, so a missing `File` names its path:
+
+```
+spite.crash	00b7d810	crash_receiver/crash_receiver.spite:6	CrashReceiver	CrashReceiver	settings.exists()	settings=.spite-cache/crash_receiver/missing_settings.txt
+```
+
 The id is derived from the site's content, so it stays the same when unrelated lines move. Each build also writes
 a `.crashes` file beside the executable it builds: one line per `assert` and `crash` site, sorted by id, with its file,
 line, class, function, kind and condition, so `grep 64b935f1 program.crashes` finds a site from a report.
@@ -771,7 +780,11 @@ quoted text makes the read a path that narrows like any other: `crash names[inde
 How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked for them):
 
 - **A proven count proves the indices below it.** After `crash names.count() == 3` (or `>= 3`, or `> 2`),
-  `names[0]` to `names[2]` are plain values; so are they inside `if names.count() > 2 { }`.
+  `names[0]` to `names[2]` are plain values; so are they inside `if names.count() > 2 { }`. `names.count() != 0`
+  and `not names.is_empty()` prove `names[0]` the same way (proposed by Claude, unconfirmed;
+  `conformance/stage6/count_bound_proofs`). A count proves indices of a `List` only: a `Dictionary`'s keys need
+  not be `0` to `count() - 1`, so after `crash names.count() == 1` a number-keyed `names[0]` is still a `T?`
+  (`diagnostics/count_proves_no_key`).
 - **A bound proves its index.** `index < names.count()` (or `names.count() > index`) in an `assert`, a
   `crash`, an `if`, or a `while` proves `names[index]` in what follows -- the loop body, for a `while` -- and
   `index < names.count() - 1` does too. On the left of an `and`, it proves the right side, so
@@ -972,4 +985,9 @@ spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition
 
 The condition is rebuilt from its own tokens and the line ends with the named operands of the failed
 comparison and their values -- `value > limit<TAB>value=-9<TAB>limit=0` -- with calls never evaluated a second
-time.
+time. **A condition that is a call on a value** (D228), `crash file.exists()` or `crash not list.contains(x)`,
+has that value as its operand when it is a name or a path: text, a number or an enum is written as it is, and an
+object whose class declares `to_string()` with no arguments is written as what that answers, called once on the
+way out -- `settings.exists()<TAB>settings=saves/settings.txt`, since `File`'s `to_string()` is its path. A value
+with no `to_string()` (a `List`) adds nothing, and the call itself is not evaluated again. The `.crashes` map
+lists it with its type (`settings:File`; `conformance/stage5/crash_receiver`).

@@ -121,6 +121,9 @@ var class_level_functions_used = false
 var all_classes_used = false
 var class_level_attributes_used = false
 var namespace_read_used = false
+var source_folder_used = false
+var working_folder = ""
+var language_folder = ""
 var namespace_tree_used = false
 var namespace_object_keys = List<String>()
 var namespace_objects_emitted = 0
@@ -9779,6 +9782,9 @@ func generate_method_call(
     if asks_functions and target_class.c_name == "Spite_Class" {
         class_level_functions_used = true
     }
+    if member.name == "source_folder" and target_class.c_name == "Spite_Class" {
+        source_folder_used = true
+    }
     var parameter_types = parameter_types_of(function.parameters)
     var function_return_type = function.get_return_type()
     var spread = spread_template(arguments_ast, class_information)
@@ -11792,9 +11798,15 @@ func bound_function_of(
     var listed = type_shape.as_list(probe_type)
     if listed {
         var listed_element = listed.get_element()
-        return passed_list_function(member.object, probe_type, listed_element, member.name)
+        var list_class = list_class_of(listed_element)
+        return passed_library_function(member.object, probe_type, list_class, member.name)
     }
     var owner_ref = type_shape.as_class_ref(probe_type)
+    if not owner_ref {
+        var library_class = class_of_type(probe_type)
+        assert library_class
+        return passed_library_function(member.object, probe_type, library_class, member.name)
+    }
     assert owner_ref
     assert not owner_ref.has_signature
     var owner_class = find_class_by_c_name(owner_ref.c_name)
@@ -11820,21 +11832,20 @@ func passed_member_function(
     return passed
 }
 
-func passed_list_function(
+func passed_library_function(
     owner: Syntax.Expressions.Expression,
     owner_type: Analysis.SpiteType,
-    element: Analysis.SpiteType,
+    library_class: Analysis.ClassInfo,
     name: String,
 ): PassedFunction? {
     assert not name.starts_with("_")
-    var list_class = list_class_of(element)
-    var function = find_or_instantiate_function(list_class, name)
+    var function = find_or_instantiate_function(library_class, name)
     assert function
     assert not function.is_constructor
     var returned = function.get_return_type()
     var passed = PassedFunction(owner, owner_type, name, returned)
     passed.parameter_types = parameter_types_of(function.parameters)
-    passed.label = "{name}_for_{list_class.c_name.lower_case()}"
+    passed.label = "{name}_for_{library_class.c_name.lower_case()}"
     return passed
 }
 
@@ -11871,7 +11882,11 @@ func passed_function_problem(
     var returned = passed.get_returned()
     var requirement = form_requirement(name, label, returned)
     assert not requirement.is_empty()
-    return "'{name}({label})': '{label}' {described_member(returned)}, but '{name}' needs it to {requirement}"
+    var described = described_member(returned)
+    if type_shape.as_nullable(returned) {
+        described = "returns {type_with_article(returned)}"
+    }
+    return "'{name}({label})': '{label}' {described}, but '{name}' needs it to {requirement}"
 }
 
 func form_requirement(name: String, label: String, returned: Analysis.SpiteType): String {
@@ -11889,6 +11904,9 @@ func form_requirement(name: String, label: String, returned: Analysis.SpiteType)
         return "return a value (to only call it for each element, write 'each({label})')"
     }
     var ordered = is_numeric_type(returned) or type_shape.as_string(returned)
+    if name == "sort_by" and type_shape.as_nullable(returned) {
+        return "return something ordered, a number or a String, and a value that may be null has no place in the order: pass a function of your own that narrows it and returns the plain value"
+    }
     if name == "sort_by" and not ordered {
         return "return something ordered: a number or a String"
     }
@@ -12082,6 +12100,91 @@ func describes_members(information: Analysis.ClassInfo): Boolean {
     return information.c_name != "Nothing"
 }
 
+func folded_source_folder(
+    member: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    crash member.object
+    var asked = source_folder_class(member.object, scope, class_information)
+    assert asked
+    var folder = absolute_source_folder(asked)
+    var folder_code = render_string_literal(folder)
+    var text_type = string_type()
+    return ExpressionResult(folder_code, text_type)
+}
+
+func source_folder_class(
+    object: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var identifier = shape.as_identifier(object)
+    if identifier {
+        if identifier.name == "class" {
+            return class_information
+        }
+    }
+    var generic_identifier = shape.as_generic_identifier(object)
+    if generic_identifier {
+        var bare_name = without_dollar(generic_identifier.name)
+        var bound = codegen_index(class_information, bare_name)
+        assert bound >= 0
+        crash class_information.codegen_types[bound]
+        var bound_class_ref = type_shape.as_class_ref(class_information.codegen_types[bound])
+        assert bound_class_ref
+        return find_class_by_c_name(bound_class_ref.c_name)
+    }
+    var read = shape.as_member(object)
+    if read {
+        if read.name == "class" {
+            crash read.object
+            var saved_counter = temporary_counter
+            var probe = generate_expression(read.object, scope, class_information)
+            rewind_temporaries(saved_counter)
+            var probe_type = probe.get_type()
+            var probe_ref = type_shape.as_class_ref(probe_type)
+            assert probe_ref
+            assert not probe_ref.has_signature
+            return find_class_by_c_name(probe_ref.c_name)
+        }
+    }
+    var named = try_resolve_static_path(object, class_information.qualified_dotted)
+    assert named
+    assert not named.find_function("source_folder")
+    return named
+}
+
+func absolute_source_folder(information: Analysis.ClassInfo): String {
+    var path = information.source_path.replace("\\", "/")
+    var base = working_folder.replace("\\", "/")
+    if path.starts_with("library/") or path.starts_with("launcher/") {
+        base = language_folder.replace("\\", "/")
+    }
+    var joined = "{base}/{path}"
+    if path.starts_with("/") or path.slice(1, 2) == ":" {
+        joined = path
+    }
+    var segments = joined.split("/")
+    segments.remove_last()
+    var kept = List<String>()
+    var index = 0
+    while index < segments.count() {
+        var segment = segments[index]
+        if segment == ".." {
+            kept.remove_last()
+        } else if segment != "." and not segment.is_empty() {
+            kept.append(segment)
+        }
+        index = index + 1
+    }
+    var folder = kept.join("/")
+    if joined.starts_with("/") {
+        return "/{folder}"
+    }
+    return folder
+}
+
 func emit_class_object_bodies() {
     while class_objects_emitted < class_object_names.count() {
         var position = class_objects_emitted
@@ -12105,6 +12208,10 @@ func emit_class_object_bodies() {
             }
             if class_fits_vector(described) {
                 lines.append("{function_c_name}_cache->_fits_vector_ = true;")
+            }
+            if source_folder_used {
+                var described_folder = absolute_source_folder(described)
+                lines.append("{function_c_name}_cache->_source_folder_ = {render_string_literal(described_folder)};")
             }
             if namespace_read_used {
                 crash class_object_namespaces[position]
@@ -13680,7 +13787,7 @@ func generate_index_read(
             scope,
             class_information,
         )
-        if not proven {
+        if not proven or not scope.is_present_narrowed(read_path) {
             return lookup
         }
         var lookup_temporary = next_temporary()
@@ -15293,6 +15400,12 @@ func generate_call(
                 return ExpressionResult("false", answer_type)
             }
         }
+        if member.name == "source_folder" and call.arguments.is_empty() {
+            var folded_folder = folded_source_folder(member, scope, class_information)
+            if folded_folder {
+                return folded_folder
+            }
+        }
         if member.name == "argument_count" {
             var counted = folded_argument_count(call, class_information)
             if counted {
@@ -15318,6 +15431,31 @@ func generate_call(
     }
     report("unsupported call form")
     return void_result()
+}
+
+func library_function_value(
+    member: Syntax.Expressions.MemberExpression,
+    object_result: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert not member.name.starts_with("_")
+    var object_type = object_result.get_type()
+    var owner_class = class_of_type(object_type)
+    assert owner_class
+    var function = find_or_instantiate_function(owner_class, member.name)
+    assert function
+    assert not function.is_constructor
+    var container = container_class_of(object_type)
+    if not container {
+        report(
+            "'{member.name}' of {type_with_article(object_type)} is passed straight to a form, like 'names.filter(text.{member.name})', and cannot be held as a value yet: a {type_display_name(object_type)} is not an object a function value can keep. To keep one, write a function of your own that calls it",
+        )
+        return void_result()
+    }
+    crash member.object
+    report_captured_borrow(member, object_result, scope, class_information)
+    return function_value(owner_class, function, object_result, member.object)
 }
 
 func generate_member_read(
@@ -15542,6 +15680,10 @@ func generate_member_read_raw(
     }
     var object_class_ref = type_shape.as_class_ref(object_result_type)
     if not object_class_ref {
+        var held = library_function_value(member, object_result, scope, class_information)
+        if held {
+            return held
+        }
         switch object_result_type {
             Analysis.Types.NullableType: {
                 report(
@@ -16432,8 +16574,7 @@ func lends_items(target_class: Analysis.ClassInfo, name: String): Boolean {
     var vector_item = holds_items_inline(target_class) and name == "get_at"
     var inline_item = target_class.qualified_dotted == "InlineMemory" and name == "item_at"
     assert vector_item or inline_item
-    assert not target_class.codegen_types.is_empty()
-    crash target_class.codegen_types[0]
+    assert target_class.codegen_types.count() > 0
     var item_class = inline_item_class(target_class.codegen_types[0])
     assert item_class
     return true
@@ -16452,8 +16593,7 @@ func plain_item_type(item_type: Analysis.SpiteType): Boolean {
 
 func copies_items(information: Analysis.ClassInfo): Boolean {
     var vector_like = information.qualified_dotted == "Vector" or is_items_class(information)
-    assert vector_like and not information.codegen_types.is_empty()
-    crash information.codegen_types[0]
+    assert vector_like and information.codegen_types.count() > 0
     return plain_item_type(information.codegen_types[0])
 }
 
@@ -18215,7 +18355,7 @@ func borrowed_element(
     }
     assert class_information.qualified_dotted == "List" or is_items_class(class_information)
     assert not declaration.type_reference and not hot_reload
-    assert not scope.entry_names.contains(declaration.name) and not class_information.codegen_types.is_empty()
+    assert not scope.entry_names.contains(declaration.name) and class_information.codegen_types.count() > 0
     crash declaration.value
     var read = shape.as_member(declaration.value)
     if read {
@@ -18228,7 +18368,6 @@ func borrowed_element(
     assert member and member.name == "read_value"
     crash member.object
     assert is_identifier_named(member.object, holder_name) and is_identifier_named(call.arguments[0], "items")
-    crash class_information.codegen_types[0]
     var element_type = class_information.codegen_types[0]
     assert type_needs_drop(element_type) and not type_shape.as_nullable(element_type)
     var watch = ReleaseWatch(declaration.name)
@@ -22901,6 +23040,11 @@ func check_condition(condition: ExpressionResult, keyword: String) {
 }
 
 func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scope) {
+    var negated = shape.as_unary(condition)
+    if negated {
+        narrow_not_empty(negated, scope)
+        return
+    }
     var binary = shape.as_binary(condition)
     assert binary
     crash binary.left
@@ -22930,12 +23074,31 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
         proven = bound.value
     } else if binary.operator == 'greater' {
         proven = bound.value + 1
+    } else if binary.operator == 'not_equal' and bound.value == 0 {
+        proven = 1
     }
     var index = 0
     while index < proven and index < 64 {
         scope.narrow_bound_path("{counted}[{index}]", condition_text)
         index = index + 1
     }
+}
+
+func narrow_not_empty(negated: Syntax.Expressions.UnaryExpression, scope: Scope) {
+    assert negated.operator == 'logical_not'
+    crash negated.operand
+    var call = shape.as_call(negated.operand)
+    assert call
+    crash call.callee
+    assert call.arguments.is_empty()
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    assert member.name == "is_empty"
+    var emptied = operand_text(member.object)
+    assert not emptied.is_empty()
+    var condition_text = Syntax.SourcePrinter().source_expression(negated)
+    scope.narrow_bound_path("{emptied}[0]", condition_text)
 }
 
 func narrow_nonzero(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
@@ -23829,10 +23992,42 @@ func emit_crash_operand(
     if is_enum_type(probe_type) {
         printable = true
     }
+    var shown = expression
+    if not printable and describes_itself(probe_type) {
+        var no_arguments = List<Syntax.Expressions.Expression>()
+        var described: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(expression, "to_string")
+        shown = Syntax.Expressions.CallExpression(described, no_arguments)
+        printable = true
+    }
     assert printable
     builder.add_user("fputs(\"\\t{escape_c_string(name)}=\", stderr);")
-    var operand_statement = crash_operand_statement(expression, scope, class_information)
+    var operand_statement = crash_operand_statement(shown, scope, class_information)
     builder.add_user(operand_statement)
+}
+
+func describes_itself(spite_type: Analysis.SpiteType): Boolean {
+    var described_ref = type_shape.as_class_ref(spite_type)
+    assert described_ref
+    assert not described_ref.has_signature
+    var described_class = find_class_by_c_name(described_ref.c_name)
+    assert described_class
+    var described = find_or_instantiate_function(described_class, "to_string")
+    assert described
+    return described.parameters.is_empty()
+}
+
+func called_receiver(condition: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    var negated = shape.as_unary(condition)
+    if negated {
+        crash negated.operand
+        return called_receiver(negated.operand)
+    }
+    var call = shape.as_call(condition)
+    assert call
+    crash call.callee
+    var called = shape.as_member(call.callee)
+    assert called
+    return called.object
 }
 
 func emit_crash_operands(
@@ -23848,6 +24043,11 @@ func emit_crash_operands(
         if binary.right {
             emit_crash_operand(binary.right, scope, class_information)
         }
+        return
+    }
+    var receiver = called_receiver(condition)
+    if receiver {
+        emit_crash_operand(receiver, scope, class_information)
         return
     }
     emit_crash_operand(condition, scope, class_information)
@@ -23913,7 +24113,12 @@ func record_site(
                 }
             }
         } else {
-            var single = operand_description(assert_statement.value, scope, class_information)
+            var described_operand = assert_statement.value
+            var receiver = called_receiver(assert_statement.value)
+            if receiver {
+                described_operand = receiver
+            }
+            var single = operand_description(described_operand, scope, class_information)
             if not single.is_empty() {
                 operands.append(single)
             }

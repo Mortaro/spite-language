@@ -17,9 +17,84 @@ func close_process(handle: Long): Integer {
     return library._pclose(handle)
 }
 
-func shell_line(line: String, command_is_quoted: Boolean): String {
-    if command_is_quoted {
+func shell_line(line: String): String {
+    if line.starts_with("\"") {
         return "\"{line}\""
     }
     return line
+}
+
+func change_directory(folder: String): String {
+    var windows_folder = folder.replace("/", "\\")
+    return "cd /d \"{windows_folder}\""
+}
+
+func set_variable(name: String, value: String): String {
+    return "set \"{name}={value}\""
+}
+
+func quoted_argument(argument: String): String {
+    if not argument.is_empty() and not needs_quotes(argument) {
+        return argument
+    }
+    var equals = argument.index_of("=")
+    if equals > 0 {
+        var key = argument.slice(0, equals)
+        if not needs_quotes(key) {
+            var argument_length = argument.length()
+            var value = argument.slice(equals + 1, argument_length)
+            var quoted_value = quoted_text(value)
+            return "{key}={quoted_value}"
+        }
+    }
+    return quoted_text(argument)
+}
+
+func needs_quotes(text: String): Boolean {
+    var index = 0
+    while index < text.length() {
+        var character = text.character_at(index)
+        if " \t\n\"&|<>^".contains(character) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func quoted_text(text: String): String {
+    var quoted = "\""
+    var backslashes = 0
+    var index = 0
+    while index < text.length() {
+        var character = text.character_at(index)
+        if character == "\\" {
+            backslashes = backslashes + 1
+        } else {
+            var is_quote = character == "\""
+            var escaped = escaped_backslashes(backslashes, is_quote)
+            if is_quote {
+                escaped = "{escaped}\\"
+            }
+            quoted = "{quoted}{escaped}{character}"
+            backslashes = 0
+        }
+        index = index + 1
+    }
+    var closing = escaped_backslashes(backslashes, true)
+    return "{quoted}{closing}\""
+}
+
+func escaped_backslashes(count: Integer, before_quote: Boolean): String {
+    var written = count
+    if before_quote {
+        written = count * 2
+    }
+    var escaped = ""
+    var index = 0
+    while index < written {
+        escaped = "{escaped}\\"
+        index = index + 1
+    }
+    return escaped
 }

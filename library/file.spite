@@ -34,6 +34,10 @@ func exists(): Boolean {
     return true
 }
 
+func to_string(): String {
+    return path
+}
+
 func size(): Long? {
     var handle = open_file("rb")
     assert handle != 0

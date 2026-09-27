@@ -19,7 +19,8 @@ spite program --optimized               optimized build (a Build field)
 spite program --debug-memory            print the allocation balance at the end
 spite program --repl-port=4000          serve the REPL; spite connect 4000 --command="..." asks it
 spite program --c-source --run=false    write program/program.c instead (--c-path= puts it elsewhere)
-spite program --run=false               only compile: the errors, if any
+spite program --run=false               only compile: the errors, if any (writes no executable)
+spite program --executable --run=false  build program/program.exe without running it
 spite program -- --serve=true           the program's own arguments, read by Environment (snake_case after --)
 spite format game                       format files without compiling them (every compile formats first anyway)
 bash check.sh                           the compiler still compiles itself, and every corpus passes
@@ -28,9 +29,13 @@ bash check.sh                           the compiler still compiles itself, and 
 A program lives in its own folder, and `spite game` runs it: `launcher/launcher.spite` loads `library/`, then the
 target system's folder of it, then `game/`, whose every sub folder is a
 namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
-folder's own class). `load "folder"` inside a function loads another package; a file at the same namespace path
+folder's own class). `load "folder"` inside a function loads another package (the path is relative to the file,
+or absolute: `load "D:/Projects/engine/slop"`); a file at the same namespace path
 reopens the class: same-named functions and attributes replace, the rest are added, and an enum declared again
-gains the values it lists.
+gains the values it lists. `Build` is the exception: a field the program's own `build.spite` declares keeps the
+program's value over a loaded package's (a flag, then the program, then the package). A package opens the files
+beside its own source through `class.source_folder()` (or `$item_type.source_folder()`), the absolute folder of
+the class's file on the machine that built it, never through a path relative to where the program runs.
 
 ## A file is a class
 
@@ -165,7 +170,8 @@ func is_alive(): Boolean {
   or an enum only: on a list of a class use `any(f)` or `find_by_<member>`), `is_empty`, `clear`, `reverse`,
   `join` (text, numbers, `Boolean` and enum values all join), never `add` or `pop`, `list[index]` (a `T?`: out of range gives nothing -- `crash names[index]` narrows it like a path,
   and so does `crash glyphs[code - 32]`, or any index with no call in it, with no copy into a local first;
-  `crash names.count() == 3` proves `names[0]` to `names[2]`, and `while index < names.count()` proves
+  `crash names.count() == 3` (or `>= 3`, or `> 2`) proves `names[0]` to `names[2]`, `crash not names.is_empty()`
+  proves `names[0]` (a list's, never a dictionary's), and `while index < names.count()` proves
   `names[index]` in the loop body, so a `crash names[index]` inside that loop is an error saying so: delete it).
   `Dictionary<T>` (insertion order): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`,
   `values`, `dictionary["key"]` (a `T?`, like `list[index]`: `inventory["shield"] == 0` is false for an absent
@@ -258,7 +264,9 @@ func is_alive(): Boolean {
   `names.map(measure)`, `names.filter(is_short)`, and `any`, `all`, `count`, `find` (the first element it is true
   for, a `T?`), `sort_by` and `sum` the same way, on a list or dictionary of anything, chained with the member
   templates or not (`people.filter_active().map(greeter.label)`). The function takes the element as its only
-  argument and is bound to its owner: `greeter.label` is `greeter`'s. A function that needs more than the element
+  argument and is bound to its owner: `greeter.label` is `greeter`'s, and a library value's works the same:
+  `keys.filter(counts.has)`, `words.filter(greeting.contains)`. `counts.get` answers `T?`, so it cannot order a
+  `sort_by`: pass a function of yours that narrows it. A function that needs more than the element
   (`print_statement(statement, depth)`) keeps its `while`; `map(f)` of a function that returns nothing is an
   error naming `each(f)`.
 - `enum`, `union` and `type` declarations take no `=`, one entry per line, no commas:
@@ -388,7 +396,7 @@ a class prints once it declares `func to_string(): String`, and `debug` shows an
 `Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`read(): String?`, `write`,
 `append`, `exists`, `remove`), `Directory(path)` (`path`, `entries(): List<Directory.Entry>` -- each a `Directory` or a `File`, switched on --,
 `files`, `folders`, `exists`, `create`),
-`Process(command, arguments)` (`run(): Integer`, `output()`: standard output only), `Program()` (`exit(code)`, `sleep(milliseconds)`,
+`Process(command, arguments)` (`run(): Integer`, `output()`: standard output only; each argument reaches the child whole, `-key=value with spaces` as `-key="value with spaces"` on Windows; `working_directory` and `environment_variables["NAME"] = "value"` set for the child alone), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere, bound once
 as `var console = Console()`.
 `print`, `error` and `debug` write their line out at once, so a log redirected to a file shows every line as it

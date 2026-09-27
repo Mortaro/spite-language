@@ -78,6 +78,10 @@ spite game --executable --c-source --run=false  # build game/game.exe and write 
 spite game --run=false                          # only check that it compiles
 ```
 
+Checking writes no executable, so one an earlier build left beside the program is still there and still runs the
+old code: to build without running, turn `executable` on, `spite game --executable --run=false`. Whether
+`--run=false` alone should build instead is waiting on Mortaro (`mortaros_missing_decisions.md` item 212).
+
 Whole-program steps -- tree shaking, the constants `Build` folds, which templates are made -- run on the complete
 program before any output is written, so the C written beside an executable is the C that executable was built
 from.

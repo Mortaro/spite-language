@@ -95,6 +95,7 @@ ADA 3 -1 da []
 | Member | Result | Notes |
 |---|---|---|
 | `path` | `String` | |
+| `to_string()` | `String` | the path, so a `File` prints as its path and a crash on one names it ([failure.md](failure.md#what-a-crash-reports)) |
 | `read()` | `String?` | `null` when the file cannot be read |
 | `write(text)` / `append(text)` | `Boolean` | replaces the content / adds to its end |
 | `exists()` / `remove()` | `Boolean` | |
@@ -185,7 +186,7 @@ way ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-
 |---|---|---|
 | `path` | `String` | |
 | `entries()` | `List<Directory.Entry>` | every folder and file inside it, as `Directory` and `File` values |
-| `folders()` / `files()` | `List<String>` | names only, sorted |
+| `folders()` / `files()` | `List<String>` | names only, sorted by a merge sort (`n log n`), so a folder of thousands of files lists quickly |
 | `exists()` / `create()` | `Boolean` | |
 
 ```gdscript title=directory_tasks/directory_tasks.spite entry
@@ -331,10 +332,26 @@ output "build finished"
 
 | Member | Result | Notes |
 |---|---|---|
-| `Process(command, arguments)` | | `arguments` is a `List<String>`, each put in double quotes for you |
+| `Process(command, arguments)` | | `arguments` is a `List<String>`, each one argument of the child, quoted for you (below) |
+| `working_directory` | `String` | the folder the child runs in; `""`, the default, is the program's own (name proposed) |
+| `environment_variables` | `Dictionary<String>` | variables set for the child alone, on top of the program's own: `process.environment_variables["LOG"] = "1"` (name proposed) |
 | `run()` | `Integer` | runs it through the system's shell, waits for it and answers its exit code (`-1` when it could not start) |
 | `output()` | `String` | what it wrote to its standard output, valid after `run()` |
 | `run_attached()` | `Integer` | runs it with the program's own terminal, so what it writes and reads is the user's, and answers its exit code |
+
+Each argument reaches the child whole, as one argument, whatever it holds. On Linux and macOS each is put in single
+quotes for the shell, so the child's `argv` holds exactly the text given. On Windows a program reads its own
+command line, so an argument is quoted the way Windows splits one back apart (the rules of `CommandLineToArgvW`):
+an argument with no space, tab, quote or `& | < > ^` is written as it is; one with them is put in double quotes,
+with a `"` inside written `\"` and the backslashes before a quote doubled; and one shaped `key=value` quotes only
+its value, so `-script=a b` reaches the child's command line as `-script="a b"` -- the form Unreal and other
+programs that read `-key=value` themselves expect -- and still splits back into `-script=a b`
+(`conformance/stage4/process_settings`). A `%` is still read by the Windows shell.
+
+`working_directory` and `environment_variables` are set by the shell line itself, before the command: a
+`cd` into the folder and one assignment per variable, so a relative command or path is read from that folder, and
+a folder that does not exist fails the run with the shell's exit code. `output()` is read 4 KiB at a time and each
+piece appended in place, so reading 50 MB takes as long as the child takes to write it.
 
 `output()` includes the child process's own trailing newline, which is why the example above calls `.trim()`.
 What the child writes to its error stream is not captured: it goes to the program's own error stream. `run()`
@@ -711,9 +728,9 @@ each member answers is in the section of this page that teaches it.
 
 | Class | Members |
 |---|---|
-| `File(path)` | `path`, `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes (names proposed): `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?` -- [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
+| `File(path)` | `path`, `to_string(): String` (the path), `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes (names proposed): `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?` -- [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
 | `Directory(path)` | `path`, `entries(): List<Directory.Entry>` (D93, below), `files(): List<String>`, `folders(): List<String>`, `exists(): Boolean`, `create(): Boolean` -- [List a directory](#list-a-directory) |
-| `Process(command, arguments)` | `run(): Integer`, `output(): String`, `run_attached(): Integer` (proposed) -- [Run a process](#run-a-process). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
+| `Process(command, arguments)` | `working_directory`, `environment_variables` (names proposed), `run(): Integer`, `output(): String`, `run_attached(): Integer` (proposed) -- [Run a process](#run-a-process). Each argument reaches the child whole: single-quoted for the shell on Linux and macOS, and quoted by the `CommandLineToArgvW` rules on Windows, a `key=value` argument quoting only its value (`-script="a b"`). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
 | `Program()` | a singleton (D121): `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String` (proposed), `live_allocations(): Integer` -- [Program](#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |
 | `Clock()` | a singleton (names proposed): `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant` (D127; it replaced `unix_milliseconds(): Long`) -- [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed) |
 | `Console()` | a singleton (D52): `print(...values)`, `write(...values)`, `error(...values)`, `debug(...values)`, `flush()`, `read_line(): String?` -- [Console](#console), and below |
