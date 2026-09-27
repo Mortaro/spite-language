@@ -950,6 +950,25 @@ it: `Dictionary<T>` stays the one spelling.
   place: `this dictionary is given a whole-number key here and a text key at <file>:<line> (in <class>.<function>):
   a dictionary is keyed by text or by whole numbers, never both -- give every key of it the same kind`
   (`diagnostics/mixed_dictionary_keys`).
+- **Only the program's own flows decide it** (proposed by Claude, unconfirmed; a SlopEngine bug). The descriptions
+  the compiler writes for `to_debug()` -- `Spite.Debug<T>` and `Spite.DebugInstance<T>`, one of each per type for
+  the whole program -- take a dictionary as the kind it already has and never tie it to another. Before, every
+  `Dictionary<String>` attribute of every class described passed through the one `Spite.Debug<Dictionary<String>>`
+  and was tied to all the others, so a number key given to one changed the kind of an unrelated one, and removing
+  code that made some class be described changed what compiled (`conformance/stage6/debug_dictionary_keys`).
+- **Two kinds that meet are named.** Where a dictionary of one kind is given where one of the other kind is
+  wanted, the error says which is which and what decided each, rather than naming two `Dictionary<String>`s:
+  `a Dictionary<String> keyed by whole numbers (Long), from the key at slop/columns.spite:47 (in
+  Columns.name_of_header) cannot be used where a Dictionary<String> keyed by text, from the key at
+  slop/recipes/cache_reader.spite:25 (in Recipes.CacheReader.fingerprint_of) is needed: a dictionary is keyed by
+  text or by whole numbers, decided while compiling by the keys it is given, and these two were decided apart --
+  give both the same kind of key, or copy the entries across one by one`. A kind nothing decided reads `text,
+  since nothing gives it a whole-number key`.
+- **The kinds always settle, or it is an error.** They are found by compiling again with what the last pass
+  learned, at most eight times; a program whose kinds are still changing then is a compile error at a dictionary
+  that keeps changing, `the dictionary made here never settles on text or whole-number keys: each pass of the
+  compiler decides it the other way (last as whole numbers, from the key at ...), since what decides it flows
+  back into it -- give it a key the program itself writes, of one kind`, never whatever the last pass compiled.
 - A number-keyed dictionary's key type is the widest whole-number type any of its keys has (`Integer` keys and one
   `Long` key make a `Long`-keyed dictionary); a narrower key is widened as an argument is. `keys()` answers a
   `List` of that type, and `copy()` and `deep_copy()` are keyed the same way.

@@ -308,12 +308,14 @@ func generated(discovery: Discovery.DiscoveryResult): Generation.Generator? {
 
 func keyed_generator(discovery: Discovery.DiscoveryResult, host_classes: List<String>): Generation.Generator {
     var number_keys = Dictionary<Analysis.SpiteType>()
-    var generator = generator_pass(discovery, host_classes, number_keys, 1)
+    var notes = Dictionary<String>()
+    var generator = generator_pass(discovery, host_classes, number_keys, notes, 1)
     var passes = 1
     while generator.key_sites_changed and passes < maximum_passes {
         number_keys = generator.learned_key_sites
+        notes = generator.learned_key_use_notes
         passes = passes + 1
-        generator = generator_pass(discovery, host_classes, number_keys, passes)
+        generator = generator_pass(discovery, host_classes, number_keys, notes, passes)
     }
     return generator
 }
@@ -322,6 +324,7 @@ func generator_pass(
     discovery: Discovery.DiscoveryResult,
     host_classes: List<String>,
     number_keys: Dictionary<Analysis.SpiteType>,
+    notes: Dictionary<String>,
     pass: Integer,
 ): Generation.Generator {
     var generator = Generation.Generator()
@@ -329,6 +332,7 @@ func generator_pass(
     generator.another_pass_follows_a_change = pass < maximum_passes
     generator.seed_class_names(host_classes)
     generator.number_key_sites = number_keys
+    generator.key_use_notes = notes
     var prelude = Generation.Prelude()
     var header = prelude.header()
     var structs = prelude.structs()

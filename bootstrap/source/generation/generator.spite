@@ -147,6 +147,8 @@ var text_key_uses = Dictionary<KeyUse>()
 var number_key_uses = Dictionary<KeyUse>()
 var number_key_types = Dictionary<Analysis.SpiteType>()
 var learned_key_sites = Dictionary<Analysis.SpiteType>()
+var key_use_notes = Dictionary<String>()
+var learned_key_use_notes = Dictionary<String>()
 var key_sites_changed = false
 var another_pass_follows_a_change = false
 var namespace_walks = Dictionary<NamespaceWalk>()
@@ -1812,6 +1814,30 @@ func instantiate_generic(
     return instantiated_with(template, types, codes, texts, label)
 }
 
+func fixed_key_type(spite_type: Analysis.SpiteType): Analysis.SpiteType {
+    var dictionary = type_shape.as_dictionary(spite_type)
+    if dictionary {
+        var element = dictionary.get_element()
+        var fixed_element = fixed_key_type(element)
+        var key = dictionary.get_key()
+        var fixed: Analysis.SpiteType = Analysis.Types.DictionaryType(fixed_element, key, "")
+        return fixed
+    }
+    var listed = type_shape.as_list(spite_type)
+    if listed {
+        var listed_element = listed.get_element()
+        var fixed_listed = fixed_key_type(listed_element)
+        return list_type_of(fixed_listed)
+    }
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.get_inner()
+        var fixed_inner = fixed_key_type(inner)
+        return nullable_type_of(fixed_inner)
+    }
+    return spite_type
+}
+
 func instantiated_with(
     template: Analysis.ClassInfo,
     types: List<Analysis.SpiteType>,
@@ -1831,6 +1857,9 @@ func instantiated_with(
     instance.entry_index = template.entry_index
     instance.codegen_names = template.codegen_names
     instance.codegen_types = types
+    if template.qualified_dotted == "Spite.Debug" or template.qualified_dotted == "Spite.DebugInstance" {
+        instance.codegen_types = types.map(fixed_key_type)
+    }
     instance.codegen_codes = codes
     instance.codegen_texts = texts
     instance.codegen_constraints = template.codegen_constraints
@@ -6844,7 +6873,66 @@ func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
         )
         return
     }
+    assert first_name != last_name or not reported_key_kinds(from, to)
     report("{found_name} cannot be used where {wanted_name} is needed")
+}
+
+func reported_key_kinds(from: Analysis.SpiteType, to: Analysis.SpiteType): Boolean {
+    var found = type_shape.as_dictionary(from)
+    var wanted = type_shape.as_dictionary(to)
+    assert found and wanted
+    var found_key = found.get_key()
+    var wanted_key = wanted.get_key()
+    assert type_label(found_key) != type_label(wanted_key)
+    var shown = type_display_name(from)
+    report(
+        "{with_article(shown)} keyed by {key_kind_text(found)} cannot be used where {with_article(shown)} keyed by {key_kind_text(wanted)} is needed: a dictionary is keyed by text or by whole numbers, decided while compiling by the keys it is given, and these two were decided apart -- give both the same kind of key, or copy the entries across one by one",
+    )
+    return true
+}
+
+func key_kind_text(dictionary: Analysis.Types.DictionaryType): String {
+    var key = dictionary.get_key()
+    var numbered = not type_shape.as_string(key)
+    var kind = "text"
+    if numbered {
+        kind = "whole numbers ({type_display_name(key)})"
+    }
+    if dictionary.site.is_empty() {
+        return "{kind}, fixed where it was made"
+    }
+    var root = key_site_root(dictionary.site)
+    if numbered and number_key_uses[root] {
+        return "{kind}, from the key at {key_use_text(number_key_uses[root])}"
+    }
+    if not numbered and text_key_uses[root] {
+        return "{kind}, from the key at {key_use_text(text_key_uses[root])}"
+    }
+    if key_use_notes[dictionary.site] {
+        return "{kind}, from the key at {key_use_notes[dictionary.site]}"
+    }
+    if numbered {
+        return kind
+    }
+    return "text, since nothing gives it a whole-number key"
+}
+
+func key_use_text(use: KeyUse): String {
+    return "{use.path}:{use.line} (in {use.owner}.{use.function_name})"
+}
+
+func note_key_uses() {
+    var index = 0
+    while index < key_sites.count() {
+        var site = key_sites[index]
+        var root = key_site_root(site)
+        if number_key_types[root] and number_key_uses[root] {
+            learned_key_use_notes[site] = key_use_text(number_key_uses[root])
+        } else if text_key_uses[root] {
+            learned_key_use_notes[site] = key_use_text(text_key_uses[root])
+        }
+        index = index + 1
+    }
 }
 
 func retain_call(spite_type: Analysis.SpiteType, code: String): String {
@@ -15109,12 +15197,49 @@ func settle_key_sites() {
         index = index + 1
     }
     key_sites_changed = not same_key_sites(learned_key_sites, number_key_sites)
+    note_key_uses()
+    if key_sites_changed and not another_pass_follows_a_change {
+        report_unsettled_keys()
+        return
+    }
     assert not key_sites_changed
     index = 0
     while index < key_sites.count() {
         var site = key_sites[index]
         if key_site_root(site) == site {
             report_mixed_keys(site)
+        }
+        index = index + 1
+    }
+}
+
+func report_unsettled_keys() {
+    var index = 0
+    while index < key_sites.count() {
+        var site = key_sites[index]
+        if key_label(learned_key_sites[site]) != key_label(number_key_sites[site]) {
+            var place = site.split("@").last()
+            crash place
+            var parts = place.split(":")
+            assert parts.count() >= 3
+            var line_text = parts[parts.count() - 2]
+            crash line_text
+            current_line = line_text.to_integer()
+            parts.remove_last()
+            parts.remove_last()
+            current_path = parts.join(":")
+            var learned_kind = "text"
+            if learned_key_sites[site] {
+                learned_kind = "whole numbers"
+            }
+            var decided = ""
+            if learned_key_use_notes[site] {
+                decided = ", from the key at {learned_key_use_notes[site]}"
+            }
+            report(
+                "the dictionary made here never settles on text or whole-number keys: each pass of the compiler decides it the other way (last as {learned_kind}{decided}), since what decides it flows back into it -- give it a key the program itself writes, of one kind",
+            )
+            return
         }
         index = index + 1
     }

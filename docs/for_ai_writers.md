@@ -246,6 +246,9 @@ func is_alive(): Boolean {
   keep them or resize their columns, and calling `made_position(...)` anywhere else is the error for returning a
   borrowed item. The template's `Symbol` parameter must be a word of its name (`made_argument(argument: ...)`), or
   it has no plural.
+- A dictionary's key kind (text or whole numbers) comes from the keys your own code gives it and follows it
+  wherever it is assigned or passed. An error naming `a Dictionary<String> keyed by whole numbers` against one
+  `keyed by text` says which key decided each: give both the same kind of key.
 - `null` is only for `T?`: `var target: Monster = null` is an error (D236); write `var target: Monster? = null`
   for none yet, or `var target = Monster()` for a default. In a generic class write `var system = $system_type()`,
   in a template `var made = argument.class()`. `= null` stays only on an attribute the constructor assigns and on
