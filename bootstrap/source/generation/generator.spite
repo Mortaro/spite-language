@@ -15937,6 +15937,7 @@ func try_path_guard(
     var links = path_links(condition_ast, class_information.qualified_dotted)
     var probe_scope = Scope(scope)
     var tests = List<String>()
+    var link_tests = List<String>()
     var inner: Analysis.SpiteType? = null
     var index = 0
     while index < links.count() {
@@ -15957,6 +15958,9 @@ func try_path_guard(
             inner = link_inner
             var link_condition = link_test(link_result, link, link_inner)
             tests.append(link_condition)
+            link_tests.append(link_condition)
+        } else {
+            link_tests.append("")
         }
         var link_text = operand_text(link)
         probe_scope.narrow_path(link_text)
@@ -15964,7 +15968,10 @@ func try_path_guard(
     }
     assert inner
     var joined_tests = tests.join(" && ")
-    return NullableGuard(path, inner, joined_tests, "")
+    var guard = NullableGuard(path, inner, joined_tests, "")
+    guard.links = links
+    guard.link_tests = link_tests
+    return guard
 }
 
 func path_links(
@@ -23468,6 +23475,103 @@ func emit_crash_operand(
     builder.add_user(operand_statement)
 }
 
+func emit_missing_report(guard: NullableGuard, scope: Scope, class_information: Analysis.ClassInfo) {
+    var nullable_links = List<Integer>()
+    var index = 0
+    while index < guard.link_tests.count() {
+        if not guard.link_tests[index].is_empty() {
+            nullable_links.append(index)
+        }
+        index = index + 1
+    }
+    if nullable_links.is_empty() {
+        builder.add_user("fputs(\"\\t{escape_c_string(guard.name)} is null\", stderr);")
+        return
+    }
+    var probe_scope = Scope(scope)
+    var next_link = 0
+    var position = 0
+    while position < nullable_links.count() {
+        var link_position = nullable_links[position]
+        while next_link < link_position {
+            var present_link = guard.links.get_at(next_link)
+            var narrowed_path = operand_text(present_link)
+            probe_scope.narrow_path(narrowed_path)
+            next_link = next_link + 1
+        }
+        var last = position == nullable_links.count() - 1
+        if position > 0 {
+            builder.add_user("else")
+        }
+        if last {
+            builder.add_user("\{")
+        } else {
+            builder.add_user("if (!({guard.link_tests.get_at(link_position)})) \{")
+        }
+        conditional_depth = conditional_depth + 1
+        var missing_link = guard.links.get_at(link_position)
+        emit_missing_link(missing_link, probe_scope, class_information)
+        conditional_depth = conditional_depth - 1
+        builder.add_user("}")
+        position = position + 1
+    }
+}
+
+func emit_missing_link(link: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo) {
+    var link_text = operand_text(link)
+    var name = escape_c_string(link_text)
+    var indexed = shape.as_index(link)
+    if indexed {
+        emit_missing_item(name, indexed, scope, class_information)
+        return
+    }
+    builder.add_user("fputs(\"\\t{name} is null\", stderr);")
+}
+
+func emit_missing_item(
+    name: String,
+    indexed: Syntax.Expressions.IndexExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    crash indexed.object
+    crash indexed.index
+    var saved_counter = temporary_counter
+    var object_result = generate_expression(indexed.object, scope, class_information)
+    var key_result = generate_expression(indexed.index, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var object_type = object_result.get_type()
+    var key_type = key_result.get_type()
+    var printable = type_shape.as_string(key_type) or is_enum_type(key_type)
+    if type_shape.as_scalar(key_type) {
+        printable = true
+    }
+    var key_word = "key"
+    if type_shape.as_list(object_type) {
+        key_word = "index"
+    }
+    if not printable {
+        builder.add_user("fputs(\"\\t{name} is missing\", stderr);")
+        return
+    }
+    builder.add_user("fputs(\"\\t{name} is missing: {key_word} \", stderr);")
+    var quote = ""
+    if type_shape.as_string(key_type) {
+        quote = "fputs(\"\\\"\", stderr);"
+    }
+    var key_statement = crash_operand_statement(indexed.index, scope, class_information)
+    builder.add_user("{quote}{key_statement}{quote}")
+    assert type_shape.as_list(object_type)
+    var count_result = generate_expression(indexed.object, scope, class_information)
+    var count_type = integer_type()
+    var counted = string_conversion("(({count_result.code})->item_count_)", count_type)
+    var count_text = next_temporary()
+    builder.add_user("fputs(\", count \", stderr);")
+    builder.add_user(
+        "\{ SpiteString {count_text} = {counted}; fwrite(spite_string_bytes(&{count_text}), 1, (size_t)spite_string_length({count_text}), stderr); SpiteString___release({count_text}); }",
+    )
+}
+
 func emit_crash_operands(
     condition: Syntax.Expressions.Expression,
     scope: Scope,
@@ -23715,7 +23819,7 @@ func generate_assert_statement(
     }
     record_site(assert_statement, site_kind, function_information.name, scope, class_information)
     builder.add_user("if (!({guard_code})) \{")
-    emit_check_failure(assert_statement, true, scope, class_information, function_information)
+    emit_check_failure(assert_statement, guard, true, scope, class_information, function_information)
     return false
 }
 
@@ -23744,11 +23848,12 @@ func emit_folded_check(
         "{current_site_id}\t{current_path}\t{current_line}\t0\t{current_owner}\t{function_information.name}\t{site_kind}\t{assert_statement.condition_text}\t",
     )
     builder.add_user("\{")
-    emit_check_failure(assert_statement, false, scope, class_information, function_information)
+    emit_check_failure(assert_statement, null, false, scope, class_information, function_information)
 }
 
 func emit_check_failure(
     assert_statement: Syntax.Statements.AssertStatement,
+    guard: NullableGuard?,
     with_operands: Boolean,
     scope: Scope,
     class_information: Analysis.ClassInfo,
@@ -23759,7 +23864,9 @@ func emit_check_failure(
         builder.add_user(
             "fputs(\"spite.crash\\t{current_site_id}\\t{escape_c_string(current_path)}:{current_line}\\t{current_owner}\\t{function_information.name}\\t{escape_c_string(assert_statement.condition_text)}\", stderr);",
         )
-        if with_operands {
+        if guard {
+            emit_missing_report(guard, scope, class_information)
+        } else if with_operands {
             emit_crash_operands(assert_statement.value, scope, class_information)
         }
         builder.add_user("fputs(\"\\n\", stderr);")

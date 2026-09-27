@@ -51,6 +51,11 @@ There is one rule, and every form below follows it.
 | `while value { }` | the loop ends; inside the body, `value` is a `T` |
 | `switch value { Monster: ... Null: ... }` | runs the `Null` case |
 
+**Narrowing tests presence, never the value.** A `0`, a `0.0`, a `false` or a `""` that is there is present:
+`crash keys[index]` passes on an element holding `0.0`, and `if count` on an `Integer?` holding `0` runs its
+block. A plain `Boolean` condition is the only test of a value, which is why a `Boolean?` cannot be one
+([below](#reading-with--answers-t)).
+
 `assert value and other_condition` narrows too, and `other_condition` already sees the narrowed type. Each side of
 an `and` narrows on its own, for `assert`, `crash` and `if` alike, since each is known true when the whole is:
 `crash names[position] and ages[position]` proves both elements, exactly as two `crash` lines would.
@@ -607,6 +612,17 @@ spite.crash	64b935f1	crash_report/crash_report.spite:14	CrashReport	check	value 
 spite.assert	0aae5005	crash_report/crash_report.spite:18	CrashReport	announce	amount > 0
 ```
 
+A crash that narrows a `T?` fails because something is not there, so it never prints a value for it -- a default
+would read like a real `0`. It names the first link of the path that is missing, and for a `[]` read what was
+asked for: the index and the count of a list, the key of a dictionary.
+
+```
+spite.crash	26b57b59	crash_missing_item/crash_missing_item.spite:13	CrashMissingItem	read	clip.keys [start + 1]	clip.keys[start + 1] is missing: index 3, count 2
+spite.crash	474c3f17	crash_missing_key/crash_missing_key.spite:11	CrashMissingKey	show	scores [player]	scores[player] is missing: key "bea"
+spite.crash	0f912d8f	crash_missing_link/crash_missing_link.spite:14	CrashMissingLink	show	rig.skeleton.heights [0]	rig.skeleton is null
+spite.crash	75b30821	crash_missing_value/crash_missing_value.spite:10	CrashMissingValue	show	width	width is null
+```
+
 The id is derived from the site's content, so it stays the same when unrelated lines move. Each build also writes
 a `.crashes` file beside the executable it builds: one line per `assert` and `crash` site, sorted by id, with its file,
 line, class, function, kind and condition, so `grep 64b935f1 program.crashes` finds a site from a report.
@@ -658,6 +674,14 @@ assert content
 var length = content.length()          # content is a String here, not String?
 console.print(length)
 ```
+
+Narrowing tests presence and never the value it holds: a `T?` of a number, an enum or a `String` holding `0`,
+`0.0` or `""` is present, and so is an in-range `[]` read of an element holding it. A value type's `T?` carries a
+presence flag beside the value (`has_value`), a reference's `T?` is its pointer, and a `[]` read goes through
+`find_at`/`get`, which answer that flag -- no representation uses a sentinel, so no value can be mistaken for
+absence (`conformance/stage6/present_zero`, which narrows zeros, `false` and `""` from lists, a dictionary, an
+`Integer?` result, `first()`/`last()` and `remove_first()` by `crash`, `assert`, `if` and `and`). A `Boolean?` is
+never a condition (below), so `false` meets only `== true`/`== false` or a `switch`.
 
 `if` on a `T?` narrows the same way, in place, for the whole block: `if value { } else { }` runs the
 block with `value` already a plain `T`, and the `else` exactly when it is null/absent. One rule for narrowing
@@ -973,3 +997,15 @@ spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition
 The condition is rebuilt from its own tokens and the line ends with the named operands of the failed
 comparison and their values -- `value > limit<TAB>value=-9<TAB>limit=0` -- with calls never evaluated a second
 time.
+
+D246 (under D244): **a failed narrowing reports what is missing, never a value.** A `crash` that narrows a `T?` --
+a name, a path, a `[]` read, each side of an `and` -- fails only when something is absent, and printing a value
+there would print a default (`clip.keys[start + 9]=0`), which reads as a present zero and sends the reader after
+a bug that does not exist. The report tests each nullable link of the path again, in order, and names the first
+one that is absent: `rig.skeleton is null` for a name or member, `list[expression] is missing: index 11990, count
+11500` for a list read (the index as evaluated, and the list's count), `table[key] is missing: key "bea"` for a
+dictionary or any other `get_at` (a `String` key quoted, so an empty one shows). The index is evaluated again, which
+is safe because an index with a call in it is not a path. The value report of D25/D32 stays for every condition
+that is not a narrowing (`conformance/stage6/crash_missing_item`, `crash_missing_key`, `crash_missing_link`,
+`crash_missing_value`). Cost: only on the failure path, which already halts; a passing `crash` is the same
+presence test it always was.

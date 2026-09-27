@@ -1,0 +1,151 @@
+var console = Console()
+
+func PresentZero() {
+    var keys: List<Float> = [1.5, 0.0, -0.0]
+    var counts: List<Integer> = [0, 3]
+    var flags: List<Boolean> = [false, true]
+    var labels: List<String> = ["", "b"]
+    var stock = Dictionary<Integer>()
+    stock["empty shelf"] = 0
+    var empty = List<Integer>()
+    crashes_on_nothing(keys, counts, labels)
+    var line_one = float_key(keys, 1)
+    show(line_one)
+    var line_two = float_key(keys, 2)
+    show(line_two)
+    var line_three = float_key(keys, 9)
+    show(line_three)
+    var line_four = integer_count(counts, 0)
+    show(line_four)
+    var line_five = integer_count(counts, 5)
+    show(line_five)
+    var line_six = flag_at(flags, 0)
+    show(line_six)
+    var line_seven = flag_at(flags, 3)
+    show(line_seven)
+    var line_eight = label_of(labels, 0)
+    show(line_eight)
+    var line_nine = label_of(labels, 4)
+    show(line_nine)
+    var line_ten = on_shelf(stock, "empty shelf")
+    show(line_ten)
+    var line_eleven = on_shelf(stock, "missing shelf")
+    show(line_eleven)
+    var line_twelve = answered(true)
+    show(line_twelve)
+    var line_thirteen = answered(false)
+    show(line_thirteen)
+    var line_fourteen = both(keys, counts, 1, 0)
+    show(line_fourteen)
+    var line_fifteen = both(keys, counts, 1, 7)
+    show(line_fifteen)
+    var line_sixteen = ends(counts)
+    show(line_sixteen)
+    var line_seventeen = ends(empty)
+    show(line_seventeen)
+    var line_eighteen = removed(counts)
+    show(line_eighteen)
+    var line_nineteen = removed(empty)
+    show(line_nineteen)
+    var line_twenty = described(0.0)
+    show(line_twenty)
+    var nothing: Float? = null
+    var line_twenty_one = described(nothing)
+    show(line_twenty_one)
+}
+
+func show(line: String) {
+    console.print(line)
+}
+
+func crashes_on_nothing(keys: List<Float>, counts: List<Integer>, labels: List<String>) {
+    crash keys[1]
+    crash counts[0]
+    crash labels[0]
+    var length = labels[0].length()
+    console.print(keys[1], counts[0], length)
+}
+
+func float_key(keys: List<Float>, index: Integer): String {
+    if keys[index] {
+        return "key {keys[index]}"
+    }
+    return "no key {index}"
+}
+
+func integer_count(counts: List<Integer>, index: Integer): String {
+    if counts[index] {
+        return "count {counts[index]}"
+    }
+    return "no count {index}"
+}
+
+func flag_at(flags: List<Boolean>, index: Integer): String {
+    if flags[index] == true {
+        return "flag on"
+    }
+    if flags[index] == false {
+        return "flag off"
+    }
+    return "no flag {index}"
+}
+
+func label_of(labels: List<String>, index: Integer): String {
+    if labels[index] {
+        return "label '{labels[index]}'"
+    }
+    return "no label {index}"
+}
+
+func on_shelf(stock: Dictionary<Integer>, shelf: String): String {
+    if stock[shelf] {
+        return "{shelf} holds {stock[shelf]}"
+    }
+    return "{shelf} is not stocked"
+}
+
+func zero_or_absent(present: Boolean): Integer? {
+    if present {
+        return 0
+    }
+    return null
+}
+
+func answered(present: Boolean): String {
+    var answer = zero_or_absent(present)
+    if answer {
+        return "answer {answer}"
+    }
+    return "no answer"
+}
+
+func both(keys: List<Float>, counts: List<Integer>, key: Integer, count: Integer): String {
+    if keys[key] and counts[count] {
+        return "both {keys[key]} {counts[count]}"
+    }
+    return "not both"
+}
+
+func ends(counts: List<Integer>): String {
+    var first = counts.first()
+    var last = counts.last()
+    if first and last {
+        return "ends {first} {last}"
+    }
+    return "no ends"
+}
+
+func removed(counts: List<Integer>): String {
+    var taken = counts.remove_first()
+    if taken {
+        return "took {taken}"
+    }
+    return "nothing to take"
+}
+
+func described(width: Float?): String {
+    if width {
+        return "width {width}"
+    }
+    return "no width"
+}

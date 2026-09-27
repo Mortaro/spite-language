@@ -1,0 +1,15 @@
+var console = Console()
+
+func CrashMissingItem() {
+    var clip = Clip()
+    clip.keys.append(0.0)
+    clip.keys.append(0.0)
+    read(clip, 0)
+    read(clip, 1)
+}
+
+func read(clip: Clip, frame: Integer) {
+    var start = frame * 2
+    crash clip.keys[start + 1]
+    console.print("key", clip.keys[start + 1])
+}

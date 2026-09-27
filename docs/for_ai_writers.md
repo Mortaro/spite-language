@@ -317,6 +317,11 @@ func is_alive(): Boolean {
   - absence is a bug: `crash condition` halts with
     `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition<TAB>name=value...`, followed by the
     asserts that failed before it. A bare `crash` marks a branch that cannot happen (`crash false` is formatted to it).
+    A failed narrowing names what is absent instead of a value: `clip.keys[start + 9] is missing: index 11990,
+    count 11500`, `scores[key] is missing: key "bea"`, `rig.skeleton is null`. Read it as an index past the end or
+    a key never set, not as a zero.
+- Narrowing tests presence, never the value: `crash keys[index]` passes on an element holding `0.0`, and `if count`
+  runs on an `Integer?` holding `0`.
 - A test is a function named `test_...` that takes nothing and crashes when wrong, in a class of its own (the entry
   class's functions are not found). `tests/tests.spite` finds them all by itself ([testing.md](testing.md)).
 
