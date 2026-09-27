@@ -104,6 +104,7 @@ ADA 3 -1 da []
 | `read_bytes(position, count, address)` | `Long?` | reads up to `count` bytes starting `position` bytes in, into memory at `address`; answers how many it read (`0` at the end), `null` when it cannot be opened |
 | `write_bytes(address, count)` | `Boolean` | replaces the content with `count` bytes from memory at `address` |
 | `append_bytes(address, count)` | `Long?` | adds `count` bytes to the end; answers the position they start at, `null` when they could not all be written |
+| `map()` | `MappedFile?` | the whole file mapped into memory, read-only ([below](#a-file-larger-than-memory-map-it)); `null` when it cannot be opened |
 
 ```gdscript title=file_tasks/file_tasks.spite entry
 var console = Console()
@@ -167,6 +168,56 @@ func ByteRecords() {
 ```output
 the second record starts at 8 and holds 2222 of 16 bytes
 ```
+
+### A file larger than memory: map it
+
+`file.map()` maps the whole file into the program's memory, read-only, without reading it: the operating system
+brings each page in the first time it is read and may drop it again, so a file of many gigabytes is walked as if
+it were in memory (the name and members proposed by Claude, unconfirmed). A `MappedFile` answers `size(): Long`,
+and reads by position -- `mapped[position]` (a `Byte`), `read_short`, `read_integer`, `read_long`, `read_float`,
+`read_double` and `text(position, count)` -- each a `T?` that is `null` when the bytes it would read are not all
+inside the file, since a position read from a file is data from outside ([failure.md](failure.md)). The mapping
+is undone when the `MappedFile` is dropped, and a file that is mapped cannot be removed on Windows until then.
+
+```gdscript title=mapped_records/mapped_records.spite entry
+var console = Console()
+var heap = Memory.Heap()
+var longs = TypedMemory<Long>()
+
+func MappedRecords() {
+    var store = File(".spite-cache/documentation_mapped_records.bin")
+    var record = heap.allocate(16)
+    longs.write_value(record, 0, 1111)
+    longs.write_value(record, 1, 2222)
+    store.write_bytes(record, 16)
+    heap.free(record)
+    total_records(store)
+    store.remove()
+}
+
+func total_records(store: File) {
+    var mapped = store.map()
+    crash mapped
+    var total: Long = 0
+    var position: Long = 0
+    while position < mapped.size() {
+        var value = mapped.read_long(position)
+        crash value
+        total = total + value
+        position = position + 8
+    }
+    var past_end = mapped.read_long(16)
+    console.print("the records add up to", total, "and a read past the end is null:", not past_end)
+}
+```
+```output
+the records add up to 3333 and a read past the end is null: true
+```
+
+To stream instead -- a file read once, front to back, with no mapping -- `read_bytes(position, count, address)`
+already covers it: each call opens, seeks and closes the file, which measured about 50 microseconds a call on
+Windows, so a loop reading a megabyte at a time spends almost nothing on it (512 MB in 169 ms, against 572 ms in
+64 KB pieces, warm cache). Read a megabyte or more per call; there is no separate reader to open and close.
 
 **Independent reads overlap.** Two or more untyped `var name = file.read()` in a row (or `socket.read_line()`),
 each on a name or an attribute and none naming an earlier one, are started together and all finished before the next
@@ -718,7 +769,8 @@ each member answers is in the section of this page that teaches it.
 
 | Class | Members |
 |---|---|
-| `File(path)` | `path`, `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes (names proposed): `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?` -- [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
+| `File(path)` | `path`, `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes (names proposed): `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?`, `map(): MappedFile?` -- [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
+| `MappedFile` | made by `File.map()` (decided by Claude under D205; the names provisional under D214): a read-only mapping of the whole file -- `CreateFileMappingA`/`MapViewOfFile` on Windows, `mmap` with `PROT_READ` and `MAP_PRIVATE` on Linux and macOS, the file itself closed once mapped -- undone by `drop()` (`UnmapViewOfFile`, `munmap`). `size(): Long`; `get_at(position): Byte?` (`mapped[position]`), `read_short`, `read_integer`, `read_long`, `read_float`, `read_double` (each `(position): T?`) and `text(position, count): String?` answer `null` unless every byte they would read is inside the file, so a bad offset read from the file cannot read outside it; a read inside is one load from the mapping. An empty file maps to a `MappedFile` of size 0, since the operating systems refuse to map nothing. `conformance/stage6/mapped_files`; Linux and macOS are held to compiling -- [A file larger than memory](#a-file-larger-than-memory-map-it) |
 | `Directory(path)` | `path`, `entries(): List<Directory.Entry>` (D93, below), `files(): List<String>`, `folders(): List<String>`, `exists(): Boolean`, `create(): Boolean` -- [List a directory](#list-a-directory) |
 | `Process(command, arguments)` | `run(): Integer`, `output(): String`, `run_attached(): Integer` (proposed) -- [Run a process](#run-a-process). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
 | `Program()` | a singleton (D121): `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String` (proposed), `live_allocations(): Integer` -- [Program](#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |

@@ -43,3 +43,40 @@ func modified_nanoseconds(): Long? {
 func remove(): Boolean {
     return library.remove(path) == 0
 }
+
+func map(): MappedFile? {
+    var no_value: Long = 0
+    var generic_read = 2147483648
+    var share_read = 1
+    var open_existing = 3
+    var normal_attributes = 128
+    var handle = kernel.CreateFileA_as_long(
+        path,
+        generic_read,
+        share_read,
+        no_value,
+        open_existing,
+        normal_attributes,
+        no_value,
+    )
+    assert handle != -1
+    var size_cell = heap.allocate(8)
+    var sized = kernel.GetFileSizeEx(handle, size_cell)
+    var bytes = size_cell.read_long(0)
+    heap.free(size_cell)
+    var mapping: Long = 0
+    if sized != 0 and bytes > 0 {
+        var read_only_pages = 2
+        mapping = kernel.CreateFileMappingA_as_long(handle, no_value, read_only_pages, 0, 0, no_value)
+    }
+    kernel.CloseHandle(handle)
+    assert sized != 0
+    var view: Memory.Address = 0
+    if mapping != 0 {
+        var read_access = 4
+        view = kernel.MapViewOfFile_as_long(mapping, read_access, 0, 0, 0)
+        kernel.CloseHandle(mapping)
+    }
+    assert bytes == 0 or view != 0
+    return MappedFile(view, bytes)
+}

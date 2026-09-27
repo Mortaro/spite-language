@@ -432,7 +432,7 @@ for operating_system in windows linux mac; do
   "$CC_BIN" -fsyntax-only -w "$work/watching_$operating_system.c" 2> "$work/c_errors.txt" || {
     echo "FAILED: the Watcher C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
   # Clock readings and mapped files ask each kernel their own way.
-  for system_program in clock_reads; do
+  for system_program in clock_reads mapped_files; do
     "$work/generation_two.exe" conformance/stage6/$system_program --run=false --c-source --c-path="$work/${system_program}_$operating_system.c" --target-operating-system=$operating_system || {
       echo "FAILED: $system_program does not compile with library/$operating_system"; exit 1; }
     "$CC_BIN" -fsyntax-only -w "$work/${system_program}_$operating_system.c" 2> "$work/c_errors.txt" || {
@@ -446,7 +446,7 @@ for operating_system in windows linux mac; do
       echo "FAILED: the C of $socket_program written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
   done
 done
-echo "operating systems: the compiler, a time zone program, a file watching program, a clock program and a socket program compile with the windows, linux and mac library folders"
+echo "operating systems: the compiler, a time zone program, a file watching program, a clock program, a mapped file program and a socket program compile with the windows, linux and mac library folders"
 
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would

@@ -1,0 +1,52 @@
+var _address: Memory.Address = 0
+var _size: Long = 0
+
+func MappedFile(address: Memory.Address, bytes: Long) {
+    _address = address
+    _size = bytes
+}
+
+func drop() {
+    assert _address != 0
+    _unmap()
+}
+
+func size(): Long {
+    return _size
+}
+
+func get_at(position: Long): Byte? {
+    assert position >= 0 and position < _size
+    return _address.read_byte(position)
+}
+
+func read_short(position: Long): Short? {
+    assert position >= 0 and position <= _size - 2
+    return _address.read_short(position)
+}
+
+func read_integer(position: Long): Integer? {
+    assert position >= 0 and position <= _size - 4
+    return _address.read_integer(position)
+}
+
+func read_long(position: Long): Long? {
+    assert position >= 0 and position <= _size - 8
+    return _address.read_long(position)
+}
+
+func read_float(position: Long): Float? {
+    assert position >= 0 and position <= _size - 4
+    return _address.read_float(position)
+}
+
+func read_double(position: Long): Double? {
+    assert position >= 0 and position <= _size - 8
+    return _address.read_double(position)
+}
+
+func text(position: Long, count: Long): String? {
+    assert position >= 0 and count >= 0 and position <= _size - count
+    var start: Memory.Address = _address + position
+    return start.text(count)
+}

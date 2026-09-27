@@ -1,0 +1,45 @@
+var console = Console()
+var heap = Memory.Heap()
+var longs = TypedMemory<Long>()
+
+func MappedFiles() {
+    var store = File(".spite-cache/mapped_files_records.bin")
+    var record = heap.allocate(16)
+    longs.write_value(record, 0, 1111)
+    longs.write_value(record, 1, 2222)
+    store.write_bytes(record, 16)
+    heap.free(record)
+    store.append("tail")
+    show_records(store)
+    var empty = File(".spite-cache/mapped_files_empty.bin")
+    empty.write("")
+    show_empty(empty)
+    var missing = File(".spite-cache/mapped_files_missing.bin")
+    var nothing = missing.map()
+    console.print("a missing file maps to nothing:", not nothing)
+    var removed = store.remove()
+    var empty_removed = empty.remove()
+    console.print("unmapped, so removed:", removed, empty_removed)
+}
+
+func show_records(file: File) {
+    var mapped = file.map()
+    crash mapped
+    var size = mapped.size()
+    var first = mapped.read_long(0)
+    var second = mapped.read_long(8)
+    var tail = mapped.text(16, 4)
+    var letter = mapped[16]
+    crash first and second and tail and letter
+    var past_end = mapped.read_long(size - 4)
+    var before_start = mapped[-1]
+    console.print(size, first, second, tail, letter, not past_end, not before_start)
+}
+
+func show_empty(file: File) {
+    var mapped = file.map()
+    crash mapped
+    var size = mapped.size()
+    var first = mapped[0]
+    console.print("empty:", size, not first)
+}

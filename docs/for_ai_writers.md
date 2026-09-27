@@ -390,7 +390,7 @@ func is_alive(): Boolean {
 
 `Console()` (`print`, `write`, `error`, `debug`, `read_line(): String?`; each value printed is its `to_string()`, so
 a class prints once it declares `func to_string(): String`, and `debug` shows any value's state, a class as
-`Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`read(): String?`, `write`,
+`Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`map(): MappedFile?` for a file too big to read: `size()`, `mapped[position]`, `read_long(position)`, ... each a `T?`; `read(): String?`, `write`,
 `append`, `exists`, `remove`), `Directory(path)` (`path`, `entries(): List<Directory.Entry>` -- each a `Directory` or a `File`, switched on --,
 `files`, `folders`, `exists`, `create`),
 `Process(command, arguments)` (`run(): Integer`, `output()`: standard output only), `Program()` (`exit(code)`, `sleep(milliseconds)`,
