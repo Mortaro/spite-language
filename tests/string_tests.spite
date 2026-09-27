@@ -26,9 +26,13 @@ func test_comparison_is_by_content() {
     crash "abc" < "abd"
 }
 
-func test_parsing_a_number_that_is_not_one_gives_zero() {
+func test_parsing_text_that_is_not_a_number_answers_null() {
     crash "42".to_integer() == 42
-    crash "forty two".to_integer() == 0
+    crash not "forty two".to_integer() and not "+7 days".to_integer() and not "".to_long() and not "-".to_long()
+    crash not "9000000000".to_integer() and not "9223372036854775808".to_long()
+    crash not "nothing".to_double() and not "1e".to_double() and not ".".to_double() and not "1.5x".to_float()
+    crash not "256".to_byte() and not "-1".to_unsigned_integer() and not "128".to_tiny()
+    crash not "18446744073709551616".to_unsigned_long() and not "-1".to_unsigned_long()
 }
 
 func test_searching_finds_the_first_place() {
@@ -58,10 +62,10 @@ func test_trim_and_case() {
     crash "".is_empty()
 }
 
-func test_parsing_reads_a_sign_and_stops_at_the_first_non_digit() {
-    crash " -12".to_integer() == -12
-    crash "+7 days".to_integer() == 7
-    crash "9000000000".to_long() == 9000000000
-    crash "2.5".to_double() == 2.5
-    crash "nothing".to_double() == 0.0
+func test_parsing_reads_a_sign_and_spaces_around_the_number() {
+    crash " -12 ".to_integer() == -12 and "+7".to_integer() == 7
+    crash "9000000000".to_long() == 9000000000 and "-9223372036854775808".to_long() == Long.smallest()
+    crash "2.5".to_double() == 2.5 and "-1.5e2".to_double() == -150.0 and ".5".to_float() == 0.5
+    crash "255".to_byte() == 255 and "-128".to_tiny() == -128
+    crash "18446744073709551615".to_unsigned_long() == UnsignedLong.largest()
 }

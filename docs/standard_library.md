@@ -59,9 +59,11 @@ one reference-counted block ([optimizations.md](optimizations.md#short-text-live
 it changes what a program means. A value is placed inside written text, `"hello {name}"`, and two values join
 with `+` ([values_and_types.md](values_and_types.md#string)). `==`, `!=`, `<` and `>` compare by content.
 
-No member of a `String` can fail: an index past the end answers `""` or `0`, a range is clamped to the text, a
-search that finds nothing answers `-1`, and text that is not a number converts to `0`. Assigning text to a number
-calls the matching `to_<type>()`, so `var age: Integer = "42"` is `42`. Every member, with what it answers at
+No member of a `String` halts: an index past the end answers `""` or `0`, a range is clamped to the text, and a
+search that finds nothing answers `-1`. Reading a number is the one that can find nothing to answer, so
+`to_integer()` and the other `to_<type>()` readings answer a `T?`: `null` when the text is not a number that fits
+the type ([D244](decisions.md)). Assigning text to a number calls the matching one, so it is allowed only into a
+`T?`: `var age: Integer? = "42"` is `42`, and `var age: Integer = "42"` is an error naming `to_integer()`. Every member, with what it answers at
 the edges, is in [the rules below](#string--implemented).
 
 ```gdscript title=string_members/string_members.spite entry
@@ -73,7 +75,8 @@ func StringMembers() {
     var first = names.first()
     crash first
     var shouted = first.upper_case()
-    var count: Integer = "3"
+    var count = "3".to_integer()
+    crash count
     var missing = line.index_of("barbara")
     var tail = first.slice(1, 99)
     var past_end = first.character_at(10)
@@ -698,9 +701,9 @@ allocation counts.
 | `trim()` / `upper_case()` / `lower_case()` | `String` | |
 | `split(separator)` | `List<String>` | an empty separator splits into single characters |
 | `lines()` | `List<String>` | splits on `\n` |
-| `to_tiny()` / `to_short()` / `to_integer()` / `to_long()` | `Tiny` / `Short` / `Integer` / `Long` | `0` on a value that does not parse |
-| `to_byte()` / `to_unsigned_short()` / `to_unsigned_integer()` / `to_unsigned_long()` | `Byte` / `UnsignedShort` / `UnsignedInteger` / `UnsignedLong` | `0` on a value that does not parse |
-| `to_float()` / `to_double()` | `Float` / `Double` | `0.0` on a value that does not parse |
+| `to_tiny()` / `to_short()` / `to_integer()` / `to_long()` | `Tiny?` / `Short?` / `Integer?` / `Long?` | digits with an optional `+` or `-`, spaces around them allowed; `null` for anything else (`"12abc"`, `""`) or a number the type cannot hold |
+| `to_byte()` / `to_unsigned_short()` / `to_unsigned_integer()` / `to_unsigned_long()` | `Byte?` / `UnsignedShort?` / `UnsignedInteger?` / `UnsignedLong?` | the same, and `null` for a negative number |
+| `to_float()` / `to_double()` | `Float?` / `Double?` | digits with an optional sign, `.` and exponent (`-1.5e2`, `.5`), spaces around them allowed; `null` for anything else (`"1e"`, `"nan"`) |
 | `sum(other)` / `equals(other)` / `less_than(other)` / `greater_than(other)` | `String` / `Boolean` | the explicit call form of `+`/`==`/`<`/`>` |
 | `to_string()` / `to_debug()` | `String` | the text itself / the text quoted, with `"`, `\` and a line feed escaped ([`Console.debug`](#console)) |
 

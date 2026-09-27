@@ -127,9 +127,10 @@ mathematically true true
 total 6
 ```
 
-`String` converts both ways: assigning a `String` to a numeric variable parses it (`0`/`0.0` on failure, never
-a crash) by calling `String`'s `to_<name>()` for that type -- `to_integer()`, `to_long()`, `to_double()`, ... (the
-full list is in [the rules](#numeric-types--implemented-provisional)) -- and a number becomes text with its own
+`String` converts both ways. Text is read as a number by `String`'s `to_<name>()` for that type --
+`to_integer()`, `to_long()`, `to_double()`, ... (the full list is in [the rules](#numeric-types--implemented-provisional))
+-- which answers a `T?`, `null` when the text is not a number that fits, since a `0` there would read as a real
+zero ([D244](decisions.md)); assigning text to a `T?` of a number calls it too. A number becomes text with its own
 `to_string()` ([below](#numbers-are-classes)).
 
 ### Numbers are classes
@@ -346,10 +347,15 @@ func StringBasics() {
     console.print("parts count", parts_count)
     var joined_parts = parts.join(" - ")
     console.print("joined", joined_parts)
-    var age: Integer = "42"
+    var age = "42".to_integer()
+    crash age
     console.print("parsed", age)
     var not_a_number = "not a number".to_integer()
-    console.print("bad parse", not_a_number)
+    if not_a_number {
+        console.print("parsed", not_a_number)
+    } else {
+        console.print("not a number")
+    }
 }
 ```
 ```output
@@ -360,11 +366,11 @@ contains true
 parts count 2
 joined Hello - Spite
 parsed 42
-bad parse 0
+not a number
 ```
 
-An operation that cannot succeed, like the parse of `"not a number"` above, produces the default instead of
-crashing. Reading with `[]` is the exception: an index or a key that may not be there answers a `T?`
+Reading a number that is not there, like `"not a number"` above, answers `null`, never a `0` that would read as a
+real zero. Reading with `[]` is the exception: an index or a key that may not be there answers a `T?`
 ([failure.md](failure.md#reading-with--answers-t)). See [standard_library.md](standard_library.md) for the full
 method table.
 
@@ -840,10 +846,17 @@ defaults to `Float`. All of them follow the same right-side-casts-toward-left-si
 (`var tiny: Tiny = some_integer_variable` narrows with an ordinary cast); converting between two numeric types
 wraps on overflow (an out-of-range value assigned into a narrower type keeps its low bits, the same as a plain
 C cast) rather than crashing or saturating. `List<T>`, `Dictionary<T>`, `T?`, and generics all work
-with every numeric type; so does `String` conversion both ways -- casting a `String` to any numeric type by
-assignment parses it (defaulting to `0`/`0.0` on failure), through `String`'s one `to_<name>()` method per type:
-`to_tiny()`, `to_short()`, `to_integer()`, `to_long()`, `to_byte()`, `to_unsigned_short()`,
-`to_unsigned_integer()`, `to_unsigned_long()`, `to_float()`, `to_double()`. `count()`, `length()`, and
+with every numeric type; so does `String` conversion both ways -- text is read as a number through `String`'s one
+`to_<name>()` method per type, `to_tiny()`, `to_short()`, `to_integer()`, `to_long()`, `to_byte()`,
+`to_unsigned_short()`, `to_unsigned_integer()`, `to_unsigned_long()`, `to_float()`, `to_double()`, each answering a
+`T?` that is `null` when the text is not a number the type can hold (D244; [standard_library.md](standard_library.md#string)
+has what each accepts). Assigning a `String` to a `T?` of a number calls the same function; assigning it to a plain
+number is an error, since text that is not a number would have nothing to give: `text is not an Integer until it
+is read as one, and text that is not a number has none to give: read it with 'to_integer()', which answers
+'Integer?', null when the text is not a number that fits, and narrow it -- or declare the value 'Integer?'`. The
+same goes for the compiler's own readings of text: an integer literal too large for a `Long` is a compile error
+(before, it read as `0`), and a remote REPL command assigning or passing a number that does not parse is refused,
+as a text that names no enum value already was. `count()`, `length()`, and
 `index_of()` always return `Integer`, never a wider type.
 
 **Signed arithmetic that does not fit halts in a development build** (decided by Claude under D205; the

@@ -1,0 +1,7 @@
+var console = Console()
+
+func TextToNumber() {
+    var age: Integer = "42"
+    var ratio: Float = "0.5"
+    console.print(age, ratio)
+}

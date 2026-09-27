@@ -93,6 +93,7 @@ func note_resume_point(line: String) {
     var colon = line.index_of(":")
     var digits = line.slice(13, colon)
     var point = digits.to_integer()
+    crash point
     resume_points.append(point)
 }
 

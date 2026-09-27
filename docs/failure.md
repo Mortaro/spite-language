@@ -24,6 +24,8 @@ What that already means in practice:
   a `crash` that fails, a native fault ([below](#what-a-native-fault-reports)).
 - A failed `crash` names what is missing instead of printing a default that reads like a real zero
   ([what a crash reports](#what-a-crash-reports)).
+- Text that is not a number reads as `null`, never as a `0`: `"forty two".to_integer()` is an `Integer?`
+  ([standard_library.md](standard_library.md#string)).
 - An operand that would be cut to fit is a compile error, in arithmetic and in comparisons
   ([values_and_types.md](values_and_types.md#wider-arithmetic-goes-wider-operand-first)).
 
@@ -939,6 +941,7 @@ word needs a reason, and a place where the compiler lets one through is a bug to
 | an index past the end, a key never set | `[]`, `first()`, `last()`, `remove_first()` answer a `T?` | [reading with `[]`](#reading-with--answers-t) |
 | a guard `assert` answering a `0`, `false`, `""` or default object the caller takes for a real answer | compile error unless the result can say "nothing" (D244, D245) | [a default that looks like an answer](#a-default-that-looks-like-an-answer-is-an-error) |
 | a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is never a condition | [null safety](#null-safety-and-assert-narrowing--implemented) |
+| text that is not a number, read as `0` | `to_integer()` and the other readings answer a `T?`; text assigned to a plain number is an error (D244) | [standard_library.md](standard_library.md#string) |
 | a function that declares a result reaching its end without a `return` | compile error at its last line naming the path | [every path ends in a `return`](#every-path-ends-in-a-return) |
 | a proof that went stale after an assignment or a call | the read must be proven again; in a loop, an error naming the call | [a call may undo a proof](#a-call-may-undo-a-proof) |
 | a failed `crash` printing a default that reads as a real zero | the report names the missing link, index and count, or key (D248) | [what a crash reports](#what-a-crash-reports-1) |
@@ -965,7 +968,8 @@ a word unless the program runs with `--debug-memory`, which prints the allocatio
 wraps in every build (D249); a `Concurrent` polled for `finished` under `resume_only_when_asked()` without
 `run_ready()` never ends ([concurrency.md](concurrency.md#choosing-where-concurrents-resume)); a `List`'s
 `set_at` and `remove_at` do nothing out of range ([collections.md](collections.md#listt-additions--implemented));
-and `String.to_integer()` and `to_long()` answer `0` for text that is not a number.
+and text assigned to an enum that names none of its values becomes the enum's first value
+([values_and_types.md](values_and_types.md)).
 
 
 `assert` doubles as the way to prove a `T?` is not null without nesting: after `assert value` on a

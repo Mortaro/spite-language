@@ -400,11 +400,8 @@ func literal_text(literal: String, class_name: String): String? {
         return null
     }
     if class_name == "Boolean" {
-        if literal == "true" {
-            return "1"
-        }
-        if literal == "false" {
-            return "0"
+        if literal == "true" or literal == "false" {
+            return literal
         }
         return null
     }

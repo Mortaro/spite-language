@@ -30,7 +30,11 @@ func parse(cursor: JsonCursor): $value_type {
         return cursor.read_boolean()
     } else if $value_type == Integer or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInteger or $value_type == UnsignedLong {
         var number_text = cursor.read_number()
-        var number: $value_type = number_text
+        var number: $value_type? = number_text
+        if not number {
+            cursor.fail("a number that fits")
+            return 0
+        }
         return number
     } else if $value_type == Symbol {
         return read_symbol(cursor)
@@ -58,7 +62,12 @@ func parse(cursor: JsonCursor): $value_type {
         cursor.expect("\{")
         var more = not cursor.consume("}")
         while more and not cursor.failed() {
-            var key: $value_type.key_type = cursor.read_text()
+            var key_text = cursor.read_text()
+            var key: $value_type.key_type? = key_text
+            if not key {
+                cursor.fail("a key that fits the dictionary")
+                return dictionary
+            }
             cursor.expect(":")
             var entry = entry_json.parse(cursor)
             dictionary.set(key, entry)

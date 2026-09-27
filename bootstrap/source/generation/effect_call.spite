@@ -33,6 +33,7 @@ func translated(key: String): String {
     var key_length = key.length()
     var position_text = key.slice(10, key_length)
     var position = position_text.to_integer()
+    crash position
     if position >= arguments.count() {
         return ""
     }

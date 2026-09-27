@@ -189,74 +189,142 @@ func to_debug(): String {
     return "\"{escaped}\""
 }
 
-func to_long(): Long {
-    var index = 0
-    while index < length() and is_space_at(index) {
-        index = index + 1
-    }
+func to_long(): Long? {
+    var index = first_non_space()
     var negative = false
     if index < length() and (code_at(index) == 45 or code_at(index) == 43) {
         negative = code_at(index) == 45
         index = index + 1
     }
+    var digits_start = index
     var value: Long = 0
     while index < length() and code_at(index) >= 48 and code_at(index) <= 57 {
         var digit: Long = code_at(index) - 48
-        if value < (Long.smallest() + digit) / 10 {
-            return 0
-        }
+        assert value >= (Long.smallest() + digit) / 10
         value = value * 10 - digit
         index = index + 1
     }
+    assert index > digits_start and only_spaces_from(index)
     if negative {
         return value
     }
-    if value == Long.smallest() {
-        return 0
-    }
+    assert value != Long.smallest()
     return -value
 }
 
-func to_integer(): Integer {
-    return to_long()
+func to_integer(): Integer? {
+    var value = to_long()
+    assert value and value >= Integer.smallest() and value <= Integer.largest()
+    return value
 }
 
-func to_tiny(): Tiny {
-    return to_long()
+func to_tiny(): Tiny? {
+    var value = to_long()
+    assert value and value >= Tiny.smallest() and value <= Tiny.largest()
+    return value
 }
 
-func to_short(): Short {
-    return to_long()
+func to_short(): Short? {
+    var value = to_long()
+    assert value and value >= Short.smallest() and value <= Short.largest()
+    return value
 }
 
-func to_byte(): Byte {
-    return to_long()
+func to_byte(): Byte? {
+    var value = to_long()
+    assert value and value >= 0 and value <= Byte.largest()
+    return value
 }
 
-func to_unsigned_short(): UnsignedShort {
-    return to_long()
+func to_unsigned_short(): UnsignedShort? {
+    var value = to_long()
+    assert value and value >= 0 and value <= UnsignedShort.largest()
+    return value
 }
 
-func to_unsigned_integer(): UnsignedInteger {
-    return to_long()
+func to_unsigned_integer(): UnsignedInteger? {
+    var value = to_long()
+    assert value and value >= 0 and value <= UnsignedInteger.largest()
+    return value
 }
 
-func to_unsigned_long(): UnsignedLong {
+func to_unsigned_long(): UnsignedLong? {
+    var index = first_non_space()
+    if index < length() and code_at(index) == 43 {
+        index = index + 1
+    }
+    var digits_start = index
+    var value: UnsignedLong = 0
+    while index < length() and code_at(index) >= 48 and code_at(index) <= 57 {
+        var digit: UnsignedLong = code_at(index) - 48
+        assert value <= (UnsignedLong.largest() - digit) / 10
+        value = value * 10 + digit
+        index = index + 1
+    }
+    assert index > digits_start and only_spaces_from(index)
+    return value
+}
+
+func first_non_space(): Integer {
     var index = 0
     while index < length() and is_space_at(index) {
         index = index + 1
     }
-    if index < length() and code_at(index) == 43 {
-        index = index + 1
-    }
-    var value: UnsignedLong = 0
-    while index < length() and code_at(index) >= 48 and code_at(index) <= 57 {
-        value = value * 10 + code_at(index) - 48
-        index = index + 1
-    }
-    return value
+    return index
 }
 
-func to_float(): Float {
-    return to_double()
+func only_spaces_from(start: Integer): Boolean {
+    var index = start
+    while index < length() and is_space_at(index) {
+        index = index + 1
+    }
+    return index == length()
+}
+
+func is_decimal_number(): Boolean {
+    var index = first_non_space()
+    if index < length() and (code_at(index) == 45 or code_at(index) == 43) {
+        index = index + 1
+    }
+    var digits = 0
+    while index < length() and code_at(index) >= 48 and code_at(index) <= 57 {
+        digits = digits + 1
+        index = index + 1
+    }
+    if index < length() and code_at(index) == 46 {
+        index = index + 1
+        while index < length() and code_at(index) >= 48 and code_at(index) <= 57 {
+            digits = digits + 1
+            index = index + 1
+        }
+    }
+    if digits == 0 {
+        return false
+    }
+    if index < length() and (code_at(index) == 101 or code_at(index) == 69) {
+        index = index + 1
+        if index < length() and (code_at(index) == 45 or code_at(index) == 43) {
+            index = index + 1
+        }
+        var exponent_digits = 0
+        while index < length() and code_at(index) >= 48 and code_at(index) <= 57 {
+            exponent_digits = exponent_digits + 1
+            index = index + 1
+        }
+        if exponent_digits == 0 {
+            return false
+        }
+    }
+    return only_spaces_from(index)
+}
+
+func to_double(): Double? {
+    assert is_decimal_number()
+    return decimal_value()
+}
+
+func to_float(): Float? {
+    var value = to_double()
+    assert value
+    return value
 }

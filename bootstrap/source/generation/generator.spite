@@ -6612,6 +6612,19 @@ func emit_allocation_table() {
     builder.add_support(joined_lines)
 }
 
+func parsed_number(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): String {
+    if not type_shape.as_string(from) or not type_shape.as_scalar(to) {
+        return ""
+    }
+    var target_label = type_label(to)
+    var conversion_name = words_of(target_label).join("_")
+    var conversion = written_string_function("to_{conversion_name}")
+    if not conversion {
+        return ""
+    }
+    return "{conversion.c_name}({code})"
+}
+
 func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): String {
     if types_equal(from, to) {
         return code
@@ -6645,6 +6658,10 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     var to_nullable = type_shape.as_nullable(to)
     if to_nullable {
         var inner = to_nullable.get_inner()
+        var parsed = parsed_number(code, from, inner)
+        if not parsed.is_empty() {
+            return parsed
+        }
         var inner_code = cast(code, from, inner)
         if type_is_reference(inner) {
             return inner_code
@@ -6692,18 +6709,13 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
             var chosen_code = enum_from_text_lines(to_enum, "spite_enum_text", "spite_enum_value", ";")
             return "(\{ SpiteString spite_enum_text = {code}; {to_enum.c_name} spite_enum_value = {to_enum.c_name}_{to_enum.values[0]}; {chosen_code} spite_enum_value; })"
         }
-        var to_scalar = type_shape.as_scalar(to)
-        if to_scalar {
+        if type_shape.as_scalar(to) {
             var target_label = type_label(to)
             var conversion_name = words_of(target_label).join("_")
-            var conversion = written_string_function("to_{conversion_name}")
-            if conversion {
-                return "{conversion.c_name}({code})"
-            }
-            if is_float_kind(to_scalar.kind) {
-                return "(({c_type_name(to)})(SpiteString_to_double({code})))"
-            }
-            return "(({c_type_name(to)})(SpiteString_to_long({code})))"
+            report(
+                "text is not {with_article(target_label)} until it is read as one, and text that is not a number has none to give: read it with 'to_{conversion_name}()', which answers '{target_label}?', null when the text is not a number that fits, and narrow it -- or declare the value '{target_label}?'",
+            )
+            return code
         }
     }
     var to_scalar_plain = type_shape.as_scalar(to)
@@ -12056,7 +12068,9 @@ func report_weak_across_threads() {
             var place = site_place.split("\n")
             current_path = place.get_at(0)
             var line_text = place.get_at(1)
-            current_line = line_text.to_integer()
+            var line_number = line_text.to_integer()
+            crash line_number
+            current_line = line_number
             current_owner = place.get_at(2)
             current_function = place.get_at(3)
             var work_text = parallel_site_texts.get_at(index)
@@ -14193,6 +14207,29 @@ func enum_from_text_lines(enum_type: Analysis.Types.EnumType, text: String, targ
     return chain.join(" else ")
 }
 
+func scalar_from_text_lines(scalar_type: Analysis.SpiteType, text: String, target: String, failure: String): String {
+    var label = type_label(scalar_type)
+    if label == "Boolean" {
+        return "if (SpiteString_equals({text}, {ensure_symbol("true")})) {target} = true; else if (SpiteString_equals({text}, {ensure_symbol("false")})) {target} = false; else {failure}"
+    }
+    var conversion_name = words_of(label).join("_")
+    var conversion = written_string_function("to_{conversion_name}")
+    var converted = "{target} = spite_parsed.value;"
+    if not conversion {
+        var scalar = type_shape.as_scalar(scalar_type)
+        crash scalar
+        var widest = "to_long"
+        if is_float_kind(scalar.kind) {
+            widest = "to_double"
+        }
+        conversion = written_string_function(widest)
+        converted = "{target} = ({c_type_name(scalar_type)})spite_parsed.value;"
+    }
+    crash conversion
+    var parsed_type = conversion.get_return_type()
+    return "\{ {c_type_name(parsed_type)} spite_parsed = {conversion.c_name}({text}); if (!spite_parsed.has_value) {failure} {converted} }"
+}
+
 func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.FieldInfo): String {
     var field_type = field.get_type()
     var function_c_name = "{information.c_name}___assign_{field.name}"
@@ -14203,8 +14240,9 @@ func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.Fie
     switch field_type {
         Analysis.Types.StringType: lines.append("{assigned_c} assigned = SpiteString___retain(text);")
         Analysis.Types.ScalarType: {
-            var string_spite_type = string_type()
-            lines.append("{assigned_c} assigned = {cast("text", string_spite_type, field_type)};")
+            lines.append("{assigned_c} assigned;")
+            var from_text_lines = scalar_from_text_lines(field_type, "text", "assigned", "return false;")
+            lines.append(from_text_lines)
         }
         Analysis.Types.EnumType: {
             lines.append("{assigned_c} assigned;")
@@ -14255,9 +14293,10 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
         switch parameter_type {
             Analysis.Types.StringType: call_arguments.append("SpiteString___retain({item})")
             Analysis.Types.ScalarType: {
-                string_spite_type = string_type()
-                var cast_code = cast(item, string_spite_type, parameter_type)
-                call_arguments.append(cast_code)
+                lines.append("{c_type_name(parameter_type)} argument_{index};")
+                var from_text_lines = scalar_from_text_lines(parameter_type, item, "argument_{index}", "return 0;")
+                lines.append(from_text_lines)
+                call_arguments.append("argument_{index}")
             }
             Analysis.Types.EnumType: {
                 lines.append("{parameter_type.c_name} argument_{index};")
@@ -17401,6 +17440,7 @@ func passed_list_path(effect: String, arguments: List<Syntax.Expressions.Express
     var effect_length = effect.length()
     var position_text = effect.slice(10, effect_length)
     var position = position_text.to_integer()
+    crash position
     if position >= arguments.count() {
         return ""
     }
@@ -19599,6 +19639,7 @@ func effect_resizes(
     }
     if not position_text.is_empty() {
         var position = position_text.to_integer()
+        crash position
         if position >= arguments.count() {
             return false
         }

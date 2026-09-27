@@ -360,6 +360,9 @@ func is_alive(): Boolean {
     a key never set, not as a zero.
 - Narrowing tests presence, never the value: `crash keys[index]` passes on an element holding `0.0`, and `if count`
   runs on an `Integer?` holding `0`.
+- Reading a number from text answers a `T?`: `"42".to_integer()` is an `Integer?`, `null` for `"forty two"`,
+  `"12abc"`, `""` or a number the type cannot hold, so narrow it (`crash count` where the text is yours, `if`/`assert`
+  where it came from outside). `var age: Integer = "42"` is an error; `var age: Integer? = "42"` reads it.
 - A function that declares a result ends every path with a `return` (or a bare `crash`): a path that reaches the
   closing `}` is an error naming it (`'sign_of' answers a String, but when 'value < 0' is false (line 12, an 'if'
   with no 'else') it reaches its end without a 'return'`). An `if`/`else` whose branches both return, a `switch`

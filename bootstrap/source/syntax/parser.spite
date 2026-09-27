@@ -1020,12 +1020,14 @@ func try_parse_generic_argument_quiet(): Syntax.Types.GenericArgument? {
     if check('integer_literal') {
         var token = advance()
         var text_number = token.text.to_long()
+        assert text_number
         var argument: Syntax.Types.GenericArgument = Syntax.Types.IntegerArgument(text_number)
         return argument
     }
     if check('float_literal') {
         var token = advance()
         var text_number = token.text.to_double()
+        assert text_number
         var argument: Syntax.Types.GenericArgument = Syntax.Types.FloatArgument(text_number)
         return argument
     }
@@ -1322,11 +1324,18 @@ func parse_primary(): Syntax.Expressions.Expression {
     if check('integer_literal') {
         var token = advance()
         var text_number = token.text.to_long()
+        if not text_number {
+            fail(
+                "'{token.text}' does not fit a Long, the widest whole number, which holds up to 9223372036854775807: write a smaller number, or 'Long.smallest()' for the most negative one",
+            )
+            return dummy_expression()
+        }
         return Syntax.Expressions.IntegerLiteral(text_number)
     }
     if check('float_literal') {
         var token = advance()
         var text_number = token.text.to_double()
+        crash text_number
         var float_literal = Syntax.Expressions.FloatLiteral(text_number)
         float_literal.written = token.lexeme
         return float_literal
