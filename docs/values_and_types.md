@@ -379,7 +379,9 @@ method table.
 `Monster?` is a `Monster` or `null`, and `null` exists for nothing else. A `T?` is narrowed before it is used --
 `if value { } else { }`, `assert value`, `crash value`, `while value`, or a `switch` with a `Null:` case -- and
 reading with `[]` answers one. All of it is in [failure.md](failure.md), with the three outcomes a failure can
-have.
+have. Since `null` belongs to `T?` alone, `var target: Monster = null` is an error that asks for `Monster?` (none
+yet) or `Monster()` (a default), and a generic class makes the default of what it is bound to with `$name()`
+([the rules](#variables-and-values--implemented), D236).
 
 ## Enums
 
@@ -598,7 +600,7 @@ plain `{ key: value }` literal work. The empty `type`, which every object fits, 
 never declare an empty `type` of your own.
 
 A `type` of attributes only has a default like a class does: the object literal with each attribute at its own
-default, whose `.class` answers `Object`. So `var target: $target_type = null` in a generic class bound to such a
+default, whose `.class` answers `Object`. So `var target = $target_type()` in a generic class bound to such a
 `type` holds a real object, and what is written through it stays written.
 
 A `type` may require functions as well as attributes. A required function names the types it takes and returns,
@@ -729,7 +731,23 @@ var target: Monster? = null
 - Every class has a default value (`Integer` 0, `Float` 0.0, `Boolean` false, `String` "", a class: its attribute defaults).
   Operations that cannot succeed produce the default instead of crashing -- except reading with `[]`, which
   answers `T?` (D64): an index or key that may not be there is a value that may be null, narrowed like any other.
-- `null` exists only as the empty state of `T?`. See [Open questions](open_questions.md#open-questions) for `= null` on other types.
+- `null` exists only as the empty state of `T?`. **`var x: T = null` on a non-nullable `T` is a compile error**
+  (D236, decided by Claude under D205, an instance of D244): it made a default `T` -- a whole object, for a
+  class -- while reading as "nothing yet", so a later `assert x` proved nothing. The error names both ways out:
+  `the attribute 'target' is declared 'Monster', not 'Monster?', so '= null' would make a default Monster rather
+  than nothing: write 'var target: Monster? = null' for none yet, narrowed before use, or 'var target =
+  Monster()' for a default, or keep '= null' and assign it at the top of the constructor` (the default of a plain
+  value is its literal: `0`, `0.0`, `false`, `""`). The readings below are proposed by Claude, unconfirmed:
+  - In a generic class, `$name()` makes the default of whatever `$name` is bound to -- a class through its
+    constructor with no arguments, an empty `List` or `Dictionary`, a `type`'s default object, `0` -- and in a
+    template, `argument.class()` (any walked symbol's `.class()`) makes the walked class's. So `var system:
+    $system_type = null` is written `var system = $system_type()`.
+  - Two forms keep `= null`, since what they declare is filled rather than thrown away: an attribute the
+    constructor assigns at its top level (`var left: $left_type = null` with `left = new_left` in the constructor),
+    and a local that a walk over its type's attributes fills later in the same function -- D212's walked row
+    (`var row: $row_type = null` then `fill_attributes(row, index)`), D220's `var made: argument.class = null`
+    filled and returned, and a reader filling an object attribute by attribute.
+  `diagnostics/null_defaults`, `diagnostics/null_default_locals`, `conformance/stage6/codegen_defaults`.
 - An inner `var` may shadow an outer local, parameter, or attribute with the same name, **and a `var` may shadow
   a name in the same scope too** (D51, decided by Mortaro). It may never shadow a function it can see (D172,
   [functions_and_operators.md](functions_and_operators.md)). The second binding may hold a different type, which

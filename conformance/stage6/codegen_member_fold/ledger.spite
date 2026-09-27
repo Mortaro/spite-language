@@ -1,6 +1,6 @@
 generic $map_type
 
-var entries: $map_type = null
+var entries = $map_type()
 
 func describe(): String {
     if $map_type.key_type == String and $map_type.value_type == Integer {

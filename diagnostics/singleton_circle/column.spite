@@ -1,0 +1,10 @@
+singleton
+
+generic $component_type
+
+var values = List<$component_type>()
+var columns = Columns()
+
+func column_count(): Integer {
+    return columns.count
+}

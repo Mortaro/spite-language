@@ -1,0 +1,42 @@
+var console = Console()
+var layouts = Column<Layout>()
+var lookup = Lookup<Layout>()
+var kept = Layout()
+var listed = List<Layout>()
+var scores = Scores()
+
+func LentResults() {
+    var first = Layout()
+    layouts.insert(first)
+    var layout = lookup.of(0)
+    crash layout
+    kept = layout
+    listed.append(layout)
+    var alias = layout
+    var raise = layout.raise
+    show(layout)
+    var grown = lookup.of(0)
+    crash grown
+    var second = Layout()
+    layouts.insert(second)
+    grown.order = 2
+    var made = scores.at_or_made(1)
+    console.print(alias.order, made.order)
+    raise()
+    renamed()
+}
+
+func renamed() {
+    var layout = Layout()
+    console.print(layout.order)
+    var layout = lookup.of(0)
+    console.print(layout.order)
+}
+
+func handed_on(): Layout? {
+    return lookup.of(0)
+}
+
+func show(layout: Layout) {
+    console.print(layout.order)
+}

@@ -1,0 +1,10 @@
+var console = Console()
+var registry = Registry()
+
+func SingletonCircle() {
+    crash registry.entries[0]
+    var pages = registry.entries[0].pages()
+    var page = Page()
+    var entries = page.entries()
+    console.print("never printed", pages, entries)
+}

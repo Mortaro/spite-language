@@ -1,0 +1,7 @@
+var console = Console()
+
+func NullDefaultLocals() {
+    var count: Integer = null
+    var label: String = null
+    console.print(count, label)
+}

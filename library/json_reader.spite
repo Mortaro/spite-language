@@ -43,7 +43,7 @@ func parse(cursor: JsonCursor): $value_type {
         var inner = JsonReader<$value_type.value_type>("")
         return inner.parse(cursor)
     } else if $value_type == List {
-        var list: $value_type = null
+        var list = $value_type()
         var element_json = JsonReader<$value_type.element_type>("")
         cursor.expect("[")
         var more = not cursor.consume("]")
@@ -57,7 +57,7 @@ func parse(cursor: JsonCursor): $value_type {
         }
         return list
     } else if $value_type == Dictionary {
-        var dictionary: $value_type = null
+        var dictionary = $value_type()
         var entry_json = JsonReader<$value_type.value_type>("")
         cursor.expect("\{")
         var more = not cursor.consume("}")

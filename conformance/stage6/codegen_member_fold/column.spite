@@ -1,6 +1,6 @@
 generic $list_type
 
-var values: $list_type = null
+var values = $list_type()
 
 func describe(): String {
     crash values.count() > 0

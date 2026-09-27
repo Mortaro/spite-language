@@ -2,4 +2,4 @@ singleton
 
 generic $component_type
 
-var current: $component_type = null
+var current = $component_type()

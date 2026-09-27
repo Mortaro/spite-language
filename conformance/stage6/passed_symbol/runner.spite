@@ -5,7 +5,7 @@ enum Phase {
     'render'
 }
 
-var system: $system_type = null
+var system = $system_type()
 var console = Console()
 
 func run() {
@@ -27,6 +27,6 @@ func call_system(phase: Symbol<$system_type.phase_all>) {
 }
 
 func made_argument(argument: Symbol<$system_type.phase_all>): argument.class {
-    var made: argument.class = null
+    var made = argument.class()
     return made
 }

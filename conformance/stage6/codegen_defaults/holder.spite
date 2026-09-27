@@ -1,0 +1,15 @@
+generic $held_type
+
+var held = $held_type()
+var spare: $held_type? = null
+
+func value(): $held_type {
+    return held
+}
+
+func has_spare(): Boolean {
+    if spare {
+        return true
+    }
+    return false
+}

@@ -455,7 +455,7 @@ enum Phase {
     'update'
 }
 
-var system: $system_type = null
+var system = $system_type()
 var found = Items<Integer>()
 
 func run(index: Integer) {
@@ -500,6 +500,55 @@ or pass it on, and nothing it reaches may append to or remove from a column it b
 called anywhere else is an ordinary function, and returning a borrowed item from it is the error for returning one.
 The template may also fill a whole walked row for an argument that is a `type`
 ([the rules](#borrowed-items-of-a-vectort--implemented)).
+
+### An item lent to the caller
+
+A singleton lives until the program ends, so an item of its `Items` or `Vector` can be handed to a caller: a
+function that returns `column.values[row]`, read straight from a singleton's storage, **lends** the stored item,
+and the caller writes it in place ([D230](decisions.md)):
+
+```gdscript title=lent_result_doc/column.spite
+singleton
+
+generic $component_type
+
+var values = Items<$component_type>()
+```
+```gdscript title=lent_result_doc/lookup.spite
+generic $component_type
+
+var column = Column<$component_type>()
+
+func of(row: Integer): $component_type? {
+    assert row < column.values.count()
+    return column.values[row]
+}
+```
+```gdscript title=lent_result_doc/layout.spite
+var order = 0
+```
+```gdscript title=lent_result_doc/lent_result_doc.spite entry
+var console = Console()
+var layouts = Column<Layout>()
+var lookup = Lookup<Layout>()
+
+func LentResultDoc() {
+    var made = Layout()
+    layouts.values.append(made)
+    var layout = lookup.of(0)
+    crash layout
+    layout.order = 3
+    console.print(layouts.values[0].order)
+}
+```
+```output
+3
+```
+
+Nothing is copied or counted, so `layout.order = 3` is never a write to a copy that is then thrown away. The
+borrow now belongs to the caller, and every rule for a borrowed item holds there: `layout` is not kept, put in a
+list, returned further, passed on or given a second name, and it is not read past a line that may append to or
+remove from `Column<Layout>().values`. A function that lends gives back only such items, or `null`.
 
 ## `drop()` runs once, right before the object is freed
 
@@ -1359,6 +1408,39 @@ kept past its use. What is built (the error texts and the readings marked are pr
   compiled for that call. `benchmarks/lent_arguments`: 6.9 ms a tick against 34.3 ms copying each argument out and
   back ([optimizations.md](optimizations.md#a-row-of-borrowed-items-lives-in-the-frame);
   `conformance/stage6/lent_arguments`).
+- **An item lent to the caller** (D230, decided by Claude under D205; the error texts and the readings below
+  proposed by Claude, unconfirmed). A function one of whose `return`s reads an item straight from a singleton's
+  storage -- `return column.values[row]` or `return values[index]` (`get_at` too), where the path is attributes
+  of the function's class, the object holding the last attribute is a singleton, and that attribute is a `Vector`
+  or an `Items` whose class fits one -- **lends its result**: the item is returned uncounted and its caller never
+  lets it go. It is decided per class the function is compiled for, so `Lookup<Label>.of` over an `Items` of
+  references returns a counted reference as before, and a branch dropped while compiling (`if
+  $component_type.fits_vector()`) does not count. At every caller:
+  - the result is a borrowed item of `<Singleton>().<attribute>` -- `'layout' is borrowed from
+    'Column<Layout>().values'` -- and every rule above applies to it: `var layout = lookup.of(entity)` names it,
+    `layout.order = 3` and `lookup.of(entity).order = 3` write the stored item, and it is not kept in an
+    attribute, put in a list, passed as an argument, given a second name, assigned again, captured in a function
+    value or read past a line whose call effects may append to or remove from that storage, whose error ends
+    `... so 'grown' is not read after it: ask for the item again after that line, or keep 'grown.copy()', an
+    independent object`;
+  - **it is not returned further**: only the read from the singleton's storage lends, so `return lookup.of(0)`, or
+    returning a name that holds it, is the error for returning a borrowed item, ending `-- a function lends its
+    caller an item only by reading it from a singleton's Items or Vector itself, never one that was lent to it
+    (D230)`;
+  - a name already used in the block is not reused for it: `'tally' already names a value earlier in this block,
+    and an item borrowed from 'Column<Tally>().values' is given a name of its own: call it something new, such as
+    'var tally_item = ...'` (this applies to every borrowed item).
+  A function that lends returns only such items or `null`: any other value would be an object the caller never
+  lets go, so it is `'at_or_made' lends its caller an item of 'Scores().values', which the caller writes in place
+  and never lets go, so each of its returns is an item of 'Scores().values' or null: 'made' is neither -- return
+  null for 'none', with a '?' result, or make it a function of its own`. A storage path through a local, a
+  parameter or an object that is not a singleton keeps D204's refusal, since that storage may not outlive the
+  call. **Cost**: none -- the return is the item's address, with no retain, and the caller releases nothing
+  (`conformance/stage6/lent_results`, `diagnostics/lent_results`).
+- **A walked line names the attribute's class wherever it was declared** (proposed by Claude, unconfirmed; a bug
+  fix found making every fitting component inline in SlopEngine). `Column<attribute.class>()` in a walked row or
+  a plural's argument is written out with the class's full name, so a row type declared in another namespace
+  (`mouse: Component.Mouse` in `Input`) names the same class from the runner's file.
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/vector_rows`, `conformance/stage6/vector_items`,
 `conformance/stage6/vector_rows`, `conformance/stage6/walked_rows`, `diagnostics/walked_rows`,

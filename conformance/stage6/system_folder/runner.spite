@@ -1,6 +1,6 @@
 generic $system_type
 
-var system: $system_type = null
+var system = $system_type()
 var counts = List<Integer>()
 var picked = List<Integer>()
 var position = 0

@@ -1,6 +1,6 @@
 generic $system_type
 
-var system: $system_type = null
+var system = $system_type()
 var tasks = List<Concurrent<Nothing>>()
 
 func frame() {

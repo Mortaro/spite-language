@@ -10,6 +10,6 @@ func run(system: $system_type) {
 }
 
 func run_phase_each(phase: Symbol<$system_type.phase_each>, system: $system_type) {
-    var row: $row_type = null
+    var row = $row_type()
     system.phase_each(row)
 }
