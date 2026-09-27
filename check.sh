@@ -187,6 +187,14 @@ if grep -q "whole / pieces" "$work/division.c" || ! grep -q "total / parts" "$wo
   echo "FAILED: division_by_zero should check 'total / parts' and not the proven 'whole / pieces'"; exit 1
 fi
 echo "division: a proven divisor carries no zero check"
+# Every '.class' a program compares is known once generics are resolved: walked_class_fold tests 'attribute.class'
+# in an attribute walk and 'given == known.class' on an Anything, and its C makes no Spite.Class object at all.
+"$work/generation_two.exe" conformance/stage6/walked_class_fold --run=false --c-source --c-path="$work/walked_class.c" > /dev/null 2>&1 || {
+  echo "FAILED: walked_class_fold does not write its C"; exit 1; }
+if grep -q "spite_class_object_" "$work/walked_class.c"; then
+  echo "FAILED: walked_class_fold should compare classes without making a Spite.Class object"; exit 1
+fi
+echo "class comparisons: a class known while compiling is compared by its id, with no class object made"
 # A loop over a list of plain values that cannot change its size reads the count once and its items without a range
 # check (docs/optimizations.md): counted_loops' scale_in_place is a plain C loop the C compiler can vectorise, and
 # scale_into checks the list it writes once, before the loop; add_from, whose counter starts at a parameter, is not.

@@ -1155,7 +1155,29 @@ no walk gives it a place, it is the error "'attribute.index' is the attribute's 
 so it is read in a function a walk of attributes calls, such as 'fill_attribute(attribute: Symbol<Row>, ...)'".
 In the same templates **`attribute.class == Entity` is decided while compiling** for each attribute, like
 `$component_type == Entity` in a generic, and only the branch taken is compiled (proposed by Claude,
-unconfirmed; `conformance/stage6/sparse_rows`).
+unconfirmed; `conformance/stage6/sparse_rows`), whatever the attribute's type: an `Integer` or `String`
+attribute answers `false` there too, so `if attribute.class == Entity { value.attributes[attribute].id = ... }`
+compiles for a class that also holds numbers (fixed 2026-09-27: only an attribute whose type is a class folded;
+`conformance/stage6/walked_class_fold`); an attribute that may be null (`Entity?`) is not an `Entity`, so the test
+folds to `false` for it as `$T == Entity` does for a `$T` of `Entity?`.
+
+**Every `.class` a program compares is known once generics are resolved and each instance is compiled** (decided
+by Mortaro, 2026-09-27: "every attribute.class should be possible to figure out at compile time after we resolve
+generics and monomorphise"; built as proposed by Claude, unconfirmed).  **[implemented]** In a template instance --
+a Symbol walk, a generic class's instance, a plural -- `attribute.class`, a walked symbol's `.class` and `$T` are
+constants of that instance, so every comparison and question on them folds: `==`, `!=`, `has_function`,
+`function_waits`, `argument_count`, `fits_vector`, `element_type` and the other codegen names. Outside a template,
+`value.class` of a value whose type is one class is that class. So comparing a value that is only known at run
+time with such a class -- `given == known.class` with `given: Anything`, or `given == attribute.class` -- is the
+class test `given == Targeting`: one comparison of the object's class id, and no `Spite.Class` object is made
+(this also fixed that comparison, which compared the value with a class object made for the purpose, answered
+`false` and leaked the object; `check.sh` greps `conformance/stage6/walked_class_fold`'s C for any class object).
+In a walk over a folder's classes, `given == bundle.class` and `BundleKind<bundle.class>().is_kind(given)` (with
+`given == $bundle_type` inside) are the same test, and answer alike for a class holding a marker, a class whose
+constructor takes arguments and a plain one.
+The only `.class` values left at run time are the reflection objects a program walks as data -- a
+`Spite.Class` in a list, `x.class.attributes` walked in a plain loop, the class of a value read through a union
+or a `type` -- and those are values, not folds.
 
 **`attribute.camel_case_name` and `attribute.pascal_case_name` are the attribute's name in other systems'
 spellings** (D230, decided by Claude under D205; the names provisional under D214).  **[implemented]** In a

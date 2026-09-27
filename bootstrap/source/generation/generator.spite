@@ -961,12 +961,16 @@ func walked_class_is(
         assert right_type
         return exact_type_label(bound_field_type) == exact_type_label(right_type)
     }
-    var field_class = type_shape.as_class_ref(bound_field_type)
-    assert field_class
-    assert not field_class.has_signature
     var tested = try_resolve_static_path(right, class_information.qualified_dotted)
     assert tested
-    return field_class.c_name == tested.c_name
+    if type_shape.as_nullable(bound_field_type) {
+        return false
+    }
+    var field_class = class_of_type(bound_field_type)
+    if field_class {
+        return field_class.c_name == tested.c_name
+    }
+    return false
 }
 
 func class_fits_vector(described: Analysis.ClassInfo): Boolean {
@@ -7421,6 +7425,47 @@ func maybe_null_only_on_the_right(
     return type_shape.as_nullable(right_probe_type) and not type_shape.as_nullable(left_probe_type)
 }
 
+func static_class_read(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var read = shape.as_member(expression)
+    assert read
+    assert read.name == "class"
+    crash read.object
+    assert is_plain_path(read.object)
+    var walked = shape.as_identifier(read.object)
+    if walked {
+        if walked.name == bound_symbol_name and not bound_symbol_name.is_empty() {
+            assert bound_field_type
+            assert not type_shape.as_nullable(bound_field_type)
+            return class_of_type(bound_field_type)
+        }
+    }
+    var saved_counter = temporary_counter
+    var probe = generate_expression(read.object, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var probe_type = probe.get_type()
+    var probe_class = type_shape.as_class_ref(probe_type)
+    assert probe_class
+    assert not probe_class.has_signature
+    var found = find_class_by_c_name(probe_class.c_name)
+    assert found
+    assert found.c_name != "Spite_Class" and not found.is_generic_template
+    return found
+}
+
+func is_plain_path(expression: Syntax.Expressions.Expression): Boolean {
+    if shape.as_identifier(expression) {
+        return true
+    }
+    var member = shape.as_member(expression)
+    assert member
+    crash member.object
+    return is_plain_path(member.object)
+}
+
 func tested_class_of(
     expression: Syntax.Expressions.Expression,
     class_information: Analysis.ClassInfo,
@@ -7671,6 +7716,10 @@ func generate_binary(
             if not try_resolve_static_path(binary.left, class_information.qualified_dotted) {
                 return generate_class_test(binary, tested_class, scope, class_information)
             }
+        }
+        var read_class = static_class_read(binary.right, scope, class_information)
+        if read_class {
+            return generate_class_test(binary, read_class, scope, class_information)
         }
         if maybe_null_only_on_the_right(binary, scope, class_information) {
             var mirrored: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression(

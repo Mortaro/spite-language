@@ -1,0 +1,18 @@
+generic $component_type
+
+var offset = 100
+var plain_count = 0
+
+func translate(value: $component_type) {
+    translate_attributes(value)
+}
+
+func translate_attribute(attribute: Symbol<$component_type>, value: $component_type) {
+    if attribute.class == Entity {
+        var held = value.attributes[attribute]
+        held.id = held.id + offset
+    }
+    if attribute.class != Entity {
+        plain_count = plain_count + 1
+    }
+}

@@ -143,6 +143,9 @@ even use things that would not compile for this build. That covers:
 - a test on a codegen value's own codegen values, `$list_type.element_type == Float`,
   `$map_type.value_type == Item`, `$holder_type.held_type == String`, to any depth, in every branch of an
   `else if` chain (`conformance/stage6/codegen_member_fold`; fixed 2026-09-26, when only a plain `$T` folded);
+- `attribute.class == X` in an attribute walk, for an attribute of any type (D231); and where a value known only at
+  run time is compared with a `.class` known while compiling (`given == known.class`), the comparison is a class-id
+  test and no `Spite.Class` object is made (`conformance/stage6/walked_class_fold`);
 - `not`, `and`, `or`, `==` and `!=` over any of these. An `and` whose left side folds to `false`, and an `or` whose
   left side folds to `true`, fold whatever the right side is, as the run-time `and` and `or` would never look at
   it: so `$list_type.element_type == List and $list_type.element_type.element_type == Float` folds for a list of
