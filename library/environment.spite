@@ -63,8 +63,9 @@ func boolean_setting(name: String, declared: Boolean): Boolean {
 func integer_setting(name: String, declared: Integer): Integer {
     var text = setting(name)
     if text {
-        crash is_whole_number(text)
-        return text.to_integer()
+        var number = text.to_integer()
+        crash number
+        return number
     }
     return declared
 }

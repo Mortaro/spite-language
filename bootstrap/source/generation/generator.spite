@@ -14,6 +14,12 @@ var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
 var terminal_if: Syntax.Statements.IfStatement? = null
+var leaving_statements = List<Syntax.Statements.Statement>()
+var trace_asserts = false
+var crash_parts = List<CrashPart>()
+var crash_capturing = false
+var crash_capture_counter = 0
+var falling_ends = List<String>()
 var symbol_names = List<String>()
 var symbol_lookup_used = false
 var symbol_positions = Dictionary<Integer>()
@@ -577,6 +583,10 @@ func generate(
     )
     var traced = "#define SPITE_TRACE_ASSERT(site) (spite_assert_trace[spite_assert_total % 32] = (site), spite_assert_total = spite_assert_total + 1)"
     var untraced = "#define SPITE_TRACE_ASSERT(site) ((void)0)"
+    if trace_asserts {
+        traced = "#define SPITE_TRACE_ASSERT(site) (fflush(stdout), fputs((site), stderr), spite_assert_trace[spite_assert_total % 32] = (site), spite_assert_total = spite_assert_total + 1)"
+        untraced = "#define SPITE_TRACE_ASSERT(site) (fflush(stdout), fputs((site), stderr))"
+    }
     var trace_macro = builder.type_placeholder_if_kept("spite_report_assert_trace", traced, untraced)
     builder.add_typedef(trace_macro)
     register_classes(discovery.class_files)
@@ -5392,6 +5402,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         )
     }
     function.line = declaration.line
+    function.end_line = declaration.end_line
     if is_constructor {
         information.constructor = function
     } else if declaration.name == "drop" {
@@ -6773,6 +6784,19 @@ func emit_allocation_table() {
     builder.add_support(joined_lines)
 }
 
+func parsed_number(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): String {
+    if not type_shape.as_string(from) or not type_shape.as_scalar(to) {
+        return ""
+    }
+    var target_label = type_label(to)
+    var conversion_name = words_of(target_label).join("_")
+    var conversion = written_string_function("to_{conversion_name}")
+    if not conversion {
+        return ""
+    }
+    return "{conversion.c_name}({code})"
+}
+
 func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): String {
     if types_equal(from, to) {
         return code
@@ -6806,6 +6830,10 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     var to_nullable = type_shape.as_nullable(to)
     if to_nullable {
         var inner = to_nullable.get_inner()
+        var parsed = parsed_number(code, from, inner)
+        if not parsed.is_empty() {
+            return parsed
+        }
         var inner_code = cast(code, from, inner)
         if type_is_reference(inner) {
             return inner_code
@@ -6853,18 +6881,13 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
             var chosen_code = enum_from_text_lines(to_enum, "spite_enum_text", "spite_enum_value", ";")
             return "(\{ SpiteString spite_enum_text = {code}; {to_enum.c_name} spite_enum_value = {to_enum.c_name}_{to_enum.values[0]}; {chosen_code} spite_enum_value; })"
         }
-        var to_scalar = type_shape.as_scalar(to)
-        if to_scalar {
+        if type_shape.as_scalar(to) {
             var target_label = type_label(to)
             var conversion_name = words_of(target_label).join("_")
-            var conversion = written_string_function("to_{conversion_name}")
-            if conversion {
-                return "{conversion.c_name}({code})"
-            }
-            if is_float_kind(to_scalar.kind) {
-                return "(({c_type_name(to)})(SpiteString_to_double({code})))"
-            }
-            return "(({c_type_name(to)})(SpiteString_to_long({code})))"
+            report(
+                "text is not {with_article(target_label)} until it is read as one, and text that is not a number has none to give: read it with 'to_{conversion_name}()', which answers '{target_label}?', null when the text is not a number that fits, and narrow it -- or declare the value '{target_label}?'",
+            )
+            return code
         }
     }
     var to_scalar_plain = type_shape.as_scalar(to)
@@ -10537,6 +10560,7 @@ func ensure_into_variant(owner: Analysis.ClassInfo, function: Analysis.FunctionI
         false,
     )
     variant.line = function.line
+    variant.end_line = function.end_line
     variant.source_path = function.source_path
     variant.symbol_name = function.symbol_name
     variant.symbol_field_name = function.symbol_field_name
@@ -12365,7 +12389,9 @@ func report_weak_across_threads() {
             var place = site_place.split("\n")
             current_path = place.get_at(0)
             var line_text = place.get_at(1)
-            current_line = line_text.to_integer()
+            var line_number = line_text.to_integer()
+            crash line_number
+            current_line = line_number
             current_owner = place.get_at(2)
             current_function = place.get_at(3)
             var work_text = parallel_site_texts.get_at(index)
@@ -14503,6 +14529,29 @@ func enum_from_text_lines(enum_type: Analysis.Types.EnumType, text: String, targ
     return chain.join(" else ")
 }
 
+func scalar_from_text_lines(scalar_type: Analysis.SpiteType, text: String, target: String, failure: String): String {
+    var label = type_label(scalar_type)
+    if label == "Boolean" {
+        return "if (SpiteString_equals({text}, {ensure_symbol("true")})) {target} = true; else if (SpiteString_equals({text}, {ensure_symbol("false")})) {target} = false; else {failure}"
+    }
+    var conversion_name = words_of(label).join("_")
+    var conversion = written_string_function("to_{conversion_name}")
+    var converted = "{target} = spite_parsed.value;"
+    if not conversion {
+        var scalar = type_shape.as_scalar(scalar_type)
+        crash scalar
+        var widest = "to_long"
+        if is_float_kind(scalar.kind) {
+            widest = "to_double"
+        }
+        conversion = written_string_function(widest)
+        converted = "{target} = ({c_type_name(scalar_type)})spite_parsed.value;"
+    }
+    crash conversion
+    var parsed_type = conversion.get_return_type()
+    return "\{ {c_type_name(parsed_type)} spite_parsed = {conversion.c_name}({text}); if (!spite_parsed.has_value) {failure} {converted} }"
+}
+
 func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.FieldInfo): String {
     var field_type = field.get_type()
     var function_c_name = "{information.c_name}___assign_{field.name}"
@@ -14513,8 +14562,9 @@ func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.Fie
     switch field_type {
         Analysis.Types.StringType: lines.append("{assigned_c} assigned = SpiteString___retain(text);")
         Analysis.Types.ScalarType: {
-            var string_spite_type = string_type()
-            lines.append("{assigned_c} assigned = {cast("text", string_spite_type, field_type)};")
+            lines.append("{assigned_c} assigned;")
+            var from_text_lines = scalar_from_text_lines(field_type, "text", "assigned", "return false;")
+            lines.append(from_text_lines)
         }
         Analysis.Types.EnumType: {
             lines.append("{assigned_c} assigned;")
@@ -14565,9 +14615,10 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
         switch parameter_type {
             Analysis.Types.StringType: call_arguments.append("SpiteString___retain({item})")
             Analysis.Types.ScalarType: {
-                string_spite_type = string_type()
-                var cast_code = cast(item, string_spite_type, parameter_type)
-                call_arguments.append(cast_code)
+                lines.append("{c_type_name(parameter_type)} argument_{index};")
+                var from_text_lines = scalar_from_text_lines(parameter_type, item, "argument_{index}", "return 0;")
+                lines.append(from_text_lines)
+                call_arguments.append("argument_{index}")
             }
             Analysis.Types.EnumType: {
                 lines.append("{parameter_type.c_name} argument_{index};")
@@ -15551,7 +15602,9 @@ func report_unsettled_keys() {
             assert parts.count() >= 3
             var line_text = parts[parts.count() - 2]
             crash line_text
-            current_line = line_text.to_integer()
+            var line_number = line_text.to_integer()
+            crash line_number
+            current_line = line_number
             parts.remove_last()
             parts.remove_last()
             current_path = parts.join(":")
@@ -17541,7 +17594,38 @@ func generate_expression(
     expression_depth = expression_depth + 1
     var result = generate_expression_kind(expression, scope, class_information)
     expression_depth = expression_depth - 1
+    if crash_capturing {
+        capture_crash_part(expression, result)
+    }
     return result
+}
+
+func capture_crash_part(expression: Syntax.Expressions.Expression, result: ExpressionResult) {
+    var index = 0
+    while index < crash_parts.count() {
+        var part = crash_parts[index]
+        var candidate = part.get_expression()
+        if candidate == expression {
+            capture_into(part, expression, result)
+            return
+        }
+        index = index + 1
+    }
+}
+
+func capture_into(part: CrashPart, expression: Syntax.Expressions.Expression, result: ExpressionResult) {
+    if part.is_reach {
+        result.code = "({part.set_name} = true, ({result.code}))"
+        return
+    }
+    var result_type = result.get_type()
+    assert part.is_call and is_shown_type(result_type)
+    part.captured_type = result_type
+    part.owned = owns(result, expression) and type_needs_drop(result_type)
+    if part.owned {
+        result.owning_override = false
+    }
+    result.code = "({part.set_name} = true, {part.value_name} = ({result.code}))"
 }
 
 func generate_expression_kind(
@@ -17985,6 +18069,7 @@ func passed_list_path(effect: String, arguments: List<Syntax.Expressions.Express
     var effect_length = effect.length()
     var position_text = effect.slice(10, effect_length)
     var position = position_text.to_integer()
+    crash position
     if position >= arguments.count() {
         return ""
     }
@@ -20707,6 +20792,7 @@ func effect_resizes(
     }
     if not position_text.is_empty() {
         var position = position_text.to_integer()
+        crash position
         if position >= arguments.count() {
             return false
         }
@@ -23903,12 +23989,16 @@ func report_default_assert(
     var leaving = printer.source_expression(negated)
     var name = type_display_name(return_type)
     var answer = example_answer(return_type)
+    var answer_choice = ""
+    if not answer.is_empty() {
+        answer_choice = " return a value ('if {leaving} \{ return {answer} }'),"
+    }
     var nullable_choice = " make the result '{name}?',"
     if answer == "false" {
         nullable_choice = ""
     }
     report(
-        "this 'assert' would answer a default {name} ({shown_default(return_type)}) that a caller cannot tell from a real one: return a value ('if {leaving} \{ return {answer} }'),{nullable_choice} or 'crash {condition}' if this is a developer mistake",
+        "this 'assert' would answer a default {name} ({shown_default(return_type)}) that a caller cannot tell from a real one:{answer_choice}{nullable_choice} or 'crash {condition}' if this is a developer mistake",
     )
 }
 
@@ -23926,7 +24016,7 @@ func shown_default(return_type: Analysis.SpiteType): String {
         crash first_value
         return "'{first_value}'"
     }
-    return "every attribute at its default"
+    return "an object with every attribute at its default"
 }
 
 func example_answer(return_type: Analysis.SpiteType): String {
@@ -23949,7 +24039,33 @@ func example_answer(return_type: Analysis.SpiteType): String {
         crash first_value
         return "'{first_value}'"
     }
-    return "..."
+    return made_answer(return_type)
+}
+
+func made_answer(return_type: Analysis.SpiteType): String {
+    var made = ""
+    var class_reference = type_shape.as_class_ref(return_type)
+    if not class_reference or current_class_is_generic() {
+        return made
+    }
+    var made_class = find_class_by_c_name(class_reference.c_name)
+    if not made_class or made_class.is_singleton or not made_class.codegen_types.is_empty() {
+        return made
+    }
+    if made_class.constructor {
+        if not made_class.constructor.parameters.is_empty() {
+            return made
+        }
+    }
+    return "{type_display_name(return_type)}()"
+}
+
+func current_class_is_generic(): Boolean {
+    var instanced = false
+    if current_class {
+        instanced = not current_class.codegen_types.is_empty()
+    }
+    return instanced
 }
 
 func report_default_guard(if_statement: Syntax.Statements.IfStatement, function_information: Analysis.FunctionInfo) {
@@ -27498,13 +27614,137 @@ func operand_text(expression: Syntax.Expressions.Expression): String {
     return ""
 }
 
-func emit_crash_operand(
+func emit_crash_parts(scope: Scope, class_information: Analysis.ClassInfo) {
+    var shown = List<String>()
+    var index = 0
+    while index < crash_parts.count() {
+        var part = crash_parts[index]
+        if not part.is_reach and not shown.contains(part.label) and is_part_shown(part, scope, class_information) {
+            shown.append(part.label)
+            emit_crash_part(part, scope, class_information)
+        }
+        index = index + 1
+    }
+}
+
+func is_part_shown(part: CrashPart, scope: Scope, class_information: Analysis.ClassInfo): Boolean {
+    if part.is_call {
+        if part.captured_type {
+            return true
+        }
+        return false
+    }
+    var bare = not part.label.contains(".") and not part.label.contains("[")
+    if not part.reached_names.is_empty() and not bare {
+        return false
+    }
+    var root = scope.path_root(part.label)
+    var local_type = scope.lookup_type(root)
+    var field = class_information.find_field(root)
+    var readable = false
+    if local_type or field {
+        readable = true
+    }
+    return readable
+}
+
+func emit_crash_part(part: CrashPart, scope: Scope, class_information: Analysis.ClassInfo) {
+    var conditions = part.reached_names.copy()
+    if part.is_call {
+        conditions.append(part.set_name)
+    }
+    var opened = not conditions.is_empty()
+    if opened {
+        builder.add_user("if ({conditions.join(" && ")}) \{")
+        conditional_depth = conditional_depth + 1
+    }
+    var expression = part.get_expression()
+    if part.is_call {
+        crash part.captured_type
+        emit_shown_value(part.label, part.value_name, part.captured_type, expression, scope, class_information)
+    } else {
+        emit_named_part(part.label, expression, scope, class_information)
+    }
+    if opened {
+        conditional_depth = conditional_depth - 1
+        builder.add_user("}")
+    }
+}
+
+func emit_named_part(
+    label: String,
     expression: Syntax.Expressions.Expression,
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ) {
-    var name = operand_text(expression)
-    assert not name.is_empty()
+    var saved_counter = temporary_counter
+    var probe = generate_expression(expression, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var probe_type = probe.get_type()
+    if type_shape.as_nullable(probe_type) {
+        emit_shown_value(label, probe.code, probe_type, expression, scope, class_information)
+        return
+    }
+    assert is_shown_type(probe_type)
+    emit_labelled_operand(label, expression, scope, class_information)
+}
+
+func emit_shown_value(
+    label: String,
+    code: String,
+    value_type: Analysis.SpiteType,
+    part_expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var nullable = type_shape.as_nullable(value_type)
+    if not nullable {
+        emit_code_operand(label, code, value_type, scope, class_information)
+        return
+    }
+    var inner = nullable.get_inner()
+    var presence = "({code}).has_value"
+    var inner_code = "({code}).value"
+    if type_is_reference(inner) {
+        presence = present_code(code, inner)
+        inner_code = code
+    }
+    builder.add_user("if (!({presence})) \{")
+    var escaped = escape_c_string(label)
+    var indexed = shape.as_index(part_expression)
+    if indexed {
+        emit_missing_item(escaped, indexed, scope, class_information)
+    } else {
+        builder.add_user("fputs(\"\\t{escaped} is null\", stderr);")
+    }
+    builder.add_user("} else \{")
+    if is_shown_type(inner) {
+        emit_code_operand(label, inner_code, inner, scope, class_information)
+    }
+    builder.add_user("}")
+}
+
+func emit_code_operand(
+    label: String,
+    code: String,
+    value_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var shown_scope = Scope(scope)
+    var shown_name = "spite_crash_shown"
+    shown_scope.declare(shown_name, value_type)
+    shown_scope.set_override(shown_name, code)
+    var shown: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(shown_name)
+    emit_labelled_operand(label, shown, shown_scope, class_information)
+}
+
+func emit_labelled_operand(
+    label: String,
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
     var saved_counter = temporary_counter
     var probe = generate_expression(expression, scope, class_information)
     rewind_temporaries(saved_counter)
@@ -27524,7 +27764,7 @@ func emit_crash_operand(
         printable = true
     }
     assert printable
-    builder.add_user("fputs(\"\\t{escape_c_string(name)}=\", stderr);")
+    builder.add_user("fputs(\"\\t{escape_c_string(label)}=\", stderr);")
     var operand_statement = crash_operand_statement(shown, scope, class_information)
     builder.add_user(operand_statement)
 }
@@ -27546,20 +27786,6 @@ func describes_itself(spite_type: Analysis.SpiteType): Boolean {
         return false
     }
     return described.parameters.is_empty()
-}
-
-func called_receiver(condition: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
-    var negated = shape.as_unary(condition)
-    if negated {
-        crash negated.operand
-        return called_receiver(negated.operand)
-    }
-    var call = shape.as_call(condition)
-    assert call
-    crash call.callee
-    var called = shape.as_member(call.callee)
-    assert called
-    return called.object
 }
 
 func emit_missing_report(guard: NullableGuard, scope: Scope, class_information: Analysis.ClassInfo) {
@@ -27659,29 +27885,6 @@ func emit_missing_item(
     )
 }
 
-func emit_crash_operands(
-    condition: Syntax.Expressions.Expression,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
-) {
-    var binary = shape.as_binary(condition)
-    if binary {
-        if binary.left {
-            emit_crash_operand(binary.left, scope, class_information)
-        }
-        if binary.right {
-            emit_crash_operand(binary.right, scope, class_information)
-        }
-        return
-    }
-    var receiver = called_receiver(condition)
-    if receiver {
-        emit_crash_operand(receiver, scope, class_information)
-        return
-    }
-    emit_crash_operand(condition, scope, class_information)
-}
-
 func content_hash(content: String): String {
     var hash: Long = 5381
     var index = 0
@@ -27728,6 +27931,12 @@ func record_site(
     site_ordinal = site_ordinal + 1
     current_site_id = content_hash("{current_owner}/{function_name}/{site_ordinal}/{assert_statement.condition_text}")
     var operands = List<String>()
+    if not crash_parts.is_empty() {
+        crash_map_lines.append(
+            "{current_site_id}\t{current_path}\t{current_line}\t0\t{current_owner}\t{function_name}\t{kind}\t{assert_statement.condition_text}\t{mapped_crash_parts(scope, class_information)}",
+        )
+        return
+    }
     if assert_statement.value {
         var binary = shape.as_binary(assert_statement.value)
         if binary {
@@ -27744,12 +27953,7 @@ func record_site(
                 }
             }
         } else {
-            var described_operand = assert_statement.value
-            var receiver = called_receiver(assert_statement.value)
-            if receiver {
-                described_operand = receiver
-            }
-            var single = operand_description(described_operand, scope, class_information)
+            var single = operand_description(assert_statement.value, scope, class_information)
             if not single.is_empty() {
                 operands.append(single)
             }
@@ -27758,6 +27962,25 @@ func record_site(
     crash_map_lines.append(
         "{current_site_id}\t{current_path}\t{current_line}\t0\t{current_owner}\t{function_name}\t{kind}\t{assert_statement.condition_text}\t{operands.join(" ")}",
     )
+}
+
+func mapped_crash_parts(scope: Scope, class_information: Analysis.ClassInfo): String {
+    var described = List<String>()
+    var index = 0
+    while index < crash_parts.count() {
+        var part = crash_parts[index]
+        if part.is_call and part.captured_type {
+            described.append("{part.label}:{type_display_name(part.captured_type)}")
+        } else if not part.is_reach and not part.is_call and is_part_shown(part, scope, class_information) {
+            var part_expression = part.get_expression()
+            var description = operand_description(part_expression, scope, class_information)
+            if not described.contains(description) {
+                described.append(description)
+            }
+        }
+        index = index + 1
+    }
+    return described.join(" ")
 }
 
 func sorted_position(sorted: List<String>, line: String): Integer {
@@ -27899,12 +28122,23 @@ func generate_assert_statement(
     }
     var guard = try_nullable_guard(assert_statement.value, scope, class_information)
     var guard_code = ""
+    crash_parts = List<CrashPart>()
     if guard {
         guard_code = guard.guard_code
         narrow_by_guard(scope, guard)
     } else {
+        var declarations_at = builder.user_count()
+        var parts = List<CrashPart>()
+        if assert_statement.is_crash {
+            parts = crash_parts_of(assert_statement.value)
+            crash_parts = parts
+            crash_capturing = true
+        }
         var condition_result = generate_joined(assert_statement.value, scope, class_information)
         guard_code = owned_truth(condition_result, assert_statement.value)
+        crash_capturing = false
+        crash_parts = parts
+        declare_crash_parts(declarations_at)
         narrow_proven_indices(assert_statement.value, scope)
         check_asserted_condition(assert_statement, condition_result, scope)
     }
@@ -27923,7 +28157,164 @@ func generate_assert_statement(
     record_site(assert_statement, site_kind, function_information.name, scope, class_information)
     builder.add_user("if (!({guard_code})) \{")
     emit_check_failure(assert_statement, guard, true, scope, class_information, function_information)
+    release_crash_parts()
+    crash_parts = List<CrashPart>()
     return false
+}
+
+func crash_parts_of(condition: Syntax.Expressions.Expression): List<CrashPart> {
+    var parts = List<CrashPart>()
+    var reached = List<String>()
+    collect_crash_parts(condition, true, false, reached, parts)
+    return parts
+}
+
+func collect_crash_parts(
+    expression: Syntax.Expressions.Expression,
+    known: Boolean,
+    held: Boolean,
+    reached: List<String>,
+    parts: List<CrashPart>,
+) {
+    var label = operand_text(expression)
+    if not label.is_empty() {
+        var part = CrashPart(expression, label)
+        part.reached_names = reached
+        parts.append(part)
+        return
+    }
+    var binary = shape.as_binary(expression)
+    if binary {
+        collect_binary_parts(binary, known, held, reached, parts)
+        return
+    }
+    var unary = shape.as_unary(expression)
+    if unary {
+        crash unary.operand
+        var negates = unary.operator == 'logical_not'
+        collect_crash_parts(unary.operand, known and negates, not held, reached, parts)
+        return
+    }
+    var call = shape.as_call(expression)
+    if call {
+        collect_call_parts(call, known, reached, parts)
+        return
+    }
+    var member = shape.as_member(expression)
+    if member {
+        crash member.object
+        collect_crash_parts(member.object, false, false, reached, parts)
+        return
+    }
+    var indexed = shape.as_index(expression)
+    assert indexed
+    crash indexed.object and indexed.index
+    collect_crash_parts(indexed.object, false, false, reached, parts)
+    collect_crash_parts(indexed.index, false, false, reached, parts)
+}
+
+func collect_binary_parts(
+    binary: Syntax.Expressions.BinaryExpression,
+    known: Boolean,
+    held: Boolean,
+    reached: List<String>,
+    parts: List<CrashPart>,
+) {
+    crash binary.left and binary.right
+    assert not binary.is_text_join
+    var joins = binary.operator == 'logical_or' or binary.operator == 'logical_and'
+    if not joins {
+        collect_crash_parts(binary.left, false, false, reached, parts)
+        collect_crash_parts(binary.right, false, false, reached, parts)
+        return
+    }
+    var failed_or = binary.operator == 'logical_or' and not held
+    var held_and = binary.operator == 'logical_and' and held
+    var both_ran = known and (failed_or or held_and)
+    collect_crash_parts(binary.left, both_ran, held, reached, parts)
+    if both_ran {
+        collect_crash_parts(binary.right, true, held, reached, parts)
+        return
+    }
+    var reach = CrashPart(binary.right, "")
+    reach.is_reach = true
+    reach.set_name = next_crash_name("reached")
+    reach.reached_names = reached
+    parts.append(reach)
+    var further = reached.copy()
+    further.append(reach.set_name)
+    collect_crash_parts(binary.right, false, false, further, parts)
+}
+
+func collect_call_parts(
+    call: Syntax.Expressions.CallExpression,
+    known: Boolean,
+    reached: List<String>,
+    parts: List<CrashPart>,
+) {
+    crash call.callee
+    if not known {
+        var called: Syntax.Expressions.Expression = call
+        var printer = Syntax.SourcePrinter()
+        var called_text = printer.source_expression(called)
+        var part = CrashPart(called, called_text)
+        part.is_call = true
+        part.value_name = next_crash_name("value")
+        part.set_name = next_crash_name("set")
+        part.reached_names = reached
+        parts.append(part)
+    }
+    var member = shape.as_member(call.callee)
+    if member {
+        crash member.object
+        collect_crash_parts(member.object, false, false, reached, parts)
+    }
+    var index = 0
+    while index < call.arguments.count() {
+        collect_crash_parts(call.arguments[index], false, false, reached, parts)
+        index = index + 1
+    }
+}
+
+func next_crash_name(kind: String): String {
+    crash_capture_counter = crash_capture_counter + 1
+    return "spite_crash_{kind}_{crash_capture_counter}"
+}
+
+func declare_crash_parts(position: Integer) {
+    var declarations = List<String>()
+    var index = 0
+    while index < crash_parts.count() {
+        var part = crash_parts[index]
+        if part.is_reach {
+            declarations.append("bool {part.set_name} = false;")
+        } else if part.is_call and part.captured_type {
+            declarations.append("{c_type_name(part.captured_type)} {part.value_name}; bool {part.set_name} = false;")
+        }
+        index = index + 1
+    }
+    if not declarations.is_empty() {
+        var declared = declarations.join(" ")
+        builder.insert_user(position, declared)
+    }
+}
+
+func release_crash_parts() {
+    var index = 0
+    while index < crash_parts.count() {
+        var part = crash_parts[index]
+        if part.owned and part.captured_type {
+            builder.add_user("if ({part.set_name}) {release_call(part.captured_type, part.value_name)};")
+        }
+        index = index + 1
+    }
+}
+
+func is_shown_type(spite_type: Analysis.SpiteType): Boolean {
+    if type_shape.as_nullable(spite_type) or type_shape.as_string(spite_type) or type_shape.as_scalar(spite_type) {
+        return true
+    }
+    return is_enum_type(spite_type) or describes_itself(spite_type)
 }
 
 func emit_folded_check(
@@ -28025,7 +28416,7 @@ func emit_check_failure(
         if guard {
             emit_missing_report(guard, scope, class_information)
         } else if with_operands {
-            emit_crash_operands(assert_statement.value, scope, class_information)
+            emit_crash_parts(scope, class_information)
         }
         builder.add_user("fputs(\"\\n\", stderr);")
         builder.add_user("spite_report_assert_trace();")
@@ -28217,6 +28608,9 @@ func generate_statement(
     var errors_before = error_lines.count()
     var waits_before = wait_mark_counters.count()
     var ended_in_return = generate_statement_kind(statement, scope, class_information, function_information)
+    if ended_in_return {
+        leaving_statements.append(statement)
+    }
     if resumable_mode {
         drop_unread_waits(waits_before)
     }
@@ -28873,9 +29267,15 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     body_narrowed_names = List<String>()
     body_assigned_paths = List<String>()
     collect_body_facts(function.body)
+    var outer_leaving = leaving_statements
+    leaving_statements = List<Syntax.Statements.Statement>()
     var ended_in_return = generate_statement_list(function.body, scope, information, function)
     terminal_if = null
     report_unused(scope)
+    if not ended_in_return {
+        report_falling_end(information, function)
+    }
+    leaving_statements = outer_leaving
     if not ended_in_return {
         emit_scope_drops(scope, true)
         var function_return_type = function.get_return_type()
@@ -29627,6 +30027,132 @@ func statement_endless_loop_line(statement: Syntax.Statements.Statement): Intege
         }
         _: return 0
     }
+}
+
+func report_falling_end(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    var return_type = function.get_return_type()
+    assert not type_shape.is_void(return_type)
+    var path = falling_path(function.body)
+    assert path
+    current_line = function.end_line
+    if current_line == 0 {
+        current_line = function.line
+    }
+    var place = "{current_path}:{current_line}"
+    assert not falling_ends.contains(place)
+    falling_ends.append(place)
+    var answered = type_with_article(return_type)
+    var unwritten = answered
+    if type_shape.as_nullable(return_type) {
+        unwritten = "a null"
+    }
+    var reaches = "it reaches its end without a 'return'"
+    var ending = "end it with 'return <value>', or with 'crash' if it cannot get there"
+    if not path.is_empty() {
+        reaches = "{path} it reaches its end without a 'return'"
+        ending = "end that path with 'return <value>', or with 'crash' if it cannot happen"
+    }
+    report(
+        "'{function.name}' answers {answered}{instance_description(information)}, but {reaches}, so a caller would get {unwritten} nobody wrote: {ending}",
+    )
+}
+
+func falling_path(statements: List<Syntax.Statements.Statement>): String? {
+    assert statements.all(statement_can_finish)
+    var last = statements.last()
+    var path = ""
+    if last {
+        return statement_falling_path(last)
+    }
+    return path
+}
+
+func statement_can_finish(statement: Syntax.Statements.Statement): Boolean {
+    var path = statement_falling_path(statement)
+    var finishes = false
+    if path {
+        finishes = true
+    }
+    return finishes
+}
+
+func statement_falling_path(statement: Syntax.Statements.Statement): String? {
+    assert not left_the_function(statement)
+    var path = ""
+    switch statement {
+        Syntax.Statements.ReturnStatement: return null
+        Syntax.Statements.AssertStatement: {
+            if statement.is_crash {
+                assert statement.value and not shape.is_false_literal(statement.value)
+            }
+            return path
+        }
+        Syntax.Statements.IfStatement: return if_falling_path(statement)
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            assert not shape.is_true_literal(statement.condition)
+            return "when the 'while' at line {statement.line} ends"
+        }
+        Syntax.Statements.SwitchStatement: return switch_falling_path(statement)
+        _: return path
+    }
+}
+
+func if_falling_path(if_statement: Syntax.Statements.IfStatement): String? {
+    crash if_statement.condition
+    var condition = Syntax.SourcePrinter().source_expression(if_statement.condition)
+    if not if_statement.has_else_branch {
+        return "when '{condition}' is false (line {if_statement.line}, an 'if' with no 'else')"
+    }
+    var then_path = falling_path(if_statement.then_branch)
+    if then_path {
+        return path_with_step("when '{condition}' is true (line {if_statement.line})", then_path)
+    }
+    var else_path = falling_path(if_statement.else_branch)
+    assert else_path
+    return path_with_step("when '{condition}' is false (line {if_statement.line})", else_path)
+}
+
+func switch_falling_path(switch_statement: Syntax.Statements.SwitchStatement): String? {
+    var index = 0
+    while index < switch_statement.cases.count() {
+        var switch_case = switch_statement.cases[index]
+        var case_path = falling_path(switch_case.body)
+        if case_path {
+            var step = "in the case {case_label(switch_case)} of the 'switch' at line {switch_statement.line}"
+            return path_with_step(step, case_path)
+        }
+        index = index + 1
+    }
+    assert switch_statement.cases.is_empty()
+    return ""
+}
+
+func case_label(switch_case: Syntax.Statements.SwitchCase): String {
+    if switch_case.value {
+        return Syntax.SourcePrinter().source_expression(switch_case.value)
+    }
+    crash switch_case.type_reference
+    return Syntax.SourcePrinter().source_type(switch_case.type_reference)
+}
+
+func path_with_step(step: String, rest: String): String {
+    if rest.is_empty() {
+        return step
+    }
+    return "{step}, then {rest}"
+}
+
+func left_the_function(statement: Syntax.Statements.Statement): Boolean {
+    var index = 0
+    while index < leaving_statements.count() {
+        var left = leaving_statements[index]
+        if left == statement {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func can_leave(statements: List<Syntax.Statements.Statement>): Boolean {

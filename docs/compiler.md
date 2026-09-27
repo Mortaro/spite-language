@@ -148,6 +148,7 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 | `repl_port` | `0` (off) | serves the remote REPL on `127.0.0.1` at this port while the program runs ([repl.md](repl.md)) |
 | `hot_reload` | `false` | swaps changed classes into the running program; implies `development` ([repl.md](repl.md#live-reload---hot-reload)) |
 | `debug_memory` | `false` | counts allocations and frees and prints them when the program ends ([below](#counting-memory---debug-memory)) |
+| `trace_asserts` | `false` | writes each failed `assert` of the program to the error stream as it fails, not only in a crash's report ([failure.md](failure.md#what-a-crash-reports)) |
 | `operating_system` | the compiling machine | cannot be given: it is the system doing the compiling |
 | `target_operating_system` | `operating_system` | the system the program is compiled for ([below](#compile-for-another-system)) |
 | `program` | the folder named | cannot be given: it is the folder on the command line, which the launcher loads |
@@ -166,9 +167,10 @@ a constant in the built program, so with `var build = Build()` beside the attrib
 keeps one branch.
 
 None of this is in the program that is built (D177): choosing, building and writing outputs is the compiler's own
-work, and `Build` is a folded singleton that holds nothing at run time. Only four options add code to the program,
+work, and `Build` is a folded singleton that holds nothing at run time. Only five options add code to the program,
 and only to a build that asks for them: `--debug-memory` its allocation table, `--repl` and `--repl-port` the REPL
-and the reflection it walks, and `--hot-reload` a slot per function and a file watcher. Each one's cost is on its
+and the reflection it walks, `--hot-reload` a slot per function and a file watcher, and `--trace-asserts` a write
+in each failed `assert`. Each one's cost is on its
 page.
 
 The compiler hands the C it writes to the command in the `CC` environment variable when it is set; otherwise to the
@@ -422,6 +424,7 @@ spite program --tune-for-this-machine   use every instruction this machine has (
 spite program --translation-units=1     compile the executable from one C file (0, the default, chooses)
 spite program --development             an inspectable build: no tree shaking, internals as ordinary objects (D143)
 spite program --debug-memory            count allocations and frees, print the balance when the program ends
+spite program --trace-asserts           print each failed assert as it fails, as well as in a crash's report
 spite program --repl                    run it, then answer REPL commands at the terminal (repl.md)
 spite program --repl-port=4000          serve REPL commands on 127.0.0.1:4000 while it runs (repl.md)
 spite program --hot-reload              swap changed classes into the running program (implies --development)

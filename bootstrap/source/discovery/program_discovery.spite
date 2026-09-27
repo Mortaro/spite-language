@@ -1183,10 +1183,12 @@ func integer_literal(text: String): Syntax.Expressions.Expression? {
         var text_length = text.length()
         var magnitude_text = text.slice(1, text_length)
         var magnitude = magnitude_text.to_long()
+        assert magnitude
         var operand = Syntax.Expressions.IntegerLiteral(magnitude)
         return Syntax.Expressions.UnaryExpression('negate', operand)
     }
     var value = text.to_long()
+    assert value
     return Syntax.Expressions.IntegerLiteral(value)
 }
 

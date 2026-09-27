@@ -17,7 +17,8 @@ func DefaultAnswer() {
     var found = found_row(0)
     var short = short_rows(3)
     var short_count = short.count()
-    console.print(row, open, name, ratio, day, mark.label, short_count)
+    var badge = badge_of(true)
+    console.print(row, open, name, ratio, day, mark.label, short_count, badge.name)
     announce(found)
 }
 
@@ -71,4 +72,9 @@ func is_short(row: Integer): Boolean {
 func announce(row: Integer?) {
     assert row
     console.print(row)
+}
+
+func badge_of(ready: Boolean): Badge {
+    assert ready
+    return Badge("ready")
 }

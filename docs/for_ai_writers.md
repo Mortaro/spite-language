@@ -374,12 +374,23 @@ func is_alive(): Boolean {
     `names[index]`;
   - absence is a bug: `crash condition` halts with
     `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition<TAB>name=value...`, followed by the
-    asserts that failed before it. A bare `crash` marks a branch that cannot happen (`crash false` is formatted to it).
+    asserts that failed before it. Every name and call the condition read is there with its value, whatever its
+    shape: `crash record or cooked.count() > 2` reports `record is null	cooked.count()=1`; a part an `and` or `or`
+    skipped is left out. A bare `crash` marks a branch that cannot happen (`crash false` is formatted to it).
     A failed narrowing names what is absent instead of a value: `clip.keys[start + 9] is missing: index 11990,
     count 11500`, `scores[key] is missing: key "bea"`, `rig.skeleton is null`. Read it as an index past the end or
-    a key never set, not as a zero.
+    a key never set, not as a zero. A failed `assert` prints nothing as it fails; it shows up only in a crash's
+    trace, unless the program is built with `--trace-asserts`, which prints each one as it fails.
 - Narrowing tests presence, never the value: `crash keys[index]` passes on an element holding `0.0`, and `if count`
   runs on an `Integer?` holding `0`.
+- Reading a number from text answers a `T?`: `"42".to_integer()` is an `Integer?`, `null` for `"forty two"`,
+  `"12abc"`, `""` or a number the type cannot hold, so narrow it (`crash count` where the text is yours, `if`/`assert`
+  where it came from outside). `var age: Integer = "42"` is an error; `var age: Integer? = "42"` reads it.
+- A function that declares a result ends every path with a `return` (or a bare `crash`): a path that reaches the
+  closing `}` is an error naming it (`'sign_of' answers a String, but when 'value < 0' is false (line 12, an 'if'
+  with no 'else') it reaches its end without a 'return'`). An `if`/`else` whose branches both return, a `switch`
+  whose cases all return and a `while true` end the path; an `if` with no `else` and any other `while` do not, so
+  write the last `return` after them, `return null` included.
 - A native fault -- a null read or an illegal instruction inside a foreign library, a stack overflow -- is never
   silent either: the program prints `spite.fault<TAB>kind<TAB>path:line<TAB>Class<TAB>function<TAB>...`, then
   `spite.frame` lines, innermost Spite function first, and ends. `-	-	-` in the place means the fault is outside
@@ -554,6 +565,10 @@ for 16-bit floats. A number's raw bits are `Float.bits(): UnsignedInteger` and `
 union), so use them rather than writing a value into memory to read its bytes.
 Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
 same name reopens it: `list.spite` adds a member template, `integer.spite` a function on every `Integer`.
+
+A statement is one line: anything after it on the same line -- after a `return` value, a call, or the `}` that
+closes an `if`, `while` or `switch` -- is a parse error (`'attribute' is left over after the end of the statement`),
+never a second statement.
 
 ## Habits from other languages that Spite rejects
 

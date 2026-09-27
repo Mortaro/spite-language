@@ -29,7 +29,7 @@ var empty = List<String>()
 | `insert(index, value)` | | an index out of range is clamped to the nearest end |
 | `list[index]` | `T?` | may not be there, so it is narrowed ([failure.md](failure.md#reading-with--answers-t)) |
 | `list[index] = value` | | the explicit form is `set_at(index, value)`; nothing happens out of range |
-| `get_at(index)` | `T` | the default when out of range |
+| `get_at(index)` | `T` | halts when out of range, naming the index and the count ([D244](decisions.md)) |
 | `remove_at(index)` | | nothing happens out of range |
 | `remove_first()` / `remove_last()` | `T?` | removes and returns it; `null` when empty, like `first()` (D211) |
 | `first()` / `last()` | `T?` | `null` when empty, like `[]` (proposed by Claude, unconfirmed): narrow it, `crash first` or `if first { }` |
@@ -914,7 +914,7 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 ### List<T> additions  **[implemented]**
 
 A list's members, their results and their edge cases are [the table under `List<T>`](#listt), which is normative:
-out of range, `get_at` answers the element type's default; `first`, `last`, `remove_first` and `remove_last` answer
+out of range, `get_at` halts (D244: before, it answered the element type's default, which read as a real element); `first`, `last`, `remove_first` and `remove_last` answer
 `null` on an empty list (D211, like `[]`),
 `insert` clamps to the nearest end, and `set_at` and `remove_at` do nothing; `list[index]` answers `T?`. There is
 no `for`: a list is walked with a template, a passed function ([above](#standard-library-metaprogramming--partial)),

@@ -94,7 +94,9 @@ func consume_statement_terminator() {
         return
     }
     assert not (check('right_brace') or check('end_of_file'))
-    fail("expected end of statement but found {found_text()}")
+    fail(
+        "{found_text()} is left over after the end of the statement: a statement ends with its line, so remove it, or put it on a line of its own if it is a statement",
+    )
 }
 
 func consume_field_separator(closing: TokenKind) {
@@ -226,7 +228,21 @@ func parse_statement(): Syntax.Statements.Statement {
     switch statement {
         _: statement.line = line
     }
+    if ends_in_block(statement) and not has_error and not at_statement_end() {
+        fail(
+            "{found_text()} is left over after the '}' that closes this statement: a statement ends with its line, so remove it, or put it on a line of its own if it is a statement",
+        )
+    }
     return statement
+}
+
+func ends_in_block(statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.IfStatement: return true
+        Syntax.Statements.WhileStatement: return true
+        Syntax.Statements.SwitchStatement: return true
+        _: return false
+    }
 }
 
 func parse_interpolation(hole: Token): Syntax.Expressions.Expression {
@@ -471,7 +487,15 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         return supplied
     }
     var body = parse_block()
-    return Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
+    var declared = Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
+    declared.end_line = previous_line()
+    return declared
+}
+
+func previous_line(): Integer {
+    var before = position - 1
+    crash tokens[before]
+    return tokens[before].line
 }
 
 func is_list_type(type_reference: Syntax.Types.Type): Boolean {
@@ -1012,12 +1036,14 @@ func try_parse_generic_argument_quiet(): Syntax.Types.GenericArgument? {
     if check('integer_literal') {
         var token = advance()
         var text_number = token.text.to_long()
+        assert text_number
         var argument: Syntax.Types.GenericArgument = Syntax.Types.IntegerArgument(text_number)
         return argument
     }
     if check('float_literal') {
         var token = advance()
         var text_number = token.text.to_double()
+        assert text_number
         var argument: Syntax.Types.GenericArgument = Syntax.Types.FloatArgument(text_number)
         return argument
     }
@@ -1314,11 +1340,18 @@ func parse_primary(): Syntax.Expressions.Expression {
     if check('integer_literal') {
         var token = advance()
         var text_number = token.text.to_long()
+        if not text_number {
+            fail(
+                "'{token.text}' does not fit a Long, the widest whole number, which holds up to 9223372036854775807: write a smaller number, or 'Long.smallest()' for the most negative one",
+            )
+            return dummy_expression()
+        }
         return Syntax.Expressions.IntegerLiteral(text_number)
     }
     if check('float_literal') {
         var token = advance()
         var text_number = token.text.to_double()
+        crash text_number
         var float_literal = Syntax.Expressions.FloatLiteral(text_number)
         float_literal.written = token.lexeme
         return float_literal

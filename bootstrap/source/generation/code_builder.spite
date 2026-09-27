@@ -195,6 +195,7 @@ func guarded(text: String, shaker: TreeShaker, keeps_all: Boolean): String {
             var end = part.index_of("*/")
             var digits = part.slice(0, end)
             var position = digits.to_integer()
+            crash position
             var part_length = part.length()
             var rest = part.slice(end + 2, part_length)
             var chosen = guard_choice(position, shaker, keeps_all)

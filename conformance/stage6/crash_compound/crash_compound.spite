@@ -1,0 +1,23 @@
+var console = Console()
+var recipes = Dictionary<String>()
+var cooked = ["bread"]
+var never_cooked_id = "cake"
+
+func CrashCompound() {
+    recipes.set("bread", "flour, water")
+    var checked = check("bread", 1)
+    console.print("checked", checked)
+    finish("cake")
+}
+
+func check(name: String, least: Integer): Boolean {
+    var steps = recipes[name]
+    crash steps and (cooked.count() >= least or name == "")
+    return steps.length() > 0
+}
+
+func finish(name: String) {
+    var record = recipes[name]
+    crash record or cooked.count() > 2 or never_cooked_id != name
+    console.print("never printed", name)
+}

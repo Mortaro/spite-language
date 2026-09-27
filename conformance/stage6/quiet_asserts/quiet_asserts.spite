@@ -1,0 +1,15 @@
+var console = Console()
+var names = ["ada", "bo"]
+
+func QuietAsserts() {
+    greet(0)
+    greet(5)
+    greet(1)
+    greet(-1)
+    console.print("done")
+}
+
+func greet(index: Integer) {
+    assert index >= 0 and index < names.count()
+    console.print("hello", names[index])
+}

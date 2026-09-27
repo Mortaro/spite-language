@@ -143,7 +143,9 @@ func read_state(text: String) {
         var line = lines[index].trim()
         var words = line.split(" ")
         if words.count() == 2 and words[0] == "generation" {
-            generation = words[1].to_integer()
+            var written_generation = words[1].to_integer()
+            crash written_generation
+            generation = written_generation
         } else if words.count() >= 3 and words[0] == "file" {
             var line_length = line.length()
             var path_start = words[0].length() + words[1].length() + 2

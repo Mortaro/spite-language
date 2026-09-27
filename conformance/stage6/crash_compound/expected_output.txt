@@ -1,0 +1,2 @@
+spite.crash	01478395	conformance/stage6/crash_compound/crash_compound.spite:21	CrashCompound	finish	record or cooked.count() > 2 or never_cooked_id != name	record is null	cooked.count()=1	never_cooked_id=cake	name=cake
+checked true

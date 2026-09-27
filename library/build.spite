@@ -14,6 +14,7 @@ var repl = false
 var repl_port = 0
 var hot_reload = false
 var debug_memory = false
+var trace_asserts = false
 var operating_system = ""
 var target_operating_system = ""
 var program = ""

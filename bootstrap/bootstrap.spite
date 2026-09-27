@@ -372,6 +372,7 @@ func configure(generator: Generation.Generator) {
     generator.development = is_on("development") or is_on("hot_reload")
     generator.hot_reload = is_on("hot_reload")
     generator.debug_memory = is_on("debug_memory")
+    generator.trace_asserts = is_on("trace_asserts")
     generator.keeps_internals = generator.development or generator.read_evaluate_print_loop
     generator.working_folder = program.working_directory()
     generator.language_folder = language_folder
@@ -705,6 +706,7 @@ func splits_into_units(splitter: Translation.UnitSplitter): Boolean {
 
 func wanted_translation_units(code: String): Integer {
     var chosen = option("translation_units").to_integer()
+    crash chosen
     if chosen > 0 or not is_on("optimized") {
         return chosen.maximum(1)
     }
@@ -721,7 +723,7 @@ func processor_count(): Integer {
     var named = program.environment("NUMBER_OF_PROCESSORS")
     if named {
         var count = named.trim().to_integer()
-        if count > 0 {
+        if count and count > 0 {
             return count
         }
     }
@@ -730,7 +732,7 @@ func processor_count(): Integer {
     if probe.run() == 0 {
         var probed = probe.output()
         var probed_count = probed.trim().to_integer()
-        if probed_count > 0 {
+        if probed_count and probed_count > 0 {
             return probed_count
         }
     }
@@ -1140,7 +1142,7 @@ func port_number(text: String): Integer {
         index = index + 1
     }
     var number = text.to_integer()
-    if number < 1 or number > 65535 {
+    if not number or number < 1 or number > 65535 {
         return -1
     }
     return number
