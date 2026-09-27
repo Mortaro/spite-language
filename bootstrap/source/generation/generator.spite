@@ -7,6 +7,7 @@ var class_by_qualified = Dictionary<Integer>()
 var class_by_c_name = Dictionary<Integer>()
 var enums = List<Analysis.EnumInfo>()
 var unions = List<Analysis.UnionInfo>()
+var unknown_simple_name = ""
 var list_names = List<String>()
 var class_object_names = List<String>()
 var attributes_function_names = List<String>()
@@ -2286,6 +2287,7 @@ func register_shapes(entry: Discovery.DiscoveredClass) {
             )
             information.is_shape = true
             information.shape_fields = declaration.fields
+            information.shape_path = file.path
             var reopened = shape_position(information.c_name)
             if reopened < 0 {
                 unions.append(information)
@@ -2315,9 +2317,20 @@ func shape_field_type(information: Analysis.UnionInfo, field_name: String): Anal
         if field.name == field_name {
             if field.type_reference {
                 var saved_owner = current_owner
+                var saved_path = current_path
+                var saved_line = current_line
+                var saved_function = current_function
                 current_owner = information.owner_qualified
+                if not information.shape_path.is_empty() and field.line > 0 {
+                    current_path = information.shape_path
+                    current_line = field.line
+                    current_function = ""
+                }
                 var resolved = resolve_type(field.type_reference, information.owner_namespace)
                 current_owner = saved_owner
+                current_path = saved_path
+                current_line = saved_line
+                current_function = saved_function
                 return resolved
             }
         }
@@ -2787,7 +2800,7 @@ func emit_shape_peekers(information: Analysis.UnionInfo) {
     while index < information.peeker_names.count() {
         var field_name = information.peeker_names[index]
         var field_type = shape_field_type(information, field_name)
-        crash field_type
+        assert field_type
         var lines = List<String>()
         lines.append("{c_type_name(field_type)} {information.c_name}___peek_{field_name}({information.c_name} self) \{")
         var member_index = 0
@@ -3017,7 +3030,9 @@ func shape_default(information: Analysis.UnionInfo): String {
             return "0"
         }
         var field_type = shape_field_type(information, field.name)
-        crash field_type
+        if not field_type {
+            return "0"
+        }
         names.append(field.name)
         types.append(field_type)
         label = "{label}_{field.name}_{type_label(field_type)}"
@@ -5585,7 +5600,8 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
             return union_type_of(found_union)
         }
         if not reported_old_spelling(name) {
-            report("unknown type '{name}'")
+            var unknown_single = unknown_type_message(name, current_namespace)
+            report(unknown_single)
         }
         return null
     }
@@ -5631,8 +5647,39 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
         var resolved: Analysis.SpiteType = Analysis.Types.ClassRefType(qualified_class.c_name)
         return resolved
     }
-    report("unknown type '{joined}'")
+    var unknown_path = unknown_type_message(joined, current_namespace)
+    report(unknown_path)
     return null
+}
+
+func unknown_type_message(written: String, current_namespace: String): String {
+    var segments = written.split(".")
+    var dropped = 1
+    while dropped < segments.count() {
+        var shorter = segments.copy()
+        var removed = 0
+        while removed < dropped {
+            shorter.remove_first()
+            removed = removed + 1
+        }
+        var shorter_path = shorter.join(".")
+        var found = find_class(shorter_path, current_namespace)
+        if found {
+            return "unknown type '{written}': did you mean '{found.qualified_dotted}'?"
+        }
+        dropped = dropped + 1
+    }
+    unknown_simple_name = written
+    var named_alike = classes.filter(is_named_alike)
+    var only_alike = named_alike.first()
+    if only_alike and segments.count() == 1 and named_alike.count() == 1 {
+        return "unknown type '{written}': did you mean '{only_alike.qualified_dotted}'?"
+    }
+    return "unknown type '{written}'"
+}
+
+func is_named_alike(candidate: Analysis.ClassInfo): Boolean {
+    return candidate.simple_name == unknown_simple_name and candidate.qualified_dotted != unknown_simple_name
 }
 
 func resolve_single_type_argument(named: Syntax.Types.NamedType, current_namespace: String): Analysis.SpiteType? {
@@ -14619,7 +14666,7 @@ func generate_foreign_call(
             while field_index < shaped.shape_fields.count() {
                 var field = shaped.shape_fields[field_index]
                 var field_type = shape_field_type(shaped, field.name)
-                crash field_type
+                assert field_type
                 initial.append("{ensure_shape_reader(shaped, field.name, field_type)}({held_shape})")
                 afters.append(
                     "{ensure_shape_writer(shaped, field.name, field_type)}({held_shape}, {struct_value}.{c_value_name(field.name)});",

@@ -342,6 +342,13 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   A class's own namespace holds the classes named under it, so for a folder's entry file it is that folder:
   `click_test/click_test.spite` (`ClickTest`) reaches `click_test/system/verify.spite` as `System.Verify()`
   (proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/folder_class_namespace`).
+  A name the walk does not find is `unknown type 'Server.Component.Eye'` at the line that writes it, in every
+  position above, a `type`'s attribute included; when dropping its leading parts names a class, or a plain name
+  is the last part of exactly one class, the error says which: `unknown type 'Server.Component.Eye': did you mean
+  'Component.Eye'?` -- the usual slip being an environment's folder written into the name, when the folder joins
+  the program's own namespaces (fixed 2026-09-26: a `type` attribute of an unknown type crashed the compiler
+  when the shape needed a default; proposed by Claude, unconfirmed; `diagnostics/unknown_type_in_shape`,
+  `diagnostics/unknown_type_suggestion`).
   A `type`, `union` or `enum` sits in the walk at the level of the class that declares it, so the nearest
   declaration wins: one in the using class before any class, one in a folder's entry file before a class further
   out, so `type Healing` in `system/regenerate.spite` is what `Healing` means there even when the program's entry
