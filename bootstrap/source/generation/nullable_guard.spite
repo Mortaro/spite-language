@@ -2,6 +2,8 @@ var name = ""
 var inner: Analysis.SpiteType? = null
 var guard_code = ""
 var override_code = ""
+var links = List<Syntax.Expressions.Expression>()
+var link_tests = List<String>()
 
 func NullableGuard(
     starting_name: String,

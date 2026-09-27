@@ -18,6 +18,21 @@ func close_process(handle: Long): Integer {
     return status.shifted_right(8).bits_and(255)
 }
 
-func shell_line(line: String, _command_is_quoted: Boolean): String {
+func shell_line(line: String): String {
     return line
+}
+
+func change_directory(folder: String): String {
+    var quoted_folder = quoted_argument(folder)
+    return "cd {quoted_folder}"
+}
+
+func set_variable(name: String, value: String): String {
+    var quoted_value = quoted_argument(value)
+    return "export {name}={quoted_value}"
+}
+
+func quoted_argument(argument: String): String {
+    var escaped = argument.replace("'", "'\\''")
+    return "'{escaped}'"
 }

@@ -1,0 +1,50 @@
+var console = Console()
+var library = DynamicLibrary("fixture.dll", 'identity', "")
+var marks = List<Integer>()
+
+func ForeignCallbackMistakes() {
+    from_a_variable()
+    nowhere()
+    not_a_singleton()
+    text_from_c()
+    shared_list()
+    library.each_name(named)
+}
+
+func from_a_variable() {
+    var chosen = counted
+    var calling = ForeignCallback(chosen, 'no_context')
+    library.keep(calling.address)
+}
+
+func nowhere() {
+    var calling = ForeignCallback(counted, 'somewhere')
+    library.keep(calling.address)
+}
+
+func not_a_singleton() {
+    var calling = ForeignCallback(counted, 'no_context')
+    library.keep(calling.address)
+}
+
+func text_from_c() {
+    var calling = ForeignCallback(named, 'context_last')
+    library.keep(calling.address, calling.context)
+}
+
+func shared_list() {
+    var calling = ForeignCallback(marked, 'context_first')
+    library.keep(calling.address, calling.context)
+}
+
+func counted(value: Integer): Integer {
+    return value
+}
+
+func named(name: String) {
+    console.print(name)
+}
+
+func marked(value: Integer) {
+    marks.append(value)
+}

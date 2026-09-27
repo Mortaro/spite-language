@@ -461,7 +461,10 @@ fix. A `D` number is a row of the [decision log](decisions.md).
   value', always with a default, and there is no 'const'` (`diagnostics/old_let`). Both stay usable as names.
 - There is no `class` keyword: `there is no 'class' keyword: a file is a class, named after the file, and its
   attributes and functions are written at the top level of that file` (`diagnostics/class_keyword`). `class`
-  written bare inside a function is the instance's own `Spite.Class` ([reflection.md](reflection.md)).
+  written bare inside a function is the instance's own `Spite.Class` ([reflection.md](reflection.md)), and no
+  attribute or function may be named `class` -- nor `attributes`, `functions`, `instances` or `memory`, the other
+  names reflection gives every object (D246,
+  [reflection.md](reflection.md#the-names-reflection-gives-every-object--implemented)).
 
 ### Files are classes  **[implemented]**
 

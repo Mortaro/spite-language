@@ -1,0 +1,15 @@
+generic $row_type
+
+var stored = List<String>()
+
+func store_attribute(attribute: Symbol<$row_type>, value: $row_type) {
+    stored.append("{attribute.name}={value.attributes[attribute]}")
+}
+
+func store(value: $row_type) {
+    store_attributes(value)
+}
+
+func store_row(index: Integer) {
+    stored.append("row {index}")
+}

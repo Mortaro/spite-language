@@ -1,0 +1,15 @@
+var console = Console()
+
+func LauncherArguments() {
+    var arguments = Arguments()
+    show(arguments)
+}
+
+func show(arguments: Arguments) {
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments.get(index)
+        console.print("[{argument}]")
+        index = index + 1
+    }
+}

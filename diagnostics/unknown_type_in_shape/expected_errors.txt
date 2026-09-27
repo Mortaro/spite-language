@@ -1,0 +1,1 @@
+diagnostics/unknown_type_in_shape/unknown_type_in_shape.spite:3: error: unknown type 'Server.Component.Eye': did you mean 'Component.Eye'? (in UnknownTypeInShape.)

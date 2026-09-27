@@ -159,6 +159,23 @@ func declare_owned(name: String, spite_type: Analysis.SpiteType) {
     owned.append(owned_local)
 }
 
+func framed_object(name: String): Boolean {
+    if entry_names.contains(name) {
+        var index = owned.count() - 1
+        while index >= 0 {
+            var owned_local = owned[index]
+            crash owned_local
+            if owned_local.name == name {
+                return owned_local.framed_object
+            }
+            index = index - 1
+        }
+        return false
+    }
+    assert parent
+    return parent.framed_object(name)
+}
+
 func set_override(name: String, code: String) {
     override_names.append(name)
     override_codes.append(code)

@@ -1,0 +1,5 @@
+var classes = List<Analysis.ClassInfo>()
+var member_names = List<String>()
+var first_positions = Dictionary<Integer>()
+var last_positions = Dictionary<Integer>()
+var scanned = 0

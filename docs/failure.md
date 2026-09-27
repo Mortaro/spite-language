@@ -51,6 +51,11 @@ There is one rule, and every form below follows it.
 | `while value { }` | the loop ends; inside the body, `value` is a `T` |
 | `switch value { Monster: ... Null: ... }` | runs the `Null` case |
 
+**Narrowing tests presence, never the value.** A `0`, a `0.0`, a `false` or a `""` that is there is present:
+`crash keys[index]` passes on an element holding `0.0`, and `if count` on an `Integer?` holding `0` runs its
+block. A plain `Boolean` condition is the only test of a value, which is why a `Boolean?` cannot be one
+([below](#reading-with--answers-t)).
+
 `assert value and other_condition` narrows too, and `other_condition` already sees the narrowed type. Each side of
 an `and` narrows on its own, for `assert`, `crash` and `if` alike, since each is known true when the whole is:
 `crash names[position] and ages[position]` proves both elements, exactly as two `crash` lines would.
@@ -290,8 +295,9 @@ error.
 An index or a key may not be there, so `names[index]` and `table["key"]` are `T?` and are narrowed like any other
 path. The compiler also understands the usual proofs, so most reads need nothing extra:
 
-- **A proven count proves the indices below it**: after `crash names.count() == 3`, `names[0]` to `names[2]`
-  are plain values.
+- **A proven count proves the indices below it**: after `crash names.count() == 3`, or `>= 3`, or `> 2`,
+  `names[0]` to `names[2]` are plain values, and `crash not names.is_empty()` proves `names[0]`. A
+  `Dictionary`'s count proves no key, since its keys need not be `0`, `1`, `2`.
 - **A bound proves its index**: `while index < names.count()` proves `names[index]` in the loop body, and
   `while index < lines.count() and lines[index] != "end"` needs nothing more.
 - **The index may be any expression without a call**: `crash glyphs[code - 32]` proves `glyphs[code - 32]`
@@ -595,6 +601,11 @@ positive
 
 `crash` is allowed in a constructor, which is where a program that cannot start says so.
 
+A `crash` the compiler can decide is not left for the run: one whose condition asks only what is known while
+compiling (a codegen value, `has_function`, `fits_vector`, ...) and is false, in a function the program reaches,
+is a compile error at the `crash`, since the program would halt there every time
+([metaprogramming.md](metaprogramming.md#codegen-values---implemented)).
+
 ### What a crash reports
 
 A crash flushes what the program printed, writes one tab-separated line to the error stream and exits with
@@ -605,6 +616,25 @@ before it, because those are usually the trail that explains how the program got
 ```
 spite.crash	64b935f1	crash_report/crash_report.spite:14	CrashReport	check	value > limit	value=-9	limit=0
 spite.assert	0aae5005	crash_report/crash_report.spite:18	CrashReport	announce	amount > 0
+```
+
+When the condition is a call on a value, `crash settings.exists()` (or `crash not names.contains(name)`), the
+value the call was made on is the operand: text, a number or an enum is written as it is, and an object whose class
+has a `to_string()` as that text, so a missing `File` names its path:
+
+```
+spite.crash	00b7d810	crash_receiver/crash_receiver.spite:6	CrashReceiver	CrashReceiver	settings.exists()	settings=.spite-cache/crash_receiver/missing_settings.txt
+```
+
+A crash that narrows a `T?` fails because something is not there, so it never prints a value for it -- a default
+would read like a real `0`. It names the first link of the path that is missing, and for a `[]` read what was
+asked for: the index and the count of a list, the key of a dictionary.
+
+```
+spite.crash	26b57b59	crash_missing_item/crash_missing_item.spite:13	CrashMissingItem	read	clip.keys [start + 1]	clip.keys[start + 1] is missing: index 3, count 2
+spite.crash	474c3f17	crash_missing_key/crash_missing_key.spite:11	CrashMissingKey	show	scores [player]	scores[player] is missing: key "bea"
+spite.crash	0f912d8f	crash_missing_link/crash_missing_link.spite:14	CrashMissingLink	show	rig.skeleton.heights [0]	rig.skeleton is null
+spite.crash	75b30821	crash_missing_value/crash_missing_value.spite:10	CrashMissingValue	show	width	width is null
 ```
 
 The id is derived from the site's content, so it stays the same when unrelated lines move. Each build also writes
@@ -702,6 +732,14 @@ assert content
 var length = content.length()          # content is a String here, not String?
 console.print(length)
 ```
+
+Narrowing tests presence and never the value it holds: a `T?` of a number, an enum or a `String` holding `0`,
+`0.0` or `""` is present, and so is an in-range `[]` read of an element holding it. A value type's `T?` carries a
+presence flag beside the value (`has_value`), a reference's `T?` is its pointer, and a `[]` read goes through
+`find_at`/`get`, which answer that flag -- no representation uses a sentinel, so no value can be mistaken for
+absence (`conformance/stage6/present_zero`, which narrows zeros, `false` and `""` from lists, a dictionary, an
+`Integer?` result, `first()`/`last()` and `remove_first()` by `crash`, `assert`, `if` and `and`). A `Boolean?` is
+never a condition (below), so `false` meets only `== true`/`== false` or a `switch`.
 
 `if` on a `T?` narrows the same way, in place, for the whole block: `if value { } else { }` runs the
 block with `value` already a plain `T`, and the `else` exactly when it is null/absent. One rule for narrowing
@@ -815,7 +853,11 @@ quoted text makes the read a path that narrows like any other: `crash names[inde
 How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked for them):
 
 - **A proven count proves the indices below it.** After `crash names.count() == 3` (or `>= 3`, or `> 2`),
-  `names[0]` to `names[2]` are plain values; so are they inside `if names.count() > 2 { }`.
+  `names[0]` to `names[2]` are plain values; so are they inside `if names.count() > 2 { }`. `names.count() != 0`
+  and `not names.is_empty()` prove `names[0]` the same way (proposed by Claude, unconfirmed;
+  `conformance/stage6/count_bound_proofs`). A count proves indices of a `List` only: a `Dictionary`'s keys need
+  not be `0` to `count() - 1`, so after `crash names.count() == 1` a number-keyed `names[0]` is still a `T?`
+  (`diagnostics/count_proves_no_key`).
 - **A bound proves its index.** `index < names.count()` (or `names.count() > index`) in an `assert`, a
   `crash`, an `if`, or a `while` proves `names[index]` in what follows -- the loop body, for a `while` -- and
   `index < names.count() - 1` does too. On the left of an `and`, it proves the right side, so
@@ -897,7 +939,8 @@ tend to be useless: they tell us a message we have no action to take about them"
 
 **What `crash` is for** (D199, decided by Mortaro): what the compiler can prove away, so a program written with
 its help never meets it; what leaves the program unable to work at all; and a developer's mistake -- a whole
-number divided by zero (D201, [values_and_types.md](values_and_types.md)), a `Float` gone to infinity that `JsonWriter`
+number divided by zero (D201, [values_and_types.md](values_and_types.md)), signed arithmetic that does not fit its
+type in a development build ([values_and_types.md](values_and_types.md#numeric-types--implemented-provisional)), a `Float` gone to infinity that `JsonWriter`
 is asked to write (D198, [json.md](json.md)). A condition the program can meet in normal use -- a missing file,
 a user's bad input, an absent record -- answers `T?` or an empty value (D24, D26), never a crash, and a library
 `crash` must be one the compiler can show the program how to avoid, or a bug in the program that made the value.
@@ -1016,6 +1059,24 @@ spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition
 
 The condition is rebuilt from its own tokens and the line ends with the named operands of the failed
 comparison and their values -- `value > limit<TAB>value=-9<TAB>limit=0` -- with calls never evaluated a second
+time. **A condition that is a call on a value** (D228), `crash file.exists()` or `crash not list.contains(x)`,
+has that value as its operand when it is a name or a path: text, a number or an enum is written as it is, and an
+object whose class declares `to_string()` with no arguments is written as what that answers, called once on the
+way out -- `settings.exists()<TAB>settings=saves/settings.txt`, since `File`'s `to_string()` is its path. A value
+with no `to_string()` (a `List`) adds nothing, and the call itself is not evaluated again. The `.crashes` map
+lists it with its type (`settings:File`; `conformance/stage5/crash_receiver`).
+
+D248 (under D244): **a failed narrowing reports what is missing, never a value.** A `crash` that narrows a `T?` --
+a name, a path, a `[]` read, each side of an `and` -- fails only when something is absent, and printing a value
+there would print a default (`clip.keys[start + 9]=0`), which reads as a present zero and sends the reader after
+a bug that does not exist. The report tests each nullable link of the path again, in order, and names the first
+one that is absent: `rig.skeleton is null` for a name or member, `list[expression] is missing: index 11990, count
+11500` for a list read (the index as evaluated, and the list's count), `table[key] is missing: key "bea"` for a
+dictionary or any other `get_at` (a `String` key quoted, so an empty one shows). The index is evaluated again, which
+is safe because an index with a call in it is not a path. The value report of D25/D32 stays for every condition
+that is not a narrowing (`conformance/stage6/crash_missing_item`, `crash_missing_key`, `crash_missing_link`,
+`crash_missing_value`). Cost: only on the failure path, which already halts; a passing `crash` is the same
+presence test it always was.
 time.
 
 #### What a native fault reports
@@ -1068,4 +1129,5 @@ printed. The design below is Claude's (proposed by Claude, unconfirmed; the fiel
 **Implemented** on Windows, and compiled (not run) for Linux and macOS: `conformance/stage6/native_fault_foreign`
 (a null read inside a fixture library), `native_fault_stack` (endless recursion) and `native_fault_illegal` (an
 illegal instruction inside a fixture library). `check.sh` compares their reports with the offset after `+0x`
-left out, since it is the C compiler's.
+left out, since it is the C compiler's, and also builds `native_fault_foreign` `--optimized` from four translation
+units, where the handler and the table land in the first unit and the functions it names are spread over all four.

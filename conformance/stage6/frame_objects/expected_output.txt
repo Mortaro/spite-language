@@ -1,0 +1,7 @@
+stepped to (500, 250)
+length squared 107.25
+a local point lives in the stack and a kept one on the heap
+shared: (5, 1) (5, 1)
+turned (-1, 2) twice (-2, -1) start (2, 1)
+kept point moved to (6, 8)
+copies made on the heap: 0 total 349 original 3 4

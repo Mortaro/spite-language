@@ -1,0 +1,5 @@
+var library = DynamicLibrary("libc.so.6", 'identity', "")
+
+func _unmap() {
+    library.munmap(_address, _size)
+}

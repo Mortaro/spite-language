@@ -375,7 +375,8 @@ func write(value: $value_type): String {
 
 Inside such a branch the types it was built from are named after the container's own codegen values:
 `$value_type.element_type` for a `List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>`
-or a `$value_type?`, and a generic class's own names for one of its instances.
+or a `$value_type?`, and a generic class's own names for one of its instances. They are tested like `$value_type`
+itself, `else if $list_type.element_type == Float`, and fold in every branch of the chain.
 
 ```gdscript title=describe_kind/kind.spite
 generic $kind_type
@@ -1127,7 +1128,13 @@ person.set_age(2)
 ```
 
 A function with the exact name always wins over codegen, for that one name: an exact `set_name` answers a write
-of `name` while its read still goes through `get_attribute`. Only the names actually called are generated, in
+of `name` while its read still goes through `get_attribute`. A plural cannot use that exception: when
+`store_attributes` would call `store_row` for an attribute `row` and the class already has an ordinary `store_row`,
+it is an error at that function's line -- "the template 'store_attribute' makes 'store_row' for the attribute
+'row' of 'RowView', which is already a function of 'Row': rename the function or the template" -- where it used
+to be an argument mismatch at line 0 (fixed 2026-09-27, proposed by Claude, unconfirmed;
+`diagnostics/template_function_clash`). An error raised in code the compiler wrote for a template names the
+template's line, never line 0. Only the names actually called are generated, in
 every build; the template itself emits nothing, and each instance is an ordinary function that costs what its
 body costs. A generated `get_<attribute>()` of an owning attribute (a `String`, `List<T>` or `Dictionary<T>`)
 returns a retained, independent value, exactly as an explicit getter does, which is what lets D15 treat a field
@@ -1148,7 +1155,36 @@ no walk gives it a place, it is the error "'attribute.index' is the attribute's 
 so it is read in a function a walk of attributes calls, such as 'fill_attribute(attribute: Symbol<Row>, ...)'".
 In the same templates **`attribute.class == Entity` is decided while compiling** for each attribute, like
 `$component_type == Entity` in a generic, and only the branch taken is compiled (proposed by Claude,
-unconfirmed; `conformance/stage6/sparse_rows`).
+unconfirmed; `conformance/stage6/sparse_rows`), whatever the attribute's type: an `Integer` or `String`
+attribute answers `false` there too, so `if attribute.class == Entity { value.attributes[attribute].id = ... }`
+compiles for a class that also holds numbers (fixed 2026-09-27: only an attribute whose type is a class folded;
+`conformance/stage6/walked_class_fold`); an attribute that may be null (`Entity?`) is not an `Entity`, so the test
+folds to `false` for it as `$T == Entity` does for a `$T` of `Entity?`.
+
+**Every `.class` a program compares is known once generics are resolved and each instance is compiled** (decided
+by Mortaro, 2026-09-27: "every attribute.class should be possible to figure out at compile time after we resolve
+generics and monomorphise"; built as proposed by Claude, unconfirmed).  **[implemented]** In a template instance --
+a Symbol walk, a generic class's instance, a plural -- `attribute.class`, a walked symbol's `.class` and `$T` are
+constants of that instance, so every comparison and question on them folds: `==`, `!=`, `has_function`,
+`function_waits`, `argument_count`, `fits_vector`, `element_type` and the other codegen names. Outside a template,
+`value.class` of a value whose type is one class is that class. So comparing a value that is only known at run
+time with such a class -- `given == known.class` with `given: Anything`, or `given == attribute.class` -- is the
+class test `given == Targeting`: one comparison of the object's class id, and no `Spite.Class` object is made
+(this also fixed that comparison, which compared the value with a class object made for the purpose, answered
+`false` and leaked the object; `check.sh` greps `conformance/stage6/walked_class_fold`'s C for any class object).
+In a walk over a folder's classes, `given == bundle.class` and `BundleKind<bundle.class>().is_kind(given)` (with
+`given == $bundle_type` inside) are the same test, and answer alike for a class holding a marker, a class whose
+constructor takes arguments and a plain one.
+The only `.class` values left at run time are the reflection objects a program walks as data -- a
+`Spite.Class` in a list, `x.class.attributes` walked in a plain loop, the class of a value read through a union
+or a `type` -- and those are values, not folds.
+
+**`attribute.camel_case_name` and `attribute.pascal_case_name` are the attribute's name in other systems'
+spellings** (D247, decided by Claude under D205; the names provisional under D214).  **[implemented]** In a
+template, each is a text constant the compiler writes: the name with its underscores dropped and every word after
+the first capitalised (`buy_price` is `buyPrice`), or every word capitalised (`BuyPrice`). They cost what
+`attribute.name` costs, nothing at run time, and describe the attribute without reading it. `JsonReader` matches a
+camelCase key with them ([json.md](json.md#a-camelcase-or-pascalcase-key)).
 
 **Another class's attributes, and every attribute at once** (proposed by Claude, unconfirmed; built for D95's
 `Json`).  **[implemented]**
@@ -1493,10 +1529,22 @@ one, change the call site.
 `fits_vector` or `argument_count` of a codegen type or of a walked symbol's class, `argument.class == $row_type`,
 and `not`, `and` and `or` over them -- it is decided for each instance, with no test at run time: when it holds,
 nothing is written for it; when it does not, the `assert` returns the function's default (recording its trace
-line) and the `crash` halts with its report, unconditionally, and the statements after it in the same block are
-not compiled for that instance, exactly as after an `if` whose taken branch returns. So `assert $slot_type ==
-Entity` followed by `return value.id` compiles for a `Slot<Mover>` whose `Mover` has no `id`, and answers 0 there
-(`conformance/stage6/folded_checks`, `conformance/stage6/folded_crash`). Before, such a condition was compiled as
+line), and the statements after it in the same block are not compiled for that instance, exactly as after an `if`
+whose taken branch returns. So `assert $slot_type == Entity` followed by `return value.id` compiles for a
+`Slot<Mover>` whose `Mover` has no `id`, and answers 0 there (`conformance/stage6/folded_checks`).
+
+**A `crash` that folds to false is a compile error where the program can reach it** (decided by Claude under
+D205; the wording proposed by Claude, unconfirmed). **[implemented]** A `crash` whose condition is decided while
+compiling and is false would halt every time its function runs, so it is a developer's mistake the compiler can
+prove (D199), and it is reported while compiling, at the `crash`, naming the instance: `'crash
+$slot_type.fits_vector()' always halts in Slot<List<String>>: its condition is decided while compiling and is
+false, so the program would stop here every time this function runs: call it only where the condition holds, or
+change what the condition asks` (`diagnostics/folded_crash`). Only a function the program reaches counts -- the
+same reach tree shaking keeps in a production build, worked out for an inspectable build too, where nothing is
+shaken -- so an instance whose function nobody calls compiles (`conformance/stage6/folded_crash_uncalled`). This
+is how a library turns its rules into compile errors: a `crash $system_type.has_function("update_each")` in the
+function that runs a system fails the build for the class that breaks the rule, not the run. A `crash` whose
+condition also reads a run-time value is unchanged. Before, such a condition was compiled as
 a value and was the error "'$slot_type' is a type here, so it cannot be used as a value". A condition that also
 reads a run-time value is compiled as before.
 
@@ -1542,6 +1590,12 @@ class's own names for one of its instances -- the names this section already giv
 the type does not have is an error listing them: "a List<Integer> has no codegen value named '$value_type' --
 List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own"
 (`diagnostics/every_attribute`). `conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
+Compared in a condition, a name read this way folds like `$value_type` itself: `if $list_type.element_type ==
+Float`, `else if $map_type.key_type == String`, `$holder_type.held_type != Item`, to any depth and in every
+branch of an `else if` chain, so a branch that does not fit the instantiation is not compiled (fixed 2026-09-26,
+proposed by Claude, unconfirmed; `conformance/stage6/codegen_member_fold`). An `and` whose left side folds to
+`false`, or an `or` whose left folds to `true`, folds without its right side, which may then ask what the type does
+not have: `$list_type.element_type == List and $list_type.element_type.element_type == Float`.
 
 **A codegen value that is a type reads as its class** (proposed by Claude, unconfirmed): a member
 read through it, `$component_type.name` or `$component_type.attributes`, is read from the bound class's

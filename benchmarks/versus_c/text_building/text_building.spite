@@ -1,0 +1,24 @@
+var console = Console()
+var clock = Clock()
+
+func TextBuilding() {
+    var start = clock.elapsed_nanoseconds()
+    var built = ""
+    var index = 0
+    while index < 3000000 {
+        built = "{built}item {index},"
+        index = index + 1
+    }
+    var words = List<String>()
+    index = 0
+    while index < 1000000 {
+        words.append("word{index}")
+        index = index + 1
+    }
+    var joined = words.join(", ")
+    var built_length = built.length()
+    var joined_length = joined.length()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("built", built_length, "joined", joined_length)
+    console.error("microseconds {microseconds}")
+}

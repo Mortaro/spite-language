@@ -14,20 +14,45 @@ assignment, a function argument (toward the parameter type), and `return` (towar
 | `Float` (default decimal) | `float` (32-bit) | | `Double` | `double` (64-bit) |
 
 An integer literal is `Integer`; one too big for `Integer` becomes `Long` automatically. Converting between numeric
-types **wraps** on overflow (plain C narrowing, not a crash or a saturate):
+types **wraps** on overflow (plain C narrowing, not a crash or a saturate), and so does arithmetic on the unsigned
+whole numbers, which is what a hash or a noise function wants:
 
 ```gdscript title=numeric_overflow/numeric_overflow.spite entry
 var console = Console()
 
 func NumericOverflow() {
-    var tiny_value: Tiny = 127
-    tiny_value = tiny_value + 1
+    var wide = 200
+    var tiny_value: Tiny = wide
     console.print("wraps to", tiny_value)
+    var hash: UnsignedInteger = 4000000000
+    hash = hash * 3
+    console.print("wraps to", hash)
 }
 ```
 ```output
-wraps to -128
+wraps to -56
+wraps to 3410065408
 ```
+
+### Signed arithmetic that does not fit halts while you develop
+
+`+`, `-` and `*` on a signed whole number (`Tiny`, `Short`, `Integer`, `Long`) whose answer does not fit its type
+is a developer's mistake, like dividing by zero ([D199](decisions.md)). A build you develop with -- `--debug-memory`,
+`--development`, `--hot-reload`, `--repl` or `--repl-port` -- checks each one and halts at the first that does not fit,
+naming the operation, the type, the operands and the line:
+
+```gdscript
+func scaled(amount: Integer, factor: Integer): Integer {
+    return amount * factor          # scaled(2000000000, 2)
+}
+```
+```
+spite: 'amount * factor' does not fit in an Integer (2000000000 * 2), at game/game.spite:17 in Game.scaled
+```
+
+A production build -- the ordinary one and `--optimized` -- has no check and wraps, so the checks cost nothing where
+the program ships. The fix is a wider type written first (`Long` for a total of `Integer`s), or an unsigned type
+when wrapping is what you meant ([the rules](#numeric-types--implemented-provisional)).
 
 ### Wider arithmetic goes wider operand first
 
@@ -64,34 +89,43 @@ func ConstantOverflow() {
 '(65536 - 120) * 65536' is 4287102976, which does not fit in an Integer, the type its arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long
 ```
 
-### The sharp edge
+### Comparisons are checked the same way
 
-A comparison is not arithmetic, so it is not checked, and because casting always goes right-to-left, comparing an `Integer` against a `Float` literal casts the `Float` down
-to `Integer` *before* comparing -- not the mathematically obvious thing:
+A comparison casts its right side toward the left too, so an `Integer` compared with a `Float` would compare
+`Integer`s: `progress > -0.5` would cut `-0.5` to `0` and answer `0 > 0`, false, where the mathematics says true.
+So a comparison whose right side is wider than its left is a compile error naming the fix, as arithmetic is --
+write the wider side first, with the comparison turned around:
 
-```gdscript title=casting_edge/casting_edge.spite entry
+```gdscript title=casting_edge/casting_edge.spite entry error
 var console = Console()
 
 func CastingEdge() {
     var progress: Integer = 0
-    console.print("mathematically true, but", progress > -0.5)
+    console.print("mathematically true", progress > -0.5)
+}
+```
+```diagnostic
+'progress > -0.5' compares in Integer, since a comparison takes the left side's type, and the right side is a Float, which would be cut to fit: write the Float first ('-0.5 < progress')
+```
+
+Written the other way round the comparison is done in `Float`, and answers what the mathematics does. An integer
+literal that fits the left side is not wider (`small < 10` with a `Byte` `small`):
+
+```gdscript title=casting_fixed/casting_fixed.spite entry
+var console = Console()
+
+func CastingFixed() {
+    var progress: Integer = 0
+    console.print("mathematically true", -0.5 < progress)
     var price: Float = 3.0
     var quantity: Integer = 2
     console.print("total", price * quantity)
 }
 ```
 ```output
-mathematically true, but false
+mathematically true true
 total 6
 ```
-
-`0 > -0.5` is mathematically true, but `-0.5` casts toward the left side's type first: it truncates to `0`, so
-the comparison becomes `0 > 0`, which is false.
-
-Give the `Integer` side a `Float`/`Double` type instead of comparing an `Integer` variable directly against a
-non-integer literal, if you need the mathematical answer. (D162 settled this for arithmetic; for comparisons it
-is still [open question 3](open_questions.md#open-questions), and worth knowing before you write a comparison that mixes an `Integer` and a
-fractional literal.)
 
 `String` converts both ways: assigning a `String` to a numeric variable parses it (`0`/`0.0` on failure, never
 a crash) by calling `String`'s `to_<name>()` for that type -- `to_integer()`, `to_long()`, `to_double()`, ... (the
@@ -230,6 +264,11 @@ Immutable, length-prefixed (not a bare `char*`), reference counted. A value is p
 than joined to it with `+`: `"hello {name}"`, where `{ }` holds one value of any type (every numeric type,
 `Boolean`, and enum format themselves) and `\{` is a brace meant literally. Two values still join with `+`, and
 joining written text with `+` is an error naming the form above. `==`/`!=`/`<`/`>` compare by content.
+
+A backslash writes a character a text cannot hold as itself: `\n` (line break), `\t` (tab), `\r` (carriage
+return), `\\` (backslash), `\"` (double quote) and `\{` (brace). Escapes follow each other freely, so `"\\\{"` is a
+backslash and a brace, and a text written inside a hole keeps its own escapes and holes
+([the rule](#text-escapes--implemented)).
 
 A text that is one hole and nothing else, `"{clicks}"`, is an error ([D223](decisions.md)): it is the value
 itself, so the value is written directly, and where text is wanted it becomes text on its own
@@ -704,6 +743,19 @@ var content = content.trim()     # String
   The unused rule ([Unused is an error](style.md#unused-is-an-error--implemented)) still applies to the binding being shadowed: shadowing a name that was never read
   is an error, which is what catches an accidental reuse rather than a deliberate one.
 
+#### Text escapes  **[implemented]**
+
+- Inside `"..."`, a backslash and the character after it are one character of the text: `\n` line feed, `\t`
+  tab, `\r` carriage return, `\\` backslash, `\"` double quote, `\{` an opening brace that starts no hole. Any
+  other character after a backslash is that character; the formatter writes `\'` as `'`.
+- A `{` not escaped opens a hole, which ends at its matching `}`. A text written inside a hole is read as a text
+  of its own, with its own escapes and holes, to any depth: `"{name.replace("x", "a{name.replace("x",
+  "\\\{")}b")}"` is one text. A hole that reaches the end of the file without its `}` is `this '{' inside text
+  never closes: ...`, and a text that reaches the end of its line is `this text never closes: ...`.
+- Every escape alone, in pairs and in threes -- plain, after a hole, inside a hole, and inside a text inside a
+  hole -- is `conformance/stage3/text_escapes`. (Fixed 2026-09-26: a text inside a text inside a hole was not
+  read as a text, so a `\{` there opened a hole that never closed.)
+
 #### Casting
 
 There is no cast syntax. The right side is always cast toward the left side.
@@ -725,9 +777,14 @@ right side in an Integer first if it fits one`. For `-`, `/` and `%`, where orde
 `store the left side in a Long first ('var wide: Long = count')`. Wider means more bits (`Tiny`/`Byte` 8, `Short`/`UnsignedShort` 16,
 `Integer`/`UnsignedInteger`/`Float` 32, `Long`/`UnsignedLong`/`Double`/`Memory.Address` 64), or a `Float`/`Double` right side under a whole
 number left side, which would lose its fraction; signedness alone is not wider. An integer literal on the right
-that fits the left type is not wider (`small + 1` with a `Byte` `small` is a `Byte` addition). A comparison is not
-arithmetic and is not checked: it still casts the right side toward the left, so `age > 0.5` with an `Integer` `age`
-means `age > 0` (open question 3). A constant expression that overflows the `Integer` its arithmetic is done in is an
+that fits the left type is not wider (`small + 1` with a `Byte` `small` is a `Byte` addition). **A comparison
+(`==`, `!=`, `<`, `<=`, `>`, `>=`) is held to the same rule** (decided by Claude under D205, answering open question
+3; the wording proposed by Claude, unconfirmed) **[implemented]**: it casts the right side toward the left, so
+`age > 0.5` with an `Integer` `age` would mean `age > 0`, and a right side wider than the left is a compile error
+naming the comparison turned around: `'progress > -0.5' compares in Integer, since a comparison takes the left
+side's type, and the right side is a Float, which would be cut to fit: write the Float first ('-0.5 < progress'),
+or store the right side in an Integer first if it fits one`. An integer literal that fits the left type is exempt
+(`small < 10`); a float literal under a whole number never fits (`diagnostics/wider_comparison`). A constant expression that overflows the `Integer` its arithmetic is done in is an
 error too, naming its value: `'(65536 - 120) * 65536' is 4287102976, which does not fit in an Integer, the type its
 arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long`.
 `diagnostics/wider_right_operand`. Both checks happen while compiling and change nothing in what is emitted.
@@ -788,6 +845,20 @@ assignment parses it (defaulting to `0`/`0.0` on failure), through `String`'s on
 `to_tiny()`, `to_short()`, `to_integer()`, `to_long()`, `to_byte()`, `to_unsigned_short()`,
 `to_unsigned_integer()`, `to_unsigned_long()`, `to_float()`, `to_double()`. `count()`, `length()`, and
 `index_of()` always return `Integer`, never a wider type.
+
+**Signed arithmetic that does not fit halts in a development build** (decided by Claude under D205; the
+message and the unsigned exemption proposed by Claude, unconfirmed). **[implemented]** In a `--debug-memory` or an
+inspectable build (`--development`, `--hot-reload`, `--repl`, `--repl-port`, D143), every `+`, `-` and `*` whose
+left side -- the type the arithmetic is done in -- is `Tiny`, `Short`, `Integer` or `Long` is compiled with the C
+compiler's overflow builtin (`__builtin_add_overflow`, `__builtin_sub_overflow`, `__builtin_mul_overflow`) in that
+type, and an answer that does not fit halts, since it is the developer's mistake (D199): `spite: 'amount * factor'
+does not fit in an Integer (2000000000 * 2), at game/game.spite:17 in Game.scaled`
+(`conformance/stage6/integer_overflow`). A production build (the ordinary one and `--optimized`) emits the plain C
+operator, so the check costs nothing there and the answer wraps. The unsigned whole numbers (`Byte`,
+`UnsignedShort`, `UnsignedInteger`, `UnsignedLong`) are modular in every build: their arithmetic wraps, which is
+what the hashes (`Dictionary`'s, the allocation table's) and `Noise` rely on. A constant expression that overflows
+is still a compile error (D162), and `/` and `%` keep D201's check. Measured on the compiler compiling itself with
+`--debug-memory` (every signed `+`, `-` and `*` of the compiler checked): see [optimizations.md](optimizations.md#signed-arithmetic-is-checked-only-while-developing).
 
 **Division by zero follows Go** (D201, decided by Mortaro). A whole-number `/` or `%` whose divisor is zero halts
 the program, naming the operation and the line -- `spite: 'total / parts' divided by zero, at

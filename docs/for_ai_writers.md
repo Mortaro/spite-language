@@ -19,7 +19,8 @@ spite program --optimized               optimized build (a Build field)
 spite program --debug-memory            print the allocation balance at the end
 spite program --repl-port=4000          serve the REPL; spite connect 4000 --command="..." asks it
 spite program --c-source --run=false    write program/program.c instead (--c-path= puts it elsewhere)
-spite program --run=false               only compile: the errors, if any
+spite program --run=false               only compile: the errors, if any (writes no executable)
+spite program --executable --run=false  build program/program.exe without running it
 spite program -- --serve=true           the program's own arguments, read by Environment (snake_case after --)
 spite format game                       format files without compiling them (every compile formats first anyway)
 bash check.sh                           the compiler still compiles itself, and every corpus passes
@@ -28,9 +29,17 @@ bash check.sh                           the compiler still compiles itself, and 
 A program lives in its own folder, and `spite game` runs it: `launcher/launcher.spite` loads `library/`, then the
 target system's folder of it, then `game/`, whose every sub folder is a
 namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
-folder's own class). `load "folder"` inside a function loads another package; a file at the same namespace path
+folder's own class). `load "folder"` inside a function loads another package (the path is relative to the file,
+or absolute: `load "D:/Projects/engine/slop"`); a file at the same namespace path
 reopens the class: same-named functions and attributes replace, the rest are added, and an enum declared again
-gains the values it lists.
+gains the values it lists. `Build` is the exception: a field the program's own `build.spite` declares keeps the
+program's value over a loaded package's (a flag, then the program, then the package). A package opens the files
+beside its own source through `class.source_folder()` (or `$item_type.source_folder()`), the absolute folder of
+the class's file on the machine that built it, never through a path relative to where the program runs.
+A name that resolves to no class is `unknown type 'X'`, with `did you mean
+'Component.Eye'?` when a class ends the same way: an environment's folder (`server/`) is not part of the name.
+What follows `--` reaches the program as typed, from bash, PowerShell or `cmd` alike:
+`/Game/Legacy/` stays `/Game/Legacy/`, so do not work around Git for Windows' path rewriting.
 
 ## A file is a class
 
@@ -119,6 +128,10 @@ func is_alive(): Boolean {
   can name a variable or a parameter either: `var none: Long = 0` says to write `null`. Pick another name
   (`no_handle`, `empty`). `load` is reserved too: it always loads a package, so a function that loads something
   says what (`load_texture`).
+- `class`, `attributes`, `functions`, `instances` and `memory` never name an attribute or a function (nor a
+  `get_`/`set_` one): reflection gives every object those members, and `JsonReader` and every attribute walk read
+  through `value.attributes`. The error suggests the class's name in front (`table_attributes`). A local may use
+  them.
 - No name is taken by the C that Spite compiles to (D168): `short`, `default`, `register`, `static`, `unsigned`,
   `stdout`, `near`, `far` and `pascal` are ordinary names for a variable, attribute, parameter or function, and
   so are `allocate`, `make`, `retain` and `release`. Do not rename around C. (`int`, `char`, `bool`, `min` and
@@ -133,15 +146,19 @@ func is_alive(): Boolean {
 ## Values
 
 - Numbers: `Integer` (32 bit, the default), `Long`, `Tiny`, `Short`, `Byte`, `UnsignedShort`, `UnsignedInteger`,
-  `UnsignedLong`, `Float` (the default for decimals), `Double`. `Boolean`. `String` (double quotes only).
+  `UnsignedLong`, `Float` (the default for decimals), `Double`. `Boolean`. `String` (double quotes only; escapes
+  `\n`, `\t`, `\r`, `\\`, `\"` and `\{` for a literal brace, in any order: `"\\\{"` is a backslash and a brace; a
+  text inside a hole keeps its own escapes and holes).
 - No cast syntax: the right side is cast toward the left. `"age {3}"` is `"age 3"`; `var total: Integer = "12"` parses
   it. Anything with a `to_string()` (numbers, `Boolean`, enums, a class that declares one) casts to text wherever a
   `String` is wanted: `label.text = clicks`, `show(clicks)`, `return clicks`, `names[badge]` on a `Dictionary` (a whole number there keys it by numbers instead). So a
   text of one hole and nothing else, `"{clicks}"`, is an error naming the direct form; elsewhere write
   `clicks.to_string()`. Arithmetic is done in the left side's type, so write the wider operand first: `total * count` with a `Long`
   `total`, never `count * total`, which is an error (so is an `Integer` plus a `Float`); a literal on the right that
-  fits is fine. A constant that overflows `Integer` (`65536 * 65536`) is an error: write the number. Comparisons are
-  not checked and still cast the right side toward the left. A value that does not fit wraps. A whole number divided by zero (`/` or `%`) halts naming the line, and a divisor written as zero is an error; after `assert divisor != 0` the check is gone. Floats keep infinity and not-a-number.
+  fits is fine. A constant that overflows `Integer` (`65536 * 65536`) is an error: write the number. Comparisons follow
+  the same rule: `count < total` with a `Long` `total` is an error, write `total > count`. A value converted to a narrower type wraps, and so does
+  unsigned arithmetic (use `UnsignedInteger`/`UnsignedLong` for a hash); signed `+ - *` that does not fit halts
+  naming the line in a `--debug-memory` or development build and wraps in production. A whole number divided by zero (`/` or `%`) halts naming the line, and a divisor written as zero is an error; after `assert divisor != 0` the check is gone. Floats keep infinity and not-a-number.
 - Bits are functions on the whole numbers, never symbols: `value.shifted_left(count)`, `shifted_right(count)`
   (arithmetic on a signed type, logical on an unsigned one), `bits_and(mask)`, `bits_or(mask)`,
   `bits_exclusive_or(mask)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`.
@@ -165,7 +182,8 @@ func is_alive(): Boolean {
   or an enum only: on a list of a class use `any(f)` or `find_by_<member>`), `is_empty`, `clear`, `reverse`,
   `join` (text, numbers, `Boolean` and enum values all join), never `add` or `pop`, `list[index]` (a `T?`: out of range gives nothing -- `crash names[index]` narrows it like a path,
   and so does `crash glyphs[code - 32]`, or any index with no call in it, with no copy into a local first;
-  `crash names.count() == 3` proves `names[0]` to `names[2]`, and `while index < names.count()` proves
+  `crash names.count() == 3` (or `>= 3`, or `> 2`) proves `names[0]` to `names[2]`, `crash not names.is_empty()`
+  proves `names[0]` (a list's, never a dictionary's), and `while index < names.count()` proves
   `names[index]` in the loop body, so a `crash names[index]` inside that loop is an error saying so: delete it).
   `Dictionary<T>` (insertion order): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`,
   `values`, `dictionary["key"]` (a `T?`, like `list[index]`: `inventory["shield"] == 0` is false for an absent
@@ -258,7 +276,9 @@ func is_alive(): Boolean {
   `names.map(measure)`, `names.filter(is_short)`, and `any`, `all`, `count`, `find` (the first element it is true
   for, a `T?`), `sort_by` and `sum` the same way, on a list or dictionary of anything, chained with the member
   templates or not (`people.filter_active().map(greeter.label)`). The function takes the element as its only
-  argument and is bound to its owner: `greeter.label` is `greeter`'s. A function that needs more than the element
+  argument and is bound to its owner: `greeter.label` is `greeter`'s, and a library value's works the same:
+  `keys.filter(counts.has)`, `words.filter(greeting.contains)`. `counts.get` answers `T?`, so it cannot order a
+  `sort_by`: pass a function of yours that narrows it. A function that needs more than the element
   (`print_statement(statement, depth)`) keeps its `while`; `map(f)` of a function that returns nothing is an
   error naming `each(f)`.
 - `enum`, `union` and `type` declarations take no `=`, one entry per line, no commas:
@@ -317,6 +337,11 @@ func is_alive(): Boolean {
   - absence is a bug: `crash condition` halts with
     `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition<TAB>name=value...`, followed by the
     asserts that failed before it. A bare `crash` marks a branch that cannot happen (`crash false` is formatted to it).
+    A failed narrowing names what is absent instead of a value: `clip.keys[start + 9] is missing: index 11990,
+    count 11500`, `scores[key] is missing: key "bea"`, `rig.skeleton is null`. Read it as an index past the end or
+    a key never set, not as a zero.
+- Narrowing tests presence, never the value: `crash keys[index]` passes on an element holding `0.0`, and `if count`
+  runs on an `Integer?` holding `0`.
 - A native fault -- a null read or an illegal instruction inside a foreign library, a stack overflow -- is never
   silent either: the program prints `spite.fault<TAB>kind<TAB>path:line<TAB>Class<TAB>function<TAB>...`, then
   `spite.frame` lines, innermost Spite function first, and ends. `-	-	-` in the place means the fault is outside
@@ -335,9 +360,13 @@ func is_alive(): Boolean {
 - `attribute: Symbol<Label>` ranges over another class's members, read as `label.attributes[attribute]`, and the
   plural (`show_attributes(label)` for `show_attribute`) calls the template once per attribute, in order.
 - In a generic class, `if $value_type == List { }` (also `Dictionary`, `Null` for any `T?`, `Symbol` for any enum or `Symbol`, `Enum` for an enum only,
-  or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds. Only
+  or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds -- and is
+  tested the same way, `else if $value_type.element_type == Float`, in any branch of a chain. Only
   what the taken branch reaches is compiled -- helper functions, and the code after a chain whose branch returns
   -- so keep one generic class with a helper per kind, not one class per kind.
+- `assert`/`crash` on such a condition folds too, and a `crash` that folds to false in a function the program calls
+  is a compile error naming the instance (`Slot<List<String>>`): write a library's rules as `crash $row_type.has_function("update_each")`
+  and a class that breaks one fails the build.
 - A getter with no setter makes a read-only attribute: `get_fahrenheit()` answers `.fahrenheit`, and assigning
   it is an error.
 - `person.age = 1` calls `set_age(1)` and `person.age` calls `get_age()` when the class has them.
@@ -392,10 +421,10 @@ func is_alive(): Boolean {
 
 `Console()` (`print`, `write`, `error`, `debug`, `read_line(): String?`; each value printed is its `to_string()`, so
 a class prints once it declares `func to_string(): String`, and `debug` shows any value's state, a class as
-`Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`read(): String?`, `write`,
+`Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`map(): MappedFile?` for a file too big to read: `size()`, `mapped[position]`, `read_long(position)`, ... each a `T?`; `read(): String?`, `write`,
 `append`, `exists`, `remove`), `Directory(path)` (`path`, `entries(): List<Directory.Entry>` -- each a `Directory` or a `File`, switched on --,
 `files`, `folders`, `exists`, `create`),
-`Process(command, arguments)` (`run(): Integer`, `output()`: standard output only), `Program()` (`exit(code)`, `sleep(milliseconds)`,
+`Process(command, arguments)` (`run(): Integer`, `output()`: standard output only; each argument reaches the child whole, `-key=value with spaces` as `-key="value with spaces"` on Windows; `working_directory` and `environment_variables["NAME"] = "value"` set for the child alone), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere, bound once
 as `var console = Console()`.
 `print`, `error` and `debug` write their line out at once, so a log redirected to a file shows every line as it
@@ -412,7 +441,7 @@ in for what the function returns and reading it is the wait (there is no `.wait(
 'wait'`), `finished` answers without waiting, `finished_value(): T?` is the value once finished and `null` before
 (never a wait, so a system that only collects finished work keeps `function_waits` false: `var found =
 handle.finished_value()`, then `if found { }`), and dropping the handle waits for it. A `parallel_each_<member>()`
-member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock` or a `ThreadLocal`; anything else is an error naming the attribute. One exception: `var crafter = Crafter(first)` then `var run = Parallel(crafter.craft)` hands the object over, so its task may keep lists of values (`List<Integer>`, `List<String>`) and objects of its own that it made itself; touching `crafter` after that line is `'crafter' was handed to 'Parallel(crafter.craft)', which keeps its 'recipe_ids' on another thread, so it is not used after that line`. Keep a list of ids as a `List<Integer>`, never as comma-joined text. There is no `async`/`await`: a function
+member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock`, a `ThreadLocal` or an `Atomic<T>` (a shared whole number or `Boolean`: `read`, `write`, `add`, `exchange`, `compare_and_swap`); anything else is an error naming the attribute. One exception: `var crafter = Crafter(first)` then `var run = Parallel(crafter.craft)` hands the object over, so its task may keep lists of values (`List<Integer>`, `List<String>`) and objects of its own that it made itself; touching `crafter` after that line is `'crafter' was handed to 'Parallel(crafter.craft)', which keeps its 'recipe_ids' on another thread, so it is not used after that line`. Keep a list of ids as a `List<Integer>`, never as comma-joined text. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
 run ([concurrency.md](concurrency.md)).
 `$system_type.function_waits("update_each")` is decided while compiling like `has_function` (and
@@ -424,7 +453,9 @@ between frames, or where one's value is read or its handle dropped. A loop polli
 `run_ready()`, or it never ends.
 `JsonWriter(value).write(): String` writes JSON and `JsonReader<T>(text).read(): T?` reads it
 (`read_or_crash(): T` halts instead), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`;
-`read` skips unknown keys, keeps defaults for missing ones, and is `null` on a value of the wrong kind; a `Symbol`
+`read` skips unknown keys, keeps defaults for missing ones, reads a camelCase or PascalCase key (`buyPrice`,
+`BuyPrice`) into its snake_case attribute (`buy_price`) when no attribute has the key's exact name, so never
+rename attributes to match foreign JSON, and is `null` on a value of the wrong kind; a `Symbol`
 reads back only as a name the program already uses. Writing a `Float` or `Double` that is infinity or not-a-number
 to JSON crashes naming the attribute (`'Order.price' is infinity, which JSON cannot hold`): check the number first
 if `null` is wanted. **Between Spite programs, and for files a Spite program reads back, use bytes instead**:
@@ -437,6 +468,7 @@ the start of a file or connection and compare it with `reader.schema()` before r
 of both. A union, a `type` (`Anything` included) or a function value anywhere in what they see is a compile error at
 the line that makes the writer or reader (`JsonWriter cannot write 'Owner': 'Owner.pet' is the union Pet, ...`):
 keep what they see to the kinds above ([json.md](json.md)). `Json` no longer exists: it is the two classes above.
+Measure with `clock.elapsed_nanoseconds()`, the monotonic clock: a `Long`, no allocation, subtract two readings.
 Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(since_1970)` with
 `var since_1970 = Duration(1710054000, 'seconds')`.
 `Duration(90, 'minutes')` is exact time (no days: `Duration(1, 'days')` is an error); `Period(1, 'months')` is
@@ -450,6 +482,16 @@ reads a local reading: `var zones = TimeZones()`, `zones.find("America/New_York"
 `DynamicLibrary("ucrtbase.dll", 'identity', "")` calls a native library's functions as members
 (`c_runtime.strlen(text)`, `_as_long`/`_as_double`/`_as_text` for wider results); the standard library's
 `library/windows/`, `linux/` and `mac/` folders reopen the classes each system changes (docs/foreign_libraries.md).
+C calls back into Spite without any C written: a function value given as a foreign call's argument is a C function
+pointer for that call only (`c_runtime.qsort(values, count, 4, ascending)`); a function C keeps or calls from its
+own thread is handed over as `var handler = ForeignCallback(owner.function, 'context_last')` (or `'context_first'`),
+passing `handler.address` as the pointer and `handler.context` as C's user data, or `'no_context'` for a function
+of a singleton when C gives none (a window procedure; the singleton tells objects apart by the handle C passes). A
+callback takes and returns only numbers, `Boolean` (a 32-bit `BOOL`) and `Memory.Address`; text C passes is an
+address read with `terminated_text()`. Keep the `ForeignCallback` in an attribute of the object that owns the C
+registration and unregister in its `drop()`: C may call only while it is kept. A handed-over function follows a
+`Parallel`'s rules (its own value attributes, locals, singletons). A COM-style interface is a `Memory.Heap` block
+whose first word points at a table filled with `TypedMemory<Long>` and each `ForeignCallback`'s `address`.
 Game maths (docs/game_maths.md): `Vector2`, `Vector3`, `Vector4` are made with their parts, `Vector3(1.0, 2.0, 3.0)`,
 read as `x_value`, `y_value`, `z_value`, `w_value` (never `.x`), with `+ - * /` part by part, `scaled(factor)`,
 `dot`, `cross`, `length()`, `normalized()`, `distance_to`, `linear_interpolate(target, amount)`. `Matrix4()` and

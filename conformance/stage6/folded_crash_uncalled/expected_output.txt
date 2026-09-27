@@ -1,0 +1,1 @@
+only the Integer slot checks that it fits; the text slot never calls fits

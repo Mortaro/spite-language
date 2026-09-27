@@ -1,0 +1,18 @@
+var console = Console()
+
+func IntegerOverflow() {
+    var small: Tiny = 100
+    var fits = small + 27
+    var hash: UnsignedInteger = 4000000000
+    var mixed = hash * 3
+    console.print(fits, mixed)
+    var lowest = Long.smallest()
+    var above = lowest + 1
+    console.print(above)
+    var total = scaled(2000000000, 2)
+    console.print("never printed", total)
+}
+
+func scaled(amount: Integer, factor: Integer): Integer {
+    return amount * factor
+}

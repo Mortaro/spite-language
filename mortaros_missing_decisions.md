@@ -345,15 +345,10 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## Game maths (D213)
 
-205. **Vectors and matrices allocate on every answer.** Built (proposed by Claude, unconfirmed): `Vector3` and the
-     others are classes, so `position + velocity.scaled(delta)` makes two heap objects and frees one
-     (`benchmarks/game_maths`: 26 ms and two allocations per step for a million steps; clang removed them only
-     where nothing but a sum survived). Ways to remove them, none built: (a) extend D108's placement to a class
-     instance that never outlives its statement or loop pass, so the temporary lives in the frame; (b) let a class
-     of only numbers be a value kept inline like a number (D149 makes every class a reference today); (c) in-place
-     twins such as `position.add(moved)`, which cost nothing but double the names. Which, if any? And the parts:
-     `x_value`...`w_value` because a name is never one letter -- keep them, or allow `x`, `y`, `z`, `w` on these
-     classes as the field's own names (as D213 allows `Vector2`)?
+205. **The parts of vectors and quaternions are `x_value`...`w_value`**, because a name is never one letter -- keep
+     them, or allow `x`, `y`, `z`, `w` on these classes as the field's own names (as D213 allows `Vector2`)? (The
+     allocations this item also asked about are gone: an answer that stays in its function lives in the frame,
+     built under D205/D214, [optimizations.md](docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame).)
 
 ## Borrowed rows for systems of several row types (low priority, from SlopEngine)
 
@@ -385,3 +380,66 @@ Behaviour that does not match the manual. The language was not changed; each is 
      optimisation do. Not built. Is `Float` arithmetic rounded to `Float` after each operation (then the literal
      is a bug fix), or is double precision inside one expression the rule?
 
+
+## Callbacks from C (D231-D234)
+
+211. **The names, and two limits of the design.** Built under D205 with provisional names (D214):
+     `ForeignCallback(function, where_context)`, its literals `'no_context'`, `'context_first'` and
+     `'context_last'`, and its `address` and `context`
+     ([foreign_libraries.md](docs/foreign_libraries.md#calling-back-into-spite)). Two limits only you can weigh:
+     (a) a call C makes through a context after its `ForeignCallback` was dropped is not caught -- the owner's
+     `drop()` must unregister from C first; catching it would need a table of live contexts in every program
+     that makes one, and a lookup per call. (b) `'no_context'` takes only a function of a singleton, one
+     `ForeignCallback` per function at a time, so a window procedure lives on a singleton that finds the window by
+     its handle; a static slot per construction site would allow any object, checked only at run time. Keep both?
+
+
+## From the Theseus port (outputs)
+
+212. **Should `--run=false` alone build the executable?** Today every output off is "only check that it
+     compiles" ([compiler.md](docs/compiler.md#choose-the-outputs), Claude's reading of D128, unconfirmed): nothing
+     is written, so an executable an earlier build left beside the program stays there, and running it runs the
+     old code. The Theseus exporter was caught by this. D128 and D129 do not say what "no output" means. Three
+     readings: (a) keep it, as the checking mode `check.sh` compiles every diagnostic with, and teach
+     `--executable --run=false` for "build, don't run" (what the docs now say); (b) `--run=false` alone builds the
+     executable, and checking only becomes its own flag or command (`spite check game`); (c) checking only also
+     deletes the executable beside the program, so nothing stale is left to run. (a) is what is built.
+
+
+## Release builds and compile time (from the Theseus port; numbers in benchmarks/README.md)
+
+213. **The default build's optimisation level.** It is `-O0`, yours to change, and was left alone. Measured on
+     `benchmarks/versus_c` (the Spite programs' own C, microseconds): `-O0` is 3-7x slower than `-O2` on every
+     program (`vector_maths` 1 081 065 against 312 885, `number_dictionary` 725 624 against 109 304, `sorting`
+     496 780 against 164 525), and the compiler compiling itself takes 5 875 CPU ms built at `-O0` against 1 938 at
+     `-O1` and 1 656 at `-O2`. Building costs the other way: the compiler's 7.2 MB of C is 6-11 s from one file at
+     `-O0`, about 40 s at `-O1`/`-O2` and 38-51 s at `-O3` (14.5 s at `-O3` from eight units, cold). Keep `-O0`,
+     move to `-O1` (most of the speed, compile time several times `-O0`'s), or build the default from units at
+     `-O1` too?
+214. **`--optimized` is now `-O3` with link-time optimisation (proposed by Claude, unconfirmed), as asked for the
+     Theseus port.** Against the old `-O2`, `-O3` is a wash: `number_dictionary` 18% and `text_building` 13% faster,
+     `vector_maths` 3% and the compiler itself 6% slower, the rest equal. Split into units with ThinLTO it runs
+     exactly as fast as one file at `-O3` (1 766 CPU ms for the compiler either way), and builds 2.6-3.6x faster
+     cold. Keep `-O3`, or go back to `-O2` (under D214 the measurements do not pick a clear winner)?
+215. **The names: `tune_for_this_machine` (`--tune-for-this-machine`, `-march=native`/`-mcpu=native`, off by
+     default because the executable may not run on an older processor) and `translation_units`
+     (`--translation-units=N`; `0` chooses: one file in a default build, a power of two by size in an
+     `--optimized` one).** Both proposed by Claude, unconfirmed. Also: splitting a default build was measured and
+     made it slower (every unit reads the whole header again, and `-O0` spends its time reading), so `0` does not
+     split it -- agree?
+216. **The object cache (`.spite-cache/objects`) is never cleaned.** Each unit's object is kept under the hash of
+     what it was compiled from; nothing deletes old ones, so it grows with every changed build of a big program
+     (tens of MB per `--optimized` build of the compiler). Delete the oldest past a size, delete everything older
+     than some days, or leave it to the user (`rm -rf .spite-cache/objects`)?
+
+
+## From the Theseus MMO port (D249 onward)
+
+217. **Should unsigned arithmetic that does not fit halt too?** D249 checks `+`, `-` and `*` on the signed whole
+     numbers in development builds and leaves `Byte`, `UnsignedShort`, `UnsignedInteger` and `UnsignedLong`
+     modular, because every hash and noise function in `library/` wraps on purpose and is unsigned. Rust and Zig
+     check unsigned too and give hashes explicit wrapping operations; here that would be functions such as
+     `hash.wrapped_product(prime)` (names provisional). Keep unsigned modular, or check it and add the functions?
+     Also: a production build emits the plain C operator, and C leaves signed overflow undefined, so "wraps" holds
+     for what clang does today rather than by rule; `-fwrapv` would make it the rule at a small cost to loop
+     optimisation.

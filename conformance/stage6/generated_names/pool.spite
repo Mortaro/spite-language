@@ -39,18 +39,6 @@ func class_of(): String {
     return "a class of its own"
 }
 
-func attributes(): Integer {
-    return 1
-}
-
-func functions(): Integer {
-    return 2
-}
-
-func instances(): Integer {
-    return 3
-}
-
 func deep_copy(): Pool {
     var copied = Pool()
     copied.count = count + 1000

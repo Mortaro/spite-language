@@ -71,6 +71,9 @@ nothing at run time because they emit nothing.
 | [Maths on constants is worked out while compiling](#maths-on-constants-is-worked-out-while-compiling) | built | every | nothing but speed; a folded call is the compiling machine's C library's answer |
 | [A local list of known size lives in the frame](#a-local-list-of-known-size-lives-in-the-frame) | built | every but the inspectable ones | fewer allocations |
 | [A loop over plain values reads its count once and its items unchecked](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked) | built | every but `--repl`, `--repl-port` and `--hot-reload` | nothing but speed |
+| [Objects that never leave their function live in the frame](#objects-that-never-leave-their-function-live-in-the-frame) | built | every but the inspectable ones | fewer allocations; `.memory.section` answers `'stack'` |
+| [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | built | `--optimized` (any build given `--translation-units`), but not `--hot-reload` | nothing but build time; `.spite-cache/objects` grows |
+| [A release build is `-O3` with link-time optimisation](#a-release-build-is--o3-with-link-time-optimisation) | built | `--optimized` | nothing but speed, and a slower link |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -141,7 +144,16 @@ even use things that would not compile for this build. That covers:
   system's arity;
 - `$component_type.fits_vector()` and `attribute.class.fits_vector()` ([D217](decisions.md)), which is how
   `Items<T>` picks inline or reference storage ([below](#an-items-storage-is-chosen-while-compiling));
-- `not`, `and`, `or`, `==` and `!=` over any of these.
+- a test on a codegen value's own codegen values, `$list_type.element_type == Float`,
+  `$map_type.value_type == Item`, `$holder_type.held_type == String`, to any depth, in every branch of an
+  `else if` chain (`conformance/stage6/codegen_member_fold`; fixed 2026-09-26, when only a plain `$T` folded);
+- `attribute.class == X` in an attribute walk, for an attribute of any type (D237); and where a value known only at
+  run time is compared with a `.class` known while compiling (`given == known.class`), the comparison is a class-id
+  test and no `Spite.Class` object is made (`conformance/stage6/walked_class_fold`);
+- `not`, `and`, `or`, `==` and `!=` over any of these. An `and` whose left side folds to `false`, and an `or` whose
+  left side folds to `true`, fold whatever the right side is, as the run-time `and` and `or` would never look at
+  it: so `$list_type.element_type == List and $list_type.element_type.element_type == Float` folds for a list of
+  text, whose items have no `element_type` to ask about.
 
 An `assert` or `crash` whose condition is one of these folds the same way: a check that holds writes nothing,
 and one that fails writes its failure (the default returned, or the crash report) with no test, the rest of its
@@ -347,8 +359,9 @@ way to give it back, `heap.free(address)`. Where the bytes live is the compiler'
   scalar. A number is never an object.
 - **Frame:** an allocation a function frees itself, in the same block, whose address it only reads and writes
   through, copies, compares, turns into `text`, hands to a `TypedMemory` or lends to a function of its own class
-  proven to keep nothing ([D211](decisions.md)) -- never stores, returns, resizes or passes anywhere else -- gets a
-  slot in the function's own frame: 256 bytes, or exactly a literal size up to 256. A larger size at run time
+  proven to keep nothing ([D211](decisions.md)) -- or, in `library/`, lends to a function of a `DynamicLibrary`
+  the class holds, the operating system call that fills it -- never stores, returns, resizes or passes anywhere
+  else -- gets a slot in the function's own frame: 256 bytes, or exactly a literal size up to 256. A larger size at run time
   still goes to the heap, and the program's text is the same either way.
 - **Constant:** the characters of a text literal are part of the program, never counted or freed.
 - **Heap:** everything else.
@@ -879,6 +892,10 @@ All **built**, and none of them needs anything from you:
   only to be printed by a crash, so each `assert` of such a program compiles to its test and its `return`, and
   the trace's 32 entries are not in the program ([D177](decisions.md)). A program that can crash records
   exactly as before.
+- An attribute written through a local or a parameter, `item.index = 293`, is written through that local,
+  `(item_)->index_ = 293;`, with no temporary holding the reference first: a local cannot change while the value
+  is worked out. An object that is any other expression is still evaluated once into a temporary. Nothing a
+  program can observe changes; the C is shorter, by about one line in twenty for a folder of data records.
 - A foreign library is closed at exit only if the function that opens it is in the program, so a library nothing
   opens leaves neither its handle nor the code to close it in the program ([D177](decisions.md)). `Console` still
   opens the C library when it is made, since D144 binds its `DynamicLibrary` as an attribute: a program that only
@@ -1166,6 +1183,20 @@ that cannot change `parts` and drops across one that may. The check, where it st
 branch the CPU predicts. What you can observe: nothing but speed; `check.sh` holds that
 `conformance/stage6/division_by_zero`'s proven `whole / pieces` carries no check in its C.
 
+### Signed arithmetic is checked only while developing
+
+**Built.** In a `--debug-memory` or an inspectable build, every `+`, `-` and `*` done in `Tiny`, `Short`,
+`Integer` or `Long` is the C compiler's overflow builtin in that type, and an answer that does not fit halts
+([values_and_types.md](values_and_types.md#numeric-types--implemented-provisional)). A production build -- the
+ordinary one and `--optimized` -- emits the plain operator, so its C is the same as before the check existed and
+the answer wraps. The unsigned whole numbers are never checked. What you can observe: in a development build, a
+halt instead of a wrapped answer; in a production build, nothing. **Cost, measured** (best of seven runs, each
+benchmark built with `--development` by the compiler before and after the check, C at `-O2`, on a machine other
+sessions were loading): `plain_loops` 201 -> 216 ms, `fused_chain` 240 -> 345 ms, `game_maths` 180 -> 189 ms,
+`dictionary_keys` 177 -> 179 ms. The compiler built with `--debug-memory` compiling itself carries 1 506 checked
+operations and took 5.2 s before and 4.7 s after, best of eight: inside the noise. **Planned:** leave out the check
+where a proof already bounds the operands, as a proven divisor leaves out its zero check.
+
 ### Short text lives inside the `String`
 
 **What it does.** A `String` is sixteen bytes wherever it is kept -- a local, an attribute, a list's element, a
@@ -1341,6 +1372,96 @@ two loops would take about 100 and 70 µs, but some results would change in thei
 for Mortaro and is not done (`mortaros_missing_decisions.md`, item 210). **Built** (2026-09-26, the second part of
 [D222](decisions.md); proposed by Claude, unconfirmed).
 
+### Objects that never leave their function live in the frame
+
+**What it does.** Every class is passed by reference ([D149](decisions.md)), so `var moved = position +
+velocity.scaled(delta)` reads as two new objects. When the compiler can prove an object never outlives the call
+that made it, it is not made on the heap at all: it gets a slot in the function's own frame, the way a buffer
+([D108](decisions.md), [D211](decisions.md)) and a list ([D222](decisions.md)) already do. Four places use it:
+
+- **A local.** `var name = <a fresh object>` gets a frame slot when nothing after it in its block lets the object
+  go: it is only read and written through its attributes, handed as the receiver or as an argument to functions
+  proven to keep nothing, compared, or asked for its `.memory`. It may be given a new fresh object
+  (`position = position + moved`), which is worked out in a second slot and copied into the first; and when the
+  function returns its class, `return name` copies it to the heap once, at the return, instead of once per step.
+  Anything else lets it go and keeps it on the heap as before: storing it in an attribute, a list or a dictionary,
+  returning it from a function that answers some other type, naming it in another variable (`var other = name`),
+  passing it to a function that keeps it, to a `Parallel` or a `Concurrent` (their constructors keep it), as a
+  function value (`name.update`, which holds the object), to a variadic list (`console.print(name)`), or naming it
+  in a text's hole other than as `{name.attribute}`.
+- **A result, into the caller's slot.** A function whose every `return` gives a fresh object -- `return
+  Vector3(...)`, a local that lives in the frame, or another such call -- gets a second, hidden version that writes
+  its answer into a slot its caller passes, a calling convention chosen per call site ([D36](decisions.md): both
+  versions may exist, and neither is visible). So `var moved = velocity.scaled(delta)`, whose `moved` stays in the
+  frame, calls the hidden version with `moved`'s slot, and nothing is allocated. `Matrix4.multiply`, which builds
+  its product in a local and returns it, becomes the same.
+- **A temporary.** In `a + b + c`, `(first + second).length_squared()` or `transform.transform_point(point)` passed
+  to a function that keeps nothing, each intermediate answer is written into a frame slot of its own.
+- **A copy used as a value.** This is D149's answer to value classes, which Spite does not have: "instead we can
+  copy() a instance because thats user intention, but if a copy is only used as a value, we internally compile it
+  as a value, the compiler is smart, the users arent". `var local = other.copy()` (or `other.deep_copy()`, the
+  same thing for a class of numbers) whose `local` never leaves the function is a frame slot filled by copying the
+  attributes -- a `memcpy` of the object's numbers after the C compiler is done -- with no heap allocation and no
+  count kept anywhere. Changing `local` never changes `other`, as with any copy.
+  `conformance/stage6/frame_objects` pins it: two such copies change `heap.live_allocations()` by 0 (by 2 before).
+
+**Which objects.** An instance of a class whose attributes are all numbers, `Boolean`s, enum values or singletons
+([D144](decisions.md) binds a singleton as an attribute, and it is never counted) -- `Vector3`, `Matrix4`,
+`Quaternion`, a program's own `Velocity`, SlopEngine's `Math.Matrix4` -- with no `drop()`, that is not a singleton and whose
+constructor keeps nothing, and whose class is not read with `.instances` anywhere in the program. What "keeps
+nothing" means is proven from the source of each function, parameter by parameter and for the object it is called
+on: a parameter kept nowhere in the body -- not stored, returned, captured, named in another variable, or passed on
+to a function that keeps it -- is lent. A function without a body the compiler reads (a foreign or built-in one) and
+a recursive call are assumed to keep.
+
+**How it stays safe.** A frame object starts with a reference count of 2^30 that its frame never lets go, so the
+count's ordinary ups and downs around calls never free it, and it is never on the heap to be freed. Nothing is kept
+anywhere, so no reference outlives the frame, and none reaches another thread: a program cannot tell where it lives
+except by asking.
+
+**When.** Every build but the inspectable ones (`--repl`, `--repl-port`, `--hot-reload`, `--development`), where
+every object stays an ordinary heap object that reflection and reloading can see, and not in a function that
+waits. Objects of classes holding text, lists or other objects are not placed yet: their attributes would have to
+be let go at the end of the frame, which is planned (below).
+
+**What you notice.** Fewer allocations under `--debug-memory`, and `value.memory.section` answering `'stack'` for a
+local that lives in the frame ([memory.md](memory.md#where-a-value-lives-memory)). `benchmarks/game_maths` (a
+million `position + velocity.scaled(delta)` steps, 200 000 `Matrix4` products, a million `transform_point`s): 3 200
+046 allocations before, 37 after, and the hand-written C with the same structs in `benchmarks/game_maths/game_maths.c`
+is the measure of speed -- see [the benchmarks](../benchmarks/README.md#game-maths-d213); `small_allocations` makes
+3 004 007 (9 004 007), and every other benchmark the same as before. On a copy of SlopEngine,
+whose `Math.Matrix4` holds its two singletons as attributes: `flex_layout` makes 99 789 allocations (100 514
+before), `scene_probe` 32 413 (32 518), `render_parity` 14 142 (14 171), with the same output; `stress` keeps
+its components in columns and makes the same 5 606 191. The pins that moved in `conformance/`: `lent_arguments`
+allocates 122 times (130), because the `Entity` a generic runner makes for each entity it hands to a system that
+keeps nothing is now in the frame; `singleton_counts` 65 times (200 065), because the `TallyHolder` each of its
+200 000 passes makes holds only a singleton and is only read, so it is in the frame; `frame_objects` pins the
+rest (2 098 allocations before, 86 after). In a program that starts
+threads, passing a frame object to a function still counts it up and down atomically, as it does any object; the
+count is never read. **Built** (2026-09-26, extending D108/D211 placement to objects under [D149](decisions.md);
+proposed by Claude, unconfirmed, decided under D205/D214).
+
+### The C is compiled in parallel units, and cached
+
+(Proposed by Claude, unconfirmed.) In an `--optimized` build, the C of a program bigger than 1.5 MB is split into
+a header and up to 64 translation units, compiled as many at once as the machine has processors and linked, and each unit's object is
+kept under the hash of what it was compiled from, so a build that changed nothing only links and a build that
+changed one function's body compiles one unit ([compiler.md](compiler.md#translation-units-the-c-compiled-in-parallel-and-cached),
+where the rules are). It changes nothing a program does: the same functions and variables, with `static` dropped so
+another unit can call them. What you could notice: in a build without link-time optimisation a call from one unit
+into another is not inlined by the C compiler -- which the default `-O0` build never does anyway, and which
+`--optimized` recovers ([below](#a-release-build-is--o3-with-link-time-optimisation)); and the object cache in
+`.spite-cache/objects` grows until it is deleted. `--translation-units=1` builds from one file as before.
+
+### A release build is `-O3` with link-time optimisation
+
+(Proposed by Claude, unconfirmed.) `--optimized` asks the C compiler for `-O3`, and a build from several units adds
+ThinLTO (`-flto=thin`, clang) or `-flto=auto` (gcc) so functions are still inlined across units. What you could
+notice: the link takes longer, since it is where the optimisation across units happens. The default build is `-O0`,
+Mortaro's choice to keep; `--tune-for-this-machine` adds `-march=native`, which makes the executable specific to
+processors like the one that built it ([compiler.md](compiler.md#release-builds)). The measurements are in
+[benchmarks/README.md](../benchmarks/README.md#release-builds).
+
 ## Planned
 
 Decided by Mortaro, not built yet. When one is built, it moves up to **Built** in the same change.
@@ -1364,7 +1485,12 @@ optimises behind it ([D149](decisions.md)): a copy used only once is passed by v
 allocated; a copy that is never changed shares the original, when that is cheaper; an object that never escapes
 its function is laid out inline or in registers; and reference counting is left out wherever ownership is
 provable. You keep writing `copy()` where you mean an independent object. (D152's allocator set right after
-construction, the one part of this already built, is [above](#an-allocator-set-after-construction-is-where-the-object-is-made).)
+construction is [above](#an-allocator-set-after-construction-is-where-the-object-is-made), and so is the first
+part of objects that never escape: [objects of numbers in the frame](#objects-that-never-leave-their-function-live-in-the-frame),
+including a `copy()` of one.) Not built yet: frame objects of classes that hold text, lists or other objects
+(their attributes let go at the end of the frame), an attribute object laid inline in a frame-held object where
+the attribute is never shared, and leaving out the count on a frame object passed to a function, which needs
+callees that borrow their parameters rather than taking a count.
 
 ### Other planned optimisations
 

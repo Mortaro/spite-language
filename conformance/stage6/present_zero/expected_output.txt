@@ -1,0 +1,22 @@
+0 0 0
+key 0
+key -0
+no key 9
+count 0
+no count 5
+flag off
+no flag 3
+label ''
+no label 4
+empty shelf holds 0
+missing shelf is not stocked
+answer 0
+no answer
+both 0 0
+not both
+ends 0 3
+no ends
+took 0
+nothing to take
+width 0
+no width

@@ -28,7 +28,9 @@ write its C and write its final classes.
 `bin/spite` (and `bin/spite.cmd`, which runs it from a Windows prompt) is the command itself: it builds the
 compiler from `bootstrap/seed/spite_compiler.c` into `.spite-cache/spite.exe` the first time, and again whenever the
 seed is newer, finds a C compiler, makes the folder and path arguments absolute, and passes everything else
-through.
+through. What follows `--` reaches the program exactly as it was typed, from bash or from PowerShell or `cmd`
+through `spite.cmd`: `spite tool -- --prefixes=/Game/Legacy/` gives the program `--prefixes=/Game/Legacy/`, not
+the path Git for Windows' bash would make of it ([the rule](#the-launcher-passes-the-programs-arguments-untouched)).
 
 ## Name the program
 
@@ -78,6 +80,10 @@ spite game --executable --c-source --run=false  # build game/game.exe and write 
 spite game --run=false                          # only check that it compiles
 ```
 
+Checking writes no executable, so one an earlier build left beside the program is still there and still runs the
+old code: to build without running, turn `executable` on, `spite game --executable --run=false`. Whether
+`--run=false` alone should build instead is waiting on Mortaro (`mortaros_missing_decisions.md` item 212).
+
 Whole-program steps -- tree shaking, the constants `Build` folds, which templates are made -- run on the complete
 program before any output is written, so the C written beside an executable is the C that executable was built
 from.
@@ -110,7 +116,9 @@ What a build writes **beside its executable**, wherever that is: `game.crashes`,
 site ids to their lines ([failure.md](failure.md)), and, for a `--hot-reload` build, `game.reload_host`,
 `game.reload_files` and each reload's `game_reload_1.dll` with its C ([repl.md](repl.md#live-reload---hot-reload)).
 The one intermediate that is not an output is the C the C compiler reads when `--c-source` is off: it goes to the
-language repository's `.spite-cache/game.c`, and is overwritten by the next build of a program of that name.
+language repository's `.spite-cache/game.c`, and is overwritten by the next build of a program of that name. A
+program built from [translation units](#translation-units-the-c-compiled-in-parallel-and-cached) writes its units,
+their header and their objects to `.spite-cache/objects` instead, each named by the hash of its content.
 
 `spite reload <folder> ... --executable-path=<running executable>` is what a `--hot-reload` program runs to
 rebuild itself: given the options it was built with, it compiles only the classes whose files changed into a
@@ -129,7 +137,9 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 | `c_source` | `false` | writes the generated C |
 | `c_path` | `""` | where the C goes; `""` is beside the program |
 | `final_classes` | `""` | writes the merged classes to this folder |
-| `optimized` | `false` | asks the C compiler for `-O2` instead of `-O0` |
+| `optimized` | `false` | a release build: `-O3` instead of `-O0`, and link-time optimisation across the [translation units](#translation-units-the-c-compiled-in-parallel-and-cached) |
+| `tune_for_this_machine` | `false` | lets the C compiler use every instruction this machine has (`-march=native`, or `-mcpu=native` on ARM); the executable may not run on an older processor ([below](#release-builds)) |
+| `translation_units` | `0` (chosen) | how many C files the executable is compiled from: `0` is one file in a default build and, in an `--optimized` one, a number chosen by the size of the C and the processors; `1` is one file ([below](#translation-units-the-c-compiled-in-parallel-and-cached)) |
 | `development` | `false` | an [inspectable build](#development-builds-and-tree-shaking): nothing tree-shaken, internals as ordinary objects |
 | `repl` | `false` | runs the program, then opens a REPL on it at the terminal ([repl.md](repl.md)) |
 | `repl_port` | `0` (off) | serves the remote REPL on `127.0.0.1` at this port while the program runs ([repl.md](repl.md)) |
@@ -167,6 +177,69 @@ inside Visual Studio on Windows:
 ```bash
 SPITE_CC=clang spite game --optimized
 ```
+
+## Release builds
+
+`--optimized` is the release build: the C compiler is asked for `-O3` instead of the default build's `-O0`, and
+when the executable is built from several [translation units](#translation-units-the-c-compiled-in-parallel-and-cached),
+for link-time optimisation too (`-flto=thin` with clang, linked by `lld` except on macOS; `-flto=auto` with gcc), so
+a function in one unit is still inlined into another. The default build stays at `-O0`: it is the one you rebuild
+all day, and the one the corpus runs.
+
+`--tune-for-this-machine` (proposed by Claude, unconfirmed: the name) lets the C compiler use every instruction the
+compiling machine has -- `-march=native`, or `-mcpu=native` on ARM -- in whatever build it is given to. The
+executable may then stop on an older processor with an illegal instruction, so it is off by default, and a build
+meant for other machines leaves it off:
+
+```bash
+spite game --optimized                          # release: -O3 and link-time optimisation
+spite game --optimized --tune-for-this-machine  # the same, for this processor only
+```
+
+How fast each build is, against C written by hand, is `bash benchmarks/versus_c/run.sh`
+([benchmarks/README.md](../benchmarks/README.md#spite-against-c)).
+
+## Translation units: the C compiled in parallel and cached
+
+A release build (`--optimized`) of a big program is built from several C files, compiled at the same time and
+remembered (proposed by Claude, unconfirmed). The generated C is split into one header -- every type, macro and prototype, and an `extern` line for
+each variable at file level -- and a number of units that include it. Each function goes into the unit a hash of
+its name picks, so editing a function leaves every other function where it was; the variables are defined in the
+first unit; the small `static inline` helpers stay in the header, a copy for each unit. The C compiler compiles as
+many units at once as the machine has processors, and the objects are linked.
+
+Each unit's object is kept in the language repository's `.spite-cache/objects`, named by a hash of everything it
+was compiled from: the C compiler's command and flags, the header and the unit. A build finds the objects it
+already has and compiles only the rest, so building a program again after changing nothing only links it, and
+after changing one function's body compiles one unit. What the cache cannot save: an edit that adds or removes a
+function, changes a type, or adds or removes a piece of constant text changes the header (the texts are
+file-level variables numbered in order), and every unit is compiled again.
+
+How many units: `--translation-units` (`Build.translation_units`, proposed by Claude, unconfirmed) gives the
+number, in any build. `0`, the default, is one file in a default build: at `-O0` the C compiler spends its time
+reading, and every unit reads the whole header again, so splitting the compiler's own C made a cold `-O0` build
+slower, not faster ([the numbers](../benchmarks/README.md#compile-time-at-scale)). In an `--optimized` build `0`
+chooses the largest power of two that is no more than one unit per 768 KiB of C, no more than the number of
+processors, and at most 64: eight units for the compiler's 7 MB of C. A program under 1.5 MB of C stays one file,
+compiled as before and not cached. A `--hot-reload` build, and a program whose C
+includes a foreign library's header (a `DynamicLibrary` given one), are always one file. `--c-source` still
+writes the program's C as one file, which is what `check.sh` compares to prove the compiler reproduces itself.
+
+An `--optimized` build, in seconds of the whole `spite` command on Mortaro's machine (32 logical processors,
+clang 19.1.5): from one file as before, and from units with the cache empty (cold), full (warm) and after one
+function's body changed:
+
+| program | C | one file | cold | warm | one edit |
+|---|---|---|---|---|---|
+| the compiler | 7.2 MB | 37.7 | 14.5 | 11.4 | 13.3 |
+| SlopEngine's `kal_character` | 14.1 MB | 80.1 | 45.7 | 30.7 | 67.2 |
+| a generated 209 206-line program | 20.5 MB | 181.2 | 50.0 | 34.3 | 37.3 |
+
+A warm build is the Spite compile plus a ThinLTO link, which optimises the whole program again each time; the
+SlopEngine edit was in a generic class, which changes every instantiation of it. The default build of the same
+three took 11.3, 26.1 and 16.5 s from one file. How they were measured, and the unit counts tried, are in
+[benchmarks/README.md](../benchmarks/README.md#compile-time-at-scale); `bash benchmarks/build_times.sh` measures
+them again.
 
 ## Compile for another system
 
@@ -235,6 +308,35 @@ still alive, which is how a leaked cycle shows up ([memory.md](memory.md#cycles-
 `conformance/`, `examples/` and these pages is run this way by `check.sh`, and must balance. The table costs a
 lookup under a lock on every allocation and free, and exists only in a `--debug-memory` build: any other build
 calls the allocator directly.
+
+## Compile time
+
+Compiling grows linearly with the program: every whole-program step -- reading, formatting, analysis, template
+instances, call effects, tree shaking -- works on each class a fixed number of times, and anything looked up by
+name is found through a table, never by walking every class again. The measure is a data-heavy program: a
+`Symbol<Item>` walk over a folder of small record classes, each one `fill(item)` of 10 to 30 assignments, with
+`Filler<record.class>` made for each, and the items kept in a `Dictionary` keyed by number. CPU seconds of the
+compiler alone (`--c-source --run=false`, so no C compiler), on Windows with clang:
+
+| records | before | now | C written |
+| ---: | ---: | ---: | ---: |
+| 525 | 2.8 s | 0.75 s | 57k lines |
+| 1,049 | 9.1 s | 1.2 s | 111k lines |
+| 2,097 | 33.6 s | 2.2 s | 218k lines |
+| 6,991 | 514 s | 7.3 s | 722k lines |
+
+About 1 ms and 104 lines of C per record. Before, each `Filler<record.class>` looked for its record by listing
+every class of the namespace, sorting them and working out each one's member name, so the walk was quadratic;
+the namespace's classes, their names and where each name is are now worked out once and kept, grown only when a
+class is added (`namespace_walk` in the generator). A program whose dictionary keys are learned while compiling
+(D224) is generated twice; the first pass stops once it has learned them, before the C is assembled and tree
+shaken, since the second pass writes it again. Every file is read once: the formatter formats the text the
+compile read. The compiler compiling itself, which has neither, takes 1.7 s of CPU, as before.
+
+Where a record's 104 lines go: 13 are its `fill` body; about 47 are the allocate, default, release and init
+functions of the record class and of its `Filler<...>` instance, 18 of them `#ifdef` blocks for instance tracking
+and weak references that the C preprocessor removes; 11 are prototypes, 7 the walk's step for that record, and
+the rest structs and typedefs.
 
 ## Inspect merged classes
 
@@ -312,7 +414,9 @@ spite program --executable-path=path    put the executable at path (with --execu
 spite program --c-source                also write program/program.c
 spite program --c-path=path             put the C at path (with --c-source)
 spite program --final-classes=folder    also write the final classes into folder (inspect merged classes)
-spite program --optimized               ask the C compiler for -O2 instead of -O0
+spite program --optimized               a release build: -O3, and link-time optimisation across translation units
+spite program --tune-for-this-machine   use every instruction this machine has (-march=native); not portable
+spite program --translation-units=1     compile the executable from one C file (0, the default, chooses)
 spite program --development             an inspectable build: no tree shaking, internals as ordinary objects (D143)
 spite program --debug-memory            count allocations and frees, print the balance when the program ends
 spite program --repl                    run it, then answer REPL commands at the terminal (repl.md)
@@ -370,11 +474,30 @@ before any output is written.
   it goes: the `.crashes` map ([Failure: three outcomes and no others](failure.md#failure-three-outcomes-and-no-others--partial))
   and a `--hot-reload` build's `.reload_host`, `.reload_files` and `_reload_<n>` libraries. The one intermediate
   is the C the C compiler reads when `c_source` is off, written to the language repository's
-  `.spite-cache/<executable name>.c`.
+  `.spite-cache/<executable name>.c`, or, for a build from several translation units, its units, header and
+  objects, written to `.spite-cache/objects` under the hash of their content (the rules below).
 - **The compiler's own C goes to its default path**, `bootstrap/bootstrap.c`: every `Build` field is a constant in
   what is built, so a `--c-path` naming a different file each run would be written into the C and the fixpoint
   would never hold ([self_hosting.md](self_hosting.md)).
 - **Final classes** are described in full [above](#inspect-merged-classes): a program, not a report.
+- **The executable is built from translation units** (proposed by Claude, unconfirmed: the behaviour, the name
+  `translation_units` and its rule). The number is `translation_units` when it is above `0`; at `0` it is 1 unless
+  `optimized` is on, and then the largest power of two that is at most the C's size divided by 768 KiB, at most the
+  processors (`NUMBER_OF_PROCESSORS` on Windows, `getconf _NPROCESSORS_ONLN` elsewhere, else 4) and at most 64. One unit is the one C file as before.
+  A `--hot-reload` build and C holding `#include "` (a foreign library's header) are one file whatever the number.
+  The split keeps what the C means: every preprocessor line, type and prototype goes into the header in its order;
+  a function at file level loses `static` and goes to the unit `FNV-1a(name) mod units` picks, its prototype into
+  the header where it stood; a `static inline` function stays in the header; a variable at file level loses `static`,
+  is defined in unit 0 and declared `extern` in the header where it stood; a function or variable inside a
+  preprocessor condition goes to unit 0 inside the same conditions. Each unit, the header and the list of objects
+  are named by the FNV-1a hash of their text (a unit's hash covers the C compiler's command and flags too), written
+  once, and compiled only when their object is missing; the C compiler runs once per missing unit, as many at once
+  as there are processors, then links the objects (`@` a file listing them). Nothing removes old objects.
+- **`optimized` is `-O3`, and link-time optimisation across units** (proposed by Claude, unconfirmed; the default
+  build's `-O0` is Mortaro's). A build from several units also passes `-flto=thin` (with `-fuse-ld=lld` except on
+  macOS) when `CC --version` names clang, `-flto=auto` when it names gcc, and nothing for another compiler.
+  `tune_for_this_machine` adds `-mcpu=native` when `CC -dumpmachine` starts with `aarch64` or `arm`, else
+  `-march=native`, to compiling and linking in any build.
 - The C compiler is the command in `CC` (it may carry arguments), or else the first of `cc`, `clang` and `gcc`
   that runs; none found is `error: no C compiler found. Set the CC environment variable to the command that
   compiles C (for example CC=clang), or install cc, clang or gcc`. `bin/spite` keeps a `CC` already set, and
@@ -441,6 +564,20 @@ caller's. The launcher's `load` paths are relative to that folder, and the execu
 `conformance/stage6/working_directory` from another folder). A program built with `--repl`, `--repl-port` or
 `--hot-reload` runs attached to the terminal; any other run's output is printed when it ends, and the compiler
 exits with the program's exit code.
+
+### The launcher passes the program's arguments untouched
+
+(Fixes a bug found converting Theseus's game data; proposed by Claude, unconfirmed.) `bin/spite` is a bash
+script, and `bin/spite.cmd` runs it with the bash on the `PATH`, which on Windows is Git for Windows' bash. That
+bash rewrites every argument that looks like a POSIX path when it starts a Windows program, so
+`spite tool -- --prefixes=/Game/Legacy/` reached the program as `--prefixes=C:/Program Files/Git/Game/Legacy/`,
+from PowerShell as well, and `MSYS_NO_PATHCONV=1` broke the launcher's own paths instead. Now the launcher writes
+its own paths as Windows paths itself (`cygpath -m`: the folder, `--executable-path`, `--c-path`,
+`--final-classes`, and any other `--name=/...` before `--`, which the rewriting used to convert) and turns the
+rewriting off for the compiler it starts (`MSYS2_ARG_CONV_EXCL="*"`), so every argument after `--` -- and every
+argument of `spite connect` -- arrives exactly as typed. On Linux and macOS nothing is rewritten and nothing
+changes. `check.sh` runs `conformance/stage6/launcher_arguments` through `bin/spite` with `--prefixes=/Game/Legacy/`,
+`/usr/share` and `a b` after `--`.
 
 ### Formatting before compiling, and `spite format`
 

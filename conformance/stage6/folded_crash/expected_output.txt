@@ -1,2 +1,0 @@
-spite.crash	17beb934	conformance/stage6/folded_crash/slot.spite:4	Slot	fits	$slot_type.fits_vector()
-before the crash
