@@ -771,6 +771,13 @@ an engine system that only collects finished work is not taken for one that does
 followed by a read costs, and a program that never calls it carries none of it
 (`conformance/stage6/finished_values`).
 
+**A handle's debug text never waits** (fixes a compile error found building SlopEngine's network plugin; proposed
+by Claude, unconfirmed). `Concurrent` and `Parallel` have their own `to_debug()`: `running` while the work runs,
+otherwise the result's own debug text (through `finished_value()`), so `console.debug` of a class holding a
+`Parallel<Socket?>?`, and a crash report that shows one, neither join the work nor forward `to_debug` to a
+`Socket?` that may be null -- which is what the implicit join did, and why such a class did not compile
+(`library/spite/debug.spite:47: ... this value may be null (it is a Socket?)`; `conformance/stage6/debug_handles`).
+
 **A handle made at its defaults started nothing, so it is finished and joins nothing** (proposed by Claude,
 unconfirmed). Reflection makes one: describing a class whose function takes a `Concurrent<T>` or a `Parallel<T>`
 describes that handle's class too, from a stand-in at its defaults ([reflection.md](reflection.md)). Such a handle

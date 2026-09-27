@@ -1,0 +1,3 @@
+Dialer { running: null, counting: null, waiting: null }
+4
+Dialer { running: null, counting: 3, waiting: null }

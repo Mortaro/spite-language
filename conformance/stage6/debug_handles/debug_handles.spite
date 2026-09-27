@@ -1,0 +1,15 @@
+var console = Console()
+
+func DebugHandles() {
+    var dialer = Dialer()
+    console.debug(dialer)
+    var counting = Parallel(three)
+    var total = counting + 1
+    dialer.counting = counting
+    console.print(total)
+    console.debug(dialer)
+}
+
+func three(): Integer {
+    return 3
+}
