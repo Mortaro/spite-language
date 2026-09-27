@@ -1,0 +1,6 @@
+func notes(): String {
+    var folder = class.source_folder()
+    var text = File("{folder}/sauce.txt").read()
+    crash text
+    return text.trim()
+}

@@ -118,6 +118,9 @@ var class_level_functions_used = false
 var all_classes_used = false
 var class_level_attributes_used = false
 var namespace_read_used = false
+var source_folder_used = false
+var working_folder = ""
+var language_folder = ""
 var namespace_tree_used = false
 var namespace_object_keys = List<String>()
 var namespace_objects_emitted = 0
@@ -9773,6 +9776,9 @@ func generate_method_call(
     if asks_functions and target_class.c_name == "Spite_Class" {
         class_level_functions_used = true
     }
+    if member.name == "source_folder" and target_class.c_name == "Spite_Class" {
+        source_folder_used = true
+    }
     var parameter_types = parameter_types_of(function.parameters)
     var function_return_type = function.get_return_type()
     var spread = spread_template(arguments_ast, class_information)
@@ -12082,6 +12088,91 @@ func describes_members(information: Analysis.ClassInfo): Boolean {
     return information.c_name != "Nothing"
 }
 
+func folded_source_folder(
+    member: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    crash member.object
+    var asked = source_folder_class(member.object, scope, class_information)
+    assert asked
+    var folder = absolute_source_folder(asked)
+    var folder_code = render_string_literal(folder)
+    var text_type = string_type()
+    return ExpressionResult(folder_code, text_type)
+}
+
+func source_folder_class(
+    object: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var identifier = shape.as_identifier(object)
+    if identifier {
+        if identifier.name == "class" {
+            return class_information
+        }
+    }
+    var generic_identifier = shape.as_generic_identifier(object)
+    if generic_identifier {
+        var bare_name = without_dollar(generic_identifier.name)
+        var bound = codegen_index(class_information, bare_name)
+        assert bound >= 0
+        crash class_information.codegen_types[bound]
+        var bound_class_ref = type_shape.as_class_ref(class_information.codegen_types[bound])
+        assert bound_class_ref
+        return find_class_by_c_name(bound_class_ref.c_name)
+    }
+    var read = shape.as_member(object)
+    if read {
+        if read.name == "class" {
+            crash read.object
+            var saved_counter = temporary_counter
+            var probe = generate_expression(read.object, scope, class_information)
+            rewind_temporaries(saved_counter)
+            var probe_type = probe.get_type()
+            var probe_ref = type_shape.as_class_ref(probe_type)
+            assert probe_ref
+            assert not probe_ref.has_signature
+            return find_class_by_c_name(probe_ref.c_name)
+        }
+    }
+    var named = try_resolve_static_path(object, class_information.qualified_dotted)
+    assert named
+    assert not named.find_function("source_folder")
+    return named
+}
+
+func absolute_source_folder(information: Analysis.ClassInfo): String {
+    var path = information.source_path.replace("\\", "/")
+    var base = working_folder.replace("\\", "/")
+    if path.starts_with("library/") or path.starts_with("launcher/") {
+        base = language_folder.replace("\\", "/")
+    }
+    var joined = "{base}/{path}"
+    if path.starts_with("/") or path.slice(1, 2) == ":" {
+        joined = path
+    }
+    var segments = joined.split("/")
+    segments.remove_last()
+    var kept = List<String>()
+    var index = 0
+    while index < segments.count() {
+        var segment = segments[index]
+        if segment == ".." {
+            kept.remove_last()
+        } else if segment != "." and not segment.is_empty() {
+            kept.append(segment)
+        }
+        index = index + 1
+    }
+    var folder = kept.join("/")
+    if joined.starts_with("/") {
+        return "/{folder}"
+    }
+    return folder
+}
+
 func emit_class_object_bodies() {
     while class_objects_emitted < class_object_names.count() {
         var position = class_objects_emitted
@@ -12105,6 +12196,10 @@ func emit_class_object_bodies() {
             }
             if class_fits_vector(described) {
                 lines.append("{function_c_name}_cache->_fits_vector_ = true;")
+            }
+            if source_folder_used {
+                var described_folder = absolute_source_folder(described)
+                lines.append("{function_c_name}_cache->_source_folder_ = {render_string_literal(described_folder)};")
             }
             if namespace_read_used {
                 crash class_object_namespaces[position]
@@ -14949,6 +15044,12 @@ func generate_call(
                     return ExpressionResult("true", answer_type)
                 }
                 return ExpressionResult("false", answer_type)
+            }
+        }
+        if member.name == "source_folder" and call.arguments.is_empty() {
+            var folded_folder = folded_source_folder(member, scope, class_information)
+            if folded_folder {
+                return folded_folder
             }
         }
         if member.name == "argument_count" {

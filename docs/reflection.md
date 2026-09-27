@@ -21,7 +21,7 @@ a generic's type -- is constant data or folds while compiling. The whole list is
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)`, `function_waits(name)`, `argument_count(name)` |
+| `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)`, `function_waits(name)`, `argument_count(name)`, `source_folder()` |
 | `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)`, `waits()`, `argument_count()` |
 | `Spite.Argument` | `.name`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: Anything?` (the value itself; `.value.to_string()` is its text) |
@@ -448,7 +448,7 @@ namespace: a program's `spite/` folder may only reopen its classes, and `load "s
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` (D114; folds on a codegen type), `function_waits(name)` (D209; folds the same way, [metaprogramming.md](metaprogramming.md#asking-whether-a-function-waits)), `argument_count(name)` (D219: how many arguments the first function whose name fits takes, 0 for none; folds the same way, [metaprogramming.md](metaprogramming.md#asking-how-many-arguments-a-function-takes)) -- the functions of `Spite.Class` ([below](#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)) |
+| `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` (D114; folds on a codegen type), `function_waits(name)` (D209; folds the same way, [metaprogramming.md](metaprogramming.md#asking-whether-a-function-waits)), `argument_count(name)` (D219: how many arguments the first function whose name fits takes, 0 for none; folds the same way, [metaprogramming.md](metaprogramming.md#asking-how-many-arguments-a-function-takes)), `source_folder()` (D228: the absolute folder of the file declaring the class, folded where the class is known, [packages.md](packages.md#files-beside-a-packages-source)) -- the functions of `Spite.Class` ([below](#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)) |
 | `Spite.Function` | `.name: Symbol`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)` (D116), `waits()` (D209: whether it can reach a wait), `argument_count()` (D219: how many `.arguments` it has) |
 | `Spite.Argument` | `.name: Symbol`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name: Symbol`, `.class: Spite.Class`, `.value: Anything?` (the value itself; its text is `.value.to_string()`, below) |

@@ -21,3 +21,11 @@ func executable_path(): String {
     heap.free(buffer)
     return path
 }
+
+func working_directory(): String {
+    var buffer = heap.allocate(1024)
+    var length = kernel.GetCurrentDirectoryA(1024, buffer)
+    var path = buffer.text(length)
+    heap.free(buffer)
+    return path
+}

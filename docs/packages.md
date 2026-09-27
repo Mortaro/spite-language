@@ -283,6 +283,21 @@ Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are
 A dependency will be a git URL pinned to a commit in the `load` line itself, with no package manager, registry
 or lockfile. That is decided and not built ([the rules in full](#packages-namespaces-and-loading--partial)).
 
+## Files beside a package's source
+
+A package does not know where the program that loads it lives, so a relative path it opens -- `File("shaders/
+sky.spv")` -- is read from the folder the program runs in, not from the package. A class asks for its own folder
+instead: `class.source_folder()` inside it, `Recipe.source_folder()` for a class by name, and `$item_type.source_folder()`
+for a generic's class (D228). The answer is the absolute folder of the file that declares the class, worked out
+while compiling and written into the program as text, so a plugin finds the files beside it wherever it is loaded
+from and whatever folder the program runs in.
+
+That folder is on the machine that **built** the program. It is the right answer while developing, and the wrong
+one for a program shipped to someone else, whose machine has no such folder: a shipped program copies or cooks the
+files it needs into its own output and opens them from there. Asking a `Spite.Class` held in a variable
+(`kind.source_folder()`, with `var kind: Spite.Class = Recipe`) answers the same folder when the program runs, and
+only a program that asks that way carries the folders of its class objects.
+
 ## Final classes
 
 Because patching is dangerous to read silently, `--final-classes=folder` writes every class as it ended up, after
@@ -433,6 +448,16 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
 - `load` marks a **bundle boundary**, like an async import in webpack: each loaded root can become a separate dynamic library,
   tree shaking is computed per bundle, and a `load` inside an `if` is loaded lazily when that line runs.  **[planned: every
   bundle is linked statically into the one executable for now, and the `load` line itself compiles to nothing]**
+- **A class can ask for its own source folder** (D228; the name `source_folder` provisional, the readings below
+  proposed by Claude, unconfirmed): `class.source_folder()` in a class's function, `Name.source_folder()` for a
+  class named statically, `$item_type.source_folder()` for a codegen type and `value.class.source_folder()` for a
+  value whose class is known while compiling are folded to text: the absolute folder, with `/` separators, of the
+  file that declares the class (the first file merged into it, so a mod's reopening does not move it). A program
+  file's path is joined to the folder the compiler runs in, a library file's to the language's folder, and `.`
+  and `..` are resolved. A `Spite.Class` the compiler cannot name answers the same text at run time from its class
+  object, which holds it only in a program that asks that way (`conformance/stage6/source_folder`). It is the build
+  machine's folder: a shipped program copies or cooks the files it needs instead. A class that declares its own
+  `source_folder` function is called as usual.
 - **A dependency is a git URL pinned to a commit in the `load` line itself** (D38): `load
   "github.com/mortaro/engine@a3f2c91"`, fetched by the ordinary compile, with no package manager, registry or
   lockfile.  **[planned]**

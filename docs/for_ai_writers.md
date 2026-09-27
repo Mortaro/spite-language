@@ -33,7 +33,9 @@ folder's own class). `load "folder"` inside a function loads another package (th
 or absolute: `load "D:/Projects/engine/slop"`); a file at the same namespace path
 reopens the class: same-named functions and attributes replace, the rest are added, and an enum declared again
 gains the values it lists. `Build` is the exception: a field the program's own `build.spite` declares keeps the
-program's value over a loaded package's (a flag, then the program, then the package).
+program's value over a loaded package's (a flag, then the program, then the package). A package opens the files
+beside its own source through `class.source_folder()` (or `$item_type.source_folder()`), the absolute folder of
+the class's file on the machine that built it, never through a path relative to where the program runs.
 
 ## A file is a class
 
