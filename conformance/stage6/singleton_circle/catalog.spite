@@ -1,0 +1,8 @@
+singleton
+
+var pages = List<Page>()
+
+func Catalog() {
+    var first = Page()
+    pages.append(first)
+}

@@ -3790,6 +3790,7 @@ func resolve_field(
         hardcoded_settings.append(declaration)
     }
     var field = Analysis.FieldInfo(declaration.name, field_type, default_code)
+    field.line = declaration.line
     information.fields.append(field)
 }
 
@@ -9361,14 +9362,19 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
         lines.append("}")
         lines.append("static int32_t {function_c_name}_lock = 0;")
         lines.append("{target_class.c_name}* {function_c_name}(void) \{")
+        var display_name = singleton_display_name(target_class)
+        var shown_name = escape_c_string(display_name)
         lines.append("{target_class.c_name}* found = SPITE_SINGLETON_FOUND({function_c_name}_cache);")
         lines.append("if (found != 0) return found;")
+        lines.append("spite_singleton_check_circle(\"{shown_name}\");")
         lines.append("SPITE_LOCK({function_c_name}_lock);")
         lines.append("if ({function_c_name}_cache == 0) \{")
         lines.append(
             "if ({function_c_name}_destroyed) spite_singleton_used_after_exit(\"{escape_c_string(target_class.qualified_dotted)}\");",
         )
+        lines.append("spite_singleton_making(\"{shown_name}\");")
         lines.append("{target_class.c_name}* made = {target_class.c_name}___make();")
+        lines.append("spite_singleton_made();")
         lines.append("spite_singleton_created({function_c_name}_teardown);")
         lines.append("SPITE_SINGLETON_PUBLISH({function_c_name}_cache, made);")
         lines.append("}")
@@ -16169,12 +16175,181 @@ func owned_c_text(text: String): String {
     return "spite_string_from_cstring_owned(\"{escape_c_string(text)}\")"
 }
 
+func report_singleton_circles() {
+    var reported = List<String>()
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        var checked = information.is_singleton and not information.is_stateless_singleton
+        if checked and not information.is_generic_template and not reported.contains(information.c_name) {
+            var path = List<String>()
+            var visited = List<String>()
+            if circle_from(information.c_name, information.c_name, path, visited) {
+                reported.append(information.c_name)
+                path.each(reported.append)
+                report_singleton_circle(information, path)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func circle_from(start: String, current: String, path: List<String>, visited: List<String>): Boolean {
+    var information = find_class_by_c_name(current)
+    assert information
+    var index = 0
+    while index < information.fields.count() {
+        var made = classes_made_by(information.fields[index].default_value_code)
+        var made_index = 0
+        while made_index < made.count() {
+            var target = made[made_index]
+            if target == start {
+                path.append(target)
+                return true
+            }
+            if not visited.contains(target) {
+                visited.append(target)
+                path.append(target)
+                if circle_from(start, target, path, visited) {
+                    return true
+                }
+                path.remove_last()
+            }
+            made_index = made_index + 1
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func classes_made_by(code: String): List<String> {
+    var made = List<String>()
+    var code_length = code.length()
+    var position = 0
+    while position < code_length {
+        var name_end = position
+        var character = code.code_at(name_end)
+        while name_end < code_length and is_c_name_code(character) {
+            name_end = name_end + 1
+            character = code.code_at(name_end)
+        }
+        if name_end > position {
+            var name = code.slice(position, name_end)
+            note_made_class(name, made)
+            position = name_end
+        } else {
+            position = position + 1
+        }
+    }
+    return made
+}
+
+func note_made_class(name: String, made: List<String>) {
+    var made_name = ""
+    if name.starts_with("spite_singleton_") {
+        var name_length = name.length()
+        made_name = name.slice(16, name_length)
+    }
+    var suffixes = ["___make_into", "___make", "___default", "___allocate"]
+    var index = 0
+    while made_name.is_empty() and index < suffixes.count() {
+        var suffix = suffixes[index]
+        if name.ends_with(suffix) {
+            var name_length = name.length()
+            var suffix_length = suffix.length()
+            made_name = name.slice(0, name_length - suffix_length)
+        }
+        index = index + 1
+    }
+    assert not made_name.is_empty() and not made.contains(made_name)
+    if find_class_by_c_name(made_name) {
+        made.append(made_name)
+    }
+}
+
+func report_singleton_circle(information: Analysis.ClassInfo, path: List<String>) {
+    var parts = List<String>()
+    var index = 0
+    while index < path.count() {
+        var step = find_class_by_c_name(path[index])
+        crash step
+        var verb = "makes"
+        if step.is_singleton {
+            verb = "binds"
+        }
+        var shown = "{verb} '{singleton_display_name(step)}'"
+        if index > 0 {
+            shown = "which {shown}"
+        }
+        parts.append(shown)
+        index = index + 1
+    }
+    current_path = information.source_path
+    current_line = circle_field_line(information, path)
+    current_owner = information.qualified_dotted
+    current_function = ""
+    report(
+        "singleton '{singleton_display_name(information)}' {parts.join(", ")}: singletons initialise each other in a circle -- one of them has to reach the other some other way, such as by binding it in the class that uses both",
+    )
+}
+
+func circle_field_line(information: Analysis.ClassInfo, path: List<String>): Integer {
+    var first = path.first()
+    crash first
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var made = classes_made_by(field.default_value_code)
+        if made.contains(first) {
+            return field.line
+        }
+        index = index + 1
+    }
+    return 1
+}
+
 func emit_singleton_teardown() {
     builder.add_prototype("bool spite_singleton_tracked(void);")
     builder.add_prototype("void spite_singleton_created(void (*teardown)(void));")
     builder.add_prototype("void spite_singleton_used_after_exit(const char* name);")
     builder.add_prototype("void spite_singletons_destroy(void);")
+    builder.add_prototype("void spite_singleton_check_circle(const char* name);")
+    builder.add_prototype("void spite_singleton_making(const char* name);")
+    builder.add_prototype("void spite_singleton_made(void);")
     var lines = List<String>()
+    lines.append("static SPITE_THREAD_LOCAL const char* spite_singletons_making[64];")
+    lines.append("static SPITE_THREAD_LOCAL int32_t spite_singletons_making_count = 0;")
+    lines.append("void spite_singleton_check_circle(const char* name) \{")
+    lines.append("int32_t kept = spite_singletons_making_count < 64 ? spite_singletons_making_count : 64;")
+    lines.append("int32_t first = 0;")
+    lines.append("while (first < kept && strcmp(spite_singletons_making[first], name) != 0) first = first + 1;")
+    lines.append("if (first == kept) return;")
+    lines.append("fflush(stdout);")
+    lines.append("if (first + 1 == kept) \{")
+    lines.append(
+        "fprintf(stderr, \"spite: singleton '%s' is asked for while it is being made: a singleton cannot reach itself as it initialises\\n\", name);",
+    )
+    lines.append("exit(1);")
+    lines.append("}")
+    lines.append("fprintf(stderr, \"spite: singleton '%s'\", name);")
+    lines.append("for (int32_t step = first + 1; step < kept; step = step + 1) \{")
+    lines.append(
+        "fprintf(stderr, step == first + 1 ? \" binds '%s'\" : \", which binds '%s'\", spite_singletons_making[step]);",
+    )
+    lines.append("}")
+    lines.append("fprintf(stderr, \", which binds '%s'\", name);")
+    lines.append("fputs(\": singletons initialise each other in a circle\\n\", stderr);")
+    lines.append("exit(1);")
+    lines.append("}")
+    lines.append("void spite_singleton_making(const char* name) \{")
+    lines.append(
+        "if (spite_singletons_making_count < 64) spite_singletons_making[spite_singletons_making_count] = name;",
+    )
+    lines.append("spite_singletons_making_count = spite_singletons_making_count + 1;")
+    lines.append("}")
+    lines.append("void spite_singleton_made(void) \{")
+    lines.append("spite_singletons_making_count = spite_singletons_making_count - 1;")
+    lines.append("}")
     lines.append("static void (**spite_singleton_teardowns)(void) = 0;")
     lines.append("static int32_t spite_singleton_total = 0;")
     lines.append("static int32_t spite_singleton_capacity = 0;")
@@ -28173,6 +28348,7 @@ func emit_main(launcher_mangled_name: String) {
         builder.add_main("{launcher_class.constructor.c_name}(spite_launcher);")
     }
     builder.add_main("{launcher_class.c_name}___release(spite_launcher);")
+    report_singleton_circles()
     emit_singleton_teardown()
     singleton_releases.each(builder.add_main)
     var listed_name = ""

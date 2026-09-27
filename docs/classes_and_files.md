@@ -585,6 +585,21 @@ var heap = Memory.Heap()
   are made with it; the halt is left for a local binding D144 allows, such as one in a function of `String`
   (`conformance/stage6/singleton_used_after_exit` reopens `String` for it). A singleton first made inside a
   `drop()` is destroyed right after it (`conformance/stage6/singleton_teardown`).
+- **Never made in a circle** (under D244, which makes a hang a bug; the texts proposed by Claude, unconfirmed).
+  A singleton's attributes are made with it, so singletons whose attributes make each other -- directly, through
+  a generic singleton, or through an ordinary object whose own attributes bind one (`var sample: Entity = ...`
+  making an `Entity` that binds `World`) -- could never finish. The compiler follows every attribute of every
+  singleton the program makes, through the objects those attributes make, and a path back to the start is an
+  error at the attribute that begins it: `singleton 'World' binds 'Column<Entity>', which binds 'Columns', which
+  binds 'World': singletons initialise each other in a circle -- one of them has to reach the other some other
+  way, such as by binding it in the class that uses both` ("binds" for a singleton, "makes" for any other object;
+  `diagnostics/singleton_circle`). A circle that only a constructor's body closes, which the compiler does not
+  follow, halts at run time instead of spinning: each thread keeps the singletons it is in the middle of making,
+  and asking for one of them again halts with `spite: singleton 'Registry' binds 'Catalog', which binds
+  'Registry': singletons initialise each other in a circle` (or `... is asked for while it is being made: a
+  singleton cannot reach itself as it initialises` for one singleton), naming only the singletons, which are all
+  it knows (`conformance/stage6/singleton_circle`). Cost: the list is read and written only on a singleton's
+  first fetch, the path that already takes its lock; every later fetch is the one load it was.
 - **Made once, whichever thread asks first** (proposed by Claude, unconfirmed): in a program that starts
   threads, the first fetch of a singleton takes a lock of its own, checks again and makes it; every later fetch
   is still one load. A program with no threads keeps the plain check (`conformance/stage6/singleton_race`).

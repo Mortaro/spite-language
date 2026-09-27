@@ -1,0 +1,5 @@
+var registry = Registry()
+
+func entries(): Integer {
+    return registry.entries.count()
+}

@@ -404,7 +404,9 @@ func is_alive(): Boolean {
   `return Console()` are errors (`'Console' is a singleton: bind it once beside the attributes`), and so are a
   binding nothing reads, even in a loaded package, and a binding inside a function (`'Build' is a singleton, bound
   here as a local`). One of the program's own that a `Parallel` reaches is made thread-safe by the
-  compiler; write no lock for it.
+  compiler; write no lock for it. Singletons whose attributes make each other, even through an ordinary object
+  (`World` binds `Column<Entity>`, which makes an `Entity`, which binds `World`), are an error naming the circle
+  (`singletons initialise each other in a circle`): bind one of them in the class that uses both instead.
 - `value.memory` is where a named value lives (`.address`, `.bytes`, `.section`: `'heap'` or `'constant'`); a
   computed value has none (`give this value a name with 'var' first`). A container of your own is a generic class over `var heap = Memory.Heap()` (`allocate`,
   `resize`, `free`, each on a `Memory.Address`; the compiler places each allocation) and a
