@@ -1,0 +1,53 @@
+var pending = List<Event>()
+var applied = 0
+
+func queue(kind: Kind, left: Integer, top: Integer) {
+    var event = Event(kind, left, top)
+    pending.append(event)
+}
+
+func after_input_each(device: Device) {
+    var mouse = device.mouse
+    var keyboard = device.keyboard
+    mouse.pressed = false
+    mouse.wheel = 0
+    var index = 0
+    while index < pending.count() {
+        apply(pending[index], mouse, keyboard)
+        index = index + 1
+    }
+}
+
+func apply(event: Event, mouse: Mouse, keyboard: Keyboard) {
+    applied = applied + 1
+    if event.kind == 'pointer_moved' {
+        mouse.left = event.left + mouse.device
+        mouse.top = event.top
+    } else if event.kind == 'button_pressed' {
+        press(mouse)
+    } else if event.kind == 'key_pressed' {
+        keyboard.strokes = keyboard.strokes + 1
+        remember_key(keyboard, event.top)
+    } else if event.kind == 'wheel_turned' {
+        mouse.wheel = mouse.wheel + event.left
+    }
+}
+
+func press(mouse: Mouse) {
+    mouse.pressed = true
+    mouse.down = true
+    move_by(mouse, 1)
+}
+
+func move_by(mouse: Mouse, step: Integer) {
+    mouse.left = mouse.left + step
+}
+
+func remember_key(keyboard: Keyboard, key: Integer) {
+    keyboard.last_key = key
+}
+
+func nudge(mouse: Mouse, step: Integer) {
+    move_by(mouse, step)
+    mouse.top = mouse.top + step
+}

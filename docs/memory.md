@@ -495,8 +495,9 @@ func LentArgumentsDoc() {
 
 For `Runner<Mover>` the call is written out as `system.update_each(Column<Position>().values[found[0]],
 Column<Velocity>().values[found[1]])`: `update_each` writes the columns' own items, and nothing is copied, counted
-or allocated. Every rule for a borrowed item holds for the call: `update_each` may not keep `position`, return it
-or pass it on, and nothing it reaches may append to or remove from a column it borrows from. `made_position`
+or allocated. Every rule for a borrowed item holds for the call: `update_each` may not keep `position` or return
+it, it may lend it on to a call of its own ([below](#an-item-lent-to-a-call)), and nothing it reaches may append
+to or remove from a column it borrows from. `made_position`
 called anywhere else is an ordinary function, and returning a borrowed item from it is the error for returning one.
 The template may also fill a whole walked row for an argument that is a `type`
 ([the rules](#borrowed-items-of-a-vectort--implemented)).
@@ -547,8 +548,56 @@ func LentResultDoc() {
 
 Nothing is copied or counted, so `layout.order = 3` is never a write to a copy that is then thrown away. The
 borrow now belongs to the caller, and every rule for a borrowed item holds there: `layout` is not kept, put in a
-list, returned further, passed on or given a second name, and it is not read past a line that may append to or
-remove from `Column<Layout>().values`. A function that lends gives back only such items, or `null`.
+list, returned further or given a second name, and it is not read past a line that may append to or remove from
+`Column<Layout>().values`. It may be lent on to a call, as the next section shows. A function that lends gives
+back only such items, or `null`.
+
+### An item lent to a call
+
+A borrowed item -- a name read from a `Vector` or `Items`, `velocities[index]` itself, a row's attribute, an item
+lent to the caller -- may be passed as an ordinary argument. It is **lent for the call**: the function reads and
+writes the caller's own item and may lend it on to the functions it calls, and when the call returns the borrow is
+the caller's again ([D257](decisions.md)):
+
+```gdscript title=lent_call_doc/mouse.spite
+var left = 0
+var pressed = false
+```
+```gdscript title=lent_call_doc/input.spite
+func apply(step: Integer, mouse: Mouse) {
+    mouse.left = mouse.left + step
+    press(mouse)
+}
+
+func press(mouse: Mouse) {
+    mouse.pressed = true
+}
+```
+```gdscript title=lent_call_doc/lent_call_doc.spite entry
+var console = Console()
+var mice = Vector<Mouse>()
+var input = Input()
+
+func LentCallDoc() {
+    var made = Mouse()
+    mice.append(made)
+    var mouse = mice[0]
+    input.apply(3, mouse)
+    input.apply(4, mice[0])
+    console.print(mice[0].left, mice[0].pressed)
+}
+```
+```output
+7 true
+```
+
+`apply` and `press` write the vector's item: nothing is copied, counted or allocated, so no write can land on a
+copy and vanish. What the function may not do is keep the item past the call -- store it in an attribute or a
+list, return it, or make a function value of it -- and each of those is an error in the function, naming the call
+that lent it: `'mouse' is lent to 'keep' for one call (D257), by the call on line 9 of 'LentToCalls': it is the
+caller's item, read and written in place, so 'keep' does not keep it in the attribute 'last': keep the values it
+needs, ...`. Nothing the call reaches may append to or remove from the collection the item is borrowed from,
+since that could move it while the function holds it.
 
 ## `drop()` runs once, right before the object is freed
 
@@ -1237,9 +1286,7 @@ kept past its use. What is built (the error texts and the readings marked are pr
     an independent object`;
   - made into a function value: `'stored.integrate' would keep 'stored', which is borrowed from 'velocities', in a
     function value: make it from a copy, 'var kept = stored.copy()' and then 'kept.integrate'`;
-  - passed as an argument, since a parameter is a reference the callee may keep: `'passed' is borrowed from
-    'velocities' and cannot be passed as an argument: pass 'passed.copy()', an independent object, or the
-    attributes the function needs`;
+  - passing it as an argument is **not** among them: the item is lent to the call (D257, below);
   - given a second name (`var alias = stored`): `'stored' is borrowed from 'velocities', and a borrowed item has
     one name: use 'stored' itself instead of 'alias', or keep 'stored.copy()', an independent object`;
   - assigned again (`first = velocities[1]`): `'first' is borrowed from 'velocities' and is not assigned again:
@@ -1387,8 +1434,8 @@ kept past its use. What is built (the error texts and the readings marked are pr
     argument's class -- `return Column<argument.class>().values[rows[argument.index]]`. It is a local of the call;
     a borrowed item from a `Vector`, or from an `Items` whose class fits one, is a borrowed name, and the function
     is called through its `___lent_<positions>` copy, in which that parameter is a borrowed name for the call: it
-    is not retained or released, and every rule above holds for it (it is not kept, returned, passed on, given a
-    second name or assigned). Any other value (`Entity(entity)`, a reference from an `Items` that does not fit) is
+    is not retained or released, and every rule above holds for it (it is not kept, returned, given a second name
+    or assigned; it may be lent on to a call, D257). Any other value (`Entity(entity)`, a reference from an `Items` that does not fit) is
     an ordinary local, counted for the call and let go after it.
   - **a walked row declared, filled and returned** -- `var row: $row_type = null`, `fill_attributes(row, rows)`,
     `return row` (or `var row: argument.class = null`) -- which is written out as the walked row it is, under
@@ -1421,8 +1468,7 @@ kept past its use. What is built (the error texts and the readings marked are pr
   - the result is a borrowed item of `<Singleton>().<attribute>` -- `'layout' is borrowed from
     'Column<Layout>().values'` -- and every rule above applies to it: `var layout = lookup.of(entity)` names it,
     `layout.order = 3` and `lookup.of(entity).order = 3` write the stored item, and it is not kept in an
-    attribute, put in a list, passed as an argument, given a second name, assigned again, captured in a function
-    value or read past a line whose call effects may append to or remove from that storage, whose error ends
+    attribute, put in a list, given a second name, assigned again, captured in a function value or read past a line whose call effects may append to or remove from that storage, whose error ends
     `... so 'grown' is not read after it: ask for the item again after that line, or keep 'grown.copy()', an
     independent object`;
   - **it is not returned further**: only the read from the singleton's storage lends, so `return lookup.of(0)`, or
@@ -1439,6 +1485,51 @@ kept past its use. What is built (the error texts and the readings marked are pr
   parameter or an object that is not a singleton keeps D204's refusal, since that storage may not outlive the
   call. **Cost**: none -- the return is the item's address, with no retain, and the caller releases nothing
   (`conformance/stage6/lent_results`, `diagnostics/lent_results`).
+- **An item lent to a call** (D257, decided by Claude under D205 and D244, the argument-side twin of D220 and
+  D230; the error texts and the readings below proposed by Claude, unconfirmed). A borrowed item passed as an
+  argument -- a borrowed name (`mouse`, including one lent to the function itself), an item read with `[ ]`
+  (`mice[0]`) or a row's attribute (`device.mouse`) -- at a place whose parameter is not a union or a variadic
+  list, to a function of the program called by name, is **lent** to that call. The compiler writes a second copy
+  of the function, `<name>___lent_<positions>` (the D206 mechanism, shared with rows and with D220's arguments), in
+  which that parameter is a borrowed name for the call: it is never retained or released, reading and writing it
+  reads and writes the caller's item, and passing it on to another call lends it again, to that function's own
+  `___lent_` copy. Every caller that passes a class instance keeps the ordinary function.
+  - **The function keeps nothing.** Every rule above holds for the lent parameter inside the copy, so each way of
+    keeping it is an error in that function naming the parameter and the call that lent it (`'mouse' is lent to
+    'keep' for one call (D257), by the call on line 9 of 'LentToCalls': it is the caller's item, read and written
+    in place,` followed by the site):
+    - kept in an attribute: `... so 'keep' does not keep it in the attribute 'last': keep the values it needs, or
+      have the caller pass something 'keep' may keep`;
+    - put in a list: `... so 'list' does not put it in a list, which would keep it: keep the values it needs`;
+    - returned: `... so 'hand_back' does not return it: return the values the caller needs`;
+    - made into a function value: `'mouse.move' would keep 'mouse' in a function value, and 'mouse' is lent to
+      'capture' for one call (D257), so 'capture' does not keep it: call 'mouse.move()' directly, or keep the
+      values it needs`;
+    - given a second name: `... and a lent item has one name: use 'mouse' itself instead of 'alias'`.
+    These are the facts escape analysis proves per parameter ([optimizations.md](optimizations.md)) -- the function
+    keeps nothing its parameter reaches -- checked here by compiling the function under the borrow rules, which
+    names the very line that would keep it.
+  - **The call may not resize what the item is borrowed from.** A statement that lends an item is checked with
+    the call effects: a call whose `grow:` or `shrink:` facts reach the collection the item is borrowed from (for
+    a row's attribute, each collection the row borrows from) is `'mouse' is borrowed from 'mice' and lent to
+    'grow' for its call, and 'input.grow()' on line 19 may move the items of 'mice': a function lent a borrowed
+    item may not append to or remove from the collection it is borrowed from, directly or through what it calls
+    -- change the size of 'mice' before or after the call (D257)`. An item lent on from inside a lent function is
+    covered by the check at the call that first lent it, whose call effects include everything the function
+    reaches. D220's plural calls keep their own error.
+  - **Where it is not lent, the error says why, and never offers a copy the function would write** (D244: a write
+    to a copy vanishes silently). Passing to a library function: `'first' is borrowed from 'other', and 'append'
+    is a library function, which is never lent an item: pass the attributes it needs, or 'first.copy()' where a
+    snapshot is what it wants`; to a union parameter: `... and 'f' takes it as a union, which holds its own values
+    and is never lent an item: pass the attributes it needs, or give 'f' a parameter of the item's own class`;
+    any other expression (such as a call that lends its result, written inside the argument): `... only a named
+    item, an item read with '[ ]' or a row's attribute is lent to a call (D257): name it first, 'var item =
+    ...', and pass 'item'`.
+  - **Cost.** None: the argument is the item's address, the parameter is never counted, and nothing is copied.
+    The `___lent_` copy is compiled only for the positions a program lends, and a program that lends nothing
+    carries none (tree-shaken like any function). `conformance/stage6/lent_to_calls` (an input system handing a
+    walked row's mouse and keyboard to `apply(event, mouse, keyboard)`, which writes them and passes them on,
+    with balanced memory and the writes read back from the vectors), `diagnostics/lent_to_calls`.
 - **A walked line names the attribute's class wherever it was declared** (proposed by Claude, unconfirmed; a bug
   fix found making every fitting component inline in SlopEngine). `Column<attribute.class>()` in a walked row or
   a plural's argument is written out with the class's full name, so a row type declared in another namespace
@@ -1448,4 +1539,4 @@ kept past its use. What is built (the error texts and the readings marked are pr
 `conformance/stage6/vector_rows`, `conformance/stage6/walked_rows`, `diagnostics/walked_rows`,
 `conformance/stage6/sparse_rows`, `diagnostics/sparse_rows`, `conformance/stage6/items_columns`,
 `diagnostics/items_borrows`, `conformance/stage6/lent_arguments`, `conformance/stage6/streamed_rows`,
-`diagnostics/lent_arguments`.
+`diagnostics/lent_arguments`, `conformance/stage6/lent_to_calls`, `diagnostics/lent_to_calls`.
