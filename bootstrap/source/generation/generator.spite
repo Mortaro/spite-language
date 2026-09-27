@@ -2685,6 +2685,10 @@ func required_function_problem(
         var needed = returned_display(wanted_return, needed_name)
         return "its '{wanted.name}' returns {returned}, but the type needs {needed}"
     }
+    var lent = lent_result_source(candidate, function)
+    if not lent.is_empty() {
+        return "its '{wanted.name}' lends its caller an item of '{lent}' (D230), which only a call written by name can borrow: a call through the type would let go of an item it does not own"
+    }
     return ""
 }
 
@@ -10235,6 +10239,7 @@ func function_value(
     owner: ExpressionResult,
     owner_ast: Syntax.Expressions.Expression,
 ): ExpressionResult {
+    report_lending_value(information, function)
     var maker = "spite_function_value_{function.c_name}"
     if task_value_arguments == 0 {
         var described_signature = signature_of(function)
@@ -13363,6 +13368,7 @@ func passed_member_function(
     var function = find_or_instantiate_function(owner_class, name)
     assert function
     assert not function.is_constructor
+    report_lending_value(owner_class, function)
     var owner_type: Analysis.SpiteType = Analysis.Types.ClassRefType(owner_class.c_name)
     var returned = function.get_return_type()
     var passed = PassedFunction(owner, owner_type, name, returned)
@@ -18656,7 +18662,7 @@ func lent_result_source(information: Analysis.ClassInfo, function: Analysis.Func
     lent_results.set(key, "")
     var returns = List<Syntax.Expressions.Expression>()
     var locals = function.parameters.map_name()
-    collect_returned_values(function.body, returns, locals)
+    collect_returned_values(function.body, returns, locals, information)
     var index = 0
     while index < returns.count() {
         var source = lent_return_source(returns[index], information, locals)
@@ -18673,40 +18679,121 @@ func collect_returned_values(
     statements: List<Syntax.Statements.Statement>,
     returns: List<Syntax.Expressions.Expression>,
     locals: List<String>,
-) {
+    information: Analysis.ClassInfo,
+): Boolean {
     var index = 0
     while index < statements.count() {
-        collect_statement_returns(statements[index], returns, locals)
+        if collect_statement_returns(statements[index], returns, locals, information) {
+            return true
+        }
         index = index + 1
     }
+    return false
 }
 
 func collect_statement_returns(
     statement: Syntax.Statements.Statement,
     returns: List<Syntax.Expressions.Expression>,
     locals: List<String>,
-) {
+    information: Analysis.ClassInfo,
+): Boolean {
     switch statement {
         Syntax.Statements.VariableDeclaration: locals.append(statement.name)
         Syntax.Statements.ReturnStatement: {
             if statement.value {
                 returns.append(statement.value)
             }
+            return true
         }
         Syntax.Statements.IfStatement: {
-            collect_returned_values(statement.then_branch, returns, locals)
-            collect_returned_values(statement.else_branch, returns, locals)
+            crash statement.condition
+            var decided: Boolean? = null
+            if asks_only_codegen(statement.condition) {
+                var no_locals = Scope(null)
+                decided = constant_condition(statement.condition, no_locals, information)
+            }
+            if decided == true {
+                return collect_returned_values(statement.then_branch, returns, locals, information)
+            }
+            if decided == false {
+                return collect_returned_values(statement.else_branch, returns, locals, information)
+            }
+            collect_returned_values(statement.then_branch, returns, locals, information)
+            collect_returned_values(statement.else_branch, returns, locals, information)
         }
-        Syntax.Statements.WhileStatement: collect_returned_values(statement.body, returns, locals)
+        Syntax.Statements.WhileStatement: collect_returned_values(statement.body, returns, locals, information)
         Syntax.Statements.SwitchStatement: {
             var case_index = 0
             while case_index < statement.cases.count() {
-                collect_returned_values(statement.cases[case_index].body, returns, locals)
+                collect_returned_values(statement.cases[case_index].body, returns, locals, information)
                 case_index = case_index + 1
             }
         }
-        _: return
+        _: return false
     }
+    return false
+}
+
+func asks_only_codegen(condition: Syntax.Expressions.Expression): Boolean {
+    if shape.as_generic_identifier(condition) {
+        return true
+    }
+    var unary = shape.as_unary(condition)
+    if unary {
+        crash unary.operand
+        return unary.operator == 'logical_not' and asks_only_codegen(unary.operand)
+    }
+    var binary = shape.as_binary(condition)
+    if binary {
+        crash binary.left
+        crash binary.right
+        if binary.operator == 'logical_and' or binary.operator == 'logical_or' {
+            return asks_only_codegen(binary.left) and asks_only_codegen(binary.right)
+        }
+        if binary.operator != 'equal' and binary.operator != 'not_equal' {
+            return false
+        }
+        if not shape.as_generic_identifier(binary.left) {
+            return false
+        }
+        return names_a_class_path(binary.right)
+    }
+    var call = shape.as_call(condition)
+    if not call {
+        return false
+    }
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    if not member {
+        return false
+    }
+    crash member.object
+    if not shape.as_generic_identifier(member.object) {
+        return false
+    }
+    if member.name == "fits_vector" {
+        return call.arguments.is_empty()
+    }
+    if member.name != "has_function" or call.arguments.count() != 1 {
+        return false
+    }
+    var asked = shape.as_string_literal(call.arguments[0])
+    if not asked {
+        return false
+    }
+    return not asked.value.contains("<") and not asked.value.contains("\{")
+}
+
+func names_a_class_path(expression: Syntax.Expressions.Expression): Boolean {
+    if shape.as_identifier(expression) {
+        return true
+    }
+    var member = shape.as_member(expression)
+    if not member {
+        return false
+    }
+    crash member.object
+    return names_a_class_path(member.object)
 }
 
 func lent_return_source(
@@ -18822,7 +18909,7 @@ func lends_this_return(expression_ast: Syntax.Expressions.Expression, class_info
     }
     var locals = function.parameters.map_name()
     var ignored = List<Syntax.Expressions.Expression>()
-    collect_returned_values(function.body, ignored, locals)
+    collect_returned_values(function.body, ignored, locals, class_information)
     return lent_return_source(expression_ast, class_information, locals) == lent
 }
 
@@ -20339,6 +20426,15 @@ func report_unlent_return(
     var written = Syntax.SourcePrinter().source_expression(value)
     report(
         "'{function_information.name}' lends its caller an item of '{lent}', which the caller writes in place and never lets go, so each of its returns is an item of '{lent}' or null: '{written}' is neither -- return null for 'none', with a '?' result, or make it a function of its own",
+    )
+}
+
+func report_lending_value(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    assert not function.is_constructor
+    var lent = lent_result_source(information, function)
+    assert not lent.is_empty()
+    report(
+        "'{function.name}' lends its caller an item of '{lent}' (D230), which only a call written by name can borrow: a function value's caller would let go of an item it does not own, so '{function.name}' is not made a function value -- call '{function.name}(...)' by name where the item is wanted",
     )
 }
 

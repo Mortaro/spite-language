@@ -882,7 +882,9 @@ Read it left to right:
 
 - **What happened**: `read-violation`, `write-violation` or `execute-violation` (on Linux and macOS,
   `access-violation`), `stack-overflow`, `illegal-instruction`, `integer-division-by-zero`, `misaligned-access`,
-  `bus-error`, `breakpoint`, `floating-point-exception`, or `exception` for any other code the system raises.
+  `bus-error`, `breakpoint`, `heap-corruption` (Windows: the C runtime's heap found its own bookkeeping
+  overwritten, usually by a double free or a write past a block; the `spite.frame` lines name the Spite function
+  that freed or allocated), `floating-point-exception`, or `exception` for any other code the system raises.
 - **Where**, as `path:line`, class and function: the Spite function the faulting instruction is in, with the line
   that function starts on -- a fault has no Spite line of its own. `-	-	-` means it is in no Spite function:
   inside a foreign library or the C library, and the first `spite.frame` is the Spite function that called in.
@@ -972,6 +974,8 @@ word needs a reason, and a place where the compiler lets one through is a bug to
 | an object made and dropped on the same line, to "do" something | compile error | [classes_and_files.md](classes_and_files.md#a-constructed-object-must-be-kept-and-used) |
 | `for`, `break`, `continue`, `++`, `&&` and other habits that would parse as something else | compile error naming the Spite form | [control_flow.md](control_flow.md#control-flow--implemented), [for_ai_writers.md](for_ai_writers.md#habits-from-other-languages-that-spite-rejects) |
 | a borrowed `Vector` item kept, or read after the vector moved | compile error | [memory.md](memory.md#borrowed-items-of-a-vectort--implemented) |
+| an item lent to the caller retained and released as if owned -- narrowed by `if`, called as a function value or through a `type` | the narrowed name stays borrowed; the other two are compile errors (D259) | [memory.md](memory.md#borrowed-items-of-a-vectort--implemented) |
+| a C compile that reports success but leaves no executable, or two builds sharing one generated C file | the build is an error naming the missing file; each output gets its own generated C file (D260) | [compiler.md](compiler.md) |
 | two threads writing a singleton at once | the compiler makes the singleton safe; anything else a `Parallel` reaches is an error | [concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows) |
 | a `while true` loop holding a singleton's lock forever | compile error | [concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows) |
 | a peer that hung up read as a count of `-1` | `socket.closed` turns `true`; reads answer `0` or `null` | [standard_library.md](standard_library.md) |
@@ -984,8 +988,10 @@ a word unless the program runs with `--debug-memory`, which prints the allocatio
 wraps in every build (D249); a `Concurrent` polled for `finished` under `resume_only_when_asked()` without
 `run_ready()` never ends ([concurrency.md](concurrency.md#choosing-where-concurrents-resume)); a `List`'s
 `set_at` and `remove_at` do nothing out of range ([collections.md](collections.md#listt-additions--implemented));
-and text assigned to an enum that names none of its values becomes the enum's first value
-([values_and_types.md](values_and_types.md)).
+text assigned to an enum that names none of its values becomes the enum's first value
+([values_and_types.md](values_and_types.md)); and a Windows `__fastfail` (`0xC0000409`), or a corrupted heap on
+Linux and macOS (the C library's own message and `SIGABRT`), ends the program without Spite's report or frames
+([what a native fault reports](#what-a-native-fault-reports-1)).
 Also open: a write to the attributes of a copy that nothing reads afterwards is lost without a word -- a function
 answers `values[row].copy()`, the caller sets `layout.width` on it, and the copy dies. Proposed by Claude,
 unconfirmed: a compile error when an object only this function holds (escape analysis already proves a
@@ -1474,7 +1480,11 @@ printed. The design below is Claude's (proposed by Claude, unconfirmed; the fiel
   reported on the thread that overflowed); on Linux and macOS `sigaction` for `SIGSEGV`, `SIGBUS`, `SIGILL`,
   `SIGFPE` and `SIGTRAP`, run on an alternate signal stack of 64 KB per thread. Every thread the program starts --
   a pool runner, a waiting call's thread, the REPL's and the file watcher's -- sets up its own room the same way.
-  An unhandled exception only: a fault a foreign library catches itself never reaches it.
+  An unhandled exception only: a fault a foreign library catches itself never reaches it. On Windows a corrupted
+  heap (`0xC0000374`) never reaches the unhandled-exception filter -- the system ends the program straight after
+  raising it -- so the same report is also installed as a vectored exception handler, `AddVectoredExceptionHandler`,
+  which looks at that one code and passes every other exception on untouched (D260, decided by Claude under D244;
+  its cost is one comparison per exception the process raises, and Spite raises none).
 - **The handler allocates nothing and calls nothing that could**: it builds each line in a buffer on its stack and
   writes it with `WriteFile` or `write`. It writes the `spite.fault` line first, from what is safe to read (the
   fault record, the faulting address, the function table, the thread's last foreign call), then the assert trace,
@@ -1506,12 +1516,15 @@ printed. The design below is Claude's (proposed by Claude, unconfirmed; the fiel
   library and the calling line in a thread-local, in every build (D214: one store per call measured as nothing
   against the call itself, so it is not kept to inspectable builds). A library reopened by `--hot-reload` records
   into its own copy, which the host's report does not see.
-- **Not reported**: what the system ends without asking the program -- Windows' fast fail on a corrupted heap or a
-  `__fastfail` -- and anything while a debugger is attached, which sees the fault first. A fault on a thread a
+- **Not reported**: what the system ends without asking the program -- a `__fastfail` (`0xC0000409`, which a
+  stack-buffer check or the C runtime's own invalid-parameter handler raises) -- and anything while a debugger is
+  attached, which sees the fault first. A fault on a thread a
   foreign library started is reported, but without room kept for a stack overflow and without a last foreign call.
 
 **Implemented** on Windows, and compiled (not run) for Linux and macOS: `conformance/stage6/native_fault_foreign`
-(a null read inside a fixture library), `native_fault_stack` (endless recursion) and `native_fault_illegal` (an
-illegal instruction inside a fixture library). `check.sh` compares their reports with the offset after `+0x`
+(a null read inside a fixture library), `native_fault_stack` (endless recursion), `native_fault_illegal` (an
+illegal instruction inside a fixture library) and `native_fault_heap` (a fixture library freeing a pointer inside
+a block, which Windows reports as a corrupted heap). On Linux and macOS a corrupted heap is found by the C library,
+which prints its own message and aborts (`SIGABRT`, not handled here), so it is loud but carries no Spite frames. `check.sh` compares their reports with the offset after `+0x`
 left out, since it is the C compiler's, and also builds `native_fault_foreign` `--optimized` from four translation
 units, where the handler and the table land in the first unit and the functions it names are spread over all four.

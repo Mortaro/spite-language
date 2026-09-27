@@ -116,8 +116,11 @@ What a build writes **beside its executable**, wherever that is: `game.crashes`,
 site ids to their lines ([failure.md](failure.md)), and, for a `--hot-reload` build, `game.reload_host`,
 `game.reload_files` and each reload's `game_reload_1.dll` with its C ([repl.md](repl.md#live-reload---hot-reload)).
 The one intermediate that is not an output is the C the C compiler reads when `--c-source` is off: it goes to the
-language repository's `.spite-cache/game.c`, and is overwritten by the next build of a program of that name. A
-program built from [translation units](#translation-units-the-c-compiled-in-parallel-and-cached) writes its units,
+language repository's `.spite-cache/game_<number>.c`, the number worked out from the executable's whole path, so
+two builds of programs named alike in different folders at once never compile each other's C; it is overwritten
+by the next build of the same executable (D260). A C compiler that reports success without writing the
+executable is an error, `the C compiler reported success but '<path>' is not there: nothing was built, so nothing
+runs`, never a build that ends with nothing to run. A program built from [translation units](#translation-units-the-c-compiled-in-parallel-and-cached) writes its units,
 their header and their objects to `.spite-cache/objects` instead, each named by the hash of its content.
 
 `spite reload <folder> ... --executable-path=<running executable>` is what a `--hot-reload` program runs to
@@ -477,8 +480,16 @@ before any output is written.
   it goes: the `.crashes` map ([Failure: three outcomes and no others](failure.md#failure-three-outcomes-and-no-others--partial))
   and a `--hot-reload` build's `.reload_host`, `.reload_files` and `_reload_<n>` libraries. The one intermediate
   is the C the C compiler reads when `c_source` is off, written to the language repository's
-  `.spite-cache/<executable name>.c`, or, for a build from several translation units, its units, header and
-  objects, written to `.spite-cache/objects` under the hash of their content (the rules below).
+  `.spite-cache/<executable name>_<number>.c`, the number `(n * 31 + code) mod 1 000 000 007` over the codes of
+  the executable's whole path from 7 (D260, decided by Claude under D244: two sessions building programs named
+  alike at once used to share `<name>.c`, so one could compile the other's program), or, for a build from several
+  translation units, its units, header and objects, written to `.spite-cache/objects` under the hash of their
+  content (the rules below).
+- **A build that ends with no executable is an error** (D260): when the C compiler (or the link of the units)
+  reports success and the executable is not at its path, the build stops with `error: the C compiler reported
+  success but '<path>' is not there: nothing was built, so nothing runs (another build writing the same
+  executable, or a virus scanner, may have removed it)` and exit status 1, instead of a status of 0 with nothing to
+  run.
 - **The compiler's own C goes to its default path**, `bootstrap/bootstrap.c`: every `Build` field is a constant in
   what is built, so a `--c-path` naming a different file each run would be written into the C and the fixpoint
   would never hold ([self_hosting.md](self_hosting.md)).

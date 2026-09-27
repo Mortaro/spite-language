@@ -1,0 +1,38 @@
+singleton
+
+generic $component_type
+
+var rows = List<Integer>()
+var values = Items<$component_type>()
+var references = List<$component_type>()
+
+func insert(entity: Integer, value: $component_type) {
+    while rows.count() <= entity {
+        rows.append(0)
+    }
+    if inline() {
+        values.append(value)
+        rows[entity] = values.count()
+        return
+    }
+    references.append(value)
+    rows[entity] = references.count()
+}
+
+func inline(): Boolean {
+    if $component_type == Marker {
+        return false
+    }
+    return $component_type.fits_vector()
+}
+
+func row_of(entity: Integer): Integer {
+    if entity >= rows.count() {
+        return -1
+    }
+    return rows[entity] - 1
+}
+
+func value_at(row: Integer): $component_type? {
+    return references[row]
+}

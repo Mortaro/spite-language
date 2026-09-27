@@ -849,7 +849,10 @@ other function, from what tree shaking kept.
 **What it costs**, measured on x64 Windows with the C compiler `check.sh` uses:
 
 - **Code**: about 3.7 KB of machine code (3 707 bytes at `-O0`, 3 678 at `-O2`), 0.4 KB of fixed text, and its unwind
-  data. Installing it is two system calls at start, and one more in each thread the program starts.
+  data. Installing it is two system calls at start (three on Windows, where a vectored handler also catches a
+  corrupted heap, D260), and one more in each thread the program starts. The vectored handler runs for every
+  exception the process raises and returns after one comparison unless it is `0xC0000374`; Spite raises none, so
+  only a foreign library that uses exceptions of its own ever pays it.
 - **The function table**: 32 bytes per function the C keeps, plus its name; the file and class text is shared by a
   class's functions. `examples/hello` keeps 73 functions, about 4 KB; the compiler keeps about 3 360, about 210 KB of
   its 4.3 MB. In an `--optimized` build, taking every function's address keeps an out-of-line copy of a small

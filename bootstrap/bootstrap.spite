@@ -665,10 +665,11 @@ func built_executable(): Boolean {
     var splitter = Translation.UnitSplitter()
     if splits_into_units(splitter) {
         var built = built_from_units(splitter, c_compiler, output_path)
-        if built {
-            write_companions(output_path)
+        if not built or reported_missing_output(output_path) {
+            return false
         }
-        return built
+        write_companions(output_path)
+        return true
     }
     var c_file_path = c_to_compile(output_path)
     var process_arguments = List<String>()
@@ -686,6 +687,9 @@ func built_executable(): Boolean {
     if exit_code != 0 {
         var output = process.output()
         console.error(output)
+        return false
+    }
+    if reported_missing_output(output_path) {
         return false
     }
     write_companions(output_path)
@@ -820,10 +824,31 @@ func c_to_compile(output_path: String): String {
     Directory(cache_folder).create()
     var base = without_executable_extension(output_path)
     var name = last_segment(base)
-    var path = "{cache_folder}/{name}.c"
+    var path = "{cache_folder}/{name}_{path_fingerprint(output_path)}.c"
     var wrote = File(path).write(generated_code)
     crash wrote
     return path
+}
+
+func path_fingerprint(path: String): Long {
+    var fingerprint: Long = 7
+    var index = 0
+    while index < path.length() {
+        var code: Long = path.code_at(index)
+        fingerprint = (fingerprint * 31 + code) % 1000000007
+        index = index + 1
+    }
+    return fingerprint
+}
+
+func reported_missing_output(output_path: String): Boolean {
+    if File(output_path).exists() {
+        return false
+    }
+    console.error(
+        "error: the C compiler reported success but '{output_path}' is not there: nothing was built, so nothing runs (another build writing the same executable, or a virus scanner, may have removed it)",
+    )
+    return true
 }
 
 func write_companions(output_path: String) {

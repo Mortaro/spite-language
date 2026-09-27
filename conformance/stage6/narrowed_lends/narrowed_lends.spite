@@ -1,0 +1,40 @@
+var console = Console()
+var justifications = Column<Justify>()
+
+func NarrowedLends() {
+    var made = Justify()
+    made.value = 4
+    justifications.insert(2, made)
+    var found = read(2)
+    var missing = read(3)
+    raise(2)
+    raise(3)
+    var raised = read(2)
+    console.print(found, missing, raised, justifications.values[0].value)
+}
+
+func read(entity: Integer): Integer {
+    var lookup = Lookup<Justify>()
+    var justify = lookup.of(entity)
+    if justify {
+        return code(justify)
+    }
+    return -1
+}
+
+func raise(entity: Integer) {
+    var lookup = Lookup<Justify>()
+    var justify = lookup.of(entity)
+    if justify and justify.value > 0 {
+        bump(justify)
+        bump(justify)
+    }
+}
+
+func code(justify: Justify): Integer {
+    return justify.value * 10
+}
+
+func bump(justify: Justify) {
+    justify.value = justify.value + 1
+}

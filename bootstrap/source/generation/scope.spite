@@ -154,7 +154,7 @@ func borrow_source(name: String): String {
         }
         index = index - 1
     }
-    if entry_names.contains(name) {
+    if entry_names.contains(name) and not override_names.contains(name) {
         return ""
     }
     if not parent {

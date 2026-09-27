@@ -1,0 +1,60 @@
+var console = Console()
+var layouts = Column<Layout>()
+var markers = Column<Marker>()
+var tags = Column<Tags>()
+
+func FoldedLends() {
+    var layout = Layout()
+    layouts.insert(1, layout)
+    var marker = Marker()
+    markers.insert(1, marker)
+    var tagged = Tags()
+    tagged.words.append("red")
+    tags.insert(1, tagged)
+    move_layout()
+    move_marker()
+    tag()
+    var marker_count = markers.references.count()
+    var tag_count = tags.references.count()
+    console.print(layouts.values[0].order, marker_count, tag_count)
+}
+
+func move_layout() {
+    var lookup = Lookup<Layout>()
+    var layout = lookup.of(1)
+    if layout {
+        raise(layout)
+    }
+    var again = lookup.of(1)
+    crash again
+    again.order = again.order + 10
+    console.print("layout", again.order)
+}
+
+func move_marker() {
+    var lookup = Lookup<Marker>()
+    var marker = lookup.of(1)
+    if marker {
+        raise_marker(marker)
+    }
+    var kept = lookup.of(1)
+    crash kept
+    console.print("marker", kept.order)
+}
+
+func tag() {
+    var lookup = Lookup<Tags>()
+    var found = lookup.of(1)
+    crash found
+    found.words.append("blue")
+    var words = found.words.join(" ")
+    console.print("tags", words)
+}
+
+func raise(layout: Layout) {
+    layout.order = layout.order + 1
+}
+
+func raise_marker(marker: Marker) {
+    marker.order = marker.order + 2
+}

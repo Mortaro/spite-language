@@ -549,8 +549,11 @@ func LentResultDoc() {
 Nothing is copied or counted, so `layout.order = 3` is never a write to a copy that is then thrown away. The
 borrow now belongs to the caller, and every rule for a borrowed item holds there: `layout` is not kept, put in a
 list, returned further or given a second name, and it is not read past a line that may append to or remove from
-`Column<Layout>().values`. It may be lent on to a call, as the next section shows. A function that lends gives
-back only such items, or `null`.
+`Column<Layout>().values`. It may be lent on to a call, as the next section shows, and `if layout { ... }`
+narrows it without ending the borrow. A function that lends gives back only such items, or `null`, and it is
+called by name: it is never made a function value or called through a `type`, whose caller could not know the
+item is not its own. In a generic class the choice is made per instance, with the conditions on its generic
+parameters folded first, so one `of` may lend a fitting class's item and hand back an owned value for the rest.
 
 ### An item lent to a call
 
@@ -1463,8 +1466,15 @@ kept past its use. What is built (the error texts and the readings marked are pr
   of the function's class, the object holding the last attribute is a singleton, and that attribute is a `Vector`
   or an `Items` whose class fits one -- **lends its result**: the item is returned uncounted and its caller never
   lets it go. It is decided per class the function is compiled for, so `Lookup<Label>.of` over an `Items` of
-  references returns a counted reference as before, and a branch dropped while compiling (`if
-  $component_type.fits_vector()`) does not count. At every caller:
+  references returns a counted reference as before. **The returns are read per instance with compile-time
+  conditions folded** (D259): an `if` whose condition is made only of `$T.fits_vector()`,
+  `$T.has_function("name")` with a plain literal name, and a generic parameter compared with a class (`$component_type != Entity`), joined with
+  `and`, `or` and `not`, keeps only its taken branch (`function_waits` is left unfolded here, since answering it
+  this early would decide it before the functions that ask it are compiled, D209), and a statement after an `if` folded true whose branch returns is dead,
+  so it does not count either. `Lookup.of` written as `if $component_type.fits_vector() and $component_type !=
+  Entity { return column.values[row] }` followed by `return column.value_at(row)` lends for every instance whose
+  class fits and returns an owned value for `Entity` and every class that does not fit, and each caller treats
+  the result as its instance does (`conformance/stage6/folded_lends`). At every caller:
   - the result is a borrowed item of `<Singleton>().<attribute>` -- `'layout' is borrowed from
     'Column<Layout>().values'` -- and every rule above applies to it: `var layout = lookup.of(entity)` names it,
     `layout.order = 3` and `lookup.of(entity).order = 3` write the stored item, and it is not kept in an
@@ -1477,14 +1487,27 @@ kept past its use. What is built (the error texts and the readings marked are pr
     (D230)`;
   - a name already used in the block is not reused for it: `'tally' already names a value earlier in this block,
     and an item borrowed from 'Column<Tally>().values' is given a name of its own: call it something new, such as
-    'var tally_item = ...'` (this applies to every borrowed item).
+    'var tally_item = ...'` (this applies to every borrowed item);
+  - **narrowing keeps it borrowed** (D259, a bug fix under D244): `if layout { ... }`, `if layout and
+    layout.order > 0 { ... }` make it a plain `Layout` inside the block that is still the borrowed item, so passing it to a call lends it (D257) and keeping, listing or returning it is the
+    error above. Before, the narrowed name was an ordinary local: a call retained and released the stored item,
+    which is a double free under `--debug-memory` and heap corruption in production
+    (`conformance/stage6/narrowed_lends`, `diagnostics/lent_escapes`);
+  - **it is called by name only** (D259): a lending function is never made a function value (`var find =
+    lookup.of`, `entities.map(lookup.of)`), whose caller would let go of an item it does not own -- `'of' lends its
+    caller an item of 'Column<Justify>().values' (D230), which only a call written by name can borrow: a function
+    value's caller would let go of an item it does not own, so 'of' is not made a function value -- call 'of(...)'
+    by name where the item is wanted` -- and its class does not fit a `type` requiring that function: `'Lookup'
+    does not fit type 'Finder': its 'of' lends its caller an item of 'Column<Justify>().values' (D230), which only
+    a call written by name can borrow: a call through the type would let go of an item it does not own`.
   A function that lends returns only such items or `null`: any other value would be an object the caller never
   lets go, so it is `'at_or_made' lends its caller an item of 'Scores().values', which the caller writes in place
   and never lets go, so each of its returns is an item of 'Scores().values' or null: 'made' is neither -- return
   null for 'none', with a '?' result, or make it a function of its own`. A storage path through a local, a
   parameter or an object that is not a singleton keeps D204's refusal, since that storage may not outlive the
   call. **Cost**: none -- the return is the item's address, with no retain, and the caller releases nothing
-  (`conformance/stage6/lent_results`, `diagnostics/lent_results`).
+  (`conformance/stage6/lent_results`, `diagnostics/lent_results`, `conformance/stage6/folded_lends`,
+  `conformance/stage6/narrowed_lends`, `diagnostics/lent_escapes`).
 - **An item lent to a call** (D257, decided by Claude under D205 and D244, the argument-side twin of D220 and
   D230; the error texts and the readings below proposed by Claude, unconfirmed). A borrowed item passed as an
   argument -- a borrowed name (`mouse`, including one lent to the function itself), an item read with `[ ]`
