@@ -1,0 +1,47 @@
+type Finder {
+    of(Integer): Justify?
+}
+
+var justifications = Column<Justify>()
+var kept: Justify? = null
+var held = List<Justify>()
+
+func LentEscapes() {
+    var made = Justify()
+    justifications.insert(2, made)
+    var lookup = Lookup<Justify>()
+    var justify = lookup.of(2)
+    if justify {
+        kept = justify
+        held.append(justify)
+    }
+    justifications.values[0].value = 1
+}
+
+func handed_on(): Justify? {
+    var lookup = Lookup<Justify>()
+    var justify = lookup.of(2)
+    if justify {
+        return justify
+    }
+    return null
+}
+
+func as_value(): Integer {
+    var lookup = Lookup<Justify>()
+    var find = lookup.of
+    var found = find(2)
+    crash found
+    return found.value
+}
+
+func through_type(): Integer {
+    var lookup = Lookup<Justify>()
+    return read(lookup)
+}
+
+func read(finder: Finder): Integer {
+    var found = finder.of(2)
+    crash found
+    return found.value
+}
