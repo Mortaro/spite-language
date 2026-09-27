@@ -55,25 +55,15 @@ func get_day_of_year(): Integer {
 
 func get_weekday(): Weekday {
     var index = (get_days_since_1970() % 7 + 10) % 7
-    if index == 1 {
-        return 'tuesday'
+    switch index {
+        1: return 'tuesday'
+        2: return 'wednesday'
+        3: return 'thursday'
+        4: return 'friday'
+        5: return 'saturday'
+        6: return 'sunday'
+        _: return 'monday'
     }
-    if index == 2 {
-        return 'wednesday'
-    }
-    if index == 3 {
-        return 'thursday'
-    }
-    if index == 4 {
-        return 'friday'
-    }
-    if index == 5 {
-        return 'saturday'
-    }
-    if index == 6 {
-        return 'sunday'
-    }
-    return 'monday'
 }
 
 func get_days_since_1970(): Long {

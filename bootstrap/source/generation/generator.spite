@@ -1114,20 +1114,15 @@ func folded_count_comparison(
     assert left
     var right = folded_integer(binary.right, class_information)
     assert right
-    if binary.operator == 'equal' {
-        return left == right
-    } else if binary.operator == 'not_equal' {
-        return left != right
-    } else if binary.operator == 'less' {
-        return left < right
-    } else if binary.operator == 'less_equal' {
-        return left <= right
-    } else if binary.operator == 'greater' {
-        return left > right
-    } else if binary.operator == 'greater_equal' {
-        return left >= right
+    switch binary.operator {
+        'equal': return left == right
+        'not_equal': return left != right
+        'less': return left < right
+        'less_equal': return left <= right
+        'greater': return left > right
+        'greater_equal': return left >= right
+        _: return null
     }
-    return null
 }
 
 func folded_argument_count(call: Syntax.Expressions.CallExpression, class_information: Analysis.ClassInfo): Integer? {
@@ -1609,51 +1604,45 @@ func type_test(
     class_information: Analysis.ClassInfo,
 ): Boolean {
     var kind_name = operand_text(kind)
-    if kind_name == "List" {
-        return bound_type == Analysis.Types.ListType
-    }
-    if kind_name == "Dictionary" {
-        return bound_type == Analysis.Types.DictionaryType
-    }
-    if kind_name == "Null" {
-        return bound_type == Analysis.Types.NullableType
-    }
-    if kind_name == "Symbol" {
-        return is_enum_type(bound_type) or type_shape.is_symbol(bound_type)
-    }
-    if kind_name == "Enum" {
-        return is_enum_type(bound_type)
-    }
-    var kind_path = kind_name.split(".")
-    var no_generic_arguments = List<Syntax.Types.GenericArgument>()
-    var kind_reference: Syntax.Types.Type = Syntax.Types.NamedType(kind_path, no_generic_arguments)
-    var saved_class = current_class
-    current_class = class_information
-    var kind_type = resolve_type(kind_reference, class_information.qualified_dotted)
-    current_class = saved_class
-    if not kind_type {
-        return false
-    }
-    var kind_union = type_shape.as_union(kind_type)
-    if kind_union {
-        var union_information = find_union_by_c_name(kind_union.c_name)
-        if union_information {
-            var member_index = 0
-            while member_index < union_information.member_types.count() {
-                var member_type = resolve_type(
-                    union_information.member_types[member_index],
-                    union_information.owner_namespace,
-                )
-                if member_type {
-                    if exact_type_label(member_type) == exact_type_label(bound_type) {
-                        return true
+    switch kind_name {
+        "List": return bound_type == Analysis.Types.ListType
+        "Dictionary": return bound_type == Analysis.Types.DictionaryType
+        "Null": return bound_type == Analysis.Types.NullableType
+        "Symbol": return is_enum_type(bound_type) or type_shape.is_symbol(bound_type)
+        "Enum": return is_enum_type(bound_type)
+        _: {
+            var kind_path = kind_name.split(".")
+            var no_generic_arguments = List<Syntax.Types.GenericArgument>()
+            var kind_reference: Syntax.Types.Type = Syntax.Types.NamedType(kind_path, no_generic_arguments)
+            var saved_class = current_class
+            current_class = class_information
+            var kind_type = resolve_type(kind_reference, class_information.qualified_dotted)
+            current_class = saved_class
+            if not kind_type {
+                return false
+            }
+            var kind_union = type_shape.as_union(kind_type)
+            if kind_union {
+                var union_information = find_union_by_c_name(kind_union.c_name)
+                if union_information {
+                    var member_index = 0
+                    while member_index < union_information.member_types.count() {
+                        var member_type = resolve_type(
+                            union_information.member_types[member_index],
+                            union_information.owner_namespace,
+                        )
+                        if member_type {
+                            if exact_type_label(member_type) == exact_type_label(bound_type) {
+                                return true
+                            }
+                        }
+                        member_index = member_index + 1
                     }
                 }
-                member_index = member_index + 1
             }
+            return exact_type_label(kind_type) == exact_type_label(bound_type)
         }
     }
-    return exact_type_label(kind_type) == exact_type_label(bound_type)
 }
 
 func exact_type_label(spite_type: Analysis.SpiteType): String {
@@ -5347,36 +5336,26 @@ func ensure_check_point_flag() {
 func address_body(function: Analysis.FunctionInfo): String {
     var name = function.name
     var at = "((char*)(intptr_t)(self) + (offset))"
-    if name == "copy_to" {
-        return "#define {function.c_name}(self, target, bytes) memmove((void*)(intptr_t)(target), (void*)(intptr_t)(self), (size_t)(bytes))"
+    switch name {
+        "copy_to": return "#define {function.c_name}(self, target, bytes) memmove((void*)(intptr_t)(target), (void*)(intptr_t)(self), (size_t)(bytes))"
+        "compare_bytes": return "#define {function.c_name}(self, other, bytes) (\{ int64_t spite_bytes = (bytes); spite_bytes > 0 ? (int32_t)memcmp((const void*)(intptr_t)(self), (const void*)(intptr_t)(other), (size_t)spite_bytes) : 0; })"
+        "exchange_long": return "#define {function.c_name}(self, offset, value) __atomic_exchange_n((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
+        "read_long_atomically": return "#define {function.c_name}(self, offset) __atomic_load_n((int64_t*){at}, __ATOMIC_SEQ_CST)"
+        "write_long_atomically": return "#define {function.c_name}(self, offset, value) __atomic_store_n((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
+        "add_long_atomically": return "#define {function.c_name}(self, offset, value) __atomic_add_fetch((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
+        "compare_and_swap_long": return "#define {function.c_name}(self, offset, expected, desired) (\{ int64_t spite_expected = (int64_t)(expected); __atomic_compare_exchange_n((int64_t*){at}, &spite_expected, (int64_t)(desired), false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); })"
+        _: {
+            var value_type = function.get_return_type()
+            if name.starts_with("write_") {
+                crash function.parameters[1]
+                value_type = function.parameters[1].get_type()
+                var written = c_type_name(value_type)
+                return "#define {function.c_name}(self, offset, value) memcpy({at}, &({written})\{ (value) }, sizeof({written}))"
+            }
+            var read = c_type_name(value_type)
+            return "#define {function.c_name}(self, offset) (\{ {read} spite_read; memcpy(&spite_read, {at}, sizeof(spite_read)); spite_read; })"
+        }
     }
-    if name == "compare_bytes" {
-        return "#define {function.c_name}(self, other, bytes) (\{ int64_t spite_bytes = (bytes); spite_bytes > 0 ? (int32_t)memcmp((const void*)(intptr_t)(self), (const void*)(intptr_t)(other), (size_t)spite_bytes) : 0; })"
-    }
-    if name == "exchange_long" {
-        return "#define {function.c_name}(self, offset, value) __atomic_exchange_n((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
-    }
-    if name == "read_long_atomically" {
-        return "#define {function.c_name}(self, offset) __atomic_load_n((int64_t*){at}, __ATOMIC_SEQ_CST)"
-    }
-    if name == "write_long_atomically" {
-        return "#define {function.c_name}(self, offset, value) __atomic_store_n((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
-    }
-    if name == "add_long_atomically" {
-        return "#define {function.c_name}(self, offset, value) __atomic_add_fetch((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
-    }
-    if name == "compare_and_swap_long" {
-        return "#define {function.c_name}(self, offset, expected, desired) (\{ int64_t spite_expected = (int64_t)(expected); __atomic_compare_exchange_n((int64_t*){at}, &spite_expected, (int64_t)(desired), false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); })"
-    }
-    var value_type = function.get_return_type()
-    if name.starts_with("write_") {
-        crash function.parameters[1]
-        value_type = function.parameters[1].get_type()
-        var written = c_type_name(value_type)
-        return "#define {function.c_name}(self, offset, value) memcpy({at}, &({written})\{ (value) }, sizeof({written}))"
-    }
-    var read = c_type_name(value_type)
-    return "#define {function.c_name}(self, offset) (\{ {read} spite_read; memcpy(&spite_read, {at}, sizeof(spite_read)); spite_read; })"
 }
 
 func maths_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
@@ -5614,16 +5593,12 @@ func typed_memory_body(information: Analysis.ClassInfo, name: String): String {
     crash information.codegen_types[0]
     var value_type = information.codegen_types[0]
     var slot = "(({c_type_name(value_type)}*)(intptr_t)address_)[index_]"
-    if name == "read_value" {
-        return "return {retain_call(value_type, slot)};"
+    switch name {
+        "read_value": return "return {retain_call(value_type, slot)};"
+        "write_value": return "{slot} = value_;"
+        "release_value": return release_statement(value_type, slot)
+        _: return "return (int64_t)sizeof({c_type_name(value_type)});"
     }
-    if name == "write_value" {
-        return "{slot} = value_;"
-    }
-    if name == "release_value" {
-        return release_statement(value_type, slot)
-    }
-    return "return (int64_t)sizeof({c_type_name(value_type)});"
 }
 
 func inline_memory_body(information: Analysis.ClassInfo, name: String): String {
@@ -5631,62 +5606,52 @@ func inline_memory_body(information: Analysis.ClassInfo, name: String): String {
     var value_type = information.codegen_types[0]
     var item_class = inline_item_class(value_type)
     if not item_class {
-        var slot = "(({c_type_name(value_type)}*)(intptr_t)address_)[index_]"
-        if name == "item_at" {
-            return "return {retain_call(value_type, slot)};"
-        }
-        if name == "write_item" {
-            return "{slot} = value_;"
-        }
-        if name == "copy_item" {
-            var source = "(({c_type_name(value_type)}*)(intptr_t)source_)[source_index_]"
-            return "{slot} = {retain_call(value_type, source)};"
-        }
-        if name == "release_item" {
-            return release_statement(value_type, slot)
-        }
-        if name == "item_start" {
-            return "return 0;"
-        }
-        if name == "block_bytes" {
-            return "return (int64_t)item_count_ * (int64_t)sizeof({c_type_name(value_type)});"
-        }
-        return "return (int64_t)sizeof({c_type_name(value_type)});"
+        return plain_memory_body(name, value_type)
     }
     var c_name = item_class.c_name
     var stride = "((int64_t)sizeof({c_name}) - (int64_t)sizeof(SpiteHeader))"
     var slot = "(({c_name}*)((char*)(intptr_t)address_ + (int64_t)index_ * {stride}))"
-    if name == "item_at" {
-        return "return {slot};"
+    switch name {
+        "item_at": return "return {slot};"
+        "item_bytes": return "return {stride};"
+        "item_start": return "return (int64_t)sizeof(SpiteHeader);"
+        "block_bytes": return "return (int64_t)item_count_ * {stride} + (int64_t)sizeof(SpiteHeader);"
+        _: {
+            var lines = List<String>()
+            if name == "release_item" {
+                lines.append("{c_name}* spite_slot = {slot};")
+                append_item_references(lines, item_class, false)
+                return lines.join("\n")
+            }
+            var copied = "value_"
+            if name == "copy_item" {
+                copied = "(({c_name}*)((char*)(intptr_t)source_ + (int64_t)source_index_ * {stride}))"
+            }
+            lines.append("{c_name}* spite_slot = {slot};")
+            lines.append(
+                "memcpy((char*)spite_slot + sizeof(SpiteHeader), (char*){copied} + sizeof(SpiteHeader), (size_t){stride});",
+            )
+            append_item_references(lines, item_class, true)
+            if name == "write_item" {
+                lines.append("{release_call(value_type, "value_")};")
+            }
+            return lines.join("\n")
+        }
     }
-    if name == "item_bytes" {
-        return "return {stride};"
+}
+
+func plain_memory_body(name: String, value_type: Analysis.SpiteType): String {
+    var slot = "(({c_type_name(value_type)}*)(intptr_t)address_)[index_]"
+    var source = "(({c_type_name(value_type)}*)(intptr_t)source_)[source_index_]"
+    switch name {
+        "item_at": return "return {retain_call(value_type, slot)};"
+        "write_item": return "{slot} = value_;"
+        "copy_item": return "{slot} = {retain_call(value_type, source)};"
+        "release_item": return release_statement(value_type, slot)
+        "item_start": return "return 0;"
+        "block_bytes": return "return (int64_t)item_count_ * (int64_t)sizeof({c_type_name(value_type)});"
+        _: return "return (int64_t)sizeof({c_type_name(value_type)});"
     }
-    if name == "item_start" {
-        return "return (int64_t)sizeof(SpiteHeader);"
-    }
-    if name == "block_bytes" {
-        return "return (int64_t)item_count_ * {stride} + (int64_t)sizeof(SpiteHeader);"
-    }
-    var lines = List<String>()
-    if name == "release_item" {
-        lines.append("{c_name}* spite_slot = {slot};")
-        append_item_references(lines, item_class, false)
-        return lines.join("\n")
-    }
-    var copied = "value_"
-    if name == "copy_item" {
-        copied = "(({c_name}*)((char*)(intptr_t)source_ + (int64_t)source_index_ * {stride}))"
-    }
-    lines.append("{c_name}* spite_slot = {slot};")
-    lines.append(
-        "memcpy((char*)spite_slot + sizeof(SpiteHeader), (char*){copied} + sizeof(SpiteHeader), (size_t){stride});",
-    )
-    append_item_references(lines, item_class, true)
-    if name == "write_item" {
-        lines.append("{release_call(value_type, "value_")};")
-    }
-    return lines.join("\n")
 }
 
 func append_item_references(lines: List<String>, item_class: Analysis.ClassInfo, retaining: Boolean) {
@@ -6325,79 +6290,39 @@ func types_equal(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType):
 }
 
 func numeric_c_name(kind: Analysis.Types.NumericKind): String {
-    if kind == 'integer_kind' {
-        return "int32_t"
+    switch kind {
+        'integer_kind': return "int32_t"
+        'long_kind': return "int64_t"
+        'tiny_kind': return "int8_t"
+        'short_kind': return "int16_t"
+        'byte_kind': return "uint8_t"
+        'unsigned_short_kind': return "uint16_t"
+        'unsigned_integer_kind': return "uint32_t"
+        'unsigned_long_kind': return "uint64_t"
+        'address_kind': return "int64_t"
+        'float_kind': return "float"
+        'double_kind': return "double"
+        _: return "bool"
     }
-    if kind == 'long_kind' {
-        return "int64_t"
-    }
-    if kind == 'tiny_kind' {
-        return "int8_t"
-    }
-    if kind == 'short_kind' {
-        return "int16_t"
-    }
-    if kind == 'byte_kind' {
-        return "uint8_t"
-    }
-    if kind == 'unsigned_short_kind' {
-        return "uint16_t"
-    }
-    if kind == 'unsigned_integer_kind' {
-        return "uint32_t"
-    }
-    if kind == 'unsigned_long_kind' {
-        return "uint64_t"
-    }
-    if kind == 'address_kind' {
-        return "int64_t"
-    }
-    if kind == 'float_kind' {
-        return "float"
-    }
-    if kind == 'double_kind' {
-        return "double"
-    }
-    return "bool"
 }
 
 func type_label(spite_type: Analysis.SpiteType): String {
     var scalar = type_shape.as_scalar(spite_type)
     if scalar {
-        if scalar.kind == 'integer_kind' {
-            return "Integer"
+        switch scalar.kind {
+            'integer_kind': return "Integer"
+            'long_kind': return "Long"
+            'tiny_kind': return "Tiny"
+            'short_kind': return "Short"
+            'byte_kind': return "Byte"
+            'unsigned_short_kind': return "UnsignedShort"
+            'unsigned_integer_kind': return "UnsignedInteger"
+            'unsigned_long_kind': return "UnsignedLong"
+            'address_kind': return "Memory_Address"
+            'float_kind': return "Float"
+            'double_kind': return "Double"
+            _: return "Boolean"
         }
-        if scalar.kind == 'long_kind' {
-            return "Long"
-        }
-        if scalar.kind == 'tiny_kind' {
-            return "Tiny"
-        }
-        if scalar.kind == 'short_kind' {
-            return "Short"
-        }
-        if scalar.kind == 'byte_kind' {
-            return "Byte"
-        }
-        if scalar.kind == 'unsigned_short_kind' {
-            return "UnsignedShort"
-        }
-        if scalar.kind == 'unsigned_integer_kind' {
-            return "UnsignedInteger"
-        }
-        if scalar.kind == 'unsigned_long_kind' {
-            return "UnsignedLong"
-        }
-        if scalar.kind == 'address_kind' {
-            return "Memory_Address"
-        }
-        if scalar.kind == 'float_kind' {
-            return "Float"
-        }
-        if scalar.kind == 'double_kind' {
-            return "Double"
-        }
-        return "Boolean"
     }
     if type_shape.as_string(spite_type) {
         return "String"
@@ -6510,16 +6435,12 @@ func c_type_name(spite_type: Analysis.SpiteType): String {
 func default_value_for_type(spite_type: Analysis.SpiteType): String {
     var scalar = type_shape.as_scalar(spite_type)
     if scalar {
-        if scalar.kind == 'boolean_kind' {
-            return "false"
+        switch scalar.kind {
+            'boolean_kind': return "false"
+            'float_kind': return "0.0"
+            'double_kind': return "0.0"
+            _: return "0"
         }
-        if scalar.kind == 'float_kind' {
-            return "0.0"
-        }
-        if scalar.kind == 'double_kind' {
-            return "0.0"
-        }
-        return "0"
     }
     if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
         return "SPITE_STRING_EMPTY"
@@ -7301,62 +7222,32 @@ func maths_spelling(name: String): String {
 }
 
 func is_boolean_result_operator(operator: Syntax.Expressions.BinaryOperator): Boolean {
-    if operator == 'add' {
-        return false
+    switch operator {
+        'add': return false
+        'subtract': return false
+        'multiply': return false
+        'divide': return false
+        'modulo': return false
+        _: return true
     }
-    if operator == 'subtract' {
-        return false
-    }
-    if operator == 'multiply' {
-        return false
-    }
-    if operator == 'divide' {
-        return false
-    }
-    if operator == 'modulo' {
-        return false
-    }
-    return true
 }
 
 func binary_operator_symbol(operator: Syntax.Expressions.BinaryOperator): String {
-    if operator == 'add' {
-        return "+"
+    switch operator {
+        'add': return "+"
+        'subtract': return "-"
+        'multiply': return "*"
+        'divide': return "/"
+        'modulo': return "%"
+        'equal': return "=="
+        'not_equal': return "!="
+        'less': return "<"
+        'less_equal': return "<="
+        'greater': return ">"
+        'greater_equal': return ">="
+        'logical_and': return "&&"
+        _: return "||"
     }
-    if operator == 'subtract' {
-        return "-"
-    }
-    if operator == 'multiply' {
-        return "*"
-    }
-    if operator == 'divide' {
-        return "/"
-    }
-    if operator == 'modulo' {
-        return "%"
-    }
-    if operator == 'equal' {
-        return "=="
-    }
-    if operator == 'not_equal' {
-        return "!="
-    }
-    if operator == 'less' {
-        return "<"
-    }
-    if operator == 'less_equal' {
-        return "<="
-    }
-    if operator == 'greater' {
-        return ">"
-    }
-    if operator == 'greater_equal' {
-        return ">="
-    }
-    if operator == 'logical_and' {
-        return "&&"
-    }
-    return "||"
 }
 
 func text_converter(value_type: Analysis.SpiteType): Analysis.FunctionInfo? {
@@ -7633,18 +7524,14 @@ func text_comparison(
     left_temporary: String,
     right_temporary: String,
 ): String {
-    if operator == 'equal' {
-        return "SpiteString_equals({left_temporary}, SpiteString___retain({right_temporary}))"
-    } else if operator == 'not_equal' {
-        return "(!(SpiteString_equals({left_temporary}, SpiteString___retain({right_temporary}))))"
-    } else if operator == 'less' {
-        return "SpiteString_less_than({left_temporary}, SpiteString___retain({right_temporary}))"
-    } else if operator == 'greater' {
-        return "SpiteString_greater_than({left_temporary}, SpiteString___retain({right_temporary}))"
-    } else if operator == 'less_equal' {
-        return "(!(SpiteString_greater_than({left_temporary}, SpiteString___retain({right_temporary}))))"
+    switch operator {
+        'equal': return "SpiteString_equals({left_temporary}, SpiteString___retain({right_temporary}))"
+        'not_equal': return "(!(SpiteString_equals({left_temporary}, SpiteString___retain({right_temporary}))))"
+        'less': return "SpiteString_less_than({left_temporary}, SpiteString___retain({right_temporary}))"
+        'greater': return "SpiteString_greater_than({left_temporary}, SpiteString___retain({right_temporary}))"
+        'less_equal': return "(!(SpiteString_greater_than({left_temporary}, SpiteString___retain({right_temporary}))))"
+        _: return "(!(SpiteString_less_than({left_temporary}, SpiteString___retain({right_temporary}))))"
     }
-    return "(!(SpiteString_less_than({left_temporary}, SpiteString___retain({right_temporary}))))"
 }
 
 func maybe_null_only_on_the_right(
@@ -8350,19 +8237,13 @@ func report_wider_comparison(
 }
 
 func mirrored_comparison_symbol(operator: Syntax.Expressions.BinaryOperator): String {
-    if operator == 'less' {
-        return ">"
+    switch operator {
+        'less': return ">"
+        'less_equal': return ">="
+        'greater': return "<"
+        'greater_equal': return "<="
+        _: return binary_operator_symbol(operator)
     }
-    if operator == 'less_equal' {
-        return ">="
-    }
-    if operator == 'greater' {
-        return "<"
-    }
-    if operator == 'greater_equal' {
-        return "<="
-    }
-    return binary_operator_symbol(operator)
 }
 
 func type_with_article(spite_type: Analysis.SpiteType): String {
@@ -8380,19 +8261,13 @@ func with_article(name: String): String {
 }
 
 func operation_name(operator: Syntax.Expressions.BinaryOperator): String {
-    if operator == 'add' {
-        return "an addition"
+    switch operator {
+        'add': return "an addition"
+        'subtract': return "a subtraction"
+        'multiply': return "a multiplication"
+        'divide': return "a division"
+        _: return "a remainder"
     }
-    if operator == 'subtract' {
-        return "a subtraction"
-    }
-    if operator == 'multiply' {
-        return "a multiplication"
-    }
-    if operator == 'divide' {
-        return "a division"
-    }
-    return "a remainder"
 }
 
 func report_constant_overflow(binary: Syntax.Expressions.BinaryExpression) {
@@ -8432,21 +8307,19 @@ func constant_integer(expression: Syntax.Expressions.Expression): Long? {
 }
 
 func constant_operation(operator: Syntax.Expressions.BinaryOperator, left_value: Long, right_value: Long): Long? {
-    if operator == 'add' {
-        return left_value + right_value
+    switch operator {
+        'add': return left_value + right_value
+        'subtract': return left_value - right_value
+        'multiply': return left_value * right_value
+        _: {
+            assert right_value != 0
+            if operator == 'divide' {
+                return left_value / right_value
+            }
+            assert operator == 'modulo'
+            return left_value % right_value
+        }
     }
-    if operator == 'subtract' {
-        return left_value - right_value
-    }
-    if operator == 'multiply' {
-        return left_value * right_value
-    }
-    assert right_value != 0
-    if operator == 'divide' {
-        return left_value / right_value
-    }
-    assert operator == 'modulo'
-    return left_value % right_value
 }
 
 func generate_nullable_equality(
@@ -8526,31 +8399,25 @@ func truth_of(result: ExpressionResult): String {
 }
 
 func operator_function_name(operator: Syntax.Expressions.BinaryOperator): String {
-    if operator == 'add' {
-        return "sum"
+    switch operator {
+        'add': return "sum"
+        'subtract': return "subtract"
+        'multiply': return "multiply"
+        'divide': return "divide"
+        'modulo': return "remainder"
+        _: {
+            if operator == 'equal' or operator == 'not_equal' {
+                return "equals"
+            }
+            if operator == 'less' or operator == 'greater_equal' {
+                return "less_than"
+            }
+            if operator == 'greater' or operator == 'less_equal' {
+                return "greater_than"
+            }
+            return ""
+        }
     }
-    if operator == 'subtract' {
-        return "subtract"
-    }
-    if operator == 'multiply' {
-        return "multiply"
-    }
-    if operator == 'divide' {
-        return "divide"
-    }
-    if operator == 'modulo' {
-        return "remainder"
-    }
-    if operator == 'equal' or operator == 'not_equal' {
-        return "equals"
-    }
-    if operator == 'less' or operator == 'greater_equal' {
-        return "less_than"
-    }
-    if operator == 'greater' or operator == 'less_equal' {
-        return "greater_than"
-    }
-    return ""
 }
 
 func generate_class_binary(
@@ -21134,6 +21001,7 @@ func generate_statement_list(
         if index > 0 {
             report_template_walk(statements, index, scope, class_information)
         }
+        report_value_chain(statements, index, scope, class_information)
         var statement = statements[index]
         var read_name = overlapped_read_name(statement, overlapped_reads, scope, class_information)
         if read_name.is_empty() {
@@ -22411,22 +22279,14 @@ func check_reflection_name(name: String, what: String, information: Analysis.Cla
 }
 
 func reflection_member_meaning(member: String): String {
-    if member == "class" {
-        return "'value.class' is its class"
+    switch member {
+        "class": return "'value.class' is its class"
+        "attributes": return "'value.attributes' lists its attributes, and JsonReader, JsonWriter and every attribute walk read through it"
+        "functions": return "'value.functions' lists its functions"
+        "instances": return "'Monster.instances' lists every live instance of a class"
+        "memory": return "'value.memory' says where the value lives"
+        _: return ""
     }
-    if member == "attributes" {
-        return "'value.attributes' lists its attributes, and JsonReader, JsonWriter and every attribute walk read through it"
-    }
-    if member == "functions" {
-        return "'value.functions' lists its functions"
-    }
-    if member == "instances" {
-        return "'Monster.instances' lists every live instance of a class"
-    }
-    if member == "memory" {
-        return "'value.memory' says where the value lives"
-    }
-    return ""
 }
 
 func joined_case_spelling(snake: String, capitalised_first: Boolean): String {
@@ -22852,31 +22712,17 @@ func returned_default(if_statement: Syntax.Statements.IfStatement, return_type: 
 }
 
 func flipped_comparison(operator: Syntax.Expressions.BinaryOperator): Syntax.Expressions.BinaryOperator {
-    if operator == 'equal' {
-        return 'not_equal'
+    switch operator {
+        'equal': return 'not_equal'
+        'not_equal': return 'equal'
+        'less': return 'greater_equal'
+        'greater_equal': return 'less'
+        'greater': return 'less_equal'
+        'less_equal': return 'greater'
+        'logical_and': return 'logical_or'
+        'logical_or': return 'logical_and'
+        _: return operator
     }
-    if operator == 'not_equal' {
-        return 'equal'
-    }
-    if operator == 'less' {
-        return 'greater_equal'
-    }
-    if operator == 'greater_equal' {
-        return 'less'
-    }
-    if operator == 'greater' {
-        return 'less_equal'
-    }
-    if operator == 'less_equal' {
-        return 'greater'
-    }
-    if operator == 'logical_and' {
-        return 'logical_or'
-    }
-    if operator == 'logical_or' {
-        return 'logical_and'
-    }
-    return operator
 }
 
 func negated_condition(condition: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
@@ -23015,6 +22861,7 @@ func generate_if_statement(
     }
     report_repeated_branch_call(if_statement)
     report_nested_if_else(if_statement)
+    report_else_chain(if_statement, scope, class_information)
     var constant = constant_condition(if_statement.condition, scope, class_information)
     if constant == true or constant == false {
         builder.add_user("\{")
@@ -23096,7 +22943,15 @@ func is_leaving_statement(statement: Syntax.Statements.Statement): Boolean {
             halts = check.is_crash and shape.is_false_literal(check.value)
         }
     }
+    var choice = shape.as_switch_statement(statement)
+    if choice {
+        halts = not choice.cases.is_empty() and choice.cases.all(case_leaves)
+    }
     return statement == Syntax.Statements.ReturnStatement or halts
+}
+
+func case_leaves(switch_case: Syntax.Statements.SwitchCase): Boolean {
+    return leaves_function(switch_case.body)
 }
 
 func collect_or_sides(expression: Syntax.Expressions.Expression, sides: List<Syntax.Expressions.Expression>) {
@@ -23301,6 +23156,11 @@ func generate_nullable_switch(
     var case_index = 0
     while case_index < switch_statement.cases.count() {
         var switch_case = switch_statement.cases[case_index]
+        if switch_case.value {
+            report(
+                "this value may be null, so its switch cases are its type and 'Null': narrow it first ('crash value' or 'assert value') to switch over its values",
+            )
+        }
         if switch_case.type_reference {
             var case_named = shape.as_named_type(switch_case.type_reference)
             var is_null_case = false
@@ -23352,6 +23212,9 @@ func generate_union_case(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ) {
+    if switch_case.value {
+        report("a case of a switch over the union '{information.simple_name}' names one of its classes, never a value")
+    }
     assert switch_case.type_reference
     var case_class = class_of_type_reference(switch_case.type_reference, information.owner_namespace)
     if not case_class {
@@ -23461,11 +23324,10 @@ func is_rest_case(switch_case: Syntax.Statements.SwitchCase): Boolean {
 func report_single_case(switch_statement: Syntax.Statements.SwitchStatement) {
     assert switch_statement.cases.count() == 2 and is_rest_case(switch_statement.cases[1])
     var class_case = switch_statement.cases[0]
-    crash class_case.type_reference
     crash switch_statement.subject
     var printer = Syntax.SourcePrinter()
     var subject = printer.source_expression(switch_statement.subject)
-    var tested = printer.source_type(class_case.type_reference)
+    var tested = printer.case_label(class_case)
     crash switch_statement.cases[1]
     assert only_returns(class_case.body) and only_returns(switch_statement.cases[1].body)
     var answer = returned_boolean(class_case.body)
@@ -23476,13 +23338,22 @@ func report_single_case(switch_statement: Syntax.Statements.SwitchStatement) {
             if answer == "false" {
                 comparison = "!="
             }
-            report("this switch only asks what class '{subject}' is: write 'return {subject} {comparison} {tested}'")
+            report(
+                "this switch only asks {single_case_question(class_case, subject, tested)}: write 'return {subject} {comparison} {tested}'",
+            )
             return
         }
     }
     report(
         "a switch with one case and '_:' is an if: write 'if {subject} == {tested} \{ ... }', returning early, and then what '_:' does",
     )
+}
+
+func single_case_question(class_case: Syntax.Statements.SwitchCase, subject: String, tested: String): String {
+    if class_case.value {
+        return "whether '{subject}' is {tested}"
+    }
+    return "what class '{subject}' is"
 }
 
 func only_returns(body: List<Syntax.Statements.Statement>): Boolean {
@@ -23520,10 +23391,9 @@ func report_repeated_cases(switch_statement: Syntax.Statements.SwitchStatement) 
         if is_rest_case(switch_case) {
             rest_body = printed
         } else {
-            crash switch_case.type_reference
             bodies.append(printed)
-            var source_type = printer.source_type(switch_case.type_reference)
-            names.append(source_type)
+            var label = printer.case_label(switch_case)
+            names.append(label)
         }
         index = index + 1
     }
@@ -23583,7 +23453,7 @@ func report_if_else_in_branch(branch: List<Syntax.Statements.Statement>) {
             var saved_line = current_line
             current_line = nested.line
             report(
-                "this 'if'/'else' is inside a branch of another 'if'/'else': move it into a function named for what it decides, or, when both test which member of a union a value is, use one 'switch'",
+                "this 'if'/'else' is inside a branch of another 'if'/'else': move it into a function named for what it decides, or, when both test which member of a union or which value of an enum a value is, use one 'switch'",
             )
             current_line = saved_line
         }
@@ -24770,9 +24640,15 @@ func generate_switch_statement(
         report("switch over a value that may be null needs a variable or an attribute as its subject")
         return
     }
+    if takes_value_cases(subject_type) {
+        generate_value_switch(switch_statement, subject, scope, class_information, function_information)
+        return
+    }
     var subject_union = type_shape.as_union(subject_type)
     if not subject_union {
-        report("switch needs a union value")
+        report(
+            "a switch is over a union, a 'T?', an enum, a whole number or a text, and this is {type_with_article(subject_type)}",
+        )
         return
     }
     var information = find_union_by_c_name(subject_union.c_name)
@@ -24841,6 +24717,392 @@ func generate_switch_statement(
         builder.add_user("{release_call(subject_type, subject_temporary)};")
     }
     builder.add_user("}")
+}
+
+func report_value_chain(
+    statements: List<Syntax.Statements.Statement>,
+    index: Integer,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var subject = statement_subject(statements, index)
+    assert not subject.is_empty() and statement_subject(statements, index - 1) != subject
+    var arms = List<Syntax.Statements.IfStatement>()
+    var next = index
+    while statement_subject(statements, next) == subject {
+        crash statements[next]
+        var arm = shape.as_if_statement(statements[next])
+        crash arm
+        arms.append(arm)
+        next = next + 1
+    }
+    var rest = "..."
+    if next < statements.count() {
+        rest = answer_text(statements[next])
+    }
+    report_chain_of(arms, subject, rest, scope, class_information)
+}
+
+func statement_subject(statements: List<Syntax.Statements.Statement>, index: Integer): String {
+    var subject = ""
+    if index >= 0 and index < statements.count() {
+        var arm = shape.as_if_statement(statements[index])
+        if arm {
+            if not arm.has_else_branch {
+                subject = compared_subject(arm)
+            }
+        }
+    }
+    return subject
+}
+
+func compared_subject(if_statement: Syntax.Statements.IfStatement): String {
+    var subject = ""
+    var only = if_statement.then_branch.first()
+    if only and if_statement.condition and if_statement.then_branch.count() == 1 {
+        if only == Syntax.Statements.ReturnStatement {
+            subject = constant_comparison_subject(if_statement.condition)
+        }
+    }
+    return subject
+}
+
+func constant_comparison_subject(condition: Syntax.Expressions.Expression): String {
+    var subject = ""
+    var binary = shape.as_binary(condition)
+    if binary {
+        if binary.operator == 'equal' and binary.left and binary.right {
+            subject = compared_path(binary.left, binary.right)
+        }
+    }
+    return subject
+}
+
+func compared_path(left: Syntax.Expressions.Expression, right: Syntax.Expressions.Expression): String {
+    var printed = Syntax.SourcePrinter().source_expression(left)
+    var literal = shape.as_enum_literal(right)
+    var constant = is_constant_case(right)
+    if literal {
+        constant = true
+    }
+    var subject = ""
+    if constant and not printed.contains("(") {
+        subject = printed
+    }
+    return subject
+}
+
+func report_else_chain(
+    if_statement: Syntax.Statements.IfStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert not if_statement.follows_else and if_statement.has_else_branch
+    var subject = compared_subject(if_statement)
+    assert not subject.is_empty()
+    var arms = List<Syntax.Statements.IfStatement>()
+    var rest = collect_else_arms(if_statement, subject, arms)
+    report_chain_of(arms, subject, rest, scope, class_information)
+}
+
+func collect_else_arms(
+    link: Syntax.Statements.IfStatement,
+    subject: String,
+    arms: List<Syntax.Statements.IfStatement>,
+): String {
+    if compared_subject(link) != subject {
+        return "..."
+    }
+    arms.append(link)
+    var chained = chained_if(link)
+    if chained {
+        return collect_else_arms(chained, subject, arms)
+    }
+    var only = link.else_branch.first()
+    if only and link.else_branch.count() == 1 {
+        return answer_text(only)
+    }
+    return "..."
+}
+
+func answer_text(statement: Syntax.Statements.Statement): String {
+    var returned = shape.as_return_statement(statement)
+    var text = "..."
+    if returned {
+        text = "return"
+        if returned.value {
+            text = "return {Syntax.SourcePrinter().source_expression(returned.value)}"
+        }
+    }
+    return text
+}
+
+func report_chain_of(
+    arms: List<Syntax.Statements.IfStatement>,
+    subject: String,
+    rest: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert arms.count() >= 3
+    var first_line = arms[0].line
+    var covers = covers_every_value(arms[0], arms, scope, class_information)
+    var cases = arms.map(chain_case)
+    if not covers {
+        cases.append("_: {rest}")
+    }
+    var saved_line = current_line
+    current_line = first_line
+    report(
+        "these {arms.count()} 'if's each compare '{subject}' with a value and return, which is what a 'switch' says: write 'switch {subject} \{ {cases.join("  ")} }'",
+    )
+    current_line = saved_line
+}
+
+func chain_case(arm: Syntax.Statements.IfStatement): String {
+    var only = arm.then_branch.first()
+    crash only
+    return "{compared_constant(arm)}: {answer_text(only)}"
+}
+
+func compared_constant(arm: Syntax.Statements.IfStatement): String {
+    crash arm.condition
+    var binary = shape.as_binary(arm.condition)
+    crash binary
+    crash binary.right
+    return Syntax.SourcePrinter().source_expression(binary.right)
+}
+
+func covers_every_value(
+    arm: Syntax.Statements.IfStatement,
+    arms: List<Syntax.Statements.IfStatement>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash arm.condition
+    var binary = shape.as_binary(arm.condition)
+    crash binary
+    crash binary.left
+    var constants = arms.map(compared_constant)
+    var subject_type = lookup_static_type(binary.left, scope, class_information)
+    var covers = false
+    if subject_type {
+        var enum_type = type_shape.as_enum(subject_type)
+        if enum_type {
+            covers = true
+            var value_index = 0
+            while value_index < enum_type.values.count() {
+                if not constants.contains("'{enum_type.values[value_index]}'") {
+                    covers = false
+                }
+                value_index = value_index + 1
+            }
+        }
+    }
+    return covers
+}
+
+func takes_value_cases(subject_type: Analysis.SpiteType): Boolean {
+    var enum_type = type_shape.as_enum(subject_type)
+    var takes = type_shape.as_string(subject_type) or is_whole_number_type(subject_type)
+    if enum_type {
+        takes = true
+    }
+    return takes
+}
+
+func generate_value_switch(
+    switch_statement: Syntax.Statements.SwitchStatement,
+    subject: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    crash switch_statement.subject
+    var subject_type = subject.get_type()
+    var subject_temporary = next_temporary()
+    builder.add_user("\{")
+    builder.add_user("{c_type_name(subject_type)} {subject_temporary} = {subject.code};")
+    report_repeated_cases(switch_statement)
+    report_single_case(switch_statement)
+    var probe_scope = Scope(scope)
+    probe_scope.declare(subject_temporary, subject_type)
+    probe_scope.set_override(subject_temporary, subject_temporary)
+    var covered = List<String>()
+    var answers_the_rest = false
+    var chained = false
+    var case_index = 0
+    while case_index < switch_statement.cases.count() {
+        var switch_case = switch_statement.cases[case_index]
+        if is_rest_case(switch_case) {
+            report_misplaced_value_rest(switch_statement, case_index)
+            answers_the_rest = true
+            var opening = rest_opening(chained)
+            builder.add_user(opening)
+        } else {
+            var test = value_case_test(
+                switch_case,
+                subject_temporary,
+                subject_type,
+                covered,
+                probe_scope,
+                class_information,
+            )
+            builder.add_user("{case_keyword(chained)}({test}) \{")
+            chained = true
+        }
+        generate_block(switch_case.body, scope, class_information, function_information)
+        builder.add_user("}")
+        case_index = case_index + 1
+    }
+    report_value_coverage(switch_statement.subject, subject_type, covered, answers_the_rest)
+    if owns(subject, switch_statement.subject) {
+        builder.add_user("{release_call(subject_type, subject_temporary)};")
+    }
+    builder.add_user("}")
+}
+
+func rest_opening(chained: Boolean): String {
+    if chained {
+        return "else \{"
+    }
+    return "\{"
+}
+
+func case_keyword(chained: Boolean): String {
+    if chained {
+        return "else if "
+    }
+    return "if "
+}
+
+func report_misplaced_value_rest(switch_statement: Syntax.Statements.SwitchStatement, case_index: Integer) {
+    if case_index != switch_statement.cases.count() - 1 {
+        report("'_:' answers for every value without a case of its own, so it is the last case")
+    }
+}
+
+func report_value_coverage(
+    subject_ast: Syntax.Expressions.Expression,
+    subject_type: Analysis.SpiteType,
+    covered: List<String>,
+    answers_the_rest: Boolean,
+) {
+    var subject_text = Syntax.SourcePrinter().source_expression(subject_ast)
+    var enum_type = type_shape.as_enum(subject_type)
+    if not enum_type {
+        if not answers_the_rest {
+            report(
+                "this switch over '{subject_text}' has no '_:': {type_with_article(subject_type)} has more values than a switch can list, so its last case is '_:', for every value without a case of its own",
+            )
+        }
+        return
+    }
+    var missing = List<String>()
+    var index = 0
+    while index < enum_type.values.count() {
+        var quoted = "'{enum_type.values[index]}'"
+        if not covered.contains(quoted) {
+            missing.append(quoted)
+        }
+        index = index + 1
+    }
+    var enum_name = type_display_name(subject_type)
+    if missing.is_empty() and answers_the_rest {
+        report("every value of '{enum_name}' already has a case, so '_:' answers for nothing: remove it")
+    } else if not missing.is_empty() and not answers_the_rest {
+        report(
+            "this switch over '{subject_text}' has no case for {missing.join(", ")}: a switch over an enum covers every value, so a value added later cannot be forgotten -- add the cases, or end with '_:' for the rest",
+        )
+    }
+}
+
+func value_case_test(
+    switch_case: Syntax.Statements.SwitchCase,
+    subject_temporary: String,
+    subject_type: Analysis.SpiteType,
+    covered: List<String>,
+    probe_scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    if not switch_case.value {
+        report(
+            "a case of a switch over {type_with_article(subject_type)} is one of its values, like {example_case(subject_type)}, never a class",
+        )
+        return "0"
+    }
+    var label = Syntax.SourcePrinter().source_expression(switch_case.value)
+    if covered.contains(label) {
+        report("this switch has two cases for {label}: keep one")
+    }
+    var enum_type = type_shape.as_enum(subject_type)
+    if enum_type {
+        return enum_case_test(switch_case.value, enum_type, subject_temporary, subject_type, covered)
+    }
+    if not is_constant_case(switch_case.value) {
+        report(
+            "a case of a switch is a value written out -- a whole number or a text -- never a name or a call, and '{label}' is not one",
+        )
+        return "0"
+    }
+    covered.append(label)
+    var subject_ast = Syntax.Expressions.IdentifierExpression(subject_temporary)
+    var comparison = Syntax.Expressions.BinaryExpression('equal', subject_ast, switch_case.value)
+    var compared = generate_joined(comparison, probe_scope, class_information)
+    return owned_truth(compared, comparison)
+}
+
+func enum_case_test(
+    value: Syntax.Expressions.Expression,
+    enum_type: Analysis.Types.EnumType,
+    subject_temporary: String,
+    subject_type: Analysis.SpiteType,
+    covered: List<String>,
+): String {
+    var literal = shape.as_enum_literal(value)
+    if not literal {
+        report(
+            "a case of a switch over {type_with_article(subject_type)} is one of its values, like {example_case(subject_type)}",
+        )
+        return "0"
+    }
+    covered.append("'{literal.value}'")
+    return "{subject_temporary} == {enum_value_code(literal, enum_type)}"
+}
+
+func example_case(subject_type: Analysis.SpiteType): String {
+    var enum_type = type_shape.as_enum(subject_type)
+    if enum_type {
+        var first_value = enum_type.values.first()
+        crash first_value
+        return "'{first_value}'"
+    }
+    if type_shape.as_string(subject_type) {
+        return "\"text\""
+    }
+    return "1"
+}
+
+func is_constant_case(value: Syntax.Expressions.Expression): Boolean {
+    var constant = false
+    var integer = shape.as_integer_literal(value)
+    if integer {
+        constant = true
+    }
+    var text = shape.as_string_literal(value)
+    if text {
+        constant = true
+    }
+    var unary = shape.as_unary(value)
+    if unary {
+        if unary.operator == 'negate' and unary.operand {
+            var negated = shape.as_integer_literal(unary.operand)
+            if negated {
+                constant = true
+            }
+        }
+    }
+    return constant
 }
 
 func generate_union_dispatch(
@@ -29198,38 +29460,36 @@ func add_hot_initialize_slot(information: Analysis.ClassInfo) {
 }
 
 func hot_reload_body(name: String): String {
-    if name == "compiler" {
-        return "return {owned_c_text(hot_reload_compiler)};"
-    }
-    if name == "build_arguments" {
-        return "return {owned_c_text(hot_reload_arguments)};"
-    }
-    if name == "program_file" {
-        return "return {owned_c_text(hot_reload_program_file)};"
-    }
-    if name == "loaded_folders" {
-        var folders = List<String>()
-        var index = 0
-        while index < loaded_folders.count() {
-            var folder = loaded_folders[index]
-            var folder_length = folder.length()
-            var without_slash = folder.slice(0, folder_length - 1)
-            folders.append(without_slash)
-            index = index + 1
+    switch name {
+        "compiler": return "return {owned_c_text(hot_reload_compiler)};"
+        "build_arguments": return "return {owned_c_text(hot_reload_arguments)};"
+        "program_file": return "return {owned_c_text(hot_reload_program_file)};"
+        _: {
+            if name == "loaded_folders" {
+                var folders = List<String>()
+                var index = 0
+                while index < loaded_folders.count() {
+                    var folder = loaded_folders[index]
+                    var folder_length = folder.length()
+                    var without_slash = folder.slice(0, folder_length - 1)
+                    folders.append(without_slash)
+                    index = index + 1
+                }
+                var joined = folders.join("\n")
+                return "return {owned_c_text(joined)};"
+            }
+            if name == "watcher_entry" and hot_reload {
+                return "return (int64_t)(intptr_t)&spite_hot_reload_thread;"
+            }
+            if name == "watcher_entry" {
+                return "return 0;"
+            }
+            if not hot_reload {
+                return "(void)library_;\nreturn spite_string_from_cstring_owned(\"this program was not built with --hot-reload\");"
+            }
+            return "typedef const char* (*SpiteHotBind)(void* (*)(const char*), int32_t (*)(const char*, void*));\n#ifdef _WIN32\nSpiteHotBind bind = (SpiteHotBind)(void*)GetProcAddress((HMODULE)(intptr_t)library_, \"spite_reload_bind\");\n#else\nSpiteHotBind bind = (SpiteHotBind)dlsym((void*)(intptr_t)library_,\"spite_reload_bind\");\n#endif\nif (bind == 0) return spite_string_from_cstring_owned(\"spite_reload_bind\");\nconst char* missing = bind(spite_hot_find, spite_hot_install);\nreturn spite_string_from_cstring_owned(missing == 0 ? \"\" : missing);"
         }
-        var joined = folders.join("\n")
-        return "return {owned_c_text(joined)};"
     }
-    if name == "watcher_entry" and hot_reload {
-        return "return (int64_t)(intptr_t)&spite_hot_reload_thread;"
-    }
-    if name == "watcher_entry" {
-        return "return 0;"
-    }
-    if not hot_reload {
-        return "(void)library_;\nreturn spite_string_from_cstring_owned(\"this program was not built with --hot-reload\");"
-    }
-    return "typedef const char* (*SpiteHotBind)(void* (*)(const char*), int32_t (*)(const char*, void*));\n#ifdef _WIN32\nSpiteHotBind bind = (SpiteHotBind)(void*)GetProcAddress((HMODULE)(intptr_t)library_, \"spite_reload_bind\");\n#else\nSpiteHotBind bind = (SpiteHotBind)dlsym((void*)(intptr_t)library_,\"spite_reload_bind\");\n#endif\nif (bind == 0) return spite_string_from_cstring_owned(\"spite_reload_bind\");\nconst char* missing = bind(spite_hot_find, spite_hot_install);\nreturn spite_string_from_cstring_owned(missing == 0 ? \"\" : missing);"
 }
 
 func emit_hot_reload_support() {

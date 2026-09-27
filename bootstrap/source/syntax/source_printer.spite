@@ -396,14 +396,21 @@ func source_types(types: List<Syntax.Types.Type>, depth: Integer): String {
     return "{text}\n{source_indent(depth)}}"
 }
 
+func case_label(switch_case: Syntax.Statements.SwitchCase): String {
+    if switch_case.value {
+        return source_expression(switch_case.value)
+    }
+    crash switch_case.type_reference
+    return source_type(switch_case.type_reference)
+}
+
 func source_switch(statement: Syntax.Statements.SwitchStatement, depth: Integer): String {
     crash statement.subject
     var text = "{source_indent(depth)}switch {source_expression(statement.subject)} \{"
     var index = 0
     while index < statement.cases.count() {
         var switch_case = statement.cases[index]
-        crash switch_case.type_reference
-        var label = "{source_indent(depth + 1)}{source_type(switch_case.type_reference)}:"
+        var label = "{source_indent(depth + 1)}{case_label(switch_case)}:"
         var one_line = one_line_case(switch_case.body, depth)
         if one_line.is_empty() {
             text = "{text}\n{label} {source_block(switch_case.body, depth + 1)}"
@@ -680,43 +687,21 @@ func source_unary_operator(operator: Syntax.Expressions.UnaryOperator): String {
 }
 
 func source_binary_operator(operator: Syntax.Expressions.BinaryOperator): String {
-    if operator == 'add' {
-        return "+"
+    switch operator {
+        'add': return "+"
+        'subtract': return "-"
+        'multiply': return "*"
+        'divide': return "/"
+        'modulo': return "%"
+        'equal': return "=="
+        'not_equal': return "!="
+        'less': return "<"
+        'less_equal': return "<="
+        'greater': return ">"
+        'greater_equal': return ">="
+        'logical_and': return "and"
+        _: return "or"
     }
-    if operator == 'subtract' {
-        return "-"
-    }
-    if operator == 'multiply' {
-        return "*"
-    }
-    if operator == 'divide' {
-        return "/"
-    }
-    if operator == 'modulo' {
-        return "%"
-    }
-    if operator == 'equal' {
-        return "=="
-    }
-    if operator == 'not_equal' {
-        return "!="
-    }
-    if operator == 'less' {
-        return "<"
-    }
-    if operator == 'less_equal' {
-        return "<="
-    }
-    if operator == 'greater' {
-        return ">"
-    }
-    if operator == 'greater_equal' {
-        return ">="
-    }
-    if operator == 'logical_and' {
-        return "and"
-    }
-    return "or"
 }
 
 func source_string(value: String): String {

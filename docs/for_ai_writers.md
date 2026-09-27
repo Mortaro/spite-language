@@ -98,7 +98,8 @@ func is_alive(): Boolean {
 - The two branches of an `if`/`else` never compute the same call (`'measure(2)' is computed in both branches`):
   compute it once before the `if`.
 - An `if`/`else` never sits directly inside a branch of another `if`/`else`: move the inner decision into a
-  function named for what it decides, or use one `switch` when both test which member of a union a value is. A
+  function named for what it decides, or use one `switch` when both test which member of a union or which value
+  of an enum a value is. A
   flat `else if` chain, and an `if` with no `else`, are fine. The error: `this 'if'/'else' is inside a branch of
   another 'if'/'else': move it into a function named for what it decides`.
 
@@ -323,8 +324,12 @@ func is_alive(): Boolean {
   before it. A call that cannot change it keeps the proof. Calling a function value keeps no proof about
   attributes or lists.
 - A `switch` is over a union or a `T?` and covers every member; `_:` as the last case answers for the rest, and
-  two cases doing the same thing are an error: write it once as `_:`. An enum is compared with `==` in an `if`
-  chain: `switch` over an enum is not built (it fails with `expected a type name but found ''red''`).
+  two cases doing the same thing are an error: write it once as `_:`. A `switch` over an enum, a whole number or
+  a text has value cases: `'red': return 30`, `-1: ...`, `"es": ...`; over an enum it covers every value or ends
+  with `_:` (`has no case for 'amber'`), over a number or a text it always ends with `_:`. Three `if`s in a row
+  that each compare one name with a constant and only return are an error that writes the switch for you (`these 3
+  'if's each compare 'index' with a value and return, which is what a 'switch' says: write 'switch index { ... }'`);
+  an `else if` chain of three is the same.
 - `value == Monster` is a class test (false for `null`), and `if value == Monster { }` narrows `value` inside. A
   switch that is one class case and `_:`, each a `return`, is an error: write the `if`, or `return value == Monster`.
   In a generic class, `value == $wanted_type` tests for the class the codegen value is bound to.

@@ -88,19 +88,17 @@ func whole_members(type_name: String): List<String> {
 
 func bit_view_members(stem: String): List<String> {
     var written = "written by the generator: the same bits read as another type, in place"
-    if stem == "float" {
-        return ["func bits(): UnsignedInteger", written]
+    switch stem {
+        "float": return ["func bits(): UnsignedInteger", written]
+        "double": return ["func bits(): Long", written]
+        "unsigned_integer": return ["func bits_as_float(): Float", written]
+        _: {
+            if stem == "long" or stem == "unsigned_long" {
+                return ["func bits_as_double(): Double", written]
+            }
+            return List<String>()
+        }
     }
-    if stem == "double" {
-        return ["func bits(): Long", written]
-    }
-    if stem == "unsigned_integer" {
-        return ["func bits_as_float(): Float", written]
-    }
-    if stem == "long" or stem == "unsigned_long" {
-        return ["func bits_as_double(): Double", written]
-    }
-    return List<String>()
 }
 
 func is_bit_view(name: String): Boolean {
@@ -262,23 +260,19 @@ func decimal_body(c_name: String, name: String, is_float: Boolean): String {
     if is_constant(name) {
         return "#define {c_name}() ({constant_literal(name, is_float)})"
     }
-    if name == "clamp" {
-        return "#define {c_name}(self, low, high) fmin{suffix}(fmax{suffix}({cast}(self), {cast}(low)), {cast}(high))"
+    switch name {
+        "clamp": return "#define {c_name}(self, low, high) fmin{suffix}(fmax{suffix}({cast}(self), {cast}(low)), {cast}(high))"
+        "is_finite": return "#define {c_name}(self) ((bool)isfinite({cast}(self)))"
+        "is_infinite": return "#define {c_name}(self) ((bool)isinf({cast}(self)))"
+        "is_not_a_number": return "#define {c_name}(self) ((bool)isnan({cast}(self)))"
+        _: {
+            var called = "{library_name(name)}{suffix}"
+            if is_binary(name) {
+                return "#define {c_name}(self, other) {called}({cast}(self), {cast}(other))"
+            }
+            return "#define {c_name}(self) {called}({cast}(self))"
+        }
     }
-    if name == "is_finite" {
-        return "#define {c_name}(self) ((bool)isfinite({cast}(self)))"
-    }
-    if name == "is_infinite" {
-        return "#define {c_name}(self) ((bool)isinf({cast}(self)))"
-    }
-    if name == "is_not_a_number" {
-        return "#define {c_name}(self) ((bool)isnan({cast}(self)))"
-    }
-    var called = "{library_name(name)}{suffix}"
-    if is_binary(name) {
-        return "#define {c_name}(self, other) {called}({cast}(self), {cast}(other))"
-    }
-    return "#define {c_name}(self) {called}({cast}(self))"
 }
 
 func constant_literal(name: String, is_float: Boolean): String {
@@ -289,53 +283,37 @@ func constant_literal(name: String, is_float: Boolean): String {
 }
 
 func float_constant(name: String): String {
-    if name == "pi" {
-        return "0x1.921fb6p+1f"
+    switch name {
+        "pi": return "0x1.921fb6p+1f"
+        "tau": return "0x1.921fb6p+2f"
+        "euler_number": return "0x1.5bf0a8p+1f"
+        "infinity": return "__builtin_inff()"
+        "not_a_number": return "__builtin_nanf(\"\")"
+        "largest": return "0x1.fffffep+127f"
+        _: {
+            if name != "smallest" {
+                return ""
+            }
+            return "-0x1.fffffep+127f"
+        }
     }
-    if name == "tau" {
-        return "0x1.921fb6p+2f"
-    }
-    if name == "euler_number" {
-        return "0x1.5bf0a8p+1f"
-    }
-    if name == "infinity" {
-        return "__builtin_inff()"
-    }
-    if name == "not_a_number" {
-        return "__builtin_nanf(\"\")"
-    }
-    if name == "largest" {
-        return "0x1.fffffep+127f"
-    }
-    if name != "smallest" {
-        return ""
-    }
-    return "-0x1.fffffep+127f"
 }
 
 func double_constant(name: String): String {
-    if name == "pi" {
-        return "0x1.921fb54442d18p+1"
+    switch name {
+        "pi": return "0x1.921fb54442d18p+1"
+        "tau": return "0x1.921fb54442d18p+2"
+        "euler_number": return "0x1.5bf0a8b145769p+1"
+        "infinity": return "__builtin_inf()"
+        "not_a_number": return "__builtin_nan(\"\")"
+        "largest": return "0x1.fffffffffffffp+1023"
+        _: {
+            if name != "smallest" {
+                return ""
+            }
+            return "-0x1.fffffffffffffp+1023"
+        }
     }
-    if name == "tau" {
-        return "0x1.921fb54442d18p+2"
-    }
-    if name == "euler_number" {
-        return "0x1.5bf0a8b145769p+1"
-    }
-    if name == "infinity" {
-        return "__builtin_inf()"
-    }
-    if name == "not_a_number" {
-        return "__builtin_nan(\"\")"
-    }
-    if name == "largest" {
-        return "0x1.fffffffffffffp+1023"
-    }
-    if name != "smallest" {
-        return ""
-    }
-    return "-0x1.fffffffffffffp+1023"
 }
 
 func whole_body(c_name: String, name: String, c_type: String): String {
@@ -354,47 +332,37 @@ func whole_body(c_name: String, name: String, c_type: String): String {
     if name == "absolute" and is_unsigned {
         return "#define {c_name}(self) (({c_type})(self))"
     }
-    if name == "absolute" {
-        return "#define {c_name}(self) (\{ {c_type} spite_value = (self); spite_value < 0 ? ({c_type})(0 - (u{c_type})spite_value) : spite_value; })"
+    switch name {
+        "absolute": return "#define {c_name}(self) (\{ {c_type} spite_value = (self); spite_value < 0 ? ({c_type})(0 - (u{c_type})spite_value) : spite_value; })"
+        "minimum": return "#define {c_name}(self, other) (\{ {c_type} spite_value = (self); {c_type} spite_other = (other); spite_value < spite_other ? spite_value : spite_other; })"
+        "maximum": return "#define {c_name}(self, other) (\{ {c_type} spite_value = (self); {c_type} spite_other = (other); spite_value > spite_other ? spite_value : spite_other; })"
+        _: {
+            if name != "clamp" {
+                return ""
+            }
+            return "#define {c_name}(self, low, high) (\{ {c_type} spite_value = (self); {c_type} spite_low = (low); {c_type} spite_high = (high); spite_value = spite_value < spite_low ? spite_low : spite_value; spite_value > spite_high ? spite_high : spite_value; })"
+        }
     }
-    if name == "minimum" {
-        return "#define {c_name}(self, other) (\{ {c_type} spite_value = (self); {c_type} spite_other = (other); spite_value < spite_other ? spite_value : spite_other; })"
-    }
-    if name == "maximum" {
-        return "#define {c_name}(self, other) (\{ {c_type} spite_value = (self); {c_type} spite_other = (other); spite_value > spite_other ? spite_value : spite_other; })"
-    }
-    if name != "clamp" {
-        return ""
-    }
-    return "#define {c_name}(self, low, high) (\{ {c_type} spite_value = (self); {c_type} spite_low = (low); {c_type} spite_high = (high); spite_value = spite_value < spite_low ? spite_low : spite_value; spite_value > spite_high ? spite_high : spite_value; })"
 }
 
 func constant_value(name: String, is_float: Boolean): Double {
     if is_float {
         return float_constant_value(name)
     }
-    if name == "pi" {
-        return Double.pi()
+    switch name {
+        "pi": return Double.pi()
+        "tau": return Double.tau()
+        "euler_number": return Double.euler_number()
+        "infinity": return Double.infinity()
+        "not_a_number": return Double.not_a_number()
+        "largest": return Double.largest()
+        _: {
+            if name != "smallest" {
+                return 0.0
+            }
+            return Double.smallest()
+        }
     }
-    if name == "tau" {
-        return Double.tau()
-    }
-    if name == "euler_number" {
-        return Double.euler_number()
-    }
-    if name == "infinity" {
-        return Double.infinity()
-    }
-    if name == "not_a_number" {
-        return Double.not_a_number()
-    }
-    if name == "largest" {
-        return Double.largest()
-    }
-    if name != "smallest" {
-        return 0.0
-    }
-    return Double.smallest()
 }
 
 func float_constant_value(name: String): Double {
@@ -447,70 +415,34 @@ func folded(name: String, is_float: Boolean, value: Double, first: Double, secon
 }
 
 func folded_double(name: String, value: Double, first: Double, second: Double): Double {
-    if name == "square_root" {
-        return value.square_root()
+    switch name {
+        "square_root": return value.square_root()
+        "sine": return value.sine()
+        "cosine": return value.cosine()
+        "tangent": return value.tangent()
+        "arc_sine": return value.arc_sine()
+        "arc_cosine": return value.arc_cosine()
+        "arc_tangent": return value.arc_tangent()
+        "arc_tangent_over": return value.arc_tangent_over(first)
+        "power": return value.power(first)
+        "exponential": return value.exponential()
+        "logarithm": return value.logarithm()
+        "logarithm_base_2": return value.logarithm_base_2()
+        "logarithm_base_10": return value.logarithm_base_10()
+        "floor": return value.floor()
+        "ceiling": return value.ceiling()
+        "round": return value.round()
+        "truncate": return value.truncate()
+        "absolute": return value.absolute()
+        "minimum": return value.minimum(first)
+        "maximum": return value.maximum(first)
+        _: {
+            if name != "clamp" {
+                return 0.0
+            }
+            return value.clamp(first, second)
+        }
     }
-    if name == "sine" {
-        return value.sine()
-    }
-    if name == "cosine" {
-        return value.cosine()
-    }
-    if name == "tangent" {
-        return value.tangent()
-    }
-    if name == "arc_sine" {
-        return value.arc_sine()
-    }
-    if name == "arc_cosine" {
-        return value.arc_cosine()
-    }
-    if name == "arc_tangent" {
-        return value.arc_tangent()
-    }
-    if name == "arc_tangent_over" {
-        return value.arc_tangent_over(first)
-    }
-    if name == "power" {
-        return value.power(first)
-    }
-    if name == "exponential" {
-        return value.exponential()
-    }
-    if name == "logarithm" {
-        return value.logarithm()
-    }
-    if name == "logarithm_base_2" {
-        return value.logarithm_base_2()
-    }
-    if name == "logarithm_base_10" {
-        return value.logarithm_base_10()
-    }
-    if name == "floor" {
-        return value.floor()
-    }
-    if name == "ceiling" {
-        return value.ceiling()
-    }
-    if name == "round" {
-        return value.round()
-    }
-    if name == "truncate" {
-        return value.truncate()
-    }
-    if name == "absolute" {
-        return value.absolute()
-    }
-    if name == "minimum" {
-        return value.minimum(first)
-    }
-    if name == "maximum" {
-        return value.maximum(first)
-    }
-    if name != "clamp" {
-        return 0.0
-    }
-    return value.clamp(first, second)
 }
 
 func folded_float(name: String, wide_value: Double, wide_first: Double, wide_second: Double): Double {

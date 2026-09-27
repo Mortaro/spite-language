@@ -1223,14 +1223,10 @@ func json_string_at(text: String, start: Integer): String {
 }
 
 func unescaped(escaped: String): String {
-    if escaped == "n" {
-        return "\n"
+    switch escaped {
+        "n": return "\n"
+        "r": return "\r"
+        "t": return "\t"
+        _: return escaped
     }
-    if escaped == "r" {
-        return "\r"
-    }
-    if escaped == "t" {
-        return "\t"
-    }
-    return escaped
 }

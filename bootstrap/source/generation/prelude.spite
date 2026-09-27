@@ -370,53 +370,40 @@ func supplied_body(stem: String, name: String): String? {
 }
 
 func supplied_members(stem: String): List<String> {
-    if stem == "console" {
-        return console_members()
+    switch stem {
+        "console": return console_members()
+        "memory/heap": return heap_members()
+        "memory/address": return address_members()
+        "typed_memory": return typed_memory_members()
+        "weak": return weak_members()
+        "inline_memory": return inline_memory_members()
+        _: {
+            if stem == "binary_writer" or stem == "binary_reader" {
+                return [
+                    "func schema(): Long"
+                    "written per value type by the generator: a constant hash of the attribute walk"
+                ]
+            }
+            switch stem {
+                "concurrent": return concurrent_members()
+                "thread_pool": return task_members()
+                "scheduler": return scheduler_members()
+                _: {
+                    var numbers = number_classes()
+                    if numbers.contains(stem) {
+                        return number_members(stem)
+                    }
+                    switch stem {
+                        "dynamic_library": return dynamic_library_members()
+                        "hot_reload": return hot_reload_members()
+                        "spite/attribute": return attribute_members()
+                        "spite/function": return function_members()
+                        _: return List<String>()
+                    }
+                }
+            }
+        }
     }
-    if stem == "memory/heap" {
-        return heap_members()
-    }
-    if stem == "memory/address" {
-        return address_members()
-    }
-    if stem == "typed_memory" {
-        return typed_memory_members()
-    }
-    if stem == "weak" {
-        return weak_members()
-    }
-    if stem == "inline_memory" {
-        return inline_memory_members()
-    }
-    if stem == "binary_writer" or stem == "binary_reader" {
-        return ["func schema(): Long", "written per value type by the generator: a constant hash of the attribute walk"]
-    }
-    if stem == "concurrent" {
-        return concurrent_members()
-    }
-    if stem == "thread_pool" {
-        return task_members()
-    }
-    if stem == "scheduler" {
-        return scheduler_members()
-    }
-    var numbers = number_classes()
-    if numbers.contains(stem) {
-        return number_members(stem)
-    }
-    if stem == "dynamic_library" {
-        return dynamic_library_members()
-    }
-    if stem == "hot_reload" {
-        return hot_reload_members()
-    }
-    if stem == "spite/attribute" {
-        return attribute_members()
-    }
-    if stem == "spite/function" {
-        return function_members()
-    }
-    return List<String>()
 }
 
 func console_members(): List<String> {

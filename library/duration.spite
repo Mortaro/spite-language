@@ -27,17 +27,15 @@ func total(unit: Unit): Long {
 }
 
 func part(unit: Unit): Long {
-    if unit == 'hours' {
-        return _seconds / 3600
+    switch unit {
+        'hours': return _seconds / 3600
+        'minutes': return _seconds / 60 % 60
+        'seconds': return _seconds % 60
+        _: {
+            var nanoseconds_per_unit = _nanoseconds_per_unit(unit)
+            return _nanoseconds / nanoseconds_per_unit
+        }
     }
-    if unit == 'minutes' {
-        return _seconds / 60 % 60
-    }
-    if unit == 'seconds' {
-        return _seconds % 60
-    }
-    var nanoseconds_per_unit = _nanoseconds_per_unit(unit)
-    return _nanoseconds / nanoseconds_per_unit
 }
 
 func get_is_negative(): Boolean {
@@ -124,29 +122,21 @@ func _made(seconds: Long, nanoseconds: Long): Duration {
 }
 
 func _units_per_second(unit: Unit): Long {
-    if unit == 'nanoseconds' {
-        return 1000000000
+    switch unit {
+        'nanoseconds': return 1000000000
+        'microseconds': return 1000000
+        'milliseconds': return 1000
+        _: return 1
     }
-    if unit == 'microseconds' {
-        return 1000000
-    }
-    if unit == 'milliseconds' {
-        return 1000
-    }
-    return 1
 }
 
 func _nanoseconds_per_unit(unit: Unit): Integer {
-    if unit == 'nanoseconds' {
-        return 1
+    switch unit {
+        'nanoseconds': return 1
+        'microseconds': return 1000
+        'milliseconds': return 1000000
+        _: return 1000000000
     }
-    if unit == 'microseconds' {
-        return 1000
-    }
-    if unit == 'milliseconds' {
-        return 1000000
-    }
-    return 1000000000
 }
 
 func _seconds_per_unit(unit: Unit): Long {

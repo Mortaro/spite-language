@@ -10,7 +10,8 @@ switch enemy {
 }
 ```
 
-That is all of it: `if`, `while` and `switch`, plus `assert` and `crash` ([failure.md](failure.md)). There is no
+That is all of it: `if`, `while` and `switch` (over a union, a `T?`, an enum, a whole number or a text), plus
+`assert` and `crash` ([failure.md](failure.md)). There is no
 `for`, no `break` or `continue`, no ternary `? :`, and no `do`. Before reaching for a loop at all, check whether a
 [member template](collections.md#member-templates-loops-you-do-not-write) already says it:
 `items.filter_in_stock().sum_price()` reads better than the loop it replaces, and compiles to the same loop.
@@ -60,7 +61,8 @@ for the rest of the block, so `if not found { return -1 }` narrows `found`
 
 **An `if`/`else` directly inside a branch of another `if`/`else` is an error** ([D170](decisions.md)).
 Two stacked decisions are two things to hold in your head at once, so the inner one gets a name: move it into a
-function named for what it decides, or, when both test which member of a union a value is, use one `switch`. A flat
+function named for what it decides, or, when both test which member of a union or which value of an enum a value
+is, use one `switch`. A flat
 `else if` chain is fine, and so is an `if` with no `else` inside a branch, or an `if`/`else` inside a `while` or a
 `switch` inside the branch -- the loop or the switch is the unit.
 
@@ -265,8 +267,114 @@ once for each remaining member": the value is narrowed to each of them in turn, 
 and so is a case that does what `_:` already does, or a `_:` that answers for nothing (the exact rules are with
 [unions](values_and_types.md#unions--implemented)).
 
-An enum is not switched over: `switch` over an enum is not built, and whether it will be is still open
-([D105](decisions.md)). Compare an enum with `==` in an `if` chain.
+## `switch` over values
+
+A `switch` also takes an enum value, a whole number or a text, and then each case is one value written out: an
+enum's `'value'`, a number (`-1` included) or a quoted text. A switch over an enum covers every value, or ends with
+`_:` for the rest, so a value added to the enum later cannot be forgotten; a number or a text has more values than
+any switch lists, so its switch always ends with `_:`.
+
+```gdscript title=value_switch_doc/value_switch_doc.spite entry
+enum Light {
+    'red'
+    'amber'
+    'green'
+}
+
+var console = Console()
+
+func ValueSwitchDoc() {
+    var wait = seconds_for('amber')
+    var next = following('green')
+    var word = spoken(2)
+    console.print(wait, next, word)
+}
+
+func seconds_for(light: Light): Integer {
+    switch light {
+        'red': return 30
+        'amber': return 5
+        'green': return 20
+    }
+}
+
+func following(light: Light): Light {
+    switch light {
+        'green': return 'amber'
+        'amber': return 'red'
+        _: return 'green'
+    }
+}
+
+func spoken(count: Integer): String {
+    switch count {
+        1: return "one"
+        2: return "two"
+        _: return "many"
+    }
+}
+```
+```output
+5 amber two
+```
+
+A missing value is the error that makes this worth having:
+
+```gdscript title=missing_value_error/missing_value_error.spite entry error
+enum Light {
+    'red'
+    'amber'
+    'green'
+}
+
+var console = Console()
+
+func MissingValueError() {
+    var wait = seconds_for('red')
+    console.print(wait)
+}
+
+func seconds_for(light: Light): Integer {
+    switch light {
+        'red': return 30
+        'green': return 20
+    }
+}
+```
+```diagnostic
+this switch over 'light' has no case for 'amber'
+```
+
+**Three `if`s that only compare one value with a constant and return are a `switch`**
+([D239](decisions.md)). Each is a compile error that shows the switch to write, which says in one place what the
+chain says in three:
+
+```gdscript title=if_chain_error/if_chain_error.spite entry error
+var console = Console()
+
+func IfChainError() {
+    var day = day_name(1)
+    console.print(day)
+}
+
+func day_name(index: Integer): String {
+    if index == 0 {
+        return "monday"
+    }
+    if index == 1 {
+        return "tuesday"
+    }
+    if index == 2 {
+        return "wednesday"
+    }
+    return "later"
+}
+```
+```diagnostic
+these 3 'if's each compare 'index' with a value and return, which is what a 'switch' says: write 'switch index { 0: return "monday"  1: return "tuesday"  2: return "wednesday"  _: return "later" }'
+```
+
+The same goes for an `else if` chain. Two such `if`s stay as they are.
 
 ## `value == Class`
 
@@ -505,8 +613,53 @@ named for what it decides, or, when both test which member of a union a value is
 (`diagnostics/nested_if_else`). An `else if` link counts as a branch of its chain, so an `if`/`else` inside the
 body of an `else if` is caught too. Not counted: a flat `else if` chain; an `if` without an `else` inside a
 branch; and an `if`/`else` inside a `while` or `switch` inside the branch, since the loop or the switch is the
-unit. The message says "union" and not "union or enum" (as D170 does) because `switch` over an enum is not built
-and still awaits a decision (D105). Compile time only. **[implemented]**
+unit. The message names "a union or an enum" as D170 wrote it, since `switch` takes an enum's values (D239).
+Compile time only. **[implemented]**
+
+#### `switch` over values
+
+D239 (decided by Mortaro, answering `mortaros_missing_decisions.md` item 170): `switch` works over enums. Built
+as (the case syntax, the other kinds and the messages proposed by Claude, unconfirmed): a `switch` whose subject
+is an enum value, a whole number or a `String` takes value cases -- an enum literal (`'red':`), a whole-number
+literal, negative included (`-1:`), or a text literal without holes (`"es":`) -- and `_:` as its last case for
+the values without one. **[implemented]**
+
+- A switch over an enum names only its values; one that leaves a value out without `_:` is "this switch over
+  'light' has no case for 'amber': a switch over an enum covers every value, so a value added later cannot be
+  forgotten -- add the cases, or end with '_:' for the rest", and a `_:` after every value is "every value of
+  'Light' already has a case, so '_:' answers for nothing: remove it".
+- A switch over a number or a text always ends with `_:` ("this switch over 'number' has no '_:': an Integer has
+  more values than a switch can list, ...").
+- A value named twice is "this switch has two cases for 'red': keep one"; a value outside the enum is the usual
+  "'blue' is not a value of this enum"; a class as a case of such a switch, a name or a call as a case, a value
+  case in a switch over a union, and a value case over a `T?` (narrow it first) are errors saying so.
+- `_:`, two cases with the same body, and a switch of one case and `_:` that each only return follow the rules of
+  union switches ([Unions](values_and_types.md#unions--implemented)): the last one names `return light ==
+  'red'`, "this switch only asks whether 'light' is 'red'".
+- The subject is evaluated once, into a temporary; the cases are tested in order as an `if`/`else if` chain on
+  it, with `==` as it compares that type (a text by its bytes). Nothing is added at run time beyond those tests.
+- A `switch` whose every case ends by leaving the function leaves too, so after `if not found { switch ... }`
+  whose cases all return, `found` is narrowed ([failure.md](failure.md#an-if-that-leaves-proves-the-rest)).
+- `conformance/stage6/value_switch`, `diagnostics/value_switch`.
+
+#### A chain of `if`s on one value is a `switch`
+
+D239 (decided by Mortaro): "this code has all the ifs just comparing the same variable, with 1 return, we should
+force this case to be a switch with a compiler error". Built as (the threshold and the message proposed by Claude,
+unconfirmed): three or more `if`s in a row, each with no `else`, whose condition is `subject == constant` and whose
+whole block is one `return`, with the same `subject` -- a name or a member path, no call -- and a constant that is
+an enum literal, a whole-number literal (negative included) or a text literal, are a compile error at the first
+`if`. So is an `if`/`else if` chain of three or more such links. The message writes the switch out:
+
+```
+these 6 'if's each compare 'index' with a value and return, which is what a 'switch' says: write 'switch index { 1: return 'tuesday'  2: return 'wednesday'  ...  _: return 'monday' }'
+```
+
+`_:` answers with the `return` that follows the chain (or the final `else`), and is `_: ...` when something else
+follows; a chain that covers every value of an enum gets no `_:`. Two such `if`s, a comparison with anything but
+a constant, and an `if` doing more than return are left alone. Compile time only. Every chain in the compiler and
+`library/` became a switch -- 44 in all, among them `Date.get_weekday()`, `Duration`'s units, the lexer's keyword
+table and the compiler's operator tables (`diagnostics/switch_chain`). **[implemented]**
 
 #### A `while` that a member template already says
 
