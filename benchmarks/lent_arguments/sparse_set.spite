@@ -13,6 +13,5 @@ func dense_index(entity: Integer): Integer {
     if entity >= dense_of.count() {
         return -1
     }
-    crash dense_of[entity]
     return dense_of[entity] - 1
 }

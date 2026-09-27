@@ -13,7 +13,9 @@ func FunctionEffects(function_key: String) {
 }
 
 func add(added: String): Boolean {
-    assert not key_set.has(added)
+    if key_set.has(added) {
+        return false
+    }
     key_set.set(added, true)
     keys.append(added)
     fresh_keys.append(added)

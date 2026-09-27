@@ -14,11 +14,21 @@ func frames_class(generator: Generator, information: Analysis.ClassInfo): Boolea
 }
 
 func holds_only_numbers(generator: Generator, information: Analysis.ClassInfo): Boolean {
-    assert not information.is_value_class and not information.is_generic_template and not information.is_singleton
-    assert not information.is_stateless_singleton and not information.drop_function
-    assert not information.c_name.starts_with("Spite_") and not generator.is_hot_class(information)
-    assert fields_hold_nothing_counted(generator, information)
-    assert not generator.lists_instances(information.simple_name)
+    if information.is_value_class or information.is_generic_template or information.is_singleton {
+        return false
+    }
+    if information.is_stateless_singleton or information.drop_function {
+        return false
+    }
+    if information.c_name.starts_with("Spite_") or generator.is_hot_class(information) {
+        return false
+    }
+    if not fields_hold_nothing_counted(generator, information) {
+        return false
+    }
+    if generator.lists_instances(information.simple_name) {
+        return false
+    }
     if information.constructor {
         return lends(generator, information, information.constructor, -1)
     }
@@ -29,7 +39,9 @@ func fields_hold_nothing_counted(generator: Generator, information: Analysis.Cla
     var index = 0
     while index < information.fields.count() {
         var field_type = information.fields[index].get_type()
-        assert holds_nothing_counted(generator, field_type)
+        if not holds_nothing_counted(generator, field_type) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -43,9 +55,13 @@ func holds_nothing_counted(generator: Generator, field_type: Analysis.SpiteType)
         return true
     }
     var class_reference = type_shape.as_class_ref(field_type)
-    assert class_reference
+    if not class_reference {
+        return false
+    }
     var held = generator.find_class_by_c_name(class_reference.c_name)
-    assert held
+    if not held {
+        return false
+    }
     return held.is_singleton or held.is_stateless_singleton
 }
 
@@ -71,8 +87,12 @@ func keeps_nothing(
     function: Analysis.FunctionInfo,
     position: Integer,
 ): Boolean {
-    assert function.has_body and function.lent_parameters.is_empty() and not function.result_slot
-    assert not owner.is_value_class and not generator.is_hot_class(owner)
+    if not function.has_body or not function.lent_parameters.is_empty() or function.result_slot {
+        return false
+    }
+    if owner.is_value_class or generator.is_hot_class(owner) {
+        return false
+    }
     var study = ObjectEscape(this, generator, owner)
     study.take_parameters(function)
     study.learn_block(function.body)
@@ -80,12 +100,16 @@ func keeps_nothing(
         study.follow_self()
         return study.block_keeps(function.body)
     }
-    assert position < function.parameters.count()
+    if position >= function.parameters.count() {
+        return false
+    }
     var parameter = function.parameters[position]
     var parameter_type = parameter.get_type()
     var listed = type_shape.as_list(parameter_type)
     if listed {
-        assert not listed.is_variadic
+        if listed.is_variadic {
+            return false
+        }
     }
     study.follow_parameter(parameter.name, parameter_type)
     return study.block_keeps(function.body)

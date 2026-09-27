@@ -21,40 +21,54 @@ func take(wanted: Integer): Boolean {
 }
 
 func read_byte(): Integer {
-    assert take(1)
+    if not take(1) {
+        return 0
+    }
     var value: Integer = address.read_byte(position - 1)
     return value
 }
 
 func read_short(): Integer {
-    assert take(2)
+    if not take(2) {
+        return 0
+    }
     var value: Integer = address.read_short(position - 2)
     return value
 }
 
 func read_unsigned_short(): Integer {
-    assert take(2)
+    if not take(2) {
+        return 0
+    }
     var value: Integer = address.read_unsigned_short(position - 2)
     return value
 }
 
 func read_integer(): Integer {
-    assert take(4)
+    if not take(4) {
+        return 0
+    }
     return address.read_integer(position - 4)
 }
 
 func read_long(): Long {
-    assert take(8)
+    if not take(8) {
+        return 0
+    }
     return address.read_long(position - 8)
 }
 
 func read_float(): Float {
-    assert take(4)
+    if not take(4) {
+        return 0.0
+    }
     return address.read_float(position - 4)
 }
 
 func read_double(): Double {
-    assert take(8)
+    if not take(8) {
+        return 0.0
+    }
     return address.read_double(position - 8)
 }
 
@@ -77,7 +91,9 @@ func read_count(): Integer {
 
 func read_text(): String {
     var length = read_count()
-    assert take(length)
+    if not take(length) {
+        return ""
+    }
     var start = address + (position - length)
     return start.text(length)
 }

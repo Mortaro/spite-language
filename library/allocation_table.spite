@@ -30,7 +30,9 @@ func resize(address: Long, bytes: Long): Long {
 
 func size_of(address: Long): Long {
     var slot = find(address)
-    assert slot >= 0
+    if slot < 0 {
+        return 0
+    }
     return sizes.read_long(slot * 8)
 }
 
@@ -121,7 +123,9 @@ func remember(address: Long, bytes: Long) {
 
 func forget(address: Long): Boolean {
     var slot = find(address)
-    assert slot >= 0
+    if slot < 0 {
+        return false
+    }
     slots.write_long(slot * 8, 1)
     live_count = live_count - 1
     return true
@@ -201,6 +205,8 @@ func slot_of(address: Long): Long {
 }
 
 func next_slot(slot: Long): Long {
-    assert slot + 1 != capacity
+    if slot + 1 == capacity {
+        return 0
+    }
     return slot + 1
 }

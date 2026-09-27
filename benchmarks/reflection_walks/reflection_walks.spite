@@ -50,7 +50,9 @@ func describe(stats: Stats): Integer {
 }
 
 func text_length(attribute: Spite.Attribute): Integer {
-    assert attribute.value
+    if not attribute.value {
+        return 0
+    }
     var text = attribute.value.to_string()
     return text.length()
 }

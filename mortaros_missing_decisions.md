@@ -215,11 +215,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
      (so `--final-classes` output, which restates whole enums, still compiles); nothing removes or reorders one.
      Should a reopening be able to say where its values go (before or after another value), and should the
      program's own values come last instead?
-## Found building D169-D172
-
-170. **D170's message names `switch` for unions only**, since `switch` does not take an enum. Decide enum
-     switches (review section 2), so the message can say "union or enum" as D170 wrote it?
-
 ## Found building the `Memory` namespace (D178, D150, D151)
 
 171. **Who may read and write an address.** D178 says the reads and writes of `Memory.Address` are "usable only

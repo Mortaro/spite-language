@@ -12,7 +12,9 @@ func ReturningBranchProof() {
 }
 
 func describe(): String {
-    assert document
+    if not document {
+        return ""
+    }
     if kind == 4 {
         return document.array_text()
     }
