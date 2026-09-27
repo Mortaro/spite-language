@@ -242,23 +242,25 @@ Compiling grows linearly with the program: every whole-program step -- reading, 
 instances, call effects, tree shaking -- works on each class a fixed number of times, and anything looked up by
 name is found through a table, never by walking every class again. The measure is a data-heavy program: a
 `Symbol<Item>` walk over a folder of small record classes, each one `fill(item)` of 10 to 30 assignments, with
-`Filler<record.class>` made for each. CPU seconds of the compiler alone (`--c-source --run=false`, so no C
-compiler), on Windows with clang:
+`Filler<record.class>` made for each, and the items kept in a `Dictionary` keyed by number. CPU seconds of the
+compiler alone (`--c-source --run=false`, so no C compiler), on Windows with clang:
 
 | records | before | now | C written |
 | ---: | ---: | ---: | ---: |
-| 525 | 3.4 s | 1.2 s | 60k lines |
-| 1,049 | 12.5 s | 2.0 s | 117k lines |
-| 2,097 | 50.7 s | 3.8 s | 231k lines |
-| 6,991 | -- | 13.5 s | 763k lines |
+| 525 | 2.8 s | 0.75 s | 57k lines |
+| 1,049 | 9.1 s | 1.2 s | 111k lines |
+| 2,097 | 33.6 s | 2.2 s | 218k lines |
+| 6,991 | 514 s | 7.3 s | 722k lines |
 
-About 2 ms and 110 lines of C per record. Before, each `Filler<record.class>` looked for its record by listing
+About 1 ms and 104 lines of C per record. Before, each `Filler<record.class>` looked for its record by listing
 every class of the namespace, sorting them and working out each one's member name, so the walk was quadratic;
-the namespace's classes and their names are now found once and kept in a table, grown only when a class is added
-(`namespace_walk` in the generator). The compiler compiling itself takes 2.1 s of CPU (2.4 s before), and every
-file is read once: the formatter formats the text the compile read rather than reading each file again.
+the namespace's classes, their names and where each name is are now worked out once and kept, grown only when a
+class is added (`namespace_walk` in the generator). A program whose dictionary keys are learned while compiling
+(D224) is generated twice; the first pass stops once it has learned them, before the C is assembled and tree
+shaken, since the second pass writes it again. Every file is read once: the formatter formats the text the
+compile read. The compiler compiling itself, which has neither, takes 1.7 s of CPU, as before.
 
-Where a record's 110 lines go: 19 are its `fill` body; about 47 are the allocate, default, release and init
+Where a record's 104 lines go: 13 are its `fill` body; about 47 are the allocate, default, release and init
 functions of the record class and of its `Filler<...>` instance, 18 of them `#ifdef` blocks for instance tracking
 and weak references that the C preprocessor removes; 11 are prototypes, 7 the walk's step for that record, and
 the rest structs and typedefs.

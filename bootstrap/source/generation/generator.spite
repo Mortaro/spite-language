@@ -134,6 +134,7 @@ var number_key_uses = Dictionary<KeyUse>()
 var number_key_types = Dictionary<Analysis.SpiteType>()
 var learned_key_sites = Dictionary<Analysis.SpiteType>()
 var key_sites_changed = false
+var another_pass_follows_a_change = false
 var namespace_walks = Dictionary<NamespaceWalk>()
 var class_member_names = Dictionary<String>()
 var class_names_by_id = List<String>()
@@ -609,6 +610,7 @@ func generate(
         finish_outside_writes()
     }
     settle_key_sites()
+    assert not key_sites_changed or not another_pass_follows_a_change
     if not has_error {
         report_unused_attributes()
     }
@@ -19046,8 +19048,11 @@ func generate_store(
             emit_owning_assignment(peeked_target, field_type, assignment.value, scope, class_information)
             return
         }
-        builder.add_user("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
-        var target_code = "({object_temporary})->{c_value_name(member.name)}"
+        var target_code = "({object_result.code})->{c_value_name(member.name)}"
+        if not writes_through_local(member.object, object_result, scope) {
+            builder.add_user("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
+            target_code = "({object_temporary})->{c_value_name(member.name)}"
+        }
         if guards_outside_write(target_class) {
             emit_guarded_outside_write(
                 target_class,
@@ -19066,6 +19071,24 @@ func generate_store(
         return
     }
     report("unsupported assignment target")
+}
+
+func writes_through_local(object: Syntax.Expressions.Expression, result: ExpressionResult, scope: Scope): Boolean {
+    var identifier = shape.as_identifier(object)
+    assert identifier and scope.written_type(identifier.name) and not owns(result, object)
+    return is_c_identifier(result.code)
+}
+
+func is_c_identifier(code: String): Boolean {
+    assert not code.is_empty()
+    var index = 0
+    while index < code.length() {
+        var character = code.code_at(index)
+        var letter = character >= 97 and character <= 122 or character >= 65 and character <= 90 or character == 95
+        assert letter or index > 0 and character >= 48 and character <= 57
+        index = index + 1
+    }
+    return true
 }
 
 func study_lent_parameters_of(information: Analysis.ClassInfo) {
