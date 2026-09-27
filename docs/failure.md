@@ -3,6 +3,30 @@
 Spite has no exceptions, no error values and no `Result` types. Something that may not be there is a `T?`, and
 something that went wrong has exactly three outcomes: a compile error, an `assert`, or a `crash`.
 
+## Nothing fails silently
+
+**Anything that can go wrong silently is a bug** ([D244](decisions.md)). Every failure is loud: a compile error,
+or a crash that names its cause. It is never a wrong value that looks like a right one, a write that is lost, a
+step that is skipped, memory that leaks or a program that hangs. When the compiler can know about a mistake it
+refuses the program; when only the run can find it, the run stops and says where. Every rule on this page, and
+every open question about the language, is judged against this one.
+
+What that already means in practice:
+
+- A value that may be missing is a `T?`, and nothing reads it until it is [narrowed](#narrowing); a `[]` read
+  and `first()` answer a `T?` instead of a made-up element ([below](#reading-with--answers-t)).
+- A check that stops proving something -- after an assignment, or a call that may change what it read -- has to
+  be made again ([a call may undo a proof](#a-call-may-undo-a-proof)).
+- A developer's mistake halts naming the line: a whole number divided by zero, signed arithmetic that does not
+  fit while you develop ([values_and_types.md](values_and_types.md#signed-arithmetic-that-does-not-fit-halts-while-you-develop)),
+  a `crash` that fails, a native fault ([below](#what-a-native-fault-reports)).
+- A failed `crash` names what is missing instead of printing a default that reads like a real zero
+  ([what a crash reports](#what-a-crash-reports)).
+- An operand that would be cut to fit is a compile error, in arithmetic and in comparisons
+  ([values_and_types.md](values_and_types.md#wider-arithmetic-goes-wider-operand-first)).
+
+The whole list, with what is still open, is in [the rules](#nothing-fails-silently--the-rule).
+
 ## `T?`: a value that may be null
 
 `Monster?` is a `Monster` or `null`. It is not a special wrapper: it is the union of `Monster` and `Null`, a class
@@ -714,7 +738,57 @@ manual when [D193](decisions.md) dissolved it into these pages (its section numb
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
 fix. A `D` number is a row of the [decision log](decisions.md).
 
-### Null safety and `assert` narrowing  **[implemented]**
+### Nothing fails silently  **[the rule]**
+
+D244 (decided by Mortaro, 2026-09-27): **anything that can go wrong silently is a bug.** "anything that can go
+wrong silently should be considered a bug. this should be in the spite documentation and guidelines". Every
+failure is loud -- a compile error for what the compiler can know, or a crash naming its cause for what only the
+run can find (D24, D199) -- and never:
+
+- **a wrong value** that the program cannot tell from a right one (a default, a zero, a truncated number);
+- **a lost write** (a value computed or stored that nothing reads);
+- **a skipped step** (work the reader expects to happen that does not);
+- **a leak** (memory or a resource that is never given back);
+- **a hang** (a wait or a loop that can never end).
+
+It is a rule for the language, the compiler, the standard library and the programs written in it, and every open
+item -- in [open_questions.md](open_questions.md), [KNOWN_ISSUES.md](KNOWN_ISSUES.md) and
+`mortaros_missing_decisions.md` -- is judged against it: a proposal that lets one of the five happen without a
+word needs a reason, and a place where the compiler lets one through is a bug to fix, not a style to document.
+
+**What the language already refuses.** Each is a compile error or a crash naming its cause:
+
+| Would go wrong silently | What happens instead | Where |
+|---|---|---|
+| reading a value that may be absent as if it were there | `T?` must be narrowed first; `value == null` is an error | [narrowing](#null-safety-and-assert-narrowing--implemented) |
+| an index past the end, a key never set | `[]`, `first()`, `last()`, `remove_first()` answer a `T?` | [reading with `[]`](#reading-with--answers-t) |
+| a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is never a condition | [null safety](#null-safety-and-assert-narrowing--implemented) |
+| a proof that went stale after an assignment or a call | the read must be proven again; in a loop, an error naming the call | [a call may undo a proof](#a-call-may-undo-a-proof) |
+| a failed `crash` printing a default that reads as a real zero | the report names the missing link, index and count, or key (D248) | [what a crash reports](#what-a-crash-reports-1) |
+| a native fault ending the program with nothing printed | `spite.fault` with the place, the last foreign call and the stack (D255) | [what a native fault reports](#what-a-native-fault-reports-1) |
+| a whole number divided by zero | halts naming the line; a zero written as the divisor is a compile error (D201) | [values_and_types.md](values_and_types.md#numeric-types--implemented-provisional) |
+| signed arithmetic that does not fit | halts naming the operation in a development build (D249) | [values_and_types.md](values_and_types.md#signed-arithmetic-that-does-not-fit-halts-while-you-develop) |
+| a wider operand cut to fit, in arithmetic or a comparison | compile error naming the operation turned around (D162, D251) | [values_and_types.md](values_and_types.md#wider-arithmetic-goes-wider-operand-first) |
+| a constant that overflows its type | compile error | [values_and_types.md](values_and_types.md#numeric-types--implemented-provisional) |
+| a `Float` gone to infinity written as JSON | crash naming the attribute (D198) | [json.md](json.md) |
+| a condition that is always false because it asks the compiler | a folded-false `crash` in reached code is a compile error (D250) | [metaprogramming.md](metaprogramming.md#codegen-values---implemented) |
+| a value computed and never read, an attribute nothing reads | compile error | [style.md](style.md#unused-is-an-error--implemented) |
+| an object made and dropped on the same line, to "do" something | compile error | [classes_and_files.md](classes_and_files.md#a-constructed-object-must-be-kept-and-used) |
+| `for`, `break`, `continue`, `++`, `&&` and other habits that would parse as something else | compile error naming the Spite form | [control_flow.md](control_flow.md#control-flow--implemented), [for_ai_writers.md](for_ai_writers.md#habits-from-other-languages-that-spite-rejects) |
+| a borrowed `Vector` item kept, or read after the vector moved | compile error | [memory.md](memory.md#borrowed-items-of-a-vectort--implemented) |
+| two threads writing a singleton at once | the compiler makes the singleton safe; anything else a `Parallel` reaches is an error | [concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows) |
+| a `while true` loop holding a singleton's lock forever | compile error | [concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows) |
+| a peer that hung up read as a count of `-1` | `socket.closed` turns `true`; reads answer `0` or `null` | [standard_library.md](standard_library.md) |
+| an impossible date such as `Date(2023, 2, 29)` rolled over | halts; text from outside is read with `TimeText`, which answers `null` | [time.md](time.md) |
+| a `crash` or `assert` whose site cannot be found again | every build writes `<program>.crashes`, one line per site | [what a crash reports](#what-a-crash-reports-1) |
+
+**Still open** (each a bug under D244, recorded so it is not mistaken for a design): reference cycles leak without
+a word unless the program runs with `--debug-memory`, which prints the allocation balance
+([memory.md](memory.md#cycles-leak)); signed arithmetic wraps in production builds and unsigned arithmetic
+wraps in every build (D249); a `Concurrent` polled for `finished` under `resume_only_when_asked()` without
+`run_ready()` never ends ([concurrency.md](concurrency.md#choosing-where-concurrents-resume)); and a function that
+declares a result can reach its end without a `return`, which answers whatever the C compiler leaves there.
+
 
 `assert` doubles as the way to prove a `T?` is not null without nesting: after `assert value` on a
 `T?` local, parameter, or field, `value` is a plain `T` for the rest of that block and any block

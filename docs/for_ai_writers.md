@@ -306,6 +306,11 @@ func is_alive(): Boolean {
 
 ## Nothing, null, and failure
 
+- **Anything that can go wrong silently is a bug** (D244). Write every failure loud: a compile error where the
+  compiler can know, a `crash` naming its cause where only the run can. Never let a caller get a default it cannot
+  tell from a real answer, lose a write, skip a step, leak or hang. When a function cannot answer, its result says
+  so (`T?`, or an empty list), or it returns a value you chose on purpose, or it crashes because a caller broke the
+  rule ([failure.md](failure.md#nothing-fails-silently)).
 - `Monster?` is a value that may be `null`. It must be narrowed before use: `if target { }` (with `else`),
   `assert target`, `crash target`, `while target { }`, or `switch target { Monster: ... Null: ... }`. One
   `assert a.b.c` narrows the whole path. `null` is never compared against: `value == null` is an error.
