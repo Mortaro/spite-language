@@ -31,6 +31,12 @@ var remote_loop_port = 0
 var refused_serialiser = false
 var division_check_written = false
 var overflow_check_written = false
+var always_crashing_functions = List<String>()
+var always_crashing_paths = List<String>()
+var always_crashing_lines = List<Integer>()
+var always_crashing_owners = List<String>()
+var always_crashing_names = List<String>()
+var always_crashing_messages = List<String>()
 var weak_runtime_written = false
 var weak_classes = List<String>()
 var scheduler_used = false
@@ -615,7 +621,11 @@ func generate(
     builder.shakes = not keeps_internals
     builder.hot_reload = hot_reload
     builder.debug_memory = debug_memory
-    return builder.render()
+    var rendered = builder.render()
+    if not always_crashing_functions.is_empty() {
+        report_always_crashing()
+    }
+    return rendered
 }
 
 func register_classes(discovered: List<Discovery.DiscoveredClass>) {
@@ -23784,6 +23794,9 @@ func emit_folded_check(
     if assert_statement.is_crash {
         site_kind = "crash"
     }
+    if assert_statement.is_crash {
+        note_always_crashing(assert_statement, class_information, function_information)
+    }
     site_ordinal = site_ordinal + 1
     current_site_id = content_hash(
         "{current_owner}/{function_information.name}/{site_ordinal}/{assert_statement.condition_text}",
@@ -23793,6 +23806,56 @@ func emit_folded_check(
     )
     builder.add_user("\{")
     emit_check_failure(assert_statement, false, scope, class_information, function_information)
+}
+
+func note_always_crashing(
+    assert_statement: Syntax.Statements.AssertStatement,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    var instance = instance_description(class_information)
+    var condition = assert_statement.condition_text
+    var message = "'crash {condition}' always halts{instance}: its condition is decided while compiling and is false, so the program would stop here every time this function runs: call it only where the condition holds, or change what the condition asks"
+    if condition.is_empty() {
+        message = "this 'crash' always halts{instance}, and this function is called: take the call out"
+    }
+    always_crashing_functions.append(current_function_c_name)
+    always_crashing_paths.append(current_path)
+    always_crashing_lines.append(current_line)
+    always_crashing_owners.append(current_owner)
+    always_crashing_names.append(function_information.name)
+    always_crashing_messages.append(message)
+}
+
+func instance_description(class_information: Analysis.ClassInfo): String {
+    assert not class_information.codegen_types.is_empty()
+    var names = class_information.codegen_types.map(type_display_name)
+    return " in {class_information.simple_name}<{names.join(", ")}>"
+}
+
+func report_always_crashing() {
+    var reached = builder.reached_functions(always_crashing_functions)
+    var index = 0
+    while index < reached.count() {
+        if reached[index] == true {
+            report_always_crashing_at(index)
+        }
+        index = index + 1
+    }
+}
+
+func report_always_crashing_at(index: Integer) {
+    var site_path = always_crashing_paths[index]
+    var site_line = always_crashing_lines[index]
+    var site_owner = always_crashing_owners[index]
+    var site_function = always_crashing_names[index]
+    var site_message = always_crashing_messages[index]
+    crash site_path and site_line and site_owner and site_function and site_message
+    current_path = site_path
+    current_line = site_line
+    current_owner = site_owner
+    current_function = site_function
+    report(site_message)
 }
 
 func emit_check_failure(

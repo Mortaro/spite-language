@@ -333,6 +333,9 @@ func is_alive(): Boolean {
   or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds. Only
   what the taken branch reaches is compiled -- helper functions, and the code after a chain whose branch returns
   -- so keep one generic class with a helper per kind, not one class per kind.
+- `assert`/`crash` on such a condition folds too, and a `crash` that folds to false in a function the program calls
+  is a compile error naming the instance (`Slot<List<String>>`): write a library's rules as `crash $row_type.has_function("update_each")`
+  and a class that breaks one fails the build.
 - A getter with no setter makes a read-only attribute: `get_fahrenheit()` answers `.fahrenheit`, and assigning
   it is an error.
 - `person.age = 1` calls `set_age(1)` and `person.age` calls `get_age()` when the class has them.

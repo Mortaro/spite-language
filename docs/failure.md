@@ -595,6 +595,11 @@ positive
 
 `crash` is allowed in a constructor, which is where a program that cannot start says so.
 
+A `crash` the compiler can decide is not left for the run: one whose condition asks only what is known while
+compiling (a codegen value, `has_function`, `fits_vector`, ...) and is false, in a function the program reaches,
+is a compile error at the `crash`, since the program would halt there every time
+([metaprogramming.md](metaprogramming.md#codegen-values---implemented)).
+
 ### What a crash reports
 
 A crash flushes what the program printed, writes one tab-separated line to the error stream and exits with
