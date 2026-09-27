@@ -372,6 +372,7 @@ func configure(generator: Generation.Generator) {
     generator.development = is_on("development") or is_on("hot_reload")
     generator.hot_reload = is_on("hot_reload")
     generator.debug_memory = is_on("debug_memory")
+    generator.trace_asserts = is_on("trace_asserts")
     generator.keeps_internals = generator.development or generator.read_evaluate_print_loop
     generator.working_folder = program.working_directory()
     generator.language_folder = language_folder

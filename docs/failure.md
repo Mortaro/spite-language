@@ -850,6 +850,11 @@ spite.crash	75b30821	crash_missing_value/crash_missing_value.spite:10	CrashMissi
 The id is derived from the site's content, so it stays the same when unrelated lines move. Each build also writes
 a `.crashes` file beside the executable it builds: one line per `assert` and `crash` site, sorted by id, with its file,
 line, class, function, kind and condition, so `grep 64b935f1 program.crashes` finds a site from a report.
+A failed `assert` prints nothing when it fails, in every build: it is the program answering "nothing" and
+carrying on, and a long run fails thousands of them, which would bury the one line that matters. It is kept for the
+report instead. To watch them as they fail, build with `--trace-asserts` (a `Build` field, `trace_asserts`): each
+failed `assert` of the program then also writes its `spite.assert` line to the error stream at once, after flushing
+what the program printed, and still enters the ring.
 The trace keeps only the latest failed asserts, in a fixed-size ring, so it never allocates and never grows.
 It holds the asserts of the program and of every package it `load`s, never those of the standard library: an
 `assert` in `library/` is how the library answers routine questions (a key that is not there, text that does not
@@ -1353,6 +1358,18 @@ branches -- and the trace is a fixed-size ring buffer with a total count, so it 
 without bound. **Not built** from D25's list: the call chain, and the default each failed `assert` returned;
 a report is the crash's own line and the asserts' lines. Compile-time evaluation ([the functions of `Spite.Class`](reflection.md#functions-of-spiteclass-and-no-static-functions), [JSON is reflection, not a library](json.md#json-is-reflection-not-a-library--implemented)'s generated JSON) reports
 the same way.
+
+**A failed `assert` is not printed when it fails; `--trace-asserts` streams them** (D244, answering "guard
+asserts that return early drown the real crash in long runs"; the field's name provisional under D214, the rest
+proposed by Claude, unconfirmed). A failed `assert` writes nothing as it fails, in every build, `--debug-memory` and
+inspectable builds included: it stores its site's line in the ring and counts it, and the line reaches the error
+stream only in a crash's report, or a native fault's. `trace_asserts` (`--trace-asserts`, default `false`) opts
+in to streaming: `SPITE_TRACE_ASSERT` then also flushes the program's output and writes the site's `spite.assert`
+line to the error stream when it fails, in a program that cannot crash too. It is the same fixed line the ring
+holds, with no values, and it covers the asserts the ring covers (the program's and its loaded packages', never
+`library/`'s, D189). Cost: none without the flag, since the macro is the same one store and count; with it, a
+flush and a write per failed `assert`. `conformance/stage6/quiet_asserts` (four calls, two failing: nothing but the
+program's lines), `conformance/stage6/trace_asserts` (the same with `--trace-asserts`). **[implemented]**
 
 D26 refinement (proposed by Claude, unconfirmed; **not built**): the trace would record **predicate asserts
 only**. A narrowing assert firing is routine control flow -- thousands an hour on a server -- and on concurrent

@@ -15,6 +15,7 @@ var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
 var terminal_if: Syntax.Statements.IfStatement? = null
 var leaving_statements = List<Syntax.Statements.Statement>()
+var trace_asserts = false
 var crash_parts = List<CrashPart>()
 var crash_capturing = false
 var crash_capture_counter = 0
@@ -577,6 +578,10 @@ func generate(
     )
     var traced = "#define SPITE_TRACE_ASSERT(site) (spite_assert_trace[spite_assert_total % 32] = (site), spite_assert_total = spite_assert_total + 1)"
     var untraced = "#define SPITE_TRACE_ASSERT(site) ((void)0)"
+    if trace_asserts {
+        traced = "#define SPITE_TRACE_ASSERT(site) (fflush(stdout), fputs((site), stderr), spite_assert_trace[spite_assert_total % 32] = (site), spite_assert_total = spite_assert_total + 1)"
+        untraced = "#define SPITE_TRACE_ASSERT(site) (fflush(stdout), fputs((site), stderr))"
+    }
     var trace_macro = builder.type_placeholder_if_kept("spite_report_assert_trace", traced, untraced)
     builder.add_typedef(trace_macro)
     register_classes(discovery.class_files)

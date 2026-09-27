@@ -1,0 +1,5 @@
+spite.assert	21180681	conformance/stage6/trace_asserts/trace_asserts.spite:13	TraceAsserts	greet	index < names.count()
+spite.assert	75edcb22	conformance/stage6/trace_asserts/trace_asserts.spite:13	TraceAsserts	greet	index >= 0
+hello ada
+hello bo
+done
