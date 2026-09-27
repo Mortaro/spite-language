@@ -174,6 +174,11 @@ func is_alive(): Boolean {
   One dictionary never takes both kinds (a compile error naming both places). A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
   'Printable'`; print `list.join(", ")`, or `console.debug(list)`.
 - A chain of templates, `teams.filter_active().map_lead().sum_age()`, runs as one loop with no list in between.
+- To remove many elements, never call `remove_at` or `remove_swapping` in a loop: `creatures.remove_where_dead()`
+  or `numbers.remove_where(is_odd)` removes every one the test is true for in one pass and keeps the rest in
+  order (`List`, `Vector`, `Items`; the passed-function form on a `Vector` or `Items` of plain values only, never
+  on a chain or a `Dictionary`). `truncate(count)` drops the tail. When the test is not a function of the element
+  (a mask of rows), walk the rows, `swap(row, kept)` each one that stays, then `truncate(kept)`.
 - `Vector<T>` holds its items inline for fast walks (`append`, `vector[index]`, `set_at`, `remove_at`, `count`,
   `clear`, `copy`, and `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `parallel_each_` templates).
   An item is a number, `Boolean`, enum, `String`, or a class of only those (a `List` attribute is an error naming

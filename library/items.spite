@@ -71,6 +71,24 @@ func remove_swapping(index: Integer) {
     }
 }
 
+func truncate(kept_count: Integer) {
+    if kept_count >= 0 and kept_count < item_count {
+        var index = kept_count
+        while index < item_count {
+            _release(index)
+            index = index + 1
+        }
+        item_count = kept_count
+    }
+}
+
+func swap(first_index: Integer, second_index: Integer) {
+    var first_in = first_index >= 0 and first_index < item_count
+    if first_in and second_index >= 0 and second_index < item_count {
+        _swap(first_index, second_index)
+    }
+}
+
 func clear() {
     var index = 0
     while index < item_count {
@@ -136,6 +154,33 @@ func filter_member(member: Symbol<$element_type>): Items<$element_type> {
         index = index + 1
     }
     return filtered
+}
+
+func remove_where_member(member: Symbol<$element_type>) {
+    var kept = 0
+    var index = 0
+    while index < item_count {
+        var keep = true
+        if $element_type.fits_vector() {
+            var item = inline.item_at(items, index)
+            if item.attributes[member] {
+                keep = false
+            }
+        } else {
+            var item = references.read_value(items, index)
+            if item.attributes[member] {
+                keep = false
+            }
+        }
+        if keep {
+            if kept != index and index < item_count {
+                _swap(kept, index)
+            }
+            kept = kept + 1
+        }
+        index = index + 1
+    }
+    truncate(kept)
 }
 
 func count_member(member: Symbol<$element_type>): Integer {
@@ -254,6 +299,14 @@ func _release(index: Integer) {
         inline.release_item(items, index)
     } else {
         references.release_value(items, index)
+    }
+}
+
+func _swap(first_index: Integer, second_index: Integer) {
+    if $element_type.fits_vector() {
+        inline.swap_items(items, first_index, second_index)
+    } else {
+        references.swap_values(items, first_index, second_index)
     }
 }
 

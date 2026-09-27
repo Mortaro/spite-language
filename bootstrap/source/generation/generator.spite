@@ -5320,7 +5320,16 @@ func typed_memory_body(information: Analysis.ClassInfo, name: String): String {
     if name == "release_value" {
         return release_statement(value_type, slot)
     }
+    if name == "swap_values" {
+        var swapped_type = c_type_name(value_type)
+        return swapped_slots(swapped_type)
+    }
     return "return (int64_t)sizeof({c_type_name(value_type)});"
+}
+
+func swapped_slots(c_type: String): String {
+    var slots = "(({c_type}*)(intptr_t)address_)"
+    return "{c_type} spite_held = {slots}[first_index_];\n{slots}[first_index_] = {slots}[second_index_];\n{slots}[second_index_] = spite_held;"
 }
 
 func inline_memory_body(information: Analysis.ClassInfo, name: String): String {
@@ -5348,6 +5357,10 @@ func inline_memory_body(information: Analysis.ClassInfo, name: String): String {
         if name == "block_bytes" {
             return "return (int64_t)item_count_ * (int64_t)sizeof({c_type_name(value_type)});"
         }
+        if name == "swap_items" {
+            var swapped_type = c_type_name(value_type)
+            return swapped_slots(swapped_type)
+        }
         return "return (int64_t)sizeof({c_type_name(value_type)});"
     }
     crash item_class
@@ -5365,6 +5378,11 @@ func inline_memory_body(information: Analysis.ClassInfo, name: String): String {
     }
     if name == "block_bytes" {
         return "return (int64_t)item_count_ * {stride} + (int64_t)sizeof(SpiteHeader);"
+    }
+    if name == "swap_items" {
+        var bytes = "(size_t){stride}"
+        var start = "(char*)(intptr_t)address_ + sizeof(SpiteHeader)"
+        return "char spite_held[sizeof({c_name}) - sizeof(SpiteHeader)];\nchar* spite_first = {start} + (int64_t)first_index_ * {stride};\nchar* spite_second = {start} + (int64_t)second_index_ * {stride};\nmemcpy(spite_held, spite_first, {bytes});\nmemcpy(spite_first, spite_second, {bytes});\nmemcpy(spite_second, spite_held, {bytes});"
     }
     var lines = List<String>()
     if name == "release_item" {
@@ -9493,8 +9511,7 @@ func report_not_a_number_constant(information: Analysis.ClassInfo, name: String,
 }
 
 func forget_indices_if_shrinking(name: String, object_ast: Syntax.Expressions.Expression, scope: Scope) {
-    var shrinking = ["clear", "remove_at", "remove_first", "remove_last", "remove_swapping"]
-    assert shrinking.contains(name)
+    assert shrinks_storage(name)
     var shrunk = operand_text(object_ast)
     assert not shrunk.is_empty()
     var crossed_loop_readers = List<String>()
@@ -10166,6 +10183,8 @@ func generate_list_method(
         "remove_at"
         "remove_first"
         "remove_last"
+        "truncate"
+        "swap"
         "first"
         "last"
         "clear"
@@ -10408,7 +10427,7 @@ func member_requirement(
     member_name: String,
     member_type: Analysis.SpiteType,
 ): String {
-    var wants_boolean = template_prefix == "filter_" or template_prefix == "any_" or template_prefix == "all_" or template_prefix == "count_"
+    var wants_boolean = template_prefix == "filter_" or template_prefix == "any_" or template_prefix == "all_" or template_prefix == "count_" or template_prefix == "remove_where_"
     if wants_boolean and not is_boolean_type(member_type) {
         if template_prefix == "count_" and is_numeric_type(member_type) {
             return "return Boolean (to add up a numeric member use 'sum_{member_name}')"
@@ -10504,6 +10523,13 @@ func generate_fused_chain(
     var steps = List<Syntax.Expressions.CallExpression>()
     var base = chain_base(object_ast, steps)
     assert not steps.is_empty()
+    if member.name.starts_with("remove_where") {
+        var chain_text = Syntax.SourcePrinter().source_expression(object_ast)
+        report(
+            "'{member.name}' removes from the collection it is called on, and '{chain_text}' makes a new one that nothing keeps: call it on the collection itself, with one test that says everything to remove",
+        )
+        return void_result()
+    }
     steps.reverse()
     var last_callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(object_ast, member.name)
     var call = Syntax.Expressions.CallExpression(last_callee, arguments_ast)
@@ -10889,7 +10915,7 @@ func expression_keeps_this(expression: Syntax.Expressions.Expression, informatio
         crash call.callee
         var member = shape.as_member(call.callee)
         if member {
-            var passing = ["each", "map", "filter", "any", "all", "count", "find", "sort_by", "sum"]
+            var passing = ["each", "map", "filter", "any", "all", "count", "find", "sort_by", "sum", "remove_where"]
             if passing.contains(member.name) {
                 crash member.object
                 if expression_keeps_this(member.object, information) {
@@ -11704,7 +11730,7 @@ func fused_chain_source(
 }
 
 func is_function_form(name: String, arguments: List<Syntax.Expressions.Expression>): Boolean {
-    var forms = ["each", "map", "filter", "any", "all", "count", "find", "sort_by", "sum"]
+    var forms = ["each", "map", "filter", "any", "all", "count", "find", "sort_by", "sum", "remove_where"]
     return arguments.count() == 1 and forms.contains(name)
 }
 
@@ -11863,7 +11889,7 @@ func passed_function_problem(
 }
 
 func form_requirement(name: String, label: String, returned: Analysis.SpiteType): String {
-    var tests = ["filter", "any", "all", "count", "find"]
+    var tests = ["filter", "any", "all", "count", "find", "remove_where"]
     if tests.contains(name) and not is_boolean_type(returned) {
         if name == "count" and is_numeric_type(returned) {
             return "return Boolean (to add up what it returns use 'sum({label})')"
@@ -11995,7 +12021,7 @@ func generate_copied_item_form(
     if not template_with_prefix(vector_class, prefix) {
         var label = type_display_name(element)
         report(
-            "'{name}' takes a function on a List, and {vector_kind(vector_class)} of plain values takes one only in 'each', 'map', 'filter', 'any', 'all', 'count' and 'sum': keep the values in a 'List<{label}>' to use '{name}'",
+            "'{name}' takes a function on a List, and {vector_kind(vector_class)} of plain values takes one only in 'each', 'map', 'filter', 'any', 'all', 'count', 'sum' and 'remove_where': keep the values in a 'List<{label}>' to use '{name}'",
         )
         return void_result()
     }
@@ -14044,6 +14070,12 @@ func generate_dictionary_method(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     var element = dictionary.get_element()
+    if name.starts_with("remove_where") {
+        report(
+            "Dictionary has no method '{name}': the templates read a dictionary's values from a copy, so removing from it would change nothing -- remove each key with 'remove(key)'",
+        )
+        return void_result()
+    }
     var dictionary_name = ensure_dictionary(dictionary)
     if is_function_form(name, arguments_ast) {
         var empty_types = no_types()
@@ -15502,8 +15534,12 @@ func grows_storage(name: String): Boolean {
 }
 
 func resizes_storage(name: String): Boolean {
-    var shrinking = ["remove_at", "remove_first", "remove_last", "remove_swapping", "clear"]
-    return grows_storage(name) or shrinking.contains(name)
+    return grows_storage(name) or shrinks_storage(name)
+}
+
+func shrinks_storage(name: String): Boolean {
+    var shrinking = ["remove_at", "remove_first", "remove_last", "remove_swapping", "clear", "truncate", "swap"]
+    return shrinking.contains(name) or name.starts_with("remove_where")
 }
 
 func resizes_unnamed_collection(member: Syntax.Expressions.MemberExpression, owner: String): Boolean {

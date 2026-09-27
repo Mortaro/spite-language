@@ -31,6 +31,9 @@ var empty = List<String>()
 | `list[index] = value` | | the explicit form is `set_at(index, value)`; nothing happens out of range |
 | `get_at(index)` | `T` | the default when out of range |
 | `remove_at(index)` | | nothing happens out of range |
+| `remove_where(test)` / `remove_where_<member>()` | | removes every element the test is true for, in one pass, keeping the rest in order ([below](#removing-many-at-once)) |
+| `truncate(count)` | | keeps the first `count` elements and releases the rest; nothing happens when `count` is out of range |
+| `swap(first, second)` | | exchanges two elements; nothing happens when either is out of range |
 | `remove_first()` / `remove_last()` | `T?` | removes and returns it; `null` when empty, like `first()` (D211) |
 | `first()` / `last()` | `T?` | `null` when empty, like `[]` (proposed by Claude, unconfirmed): narrow it, `crash first` or `if first { }` |
 | `count()` / `is_empty()` | `Integer` / `Boolean` | `count()` is only ever the list's size |
@@ -187,6 +190,7 @@ templates run on the items in place the same way, and a chain of them is one loo
 | `vector[index]` / `get_at(index)` | `T` | the item itself, borrowed; a plain value (a number, `Boolean` or enum) is copied instead; an index out of range halts |
 | `vector[index] = value` / `set_at(index, value)` | | copies `value` over the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
+| `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` for plain values only |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `reserve(count)` | | makes room for `count` items in all without making any, so appending up to there never grows the block (proposed by Claude, unconfirmed; D208) |
 | `copy()` / `deep_copy()` | `Vector<T>` | a new vector with its own copy of every item |
@@ -296,6 +300,7 @@ of moving every later one down, which is what a sparse set wants.
 | `items[index] = value` / `set_at(index, value)` | | replaces the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
 | `remove_swapping(index)` | | moves the last item into `index` (name provisional); nothing happens out of range |
+| `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` for plain values only |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `copy()` / `deep_copy()` | `Items<T>` | inline: every item copied; references: one level, or all the way down |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()`, `parallel_each_<member>()` | | as on a vector; `filter_` gives an `Items<T>`, and a chain is one loop |
@@ -330,6 +335,84 @@ func ItemsBorrowMistake() {
 An engine's column holds its values in an `Items`, and D217's walked row reads them the same way for both kinds
 ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call)). The rules are [below](#itemst--implemented-the-name-provisional).
 
+## Removing many at once
+
+`remove_where(test)` removes every element a function is true for, and `remove_where_<member>()` every element
+whose member is true, in **one pass** that keeps the others in their order: a `List`, a `Vector` and an `Items`
+all have both. `truncate(count)` keeps the first `count` and lets go of the rest, and `swap(first, second)`
+exchanges two, which is what a pass of your own is written with when the test is not a function of the element
+-- an engine removing a column's rows by a mask of despawned entities:
+
+```gdscript title=bulk_removal_doc/velocity.spite
+var across = 0.0
+var stopped = false
+
+func Velocity(new_across: Float) {
+    across = new_across
+    stopped = new_across == 0.0
+}
+```
+```gdscript title=bulk_removal_doc/bulk_removal_doc.spite entry
+var console = Console()
+var despawned = [false, true, false, true, false]
+
+func BulkRemovalDoc() {
+    var numbers = [4, 7, 10, 13, 16]
+    numbers.remove_where(is_odd)
+    numbers.truncate(2)
+    var velocities = Items<Velocity>()
+    var entities = Items<Integer>()
+    var entity = 0
+    while entity < 5 {
+        var velocity = Velocity(1.0 * entity)
+        velocities.append(velocity)
+        entities.append(entity)
+        entity = entity + 1
+    }
+    var moving = velocities.copy()
+    moving.remove_where_stopped()
+    var kept = 0
+    var row = 0
+    while row < velocities.count() {
+        var owner = entities.get_at(row)
+        if not is_despawned(owner) {
+            velocities.swap(row, kept)
+            kept = kept + 1
+        }
+        row = row + 1
+    }
+    velocities.truncate(kept)
+    entities.remove_where(is_despawned)
+    var joined = numbers.join(", ")
+    var across = velocities.sum_across()
+    var rows = entities.count()
+    var moving_count = moving.count()
+    console.print(joined, moving_count, across, rows)
+}
+
+func is_odd(number: Integer): Boolean {
+    return number % 2 == 1
+}
+
+func is_despawned(entity: Integer): Boolean {
+    return despawned.get_at(entity)
+}
+```
+```output
+4, 10 4 6 3
+```
+
+Each costs one walk over the collection, however many go: every element that stays is moved down at most once,
+and the ones removed are released at the end. Removing half of 200 000 items by a despawn list one
+`remove_swapping` at a time took 530 µs, against 340 µs for `remove_where`, and removing nine in ten 930 µs
+against 290 µs (`benchmarks/bulk_removal`). What stays keeps its order, which one `remove_swapping` per item does
+not. A test that is not a function of the element alone (a mask read by row) is written as the loop above:
+`swap` each row that stays down to the next free place, then `truncate`.
+
+`remove_where` changes the collection it is called on, so it ends no chain: `names.filter(is_short).remove_where(is_long)`
+is an error naming the fix, one test that says everything to remove. Like `remove_at`, all three may move items,
+so an item borrowed from a `Vector` or `Items` is not read after one ([the rules](#removing-many-at-once--implemented-the-names-provisional)).
+
 ## Member templates: loops you do not write
 
 A list of a class answers a family of functions named after the element's members (a function of your own is
@@ -349,6 +432,7 @@ names a program calls.
 | `sort_by_<member>()` | `List<T>`, sorted ascending | return a number or a `String` |
 | `map_<member>()` | `List<U>`, one value per element | return a value |
 | `each_<member>()` | nothing: calls it on every element | be a function that takes nothing; what it returns is discarded |
+| `remove_where_<member>()` | nothing: removes the elements where it is true, keeping the rest in order | take nothing, return `Boolean` |
 
 A member that does not fit is a compile error naming the member, what it is, and what the template needs.
 `count_` on a number is one of them, and names `sum_` instead: `count()` is only ever a collection's size.
@@ -867,7 +951,8 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 
 - **The forms.** `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and
   `sum(f)` on a `List` or a `Dictionary` (through its values), for an element of any type, and all but `find` and
-  `sort_by` on a `Vector` or an `Items` of plain values (D221, below). `f` takes the element
+  `sort_by` on a `Vector` or an `Items` of plain values (D221, below); `remove_where(f)` (D227) on a `List` and
+  on a `Vector` or `Items` of plain values, never on a `Dictionary`. `f` takes the element
   as its only argument, with exactly the element's type; D15's table applies to what it returns (`filter`, `any`,
   `all`, `count` and `find` want `Boolean`, `sum` a number, `sort_by` a number or a `String`, `map` a value, `each`
   anything). `find(f)` answers the first element `f` is true for, or `null` -- the `find_by_` template with
@@ -1085,6 +1170,49 @@ below, and the names `Items` and `remove_swapping`, are proposed by Claude, unco
 
 `conformance/stage6/items_columns`, `conformance/stage6/plain_items`, `diagnostics/items_borrows`,
 `diagnostics/plain_items`.
+
+### Removing many at once  **[implemented; the names provisional]**
+
+D227 (decided by Claude under D205 and D214): `List`, `Vector` and `Items` remove many elements in one pass. The
+names `remove_where`, `truncate` and `swap`, and the readings below, are proposed by Claude, unconfirmed:
+
+- **`remove_where(test)` and `remove_where_<member>()`.** One template, `remove_where_member(member:
+  Symbol<$element_type>)` in each of `library/list.spite`, `vector.spite` and `items.spite`, so it answers both a
+  member (`creatures.remove_where_dead()`, D15's table: the member returns `Boolean`) and a passed function
+  (`numbers.remove_where(is_odd)`, D148: on a `List` of anything, and on a `Vector` or `Items` of plain values
+  only, D221, since a borrowed item is never passed on). It walks the collection once; an element that stays is
+  exchanged with the first place not yet kept, and when the walk ends everything past the kept ones is released.
+  The survivors keep their order, and the test sees every element once, first to last.
+- **Why exchange, not move.** At every moment of the walk the collection holds each of its original elements
+  exactly once, some of them already moved down: no slot is ever empty, a copy, or released while the collection
+  still counts it. So whatever the test does to the collection -- read it, append to it, even remove from it --
+  nothing can be released twice or read after it was released; it only sees the elements in a different order.
+  Moving an element down would leave its old slot holding a second copy that a test could release, or a blank that
+  is no valid element. The exchange costs one more copy per element that stays, which measured about a third
+  slower than moving at half removed and the same at nine in ten (`benchmarks/bulk_removal`).
+- **`truncate(count)`** keeps the first `count` elements and releases the rest; a `count` below zero or not below
+  the size does nothing. **`swap(first, second)`** exchanges two elements, doing nothing when either index is out
+  of range; with `truncate` it is how a pass of the program's own removes by something other than a function of
+  the element, such as a mask of rows. `swap` is what SlopEngine's proposed `move(from, to)` became, for the same
+  reason as above: a move leaves a slot that is no valid element (proposed by Claude, unconfirmed).
+- **Chains.** `remove_where` changes its receiver, so it is not a step of a fused chain (D105), and calling it on
+  a chain is an error: `'remove_where' removes from the collection it is called on, and 'names.filter(is_short)'
+  makes a new one that nothing keeps: call it on the collection itself, with one test that says everything to
+  remove`. A test returning anything but `Boolean` is `'remove_where(measure)': 'measure' is an Integer, but
+  'remove_where' needs it to return Boolean`.
+- **Borrows and proofs.** All three count as shrinking wherever `remove_at` does: on the collection itself, and
+  through D169's call effects (a function that calls one of them records `shrink:` on the collection). So an item
+  borrowed from a `Vector` or `Items` is not read after one (`'first' is borrowed from 'velocities', and
+  'velocities.truncate()' on line 34 may move the items of 'velocities', ...`), a D206 row's system may not reach
+  one for a vector it borrows from, and a proof about an element is undone by one. `swap` changes no size but
+  changes which element an index names, so it counts too.
+- **Cost.** Only what a program calls is compiled. `swap` is three copies of the element through a temporary on the
+  C stack (`TypedMemory.swap_values`, `InlineMemory.swap_items`, written per element type by the generator), with
+  no allocation. Measured at 200 000 `Items<Velocity>` items and a `List<Integer>` beside them: half removed,
+  340 µs against 370 µs for a `remove_swapping` per removed row while walking the rows and 530 µs for one per
+  entity of a despawn list; nine in ten removed, 290 µs against 490 µs and 930 µs.
+
+`conformance/stage6/bulk_removal`, `diagnostics/bulk_removal`, `benchmarks/bulk_removal`.
 
 ### Heap\<T\> -- removed (D1, decided by Mortaro, 2026-09-19)
 

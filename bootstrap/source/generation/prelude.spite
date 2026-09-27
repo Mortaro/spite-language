@@ -514,6 +514,8 @@ func typed_memory_members(): List<String> {
         "written per value type by the generator"
         "func value_bytes(): Long"
         "written per value type by the generator"
+        "func swap_values(address: Memory.Address, first_index: Integer, second_index: Integer)"
+        "written per value type by the generator"
     ]
 }
 
@@ -532,6 +534,8 @@ func inline_memory_members(): List<String> {
         "func item_start(): Long"
         "written per value type by the generator"
         "func block_bytes(item_count: Integer): Long"
+        "written per value type by the generator"
+        "func swap_items(address: Memory.Address, first_index: Integer, second_index: Integer)"
         "written per value type by the generator"
     ]
 }

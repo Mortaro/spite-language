@@ -1,0 +1,12 @@
+var marks = List<Boolean>()
+
+func mark(entity: Integer) {
+    while marks.count() <= entity {
+        marks.append(false)
+    }
+    marks.set_at(entity, true)
+}
+
+func marked(entity: Integer): Boolean {
+    return marks.get_at(entity)
+}

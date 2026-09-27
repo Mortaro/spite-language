@@ -1180,7 +1180,8 @@ kept past its use. What is built (the error texts and the readings marked are pr
     read another item with a new 'var', such as 'var next = velocities[index]'`.
 - **Not past a change of size.** Growing a vector may move its block, and removing an item moves the ones after
   it, so a borrowed name is not read after a statement that may change its vector's size or move its block:
-  `append`, `prepend`, `insert`, `reserve`, `remove_at`, `remove_first`, `remove_last`, `remove_swapping` or
+  `append`, `prepend`, `insert`, `reserve`, `remove_at`, `remove_first`, `remove_last`, `remove_swapping`,
+  `remove_where`/`remove_where_<member>`, `truncate`, `swap` (D227: it changes which item an index names) or
   `clear` on it, assigning the vector or anything on its path, or a call that may do one of those. `reserve` adds no
   item but may move the block as surely as `append` does, so it counts as growing (proposed by Claude,
   unconfirmed; `diagnostics/vector_reserve_borrows`), and so do the library's own `make_room`, `_make_room` and

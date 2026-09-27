@@ -1,0 +1,16 @@
+var marks = List<Boolean>()
+
+func mark_every(total: Integer, removed_in_ten: Integer) {
+    marks.clear()
+    var entity = 0
+    while entity < total {
+        var scattered = entity * 7 % 10
+        var removed = scattered < removed_in_ten
+        marks.append(removed)
+        entity = entity + 1
+    }
+}
+
+func marked(entity: Integer): Boolean {
+    return marks.get_at(entity)
+}
