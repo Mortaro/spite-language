@@ -98,7 +98,7 @@ func decimal_exponent(digits: String, exponent: Long): Long {
 }
 
 func rounded_digits(digits: String, count: Long): String {
-    if digits.length() <= count {
+    if count >= digits.length() {
         return digits
     }
     var address = heap.allocate(count + 1)
@@ -197,7 +197,7 @@ func fixed_text(digits: String, exponent: Long): String {
     if exponent < 0 {
         return "0.{zeros(-exponent - 1)}{digits}"
     }
-    if digits.length() <= exponent + 1 {
+    if exponent + 1 >= digits.length() {
         var digits_length = digits.length()
         return "{digits}{zeros(exponent + 1 - digits_length)}"
     }

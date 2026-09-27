@@ -15,7 +15,7 @@ func test_a_narrow_type_wraps_rather_than_crashing() {
 
 func test_the_right_side_casts_toward_the_left() {
     var whole: Integer = 0
-    crash not (whole > -0.5)
+    crash -0.5 < whole
     var fraction: Float = 3.0
     crash fraction * 2 == 6.0
 }

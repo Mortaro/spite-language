@@ -7631,6 +7631,9 @@ func generate_binary(
         if not is_boolean_result_operator(binary.operator) and is_wider_right(binary, left_type, right_type) {
             report_wider_right(binary, left_type, right_type)
         }
+        if is_boolean_result_operator(binary.operator) and is_wider_right(binary, left_type, right_type) {
+            report_wider_comparison(binary, left_type, right_type)
+        }
         report_constant_overflow(binary)
     }
     var symbol = binary_operator_symbol(binary.operator)
@@ -7871,6 +7874,41 @@ func report_wider_right(
     report(
         "'{left_text} {symbol} {right_text}' is {operation_name(binary.operator)} in {left_name}, since arithmetic takes the left side's type, and the right side is {with_article(right_name)}, which would be cut to fit: {fix}, or store the right side in {with_article(left_name)} first if it fits one",
     )
+}
+
+func report_wider_comparison(
+    binary: Syntax.Expressions.BinaryExpression,
+    left_type: Analysis.SpiteType,
+    right_type: Analysis.SpiteType,
+) {
+    crash binary.left
+    crash binary.right
+    var printer = Syntax.SourcePrinter()
+    var left_text = printer.source_expression(binary.left)
+    var right_text = printer.source_expression(binary.right)
+    var symbol = binary_operator_symbol(binary.operator)
+    var mirrored = mirrored_comparison_symbol(binary.operator)
+    var left_name = type_display_name(left_type)
+    var right_name = type_display_name(right_type)
+    report(
+        "'{left_text} {symbol} {right_text}' compares in {left_name}, since a comparison takes the left side's type, and the right side is {with_article(right_name)}, which would be cut to fit: write the {right_name} first ('{right_text} {mirrored} {left_text}'), or store the right side in {with_article(left_name)} first if it fits one",
+    )
+}
+
+func mirrored_comparison_symbol(operator: Syntax.Expressions.BinaryOperator): String {
+    if operator == 'less' {
+        return ">"
+    }
+    if operator == 'less_equal' {
+        return ">="
+    }
+    if operator == 'greater' {
+        return "<"
+    }
+    if operator == 'greater_equal' {
+        return "<="
+    }
+    return binary_operator_symbol(operator)
 }
 
 func type_with_article(spite_type: Analysis.SpiteType): String {

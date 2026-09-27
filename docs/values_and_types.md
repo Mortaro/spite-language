@@ -89,34 +89,43 @@ func ConstantOverflow() {
 '(65536 - 120) * 65536' is 4287102976, which does not fit in an Integer, the type its arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long
 ```
 
-### The sharp edge
+### Comparisons are checked the same way
 
-A comparison is not arithmetic, so it is not checked, and because casting always goes right-to-left, comparing an `Integer` against a `Float` literal casts the `Float` down
-to `Integer` *before* comparing -- not the mathematically obvious thing:
+A comparison casts its right side toward the left too, so an `Integer` compared with a `Float` would compare
+`Integer`s: `progress > -0.5` would cut `-0.5` to `0` and answer `0 > 0`, false, where the mathematics says true.
+So a comparison whose right side is wider than its left is a compile error naming the fix, as arithmetic is --
+write the wider side first, with the comparison turned around:
 
-```gdscript title=casting_edge/casting_edge.spite entry
+```gdscript title=casting_edge/casting_edge.spite entry error
 var console = Console()
 
 func CastingEdge() {
     var progress: Integer = 0
-    console.print("mathematically true, but", progress > -0.5)
+    console.print("mathematically true", progress > -0.5)
+}
+```
+```diagnostic
+'progress > -0.5' compares in Integer, since a comparison takes the left side's type, and the right side is a Float, which would be cut to fit: write the Float first ('-0.5 < progress')
+```
+
+Written the other way round the comparison is done in `Float`, and answers what the mathematics does. An integer
+literal that fits the left side is not wider (`small < 10` with a `Byte` `small`):
+
+```gdscript title=casting_fixed/casting_fixed.spite entry
+var console = Console()
+
+func CastingFixed() {
+    var progress: Integer = 0
+    console.print("mathematically true", -0.5 < progress)
     var price: Float = 3.0
     var quantity: Integer = 2
     console.print("total", price * quantity)
 }
 ```
 ```output
-mathematically true, but false
+mathematically true true
 total 6
 ```
-
-`0 > -0.5` is mathematically true, but `-0.5` casts toward the left side's type first: it truncates to `0`, so
-the comparison becomes `0 > 0`, which is false.
-
-Give the `Integer` side a `Float`/`Double` type instead of comparing an `Integer` variable directly against a
-non-integer literal, if you need the mathematical answer. (D162 settled this for arithmetic; for comparisons it
-is still [open question 3](open_questions.md#open-questions), and worth knowing before you write a comparison that mixes an `Integer` and a
-fractional literal.)
 
 `String` converts both ways: assigning a `String` to a numeric variable parses it (`0`/`0.0` on failure, never
 a crash) by calling `String`'s `to_<name>()` for that type -- `to_integer()`, `to_long()`, `to_double()`, ... (the
@@ -750,9 +759,14 @@ right side in an Integer first if it fits one`. For `-`, `/` and `%`, where orde
 `store the left side in a Long first ('var wide: Long = count')`. Wider means more bits (`Tiny`/`Byte` 8, `Short`/`UnsignedShort` 16,
 `Integer`/`UnsignedInteger`/`Float` 32, `Long`/`UnsignedLong`/`Double`/`Memory.Address` 64), or a `Float`/`Double` right side under a whole
 number left side, which would lose its fraction; signedness alone is not wider. An integer literal on the right
-that fits the left type is not wider (`small + 1` with a `Byte` `small` is a `Byte` addition). A comparison is not
-arithmetic and is not checked: it still casts the right side toward the left, so `age > 0.5` with an `Integer` `age`
-means `age > 0` (open question 3). A constant expression that overflows the `Integer` its arithmetic is done in is an
+that fits the left type is not wider (`small + 1` with a `Byte` `small` is a `Byte` addition). **A comparison
+(`==`, `!=`, `<`, `<=`, `>`, `>=`) is held to the same rule** (decided by Claude under D205, answering open question
+3; the wording proposed by Claude, unconfirmed) **[implemented]**: it casts the right side toward the left, so
+`age > 0.5` with an `Integer` `age` would mean `age > 0`, and a right side wider than the left is a compile error
+naming the comparison turned around: `'progress > -0.5' compares in Integer, since a comparison takes the left
+side's type, and the right side is a Float, which would be cut to fit: write the Float first ('-0.5 < progress'),
+or store the right side in an Integer first if it fits one`. An integer literal that fits the left type is exempt
+(`small < 10`); a float literal under a whole number never fits (`diagnostics/wider_comparison`). A constant expression that overflows the `Integer` its arithmetic is done in is an
 error too, naming its value: `'(65536 - 120) * 65536' is 4287102976, which does not fit in an Integer, the type its
 arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long`.
 `diagnostics/wider_right_operand`. Both checks happen while compiling and change nothing in what is emitted.

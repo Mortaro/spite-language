@@ -81,7 +81,7 @@ func note_event(descriptor: Long, flags: Integer) {
     var index = 0
     var found = -1
     while index < descriptors.count() {
-        if descriptors.get_at(index) == descriptor {
+        if descriptor == descriptors.get_at(index) {
             found = index
         }
         index = index + 1

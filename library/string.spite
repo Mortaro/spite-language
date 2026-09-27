@@ -16,7 +16,7 @@ func slice(start: Integer, end: Integer): String {
 
 func _clamped(position: Integer): Integer {
     assert position >= 0
-    if position > _length {
+    if _length < position {
         return _length
     }
     return position
