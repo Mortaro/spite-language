@@ -385,3 +385,14 @@ Behaviour that does not match the manual. The language was not changed; each is 
      optimisation do. Not built. Is `Float` arithmetic rounded to `Float` after each operation (then the literal
      is a bug fix), or is double precision inside one expression the rule?
 
+
+## From the Theseus port (outputs)
+
+211. **Should `--run=false` alone build the executable?** Today every output off is "only check that it
+     compiles" ([compiler.md](docs/compiler.md#choose-the-outputs), Claude's reading of D128, unconfirmed): nothing
+     is written, so an executable an earlier build left beside the program stays there, and running it runs the
+     old code. The Theseus exporter was caught by this. D128 and D129 do not say what "no output" means. Three
+     readings: (a) keep it, as the checking mode `check.sh` compiles every diagnostic with, and teach
+     `--executable --run=false` for "build, don't run" (what the docs now say); (b) `--run=false` alone builds the
+     executable, and checking only becomes its own flag or command (`spite check game`); (c) checking only also
+     deletes the executable beside the program, so nothing stale is left to run. (a) is what is built.
