@@ -526,3 +526,12 @@ Behaviour that does not match the manual. The language was not changed; each is 
      only the readers' side of its lock (D266, 202 ns -> 5 ns a row); and a locked call skips its lock while no task
      is in flight (D267, 19 ns -> 9 ns). None adds syntax; the names `remove_where`, `truncate` and `swap` are
      provisional (D214). Keep them, or rename?
+
+## Foreign status results (D272)
+
+222. **May a switch over a foreign status enum end with `_:`?** D272 makes a `VkResult`-style result a Spite enum
+     that must be switched on. The C header does not say which of `VkResult`'s ~40 values `vkQueuePresentKHR` can
+     answer, so a switch with no `_:` lists all of them. (a) No `_:`, ever: every outcome is a written line, and a
+     binding writes the long switch once per kind of call (proposed by Claude, the D244 reading); (b) `_:` allowed
+     but it may not `crash` or `assert`, so the rest must be handled, not halted on; (c) `_:` allowed freely, like
+     any enum switch.

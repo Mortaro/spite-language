@@ -371,6 +371,13 @@ C's writes coming back; argument widths; and a program-stopping message naming t
 Spite function that wanted it, when either is missing (`conformance/stage6/foreign_library`,
 `diagnostics/foreign_library_mistakes`, `diagnostics/foreign_call_mistakes`).
 
+**Decided, not built** ([D272](decisions.md), Mortaro; the design proposed by Claude, unconfirmed): a status a
+foreign function answers is handled while compiling. With a header, a function whose C return type is a C `enum`
+answers a Spite enum made from that enum's values; the result must be used, cannot be compared with a number, and
+cannot be the condition of a `crash` or `assert`; it is read with a `switch` naming every value, with no `_:`
+(open: `mortaros_missing_decisions.md` item 222). A binding writes that switch once and answers its own small
+enum. Today a call answers an `Integer`, and `crash result == 0` compiles -- the bug D272 closes.
+
 Choices Claude made while building it (proposed, unconfirmed):
 
 - One library per distinct file, naming rule and header, following D8's "one instance per literal argument
