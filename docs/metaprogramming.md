@@ -998,7 +998,7 @@ wave runs
 ### Every class in the program
 
 `kind: Symbol<Spite.Class>` ranges over every class the program holds: its own, every package it loads and the
-standard library's, in order of their dotted names (D286). It is the folder walk with no folder: `kind.class` is
+standard library's, in order of their dotted names (D287). It is the folder walk with no folder: `kind.class` is
 the class and `kind.name` its dotted name, and every question a walked class answers folds for each one. Two
 questions exist for this walk above all. **`kind.class.package_folder()`** is the folder of the class's file
 relative to the root of the `load` that brought it in -- the program's folder for its own classes, the loaded
@@ -1417,7 +1417,7 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   while compiling, so the name it asks for is written as a literal: ..." (`diagnostics/returned_text`). It has no
   run-time form. `JsonReader` and `JsonWriter` read a class's `json_key_<attribute>()` with it
   ([json.md](json.md#a-key-that-is-not-an-attributes-name)).
-- **`Symbol<Spite.Class>` walks every class the program holds** (D286, decided by Claude under D205, asked for by
+- **`Symbol<Spite.Class>` walks every class the program holds** (D287, decided by Claude under D205, asked for by
   SlopEngine and D282; the spellings provisional under D214).  **[implemented]** A template whose `Symbol`
   parameter ranges over `Spite.Class` is called once per class -- the program's, every loaded package's and the
   standard library's, not a generic class's instances and not the compiler's own object literals -- in order of
@@ -1425,13 +1425,13 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   every question a walked class answers. It replaces what `Symbol<Spite.Class>` meant before, the attributes of
   `Spite.Class`, which nothing used.
 - **`$T.package_folder()` is the folder of a class's file relative to the root of the load that brought it in**
-  (D286; the name provisional).  **[implemented]** Asked as `source_folder()` is (`class.package_folder()`,
+  (D287; the name provisional).  **[implemented]** Asked as `source_folder()` is (`class.package_folder()`,
   `Name.package_folder()`, `$T.package_folder()`, `kind.class.package_folder()` in a walk, and
   `value.class.package_folder()` at run time), it folds to the path below the deepest root holding the file: the
   program's folder, a folder a `load` names, or the standard library's `library/`; a file at a root answers `""`.
   A class in no such folder is the error "'Name' was declared in '...', which is in no folder the program loads,
   so it has no package folder".
-- **`$T.has_state()` answers whether a class keeps state** (D287, decided by Claude under D205, asked for by
+- **`$T.has_state()` answers whether a class keeps state** (D288, decided by Claude under D205, asked for by
   SlopEngine; the name provisional).  **[implemented]** It folds wherever it is written, for `$T`, a class named
   statically and a walked class, to `true` when a function of the class other than its constructor and `drop()`
   writes its own object -- an attribute set on it or on anything reached through it, a call that writes it -- by
@@ -1439,7 +1439,7 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   attribute of the class holds a singleton that has state, followed through singletons however deep. An attribute
   written only by other classes' code does not count: that write is state of the class that makes it. It has no
   run-time form, and it takes nothing: `'$T.has_state()' is decided while compiling, and it takes nothing`.
-- **`$T.argument_class("update_each", 0)` is the class of a function's parameter, as a type** (D287, decided by
+- **`$T.argument_class("update_each", 0)` is the class of a function's parameter, as a type** (D288, decided by
   Claude under D205, asked for by SlopEngine; the name provisional).  **[implemented]** Written where a type is, on
   a codegen type, with the function's name as text and the parameter's number from 0 as literals:
   `var column = Column<$system_type.argument_class("update_each", 0)>()` binds the column of whatever a system's

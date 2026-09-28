@@ -557,7 +557,7 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 - **Buys.** An engine can refuse a system that keeps state between frames, for every system at once.
 - **Falls back.** As that question does: where the study cannot decide, the answer is `true`. The standard
   library counts like any code, so a class binding `Console` has state (reading a line writes its buffer).
-- **See.** D287; [metaprogramming.md: Every class in the program](metaprogramming.md#every-class-in-the-program);
+- **See.** D288; [metaprogramming.md: Every class in the program](metaprogramming.md#every-class-in-the-program);
   `conformance/stage6/class_walk`.
 - **Compiler today.** A supplied function outside the fixed list answers "does not write", as above.
 
