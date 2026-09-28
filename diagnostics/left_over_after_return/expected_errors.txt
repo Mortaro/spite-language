@@ -1,0 +1,1 @@
+diagnostics/left_over_after_return/left_over_after_return.spite:10:22: 'attribute' is left over after the end of the statement: a statement ends with its line, so remove it, or put it on a line of its own if it is a statement

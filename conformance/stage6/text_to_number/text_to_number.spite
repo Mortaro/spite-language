@@ -1,0 +1,66 @@
+var console = Console()
+var settings = Dictionary<Integer>()
+
+func TextToNumber() {
+    whole("42")
+    whole(" -12 ")
+    whole("0")
+    whole("+7 days")
+    whole("forty two")
+    whole("")
+    whole("9000000000")
+    decimal("2.5")
+    decimal("-1.5e2")
+    decimal("1e")
+    decimal("nan")
+    var wide = "9000000000".to_long()
+    var small = "300".to_byte()
+    var unsigned = "-1".to_unsigned_integer()
+    crash wide
+    console.print("long", wide)
+    if small {
+        console.print("byte", small)
+    } else {
+        console.print("300 is not a Byte")
+    }
+    if unsigned {
+        console.print("unsigned", unsigned)
+    } else {
+        console.print("-1 is not an UnsignedInteger")
+    }
+    var typed: Integer? = "12"
+    var mistyped: Integer? = "twelve"
+    crash typed
+    console.print("typed", typed, not mistyped)
+    read_setting("width=640")
+    read_setting("height=tall")
+    crash settings["width"]
+    var setting_count = settings.count()
+    console.print("width", settings["width"], setting_count)
+}
+
+func whole(text: String) {
+    var number = text.to_integer()
+    if number {
+        console.print("[{text}] is", number)
+    } else {
+        console.print("[{text}] is not an Integer")
+    }
+}
+
+func decimal(text: String) {
+    var number = text.to_double()
+    if number {
+        console.print("[{text}] is", number)
+    } else {
+        console.print("[{text}] is not a Double")
+    }
+}
+
+func read_setting(line: String) {
+    var parts = line.split("=")
+    crash parts.count() == 2
+    var value = parts[1].to_integer()
+    assert value
+    settings.set(parts[0], value)
+}

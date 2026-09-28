@@ -1,0 +1,28 @@
+type Eyed {
+    entity: Integer
+    eye: Server.Component.Eye
+}
+
+var console = Console()
+var watched = List<Eyed>()
+var focused: Server.Component.Eye? = null
+var seen_eyes = List<Server.Component.Eye>()
+
+func UnknownTypeSuggestion() {
+    var eye = Component.Eye()
+    var seen = {entity: 1, eye: eye}
+    watched.append(seen)
+    var first = chosen()
+    console.print(first.entity)
+    look(eye)
+    console.print(focused, seen_eyes.count())
+}
+
+func chosen(): Eyed {
+    crash watched[0]
+    return watched[0]
+}
+
+func look(looking: Eye) {
+    console.print(looking.sight)
+}

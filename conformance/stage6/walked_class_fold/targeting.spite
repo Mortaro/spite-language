@@ -1,0 +1,3 @@
+var target = Entity()
+var range = 4
+var label = "aim"

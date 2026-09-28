@@ -1,0 +1,48 @@
+union Shape {
+    Circle
+    Square
+}
+
+var console = Console()
+var kept = List<Shape>()
+
+func UnionIdentity() {
+    var first: Shape = Circle()
+    var second: Shape = Circle()
+    var third: Shape = Square()
+    kept.append(first)
+    kept.append(third)
+    var same = found(first)
+    var other = found(second)
+    console.print(same, other)
+    var mirrored = found_mirrored(third)
+    console.print(mirrored)
+    var differing = differs_from_first(second)
+    console.print(differing)
+}
+
+func found(shape: Shape): Boolean {
+    var index = 0
+    while index < kept.count() {
+        if kept[index] == shape {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func found_mirrored(shape: Shape): Boolean {
+    var index = 0
+    while index < kept.count() {
+        if shape == kept[index] {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func differs_from_first(shape: Shape): Boolean {
+    return kept[0] != shape
+}

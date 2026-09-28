@@ -138,7 +138,8 @@ func _without_unit(part: String): String {
 
 func _number_of(part: String): Float {
     var body = _without_unit(part)
-    var value: Float = body
+    var value = body.to_float()
+    crash value
     return value
 }
 

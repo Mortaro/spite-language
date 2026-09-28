@@ -1,0 +1,17 @@
+var transforms = Column<Transform>()
+var rows = 0
+
+func System(new_rows: Integer) {
+    rows = new_rows
+}
+
+func run(): Float {
+    var total = 0.0
+    var row = 0
+    while row < rows {
+        var transform = transforms.at(row)
+        total = total + transform.across
+        row = row + 1
+    }
+    return total
+}

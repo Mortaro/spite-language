@@ -50,22 +50,9 @@ func inside(name: String): String {
 }
 
 func sorted(names: List<String>): List<String> {
-    var result = List<String>()
-    var index = 0
-    while index < names.count() {
-        var position = result.count()
-        var placed = false
-        while position > 0 and not placed {
-            var before = position - 1
-            crash before < result.count()
-            if result[before] > names[index] {
-                position = before
-            } else {
-                placed = true
-            }
-        }
-        result.insert(position, names[index])
-        index = index + 1
-    }
-    return result
+    return names.sort_by(name_of)
+}
+
+func name_of(name: String): String {
+    return name
 }

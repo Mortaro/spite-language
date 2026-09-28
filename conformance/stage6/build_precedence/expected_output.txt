@@ -1,0 +1,3 @@
+plugins from plugins
+engine theseus
+frames per second 60

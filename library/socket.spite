@@ -15,7 +15,9 @@ func listen_everywhere(port: Integer): Boolean {
 
 func listen_at(host: String, port: Integer): Boolean {
     var address = resolved_address(host, port)
-    assert address != 0
+    if address == 0 {
+        return false
+    }
     return listen_on(address)
 }
 
@@ -26,7 +28,9 @@ func connect_locally(port: Integer): Boolean {
 
 func connect(host: String, port: Integer): Boolean {
     var address = resolved_address(host, port)
-    assert address != 0
+    if address == 0 {
+        return false
+    }
     return connect_to(address)
 }
 
@@ -147,7 +151,9 @@ func write_bytes(address: Memory.Address, count: Integer): Boolean {
 }
 
 func write_bytes_now(address: Memory.Address, count: Integer): Integer {
-    assert not closed and count > 0
+    if closed or count <= 0 {
+        return 0
+    }
     var sent = send_now(address, count)
     if sent < 0 {
         closed = true
@@ -256,7 +262,9 @@ func resolved_address(host: String, port: Integer): Memory.Address {
     heap.free(hints)
     var first: Memory.Address = found.read_long(0)
     heap.free(found)
-    assert not failed and first != 0
+    if failed or first == 0 {
+        return 0
+    }
     var offset = resolved_address_offset()
     var resolved: Memory.Address = first.read_long(offset)
     var address = heap.allocate(16)

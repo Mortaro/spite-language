@@ -1,0 +1,19 @@
+var expression: Syntax.Expressions.Expression? = null
+var label = ""
+var is_call = false
+var is_reach = false
+var value_name = ""
+var set_name = ""
+var captured_type: Analysis.SpiteType? = null
+var owned = false
+var reached_names = List<String>()
+
+func CrashPart(part: Syntax.Expressions.Expression, part_label: String) {
+    expression = part
+    label = part_label
+}
+
+func get_expression(): Syntax.Expressions.Expression {
+    crash expression
+    return expression
+}

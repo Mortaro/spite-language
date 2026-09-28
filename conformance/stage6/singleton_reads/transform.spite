@@ -1,0 +1,5 @@
+var across = 0
+
+func Transform(new_across: Integer) {
+    across = new_across
+}

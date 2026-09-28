@@ -1,0 +1,39 @@
+generic $system_type
+
+var console = Console()
+
+func report() {
+    var direct_quitting = $system_type.function_writes_parameter("direct", 1)
+    var direct_checked = $system_type.function_writes_parameter("direct", 0)
+    console.print("direct:", direct_quitting, "checked:", direct_checked)
+    var nested = $system_type.function_writes_parameter("nested", 0)
+    var element = $system_type.function_writes_parameter("element", 0)
+    var appends = $system_type.function_writes_parameter("appends", 0)
+    var method = $system_type.function_writes_parameter("method", 0)
+    console.print("nested:", nested, "element:", element, "appends:", appends, "method:", method)
+    var aliases = $system_type.function_writes_parameter("aliases", 0)
+    var shrinks = $system_type.function_writes_parameter("shrinks", 0)
+    var text_reads = $system_type.function_writes_parameter("text_reads", 0)
+    console.print("aliases:", aliases, "shrinks:", shrinks, "text reads:", text_reads)
+    var calls_quitting = $system_type.function_writes_parameter("through_calls", 1)
+    var calls_checked = $system_type.function_writes_parameter("through_calls", 0)
+    var recursive = $system_type.function_writes_parameter("recursive", 0)
+    var ping = $system_type.function_writes_parameter("ping", 0)
+    console.print("calls:", calls_quitting, "checked:", calls_checked, "recursive:", recursive, "ping:", ping)
+    var lent = $system_type.function_writes_parameter("lent", 0)
+    var reads_checked = $system_type.function_writes_parameter("reads", 0)
+    var reads_quitting = $system_type.function_writes_parameter("reads", 1)
+    var renames = $system_type.function_writes_parameter("renames", 0)
+    console.print("lent:", lent, "reads:", reads_checked, reads_quitting, "renames:", renames)
+    var stores = $system_type.function_writes_parameter("stores", 0)
+    var calls_value = $system_type.function_writes_parameter("calls_value", 0)
+    var missing = $system_type.function_writes_parameter("no_such_function", 0)
+    console.print("stores:", stores, "calls a value:", calls_value, "missing:", missing)
+    if $system_type.function_writes_parameter("reads", 1) {
+        console.print("never compiled")
+    } else {
+        console.print("a system that only reads can run on a snapshot")
+    }
+    crash not $system_type.function_writes_parameter("show", 0)
+    console.print("the check holds, so nothing is left at run time")
+}

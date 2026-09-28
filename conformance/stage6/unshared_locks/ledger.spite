@@ -1,0 +1,24 @@
+singleton
+
+var entries = 0
+var posted = 0
+
+func start_posting(count: Integer): Parallel<Integer> {
+    var poster = Poster(count)
+    var posting = Parallel(poster.run)
+    var index = 0
+    while index < count {
+        entries = entries + 1
+        index = index + 1
+    }
+    return posting
+}
+
+func post() {
+    entries = entries + 1
+    posted = posted + 1
+}
+
+func total(): Integer {
+    return entries + posted
+}

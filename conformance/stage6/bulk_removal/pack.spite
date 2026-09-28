@@ -1,0 +1,14 @@
+var owner = ""
+var tags = List<String>()
+
+func Pack(new_owner: String) {
+    owner = new_owner
+}
+
+func tag(text: String) {
+    tags.append(text)
+}
+
+func empty(): Boolean {
+    return tags.is_empty()
+}

@@ -1,0 +1,1 @@
+three readers saw 5997000 while rows were added, and all rows add up to 17997000

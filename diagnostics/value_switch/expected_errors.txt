@@ -1,0 +1,7 @@
+diagnostics/value_switch/value_switch.spite:21: error: this switch over 'light' has no case for 'amber': a switch over an enum covers every value, so a value added later cannot be forgotten -- add the cases, or end with '_:' for the rest (in ValueSwitch.seconds_for)
+diagnostics/value_switch/value_switch.spite:30: error: every value of 'Light' already has a case, so '_:' answers for nothing: remove it (in ValueSwitch.name_for)
+diagnostics/value_switch/value_switch.spite:37: error: this switch over 'number' has no '_:': an Integer has more values than a switch can list, so its last case is '_:', for every value without a case of its own (in ValueSwitch.code_for)
+diagnostics/value_switch/value_switch.spite:43: error: this switch has two cases for 'red': keep one (in ValueSwitch.twice)
+diagnostics/value_switch/value_switch.spite:44: error: 'blue' is not a value of this enum (in ValueSwitch.twice)
+diagnostics/value_switch/value_switch.spite:51: error: a case of a switch over a Light is one of its values, like 'red', never a class (in ValueSwitch.light_kind)
+diagnostics/value_switch/value_switch.spite:52: error: this switch over 'light' has no case for 'red', 'amber', 'green': a switch over an enum covers every value, so a value added later cannot be forgotten -- add the cases, or end with '_:' for the rest (in ValueSwitch.light_kind)

@@ -29,6 +29,18 @@ func finished_value(): $result_type? {
     return _results.first()
 }
 
+func to_debug(): String {
+    if not get_finished() {
+        return "running"
+    }
+    var finished = finished_value()
+    if finished {
+        var result_debug = Spite.Debug<$result_type>()
+        return result_debug.text(finished)
+    }
+    return "null"
+}
+
 func _run() {
     assert _work
     var value: $result_type = _work()

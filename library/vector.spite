@@ -43,6 +43,24 @@ func remove_at(index: Integer) {
     }
 }
 
+func truncate(kept_count: Integer) {
+    if kept_count >= 0 and kept_count < item_count {
+        var index = kept_count
+        while index < item_count {
+            values.release_item(items, index)
+            index = index + 1
+        }
+        item_count = kept_count
+    }
+}
+
+func swap(first_index: Integer, second_index: Integer) {
+    var first_in = first_index >= 0 and first_index < item_count
+    if first_in and second_index >= 0 and second_index < item_count {
+        values.swap_items(items, first_index, second_index)
+    }
+}
+
 func clear() {
     var index = 0
     while index < item_count {
@@ -85,6 +103,26 @@ func filter_member(member: Symbol<$element_type>): Vector<$element_type> {
     return filtered
 }
 
+func remove_where_member(member: Symbol<$element_type>) {
+    var kept = 0
+    var index = 0
+    while index < item_count {
+        var item = values.item_at(items, index)
+        var keep = true
+        if item.attributes[member] {
+            keep = false
+        }
+        if keep {
+            if kept != index and index < item_count {
+                values.swap_items(items, kept, index)
+            }
+            kept = kept + 1
+        }
+        index = index + 1
+    }
+    truncate(kept)
+}
+
 func count_member(member: Symbol<$element_type>): Integer {
     var counted = 0
     var index = 0
@@ -114,7 +152,9 @@ func all_member(member: Symbol<$element_type>): Boolean {
     var index = 0
     while index < item_count {
         var item = values.item_at(items, index)
-        assert item.attributes[member]
+        if not item.attributes[member] {
+            return false
+        }
         index = index + 1
     }
     return true

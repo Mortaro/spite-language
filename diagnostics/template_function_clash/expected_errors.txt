@@ -1,0 +1,1 @@
+diagnostics/template_function_clash/row.spite:13: error: the template 'store_attribute' makes 'store_row' for the attribute 'row' of 'RowView', which is already a function of 'Row': rename the function or the template (in Row.store_row)

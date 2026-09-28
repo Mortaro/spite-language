@@ -1,0 +1,2 @@
+spite.crash	26b57b59	conformance/stage6/crash_missing_item/crash_missing_item.spite:13	CrashMissingItem	read	clip.keys [start + 1]	clip.keys[start + 1] is missing: index 3, count 2
+key 0

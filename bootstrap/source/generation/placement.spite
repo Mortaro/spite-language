@@ -1,6 +1,7 @@
 var shape = Analysis.AstShape()
 var lent_parameters = List<String>()
 var read_lists = List<String>()
+var foreign_libraries = List<String>()
 
 func frame_candidates(statements: List<Syntax.Statements.Statement>): List<String> {
     var names = List<String>()
@@ -22,20 +23,30 @@ func frame_candidates(statements: List<Syntax.Statements.Statement>): List<Strin
 func allocating_receiver(declaration: Syntax.Statements.VariableDeclaration): String {
     crash declaration.value
     var allocation = shape.as_call(declaration.value)
-    assert allocation
+    if not allocation {
+        return ""
+    }
     crash allocation.callee
     var allocating = shape.as_member(allocation.callee)
-    assert allocating
-    assert allocating.name == "allocate" and allocation.arguments.count() == 1
+    if not allocating {
+        return ""
+    }
+    if allocating.name != "allocate" or allocation.arguments.count() != 1 {
+        return ""
+    }
     crash allocating.object
     var receiver = shape.as_identifier(allocating.object)
-    assert receiver
+    if not receiver {
+        return ""
+    }
     return receiver.name
 }
 
 func freed_name(statement: Syntax.Statements.Statement, receiver: String): String {
     var expression_statement = shape.as_expression_statement(statement)
-    assert expression_statement
+    if not expression_statement {
+        return ""
+    }
     crash expression_statement.value
     return memory_argument(expression_statement.value, receiver, "free")
 }
@@ -46,17 +57,29 @@ func frame_key(declaration: Syntax.Statements.VariableDeclaration): String {
 
 func memory_argument(expression: Syntax.Expressions.Expression, receiver: String, function_name: String): String {
     var call = shape.as_call(expression)
-    assert call
+    if not call {
+        return ""
+    }
     crash call.callee
     var member = shape.as_member(call.callee)
-    assert member
-    assert member.name == function_name and call.arguments.count() == 1
+    if not member {
+        return ""
+    }
+    if member.name != function_name or call.arguments.count() != 1 {
+        return ""
+    }
     crash member.object
     var called_on = shape.as_identifier(member.object)
-    assert called_on
+    if not called_on {
+        return ""
+    }
     var argument = shape.as_identifier(call.arguments[0])
-    assert argument
-    assert called_on.name == receiver
+    if not argument {
+        return ""
+    }
+    if called_on.name != receiver {
+        return ""
+    }
     return argument.name
 }
 
@@ -84,7 +107,9 @@ func stays_in_frame(
 ): Boolean {
     var index = start
     while index < statements.count() {
-        assert statement_keeps_in_frame(name, receiver, statements[index])
+        if not statement_keeps_in_frame(name, receiver, statements[index]) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -105,7 +130,9 @@ func statement_keeps_in_frame(name: String, receiver: String, statement: Syntax.
             crash statement.value
             var assigned = shape.as_identifier(statement.target)
             if assigned {
-                assert assigned.name != name and assigned.name != receiver
+                if assigned.name == name or assigned.name == receiver {
+                    return false
+                }
             }
             return expression_keeps_in_frame(name, receiver, statement.target, false) and expression_keeps_in_frame(name, receiver, statement.value, false)
         }
@@ -114,11 +141,15 @@ func statement_keeps_in_frame(name: String, receiver: String, statement: Syntax.
             return expression_keeps_in_frame(name, receiver, statement.value, false)
         }
         Syntax.Statements.ReturnStatement: {
-            assert statement.value
+            if not statement.value {
+                return false
+            }
             return expression_keeps_in_frame(name, receiver, statement.value, false)
         }
         Syntax.Statements.AssertStatement: {
-            assert statement.value
+            if not statement.value {
+                return false
+            }
             return expression_keeps_in_frame(name, receiver, statement.value, false)
         }
         Syntax.Statements.IfStatement: {
@@ -131,10 +162,14 @@ func statement_keeps_in_frame(name: String, receiver: String, statement: Syntax.
         }
         Syntax.Statements.SwitchStatement: {
             crash statement.subject
-            assert expression_keeps_in_frame(name, receiver, statement.subject, false)
+            if not expression_keeps_in_frame(name, receiver, statement.subject, false) {
+                return false
+            }
             var case_index = 0
             while case_index < statement.cases.count() {
-                assert block_keeps_in_frame(name, receiver, statement.cases[case_index].body)
+                if not block_keeps_in_frame(name, receiver, statement.cases[case_index].body) {
+                    return false
+                }
                 case_index = case_index + 1
             }
             return true
@@ -166,7 +201,9 @@ func expression_keeps_in_frame(
             var index = 0
             while index < expression.arguments.count() {
                 var argument_lent = lends or lent_to_own_function(expression.callee, index)
-                assert expression_keeps_in_frame(name, receiver, expression.arguments[index], argument_lent)
+                if not expression_keeps_in_frame(name, receiver, expression.arguments[index], argument_lent) {
+                    return false
+                }
                 index = index + 1
             }
             var at_address = shape.as_member(expression.callee)
@@ -188,7 +225,9 @@ func expression_keeps_in_frame(
         Syntax.Expressions.GenericCallExpression: {
             var generic_index = 0
             while generic_index < expression.arguments.count() {
-                assert expression_keeps_in_frame(name, receiver, expression.arguments[generic_index], false)
+                if not expression_keeps_in_frame(name, receiver, expression.arguments[generic_index], false) {
+                    return false
+                }
                 generic_index = generic_index + 1
             }
             return true
@@ -198,7 +237,9 @@ func expression_keeps_in_frame(
             while element_index < expression.elements.count() {
                 var element_value = expression.elements[element_index].value
                 crash element_value
-                assert expression_keeps_in_frame(name, receiver, element_value, false)
+                if not expression_keeps_in_frame(name, receiver, element_value, false) {
+                    return false
+                }
                 element_index = element_index + 1
             }
             return true
@@ -208,7 +249,9 @@ func expression_keeps_in_frame(
             while field_index < expression.fields.count() {
                 var field_value = expression.fields[field_index].value
                 crash field_value
-                assert expression_keeps_in_frame(name, receiver, field_value, false)
+                if not expression_keeps_in_frame(name, receiver, field_value, false) {
+                    return false
+                }
                 field_index = field_index + 1
             }
             return true
@@ -219,7 +262,9 @@ func expression_keeps_in_frame(
 
 func lent_to_own_function(callee: Syntax.Expressions.Expression, index: Integer): Boolean {
     var called = shape.as_identifier(callee)
-    assert called
+    if not called {
+        return false
+    }
     return lent_parameters.contains("{called.name}#{index}")
 }
 
@@ -268,17 +313,24 @@ func study_function_parameters(
 
 func lends_address(callee: Syntax.Expressions.Expression, receiver: String): Boolean {
     var member = shape.as_member(callee)
-    assert member
+    if not member {
+        return false
+    }
     if is_address_primitive(member.name) {
         return true
     }
-    var typed = ["read_value", "write_value", "release_value"]
+    var typed = ["read_value", "write_value", "release_value", "swap_values"]
     if typed.contains(member.name) {
         return true
     }
     crash member.object
     var called_on = shape.as_identifier(member.object)
-    assert called_on
+    if not called_on {
+        return false
+    }
+    if foreign_libraries.contains(called_on.name) {
+        return true
+    }
     return called_on.name == receiver and member.name == "free"
 }
 
@@ -354,7 +406,9 @@ func study_read_list_parameters(
 func block_only_reads(name: String, statements: List<Syntax.Statements.Statement>): Boolean {
     var index = 0
     while index < statements.count() {
-        assert statement_only_reads(name, statements[index])
+        if not statement_only_reads(name, statements[index]) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -369,7 +423,9 @@ func statement_only_reads(name: String, statement: Syntax.Statements.Statement):
         Syntax.Statements.AssignmentStatement: {
             crash statement.target
             crash statement.value
-            assert not written_through(name, statement.target)
+            if written_through(name, statement.target) {
+                return false
+            }
             return expression_only_reads(name, statement.target) and expression_only_reads(name, statement.value)
         }
         Syntax.Statements.ExpressionStatement: {
@@ -404,10 +460,14 @@ func written_through(name: String, target: Syntax.Expressions.Expression): Boole
         return assigned.name == name
     }
     var indexed = shape.as_index(target)
-    assert indexed
+    if not indexed {
+        return false
+    }
     crash indexed.object
     var indexed_list = shape.as_identifier(indexed.object)
-    assert indexed_list
+    if not indexed_list {
+        return false
+    }
     return indexed_list.name == name
 }
 
@@ -431,7 +491,9 @@ func expression_only_reads(name: String, expression: Syntax.Expressions.Expressi
         Syntax.Expressions.IndexExpression: {
             crash expression.object
             crash expression.index
-            assert names_list(name, expression.object) or expression_only_reads(name, expression.object)
+            if not names_list(name, expression.object) and not expression_only_reads(name, expression.object) {
+                return false
+            }
             return expression_only_reads(name, expression.index)
         }
         Syntax.Expressions.GenericCallExpression: return expressions_only_read(name, expression.arguments)
@@ -450,7 +512,9 @@ func expression_only_reads(name: String, expression: Syntax.Expressions.Expressi
 func expressions_only_read(name: String, expressions: List<Syntax.Expressions.Expression>): Boolean {
     var index = 0
     while index < expressions.count() {
-        assert expression_only_reads(name, expressions[index])
+        if not expression_only_reads(name, expressions[index]) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -461,7 +525,9 @@ func elements_only_read(name: String, elements: List<Syntax.Expressions.ListElem
     while index < elements.count() {
         var element_value = elements[index].value
         crash element_value
-        assert expression_only_reads(name, element_value)
+        if not expression_only_reads(name, element_value) {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -469,7 +535,9 @@ func elements_only_read(name: String, elements: List<Syntax.Expressions.ListElem
 
 func names_list(name: String, expression: Syntax.Expressions.Expression): Boolean {
     var named = shape.as_identifier(expression)
-    assert named
+    if not named {
+        return false
+    }
     return named.name == name
 }
 
@@ -480,20 +548,28 @@ func call_only_reads(name: String, call: Syntax.Expressions.CallExpression): Boo
     if member {
         crash member.object
         read_on_list = names_list(name, member.object)
-        assert not read_on_list or is_list_read(member.name)
+        if read_on_list and not is_list_read(member.name) {
+            return false
+        }
     }
     if not read_on_list {
-        assert expression_only_reads(name, call.callee)
+        if not expression_only_reads(name, call.callee) {
+            return false
+        }
     }
     var own = shape.as_identifier(call.callee)
     var index = 0
     while index < call.arguments.count() {
         var argument = call.arguments[index]
         if names_list(name, argument) {
-            assert own
-            assert read_lists.contains("{own.name}#{index}")
-        } else {
-            assert expression_only_reads(name, argument)
+            if not own {
+                return false
+            }
+            if not read_lists.contains("{own.name}#{index}") {
+                return false
+            }
+        } else if not expression_only_reads(name, argument) {
+            return false
         }
         index = index + 1
     }

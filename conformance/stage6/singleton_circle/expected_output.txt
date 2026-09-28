@@ -1,0 +1,1 @@
+spite: singleton 'Registry' binds 'Catalog', which binds 'Registry': singletons initialise each other in a circle

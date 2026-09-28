@@ -1,0 +1,4 @@
+ADA float 3 boolean false item sword floats in a list of 2 unknown
+float 4.5 item sword other
+numbers under apples an item named sword
+ADA half is 1.5

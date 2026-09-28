@@ -42,3 +42,21 @@ func modified_nanoseconds(): Long? {
 func remove(): Boolean {
     return library.remove(path) == 0
 }
+
+func map(): MappedFile? {
+    var read_only = 0
+    var descriptor = library.open(path, read_only)
+    assert descriptor >= 0
+    var from_end = 2
+    var bytes: Long = library.lseek_as_long(descriptor, 0, from_end)
+    var view: Memory.Address = 0
+    if bytes > 0 {
+        var no_value: Long = 0
+        var readable = 1
+        var private_pages = 2
+        view = library.mmap_as_long(no_value, bytes, readable, private_pages, descriptor, 0)
+    }
+    library.close(descriptor)
+    assert bytes >= 0 and view != -1
+    return MappedFile(view, bytes)
+}

@@ -1,0 +1,5 @@
+generic $bundle_type
+
+func is_kind(given: Anything): Boolean {
+    return given == $bundle_type
+}

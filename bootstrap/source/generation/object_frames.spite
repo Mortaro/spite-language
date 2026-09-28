@@ -1,0 +1,158 @@
+var type_shape = Analysis.TypeShape()
+var frame_answers = Dictionary<Boolean>()
+var lend_answers = Dictionary<Boolean>()
+var fresh_answers = Dictionary<String>()
+
+func frames_class(generator: Generator, information: Analysis.ClassInfo): Boolean {
+    if frame_answers.has(information.c_name) {
+        return frame_answers[information.c_name] == true
+    }
+    frame_answers.set(information.c_name, false)
+    var answer = holds_only_numbers(generator, information)
+    frame_answers.set(information.c_name, answer)
+    return answer
+}
+
+func holds_only_numbers(generator: Generator, information: Analysis.ClassInfo): Boolean {
+    if information.is_value_class or information.is_generic_template or information.is_singleton {
+        return false
+    }
+    if information.is_stateless_singleton or information.drop_function {
+        return false
+    }
+    if information.c_name.starts_with("Spite_") or generator.is_hot_class(information) {
+        return false
+    }
+    if not fields_hold_nothing_counted(generator, information) {
+        return false
+    }
+    if generator.lists_instances(information.simple_name) {
+        return false
+    }
+    if information.constructor {
+        return lends(generator, information, information.constructor, -1)
+    }
+    return true
+}
+
+func fields_hold_nothing_counted(generator: Generator, information: Analysis.ClassInfo): Boolean {
+    var index = 0
+    while index < information.fields.count() {
+        var field_type = information.fields[index].get_type()
+        if not holds_nothing_counted(generator, field_type) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func holds_nothing_counted(generator: Generator, field_type: Analysis.SpiteType): Boolean {
+    if type_shape.as_scalar(field_type) {
+        return true
+    }
+    if type_shape.as_enum(field_type) {
+        return true
+    }
+    var class_reference = type_shape.as_class_ref(field_type)
+    if not class_reference {
+        return false
+    }
+    var held = generator.find_class_by_c_name(class_reference.c_name)
+    if not held {
+        return false
+    }
+    return held.is_singleton or held.is_stateless_singleton
+}
+
+func lends(
+    generator: Generator,
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    position: Integer,
+): Boolean {
+    var key = "{owner.c_name}#{function.c_name}#{position}"
+    if lend_answers.has(key) {
+        return lend_answers[key] == true
+    }
+    lend_answers.set(key, false)
+    var answer = keeps_nothing(generator, owner, function, position)
+    lend_answers.set(key, answer)
+    return answer
+}
+
+func keeps_nothing(
+    generator: Generator,
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    position: Integer,
+): Boolean {
+    if not function.has_body or not function.lent_parameters.is_empty() or function.result_slot {
+        return false
+    }
+    if owner.is_value_class or generator.is_hot_class(owner) {
+        return false
+    }
+    var study = ObjectEscape(this, generator, owner)
+    study.take_parameters(function)
+    study.learn_block(function.body)
+    if position < 0 {
+        study.follow_self()
+        return study.block_keeps(function.body)
+    }
+    if position >= function.parameters.count() {
+        return false
+    }
+    var parameter = function.parameters[position]
+    var parameter_type = parameter.get_type()
+    var listed = type_shape.as_list(parameter_type)
+    if listed {
+        if listed.is_variadic {
+            return false
+        }
+    }
+    study.follow_parameter(parameter.name, parameter_type)
+    return study.block_keeps(function.body)
+}
+
+func fresh_result(
+    generator: Generator,
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+): Analysis.ClassInfo? {
+    var key = "{owner.c_name}#{function.c_name}"
+    if fresh_answers.has(key) {
+        crash fresh_answers[key]
+        assert not fresh_answers[key].is_empty()
+        return generator.find_class_by_c_name(fresh_answers[key])
+    }
+    fresh_answers.set(key, "")
+    var found = returns_only_fresh(generator, owner, function)
+    if found {
+        fresh_answers.set(key, found.c_name)
+    }
+    return found
+}
+
+func returns_only_fresh(
+    generator: Generator,
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+): Analysis.ClassInfo? {
+    assert function.has_body and not function.is_constructor and function.lent_parameters.is_empty()
+    assert not function.result_slot and not owner.is_value_class and not owner.is_generic_template
+    assert not owner.is_singleton and not owner.is_stateless_singleton and not generator.is_hot_class(owner)
+    assert not generator.asks_function_waits(function.body)
+    var returned_type = function.get_return_type()
+    var returned_reference = type_shape.as_class_ref(returned_type)
+    assert returned_reference
+    var returned = generator.find_class_by_c_name(returned_reference.c_name)
+    assert returned
+    assert frames_class(generator, returned)
+    var study = ObjectEscape(this, generator, owner)
+    study.take_parameters(function)
+    study.learn_block(function.body)
+    study.whole_body = function.body
+    assert study.returns_fresh_in(function.body, returned)
+    return returned
+}

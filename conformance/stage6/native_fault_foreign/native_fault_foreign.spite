@@ -1,0 +1,15 @@
+var console = Console()
+var fixture = DynamicLibrary("conformance/stage6/native_fault_foreign/fixture.dll", 'identity', "")
+
+func NativeFaultForeign() {
+    var sum = fixture.add_numbers(2, 3)
+    console.print("before the fault", sum)
+    read_nothing()
+    console.print("never printed")
+}
+
+func read_nothing() {
+    var nowhere: Long = 0
+    var value = fixture.read_integer_at(nowhere)
+    console.print(value)
+}

@@ -1,0 +1,9 @@
+var console = Console()
+var columns = Columns()
+
+func LockedWait() {
+    var removed = columns.despawn_all(0, 10)
+    var later = columns.despawn_later(10, 20)
+    var counted = columns.count()
+    console.print(removed, later, counted)
+}

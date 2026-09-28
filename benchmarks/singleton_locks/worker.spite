@@ -1,0 +1,27 @@
+generic $component_type
+
+var column = Column<$component_type>()
+var shared = Shared()
+var rounds = 0
+var calls_shared = false
+
+func Worker(new_rounds: Integer, new_calls_shared: Boolean) {
+    rounds = new_rounds
+    calls_shared = new_calls_shared
+}
+
+func run(): Long {
+    var index = 0
+    if calls_shared {
+        while index < rounds {
+            shared.note(index)
+            index = index + 1
+        }
+    } else {
+        while index < rounds {
+            column.add(index)
+            index = index + 1
+        }
+    }
+    return rounds
+}

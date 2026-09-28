@@ -1,0 +1,40 @@
+var console = Console()
+
+func WalkedClassFold() {
+    var targeting = Targeting()
+    targeting.target.id = 7
+    var translator = Translator<Targeting>()
+    translator.translate(targeting)
+    console.print(targeting.target.id, targeting.range, targeting.label, translator.plain_count)
+    var other = Targeting()
+    var same = same_kind(other, targeting)
+    var entity = Entity()
+    var different = same_kind(entity, targeting)
+    console.print(same, different)
+    var hero = Bundle.Hero()
+    var fallen = Bundle.Fallen(3)
+    var potion = Bundle.Potion()
+    describe(hero)
+    describe(fallen)
+    describe(potion)
+    describe(entity)
+    var mark = hero.alive.mark()
+    console.print(hero.health, mark, fallen.health, potion.owner.id)
+}
+
+func same_kind(given: Anything, known: Targeting): Boolean {
+    return given == known.class
+}
+
+func describe(given: Anything) {
+    var found = List<String>()
+    queue_bundles(given, found)
+    var joined = found.join(" ")
+    console.print("[{joined}]")
+}
+
+func queue_bundle(bundle: Symbol<Bundle>, given: Anything, found: List<String>) {
+    var by_class = given == bundle.class
+    var by_kind = BundleKind<bundle.class>().is_kind(given)
+    found.append("{bundle.name}:{by_class}:{by_kind}")
+}

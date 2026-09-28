@@ -1,0 +1,21 @@
+singleton
+
+generic $component_type
+
+var rows = List<Integer>()
+var values = Items<$component_type>()
+
+func insert(entity: Integer, value: $component_type) {
+    while rows.count() <= entity {
+        rows.append(0)
+    }
+    values.append(value)
+    rows[entity] = values.count()
+}
+
+func row_of(entity: Integer): Integer {
+    if entity >= rows.count() {
+        return -1
+    }
+    return rows[entity] - 1
+}

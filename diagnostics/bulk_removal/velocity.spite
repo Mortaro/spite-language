@@ -1,0 +1,6 @@
+var across = 0.0
+var stopped = false
+
+func Velocity(new_across: Float) {
+    across = new_across
+}

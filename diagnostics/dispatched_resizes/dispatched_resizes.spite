@@ -1,0 +1,19 @@
+var console = Console()
+var positions = Column<Position>()
+var shelf = Shelf()
+
+func DispatchedResizes() {
+    var first = Position()
+    positions.insert(1, first)
+    var lookup = Lookup<Position>()
+    var place = lookup.of(1)
+    crash place
+    var loud = Loud()
+    console.print("printing", loud)
+    console.print(place.left)
+    var kept = lookup.of(1)
+    crash kept
+    var added = Position()
+    shelf.stack(added)
+    console.print(kept.left)
+}

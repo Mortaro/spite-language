@@ -1,0 +1,145 @@
+var console = Console()
+var heap = Memory.Heap()
+var c_compiler = ""
+var compile_arguments = List<String>()
+var link_arguments = List<String>()
+var cache_folder = ""
+var running_limit = 4
+var compiled_units = 0
+var reused_units = 0
+
+func UnitBuild(compiler: String, folder: String) {
+    c_compiler = compiler
+    cache_folder = folder
+}
+
+func built(header_code: String, units: List<String>, output_path: String): Boolean {
+    var header_text = "{header_code}\n"
+    var header_name = "{hash_of(header_text)}.h"
+    write_once("{cache_folder}/{header_name}", header_text)
+    var settings = "{c_compiler} {compile_arguments.join(" ")}"
+    var objects = List<String>()
+    var missing = List<String>()
+    var index = 0
+    while index < units.count() {
+        var unit_source = "#include \"{header_name}\"\n{units[index]}\n"
+        var key = hash_of("{settings}\n{unit_source}")
+        var object_path = "{cache_folder}/{key}.o"
+        objects.append(object_path)
+        if not File(object_path).exists() and not missing.contains(key) {
+            write_once("{cache_folder}/{key}.c", unit_source)
+            missing.append(key)
+        }
+        index = index + 1
+    }
+    compiled_units = missing.count()
+    reused_units = objects.count() - compiled_units
+    if not compiled_all(missing) {
+        return false
+    }
+    return linked(objects, output_path)
+}
+
+func write_once(path: String, text: String) {
+    if not File(path).exists() {
+        File(path).write(text)
+    }
+}
+
+func compiled_all(keys: List<String>): Boolean {
+    var running = List<Process>()
+    var handles = List<Long>()
+    var next = 0
+    var failed = false
+    while next < keys.count() or not running.is_empty() {
+        if next < keys.count() and running.count() < running_limit and not failed {
+            var process = compile_process(keys[next])
+            var command_text = process.command_line()
+            var handle = process.open_process(command_text)
+            failed = handle == 0
+            if not failed {
+                running.append(process)
+                handles.append(handle)
+            }
+            next = next + 1
+        } else if running.is_empty() {
+            next = keys.count()
+        } else {
+            var oldest = running.remove_first()
+            var oldest_handle = handles.remove_first()
+            crash oldest
+            crash oldest_handle
+            if finished(oldest, oldest_handle) != 0 {
+                failed = true
+            }
+        }
+    }
+    return not failed
+}
+
+func compile_process(key: String): Process {
+    var arguments = compile_arguments.copy()
+    arguments.append("-c")
+    arguments.append("{cache_folder}/{key}.c")
+    arguments.append("-o")
+    arguments.append("{cache_folder}/{key}.o")
+    return Process(c_compiler, arguments)
+}
+
+func finished(process: Process, handle: Long): Integer {
+    var chunk = heap.allocate(4096)
+    var pieces = List<String>()
+    var got = process.read_into(chunk, 4096, handle)
+    while got > 0 {
+        var piece = chunk.text(got)
+        pieces.append(piece)
+        got = process.read_into(chunk, 4096, handle)
+    }
+    heap.free(chunk)
+    var output = pieces.join("")
+    if not output.is_empty() {
+        console.error(output)
+    }
+    return process.close_process(handle)
+}
+
+func linked(objects: List<String>, output_path: String): Boolean {
+    var quoted = List<String>()
+    var index = 0
+    while index < objects.count() {
+        quoted.append("\"{objects[index]}\"")
+        index = index + 1
+    }
+    var response = quoted.join("\n")
+    var response_path = "{cache_folder}/{hash_of(response)}.objects"
+    write_once(response_path, "{response}\n")
+    var arguments = List<String>()
+    arguments.append("@{response_path}")
+    arguments.append("-o")
+    arguments.append(output_path)
+    index = 0
+    while index < link_arguments.count() {
+        arguments.append(link_arguments[index])
+        index = index + 1
+    }
+    var process = Process(c_compiler, arguments)
+    if process.run() != 0 {
+        var output = process.output()
+        console.error(output)
+        return false
+    }
+    return true
+}
+
+func hash_of(text: String): String {
+    var hash: UnsignedLong = 1469598103934665603
+    var prime: UnsignedLong = 1099511628211
+    var index = 0
+    var text_length = text.length()
+    while index < text_length {
+        var code: UnsignedLong = text.code_at(index)
+        hash = hash.bits_exclusive_or(code) * prime
+        index = index + 1
+    }
+    return hash.to_string()
+}

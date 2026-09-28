@@ -32,16 +32,12 @@ func evaluate(expression: Expression): Float {
             if expression.right {
                 right_value = evaluate(expression.right)
             }
-            if expression.operator == 'plus' {
-                return left_value + right_value
+            switch expression.operator {
+                'plus': return left_value + right_value
+                'minus': return left_value - right_value
+                'star': return left_value * right_value
+                _: return left_value / right_value
             }
-            if expression.operator == 'minus' {
-                return left_value - right_value
-            }
-            if expression.operator == 'star' {
-                return left_value * right_value
-            }
-            return left_value / right_value
         }
     }
 }

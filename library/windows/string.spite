@@ -1,4 +1,4 @@
-func to_double(): Double {
+func decimal_value(): Double {
     var library = DynamicLibrary("ucrtbase.dll", 'identity', "")
     var own_length = length()
     var whole_text = slice(0, own_length)

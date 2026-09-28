@@ -1,0 +1,14 @@
+var console = Console()
+var gauges = Holder<Gauge>()
+var counts = Holder<Integer>()
+var words = Holder<List<String>>()
+
+func CodegenDefaults() {
+    var gauge = gauges.value()
+    var count = counts.value()
+    var listed = words.value()
+    listed.append("first")
+    var spare = gauges.has_spare()
+    var listed_count = listed.count()
+    console.print(gauge.level, count, listed_count, spare)
+}

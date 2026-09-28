@@ -1,0 +1,15 @@
+singleton
+
+var values = Vector<Layout>()
+
+func add(layout: Layout) {
+    values.append(layout)
+}
+
+func at_or_made(index: Integer): Layout {
+    if index < values.count() {
+        return values[index]
+    }
+    var made = Layout()
+    return made
+}

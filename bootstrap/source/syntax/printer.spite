@@ -115,8 +115,13 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Integer) {
             var index = 0
             while index < statement.cases.count() {
                 var switch_case = statement.cases[index]
-                assert switch_case.type_reference
-                print_line(depth + 1, "Case {inline_type(switch_case.type_reference)}")
+                if switch_case.value {
+                    print_line(depth + 1, "Case value")
+                    print_expression(switch_case.value, depth + 2)
+                }
+                if switch_case.type_reference {
+                    print_line(depth + 1, "Case {inline_type(switch_case.type_reference)}")
+                }
                 print_statement_list(switch_case.body, depth + 2)
                 index = index + 1
             }

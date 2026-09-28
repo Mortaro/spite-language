@@ -458,18 +458,143 @@ func record_many(): Integer {
 3000 recorded, 3000 counted
 ```
 
+A singleton that takes a lock holds it for the whole of each call, so one of its functions must not wait for a
+`Parallel` whose work calls back into the same singleton: the work would wait for the lock, and the function holding
+it would wait for the work, forever. When the compiler can see it -- the `Parallel` made and read (or dropped, which
+waits) inside the locked function, and its work calling a locked function of that singleton -- it is an error
+naming both functions:
+
+```gdscript title=locked_wait_doc/remover.spite
+var columns = Columns()
+var last = 0
+
+func Remover(new_last: Integer) {
+    last = new_last
+}
+
+func run(): Integer {
+    var entity = 0
+    while entity < last {
+        columns.remove_row(entity)
+        entity = entity + 1
+    }
+    return last
+}
+```
+```gdscript title=locked_wait_doc/columns.spite
+singleton
+
+var removed = List<Integer>()
+
+func despawn_all(last: Integer): Integer {
+    var remover = Remover(last)
+    var removing = Parallel(remover.run)
+    var done: Integer = removing
+    return done
+}
+
+func remove_row(entity: Integer) {
+    removed.append(entity)
+}
+```
+```gdscript title=locked_wait_doc/locked_wait_doc.spite entry error
+var console = Console()
+var columns = Columns()
+
+func LockedWaitDoc() {
+    var removed = columns.despawn_all(10)
+    console.print(removed)
+}
+```
+```diagnostic
+'Columns.despawn_all' waits for 'Parallel(remover.run)' while it holds Columns's lock
+```
+
+Start the `Parallel` and read it in the class that asks for the despawn, and let only the work call `Columns`.
+
+### What a singleton's lock costs
+
+The lock is a word of its own on a cache line of its own, taken with one compare-and-swap and let go with one
+store, re-entered for free by the thread that holds it. Taken by one thread only, it costs about 2 ns a call:
+800 000 calls to a locked function took 1.7 ms on one thread against 0.4 ms with the lock taken once for the
+whole loop (`benchmarks/singleton_locks`).
+Taken by several threads at once it costs far more, because each call hands the line from core to core and the
+threads waiting spin: eight workers making 100 000 calls each to one shared singleton took 51 ms, against 2 ms for
+the same calls on one thread. So:
+
+- **Give each worker its own singleton** where the state splits -- a generic singleton per column, `Column<T>`,
+  rather than one `Columns` every worker calls -- and the locks are never contended.
+- **Call it from a counted loop.** A `while index < count` loop whose calls are all to one singleton (and to lists
+  of plain values), with nothing else locked or waited on in it, takes the lock once around the whole loop and
+  calls the unlocked bodies inside it ([optimizations.md](optimizations.md#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once)):
+  the eight workers above then take 0.6 ms for the shared singleton and 0.35 ms for their own, as if unlocked.
+- **Keep its reads apart from its writes.** A function that only reads the singleton's state (`at(row)`, a lookup)
+  takes the readers' side of the lock: a count on its own thread's cache line, so readers on different threads
+  never slow each other down, and only a function that writes waits for them
+  ([optimizations.md](optimizations.md#a-singletons-reading-functions-do-not-exclude-each-other)). Eight systems
+  reading 15 000 rows each of one column through `at(row)` went from 202 ns to 6 ns a row
+  (`benchmarks/singleton_reads`). Anything a function calls or assigns beyond reading makes it a writing function,
+  so keep lookups small and separate from the functions that change the singleton.
+- **Nothing to do between stages.** While no task is on the thread pool, a locked function runs without its lock
+  (19 ns to 9 ns a call, `benchmarks/singleton_unshared`), so code that fills or flushes a singleton on the
+  program's own thread between `Parallel`s pays almost nothing for it.
+- **Or let it take no lock.** A singleton whose changing state is one counter or flag per function becomes atomics,
+  one that never changes takes nothing, and one no `Parallel` reaches takes nothing
+  ([the forms](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form)).
+
 A `ThreadLocal` keeps every thread's value until it is dropped itself, so a thread that ends does not take its
 value with it. `get()` takes no lock and costs the same with one thread or thirty; `set` takes the lock briefly.
 Both classes are the operating system's own (`TlsAlloc` and `SRWLOCK` on Windows, `pthread_key_t` and
 `pthread_mutex_t` elsewhere), reached through each system's folder, and a program that makes neither carries
 neither.
 
-A program that makes a `Parallel` (or a `Concurrent`, or is built with `--repl-port` or `--hot-reload`) counts
-references with atomic operations, because an object can now be shared between threads; every other program keeps
+### A number every thread shares: `Atomic<T>`
+
+A counter or a flag that several threads change without a lock is an `Atomic<T>`, for a whole number or a
+`Boolean` (the name and the members proposed by Claude, unconfirmed): `read()`, `write(value)`, `add(amount)`
+(answering the value after the add), `exchange(value)` (answering the one before) and
+`compare_and_swap(expected, desired)` (answering whether it held `expected` and now holds `desired`). Each is one
+atomic instruction, sequentially consistent, with no lock and no call, and a `Parallel` may reach one like a
+`Lock`:
+
+```gdscript title=atomic_counter/atomic_counter.spite entry
+var console = Console()
+var jobs_done = Atomic<Integer>(0)
+
+func AtomicCounter() {
+    var first = Parallel(finish_jobs)
+    var second = Parallel(finish_jobs)
+    var finished = first + second
+    var counted = jobs_done.read()
+    var claimed = jobs_done.compare_and_swap(200, 0)
+    var now_held = jobs_done.read()
+    console.print(finished, "finished,", counted, "counted, reset:", claimed, now_held)
+}
+
+func finish_jobs(): Integer {
+    var index = 0
+    while index < 100 {
+        jobs_done.add(1)
+        index = index + 1
+    }
+    return index
+}
+```
+```output
+200 finished, 200 counted, reset: true 0
+```
+
+`add` wraps like the operating system's own atomic add, in every build. An `Atomic` of anything else -- a
+`Float`, a `String`, an object -- and `add` on an `Atomic<Boolean>` are compile errors where the program calls them
+([failure.md](failure.md#crash)): share an object through a `Lock`, or give each thread its own.
+
+A program that makes a `Parallel` (or a `Concurrent`, or a `ForeignCallback` C may call from a thread of its own
+([foreign_libraries.md](foreign_libraries.md#calling-back-into-spite)), or is built with `--repl-port` or
+`--hot-reload`) counts references with atomic operations, because an object can now be shared between threads; every other program keeps
 the plain, cheaper counts. `Parallel(work)` is checked while compiling (D179; the reading proposed by Claude, unconfirmed): the function it
 runs, and every function of the same class that function calls by name, may read and write only the attributes of
 its own instance that hold values -- numbers, `Boolean`, enums, text -- its locals and parameters, singletons (which
-[D183](decisions.md) makes safe) and a `Lock` or `ThreadLocal`, which are made to be shared. An attribute holding a
+[D183](decisions.md) makes safe) and a `Lock`, `ThreadLocal` or `Atomic`, which are made to be shared. An attribute holding a
 list, a dictionary or another object is an error naming it, since another thread may hold the same object:
 `'Parallel(tally.count_up)' runs 'record' on another thread, so it may reach only the attributes of its own
 'Tally' that hold values, its locals and singletons (D179): 'marks' holds a List<Integer>, which another thread may
@@ -692,7 +817,7 @@ carries none of it ([D177](decisions.md)); the compiler's side of each is on
 |---|---|
 | uses none of it | nothing: no scheduler, no state machine, no helper thread, no pool, no lock, plain reference counts; every wait is the plain blocking call |
 | makes a `Concurrent`, or has two reads in a row | the `Scheduler` singleton and its event loop; a second, resumable copy of each function a `Concurrent` reaches that waits (the plain copy is dropped when nothing calls it); one heap frame per waiting call made inside a `Concurrent`; one short-lived operating-system thread per blocking call made while something else could run; atomic reference counts everywhere |
-| makes a `Parallel` or runs a `parallel_each_` pass | the `ThreadPool` singleton, whose workers start at the first `Parallel` and never again; about two dozen allocations per `Parallel` and one per pass; atomic reference counts everywhere; for each program singleton a `Parallel` can reach and that changes, atomics or an uncontended lock per call |
+| makes a `Parallel` or runs a `parallel_each_` pass | the `ThreadPool` singleton, whose workers start at the first `Parallel` and never again; about two dozen allocations per `Parallel` and one per pass; atomic reference counts everywhere; for each program singleton a `Parallel` can reach and that changes, atomics or a lock per call -- about 2 ns when one thread takes it, far more when several contend ([what it costs](#what-a-singletons-lock-costs)) -- or one per counted loop of calls |
 | calls `Scheduler().resume_only_when_asked()` or `run_ready()` | one `Boolean` the scheduler reads at each wait, and each function it calls; neither is there otherwise |
 | makes a `ThreadLocal` or a `Lock` | one system per-thread slot or lock each, freed with it |
 | is built with `--repl-port` or `--hot-reload` | the scheduler, and one check-point call at the end of every pass of every loop of its own code; nothing of either in any other build |
@@ -771,6 +896,13 @@ an engine system that only collects finished work is not taken for one that does
 followed by a read costs, and a program that never calls it carries none of it
 (`conformance/stage6/finished_values`).
 
+**A handle's debug text never waits** (fixes a compile error found building SlopEngine's network plugin; proposed
+by Claude, unconfirmed). `Concurrent` and `Parallel` have their own `to_debug()`: `running` while the work runs,
+otherwise the result's own debug text (through `finished_value()`), so `console.debug` of a class holding a
+`Parallel<Socket?>?`, and a crash report that shows one, neither join the work nor forward `to_debug` to a
+`Socket?` that may be null -- which is what the implicit join did, and why such a class did not compile
+(`library/spite/debug.spite:47: ... this value may be null (it is a Socket?)`; `conformance/stage6/debug_handles`).
+
 **A handle made at its defaults started nothing, so it is finished and joins nothing** (proposed by Claude,
 unconfirmed). Reflection makes one: describing a class whose function takes a `Concurrent<T>` or a `Parallel<T>`
 describes that handle's class too, from a stand-in at its defaults ([reflection.md](reflection.md)). Such a handle
@@ -836,6 +968,17 @@ classes, each system's folder supplying the calls, and each carried only by a pr
   array's address is read with one atomic load. `set` takes the `Lock`; a thread's first `set` may grow the array,
   copying it into one twice the size and publishing that with an atomic store, and the arrays it replaced are freed
   with the `ThreadLocal`, so a thread still reading one reads its own unchanged value there.
+
+- **`Atomic<T>`** (`library/atomic.spite`; decided by Claude under D205, the names provisional under D214): a whole
+  number or a `Boolean` that threads share, in an 8-byte cell of its own that the `Atomic` frees when it is dropped.
+  `read()`, `write(value)`, `add(amount)`, `exchange(value)` and `compare_and_swap(expected, desired)` are
+  the D178 primitives `read_long_atomically`, `write_long_atomically`, `add_long_atomically`, `exchange_long` and
+  `compare_and_swap_long` on that cell, each one sequentially consistent atomic instruction; a narrower `T` is
+  stored widened and read back cut to its width, so `add` wraps in `T` (`Atomic<Byte>(250).add(10)` is `4`), and
+  `compare_and_swap` compares the value as a `T`, retrying when another thread changed the cell's upper bits in
+  between. The constructor holds a `crash` on `$value_type` and `add` one on `Boolean`, which fold, so a wrong `T`
+  is a compile error where the program makes it (`diagnostics/atomic_misuse`). A `Parallel` may reach an `Atomic`
+  attribute, as it may a `Lock` (`conformance/stage6/atomic_values`). A program that makes none carries none of it.
 
 A value per pool worker (`worker_index()` into a list) needs no system call but covers only the pool's workers,
 not the program's thread or a `Concurrent`'s helpers. `conformance/stage6/thread_locals`,
@@ -936,8 +1079,8 @@ functions for a program that wants `Concurrent`s to resume only between its own 
   at `run_ready()`, never inside a stage. Without `resume_only_when_asked()` the same program's reader resumes
   inside a stage's sleep.
 
-**Soundness.** A program that starts a thread (a `Concurrent`'s helpers, a `Parallel`, or `--repl-port`) is compiled
-with `SPITE_THREADS`: every retain and release is an atomic operation, and the `--debug-memory` table takes a lock.
+**Soundness.** A program that starts a thread (a `Concurrent`'s helpers, a `Parallel`, or `--repl-port`), or hands C
+a `ForeignCallback` it may call from one, is compiled with `SPITE_THREADS`: every retain and release is an atomic operation, and the `--debug-memory` table takes a lock.
 Every other program keeps the plain counts. Spite code on the program's thread only ever changes hands at a wait,
 so state machines need nothing more. A singleton first used from two threads at once is made once: the fetch takes
 the singleton's own lock only while its slot is empty (`conformance/stage6/singleton_race`). D35's rule is checked
@@ -1007,7 +1150,81 @@ D205: the lock stays whole-call). A `while true` with no `return`, `assert` or `
 a singleton that takes the lock (the fourth form above), would hold the lock for good, so every other call on the
 singleton would wait forever: `'Window.run' holds Window's lock for the whole call, since a Parallel reaches Window,
 and this loop never ends, so every other call on Window would wait forever: move the loop into a class that is not a
-singleton, and call Window from it` (`diagnostics/endless_locked_loop`). **A `Weak` a `Parallel` reaches is a
+singleton, and call Window from it` (`diagnostics/endless_locked_loop`).
+
+**A locked singleton function that waits for work calling back into it is a compile error** (D264, decided by
+Claude under D205; the shapes covered and the wording proposed by Claude, unconfirmed). A function of a singleton
+that takes the lock (the fourth form above) holds it while it waits, and a `Parallel`'s work runs on a pool thread,
+so work that calls a locked function of the same singleton waits for the lock while the function waits for the
+work: SlopEngine hung this way, silently, with no diagnostic. The compiler refuses it where it can prove it:
+
+- **The wait.** The locked function makes the `Parallel` in a `var` of its own (`var removing =
+  Parallel(remover.run)`, at any depth of `if` and `while`) and the handle stays there -- it is never passed as an
+  argument, assigned to anything, returned, or put in a list literal -- so the function reads it (a join, whether
+  or not it polled `finished` or `finished_value()` first) or drops it at its end, which waits too.
+- **The call back.** What the work runs reaches a function of the same singleton that takes the lock, following
+  D169's call effects through every call whose class is known (`columns.remove_row(entity)` on an attribute bound
+  to `Columns()`, a constructor, a function of the work's own class), the work's function itself included when it
+  is one of the singleton's.
+- **The error** is at the `var` line and names both functions and both ways out: `'Columns.despawn_all' waits for
+  'Parallel(remover.run)' while it holds Columns's lock, since a Parallel reaches Columns, and what 'remover.run'
+  runs calls 'Columns.remove_row', which takes that lock: each would wait for the other forever. Wait for the
+  Parallel outside Columns's functions, or do not call Columns from its work` (`diagnostics/locked_wait`).
+
+What it does not see, and so still leaves to the program: a handle that escapes the function (stored in an
+attribute or a list, passed, returned) and is read by another locked function later; a call the call effects
+cannot place on a class (through a function value, a union, or a receiver whose class is not known); work that
+reaches the singleton only by reading or writing its attributes from outside (D211 takes the lock for those too);
+`parallel_each_` passes, whose members are found by name on every class; and generic singletons (`Column<T>`),
+whose call effects do not tell one instance's lock from another's. A `Concurrent` cannot hang this way: it runs on
+the thread that waits for it, and the lock is re-entered by the thread that owns it.
+
+**A counted loop of calls to one locked singleton takes the lock once** (D265, decided by Claude under D205 and
+D214; the conditions proposed by Claude, unconfirmed). The per-call lock is two atomic operations uncontended
+(about 2 ns) and a cache line handed between cores contended; SlopEngine measured 44 ms on eight `Parallel`s against
+25.5 ms on one thread for 800 000 such calls. A `while` outside the singleton that is counted (`index < bound`,
+stepped only by its last line), calls only that singleton's functions through the attribute binding it and a
+list of plain values, computes only plain values, cannot return, and reaches no wait nor any other lock through the
+singleton's functions it calls, is compiled between `spite_coarse_<n>_enter()` and `spite_coarse_<n>_leave()` --
+the singleton's lock -- and calls the unlocked bodies. It cannot deadlock: it ends on its own, takes no other lock
+while holding this one (the singleton's own functions already take theirs under it), and holds it across no wait,
+which is also what D264 checks from the other side. The full conditions and measurements are in
+[optimizations.md](optimizations.md#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once)
+(`conformance/stage6/coarse_locks`, `benchmarks/singleton_locks`). **Not built:** taking no lock at all where one
+`Parallel`'s work is provably the only thread touching a singleton while it runs (D207's handover extended to
+singletons): which other threads run at the same time is not known while compiling, since any function a `Parallel`
+reaches may be running on another worker.
+
+**Reading functions share the lock** (D266, decided by Claude under D205 and D214; what counts as reading proposed
+by Claude, unconfirmed). A function the lock would wrap that provably changes nothing -- its own locals only, calls
+only to reading functions of its class, to the reading members of lists, dictionaries, text and numbers, to
+`TypedMemory`/`InlineMemory` reads and to reading functions of a singleton that holds no state, attributes read
+without a getter, no text holes, operators only on numbers unless the program declares none -- takes the readers'
+side, when no writing function of the singleton (and no write to its attributes from another class) is reachable
+from what a `Parallel` or `parallel_each_` pass runs -- the shape of a column written between stages and read by
+the systems of a stage; one also written from the pool keeps the plain lock, since each write would scan the
+counts. `spite_read_enter` adds one to its thread's count (one of 32, each on a cache line of its own) and waits only
+while a writing function holds the lock; a writing function takes the lock and then waits for every count to be
+zero (`spite_guard_enter_writing`). Reads and writes of its attributes from other classes (D211) and counted loops
+(D265, the readers' side when every call in the loop reads) take the matching side. It is as safe as the lock: a
+writing function still runs alone, and a reading one never beside it. SlopEngine asked instead for no lock at all
+while every `Parallel` reaching a singleton only reads it, with writes only between stages; the compiler cannot
+prove that at compile time -- a handle kept in an attribute or a list may still be running when the program writes
+-- so the readers' side is what is built, measured on SlopEngine's shape (`benchmarks/singleton_reads`: eight
+systems reading one column per row, 202 ns to 6 ns a row). `conformance/stage6/singleton_reads` reads while the
+main thread writes, and `check.sh` holds its C.
+
+**While no task is in flight, the lock is skipped** (D267, decided by Claude under D205 and D214; the mechanism
+proposed by Claude, unconfirmed). The pool counts each task from `submit` until its work has returned
+(`ThreadPool._task_begun`/`_task_ended`, one atomic addition each). A wrapper that finds the count zero runs the
+function unlocked, since only the program's own thread runs the program then, and pushes the lock it skipped on a
+stack of its thread's (sixteen deep; deeper, it locks as before). A task started while such a call is running --
+by the function itself, or anything it calls -- first takes every lock on that stack for the thread, before it is
+counted; the wrapper lets each go as its call returns. So a task never sees a singleton's function half-way through
+unlocked. This is sound without any analysis of where tasks start, which the call effects cannot always see (a
+function value passed to a list's `each`); SlopEngine suggested proving "no `Parallel` live" per call site, which
+handles kept in attributes and lists make unprovable at compile time. `conformance/stage6/unshared_locks` starts
+work inside a skipped call that writes the same singleton, and `check.sh` holds its C. **A `Weak` a `Parallel` reaches is a
 compile error** too ([memory.md](memory.md#rules-in-full), `diagnostics/weak_across_threads`).
 
 A program without `Parallel` gets none of it: an atomic singleton compiles to plain reads and writes, and no

@@ -39,7 +39,9 @@ these five are what is left, with where each stands today.
 
 ## Open questions
 
-1. `var damage: $damage_type = null`: `null` otherwise only exists for `T?`. PROVISIONAL: the compiler treats
+1. **(Answered by D236: `var x: T = null` on a non-nullable `T` is a compile error naming `T?` and `T()`, and a
+   generic class writes `$name()` for its default; [values_and_types.md](values_and_types.md#variables-and-values--implemented).
+   The history below is kept.)** `var damage: $damage_type = null`: `null` otherwise only exists for `T?`. PROVISIONAL: the compiler treats
    `= null` on a `$generic`-typed variable/field as "the default value of whatever type the generic is bound to" (not
    `T?`). This is implemented but still provisional -- revisit if it reads confusingly once more code exists.
    When the bound type is a `type` whose members are all attributes, its default is a real object -- the object
@@ -47,7 +49,7 @@ these five are what is left, with where each stands today.
    (proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/shape_defaults`). A `type` that requires a
    function has no default object, since no literal can supply the function, so that case is a compile error
    naming the attribute (D211, [metaprogramming.md](metaprogramming.md#codegen-values---implemented)).
-3. Right-to-left casting makes `age > 0.5` with an Integer `age` mean `age > 0`. Accept, or make comparisons cast toward the wider type. D162 settled arithmetic (a wider right operand is an error); comparisons still cast right to left and are not checked (proposed by Claude, unconfirmed), so this stays open for them.
+3. **(Answered: a comparison whose right side is wider than its left is a compile error naming the comparison turned around, as D162 made it for arithmetic; decided by Claude under D205, [values_and_types.md](values_and_types.md#casting).)** Right-to-left casting made `age > 0.5` with an Integer `age` mean `age > 0`.
    - The abbreviation lint has no escape hatch for names that must mirror an external spelling (`keyword_var`). Keep it absolute, or allow a per line `# spelled: keyword_var` style exemption.
 6. **(Answered by D136 and D137: `_` means unused on purpose only on a parameter and private everywhere else, and
    an unread local, parameter or attribute is always an error, [Unused is an error](style.md#unused-is-an-error--implemented).)**

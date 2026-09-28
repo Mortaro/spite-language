@@ -31,7 +31,9 @@ func watch_file(path: String): Boolean {
 
 func add_folder(path: String, report_files: Boolean): Boolean {
     var added = add_watch(path, "")
-    assert added
+    if not added {
+        return false
+    }
     var directory = Directory(path)
     if report_files {
         var names = directory.files()
@@ -58,9 +60,13 @@ func add_watch(folder: String, file_name: String): Boolean {
     if notifier == -1 {
         notifier = library.inotify_init1(526336)
     }
-    assert notifier != -1
+    if notifier == -1 {
+        return false
+    }
     var number = library.inotify_add_watch(notifier, folder, 4042)
-    assert number != -1
+    if number == -1 {
+        return false
+    }
     watch_numbers.append(number)
     folders.append(folder)
     file_names.append(file_name)

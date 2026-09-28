@@ -1,0 +1,5 @@
+var catalog = Catalog()
+
+func pages(): Integer {
+    return catalog.pages.count()
+}

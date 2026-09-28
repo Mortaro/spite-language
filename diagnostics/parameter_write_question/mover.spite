@@ -1,0 +1,5 @@
+var moved = 0
+
+func move(step: Integer, times: Integer) {
+    moved = moved + step * times
+}

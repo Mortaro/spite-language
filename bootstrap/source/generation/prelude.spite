@@ -5,6 +5,9 @@ func header(): String {
         "/* The floor: the only C the Spite compiler writes by hand. Everything above it"
         " * is Spite from library/, and the tree shaker drops what a program never calls. */"
         ""
+        "#if defined(__linux__) && !defined(_GNU_SOURCE)"
+        "#define _GNU_SOURCE"
+        "#endif"
         "#include <stdint.h>"
         "#include <stdbool.h>"
         "#include <stdio.h>"
@@ -27,6 +30,8 @@ func header(): String {
         "#include <time.h>"
         "#include <unistd.h>"
         "#include <dlfcn.h>"
+        "#include <signal.h>"
+        "#include <sys/ucontext.h>"
         "#endif"
         ""
         "/* A program that starts a thread (a Task, or a --repl-port build) counts references atomically, and the"
@@ -39,6 +44,11 @@ func header(): String {
         "#define SPITE_SINGLETON_PUBLISH(cache, made) __atomic_store_n(&(cache), (made), __ATOMIC_RELEASE)"
         "#define SPITE_LOCK(lock) while (__atomic_exchange_n(&(lock), 1, __ATOMIC_ACQUIRE) != 0) \{}"
         "#define SPITE_UNLOCK(lock) __atomic_store_n(&(lock), 0, __ATOMIC_RELEASE)"
+        "static int64_t spite_tasks_in_flight = 0;"
+        "static SPITE_THREAD_LOCAL void* spite_skipped[16];"
+        "static SPITE_THREAD_LOCAL int32_t spite_skipped_taken[16];"
+        "static SPITE_THREAD_LOCAL int32_t spite_skipped_depth = 0;"
+        "static void spite_enter_skipped(void* guard);"
         "#else"
         "#define SPITE_COUNT_UP(count) ((count) = (count) + 1)"
         "#define SPITE_COUNT_DOWN(count) ((count) = (count) - 1)"
@@ -48,6 +58,12 @@ func header(): String {
         "#define SPITE_LOCK(lock) (void)(lock)"
         "#define SPITE_UNLOCK(lock) (void)(lock)"
         "#endif"
+        ""
+        "/* A native fault is reported, never silent (D244, docs/failure.md): main installs the handler first, each thread"
+        " * the program starts gets room to report its own stack overflow, and each foreign call names itself here. */"
+        "static void spite_fault_install(void);"
+        "static void spite_fault_thread(void);"
+        "static SPITE_THREAD_LOCAL const char* spite_last_foreign_call = 0;"
         ""
         "/* ---- allocation ---- */"
         ""
@@ -360,53 +376,40 @@ func supplied_body(stem: String, name: String): String? {
 }
 
 func supplied_members(stem: String): List<String> {
-    if stem == "console" {
-        return console_members()
+    switch stem {
+        "console": return console_members()
+        "memory/heap": return heap_members()
+        "memory/address": return address_members()
+        "typed_memory": return typed_memory_members()
+        "weak": return weak_members()
+        "inline_memory": return inline_memory_members()
+        _: {
+            if stem == "binary_writer" or stem == "binary_reader" {
+                return [
+                    "func schema(): Long"
+                    "written per value type by the generator: a constant hash of the attribute walk"
+                ]
+            }
+            switch stem {
+                "concurrent": return concurrent_members()
+                "thread_pool": return task_members()
+                "scheduler": return scheduler_members()
+                _: {
+                    var numbers = number_classes()
+                    if numbers.contains(stem) {
+                        return number_members(stem)
+                    }
+                    switch stem {
+                        "dynamic_library": return dynamic_library_members()
+                        "hot_reload": return hot_reload_members()
+                        "spite/attribute": return attribute_members()
+                        "spite/function": return function_members()
+                        _: return List<String>()
+                    }
+                }
+            }
+        }
     }
-    if stem == "memory/heap" {
-        return heap_members()
-    }
-    if stem == "memory/address" {
-        return address_members()
-    }
-    if stem == "typed_memory" {
-        return typed_memory_members()
-    }
-    if stem == "weak" {
-        return weak_members()
-    }
-    if stem == "inline_memory" {
-        return inline_memory_members()
-    }
-    if stem == "binary_writer" or stem == "binary_reader" {
-        return ["func schema(): Long", "written per value type by the generator: a constant hash of the attribute walk"]
-    }
-    if stem == "concurrent" {
-        return concurrent_members()
-    }
-    if stem == "thread_pool" {
-        return task_members()
-    }
-    if stem == "scheduler" {
-        return scheduler_members()
-    }
-    var numbers = number_classes()
-    if numbers.contains(stem) {
-        return number_members(stem)
-    }
-    if stem == "dynamic_library" {
-        return dynamic_library_members()
-    }
-    if stem == "hot_reload" {
-        return hot_reload_members()
-    }
-    if stem == "spite/attribute" {
-        return attribute_members()
-    }
-    if stem == "spite/function" {
-        return function_members()
-    }
-    return List<String>()
 }
 
 func console_members(): List<String> {
@@ -447,6 +450,10 @@ func address_members(): List<String> {
         "written by the generator: one machine operation"
         "func write_long_atomically(offset: Long, value: Long)"
         "written by the generator: one machine operation"
+        "func add_long_atomically(offset: Long, value: Long): Long"
+        "written by the generator: one machine operation"
+        "func compare_and_swap_long(offset: Long, expected: Long, desired: Long): Boolean"
+        "written by the generator: one machine operation"
     ]
     var types = ["Byte", "Short", "UnsignedShort", "Integer", "UnsignedInteger", "Long", "Float", "Double"]
     var words = ["byte", "short", "unsigned_short", "integer", "unsigned_integer", "long", "float", "double"]
@@ -470,6 +477,10 @@ func task_members(): List<String> {
         "written by the generator: the address of the thread entry that runs this class"
         "func address(): Long"
         "written by the generator: the address of the object itself"
+        "func _task_begun()"
+        "written by the generator: takes the singleton locks this thread skipped while no task ran, and counts a task in flight"
+        "func _task_ended()"
+        "written by the generator: counts a task out of flight"
     ]
 }
 
@@ -516,6 +527,8 @@ func typed_memory_members(): List<String> {
         "written per value type by the generator"
         "func value_bytes(): Long"
         "written per value type by the generator"
+        "func swap_values(address: Memory.Address, first_index: Integer, second_index: Integer)"
+        "written per value type by the generator"
     ]
 }
 
@@ -534,6 +547,8 @@ func inline_memory_members(): List<String> {
         "func item_start(): Long"
         "written per value type by the generator"
         "func block_bytes(item_count: Integer): Long"
+        "written per value type by the generator"
+        "func swap_items(address: Memory.Address, first_index: Integer, second_index: Integer)"
         "written per value type by the generator"
     ]
 }

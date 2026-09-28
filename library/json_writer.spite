@@ -131,26 +131,22 @@ func quoted(text: String): String {
 }
 
 func escape_of(code: Integer): String {
-    if code == 34 {
-        return "\\\""
+    switch code {
+        34: return "\\\""
+        92: return "\\\\"
+        10: return "\\n"
+        13: return "\\r"
+        9: return "\\t"
+        _: {
+            if code >= 32 {
+                return ""
+            }
+            var digits = "0123456789abcdef"
+            var high = digits.character_at(code / 16)
+            var low = digits.character_at(code % 16)
+            return "\\u00{high}{low}"
+        }
     }
-    if code == 92 {
-        return "\\\\"
-    }
-    if code == 10 {
-        return "\\n"
-    }
-    if code == 13 {
-        return "\\r"
-    }
-    if code == 9 {
-        return "\\t"
-    }
-    assert code < 32
-    var digits = "0123456789abcdef"
-    var high = digits.character_at(code / 16)
-    var low = digits.character_at(code % 16)
-    return "\\u00{high}{low}"
 }
 
 func key_text(): String {

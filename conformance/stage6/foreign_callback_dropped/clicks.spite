@@ -1,0 +1,7 @@
+singleton
+
+var console = Console()
+
+func clicked(count: Integer) {
+    console.print("clicked", count)
+}

@@ -296,6 +296,8 @@ lenient about what it does not need:
 
 - **A key the class does not have is skipped**, whatever its value.
 - **An attribute the text does not mention keeps its default**, the value the class declares for it.
+- **A key in camelCase or PascalCase** (`buyPrice`, `BuyPrice`) reads into the attribute it spells, `buy_price`
+  ([below](#a-camelcase-or-pascalcase-key)).
 - **A value of the wrong kind makes the whole read `null`**: text where a number belongs, `null` for an
   attribute that is not a `T?`, an enum name the enum does not have.
 
@@ -333,6 +335,37 @@ func JsonInput() {
 probe 1 0
 level must be a number
 unclosed object
+```
+
+### A camelCase or PascalCase key
+
+Other systems write `buyPrice` or `BuyPrice`
+where Spite writes `buy_price`, so a key that names no attribute as written is matched against each attribute's
+name spelled in camelCase and in PascalCase. The spellings are constants the compiler writes, so snake_case input
+reads exactly as fast as before and a camelCase key costs only the second, shorter look; `JsonWriter` still writes
+`buy_price`:
+
+```gdscript title=json_camel_case/price.spite
+var name = ""
+var buy_price = 0
+var sell_price_each = 0.0
+```
+```gdscript title=json_camel_case/json_camel_case.spite entry
+var console = Console()
+
+func JsonCamelCase() {
+    var reader = JsonReader<Price>("\{\"name\": \"potion\", \"buyPrice\": 30, \"SellPriceEach\": 7.5}")
+    var price = reader.read()
+    crash price
+    console.print(price.name, price.buy_price, price.sell_price_each)
+    var writer = JsonWriter(price)
+    var text = writer.write()
+    console.print(text)
+}
+```
+```output
+potion 30 7.5
+{"name":"potion","buy_price":30,"sell_price_each":7.5}
 ```
 
 Bytes have no keys to skip, so `BinaryReader` is strict throughout: the bytes are exactly the class, or the read
@@ -541,6 +574,20 @@ What follows is Claude's reading where D22, D95 and D208 are not specific (propo
   (`{} x`) make `read` answer `null`: the object would be wrong, and a wrong object that looks right is the
   surprise D27 exists to prevent. `read_or_crash` crashes on the same inputs, and its crash line carries
   `failure=expected <what> at character <n>`.
+- **A key in camelCase or PascalCase reads into the snake_case attribute it spells** (D247, decided by Claude
+  under D205, from the Theseus data conversion; the member names provisional under D214). The exact name wins:
+  `JsonReader` first compares the key with every attribute's name, as it always did, and only a key that matched
+  none is compared with each attribute's name written in camelCase and in PascalCase -- the words after the
+  first, or every word, capitalised and the underscores dropped (`buy_price` is `buyPrice` and `BuyPrice`). A key
+  that matches neither is skipped as before. A snake_case key never matches a spelling (those have no
+  underscores), and only a snake_case name has one, so no key can match two attributes; when the text holds both
+  `buy_price` and `buyPrice`, the later one wins, as a repeated key does. `JsonWriter` writes the attribute's own
+  name. The spellings are compile-time constants a walked symbol answers, `attribute.camel_case_name` and
+  `attribute.pascal_case_name` (proposed by Claude, unconfirmed; [metaprogramming.md](metaprogramming.md#symbol-codegen--implemented)),
+  and `JsonReader` compares them in a second walk, `read_camel_attributes`, that runs only for a key the first
+  walk did not match: snake_case input runs the same comparisons it did before (`benchmarks/serialisation`, JSON
+  read, best of eight alternating runs on a loaded machine: 269 ms before, 267 ms after), and a program that reads
+  no JSON carries none of it (`conformance/stage6/json_camel_case`).
 - **A number reads into whatever number type the attribute has** through the ordinary text-to-number cast, so
   `3.7` read into an `Integer` is `3`; JSON has one number type and the class already says which one it wants.
 - **Infinity and not-a-number crash `JsonWriter`** (D198, decided by Mortaro; D208 keeps it JSON's alone): JSON

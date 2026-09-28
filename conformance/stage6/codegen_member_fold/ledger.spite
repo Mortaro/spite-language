@@ -1,0 +1,15 @@
+generic $map_type
+
+var entries = $map_type()
+
+func describe(): String {
+    if $map_type.key_type == String and $map_type.value_type == Integer {
+        var keys = entries.keys()
+        var joined = keys.join(",")
+        return "numbers under {joined}"
+    } else if $map_type.value_type == Item {
+        crash entries["first"]
+        return "an item named {entries["first"].name}"
+    }
+    return "other"
+}

@@ -1,0 +1,54 @@
+enum Light {
+    'red'
+    'amber'
+    'green'
+}
+
+var console = Console()
+
+func ValueSwitch() {
+    var wait = seconds_for('red')
+    var name = name_for('green')
+    var code = code_for(3)
+    var again = twice('amber')
+    var kind = light_kind('red')
+    console.print(wait, name, code, again, kind)
+}
+
+func seconds_for(light: Light): Integer {
+    switch light {
+        'red': return 30
+        'green': return 20
+    }
+}
+
+func name_for(light: Light): String {
+    switch light {
+        'red': return "stop"
+        'amber': return "wait"
+        'green': return "go"
+        _: return "?"
+    }
+}
+
+func code_for(number: Integer): String {
+    switch number {
+        1: return "one"
+        2: return "two"
+    }
+}
+
+func twice(light: Light): Integer {
+    switch light {
+        'red': return 1
+        'red': return 2
+        'blue': return 3
+        _: return 4
+    }
+}
+
+func light_kind(light: Light): String {
+    switch light {
+        Light: return "a light"
+    }
+}

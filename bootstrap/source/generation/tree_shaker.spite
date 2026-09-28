@@ -273,7 +273,9 @@ func piece_name(line: String): String {
     if trimmed.starts_with("struct ") and trimmed.ends_with("\{") {
         var words = trimmed.slice(7, trimmed_length - 1)
         var name = words.trim()
-        assert name.index_of(" ") < 0
+        if name.index_of(" ") >= 0 {
+            return ""
+        }
         return name
     }
     if trimmed.starts_with("static ") and (trimmed.ends_with(";") or trimmed.ends_with("\{")) {
@@ -293,9 +295,13 @@ func piece_name(line: String): String {
 
 func shaken_macro_name(trimmed: String): String {
     var open = trimmed.index_of("(")
-    assert open > 8
+    if open <= 8 {
+        return ""
+    }
     var name = trimmed.slice(8, open)
-    assert shaken_macros.has(name)
+    if not shaken_macros.has(name) {
+        return ""
+    }
     return name
 }
 
@@ -306,7 +312,9 @@ func static_variable_name(trimmed: String): String {
         end = equals
     }
     var head = trimmed.slice(0, end)
-    assert head.index_of("(") < 0
+    if head.index_of("(") >= 0 {
+        return ""
+    }
     var bracket = head.index_of("[")
     if bracket > 0 {
         head = head.slice(0, bracket)
@@ -317,33 +325,47 @@ func static_variable_name(trimmed: String): String {
 }
 
 func one_line_defined_name(trimmed: String): String {
-    assert not trimmed.starts_with("#") and not trimmed.starts_with("typedef") and not trimmed.starts_with("static")
+    if trimmed.starts_with("#") or trimmed.starts_with("typedef") or trimmed.starts_with("static") {
+        return ""
+    }
     var brace = trimmed.index_of("\{")
-    assert brace > 0
+    if brace <= 0 {
+        return ""
+    }
     var signature = trimmed.slice(0, brace)
     var head = signature.trim()
-    assert head.ends_with(")")
+    if not head.ends_with(")") {
+        return ""
+    }
     return name_of_signature(head)
 }
 
 func defined_name(line: String): String {
     var trimmed = line.trim()
-    assert trimmed.ends_with("\{") and not trimmed.starts_with("#") and not trimmed.starts_with("typedef")
+    if not trimmed.ends_with("\{") or trimmed.starts_with("#") or trimmed.starts_with("typedef") {
+        return ""
+    }
     return name_of_signature(trimmed)
 }
 
 func name_of_signature(trimmed: String): String {
     var open = trimmed.index_of("(")
     var equals = trimmed.index_of("=")
-    assert open > 0 and (equals < 0 or equals >= open)
+    if open <= 0 or equals >= 0 and equals < open {
+        return ""
+    }
     return name_before(trimmed, open)
 }
 
 func declared_name(line: String): String {
     var trimmed = line.trim()
-    assert trimmed.ends_with(");") and not trimmed.starts_with("#") and not trimmed.starts_with("typedef")
+    if not trimmed.ends_with(");") or trimmed.starts_with("#") or trimmed.starts_with("typedef") {
+        return ""
+    }
     var open = trimmed.index_of("(")
-    assert open > 0
+    if open <= 0 {
+        return ""
+    }
     return name_before(trimmed, open)
 }
 
@@ -496,10 +518,14 @@ func find_function(text: String, start: Integer, end: Integer): Integer {
 
 func same_name(name: String?, text: String, start: Integer, end: Integer): Boolean {
     crash name
-    assert name.length() == end - start
+    if name.length() != end - start {
+        return false
+    }
     var index = 0
     while index < name.length() {
-        assert name.code_at(index) == text.code_at(start + index)
+        if name.code_at(index) != text.code_at(start + index) {
+            return false
+        }
         index = index + 1
     }
     return true

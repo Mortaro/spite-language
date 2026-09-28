@@ -1,0 +1,35 @@
+var console = Console()
+var hits = Atomic<Integer>(0)
+
+func AtomicValues() {
+    var first = Parallel(record_many)
+    var second = Parallel(record_many)
+    var own = record_many()
+    var recorded = first + second + own
+    var total = hits.read()
+    console.print(recorded, "recorded,", total, "counted")
+    var swapped = hits.compare_and_swap(3000, 10)
+    var missed = hits.compare_and_swap(3000, 20)
+    var previous = hits.exchange(7)
+    var now_held = hits.read()
+    console.print(swapped, missed, previous, now_held)
+    var ready = Atomic<Boolean>(false)
+    ready.write(true)
+    var was_ready = ready.exchange(false)
+    var still_ready = ready.read()
+    console.print(was_ready, still_ready)
+    var small = Atomic<Byte>(250)
+    var wrapped = small.add(10)
+    var matched = small.compare_and_swap(4, 9)
+    var small_now = small.read()
+    console.print(wrapped, matched, small_now)
+}
+
+func record_many(): Integer {
+    var index = 0
+    while index < 1000 {
+        hits.add(1)
+        index = index + 1
+    }
+    return index
+}

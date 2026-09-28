@@ -25,7 +25,9 @@ func resume_only_when_asked() {
 }
 
 func waits_here(): Boolean {
-    assert started and not paused and (not tasks.is_empty() and not resumes_when_asked or serving)
+    if not started or paused or (tasks.is_empty() or resumes_when_asked) and not serving {
+        return false
+    }
     return current_thread() == scheduler_thread
 }
 
@@ -53,7 +55,9 @@ func frame_done(frame: Memory.Address): Boolean {
 }
 
 func run_ready(): Integer {
-    assert started and current_thread() == scheduler_thread
+    if not started or current_thread() != scheduler_thread {
+        return 0
+    }
     return step_ready()
 }
 
@@ -85,7 +89,9 @@ func timer_start(milliseconds: Integer): Long {
 }
 
 func timer_over(deadline: Long): Boolean {
-    assert clock() >= deadline
+    if clock() < deadline {
+        return false
+    }
     remove_one(deadlines, deadline)
     return true
 }
@@ -148,7 +154,9 @@ func offload_start(call: Memory.Address, entry: Long): Long {
 }
 
 func offload_over(call: Memory.Address, thread: Long): Boolean {
-    assert call.read_long_atomically(0) == 1
+    if call.read_long_atomically(0) != 1 {
+        return false
+    }
     end_thread(thread)
     offloads_running = offloads_running - 1
     return true
@@ -201,6 +209,8 @@ func timeout(): Integer {
         }
         index = index + 1
     }
-    assert earliest > now
+    if earliest <= now {
+        return 0
+    }
     return earliest - now
 }

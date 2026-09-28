@@ -1,0 +1,80 @@
+enum Weekday {
+    'monday'
+    'tuesday'
+}
+
+var console = Console()
+var rows = [10, 20, 30]
+var handle = -1
+
+func DefaultAnswer() {
+    var row = row_of(1)
+    var open = is_open()
+    var name = name_of(2)
+    var ratio = ratio_of(2.0)
+    var day = day_of(1)
+    var mark = mark_of(true)
+    var found = found_row(0)
+    var short = short_rows(3)
+    var short_count = short.count()
+    var badge = badge_of(true)
+    console.print(row, open, name, ratio, day, mark.label, short_count, badge.name)
+    announce(found)
+}
+
+func row_of(entity: Integer): Integer {
+    assert entity < rows.count()
+    return rows[entity]
+}
+
+func is_open(): Boolean {
+    assert handle != -1
+    return true
+}
+
+func name_of(index: Integer): String {
+    var names = ["ada", "bo"]
+    assert index < names.count()
+    return names[index]
+}
+
+func ratio_of(divisor: Float): Float {
+    assert divisor > 0.0
+    return 1.0 / divisor
+}
+
+func day_of(index: Integer): Weekday {
+    assert index == 1
+    return 'tuesday'
+}
+
+func mark_of(ready: Boolean): Mark {
+    var mark = Mark()
+    assert ready
+    mark.label = "ready"
+    return mark
+}
+
+func found_row(entity: Integer): Integer? {
+    assert entity < rows.count()
+    return rows[entity]
+}
+
+func short_rows(longest: Integer): List<Integer> {
+    assert longest > 0
+    return rows.filter(is_short)
+}
+
+func is_short(row: Integer): Boolean {
+    return row < 25
+}
+
+func announce(row: Integer?) {
+    assert row
+    console.print(row)
+}
+
+func badge_of(ready: Boolean): Badge {
+    assert ready
+    return Badge("ready")
+}

@@ -1,0 +1,11 @@
+var name = ""
+var health = 0
+
+func Creature(new_name: String, new_health: Integer) {
+    name = new_name
+    health = new_health
+}
+
+func dead(): Boolean {
+    return health <= 0
+}

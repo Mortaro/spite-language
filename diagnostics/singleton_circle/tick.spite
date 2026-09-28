@@ -1,0 +1,5 @@
+var metronome = Metronome()
+
+func count(): Integer {
+    return metronome.first_beat()
+}

@@ -3,6 +3,34 @@
 Spite has no exceptions, no error values and no `Result` types. Something that may not be there is a `T?`, and
 something that went wrong has exactly three outcomes: a compile error, an `assert`, or a `crash`.
 
+## Nothing fails silently
+
+**Anything that can go wrong silently is a bug** ([D244](decisions.md)). Every failure is loud: a compile error,
+or a crash that names its cause. It is never a wrong value that looks like a right one, a write that is lost, a
+step that is skipped, memory that leaks or a program that hangs. When the compiler can know about a mistake it
+refuses the program; when only the run can find it, the run stops and says where. Every rule on this page, and
+every open question about the language, is judged against this one.
+
+What that already means in practice:
+
+- A value that may be missing is a `T?`, and nothing reads it until it is [narrowed](#narrowing); a `[]` read
+  and `first()` answer a `T?` instead of a made-up element ([below](#reading-with--answers-t)).
+- A check that stops proving something -- after an assignment, or a call that may change what it read -- has to
+  be made again ([a call may undo a proof](#a-call-may-undo-a-proof)).
+- A guard `assert` stops a function only where its result can say "nothing"; a function answering a number, a
+  `Boolean`, a text or an object writes its answer down ([below](#a-default-that-looks-like-an-answer-is-an-error)).
+- A developer's mistake halts naming the line: a whole number divided by zero, signed arithmetic that does not
+  fit while you develop ([values_and_types.md](values_and_types.md#signed-arithmetic-that-does-not-fit-halts-while-you-develop)),
+  a `crash` that fails, a native fault ([below](#what-a-native-fault-reports)).
+- A failed `crash` names what is missing instead of printing a default that reads like a real zero
+  ([what a crash reports](#what-a-crash-reports)).
+- Text that is not a number reads as `null`, never as a `0`: `"forty two".to_integer()` is an `Integer?`
+  ([standard_library.md](standard_library.md#string)).
+- An operand that would be cut to fit is a compile error, in arithmetic and in comparisons
+  ([values_and_types.md](values_and_types.md#wider-arithmetic-goes-wider-operand-first)).
+
+The whole list, with what is still open, is in [the rules](#nothing-fails-silently--the-rule).
+
 ## `T?`: a value that may be null
 
 `Monster?` is a `Monster` or `null`. It is not a special wrapper: it is the union of `Monster` and `Null`, a class
@@ -46,10 +74,16 @@ There is one rule, and every form below follows it.
 | Written | When it is null |
 |---|---|
 | `if value { } else { }` | runs the `else`; inside the `{ }`, `value` is a `T` |
-| `assert value` | the function returns its default; after it, `value` is a `T` for the rest of the block |
+| `assert value` | the function answers "nothing" (below); after it, `value` is a `T` for the rest of the block |
+| `if not value { return ... }` | the block runs and leaves; after it, `value` is a `T` for the rest of the block |
 | `crash value` | the program halts; after it, `value` is a `T` |
 | `while value { }` | the loop ends; inside the body, `value` is a `T` |
 | `switch value { Monster: ... Null: ... }` | runs the `Null` case |
+
+**Narrowing tests presence, never the value.** A `0`, a `0.0`, a `false` or a `""` that is there is present:
+`crash keys[index]` passes on an element holding `0.0`, and `if count` on an `Integer?` holding `0` runs its
+block. A plain `Boolean` condition is the only test of a value, which is why a `Boolean?` cannot be one
+([below](#reading-with--answers-t)).
 
 `assert value and other_condition` narrows too, and `other_condition` already sees the narrowed type. Each side of
 an `and` narrows on its own, for `assert`, `crash` and `if` alike, since each is known true when the whole is:
@@ -265,16 +299,15 @@ var console = Console()
 
 func ShadowingDoc() {
     var first_line = read_first_line("  spite\nsecond  ")
+    crash first_line
     console.print("[{first_line}]")
 }
 
-func read_first_line(text: String?): String {
+func read_first_line(text: String?): String? {
     assert text
     var text = text.trim()
     var lines = text.lines()
-    var first = lines.first()
-    crash first
-    return first
+    return lines.first()
 }
 ```
 ```output
@@ -293,9 +326,10 @@ class of your own, since `a[x]` is only a shortcut for `a.get_at(x)` and every `
 ([D226](decisions.md), [functions_and_operators.md](functions_and_operators.md#operators--implemented)). The
 compiler also understands the usual proofs for the library's collections, so most reads need nothing extra:
 
-- **A proven count proves the indices below it**: after `crash names.count() == 3`, `names[0]` to `names[2]`
-  are plain values, and so are `sizes[0]` to `sizes[2]` after `var sizes = [3, 5, 8]`: a list literal proves the
-  indices of its items until the list or its name changes.
+- **A proven count proves the indices below it**: after `crash names.count() == 3`, or `>= 3`, or `> 2`,
+  `names[0]` to `names[2]` are plain values, and `crash not names.is_empty()` proves `names[0]`. So are
+  `sizes[0]` to `sizes[2]` after `var sizes = [3, 5, 8]`: a list literal proves the indices of its items until
+  the list or its name changes. A `Dictionary`'s count proves no key, since its keys need not be `0`, `1`, `2`.
 - **A bound proves its index**: `while index < names.count()` proves `names[index]` in the loop body, and
   `while index < lines.count() and lines[index] != "end"` needs nothing more.
 - **The index may be any expression without a call**: `crash glyphs[code - 32]` proves `glyphs[code - 32]`
@@ -376,84 +410,259 @@ Absence is fine: `assert`. Absence is a bug: `crash`. Absence is a case: `if val
 
 ## `assert` is a guard
 
-`assert condition` is a production feature, not a debug one: when the condition is false, the function returns
-its return type's default immediately -- `false`, `0`, `""`, `null`, an empty value, or nothing -- and no code
-after it runs. It works in a function returning any type, and a failed one is remembered for the crash report
-([below](#what-a-crash-reports)).
+`assert condition` is a production feature, not a debug one: when the condition is false, the function stops
+there and answers "nothing", and no code after it runs. A failed one is remembered for the crash report
+([below](#what-a-crash-reports)). "Nothing" has to be something the caller can see, so a guard `assert` is
+allowed only where the function's result can say it ([D244](decisions.md), [D245](decisions.md)):
+
+- a function that returns nothing just returns;
+- a function returning a `T?` answers `null`;
+- a function returning a `List`, `Dictionary`, `Vector` or `Items` answers an empty one.
 
 ```gdscript title=assert_guard/assert_guard.spite entry
 var console = Console()
-var handle = -1
+var names = ["ada", "bo"]
 
 func AssertGuard() {
-    var closed = is_open()
-    handle = 3
-    var opened = is_open()
-    console.print(closed, opened)
-    var total = sum_positives(2.5, 1.5)
-    var refused = sum_positives(-1.0, 4.0)
-    console.print(total, refused)
+    report(1)
+    report(7)
+    var short = short_names(3)
+    var nothing_short = short_names(0)
+    var short_count = short.count()
+    var nothing_count = nothing_short.count()
+    console.print(short_count, nothing_count)
 }
 
-func is_open(): Boolean {
-    assert handle != -1
-    return true
+func report(index: Integer) {
+    var name = name_at(index)
+    assert name
+    console.print(index, name)
 }
 
-func sum_positives(first: Float, second: Float): Float {
-    assert first > 0 and second > 0
-    return first + second
+func name_at(index: Integer): String? {
+    assert index >= 0 and index < names.count()
+    return names[index]
+}
+
+func short_names(longest: Integer): List<String> {
+    assert longest > 0
+    return names.filter(is_short)
+}
+
+func is_short(name: String): Boolean {
+    return name.length() < 3
 }
 ```
 ```output
-false true
-4 0
+1 bo
+1 0
 ```
 
-When a caller must tell absence from a real `0` or `false`, return a `T?` instead -- or, if absence is a bug,
-`crash`.
+### A default that looks like an answer is an error
 
-### An `if` that only returns the default is an `assert`
+A number, a `Boolean`, a `String`, an enum value or an object cannot say "nothing": its default -- `0`, `false`,
+`""`, the first value, an object with every attribute at its default -- looks exactly like a real answer. A guard
+`assert` in a function returning one is a compile error, since the caller would carry on with a value nobody
+meant (SlopEngine's `row_of(entity)` answered row 0, a real row, and removed the wrong one):
 
-An `if` with no `else` whose whole body returns the function's default -- `false`, `0`, `0.0`, `""`, `null`, or a
-bare `return` in a function returning nothing -- is a guard spelled the long way. It is a compile error wherever
-it stands, inside a loop or a nested `if` included, and the message names the `assert` of the opposite
-condition. Returning anything else (`return -1`, `return true`) is a real answer and is left alone:
-
-```gdscript title=default_guard_error/default_guard_error.spite entry error
+```gdscript title=default_answer_error/default_answer_error.spite entry error
 var console = Console()
-var handle = -1
+var rows = [10, 20, 30]
 
-func DefaultGuardError() {
-    var open = is_open()
-    console.print(open)
+func DefaultAnswerError() {
+    var row = row_of(7)
+    console.print(row)
 }
 
-func is_open(): Boolean {
-    if handle == -1 {
-        return false
-    }
-    return true
+func row_of(entity: Integer): Integer {
+    assert entity < rows.count()
+    return rows[entity]
 }
 ```
 ```diagnostic
-this 'if' only returns the default 'false', which is how a guard is written: write 'assert handle != -1' and let the rest run unindented
+this 'assert' would answer a default Integer (0) that a caller cannot tell from a real one: return a value ('if entity >= rows.count() { return -1 }'), make the result 'Integer?', or 'crash entity < rows.count()' if this is a developer mistake
+```
+
+The message names the three ways out, and which one is right is a decision about the caller:
+
+- **the result says "nothing"**: `Integer?`, and every caller narrows it -- when a missing row is a case the
+  program meets in normal use;
+- **an answer you chose**: an `if` that returns it -- when a value outside the real ones already means "none",
+  as `-1` does for an index;
+- **`crash`**: when asking for a row that is not there is the caller's bug ([D199](decisions.md)).
+
+```gdscript title=default_answer_fixed/default_answer_fixed.spite entry
+var console = Console()
+var rows = [10, 20, 30]
+
+func DefaultAnswerFixed() {
+    var found = row_of(2)
+    crash found
+    var missing = row_or_minus_one(7)
+    var second = row_or_halt(1)
+    console.print(found, missing, second)
+}
+
+func row_of(entity: Integer): Integer? {
+    assert entity < rows.count()
+    return rows[entity]
+}
+
+func row_or_minus_one(entity: Integer): Integer {
+    if entity >= rows.count() {
+        return -1
+    }
+    return rows[entity]
+}
+
+func row_or_halt(entity: Integer): Integer {
+    crash entity < rows.count()
+    return rows[entity]
+}
+```
+```output
+30 -1 20
+```
+
+An `if` that returns a value in such a function is an answer written down, whatever the value, so
+`if text.is_empty() { return 0 }` is how an empty text is zero bytes long, and `if handle == -1 { return false }`
+is how a closed file says it is not open.
+
+### An `if` that leaves proves the rest
+
+An `if` with no `else` whose block ends by leaving the function -- a `return` or a bare `crash` -- proves the
+opposite of its condition for the rest of the block, the way an `assert` does. So `if not found { return -1 }`
+narrows `found`, `if not left or not right { return 0 }` narrows both, and `if index >= names.count() { return
+"" }` proves `names[index]`:
+
+```gdscript title=leaving_if/leaving_if.spite entry
+var console = Console()
+var prices = Dictionary<Integer>()
+
+func LeavingIf() {
+    prices.set("apple", 3)
+    var apple = price_or_zero("apple")
+    var pear = price_or_zero("pear")
+    console.print(apple, pear)
+}
+
+func price_or_zero(name: String): Integer {
+    if not prices[name] {
+        return 0
+    }
+    return prices[name] * 100
+}
+```
+```output
+300 0
+```
+
+### Every path ends in a `return`
+
+A function that declares a result answers it on every path. A path that reaches the end of the function without
+a `return` is a compile error at the function's last line, naming the path, since the caller would otherwise get
+a `0` or a `""` that nobody wrote ([D244](decisions.md)). A bare `crash` ends a path as a `return` does, and so
+does a `while true`, which Spite leaves only by returning:
+
+```gdscript title=falling_end_error/falling_end_error.spite entry error
+var console = Console()
+
+func FallingEndError() {
+    var sign = sign_of(3)
+    console.print(sign)
+}
+
+func sign_of(value: Integer): String {
+    if value > 0 {
+        return "positive"
+    }
+    if value < 0 {
+        return "negative"
+    }
+}
+```
+```diagnostic
+'sign_of' answers a String, but when 'value < 0' is false (line 12, an 'if' with no 'else') it reaches its end without a 'return', so a caller would get a String nobody wrote: end that path with 'return <value>', or with 'crash' if it cannot happen
+```
+
+A `switch` covers every case, so one whose cases all return needs nothing after it:
+
+```gdscript title=falling_end_fixed/falling_end_fixed.spite entry
+enum Light {
+    'red'
+    'green'
+}
+
+var console = Console()
+
+func FallingEndFixed() {
+    var sign = sign_of(0)
+    var wait = wait_for('green')
+    console.print(sign, wait)
+}
+
+func sign_of(value: Integer): String {
+    if value > 0 {
+        return "positive"
+    }
+    if value < 0 {
+        return "negative"
+    }
+    return "zero"
+}
+
+func wait_for(light: Light): Integer {
+    switch light {
+        'red': return 30
+        'green': return 20
+    }
+}
+```
+```output
+zero 20
+```
+
+### An `if` that only returns the default is an `assert`
+
+Where a guard `assert` is allowed, it is the only way to write a guard. An `if` with no `else` whose whole body
+returns the function's default -- `null` from a function returning a `T?`, or a bare `return` from one returning
+nothing -- is a guard spelled the long way. It is a compile error wherever it stands, inside a loop or a nested
+`if` included, and the message names the `assert` of the opposite condition:
+
+```gdscript title=default_guard_error/default_guard_error.spite entry error
+var console = Console()
+var names = List<String>()
+
+func DefaultGuardError() {
+    var first = first_name()
+    console.print(first == "ada")
+}
+
+func first_name(): String? {
+    if names.is_empty() {
+        return null
+    }
+    return names.first()
+}
+```
+```diagnostic
+this 'if' only returns the default 'null', which is how a guard is written: write 'assert not names.is_empty()' and let the rest run unindented
 ```
 
 The fix reads top to bottom:
 
 ```gdscript title=default_guard_fixed/default_guard_fixed.spite entry
 var console = Console()
-var handle = -1
+var names = List<String>()
 
 func DefaultGuardFixed() {
-    var open = is_open()
-    console.print(open)
+    var first = first_name()
+    console.print(first == "ada")
 }
 
-func is_open(): Boolean {
-    assert handle != -1
-    return true
+func first_name(): String? {
+    assert not names.is_empty()
+    return names.first()
 }
 ```
 ```output
@@ -463,8 +672,9 @@ false
 The message turns the condition around for you -- `if count < 0 or count > limit` becomes
 `assert count >= 0 and count <= limit` ([how](#null-safety-and-assert-narrowing--implemented)).
 
-Sometimes the default is the real answer and not a guard: an empty text is zero bytes long. The rule still holds,
-so give that answer through a local set in an `if`/`else` and return it once:
+In a function returning a number, a `Boolean`, a `String`, an enum or an object, nothing of this applies: `assert`
+is not allowed there ([above](#a-default-that-looks-like-an-answer-is-an-error)), and an `if` returning `0` or
+`false` is the answer written down:
 
 ```gdscript title=default_answer/default_answer.spite entry
 var console = Console()
@@ -476,13 +686,10 @@ func DefaultAnswer() {
 }
 
 func size(): Integer {
-    var bytes = 0
     if text.is_empty() {
-        bytes = 0
-    } else {
-        bytes = text.length() + 1
+        return 0
     }
-    return bytes
+    return text.length() + 1
 }
 ```
 ```output
@@ -602,11 +809,16 @@ positive
 
 `crash` is allowed in a constructor, which is where a program that cannot start says so.
 
+A `crash` the compiler can decide is not left for the run: one whose condition asks only what is known while
+compiling (a codegen value, `has_function`, `fits_vector`, ...) and is false, in a function the program reaches,
+is a compile error at the `crash`, since the program would halt there every time
+([metaprogramming.md](metaprogramming.md#codegen-values---implemented)).
+
 ### What a crash reports
 
 A crash flushes what the program printed, writes one tab-separated line to the error stream and exits with
 status 1. The line starts `spite.crash` and carries the site's id, its place, its class and function, the
-condition, and the named operands with their values -- then a `spite.assert` line for each `assert` that failed
+condition, and every name and call in the condition with its value -- then a `spite.assert` line for each `assert` that failed
 before it, because those are usually the trail that explains how the program got there:
 
 ```
@@ -614,15 +826,89 @@ spite.crash	64b935f1	crash_report/crash_report.spite:14	CrashReport	check	value 
 spite.assert	0aae5005	crash_report/crash_report.spite:18	CrashReport	announce	amount > 0
 ```
 
+When the condition is a call on a value, `crash settings.exists()` (or `crash not names.contains(name)`), the
+value the call was made on is the operand: text, a number or an enum is written as it is, and an object whose class
+has a `to_string()` as that text, so a missing `File` names its path:
+
+```
+spite.crash	00b7d810	crash_receiver/crash_receiver.spite:6	CrashReceiver	CrashReceiver	settings.exists()	settings=.spite-cache/crash_receiver/missing_settings.txt
+```
+
+A condition of any shape -- `or`, `not`, comparisons, arithmetic, calls inside it -- reports every part it read,
+left to right and each once: a name or a path with its value, a call with the answer it gave while the condition
+ran (it is never called a second time), and a value that is not there in the words of a failed narrowing
+(`is null`, `is missing: ...`). A part that an `and` or an `or` skipped is left out, since it never ran:
+
+```
+spite.crash	01478395	crash_compound/crash_compound.spite:21	CrashCompound	finish	record or cooked.count() > 2 or never_cooked_id != name	record is null	cooked.count()=1	never_cooked_id=cake	name=cake
+```
+
+A crash that narrows a `T?` fails because something is not there, so it never prints a value for it -- a default
+would read like a real `0`. It names the first link of the path that is missing, and for a `[]` read what was
+asked for: the index and the count of a list, the key of a dictionary.
+
+```
+spite.crash	26b57b59	crash_missing_item/crash_missing_item.spite:13	CrashMissingItem	read	clip.keys [start + 1]	clip.keys[start + 1] is missing: index 3, count 2
+spite.crash	474c3f17	crash_missing_key/crash_missing_key.spite:11	CrashMissingKey	show	scores [player]	scores[player] is missing: key "bea"
+spite.crash	0f912d8f	crash_missing_link/crash_missing_link.spite:14	CrashMissingLink	show	rig.skeleton.heights [0]	rig.skeleton is null
+spite.crash	75b30821	crash_missing_value/crash_missing_value.spite:10	CrashMissingValue	show	width	width is null
+```
+
 The id is derived from the site's content, so it stays the same when unrelated lines move. Each build also writes
 a `.crashes` file beside the executable it builds: one line per `assert` and `crash` site, sorted by id, with its file,
 line, class, function, kind and condition, so `grep 64b935f1 program.crashes` finds a site from a report.
+A failed `assert` prints nothing when it fails, in every build: it is the program answering "nothing" and
+carrying on, and a long run fails thousands of them, which would bury the one line that matters. It is kept for the
+report instead. To watch them as they fail, build with `--trace-asserts` (a `Build` field, `trace_asserts`): each
+failed `assert` of the program then also writes its `spite.assert` line to the error stream at once, after flushing
+what the program printed, and still enters the ring.
 The trace keeps only the latest failed asserts, in a fixed-size ring, so it never allocates and never grows.
 It holds the asserts of the program and of every package it `load`s, never those of the standard library: an
 `assert` in `library/` is how the library answers routine questions (a key that is not there, text that does not
 match, a read past the end), and those would push the program's own entries out of the ring. The compiler leaves
 the record out of a library `assert` altogether, so it costs what an `if` costs. A crash inside the library still
 reports its own site ([D189](decisions.md)).
+
+### What a native fault reports
+
+Some failures happen below Spite: a foreign library reads through a null pointer, a recursion runs out of stack, a
+driver runs an instruction the processor refuses. The program cannot survive them, but it never ends silently
+([D244](decisions.md)): every program installs a fault handler before its first line runs, and a fault writes a
+`spite.fault` line to the error stream, then the failed asserts as a crash does, then the Spite functions on the
+stack, and ends the program:
+
+```
+spite.fault	read-violation	-	-	-	address=0x0	code=0xc0000005	at=fixture.dll+0x1029	foreign=read_integer_at	library=conformance/stage6/native_fault_foreign/fixture.dll	from=conformance/stage6/native_fault_foreign/native_fault_foreign.spite:13
+spite.frame	conformance/stage6/native_fault_foreign/native_fault_foreign.spite:11	NativeFaultForeign	read_nothing
+spite.frame	conformance/stage6/native_fault_foreign/native_fault_foreign.spite:4	NativeFaultForeign	NativeFaultForeign
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
+```
+
+Read it left to right:
+
+- **What happened**: `read-violation`, `write-violation` or `execute-violation` (on Linux and macOS,
+  `access-violation`), `stack-overflow`, `illegal-instruction`, `integer-division-by-zero`, `misaligned-access`,
+  `bus-error`, `breakpoint`, `heap-corruption` (Windows: the C runtime's heap found its own bookkeeping
+  overwritten, usually by a double free or a write past a block; the `spite.frame` lines name the Spite function
+  that freed or allocated), `floating-point-exception`, or `exception` for any other code the system raises.
+- **Where**, as `path:line`, class and function: the Spite function the faulting instruction is in, with the line
+  that function starts on -- a fault has no Spite line of its own. `-	-	-` means it is in no Spite function:
+  inside a foreign library or the C library, and the first `spite.frame` is the Spite function that called in.
+- `address=`: the address that could not be read or written. `code=` (Windows) is the exception code, `signal=`
+  (Linux, macOS) the signal number.
+- `at=`: the file the faulting instruction is in -- the program itself or a foreign library -- and its offset from
+  the start of that file, which `llvm-objdump -d` or a debugger turns into the instruction.
+- `foreign=`: the last foreign function this thread called, the `library=` it is in, and `from=` the line of Spite
+  that called it. It stays set after the call returns, so when `at=` names a library it is the call that went in,
+  and when it does not it is the last C that touched the program's data -- the fact most worth having when a Vulkan
+  or Win32 call goes wrong.
+- Each `spite.frame` is a Spite function on the stack, innermost first; `repeated=` counts the same function called
+  from itself, and `spite.frame	more` says the stack goes deeper than the 256 frames walked or the 16 lines written.
+
+The program then ends with the status the system gives that fault, exactly as it would have without the report:
+on Windows the exception code (`0xC0000005` for an access violation), on Linux and macOS death by the signal, so
+a core dump is still written where the system keeps them. What the program printed is flushed after the report.
 
 ## What it costs at run time
 
@@ -634,10 +920,17 @@ reports its own site ([D189](decisions.md)).
 - **A passing `assert` or `crash` is one branch.** A failed `assert` in the program or a loaded package also
   stores one pointer into the 32-entry ring and counts it; one in `library/` does not.
 - **A crash's report is written only when it fires**: each site's place and condition are fixed text in the
-  program, and the operand values are turned into text on the way out. The `.crashes` map is a file beside the
+  program, and the operand values are turned into text on the way out. A `crash` whose condition has a call inside
+  a comparison, an `and` or an `or` keeps that call's answer and a flag in locals as it runs, so the report can name
+  the answer without calling again: two stores only the failure branch reads. The `.crashes` map is a file beside the
   executable, which nothing reads at run time.
 - As built, the ring and the function that prints it are in every program, since the standard library has
   `crash` sites of its own; they are 32 pointers, a counter and one function.
+- **The fault handler is in every program and costs nothing until a fault.** It is about 3.7 KB of machine code, and
+  a table of every function the program kept -- its start address and name, 32 bytes and the name each (73
+  functions, about 4 KB, in `examples/hello`). Installing it is two system calls when the program starts, and one
+  more when a thread starts. Each foreign call stores one pointer before it goes in, which measured as nothing
+  ([optimizations.md](optimizations.md#the-fault-handler-is-in-every-program)).
 
 ## Rules in full
 
@@ -647,7 +940,71 @@ manual when [D193](decisions.md) dissolved it into these pages (its section numb
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
 fix. A `D` number is a row of the [decision log](decisions.md).
 
-### Null safety and `assert` narrowing  **[implemented]**
+### Nothing fails silently  **[the rule]**
+
+D244 (decided by Mortaro, 2026-09-27): **anything that can go wrong silently is a bug.** "anything that can go
+wrong silently should be considered a bug. this should be in the spite documentation and guidelines". Every
+failure is loud -- a compile error for what the compiler can know, or a crash naming its cause for what only the
+run can find (D24, D199) -- and never:
+
+- **a wrong value** that the program cannot tell from a right one (a default, a zero, a truncated number);
+- **a lost write** (a value computed or stored that nothing reads);
+- **a skipped step** (work the reader expects to happen that does not);
+- **a leak** (memory or a resource that is never given back);
+- **a hang** (a wait or a loop that can never end).
+
+It is a rule for the language, the compiler, the standard library and the programs written in it, and every open
+item -- in [open_questions.md](open_questions.md), [KNOWN_ISSUES.md](KNOWN_ISSUES.md) and
+`mortaros_missing_decisions.md` -- is judged against it: a proposal that lets one of the five happen without a
+word needs a reason, and a place where the compiler lets one through is a bug to fix, not a style to document.
+
+**What the language already refuses.** Each is a compile error or a crash naming its cause:
+
+| Would go wrong silently | What happens instead | Where |
+|---|---|---|
+| reading a value that may be absent as if it were there | `T?` must be narrowed first; `value == null` is an error | [narrowing](#null-safety-and-assert-narrowing--implemented) |
+| an index past the end, a key never set | `[]`, `first()`, `last()`, `remove_first()` answer a `T?` | [reading with `[]`](#reading-with--answers-t) |
+| a guard `assert` answering a `0`, `false`, `""` or default object the caller takes for a real answer | compile error unless the result can say "nothing" (D244, D245) | [a default that looks like an answer](#a-default-that-looks-like-an-answer-is-an-error) |
+| a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is never a condition | [null safety](#null-safety-and-assert-narrowing--implemented) |
+| text that is not a number, read as `0` | `to_integer()` and the other readings answer a `T?`; text assigned to a plain number is an error (D244) | [standard_library.md](standard_library.md#string) |
+| a function that declares a result reaching its end without a `return` | compile error at its last line naming the path | [every path ends in a `return`](#every-path-ends-in-a-return) |
+| a proof that went stale after an assignment or a call | the read must be proven again; in a loop, an error naming the call | [a call may undo a proof](#a-call-may-undo-a-proof) |
+| a failed `crash` printing a default that reads as a real zero | the report names the missing link, index and count, or key (D248) | [what a crash reports](#what-a-crash-reports-1) |
+| a native fault ending the program with nothing printed | `spite.fault` with the place, the last foreign call and the stack (D255) | [what a native fault reports](#what-a-native-fault-reports-1) |
+| a whole number divided by zero | halts naming the line; a zero written as the divisor is a compile error (D201) | [values_and_types.md](values_and_types.md#numeric-types--implemented-provisional) |
+| signed arithmetic that does not fit | halts naming the operation in a development build (D249) | [values_and_types.md](values_and_types.md#signed-arithmetic-that-does-not-fit-halts-while-you-develop) |
+| a wider operand cut to fit, in arithmetic or a comparison | compile error naming the operation turned around (D162, D251) | [values_and_types.md](values_and_types.md#wider-arithmetic-goes-wider-operand-first) |
+| a constant that overflows its type | compile error | [values_and_types.md](values_and_types.md#numeric-types--implemented-provisional) |
+| a `Float` gone to infinity written as JSON | crash naming the attribute (D198) | [json.md](json.md) |
+| a condition that is always false because it asks the compiler | a folded-false `crash` in reached code is a compile error (D250) | [metaprogramming.md](metaprogramming.md#codegen-values---implemented) |
+| a value computed and never read, an attribute nothing reads | compile error | [style.md](style.md#unused-is-an-error--implemented) |
+| an object made and dropped on the same line, to "do" something | compile error | [classes_and_files.md](classes_and_files.md#a-constructed-object-must-be-kept-and-used) |
+| `for`, `break`, `continue`, `++`, `&&` and other habits that would parse as something else | compile error naming the Spite form | [control_flow.md](control_flow.md#control-flow--implemented), [for_ai_writers.md](for_ai_writers.md#habits-from-other-languages-that-spite-rejects) |
+| a borrowed `Vector` item kept, or read after the vector moved | compile error | [memory.md](memory.md#borrowed-items-of-a-vectort--implemented) |
+| an item lent to the caller retained and released as if owned -- narrowed by `if`, called as a function value or through a `type` | the narrowed name stays borrowed; the other two are compile errors (D259) | [memory.md](memory.md#borrowed-items-of-a-vectort--implemented) |
+| a C compile that reports success but leaves no executable, or two builds sharing one generated C file | the build is an error naming the missing file; each output gets its own generated C file (D260) | [compiler.md](compiler.md) |
+| two threads writing a singleton at once | the compiler makes the singleton safe; anything else a `Parallel` reaches is an error | [concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows) |
+| a `while true` loop holding a singleton's lock forever | compile error | [concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows) |
+| a peer that hung up read as a count of `-1` | `socket.closed` turns `true`; reads answer `0` or `null` | [standard_library.md](standard_library.md) |
+| an impossible date such as `Date(2023, 2, 29)` rolled over | halts; text from outside is read with `TimeText`, which answers `null` | [time.md](time.md) |
+| a `crash` or `assert` whose site cannot be found again | every build writes `<program>.crashes`, one line per site | [what a crash reports](#what-a-crash-reports-1) |
+
+**Still open** (each a bug under D244, recorded so it is not mistaken for a design): reference cycles leak without
+a word unless the program runs with `--debug-memory`, which prints the allocation balance
+([memory.md](memory.md#cycles-leak)); signed arithmetic wraps in production builds and unsigned arithmetic
+wraps in every build (D249); a `Concurrent` polled for `finished` under `resume_only_when_asked()` without
+`run_ready()` never ends ([concurrency.md](concurrency.md#choosing-where-concurrents-resume)); a `List`'s
+`set_at` and `remove_at` do nothing out of range ([collections.md](collections.md#listt-additions--implemented));
+text assigned to an enum that names none of its values becomes the enum's first value
+([values_and_types.md](values_and_types.md)); and a Windows `__fastfail` (`0xC0000409`), or a corrupted heap on
+Linux and macOS (the C library's own message and `SIGABRT`), ends the program without Spite's report or frames
+([what a native fault reports](#what-a-native-fault-reports-1)).
+Also open: a write to the attributes of a copy that nothing reads afterwards is lost without a word -- a function
+answers `values[row].copy()`, the caller sets `layout.width` on it, and the copy dies. Proposed by Claude,
+unconfirmed: a compile error when an object only this function holds (escape analysis already proves a
+function's result fresh) has its attributes written and then dies unread, unpassed, unreturned and unkept;
+checked while compiling, it costs nothing at run time.
+
 
 `assert` doubles as the way to prove a `T?` is not null without nesting: after `assert value` on a
 `T?` local, parameter, or field, `value` is a plain `T` for the rest of that block and any block
@@ -657,7 +1014,10 @@ exactly like overwriting any other owning slot). `assert value and
 other_condition` narrows `value` too, and `other_condition` itself already sees the narrowed type. Assigning
 the narrowed name something that may be null (`value = null`) makes it a `T?` again from that line, so reading
 through it afterwards is the usual may-be-null error (`diagnostics/narrowed_name_reassigned`; the full rule is
-under D43 below).
+under D43 below). A value type's narrowed `T?` is assigned the same way: `got = next`, with `got` and `next` both
+narrowed `Long?`s, stores the whole `Long?` -- its presence and its value -- into `got`, inside a loop too, and
+`got = missing` with a `Long?` that may be null makes it a `Long?` again (`conformance/stage6/narrowed_value_assignment`;
+before, the C written for it did not compile).
 
 ```gdscript
 var content = program_file.read()
@@ -665,6 +1025,14 @@ assert content
 var length = content.length()          # content is a String here, not String?
 console.print(length)
 ```
+
+Narrowing tests presence and never the value it holds: a `T?` of a number, an enum or a `String` holding `0`,
+`0.0` or `""` is present, and so is an in-range `[]` read of an element holding it. A value type's `T?` carries a
+presence flag beside the value (`has_value`), a reference's `T?` is its pointer, and a `[]` read goes through
+`find_at`/`get`, which answer that flag -- no representation uses a sentinel, so no value can be mistaken for
+absence (`conformance/stage6/present_zero`, which narrows zeros, `false` and `""` from lists, a dictionary, an
+`Integer?` result, `first()`/`last()` and `remove_first()` by `crash`, `assert`, `if` and `and`). A `Boolean?` is
+never a condition (below), so `false` meets only `== true`/`== false` or a `switch`.
 
 `if` on a `T?` narrows the same way, in place, for the whole block: `if value { } else { }` runs the
 block with `value` already a plain `T`, and the `else` exactly when it is null/absent. One rule for narrowing
@@ -697,29 +1065,41 @@ A narrowing `if` that is not the function's last statement (more statements foll
 another statement (an outer `if`/`while`/switch case) rather than being the function body's own tail, is not
 a lint error.
 
-**An `if` that only returns the default is an `assert`** (D106, decided by Mortaro, 2026-09-24). An `if` with no
-`else` whose whole body is one `return` of the function's default -- `false`, `0`, `0.0`, `""`, `null`, or a bare
-`return` in a function returning nothing -- is a compile error wherever it stands in the function, inside a
-`while` or a nested `if` included, and the message names the `assert` of the opposite condition:
+**An `if` that only returns the default is an `assert`** (D106, decided by Mortaro, 2026-09-24; narrowed by D244
+to the functions where a guard `assert` is allowed). In a function returning nothing, a `T?`, or a `List`,
+`Dictionary`, `Vector` or `Items`, an `if` with no `else` whose whole body is one `return` of the function's
+default -- `null`, or a bare `return` in a function returning nothing -- is a compile error wherever it stands in
+the function, inside a `while` or a nested `if` included, and the message names the `assert` of the opposite
+condition:
 
 ```gdscript
-func is_open(): Boolean {
-    if handle == -1 {        # error: this 'if' only returns the default 'false', which is how a guard is
-        return false         #        written: write 'assert handle != -1' and let the rest run unindented
+func first_name(): String? {
+    if names.is_empty() {    # error: this 'if' only returns the default 'null', which is how a guard is
+        return null          #        written: write 'assert not names.is_empty()' and let the rest run unindented
     }
-    return true
+    return names.first()
 }
 ```
 
 It is the same rule as narrowing, so `if not value { return null }` becomes `assert value` and narrows `value`
-for the rest of the block. Returning anything else -- `return true` from a `Boolean` function, `return -1` -- is an
-answer, not a guard, and is left alone. A default that is a real answer (an empty text is zero bytes) is still
-caught, and the message names the way to give it: a local set in an `if`/`else` and returned once. How the
+for the rest of the block. In a function returning anything else -- a number, a `Boolean`, a `String`, an enum or
+an object -- a guard `assert` is an error (below), so an `if` that returns a value there is an answer written
+down, `return 0` and `return false` included, and is left alone. How the
 condition is turned around (proposed by Claude, unconfirmed):
 `==` and `!=` swap, `<` becomes `>=` and `>` becomes `<=` (and back), `not x` becomes `x`, anything else becomes
 `not x`, and `and`/`or` are turned around by De Morgan, side by side -- `if count < 0 or count > limit` becomes
 `assert count >= 0 and count <= limit`. An `else if` is covered too. In a constructor, where `assert` is not
 allowed (D28), the message names `crash` instead. `diagnostics/default_guard`, `diagnostics/returning_guard`.
+**[implemented]**
+
+**An `if` that leaves proves the opposite of its condition** (proposed by Claude, unconfirmed, 2026-09-27, so that
+D244's explicit answers read as guards do). An `if` with no `else` whose block's last statement is a `return` or a
+bare `crash` proves, for the rest of the enclosing block, what an `assert` of the opposite condition would: each
+side of an `or` in its condition written `not path` narrows that path, as `assert path` does (the later sides
+already see the earlier ones narrowed, so `if not found or found.count() == 0 { return 0 }` is one test), and every
+other side proves the `[]` reads its opposite bounds (`if index >= names.count() { return "" }` proves
+`names[index]`). The block itself sees none of it. A check that the `if` already proves is the usual "proves
+nothing" error (`conformance/stage6/leaving_if`). Compile time only: the emitted test is the condition as written.
 **[implemented]**
 
 **`assert` narrows every link of a chain, not only the last** (D43, decided by Mortaro, 2026-09-20). Walking a
@@ -778,7 +1158,11 @@ quoted text makes the read a path that narrows like any other: `crash names[inde
 How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked for them):
 
 - **A proven count proves the indices below it.** After `crash names.count() == 3` (or `>= 3`, or `> 2`),
-  `names[0]` to `names[2]` are plain values; so are they inside `if names.count() > 2 { }`.
+  `names[0]` to `names[2]` are plain values; so are they inside `if names.count() > 2 { }`. `names.count() != 0`
+  and `not names.is_empty()` prove `names[0]` the same way (proposed by Claude, unconfirmed;
+  `conformance/stage6/count_bound_proofs`). A count proves indices of a `List` only: a `Dictionary`'s keys need
+  not be `0` to `count() - 1`, so after `crash names.count() == 1` a number-keyed `names[0]` is still a `T?`
+  (`diagnostics/count_proves_no_key`).
 - **A bound proves its index.** `index < names.count()` (or `names.count() > index`) in an `assert`, a
   `crash`, an `if`, or a `while` proves `names[index]` in what follows -- the loop body, for a `while` -- and
   `index < names.count() - 1` does too. On the left of an `and`, it proves the right side, so
@@ -822,9 +1206,11 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   attribute's list is not tracked (a proven read still checks its bounds). Inside a `while`, a call that undoes a
   proof made before the loop and read inside it is an error naming the call (`diagnostics/call_undoes_proof`).
   All of it happens while compiling; nothing is emitted. **[implemented]**
-- **A proven read still checks its bounds at runtime** -- the read is the collection's `get_at`, which compares
-  the index once -- and needs no second test of the `T?` it answers: out of range it gives an empty value (zero, or
-  no object) rather than reading memory it does not own, so a counter that went negative gives a wrong value.
+- **A proven read still checks its bounds at runtime** and halts out of range, naming the read and where it is
+  (`spite: 'names[index]' is outside its list: a bound proves only the top of an index, and this one is below 0 or
+  the list changed, at ...`), so a counter that went negative stops the program rather than reading memory it
+  does not own or answering a default (D244). The read is the collection's `get_at`, which compares the index
+  once; a counted loop (D222) proves both ends and reads with no test at all.
 - **Every `[]` answers `T?`** (D225, decided by Mortaro, 2026-09-26: "any [] should return a T? and needs to be
   asserted"; D226: "keep in mind [] is just a shortcut for a function so users can also implement []able
   classes"). `List`, `Dictionary`, `Vector` and `Items` alike, and every class that declares `get_at`: the
@@ -874,7 +1260,8 @@ tend to be useless: they tell us a message we have no action to take about them"
 
 **What `crash` is for** (D199, decided by Mortaro): what the compiler can prove away, so a program written with
 its help never meets it; what leaves the program unable to work at all; and a developer's mistake -- a whole
-number divided by zero (D201, [values_and_types.md](values_and_types.md)), a `Float` gone to infinity that `JsonWriter`
+number divided by zero (D201, [values_and_types.md](values_and_types.md)), signed arithmetic that does not fit its
+type in a development build ([values_and_types.md](values_and_types.md#numeric-types--implemented-provisional)), a `Float` gone to infinity that `JsonWriter`
 is asked to write (D198, [json.md](json.md)). A condition the program can meet in normal use -- a missing file,
 a user's bad input, an absent record -- answers `T?` or an empty value (D24, D26), never a crash, and a library
 `crash` must be one the compiler can show the program how to avoid, or a bug in the program that made the value.
@@ -892,22 +1279,81 @@ D26 (decided by Mortaro, 2026-09-19): `assert` is a guard clause, not validation
 there is no more logic to do here, but the program is fine and keeps serving everything else". It is why a web
 server or a game written in Spite should rarely crash.
 
-**`assert` is legal in a function returning any type, and a failed one returns that type's default** (D106,
-decided by Mortaro, superseding D27's limit to functions returning nothing or `T?`) -- `false`, `0`, `""`,
-`null`, an empty value, or nothing. `if handle == -1 { return false }` returns the very same default, only spelled
-as an indented `if`, so that `if` is an error naming its `assert`
-([Null safety and `assert` narrowing](#null-safety-and-assert-narrowing--implemented), "An `if` that only returns
-the default is an `assert`").
+**A guard `assert` answers "nothing", so it is allowed only where the result can say it** (D244, decided by
+Mortaro; D245, decided by Claude under D244; superseding D106's "legal in a function returning any type", which
+had relaxed D27's limit to functions returning nothing or `T?`). A failed `assert` returns at once, answering:
+
+- nothing, in a function returning nothing;
+- `null`, in a function returning a `T?`;
+- an empty one, in a function returning a `List`, `Dictionary`, `Vector` or `Items`.
+
+In a function returning anything else -- a whole number or a `Float`/`Double` (`0`), a `Boolean` (`false`), a
+`String` (`""`, since an empty text is a real text), an enum (its first value), a `Memory.Address`, a union or a
+class that cannot be null (an object with every attribute at its default) -- an `assert` is a compile error, since
+the caller would carry on with a default it cannot tell from a real answer:
+
+```
+this 'assert' would answer a default Integer (0) that a caller cannot tell from a real one: return a value ('if entity >= rows.count() { return -1 }'), make the result 'Integer?', or 'crash entity < rows.count()' if this is a developer mistake
+```
+
+The message names the opposite condition, an answer of the type (`-1`, `-1.0`, `false`, `""`, the enum's first
+value, or `Mark()` for a class that is made with no arguments and is not a singleton), the nullable result (left out for a `Boolean`, since a `Boolean?` is never a
+condition) and the `crash`. It is checked against the result type of each function as compiled, so in a generic
+class it is checked per instance, and an `assert` whose condition is decided while compiling
+(`assert $slot_type == Entity`) is held to it too: its instance would answer the default every call. `crash` is
+never limited this way. Which of the three a site takes is the writer's decision (D199): a `T?` when the case is
+met in normal use, a value chosen on purpose when one outside the real answers already means "none", a `crash`
+when asking is the caller's bug (proposed by Claude, unconfirmed: the message, the choice of `-1`, and that
+`String` counts as a value). Every answer the message offers is code that compiles where it stands: for a class
+made with arguments, a singleton, or a function of a generic class, it offers no answer at all, only the `T?` and
+the `crash` -- `this 'assert' would answer a default Badge (an object with every attribute at its default) that a
+caller cannot tell from a real one: make the result 'Badge?', or 'crash ready' if this is a developer mistake`
+(before, it offered `'if not ready { return ... }'` and described the default as `(every attribute at its
+default)`, and SlopEngine's `Slot.fetch` was found holding `return every attribute at its default`). SlopEngine met it three times in a day: `World.create_entity_from_bundle(): Entity`
+answered a default `Entity` instead of the one just made, `deform_layer(): Integer` answered offset 0 for a mesh
+without skin, `object_world(): Math.Matrix4` answered a default matrix for an object without a parent
+(`diagnostics/default_answer`, `conformance/stage6/leaving_if`). **[implemented]**
 
 ```gdscript
+func first_name(): String? {
+    assert not names.is_empty()      # a failed assert answers null
+    return names.first()
+}
+
 func is_open(): Boolean {
-    assert handle != -1              # a failed assert returns false
+    if handle == -1 {                # a Boolean cannot say "nothing": the answer is written down
+        return false
+    }
     return true
 }
 ```
 
-When the caller must tell absence from a real `0` or `false`, the choice is still deliberate: return `Integer?`, or,
-if absence is a bug rather than a case, `crash`.
+**Every path of a function that declares a result ends in a `return`** (D244, decided by Mortaro; the check, its
+reach and the message proposed by Claude, unconfirmed). A path that reaches the end of the function's body is a
+compile error at the line of the function's closing `}`, and the message names the path, one step per branch it
+took: `'sign_of' answers a String, but when 'value < 0' is false (line 12, an 'if' with no 'else') it reaches its
+end without a 'return', so a caller would get a String nobody wrote: end that path with 'return <value>', or with
+'crash' if it cannot happen`. Before, the C the compiler wrote answered the type's default there, so the function
+quietly answered `0`, `""`, `false`, a default object or `null`. A path ends:
+
+- at a `return`, or at a bare `crash` (`crash false` is formatted to it);
+- at an `if` with an `else` whose two branches both end, and at a `switch` whose cases all end -- a `switch`
+  covers every member or value, or has `_:`, so there is no other way through it;
+- at a `while true`, which ends only by leaving the function, since Spite has no `break` (D2);
+- at an `if` whose condition is decided while compiling (a codegen value, `has_function`, ...) and whose branch
+  taken ends, and at an `assert` so decided to be false, read per instance of a generic class, as they are
+  compiled.
+
+Everything else -- an `if` with no `else` (the path where its condition is false), a `while` with any other
+condition (the path after it ends), an `assert` or a `crash` with a condition, any other statement -- lets the
+path through. A result that is a `T?` is held to it too: `return null` is written where that is the answer. The
+check reads each function as it is compiled, so a function the program never reaches is not checked, and a
+generic class's function is reported once, for the first instance that falls off, naming it (`'get_at' answers a
+String in List<String>`). It costs nothing at run time. `diagnostics/falling_end`. Migrated: `List.get_at` (an
+index outside the list now halts, as `Vector.get_at` already did, instead of answering the default), and
+`JsonReader.read_symbol` and `BinaryFormat.read_symbol`, which after recording a failure now answer a placeholder
+symbol written down (the reader answers `null` once it has failed, so it never reaches the caller).
+**[implemented]**
 
 D28: **`assert` is banned in a constructor**, including the entry class's own (D29). A constructor is setup, not
 logic: if something can be invalid inside one, function logic has been put where only setup belongs. The caller
@@ -945,6 +1391,18 @@ branches -- and the trace is a fixed-size ring buffer with a total count, so it 
 without bound. **Not built** from D25's list: the call chain, and the default each failed `assert` returned;
 a report is the crash's own line and the asserts' lines. Compile-time evaluation ([the functions of `Spite.Class`](reflection.md#functions-of-spiteclass-and-no-static-functions), [JSON is reflection, not a library](json.md#json-is-reflection-not-a-library--implemented)'s generated JSON) reports
 the same way.
+
+**A failed `assert` is not printed when it fails; `--trace-asserts` streams them** (D244, answering "guard
+asserts that return early drown the real crash in long runs"; the field's name provisional under D214, the rest
+proposed by Claude, unconfirmed). A failed `assert` writes nothing as it fails, in every build, `--debug-memory` and
+inspectable builds included: it stores its site's line in the ring and counts it, and the line reaches the error
+stream only in a crash's report, or a native fault's. `trace_asserts` (`--trace-asserts`, default `false`) opts
+in to streaming: `SPITE_TRACE_ASSERT` then also flushes the program's output and writes the site's `spite.assert`
+line to the error stream when it fails, in a program that cannot crash too. It is the same fixed line the ring
+holds, with no values, and it covers the asserts the ring covers (the program's and its loaded packages', never
+`library/`'s, D189). Cost: none without the flag, since the macro is the same one store and count; with it, a
+flush and a write per failed `assert`. `conformance/stage6/quiet_asserts` (four calls, two failing: nothing but the
+program's lines), `conformance/stage6/trace_asserts` (the same with `--trace-asserts`). **[implemented]**
 
 D26 refinement (proposed by Claude, unconfirmed; **not built**): the trace would record **predicate asserts
 only**. A narrowing assert firing is routine control flow -- thousands an hour on a server -- and on concurrent
@@ -991,6 +1449,104 @@ status 1:
 spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition
 ```
 
-The condition is rebuilt from its own tokens and the line ends with the named operands of the failed
-comparison and their values -- `value > limit<TAB>value=-9<TAB>limit=0` -- with calls never evaluated a second
+The condition is rebuilt from its own tokens and the line ends with every part of it and its value --
+`value > limit<TAB>value=-9<TAB>limit=0` -- with calls never evaluated a second time. **Every name and call in a
+condition of any shape is reported** (D244: `crash record or never_cooked_id == ""` printed only its text, the
+very report that has to explain it; the reading of each shape proposed by Claude, unconfirmed). The compiler walks
+the condition as written and reports, left to right and each once by its text: every name or path (a `[]` read
+whose index has no call included) with its value, every call with the answer it gave, and inside a call its
+receiver and its arguments. `and` and `or` are followed into, and so are `not`, comparisons and arithmetic; a
+literal adds nothing. A value is written as for one operand: text, a number or an enum as it is, an object through
+its `to_string()`, anything else left out; a `T?` that is null is `name is null`, and a `[]` read that is missing
+is `list[index] is missing: index 5, count 2` or `table[key] is missing: key "bea"`, as D248 words a failed
+narrowing. **Only what ran is reported:** when the crash fires, each side of a failed `or` ran, and so did each side
+of an `and` under a `not`; a side an `and` or `or` may have skipped is reported only if it ran, which a flag set as
+it runs records, and a path there is reported only when it is a bare name, so nothing is read that the condition
+did not prove readable. **A call is never evaluated twice:** a call whose answer is reported is kept, as the
+condition runs, in a local beside a flag saying it ran, and the report reads the local; a call answering an object
+it owns hands it to that local, which releases it after the check. A call that is the whole condition, or its
+`not`, is not reported, since its answer is what failed. A name that is a class or a namespace (`Math.pi()`'s
+`Math`) is not a value and is left out. **Cost:** the report is written only when the crash fires; on the passing
+path, a condition with a reported call inside it stores the call's answer and a flag, and one with a skippable side
+stores a flag -- stores into locals that only the failure branch reads, which the C compiler keeps in registers or
+drops; a condition of names and comparisons stores nothing. The `.crashes` map lists every part with its type
+(`record:String? cooked.count():Integer cooked:List<String> never_cooked_id:String name:String`, a receiver whose value the report leaves out included). `conformance/stage6/crash_compound`.
+**A condition that is a call on a value** (D228), `crash file.exists()` or `crash not list.contains(x)`,
+has that value as its operand when it is a name or a path: text, a number or an enum is written as it is, and an
+object whose class declares `to_string()` with no arguments is written as what that answers, called once on the
+way out -- `settings.exists()<TAB>settings=saves/settings.txt`, since `File`'s `to_string()` is its path. A value
+with no `to_string()` (a `List`) adds nothing, and the call itself is not evaluated again. The `.crashes` map
+lists it with its type (`settings:File`; `conformance/stage5/crash_receiver`).
+
+D248 (under D244): **a failed narrowing reports what is missing, never a value.** A `crash` that narrows a `T?` --
+a name, a path, a `[]` read, each side of an `and` -- fails only when something is absent, and printing a value
+there would print a default (`clip.keys[start + 9]=0`), which reads as a present zero and sends the reader after
+a bug that does not exist. The report tests each nullable link of the path again, in order, and names the first
+one that is absent: `rig.skeleton is null` for a name or member, `list[expression] is missing: index 11990, count
+11500` for a list read (the index as evaluated, and the list's count), `table[key] is missing: key "bea"` for a
+dictionary or any other `get_at` (a `String` key quoted, so an empty one shows). The index is evaluated again, which
+is safe because an index with a call in it is not a path. The value report of D25/D32 stays for every condition
+that is not a narrowing (`conformance/stage6/crash_missing_item`, `crash_missing_key`, `crash_missing_link`,
+`crash_missing_value`). Cost: only on the failure path, which already halts; a passing `crash` is the same
+presence test it always was.
 time.
+
+#### What a native fault reports
+
+D244 (decided by Mortaro): anything that can go wrong silently is a bug, and a native fault -- an access violation
+or `SIGSEGV`, a stack overflow, an illegal instruction, `SIGBUS`, `SIGFPE` -- used to end a program with nothing
+printed. The design below is Claude's (proposed by Claude, unconfirmed; the field names provisional under D214).
+
+- **Every program installs a fault handler**, in every build, as the first line of `main`: on Windows
+  `SetUnhandledExceptionFilter` and `SetThreadStackGuarantee` (16 KB kept back, so a stack overflow can still be
+  reported on the thread that overflowed); on Linux and macOS `sigaction` for `SIGSEGV`, `SIGBUS`, `SIGILL`,
+  `SIGFPE` and `SIGTRAP`, run on an alternate signal stack of 64 KB per thread. Every thread the program starts --
+  a pool runner, a waiting call's thread, the REPL's and the file watcher's -- sets up its own room the same way.
+  An unhandled exception only: a fault a foreign library catches itself never reaches it. On Windows a corrupted
+  heap (`0xC0000374`) never reaches the unhandled-exception filter -- the system ends the program straight after
+  raising it -- so the same report is also installed as a vectored exception handler, `AddVectoredExceptionHandler`,
+  which looks at that one code and passes every other exception on untouched (D260, decided by Claude under D244;
+  its cost is one comparison per exception the process raises, and Spite raises none).
+- **The handler allocates nothing and calls nothing that could**: it builds each line in a buffer on its stack and
+  writes it with `WriteFile` or `write`. It writes the `spite.fault` line first, from what is safe to read (the
+  fault record, the faulting address, the function table, the thread's last foreign call), then the assert trace,
+  then walks the stack, so a stack too damaged to walk still leaves the first line. A second fault on the same
+  thread while reporting ends the program at once; a fault on another thread waits for the first report.
+- `spite.fault<TAB>kind<TAB>path:line<TAB>Class<TAB>function<TAB>address=...<TAB>code=...<TAB>at=file+offset<TAB>foreign=...<TAB>library=...<TAB>from=path:line`,
+  with `address=` only for a memory fault and `foreign=` only once the thread has called a foreign function; then
+  one `spite.assert` line per failed assert still in the ring, exactly as a crash prints them, when the program keeps
+  the ring; then `spite.frame<TAB>path:line<TAB>Class<TAB>function` per Spite function on the stack, innermost
+  first, consecutive calls of one function as one line with `repeated=<count>`, at most 16 lines from at most 256
+  frames, and `spite.frame<TAB>more` when there were more. Then stdout is flushed and the program ends with the
+  system's own status for the fault: `TerminateProcess` with the exception code on Windows, and on Linux and macOS
+  the default action of the signal, raised again (a core dump where enabled).
+- **Which function** comes from a table the compiler writes after every other function: each function the C
+  keeps after tree shaking, with its start address, the file and class, the Spite name and the line it starts on
+  (`-` and the C name for the C the compiler writes itself, such as a class's `___release`). On 64-bit Windows the
+  system's unwind data gives the exact start of the function an address is in, which the table then names, and the
+  same data walks the stack in every build, `--optimized` included, with no frame pointers. On Linux and macOS the
+  function is the one whose start is the nearest below the address, inside the program's own file, and the stack is
+  walked by frame pointers: a build without `--optimized` always keeps them, and an inspectable build
+  (`--development`, `--hot-reload`, `--repl`, `--repl-port`) is compiled with `-fno-omit-frame-pointer` there, so
+  only an `--optimized` production build on Linux or macOS names the faulting function alone. Keeping them in
+  production too was measured and not taken (the numbers are in
+  [optimizations.md](optimizations.md#the-fault-handler-is-in-every-program)).
+- In an `--optimized` build a function the C compiler inlined into its caller is reported as the caller. A
+  function `--hot-reload` swapped in lives in the reload's library, so a fault in it names that library in `at=`
+  and no Spite function.
+- **The last foreign call**: each foreign call first stores a pointer to a fixed text naming the C function, its
+  library and the calling line in a thread-local, in every build (D214: one store per call measured as nothing
+  against the call itself, so it is not kept to inspectable builds). A library reopened by `--hot-reload` records
+  into its own copy, which the host's report does not see.
+- **Not reported**: what the system ends without asking the program -- a `__fastfail` (`0xC0000409`, which a
+  stack-buffer check or the C runtime's own invalid-parameter handler raises) -- and anything while a debugger is
+  attached, which sees the fault first. A fault on a thread a
+  foreign library started is reported, but without room kept for a stack overflow and without a last foreign call.
+
+**Implemented** on Windows, and compiled (not run) for Linux and macOS: `conformance/stage6/native_fault_foreign`
+(a null read inside a fixture library), `native_fault_stack` (endless recursion), `native_fault_illegal` (an
+illegal instruction inside a fixture library) and `native_fault_heap` (a fixture library freeing a pointer inside
+a block, which Windows reports as a corrupted heap). On Linux and macOS a corrupted heap is found by the C library,
+which prints its own message and aborts (`SIGABRT`, not handled here), so it is loud but carries no Spite frames. `check.sh` compares their reports with the offset after `+0x`
+left out, since it is the C compiler's, and also builds `native_fault_foreign` `--optimized` from four translation
+units, where the handler and the table land in the first unit and the functions it names are spread over all four.

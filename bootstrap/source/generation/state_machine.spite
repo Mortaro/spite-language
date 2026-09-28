@@ -95,23 +95,32 @@ func note_resume_point(line: String) {
     var colon = line.index_of(":")
     var digits = line.slice(13, colon)
     var point = digits.to_integer()
+    crash point
     resume_points.append(point)
 }
 
 func declared_name_end(line: String): Integer {
     var type_end = name_end_at(line, 0)
-    assert type_end > 0
+    if type_end <= 0 {
+        return 0
+    }
     var first_word = line.slice(0, type_end)
-    assert not is_keyword(first_word)
+    if is_keyword(first_word) {
+        return 0
+    }
     var position = type_end
     while line.code_at(position) == 42 {
         position = position + 1
     }
-    assert line.code_at(position) == 32 and name_starts_at(line, position + 1)
+    if line.code_at(position) != 32 or not name_starts_at(line, position + 1) {
+        return 0
+    }
     var name_end = name_end_at(line, position + 1)
     var line_length = line.length()
     var rest = line.slice(name_end, line_length)
-    assert rest.starts_with(" = ") or rest == ";" or rest.starts_with("[")
+    if not rest.starts_with(" = ") and rest != ";" and not rest.starts_with("[") {
+        return 0
+    }
     return name_end
 }
 
@@ -124,7 +133,9 @@ func declared_name_start(line: String, name_end: Integer): Integer {
 }
 
 func name_end_at(text: String, start: Integer): Integer {
-    assert start < text.length() and name_starts_at(text, start)
+    if start >= text.length() or not name_starts_at(text, start) {
+        return 0
+    }
     var index = start
     while index < text.length() and name_continues_at(text, index) {
         index = index + 1
@@ -238,7 +249,9 @@ func literal_end(text: String, start: Integer): Integer {
 }
 
 func follows_member_access(text: String, index: Integer): Boolean {
-    assert index > 0
+    if index <= 0 {
+        return false
+    }
     if text.code_at(index - 1) == 46 {
         return true
     }

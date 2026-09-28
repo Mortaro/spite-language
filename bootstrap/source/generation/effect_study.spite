@@ -92,22 +92,30 @@ func study_declaration(declaration: Syntax.Statements.VariableDeclaration) {
 
 func literal_element(value: Syntax.Expressions.Expression): String {
     var listed = shape.as_list_literal(value)
-    assert listed and not listed.elements.is_empty()
+    if not listed or listed.elements.is_empty() {
+        return ""
+    }
     crash listed.elements[0].value
     return owner_class(listed.elements[0].value)
 }
 
 func returned_class(value: Syntax.Expressions.Expression): String {
     var called = shape.as_call(value)
-    assert called
+    if not called {
+        return ""
+    }
     crash called.callee
     var member = shape.as_member(called.callee)
-    assert member
+    if not member {
+        return ""
+    }
     crash member.object
     var receiver_class = owner_class(member.object)
     crash table
     var found = table.return_classes.get("{receiver_class}#{member.name}")
-    assert found
+    if not found {
+        return ""
+    }
     return found
 }
 
@@ -271,7 +279,48 @@ func study_method_call(member: Syntax.Expressions.MemberExpression, argument_key
         receiver_class = member.name
     }
     var effect_call = EffectCall(receiver_class, member.name, argument_keys)
+    if receiver_class == "*" {
+        mark_dispatch(effect_call, member.object)
+    }
     calls.append(effect_call)
+}
+
+func mark_dispatch(effect_call: EffectCall, receiver: Syntax.Expressions.Expression) {
+    var named = shape.as_identifier(receiver)
+    var element = false
+    var indexed = shape.as_index(receiver)
+    if indexed {
+        crash indexed.object
+        named = shape.as_identifier(indexed.object)
+        element = true
+    }
+    assert named and not local_sources.has(named.name)
+    var position = parameter_position(named.name)
+    assert position >= 0
+    effect_call.dispatch_parameter = position
+    effect_call.dispatch_element = element
+}
+
+func keep_parameters(declared: List<Syntax.Statements.Parameter>, body: List<Syntax.Statements.Statement>) {
+    crash recorded
+    recorded.functions_studied = recorded.functions_studied + 1
+    var index = 0
+    while index < declared.count() {
+        var parameter = declared[index]
+        if parameter.is_variadic {
+            recorded.variadic_position = index
+        }
+        var uses = ParameterUses(parameter.name, parameters)
+        uses.study(body)
+        var position_text: String = index
+        if not uses.assigned {
+            recorded.kept_values.set(position_text, true)
+        }
+        if uses.list_kept {
+            recorded.kept_lists.set(position_text, true)
+        }
+        index = index + 1
+    }
 }
 
 func owner_class(expression: Syntax.Expressions.Expression): String {
@@ -367,7 +416,6 @@ func call_owner(called: Syntax.Expressions.CallExpression): String {
     if not member {
         return "*"
     }
-    crash member
     if table.names_a_class(member.name) {
         return known_or_any(member.name)
     }
@@ -431,9 +479,18 @@ func classify(expression: Syntax.Expressions.Expression): String {
     }
     var indexed = shape.as_index(expression)
     if indexed {
-        return "shrink:*"
+        crash indexed.object
+        var collection_key = classify(indexed.object)
+        return element_key(collection_key)
     }
     return "fresh"
+}
+
+func element_key(collection_key: String): String {
+    if not collection_key.starts_with("shrink:") or collection_key == "shrink:*" {
+        return "shrink:*"
+    }
+    return "{collection_key}[]"
 }
 
 func parameter_position(name: String): Integer {
@@ -453,13 +510,24 @@ func called_name(callee: Syntax.Expressions.Expression): String {
         return identifier.name
     }
     var member = shape.as_member(callee)
-    assert member
+    if not member {
+        return ""
+    }
     return member.name
 }
 
 func is_shrinking(name: String): Boolean {
-    var shrinking = ["clear", "remove_at", "remove_first", "remove_last", "remove_swapping", "remove"]
-    return shrinking.contains(name)
+    var shrinking = [
+        "clear"
+        "remove_at"
+        "remove_first"
+        "remove_last"
+        "remove_swapping"
+        "remove"
+        "truncate"
+        "swap"
+    ]
+    return shrinking.contains(name) or name.starts_with("remove_where")
 }
 
 func is_growing(name: String): Boolean {
@@ -472,7 +540,9 @@ func growing_key(key: String): String {
     if key.starts_with("shrink:") {
         return "grow:{key.slice(7, key_length)}"
     }
-    assert key.starts_with("parameter:")
+    if not key.starts_with("parameter:") {
+        return ""
+    }
     return "grow:{key}"
 }
 

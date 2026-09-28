@@ -1,0 +1,27 @@
+var last: Mouse? = null
+var seen = List<Mouse>()
+var moves = List<Spite.Function>()
+
+func keep(mouse: Mouse) {
+    mouse.left = 2
+    last = mouse
+}
+
+func list(mouse: Mouse) {
+    seen.append(mouse)
+}
+
+func hand_back(mouse: Mouse): Mouse {
+    return mouse
+}
+
+func capture(mouse: Mouse) {
+    var moved = mouse.move
+    moves.append(moved)
+}
+
+func grow(mouse: Mouse) {
+    mouse.left = 3
+    var more = Mouse()
+    LentToCalls().mice.append(more)
+}

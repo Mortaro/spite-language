@@ -208,8 +208,9 @@ that lists the class's values in order (the second program below). A generic cla
 `library/list.spite` is `generic $element_type` and its functions -- and when the constructor's arguments say
 every value, the `<...>` may be left out: `Pair("Hero", 7)` is a `Pair<String, Integer>`, `JsonWriter(order)` a
 `JsonWriter<Order>` ([json.md](json.md)) and `Concurrent(file.read)` a `Concurrent<String?>`
-([concurrency.md](concurrency.md)). `null` as the default of a field typed `$left_type` means that type's own
-default, not a `T?` (provisional: [open question 1](open_questions.md#open-questions)).
+([concurrency.md](concurrency.md)). `Pair` may declare `var left: $left_type = null` because its constructor
+assigns `left` at once; anywhere else `null` belongs to `T?` alone (D236), and `var left = $left_type()` makes
+the default of whatever `$left_type` is bound to.
 
 Only a class has codegen values. A function never lists its own (`func pick<$value_type>(...)` is an error), and
 there are no generic functions to write instead ([D123](decisions.md)): a function that takes any class takes a
@@ -372,7 +373,8 @@ func write(value: $value_type): String {
 
 Inside such a branch the types it was built from are named after the container's own codegen values:
 `$value_type.element_type` for a `List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>`
-or a `$value_type?`, and a generic class's own names for one of its instances.
+or a `$value_type?`, and a generic class's own names for one of its instances. They are tested like `$value_type`
+itself, `else if $list_type.element_type == Float`, and fold in every branch of the chain.
 
 ```gdscript title=describe_kind/kind.spite
 generic $kind_type
@@ -579,7 +581,7 @@ func run_each(hero: Hero, pet: Pet) {
 ```gdscript title=function_arguments/caller.spite
 generic $target_type
 
-var target: $target_type = null
+var target = $target_type()
 var console = Console()
 
 func call() {
@@ -597,7 +599,7 @@ func describe_argument(argument: Symbol<$target_type.run_each>) {
 }
 
 func made_argument(argument: Symbol<$target_type.run_each>): argument.class {
-    var made: argument.class = null
+    var made = argument.class()
     return made
 }
 ```
@@ -674,7 +676,7 @@ func update_each() {
 ```gdscript title=waiting_question/stage.spite
 generic $system_type
 
-var system: $system_type = null
+var system = $system_type()
 var console = Console()
 
 func run() {
@@ -710,6 +712,111 @@ Spinner ran inside the frame
 answers the same at run time. A function that asks cannot be asked about itself: its own answer would decide
 whether it waits, and that is an error ([the rules](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)).
 [concurrency.md](concurrency.md#choosing-where-concurrents-resume) shows the frame loop that polls what it starts.
+
+### Asking whether a function writes a parameter
+
+`$system_type.function_writes_parameter("last_each", 1)` asks a third question: does this function change the
+object its parameter number 1 (counted from 0) is given, or anything reached through it? An attribute set on it
+(`quitting.quit.requested = true`), an item written or a list grown, a function called on it that changes its own
+object, or the parameter handed to another function that does any of these -- followed through every call, however
+deep, recursion included -- all count; reading does not, and neither does giving the parameter's name a new object
+(`quitting = Quitting()`). The answer is a constant, like `function_waits`'s, so only the branch taken is compiled
+([D261](decisions.md); the name is provisional). An engine asks it of a system it will run on a copy of its row:
+
+```gdscript title=writes_question/quitting.spite
+var requested = false
+```
+```gdscript title=writes_question/quitter.spite
+func last_each(quitting: Quitting) {
+    quitting.requested = true
+}
+```
+```gdscript title=writes_question/watcher.spite
+var console = Console()
+
+func last_each(quitting: Quitting) {
+    console.print("quit requested:", quitting.requested)
+}
+```
+```gdscript title=writes_question/stage.spite
+generic $system_type
+
+var system = $system_type()
+var console = Console()
+
+func run(quitting: Quitting) {
+    var name = $system_type.name
+    if $system_type.function_writes_parameter("last_each", 0) {
+        console.print(name, "changes its row, so it runs on the row itself")
+    } else {
+        console.print(name, "only reads its row, so a copy will do")
+    }
+    system.last_each(quitting)
+}
+```
+```gdscript title=writes_question/writes_question.spite entry
+func WritesQuestion() {
+    var quitting = Quitting()
+    var watching = Stage<Watcher>()
+    watching.run(quitting)
+    var quitting_stage = Stage<Quitter>()
+    quitting_stage.run(quitting)
+    watching.run(quitting)
+}
+```
+```output
+Watcher only reads its row, so a copy will do
+quit requested: false
+Quitter changes its row, so it runs on the row itself
+Watcher only reads its row, so a copy will do
+quit requested: true
+```
+
+When the answer means a program is wrong, a `crash` on it turns it into a compile error, as for every question
+decided while compiling ([below](#codegen-values---implemented)): the engine writes the rule it keeps, and a system
+that breaks it fails the build with the line that breaks it. A system that can wait runs between frames on a copy of
+its row, so a write to that row would be lost -- silently, which D244 forbids -- and the engine refuses it:
+
+```gdscript title=io_row_error/quitting.spite
+var requested = false
+```
+```gdscript title=io_row_error/saver.spite
+var log = File(".spite-cache/documentation_io_row.txt")
+
+func last_each(quitting: Quitting) {
+    log.append("saved")
+    quitting.requested = true
+}
+```
+```gdscript title=io_row_error/runner.spite
+generic $system_type
+
+var system = $system_type()
+
+func run(quitting: Quitting) {
+    if $system_type.function_waits("last_each") {
+        crash not $system_type.function_writes_parameter("last_each", 0)
+    }
+    system.last_each(quitting)
+}
+```
+```gdscript title=io_row_error/io_row_error.spite entry error
+var console = Console()
+
+func IoRowError() {
+    var quitting = Quitting()
+    var runner = Runner<Saver>()
+    runner.run(quitting)
+    console.print(quitting.requested)
+}
+```
+```diagnostic
+'crash not $system_type.function_writes_parameter("last_each", 0)' always halts in Runner<Saver>: its condition is decided while compiling and is false
+```
+
+The error goes on to name the line of the system that writes, `-- 'Saver.last_each' writes its parameter
+'quitting' at .../saver.spite:5: 'quitting.requested = true'`. A `crash` carries no message of its own
+([failure.md](failure.md#crash)): its condition is its message, so the engine's rule reads as what it asks.
 
 ### Asking how many arguments a function takes
 
@@ -747,7 +854,7 @@ enum Phase {
     'update'
 }
 
-var target: $target_type = null
+var target = $target_type()
 var console = Console()
 
 func call() {
@@ -824,7 +931,7 @@ func FolderWalk() {
 }
 
 func add_system(system: Symbol<System>) {
-    var made: system.class = null
+    var made = system.class()
     runners.append(made)
     console.print("found", system.name)
 }
@@ -863,7 +970,7 @@ func FolderAsk() {
 }
 
 func ask_system(system: Symbol<System>) {
-    var made: system.class = null
+    var made = system.class()
     if system.class.has_function("run") {
         made.run()
     } else {
@@ -912,7 +1019,7 @@ func update_all() {
 ```gdscript title=name_phases/runner.spite
 generic $system_type
 
-var system: $system_type = null
+var system = $system_type()
 var placed_in: NamePhases.Phase = 'update'
 
 func Runner() {
@@ -1018,7 +1125,7 @@ enum Phase {
     'leave'
 }
 
-var system: $system_type = null
+var system = $system_type()
 var console = Console()
 
 func run() {
@@ -1124,7 +1231,13 @@ person.set_age(2)
 ```
 
 A function with the exact name always wins over codegen, for that one name: an exact `set_name` answers a write
-of `name` while its read still goes through `get_attribute`. Only the names actually called are generated, in
+of `name` while its read still goes through `get_attribute`. A plural cannot use that exception: when
+`store_attributes` would call `store_row` for an attribute `row` and the class already has an ordinary `store_row`,
+it is an error at that function's line -- "the template 'store_attribute' makes 'store_row' for the attribute
+'row' of 'RowView', which is already a function of 'Row': rename the function or the template" -- where it used
+to be an argument mismatch at line 0 (fixed 2026-09-27, proposed by Claude, unconfirmed;
+`diagnostics/template_function_clash`). An error raised in code the compiler wrote for a template names the
+template's line, never line 0. Only the names actually called are generated, in
 every build; the template itself emits nothing, and each instance is an ordinary function that costs what its
 body costs. A generated `get_<attribute>()` of an owning attribute (a `String`, `List<T>` or `Dictionary<T>`)
 returns a retained, independent value, exactly as an explicit getter does, which is what lets D15 treat a field
@@ -1145,7 +1258,36 @@ no walk gives it a place, it is the error "'attribute.index' is the attribute's 
 so it is read in a function a walk of attributes calls, such as 'fill_attribute(attribute: Symbol<Row>, ...)'".
 In the same templates **`attribute.class == Entity` is decided while compiling** for each attribute, like
 `$component_type == Entity` in a generic, and only the branch taken is compiled (proposed by Claude,
-unconfirmed; `conformance/stage6/sparse_rows`).
+unconfirmed; `conformance/stage6/sparse_rows`), whatever the attribute's type: an `Integer` or `String`
+attribute answers `false` there too, so `if attribute.class == Entity { value.attributes[attribute].id = ... }`
+compiles for a class that also holds numbers (fixed 2026-09-27: only an attribute whose type is a class folded;
+`conformance/stage6/walked_class_fold`); an attribute that may be null (`Entity?`) is not an `Entity`, so the test
+folds to `false` for it as `$T == Entity` does for a `$T` of `Entity?`.
+
+**Every `.class` a program compares is known once generics are resolved and each instance is compiled** (decided
+by Mortaro, 2026-09-27: "every attribute.class should be possible to figure out at compile time after we resolve
+generics and monomorphise"; built as proposed by Claude, unconfirmed).  **[implemented]** In a template instance --
+a Symbol walk, a generic class's instance, a plural -- `attribute.class`, a walked symbol's `.class` and `$T` are
+constants of that instance, so every comparison and question on them folds: `==`, `!=`, `has_function`,
+`function_waits`, `argument_count`, `fits_vector`, `element_type` and the other codegen names. Outside a template,
+`value.class` of a value whose type is one class is that class. So comparing a value that is only known at run
+time with such a class -- `given == known.class` with `given: Anything`, or `given == attribute.class` -- is the
+class test `given == Targeting`: one comparison of the object's class id, and no `Spite.Class` object is made
+(this also fixed that comparison, which compared the value with a class object made for the purpose, answered
+`false` and leaked the object; `check.sh` greps `conformance/stage6/walked_class_fold`'s C for any class object).
+In a walk over a folder's classes, `given == bundle.class` and `BundleKind<bundle.class>().is_kind(given)` (with
+`given == $bundle_type` inside) are the same test, and answer alike for a class holding a marker, a class whose
+constructor takes arguments and a plain one.
+The only `.class` values left at run time are the reflection objects a program walks as data -- a
+`Spite.Class` in a list, `x.class.attributes` walked in a plain loop, the class of a value read through a union
+or a `type` -- and those are values, not folds.
+
+**`attribute.camel_case_name` and `attribute.pascal_case_name` are the attribute's name in other systems'
+spellings** (D247, decided by Claude under D205; the names provisional under D214).  **[implemented]** In a
+template, each is a text constant the compiler writes: the name with its underscores dropped and every word after
+the first capitalised (`buy_price` is `buyPrice`), or every word capitalised (`BuyPrice`). They cost what
+`attribute.name` costs, nothing at run time, and describe the attribute without reading it. `JsonReader` matches a
+camelCase key with them ([json.md](json.md#a-camelcase-or-pascalcase-key)).
 
 **Another class's attributes, and every attribute at once** (proposed by Claude, unconfirmed; built for D95's
 `Json`).  **[implemented]**
@@ -1239,6 +1381,43 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
     comparing a function's address against those of the functions it makes into values or lists in a
     `.functions` that can wait, and keeps those functions (`conformance/stage6/waiting_systems`,
     `conformance/stage6/default_handles`).
+- **`$system_type.function_writes_parameter("last_each", 1)` is whether a function changes what its parameter
+  is given, as a constant** (D261, decided by Claude under D205, requested by SlopEngine, an instance of D244; the
+  name provisional under D214).  **[implemented]** The first argument is the function's name as a literal, or a
+  pattern read as `has_function` reads it; the second is the parameter's number, counted from 0, as a literal.
+  Anything else is the error "'$system_type.function_writes_parameter(...)' is decided while compiling, so it
+  takes the function's name as text and the parameter's number, counted from 0, as literals", and a number the
+  function does not have is "'Mover.move' takes 2 arguments, so it has no parameter 2 to ask about"
+  (`diagnostics/parameter_write_question`). It folds wherever it is written, as `function_waits` does, for a
+  codegen type and for the class a `Symbol<...>` walk visits (`system.class.function_writes_parameter(...)`); it
+  is `true` when a function the class declares whose name fits writes that parameter, `false` otherwise, also for
+  a name the class does not declare and for a codegen type that is not a class. It has no run-time form.
+  - **What counts as a write.** The object the parameter is given, and every object reached through it, is
+    written when the function, or any function it calls, however deep: assigns an attribute of it
+    (`p.a = x`, `p.a.b = x`) or an item of it (`p.list[i] = x`); calls a function on it that writes its own
+    object (`p.list.append(x)`, `p.counter.bump()`, the standard library's functions included -- a function
+    whose body the compiler supplies writes when it writes memory: `write_value`, `copy_to`, `free`, `resize`
+    and the like); passes it, or anything reached through it, to a parameter of a function that writes that
+    parameter, a D257 lent argument included; or stores such an object in an attribute or a collection, where
+    a later write could reach it. A local that names something reached through the parameter (`var list =
+    p.flags`) is the parameter's for this question, through `if`, `while` and `switch`. Reading is not a write;
+    neither is giving the parameter's name, or such a local, a new object (`p = Row()` and writes to that new
+    object after it), and neither is copying a number, a `Boolean`, text or an enum out of it. Recursion, direct
+    or mutual, is followed to a fixed point.
+  - **Where it cannot decide, the answer is `true`** (D244: never a silent `false`). A call through a function
+    value counts as writing every parameter of the function that makes it, since the value may be anything; so
+    does a call the compiler cannot follow to one function (a union's dispatch, a `type`, a template a class
+    generates, a value whose class it cannot tell), for the parameter's objects handed to it; reading a walked
+    `value.attributes[member]` counts as writing `value`, since the member may be a function.
+  - **A `crash` on it is the engine's compile error.** `crash not $system_type.function_writes_parameter(...)`
+    in a function the program reaches folds, and where the answer is `true` it is the error of a folded `crash`,
+    naming the instance and, after it, what writes: "... always halts in Runner<Quitter>: ... -- 'Quitter.last_each'
+    writes its parameter 'quitting' at .../quitter.spite:5: 'quitting.quit.requested = true'"
+    (`diagnostics/io_system_writes_row`). This is how an engine refuses a system that can wait (it runs between
+    frames on a snapshot of its row, where a write would be lost) and still writes its row.
+  - **Cost.** Nothing at run time: the question is answered from the functions' source while compiling, each
+    function studied once and remembered, and folds to a constant, so a program that does not ask carries none
+    of it (`conformance/stage6/parameter_writes`).
 - **`phase.argument_count()` and `$system_type.argument_count("update_each")` are the number of arguments a
   function takes, as a constant** (D219, decided by Claude under D205; the name provisional under D214, the readings
   below proposed by Claude, unconfirmed).  **[implemented]** Inside a template over the functions a pattern matches
@@ -1445,11 +1624,13 @@ var sword = Weapon<Integer, true>(10)
   Only when every `$name` is found; otherwise the error asks for them between `<` and `>`: "'Box' takes 1 codegen
   value(s), in this order: $held_type -- write them between < and > before the arguments". `Pair("Hero", 7)`,
   `Concurrent(file.read)`, `JsonWriter(order)`.
-- `null` as the default of an attribute typed by a codegen value means that type's own default, not a `T?`
-  (provisional, [open question 1](open_questions.md#open-questions)). Bound to a `type` whose members are all
-  attributes, that default is a real object. **Bound to a `type` that requires a function, it is a compile error
-  naming the attribute** (D211), unless the class's constructor assigns the attribute: no object can supply the
-  function, so there is no default to make. `'held' is a Weapon, a type that requires the function 'strike', so
+- `$name()` makes the default of what `$name` is bound to (D236; proposed by Claude, unconfirmed): a class through
+  its constructor with no arguments, an empty `List` or `Dictionary`, `0`, `""`, and for a `type` whose members
+  are all attributes a real object. `var held: $held_type = null` is D236's error, since `null` belongs to `T?`
+  alone ([values_and_types.md](values_and_types.md#variables-and-values--implemented)), except on an attribute the
+  constructor assigns and a local a walk fills. **Bound to a `type` that requires a function, `= null` is a
+  compile error naming the attribute** (D211), unless the class's constructor assigns the attribute: no object
+  can supply the function, so there is no default to make. `'held' is a Weapon, a type that requires the function 'strike', so
   '= null' has no default to make: no object can supply a function it does not have. Make its type nullable, with
   a '?', and narrow it before use, or give it a real object in the constructor` (`diagnostics/function_shape_default`).
 
@@ -1488,13 +1669,28 @@ one, change the call site.
 **An `assert` or `crash` on such a condition folds the same way** (proposed by Claude, unconfirmed).
 **[implemented]** When the condition of an `assert` or `crash` asks only what is decided while compiling -- a
 `$flag`, `$slot_type == Entity` or any other test of a codegen type, `has_function`, `function_waits`,
-`fits_vector` or `argument_count` of a codegen type or of a walked symbol's class, `argument.class == $row_type`,
+`function_writes_parameter`, `fits_vector` or `argument_count` of a codegen type or of a walked symbol's class, `argument.class == $row_type`,
 and `not`, `and` and `or` over them -- it is decided for each instance, with no test at run time: when it holds,
-nothing is written for it; when it does not, the `assert` returns the function's default (recording its trace
-line) and the `crash` halts with its report, unconditionally, and the statements after it in the same block are
-not compiled for that instance, exactly as after an `if` whose taken branch returns. So `assert $slot_type ==
-Entity` followed by `return value.id` compiles for a `Slot<Mover>` whose `Mover` has no `id`, and answers 0 there
-(`conformance/stage6/folded_checks`, `conformance/stage6/folded_crash`). Before, such a condition was compiled as
+nothing is written for it; when it does not, the `assert` answers "nothing" (recording its trace line), and the
+statements after it in the same block are not compiled for that instance, exactly as after an `if` whose taken
+branch returns. A folded `assert` is held to D244 like any other: it is allowed only in a function whose result can
+say "nothing" (a `T?`, `Nothing`, or a collection), so `assert $slot_type == Entity` followed by `return value.id`
+is written in a function returning `Integer?`; in one returning `Integer`, the answer for the other instances is
+written down instead, `if $slot_type != Entity { return 0 }`, which folds the same way
+(`conformance/stage6/folded_checks`, [failure.md](failure.md#a-default-that-looks-like-an-answer-is-an-error)).
+
+**A `crash` that folds to false is a compile error where the program can reach it** (decided by Claude under
+D205; the wording proposed by Claude, unconfirmed). **[implemented]** A `crash` whose condition is decided while
+compiling and is false would halt every time its function runs, so it is a developer's mistake the compiler can
+prove (D199), and it is reported while compiling, at the `crash`, naming the instance: `'crash
+$slot_type.fits_vector()' always halts in Slot<List<String>>: its condition is decided while compiling and is
+false, so the program would stop here every time this function runs: call it only where the condition holds, or
+change what the condition asks` (`diagnostics/folded_crash`). Only a function the program reaches counts -- the
+same reach tree shaking keeps in a production build, worked out for an inspectable build too, where nothing is
+shaken -- so an instance whose function nobody calls compiles (`conformance/stage6/folded_crash_uncalled`). This
+is how a library turns its rules into compile errors: a `crash $system_type.has_function("update_each")` in the
+function that runs a system fails the build for the class that breaks the rule, not the run. A `crash` whose
+condition also reads a run-time value is unchanged. Before, such a condition was compiled as
 a value and was the error "'$slot_type' is a type here, so it cannot be used as a value". A condition that also
 reads a run-time value is compiled as before.
 
@@ -1540,6 +1736,12 @@ class's own names for one of its instances -- the names this section already giv
 the type does not have is an error listing them: "a List<Integer> has no codegen value named '$value_type' --
 List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own"
 (`diagnostics/every_attribute`). `conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
+Compared in a condition, a name read this way folds like `$value_type` itself: `if $list_type.element_type ==
+Float`, `else if $map_type.key_type == String`, `$holder_type.held_type != Item`, to any depth and in every
+branch of an `else if` chain, so a branch that does not fit the instantiation is not compiled (fixed 2026-09-26,
+proposed by Claude, unconfirmed; `conformance/stage6/codegen_member_fold`). An `and` whose left side folds to
+`false`, or an `or` whose left folds to `true`, folds without its right side, which may then ask what the type does
+not have: `$list_type.element_type == List and $list_type.element_type.element_type == Float`.
 
 **A codegen value that is a type reads as its class** (proposed by Claude, unconfirmed): a member
 read through it, `$component_type.name` or `$component_type.attributes`, is read from the bound class's

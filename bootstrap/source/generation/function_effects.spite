@@ -6,6 +6,11 @@ var calls = List<EffectCall>()
 var incoming = List<EffectCall>()
 var taken = List<String>()
 var member_writes = List<String>()
+var own_keys = List<String>()
+var functions_studied = 0
+var variadic_position = -1
+var kept_values = Dictionary<Boolean>()
+var kept_lists = Dictionary<Boolean>()
 var waiting = true
 
 func FunctionEffects(function_key: String) {
@@ -13,7 +18,9 @@ func FunctionEffects(function_key: String) {
 }
 
 func add(added: String): Boolean {
-    assert not key_set.has(added)
+    if key_set.has(added) {
+        return false
+    }
     key_set.set(added, true)
     keys.append(added)
     fresh_keys.append(added)

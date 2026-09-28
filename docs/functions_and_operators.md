@@ -410,11 +410,13 @@ func function_name(first: Reference, second: Value): Tiny {
   ([Casting](values_and_types.md#casting)). There is no overloading: one name is one function, and a file that
   declares a name twice is an error, "'Shop' declares 'twice' twice: a later file may reopen a class and replace
   a function, but one file declares each name once".
-- `assert condition` is a production feature, not a debug one: when the condition is falsey the function returns
-  the default value of its return type immediately ([`assert` is control flow](failure.md#assert-is-control-flow)).
+- `assert condition` is a production feature, not a debug one: when the condition is false the function stops and
+  answers "nothing" -- returns, `null`, or an empty collection -- so it is allowed only in a function whose result
+  can say that; anywhere else the answer is written down, or the result made a `T?`
+  ([`assert` is control flow](failure.md#assert-is-control-flow)).
 
 ```gdscript
-func sum_positives(a: Float, b: Float): Float {
+func sum_positives(a: Float, b: Float): Float? {
     assert a > 0 and b > 0
     return a + b
 }
@@ -446,7 +448,8 @@ logger.log(pretty_print)         # passes this instance's pretty_print
   directly ([Passing a function for each element](collections.md#passing-a-function-for-each-element)). A
   program that uses no function value carries none of this.
 - **It makes foreign callbacks expressible.** `{instance, function}` is precisely what a C callback plus its
-  `void*` user data wants, which is what [Not designed yet](foreign_libraries.md#not-designed-yet) lists as not designed yet.
+  `void*` user data wants: a `ForeignCallback` hands C the function and gets the owner back from the user data
+  ([Calling back into Spite](foreign_libraries.md#calling-back-into-spite), D231-D234).
 - **An event handler can be the function itself** -- `onclick: increment` -- checked by signature, rather than
   the symbol `'increment'` ([Types](values_and_types.md#types)) resolved by name. Symbol literals stay useful elsewhere.
 
@@ -483,7 +486,7 @@ D40 (decided by Mortaro, 2026-09-20): **a `Spite.Function` knows its owner, and 
 - **`call_function()` is the one path.** Writing `printer(value)` is `printer.call_function(value)`, which is
   [Operators](#operators--implemented)'s operator rule applied once more -- the call operator maps to a named function exactly as `+` maps
   to `sum` and `a[x]` maps to `get_at`. So there is one chokepoint every invocation of a function value passes
-  through: an event handler firing, a foreign callback arriving from C ([Not designed yet](foreign_libraries.md#not-designed-yet)), a framework dispatching.
+  through: an event handler firing, a foreign callback arriving from C ([Calling back into Spite](foreign_libraries.md#calling-back-into-spite): its trampoline calls the value on its owner), a framework dispatching.
   One place to instrument, and one place where the owner is applied.
 - Because `Spite.Function` is an ordinary standard library class, `call_function` can be reopened ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial),
   D7) to trace or count every callback in a program. That is the foot, and it is yours to shoot. **Not built:**

@@ -1,0 +1,2 @@
+diagnostics/parameter_write_question/asker.spite:6: error: 'Mover.move' takes 2 arguments, so it has no parameter 2 to ask about: 'function_writes_parameter' counts parameters from 0 (in Asker.ask)
+diagnostics/parameter_write_question/asker.spite:7: error: '$system_type.function_writes_parameter(...)' is decided while compiling, so it takes the function's name as text and the parameter's number, counted from 0, as literals: '$system_type.function_writes_parameter("last_each", 1)' (in Asker.ask)

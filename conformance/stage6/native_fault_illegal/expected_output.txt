@@ -1,0 +1,6 @@
+spite.fault	illegal-instruction	-	-	-	code=0xc000001d	at=fixture.dll+0x...	foreign=stop_here	library=conformance/stage6/native_fault_illegal/fixture.dll	from=conformance/stage6/native_fault_illegal/native_fault_illegal.spite:10
+spite.frame	conformance/stage6/native_fault_illegal/native_fault_illegal.spite:9	NativeFaultIllegal	halt
+spite.frame	conformance/stage6/native_fault_illegal/native_fault_illegal.spite:4	NativeFaultIllegal	NativeFaultIllegal
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
+before the fault

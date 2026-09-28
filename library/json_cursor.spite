@@ -129,31 +129,25 @@ func read_escape(): String {
     if code == 34 or code == 92 or code == 47 {
         return text.slice(position - 1, position)
     }
-    if code == 110 {
-        return "\n"
+    switch code {
+        110: return "\n"
+        116: return "\t"
+        114: return "\r"
+        98: return text_of(8)
+        102: return text_of(12)
+        _: {
+            if code != 117 {
+                fail("an escape: one of \\\" \\\\ \\/ \\b \\f \\n \\r \\t \\u")
+                return ""
+            }
+            var code_point = read_hexadecimal()
+            if code_point >= 55296 and code_point < 56320 and consume("\\u") {
+                var low = read_hexadecimal()
+                code_point = 65536 + (code_point - 55296) * 1024 + low - 56320
+            }
+            return text_of(code_point)
+        }
     }
-    if code == 116 {
-        return "\t"
-    }
-    if code == 114 {
-        return "\r"
-    }
-    if code == 98 {
-        return text_of(8)
-    }
-    if code == 102 {
-        return text_of(12)
-    }
-    if code != 117 {
-        fail("an escape: one of \\\" \\\\ \\/ \\b \\f \\n \\r \\t \\u")
-        return ""
-    }
-    var code_point = read_hexadecimal()
-    if code_point >= 55296 and code_point < 56320 and consume("\\u") {
-        var low = read_hexadecimal()
-        code_point = 65536 + (code_point - 55296) * 1024 + low - 56320
-    }
-    return text_of(code_point)
 }
 
 func read_hexadecimal(): Integer {

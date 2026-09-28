@@ -94,7 +94,9 @@ func consume_statement_terminator() {
         return
     }
     assert not (check('right_brace') or check('end_of_file'))
-    fail("expected end of statement but found {found_text()}")
+    fail(
+        "{found_text()} is left over after the end of the statement: a statement ends with its line, so remove it, or put it on a line of its own if it is a statement",
+    )
 }
 
 func consume_field_separator(closing: TokenKind) {
@@ -182,7 +184,9 @@ func parse_top_level_statement(): Syntax.Statements.Statement {
 }
 
 func at_singleton_line(): Boolean {
-    assert check('identifier') and current().lexeme == "singleton"
+    if not check('identifier') or current().lexeme != "singleton" {
+        return false
+    }
     var following = next_kind()
     return following == 'newline' or following == 'end_of_file' or following == 'comment'
 }
@@ -224,7 +228,21 @@ func parse_statement(): Syntax.Statements.Statement {
     switch statement {
         _: statement.line = line
     }
+    if ends_in_block(statement) and not has_error and not at_statement_end() {
+        fail(
+            "{found_text()} is left over after the '}' that closes this statement: a statement ends with its line, so remove it, or put it on a line of its own if it is a statement",
+        )
+    }
     return statement
+}
+
+func ends_in_block(statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.IfStatement: return true
+        Syntax.Statements.WhileStatement: return true
+        Syntax.Statements.SwitchStatement: return true
+        _: return false
+    }
 }
 
 func parse_interpolation(hole: Token): Syntax.Expressions.Expression {
@@ -469,7 +487,15 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         return supplied
     }
     var body = parse_block()
-    return Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
+    var declared = Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
+    declared.end_line = previous_line()
+    return declared
+}
+
+func previous_line(): Integer {
+    var before = position - 1
+    crash tokens[before]
+    return tokens[before].line
 }
 
 func is_list_type(type_reference: Syntax.Types.Type): Boolean {
@@ -617,6 +643,7 @@ func parse_type_declaration(): Syntax.Statements.Statement {
             expect('colon', "':' followed by the field's type")
             var field_type = parse_type()
             var field = Syntax.Statements.FieldDeclaration(field_name.text, field_type)
+            field.line = field_name.line
             fields.append(field)
         }
         consume_declaration_entry("type")
@@ -717,10 +744,7 @@ func parse_switch_statement(): Syntax.Statements.Statement {
     var cases = List<Syntax.Statements.SwitchCase>()
     var finished = check('right_brace') or check('end_of_file')
     while not finished {
-        var case_type = parse_type()
-        expect('colon', "':' followed by the case body")
-        var body = parse_switch_case_body()
-        var switch_case = Syntax.Statements.SwitchCase(case_type, body)
+        var switch_case = parse_switch_case()
         cases.append(switch_case)
         skip_trivia()
         if check('right_brace') or check('end_of_file') or has_error {
@@ -729,6 +753,24 @@ func parse_switch_statement(): Syntax.Statements.Statement {
     }
     expect('right_brace', "'}' to close the switch body")
     return Syntax.Statements.SwitchStatement(subject, cases)
+}
+
+func parse_switch_case(): Syntax.Statements.SwitchCase {
+    var names_value = check('enum_literal') or check('integer_literal') or check('string_literal') or check('minus')
+    if names_value {
+        var value = parse_expression()
+        expect('colon', "':' followed by the case body")
+        var value_body = parse_switch_case_body()
+        var value_case = Syntax.Statements.SwitchCase(value_body)
+        value_case.value = value
+        return value_case
+    }
+    var case_type = parse_type()
+    expect('colon', "':' followed by the case body")
+    var body = parse_switch_case_body()
+    var type_case = Syntax.Statements.SwitchCase(body)
+    type_case.type_reference = case_type
+    return type_case
 }
 
 func parse_switch_case_body(): List<Syntax.Statements.Statement> {
@@ -880,7 +922,9 @@ func parse_type_without_suffix(): Syntax.Types.Type {
 }
 
 func parse_dotted_segment(path: List<String>): Boolean {
-    assert check('dot')
+    if not check('dot') {
+        return false
+    }
     advance()
     if check('identifier') {
         var segment_token = advance()
@@ -992,12 +1036,14 @@ func try_parse_generic_argument_quiet(): Syntax.Types.GenericArgument? {
     if check('integer_literal') {
         var token = advance()
         var text_number = token.text.to_long()
+        assert text_number
         var argument: Syntax.Types.GenericArgument = Syntax.Types.IntegerArgument(text_number)
         return argument
     }
     if check('float_literal') {
         var token = advance()
         var text_number = token.text.to_double()
+        assert text_number
         var argument: Syntax.Types.GenericArgument = Syntax.Types.FloatArgument(text_number)
         return argument
     }
@@ -1119,43 +1165,21 @@ func binary_operator_precedence(kind: TokenKind): Integer {
 }
 
 func binary_operator_for(kind: TokenKind): Syntax.Expressions.BinaryOperator {
-    if kind == 'keyword_or' {
-        return 'logical_or'
+    switch kind {
+        'keyword_or': return 'logical_or'
+        'keyword_and': return 'logical_and'
+        'equal_equal': return 'equal'
+        'bang_equal': return 'not_equal'
+        'less': return 'less'
+        'less_equal': return 'less_equal'
+        'greater': return 'greater'
+        'greater_equal': return 'greater_equal'
+        'plus': return 'add'
+        'minus': return 'subtract'
+        'star': return 'multiply'
+        'slash': return 'divide'
+        _: return 'modulo'
     }
-    if kind == 'keyword_and' {
-        return 'logical_and'
-    }
-    if kind == 'equal_equal' {
-        return 'equal'
-    }
-    if kind == 'bang_equal' {
-        return 'not_equal'
-    }
-    if kind == 'less' {
-        return 'less'
-    }
-    if kind == 'less_equal' {
-        return 'less_equal'
-    }
-    if kind == 'greater' {
-        return 'greater'
-    }
-    if kind == 'greater_equal' {
-        return 'greater_equal'
-    }
-    if kind == 'plus' {
-        return 'add'
-    }
-    if kind == 'minus' {
-        return 'subtract'
-    }
-    if kind == 'star' {
-        return 'multiply'
-    }
-    if kind == 'slash' {
-        return 'divide'
-    }
-    return 'modulo'
 }
 
 func parse_binary_expression(minimum_precedence: Integer): Syntax.Expressions.Expression {
@@ -1316,11 +1340,18 @@ func parse_primary(): Syntax.Expressions.Expression {
     if check('integer_literal') {
         var token = advance()
         var text_number = token.text.to_long()
+        if not text_number {
+            fail(
+                "'{token.text}' does not fit a Long, the widest whole number, which holds up to 9223372036854775807: write a smaller number, or 'Long.smallest()' for the most negative one",
+            )
+            return dummy_expression()
+        }
         return Syntax.Expressions.IntegerLiteral(text_number)
     }
     if check('float_literal') {
         var token = advance()
         var text_number = token.text.to_double()
+        crash text_number
         var float_literal = Syntax.Expressions.FloatLiteral(text_number)
         float_literal.written = token.lexeme
         return float_literal

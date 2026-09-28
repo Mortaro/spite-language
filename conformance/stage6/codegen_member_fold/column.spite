@@ -1,0 +1,36 @@
+generic $list_type
+
+var values = $list_type()
+
+func describe(): String {
+    crash values.count() > 0
+    if $list_type.element_type == String {
+        return values[0].upper_case()
+    } else if $list_type.element_type == Float {
+        var doubled = values[0] * 2.0
+        return "float {doubled}"
+    } else if $list_type.element_type == Boolean {
+        var flipped = not values[0]
+        return "boolean {flipped}"
+    } else if $list_type.element_type == List and $list_type.element_type.element_type == Float {
+        var inner_count = values[0].count()
+        return "floats in a list of {inner_count}"
+    } else if $list_type.element_type != Item {
+        return "unknown"
+    } else {
+        return "item {values[0].name}"
+    }
+}
+
+func describe_after_a_test(): String {
+    crash values.count() > 0
+    if values.count() > 5 {
+        return "many"
+    } else if $list_type.element_type == Float {
+        var tripled = values[0] * 3.0
+        return "float {tripled}"
+    } else if $list_type.element_type == Item {
+        return "item {values[0].name}"
+    }
+    return "other"
+}

@@ -3,6 +3,7 @@ var type_reference: Syntax.Types.Type? = null
 var is_function = false
 var returns_nothing = false
 var parameter_types = List<Syntax.Types.Type>()
+var line = 0
 
 func FieldDeclaration(field_name: String, field_type: Syntax.Types.Type) {
     name = field_name

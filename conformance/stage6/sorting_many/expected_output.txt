@@ -1,0 +1,3 @@
+sorted 5000 numbers, ascending by tens: true
+ties keep their order: true
+listed 300 files, in order: true

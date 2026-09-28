@@ -1,0 +1,58 @@
+var console = Console()
+
+func BulkRemoval() {
+    var names = ["ada", "grace", "barbara"]
+    names.filter(is_short).remove_where(is_long)
+    names.remove_where(measure)
+    var velocities = Vector<Velocity>()
+    var slow = Velocity(1.0)
+    velocities.append(slow)
+    velocities.remove_where(is_slow)
+    velocities.remove_where_across()
+    var joined = names.join(", ")
+    console.print(joined)
+}
+
+func is_short(name: String): Boolean {
+    return name.length() < 6
+}
+
+func is_long(name: String): Boolean {
+    return name.length() > 3
+}
+
+func measure(name: String): Integer {
+    return name.length()
+}
+
+func is_slow(velocity: Velocity): Boolean {
+    return velocity.across < 2.0
+}
+
+func keep_past_truncate(velocities: Vector<Velocity>) {
+    var first = velocities[0]
+    velocities.truncate(1)
+    console.print(first.across)
+}
+
+func keep_past_swap(velocities: Vector<Velocity>) {
+    var first = velocities[0]
+    velocities.swap(0, 1)
+    console.print(first.across)
+}
+
+func keep_past_removal(velocities: Vector<Velocity>) {
+    var first = velocities[0]
+    velocities.remove_where_stopped()
+    console.print(first.across)
+}
+
+func remove_from_dictionary() {
+    var scores = Dictionary<Integer>()
+    scores.set("ada", 3)
+    scores.remove_where(is_small)
+}
+
+func is_small(score: Integer): Boolean {
+    return score < 5
+}

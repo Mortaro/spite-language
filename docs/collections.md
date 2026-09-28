@@ -29,9 +29,12 @@ var empty = List<String>()
 | `insert(index, value)` | | an index out of range is clamped to the nearest end |
 | `list[index]` | `T?` | may not be there, so it is narrowed ([failure.md](failure.md#reading-with--answers-t)) |
 | `list[index] = value` | | the explicit form is `set_at(index, value)`; nothing happens out of range |
-| `get_at(index)` | `T?` | what `list[index]` calls, so it answers the same `T?` ([D226](decisions.md)) |
+| `get_at(index)` | `T?` | what `list[index]` calls, so it answers the same `T?`, `null` out of range ([D226](decisions.md)) |
 | `remove_at(index)` | | nothing happens out of range |
 | `remove_swapping(index)` | | moves the last element into `index` instead of moving every later one down (name provisional); nothing happens out of range |
+| `remove_where(test)` / `remove_where_<member>()` | | removes every element the test is true for, in one pass, keeping the rest in order ([below](#removing-many-at-once)) |
+| `truncate(count)` | | keeps the first `count` elements and releases the rest; nothing happens when `count` is out of range |
+| `swap(first, second)` | | exchanges two elements; nothing happens when either is out of range |
 | `reserve(count)` | | makes room for `count` elements in all without adding any, so appending up to there never grows the buffer (D208) |
 | `remove_first()` / `remove_last()` | `T?` | removes and returns it; `null` when empty, like `first()` (D211) |
 | `first()` / `last()` | `T?` | `null` when empty, like `[]` (proposed by Claude, unconfirmed): narrow it, `crash first` or `if first { }` |
@@ -193,6 +196,7 @@ templates run on the items in place the same way, and a chain of them is one loo
 | `vector[index]` / `get_at(index)` | `T?` | the item itself, borrowed once narrowed; `null` out of range |
 | `vector[index] = value` / `set_at(index, value)` | | copies `value` over the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
+| `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` for plain values only |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `reserve(count)` | | makes room for `count` items in all without making any, so appending up to there never grows the block (proposed by Claude, unconfirmed; D208) |
 | `copy()` / `deep_copy()` | `Vector<T>` | a new vector with its own copy of every item |
@@ -299,6 +303,7 @@ of moving every later one down, which is what a sparse set wants.
 | `items[index] = value` / `set_at(index, value)` | | replaces the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
 | `remove_swapping(index)` | | moves the last item into `index` (name provisional); nothing happens out of range |
+| `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` for plain values only |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `copy()` / `deep_copy()` | `Items<T>` | inline: every item copied; references: one level, or all the way down |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()`, `parallel_each_<member>()` | | as on a vector; `filter_` gives an `Items<T>`, and a chain is one loop |
@@ -332,6 +337,84 @@ func ItemsBorrowMistake() {
 An engine's column holds its values in an `Items`, and D217's walked row reads them the same way for both kinds
 ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call)). The rules are [below](#itemst--implemented-the-name-provisional).
 
+## Removing many at once
+
+`remove_where(test)` removes every element a function is true for, and `remove_where_<member>()` every element
+whose member is true, in **one pass** that keeps the others in their order: a `List`, a `Vector` and an `Items`
+all have both. `truncate(count)` keeps the first `count` and lets go of the rest, and `swap(first, second)`
+exchanges two, which is what a pass of your own is written with when the test is not a function of the element
+-- an engine removing a column's rows by a mask of despawned entities:
+
+```gdscript title=bulk_removal_doc/velocity.spite
+var across = 0.0
+var stopped = false
+
+func Velocity(new_across: Float) {
+    across = new_across
+    stopped = new_across == 0.0
+}
+```
+```gdscript title=bulk_removal_doc/bulk_removal_doc.spite entry
+var console = Console()
+var despawned = [false, true, false, true, false]
+
+func BulkRemovalDoc() {
+    var numbers = [4, 7, 10, 13, 16]
+    numbers.remove_where(is_odd)
+    numbers.truncate(2)
+    var velocities = Items<Velocity>()
+    var entities = Items<Integer>()
+    var entity = 0
+    while entity < 5 {
+        var velocity = Velocity(1.0 * entity)
+        velocities.append(velocity)
+        entities.append(entity)
+        entity = entity + 1
+    }
+    var moving = velocities.copy()
+    moving.remove_where_stopped()
+    var kept = 0
+    var row = 0
+    while row < velocities.count() {
+        var owner = entities.get_at(row)
+        if not is_despawned(owner) {
+            velocities.swap(row, kept)
+            kept = kept + 1
+        }
+        row = row + 1
+    }
+    velocities.truncate(kept)
+    entities.remove_where(is_despawned)
+    var joined = numbers.join(", ")
+    var across = velocities.sum_across()
+    var rows = entities.count()
+    var moving_count = moving.count()
+    console.print(joined, moving_count, across, rows)
+}
+
+func is_odd(number: Integer): Boolean {
+    return number % 2 == 1
+}
+
+func is_despawned(entity: Integer): Boolean {
+    return despawned.get_at(entity)
+}
+```
+```output
+4, 10 4 6 3
+```
+
+Each costs one walk over the collection, however many go: every element that stays is moved down at most once,
+and the ones removed are released at the end. Removing half of 200 000 items by a despawn list one
+`remove_swapping` at a time took 530 µs, against 340 µs for `remove_where`, and removing nine in ten 930 µs
+against 290 µs (`benchmarks/bulk_removal`). What stays keeps its order, which one `remove_swapping` per item does
+not. A test that is not a function of the element alone (a mask read by row) is written as the loop above:
+`swap` each row that stays down to the next free place, then `truncate`.
+
+`remove_where` changes the collection it is called on, so it ends no chain: `names.filter(is_short).remove_where(is_long)`
+is an error naming the fix, one test that says everything to remove. Like `remove_at`, all three may move items,
+so an item borrowed from a `Vector` or `Items` is not read after one ([the rules](#removing-many-at-once--implemented-the-names-provisional)).
+
 ## Member templates: loops you do not write
 
 A list of a class answers a family of functions named after the element's members (a function of your own is
@@ -348,9 +431,10 @@ names a program calls.
 | `any_<member>()` / `all_<member>()` | `Boolean` | take nothing, return `Boolean` |
 | `sum_<member>()` | the member's number type | take nothing, return a number |
 | `find_by_<member>(value)` | `T?`, the first element whose member equals `value` | return something comparable to `value` |
-| `sort_by_<member>()` | `List<T>`, sorted ascending | return a number or a `String` |
+| `sort_by_<member>()` | `List<T>`, sorted ascending, stable, in `n log n` time | return a number or a `String` |
 | `map_<member>()` | `List<U>`, one value per element | return a value |
 | `each_<member>()` | nothing: calls it on every element | be a function that takes nothing; what it returns is discarded |
+| `remove_where_<member>()` | nothing: removes the elements where it is true, keeping the rest in order | take nothing, return `Boolean` |
 
 A member that does not fit is a compile error naming the member, what it is, and what the template needs.
 `count_` on a number is one of them, and names `sum_` instead: `count()` is only ever a collection's size.
@@ -512,7 +596,9 @@ A template sees only the element and the list: `names.each_say_hello()` looks fo
 name, never for a function of the class the call is written in. A function of yours is passed as a value
 instead: `names.each(say_hello)` calls `say_hello` once for every name, in order, and there is no
 `say_hello_to_everyone` to write. The function is bound to whoever owns it ([functions_and_operators.md](functions_and_operators.md#functions-are-values)):
-`say_hello` alone is this instance's, and `people.each(greeter.greet)` calls `greet` on `greeter`.
+`say_hello` alone is this instance's, and `people.each(greeter.greet)` calls `greet` on `greeter`. The library's
+classes are no different: `keys.filter(counts.has)` asks the dictionary `counts`, and
+`words.filter(greeting.contains)` asks the text `greeting`.
 
 `each`, `map`, `filter`, `any`, `all`, `count`, `find`, `sort_by` and `sum` each take such a function, which takes
 the element as its only argument: `filter`, `any`, `all`, `count` and `find` want one returning `Boolean` (`find`
@@ -735,7 +821,7 @@ A program reopens `List` by putting a `list.spite` in its own folder, and a func
 library's:
 
 ```gdscript title=list_average/list.spite
-func average_member(member: Symbol<$element_type>): Float {
+func average_member(member: Symbol<$element_type>): Float? {
     assert item_count != 0
     var total = 0.0
     var index = 0
@@ -764,6 +850,7 @@ func ListAverage() {
     var four = Score(4)
     scores.append(four)
     var average = scores.average_points()
+    crash average
     console.print(average)
 }
 ```
@@ -827,7 +914,9 @@ of them name a fix: `count()` is only ever a collection's own size, so `count_<m
 `but 'count_' needs it to return Boolean (to add up a numeric member use 'sum_stars')`; and `each_<member>()` on an
 attribute says `'each_size': the member 'size' of 'Thing' is an Integer, but 'each_' needs it to be a function:
 reading an attribute and discarding it does nothing`. `sort_by_` is stable (equal keys keep their order) and
-sorts by insertion, so it suits short lists: its time grows with the square of the length.
+is a merge sort, so its time grows as `n log n`: it reads each key once, then merges runs of an index list, and
+makes the key list, two index lists and the result (`sort_by(f)` is the same template, and `Directory`'s
+`files()` and `folders()` sort through it; `conformance/stage6/sorting_many`).
 
 **How the templates are written** (D91, decided by Mortaro; the binding rule is proposed by Claude,
 unconfirmed). They are Symbol codegen templates in `library/list.spite`, each a `while` over the list's
@@ -869,7 +958,8 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 
 - **The forms.** `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and
   `sum(f)` on a `List` or a `Dictionary` (through its values), for an element of any type, never on a `Vector` or an `Items`,
-  whose items are borrowed or text (D225 moved their plain values into `List`). `f` takes the element
+  whose items are borrowed or text (D225 moved their plain values into `List`); `remove_where(f)` (D263) on a
+  `List`, never on a `Dictionary`. `f` takes the element
   as its only argument, with exactly the element's type; D15's table applies to what it returns (`filter`, `any`,
   `all`, `count` and `find` want `Boolean`, `sum` a number, `sort_by` a number or a `String`, `map` a value, `each`
   anything). `find(f)` answers the first element `f` is true for, or `null` -- the `find_by_` template with
@@ -877,7 +967,15 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 - **The owner.** `say_hello` alone is bound to this instance; `greeter.greet` to `greeter`; a variable holding a
   `Spite.Function<T, R>` is called through the value. `people.map(greeter.label).filter(is_short)` mixes owners.
   A list's own function is bound to the list the same way (`numbers.each(found.append)`, proposed by Claude,
-  unconfirmed); a chain that passes one is not fused, and runs step by step.
+  unconfirmed); a chain that passes one is not fused, and runs step by step. So is every library class's
+  (proposed by Claude, unconfirmed): a `Dictionary`'s (`keys.filter(counts.has)`, `keys.map(counts.get)`), and a
+  `String`'s or a number's (`words.filter(greeting.contains)`). A `List`'s or a `Dictionary`'s function may also
+  be held as a value, `var lookup = counts.get`, bound to that dictionary; a `String`'s or a number's may only be
+  passed to a form, since a value of text is no object a function value can keep: `var check =
+  greeting.contains` is "'contains' of a String is passed straight to a form, like 'names.filter(text.contains)',
+  and cannot be held as a value yet ...". What the function answers is what the form sees, so `counts.get`
+  answers `Integer?` (D225), and `keys.sort_by(counts.get)` is an error naming the fix: a function of your own
+  that narrows it (`conformance/stage6/library_functions_passed`, `diagnostics/library_function_mistakes`).
 - **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
   Symbol<$element_type>)`) is instantiated once per function and owner class, with a last hidden parameter holding
   the owner (the function's instance, passed at the call site), and `item.attributes[member]` reads as
@@ -904,12 +1002,13 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 
 A list's members, their results and their edge cases are [the table under `List<T>`](#listt), which is normative:
 `list[index]` and `get_at(index)` are one function and answer `T?`, `null` out of range (D225, D226: `[]` is only
-a shortcut for `get_at`, [functions_and_operators.md](functions_and_operators.md#operators--implemented)); `first`,
-`last`, `remove_first` and `remove_last` answer `null` on an empty list (D211, like `[]`), `insert` clamps to the
-nearest end, and `set_at`, `remove_at` and `remove_swapping` do nothing. `reserve(count)` grows the buffer to
-hold `count` elements and adds none. A `List` of numbers, `Boolean`, enums or `Memory.Address` is the one way to
-keep a list of them: its buffer holds the values themselves, which is what a `Vector` of them held
-(`conformance/stage6/plain_items`). There is
+a shortcut for `get_at`, [functions_and_operators.md](functions_and_operators.md#operators--implemented); this
+supersedes the `get_at` that halted out of range, and the older one that answered the element type's default,
+which read as a real element, D244); `first`, `last`, `remove_first` and `remove_last` answer `null` on an empty
+list (D211, like `[]`), `insert` clamps to the nearest end, and `set_at`, `remove_at` and `remove_swapping` do
+nothing. `reserve(count)` grows the buffer to hold `count` elements and adds none. A `List` of numbers, `Boolean`,
+enums or `Memory.Address` is the one way to keep a list of them: its buffer holds the values themselves, which is
+what a `Vector` of them held (`conformance/stage6/plain_items`). There is
 no `for`: a list is walked with a template, a passed function ([above](#standard-library-metaprogramming--partial)),
 or a `while` that does more than they do.
 
@@ -944,6 +1043,25 @@ it: `Dictionary<T>` stays the one spelling.
   place: `this dictionary is given a whole-number key here and a text key at <file>:<line> (in <class>.<function>):
   a dictionary is keyed by text or by whole numbers, never both -- give every key of it the same kind`
   (`diagnostics/mixed_dictionary_keys`).
+- **Only the program's own flows decide it** (proposed by Claude, unconfirmed; a SlopEngine bug). The descriptions
+  the compiler writes for `to_debug()` -- `Spite.Debug<T>` and `Spite.DebugInstance<T>`, one of each per type for
+  the whole program -- take a dictionary as the kind it already has and never tie it to another. Before, every
+  `Dictionary<String>` attribute of every class described passed through the one `Spite.Debug<Dictionary<String>>`
+  and was tied to all the others, so a number key given to one changed the kind of an unrelated one, and removing
+  code that made some class be described changed what compiled (`conformance/stage6/debug_dictionary_keys`).
+- **Two kinds that meet are named.** Where a dictionary of one kind is given where one of the other kind is
+  wanted, the error says which is which and what decided each, rather than naming two `Dictionary<String>`s:
+  `a Dictionary<String> keyed by whole numbers (Long), from the key at slop/columns.spite:47 (in
+  Columns.name_of_header) cannot be used where a Dictionary<String> keyed by text, from the key at
+  slop/recipes/cache_reader.spite:25 (in Recipes.CacheReader.fingerprint_of) is needed: a dictionary is keyed by
+  text or by whole numbers, decided while compiling by the keys it is given, and these two were decided apart --
+  give both the same kind of key, or copy the entries across one by one`. A kind nothing decided reads `text,
+  since nothing gives it a whole-number key`.
+- **The kinds always settle, or it is an error.** They are found by compiling again with what the last pass
+  learned, at most eight times; a program whose kinds are still changing then is a compile error at a dictionary
+  that keeps changing, `the dictionary made here never settles on text or whole-number keys: each pass of the
+  compiler decides it the other way (last as whole numbers, from the key at ...), since what decides it flows
+  back into it -- give it a key the program itself writes, of one kind`, never whatever the last pass compiled.
 - A number-keyed dictionary's key type is the widest whole-number type any of its keys has (`Integer` keys and one
   `Long` key make a `Long`-keyed dictionary); a narrower key is widened as an argument is. `keys()` answers a
   `List` of that type, and `copy()` and `deep_copy()` are keyed the same way.
@@ -1092,6 +1210,49 @@ below, and the names `Items` and `remove_swapping`, are proposed by Claude, unco
 
 `conformance/stage6/items_columns`, `conformance/stage6/plain_items`, `diagnostics/items_borrows`,
 `diagnostics/plain_items`, `diagnostics/text_items_passed`.
+
+### Removing many at once  **[implemented; the names provisional]**
+
+D263 (decided by Claude under D205 and D214): `List`, `Vector` and `Items` remove many elements in one pass. The
+names `remove_where`, `truncate` and `swap`, and the readings below, are proposed by Claude, unconfirmed:
+
+- **`remove_where(test)` and `remove_where_<member>()`.** One template, `remove_where_member(member:
+  Symbol<$element_type>)` in each of `library/list.spite`, `vector.spite` and `items.spite`, so it answers both a
+  member (`creatures.remove_where_dead()`, D15's table: the member returns `Boolean`) and a passed function
+  (`numbers.remove_where(is_odd)`, D148: on a `List` of anything, and on a `Vector` or `Items` of plain values
+  only, D221, since a borrowed item is never passed on). It walks the collection once; an element that stays is
+  exchanged with the first place not yet kept, and when the walk ends everything past the kept ones is released.
+  The survivors keep their order, and the test sees every element once, first to last.
+- **Why exchange, not move.** At every moment of the walk the collection holds each of its original elements
+  exactly once, some of them already moved down: no slot is ever empty, a copy, or released while the collection
+  still counts it. So whatever the test does to the collection -- read it, append to it, even remove from it --
+  nothing can be released twice or read after it was released; it only sees the elements in a different order.
+  Moving an element down would leave its old slot holding a second copy that a test could release, or a blank that
+  is no valid element. The exchange costs one more copy per element that stays, which measured about a third
+  slower than moving at half removed and the same at nine in ten (`benchmarks/bulk_removal`).
+- **`truncate(count)`** keeps the first `count` elements and releases the rest; a `count` below zero or not below
+  the size does nothing. **`swap(first, second)`** exchanges two elements, doing nothing when either index is out
+  of range; with `truncate` it is how a pass of the program's own removes by something other than a function of
+  the element, such as a mask of rows. `swap` is what SlopEngine's proposed `move(from, to)` became, for the same
+  reason as above: a move leaves a slot that is no valid element (proposed by Claude, unconfirmed).
+- **Chains.** `remove_where` changes its receiver, so it is not a step of a fused chain (D105), and calling it on
+  a chain is an error: `'remove_where' removes from the collection it is called on, and 'names.filter(is_short)'
+  makes a new one that nothing keeps: call it on the collection itself, with one test that says everything to
+  remove`. A test returning anything but `Boolean` is `'remove_where(measure)': 'measure' is an Integer, but
+  'remove_where' needs it to return Boolean`.
+- **Borrows and proofs.** All three count as shrinking wherever `remove_at` does: on the collection itself, and
+  through D169's call effects (a function that calls one of them records `shrink:` on the collection). So an item
+  borrowed from a `Vector` or `Items` is not read after one (`'first' is borrowed from 'velocities', and
+  'velocities.truncate()' on line 34 may move the items of 'velocities', ...`), a D206 row's system may not reach
+  one for a vector it borrows from, and a proof about an element is undone by one. `swap` changes no size but
+  changes which element an index names, so it counts too.
+- **Cost.** Only what a program calls is compiled. `swap` is three copies of the element through a temporary on the
+  C stack (`TypedMemory.swap_values`, `InlineMemory.swap_items`, written per element type by the generator), with
+  no allocation. Measured at 200 000 `Items<Velocity>` items and a `List<Integer>` beside them: half removed,
+  340 µs against 370 µs for a `remove_swapping` per removed row while walking the rows and 530 µs for one per
+  entity of a despawn list; nine in ten removed, 290 µs against 490 µs and 930 µs.
+
+`conformance/stage6/bulk_removal`, `diagnostics/bulk_removal`, `benchmarks/bulk_removal`.
 
 ### Heap\<T\> -- removed (D1, decided by Mortaro, 2026-09-19)
 

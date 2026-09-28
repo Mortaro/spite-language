@@ -1,0 +1,10 @@
+var console = Console()
+
+func FoldedCrash() {
+    var names = Slot<List<String>>()
+    var counts = Slot<Integer>()
+    console.print("before the crash")
+    counts.fits()
+    names.fits()
+    console.print("never printed")
+}

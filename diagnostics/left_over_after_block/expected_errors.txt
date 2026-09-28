@@ -1,0 +1,1 @@
+diagnostics/left_over_after_block/left_over_after_block.spite:12:7: 'console' is left over after the '}' that closes this statement: a statement ends with its line, so remove it, or put it on a line of its own if it is a statement

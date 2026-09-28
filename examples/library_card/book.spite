@@ -18,6 +18,8 @@ func label(): String {
 }
 
 func is_available(): Boolean {
-    assert not borrowed_by
+    if borrowed_by {
+        return false
+    }
     return true
 }

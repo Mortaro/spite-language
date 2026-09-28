@@ -1,6 +1,8 @@
 var callee_class = ""
 var callee = ""
 var arguments = List<String>()
+var dispatch_parameter = -1
+var dispatch_element = false
 var passes_parameters = false
 var caller = ""
 
@@ -15,12 +17,16 @@ func translated(key: String): String {
         var key_length = key.length()
         var parameter_key = key.slice(5, key_length)
         var passed = translated(parameter_key)
-        assert not passed.is_empty()
+        if passed.is_empty() {
+            return ""
+        }
         var passed_length = passed.length()
         if passed.starts_with("shrink:") {
             return "grow:{passed.slice(7, passed_length)}"
         }
-        assert passed.starts_with("parameter:")
+        if not passed.starts_with("parameter:") {
+            return ""
+        }
         return "grow:{passed}"
     }
     if passes_parameters or not key.starts_with("parameter:") {
@@ -29,8 +35,13 @@ func translated(key: String): String {
     var key_length = key.length()
     var position_text = key.slice(10, key_length)
     var position = position_text.to_integer()
-    assert position < arguments.count()
+    crash position
+    if position >= arguments.count() {
+        return ""
+    }
     var passed = arguments[position]
-    assert passed != "fresh"
+    if passed == "fresh" {
+        return ""
+    }
     return passed
 }

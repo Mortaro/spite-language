@@ -233,7 +233,9 @@ func _read_number(): Long {
 
 func _read_fraction(): Integer {
     var separator = _text.code_at(_position)
-    assert separator == 46 or separator == 44
+    if separator != 46 and separator != 44 {
+        return 0
+    }
     _position = _position + 1
     var value = 0
     var digits = 0

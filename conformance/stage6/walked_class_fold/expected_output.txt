@@ -1,0 +1,7 @@
+107 4 aim 2
+true false
+[Bundle.Fallen:false:false Bundle.Hero:true:true Bundle.Potion:false:false]
+[Bundle.Fallen:true:true Bundle.Hero:false:false Bundle.Potion:false:false]
+[Bundle.Fallen:false:false Bundle.Hero:false:false Bundle.Potion:true:true]
+[Bundle.Fallen:false:false Bundle.Hero:false:false Bundle.Potion:false:false]
+10 alive 3 0

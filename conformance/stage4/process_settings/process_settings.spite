@@ -1,0 +1,22 @@
+var console = Console()
+
+func ProcessSettings() {
+    var echoed = Process("cmd", ["/c", "echo", "-script=a b", "-plain=x", "two words", "say \"hi\"", "C:\\a b\\"])
+    echoed.run()
+    var echoed_line = echoed.output().trim()
+    console.print(echoed_line)
+    var greeting = Process("cmd", ["/c", "set", "SPITE_GREETING"])
+    greeting.environment_variables["SPITE_GREETING"] = "hello there"
+    greeting.run()
+    var greeting_line = greeting.output().trim()
+    console.print(greeting_line)
+    var folder = Directory(".spite-cache/process_settings")
+    folder.create()
+    var marker = File(".spite-cache/process_settings/marker.txt")
+    marker.write("found beside the child")
+    var reading = Process("cmd", ["/c", "type", "marker.txt"])
+    reading.working_directory = ".spite-cache/process_settings"
+    var code = reading.run()
+    var read_line = reading.output().trim()
+    console.print(code, read_line)
+}

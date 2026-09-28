@@ -55,6 +55,10 @@ nothing at run time because they emit nothing.
 | [The thread pool only where a `Parallel` is made](#the-thread-pool-only-where-a-parallel-is-made) | built | every, decided per program | nothing until the first `Parallel` |
 | [Singletons a `Parallel` reaches take a lock](#singletons-a-parallel-reaches-take-a-lock) | built (the fallback) | every but `--hot-reload`, decided per program | an uncontended lock per call, only with `Parallel` |
 | [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | built: nothing, atomics, one-thread; planned: the rest | every but `--hot-reload`, decided per program | no lock where one is not needed |
+| [A counted loop of calls to one singleton takes its lock once](#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once) | built | every but `--hot-reload`, `--repl`, `--repl-port`, decided per loop | one lock for the loop instead of one per call, only with `Parallel` |
+| [A singleton's reading functions do not exclude each other](#a-singletons-reading-functions-do-not-exclude-each-other) | built | every but `--hot-reload`, decided per singleton | readers count on their own cache line; 2 KiB of counts per such singleton |
+| [While no task runs, a singleton's lock is skipped](#while-no-task-runs-a-singletons-lock-is-skipped) | built | every but `--hot-reload`, only with `Parallel` | one load per locked call, two atomic additions per task |
+| [The fault handler is in every program](#the-fault-handler-is-in-every-program) | built (a cost, not an optimisation) | every | about 3.7 KB of code and 32 bytes and a name per function; one store per foreign call |
 | [Smaller ones](#smaller-ones) | built | every | nothing |
 | [Proofs that survive a call](#proofs-that-survive-a-call) | built | every | a proof after a call that may change it is written again |
 | [Text joined in one piece](#text-joined-in-one-piece) | built | every | fewer allocations; a text made only of constants is constant |
@@ -71,6 +75,9 @@ nothing at run time because they emit nothing.
 | [A local list of known size lives in the frame](#a-local-list-of-known-size-lives-in-the-frame) | built | every but the inspectable ones | fewer allocations |
 | [A loop over plain values reads its count once and its items unchecked](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked) | built | every but `--repl`, `--repl-port` and `--hot-reload` | nothing but speed |
 | [A walked `crash` line's read is the row's read](#a-walked-crash-lines-read-is-the-rows-read) | built | every | nothing but speed |
+| [Objects that never leave their function live in the frame](#objects-that-never-leave-their-function-live-in-the-frame) | built | every but the inspectable ones | fewer allocations; `.memory.section` answers `'stack'` |
+| [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | built | `--optimized` (any build given `--translation-units`), but not `--hot-reload` | nothing but build time; `.spite-cache/objects` grows |
+| [A release build is `-O3` with link-time optimisation](#a-release-build-is--o3-with-link-time-optimisation) | built | `--optimized` | nothing but speed, and a slower link |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -141,7 +148,16 @@ even use things that would not compile for this build. That covers:
   system's arity;
 - `$component_type.fits_vector()` and `attribute.class.fits_vector()` ([D217](decisions.md)), which is how
   `Items<T>` picks inline or reference storage ([below](#an-items-storage-is-chosen-while-compiling));
-- `not`, `and`, `or`, `==` and `!=` over any of these.
+- a test on a codegen value's own codegen values, `$list_type.element_type == Float`,
+  `$map_type.value_type == Item`, `$holder_type.held_type == String`, to any depth, in every branch of an
+  `else if` chain (`conformance/stage6/codegen_member_fold`; fixed 2026-09-26, when only a plain `$T` folded);
+- `attribute.class == X` in an attribute walk, for an attribute of any type (D237); and where a value known only at
+  run time is compared with a `.class` known while compiling (`given == known.class`), the comparison is a class-id
+  test and no `Spite.Class` object is made (`conformance/stage6/walked_class_fold`);
+- `not`, `and`, `or`, `==` and `!=` over any of these. An `and` whose left side folds to `false`, and an `or` whose
+  left side folds to `true`, fold whatever the right side is, as the run-time `and` and `or` would never look at
+  it: so `$list_type.element_type == List and $list_type.element_type.element_type == Float` folds for a list of
+  text, whose items have no `element_type` to ask about.
 
 An `assert` or `crash` whose condition is one of these folds the same way: a check that holds writes nothing,
 and one that fails writes its failure (the default returned, or the crash report) with no test, the rest of its
@@ -347,8 +363,9 @@ way to give it back, `heap.free(address)`. Where the bytes live is the compiler'
   scalar. A number is never an object.
 - **Frame:** an allocation a function frees itself, in the same block, whose address it only reads and writes
   through, copies, compares, turns into `text`, hands to a `TypedMemory` or lends to a function of its own class
-  proven to keep nothing ([D211](decisions.md)) -- never stores, returns, resizes or passes anywhere else -- gets a
-  slot in the function's own frame: 256 bytes, or exactly a literal size up to 256. A larger size at run time
+  proven to keep nothing ([D211](decisions.md)) -- or, in `library/`, lends to a function of a `DynamicLibrary`
+  the class holds, the operating system call that fills it -- never stores, returns, resizes or passes anywhere
+  else -- gets a slot in the function's own frame: 256 bytes, or exactly a literal size up to 256. A larger size at run time
   still goes to the heap, and the program's text is the same either way.
 - **Constant:** the characters of a text literal are part of the program, never counted or freed.
 - **Heap:** everything else.
@@ -825,6 +842,145 @@ counter's attribute is read with one atomic load, and a singleton that never cha
 = counter.hits + 1` from outside is still a read and a write, two steps. **Built** (2026-09-25; proposed by
 Claude, unconfirmed: which forms, their order, and the one-touch rule; the reads 2026-09-26).
 
+### While no task runs, a singleton's lock is skipped
+
+**What it does.** Every function a singleton's lock wraps first asks whether any work is on the thread pool: the pool
+counts every task from the moment it is handed out until it has run (`spite_tasks_in_flight`, one add and one
+subtract per task), and when the count is zero -- before the first `Parallel`, after the last one has been read,
+between an engine's stages -- only the program's own thread runs the program, so the function runs without the
+lock ([D267](decisions.md); proposed by Claude, unconfirmed). It notes on a small stack of its thread's that it
+skipped this singleton's lock, and if it starts a task itself before it returns, the pool takes every lock the
+thread skipped before the task is counted, and the function lets it go when it returns: so the task finds the
+singleton locked exactly as it would have, and nothing it can see differs.
+
+**When.** In every wrapper D183's lock gives a function, writing and reading ones alike, in a program that makes a
+`Parallel` or a `parallel_each_` pass; sixteen skipped singletons deep at most, beyond which the lock is taken as
+before. Writes and reads of attributes from other classes and counted loops (D265) keep their lock.
+
+**What you notice.** Speed where the program's own thread calls a locked singleton while nothing runs on the pool
+-- an engine applying queued inserts between stages: `benchmarks/singleton_unshared`, ten million calls on the
+program's thread with no task in flight, 19 ns a call with the lock, 9 ns now, against 4 ns with no lock at all
+written by hand. In a spawn-shaped program doing real work per call (`Column<T>` inserts: growing a list, appending
+to an `Items`, reading a row) the lock was about 1 ns of 14 ns a call, so there it measures 13 ns. Each call reads
+one counter no thread writes while it is zero, and each task costs two atomic additions. **Built** (2026-09-27).
+
+A `copy()` or `deep_copy()` of a class that holds nothing counted as one `memcpy` of its attributes, which
+SlopEngine asked for at the same time, was measured and not built: 200 000 copies of a two-`Float` class took
+31-32 ns each before and 36-38 ns after, the allocation being nearly all of it. Measured again on a six-attribute
+class (five `Float`s and an `Integer`), 20 000 000 copies at `clang -O2`: 785-797 ms written attribute by attribute,
+783 ms and more as one `memcpy` -- the C compiler already turns the attribute copies into a handful of wide moves
+(five instructions after the allocation either way), so a `copy()` of a class whose attributes all fit a `Vector` is
+a `memcpy` in the machine code today, and what is left is its allocation (about 39 ns of a copy that is kept).
+
+### A singleton's reading functions do not exclude each other
+
+**What it does.** A locked singleton's function that only reads its state -- an engine column's `at(row)`, a lookup --
+no longer takes the lock itself. It takes the readers' side: it adds one to a count of its own thread's (one of 32
+counts, each on a cache line of its own), checks that no function that writes holds the lock, reads, and takes the
+one away. A function that writes takes the lock as before and then waits until every count is zero, so it never
+runs beside a reader, and readers never run beside it ([D266](decisions.md); proposed by Claude, unconfirmed). Readers
+on different threads touch no line in common, so eight systems reading one column per row no longer hand a cache
+line from core to core on every call.
+
+**When.** For each function the lock would wrap (D183's fourth form), in a program that makes a `Parallel`, when the
+compiler proves from its source that it changes nothing: its statements declare and assign only its own locals,
+branch, loop, `return`, `assert` or `crash`; it calls only reading functions of its own class, the reading members
+of a `List` or `Dictionary` it holds or is passed (`count`, `get_at`, `[]`, `get`, `has`, `is_empty`, `first`,
+`last`, `contains`, `keys`, `values`, `join`, `copy`), anything on text and numbers but a `write_` or `copy_to`,
+`read_value`-like reads of `TypedMemory` and `InlineMemory`, and reading functions of a singleton that holds no
+state (SlopEngine's `Raw.read_long`); it reads attributes that have no getter; its text has no holes (a hole could
+call `to_string`); and its operators are on numbers, or the program declares no operator function at all. Anything
+else is a writing function. And it is only for a singleton that the work of a `Parallel` only reads: none of its
+writing functions, and no function that writes its attributes from another class, is reachable from what a
+`Parallel` or a `parallel_each_` pass runs -- SlopEngine's columns, written between stages and read by the systems
+of a stage. A singleton that is also written from the pool keeps the plain lock: a write there would scan the counts
+on every call (measured: `Row.advance()` per entity took SlopEngine's `stress` tick from 8 ms to 25 ms). A
+singleton with reading functions that qualifies gets the counts; its writing functions,
+writes and reads of its attributes from other classes, and counted loops of calls (below) use the matching side, and
+a counted loop that calls only reading functions takes the readers' side once for the whole loop. The thread that
+holds the writers' side reads without counting, so a writing function calling out to code that reads back is not
+held up by itself.
+
+**What you notice.** Speed where several threads read one singleton: `benchmarks/singleton_reads`, eight `Parallel`
+systems each reading 15 000 rows of one column through `at(row)`, went from 202 ns to 6 ns per row read (24 ms to
+0.75 ms a tick). A reading call on one thread costs about the same as before (a locked add on a line only that thread
+writes, instead of a compare-and-swap on a shared one). A write now also looks at the 32 counts once per outermost
+call: about 32 loads that stay in the writing core's cache while nothing reads. Each singleton with reading
+functions carries 2 KiB of counts. What a program computes is unchanged: a reading function still sees the
+singleton's state whole, never half-way through a write. **Built** (2026-09-26).
+
+### A counted loop of calls to one singleton takes its lock once
+
+**What it does.** A `while` that calls functions of one locked singleton many times -- a worker removing rows through
+`columns.remove_row(entity)`, a system adding to a tally -- takes that singleton's lock once around the whole loop
+and calls the functions' unlocked bodies inside it, instead of taking and letting go of the lock on every call
+([D265](decisions.md); proposed by Claude, unconfirmed). One of those per call is two atomic operations when no
+other thread wants the lock, and when other threads do, every call hands the lock's cache line from core to core.
+
+**When.** In a program that makes a `Parallel`, for a `while` in any class but the singleton itself when all of this
+holds, so that the lock held longer can neither deadlock nor wait on anything:
+
+- **It ends on its own.** It is counted: `index < bound`, `index` a local stepped by `index = index + 1` as the
+  body's last line and assigned nowhere else in it, and `bound` a whole number, a name the body never assigns, or
+  `.count()` of a list of plain values. So it never waits for another thread to change the singleton (a poll such
+  as `while got == 0 { got = mailbox.take() }` keeps a lock per call), and every `while` inside it is counted too.
+- **It locks nothing else.** Its calls are functions of that one singleton, reached through the attribute that binds
+  it, and the reads and writes of a list of plain values (`count`, `get_at`, `set_at`, `append`, `contains`,
+  `is_empty`, `[]`); what it computes is numbers, `Boolean`, text without holes and enum values, so no operator,
+  getter or `to_string` of a class of the program's can run in it. A lock it takes nothing else under adds no new
+  order between two locks: whatever the singleton's functions lock, they lock under its lock already.
+- **It waits for nothing.** No `Parallel` or `Concurrent` is read in it (none is even named), it cannot `return`,
+  and the singleton's functions it calls can reach no wait (the facts `function_waits` uses) and no `Parallel`,
+  `Concurrent`, `ThreadPool`, `Scheduler`, `Lock`, `Program`, `Console`, `File` or `Socket`.
+- **The lock is real.** At least one of the functions it calls takes the lock (D183's fourth form); a loop calling
+  only functions that touch no changing state, or a singleton that takes no lock, is left as it was.
+
+Not in a `--hot-reload`, `--repl` or `--repl-port` build, nor in the resumable copy of a function a `Concurrent`
+runs. **What you notice.** Speed: `benchmarks/singleton_locks`, 800 000 calls from eight workers, went from 2.3 ms to
+0.35 ms with a singleton per worker and from 51 ms to 0.6 ms with one singleton for all of them (the lock handed
+between cores on every call); one thread, 1.7 ms to 0.4 ms. Nothing a program prints changes: the loop's calls run
+exactly as before, and other threads' calls on the singleton wait until the loop is over instead of slipping in
+between two of its calls, which is one of the orders they could already run in. A long counted loop keeps other
+threads that want the singleton waiting for all of it. In the C, the loop is between `spite_coarse_<n>_enter()` and
+`spite_coarse_<n>_leave()` and calls `<function>___unguarded`; `conformance/stage6/coarse_locks` holds that in
+`check.sh`. **Built** (2026-09-26).
+
+### The fault handler is in every program
+
+**What it is.** The one piece of C nothing tree-shakes: a program can meet a native fault -- a null read inside a
+foreign library, a stack overflow -- whatever it uses, and [D244](decisions.md) makes a silent end a bug, so every
+program installs a handler that reports it ([failure.md](failure.md#what-a-native-fault-reports)). It is fixed
+code, not a runtime system ([D177](decisions.md)): nothing runs until a fault, and it is written once, after every
+other function, from what tree shaking kept.
+
+**What it costs**, measured on x64 Windows with the C compiler `check.sh` uses:
+
+- **Code**: about 3.7 KB of machine code (3 707 bytes at `-O0`, 3 678 at `-O2`), 0.4 KB of fixed text, and its unwind
+  data. Installing it is two system calls at start (three on Windows, where a vectored handler also catches a
+  corrupted heap, D260), and one more in each thread the program starts. The vectored handler runs for every
+  exception the process raises and returns after one comparison unless it is `0xC0000374`; Spite raises none, so
+  only a foreign library that uses exceptions of its own ever pays it.
+- **The function table**: 32 bytes per function the C keeps, plus its name; the file and class text is shared by a
+  class's functions. `examples/hello` keeps 73 functions, about 4 KB; the compiler keeps about 3 360, about 210 KB of
+  its 4.3 MB. In an `--optimized` build, taking every function's address keeps an out-of-line copy of a small
+  `static` function the C compiler would otherwise have inlined everywhere and dropped: 1.7 KB more code in
+  `examples/hello`; calls to it stay inlined.
+- **One store per foreign call**: each call writes a pointer to a fixed text, naming what it calls and from where,
+  into a thread-local before it goes in, in every build. A loop of 300 000 000 calls into a one-line C function
+  measured 1.33 ns a call with the store and 1.33 ns without (thread-local or not; best of seven runs each), so it
+  is not kept to inspectable builds ([D214](decisions.md)).
+- **Frame pointers**, which the stack walk needs on Linux and macOS, are kept only where they are free or asked
+  for: a build without `--optimized` has them anyway, and an inspectable build is compiled with
+  `-fno-omit-frame-pointer` there. The compiler compiling itself at `-O2` took 1 847-1 879 ms without them and
+  1 856-1 918 ms with them (about 1% slower, four runs each, alternating), so an `--optimized` production build does
+  not keep them and its report names the faulting function without the chain. Windows walks the stack from the
+  unwind data every 64-bit program carries, in every build, at no cost.
+- **Stack**: 16 KB of each thread's stack on Windows, and a 64 KB alternate signal stack per thread on Linux and
+  macOS, are kept back so a stack overflow can still be reported.
+
+**When.** Every build. **What you notice.** A fault prints a report instead of nothing, and the program is a few
+kilobytes larger. **Built.**
+
 ### Smaller ones
 
 All **built**, and none of them needs anything from you:
@@ -846,6 +1002,10 @@ All **built**, and none of them needs anything from you:
   only to be printed by a crash, so each `assert` of such a program compiles to its test and its `return`, and
   the trace's 32 entries are not in the program ([D177](decisions.md)). A program that can crash records
   exactly as before.
+- An attribute written through a local or a parameter, `item.index = 293`, is written through that local,
+  `(item_)->index_ = 293;`, with no temporary holding the reference first: a local cannot change while the value
+  is worked out. An object that is any other expression is still evaluated once into a temporary. Nothing a
+  program can observe changes; the C is shorter, by about one line in twenty for a folder of data records.
 - A foreign library is closed at exit only if the function that opens it is in the program, so a library nothing
   opens leaves neither its handle nor the code to close it in the program ([D177](decisions.md)). `Console` still
   opens the C library when it is made, since D144 binds its `DynamicLibrary` as an attribute: a program that only
@@ -1099,6 +1259,15 @@ per argument that borrows (`conformance/stage6/lent_arguments` pins its count), 
 against 34.3 ms when each argument is copied out of its column, passed and stored back. **Built** (2026-09-26;
 proposed by Claude, unconfirmed).
 
+Any borrowed item passed as an ordinary argument (D257, [memory.md](memory.md#an-item-lent-to-a-call)) takes the
+same `___lent_<positions>` copy: `apply(event, mouse, keyboard)` with `mouse` and `keyboard` read from a row calls
+`apply___lent_1_2`, which receives the items' addresses and neither retains nor releases them, and a lent
+parameter passed on (`press(mouse)`) calls `press___lent_0` in turn. One copy is written per function and set of
+lent positions, and only for those a program reaches, so a program that lends nothing carries none. **What you
+notice.** No copy and no count per lent argument (`conformance/stage6/lent_to_calls` balances with the writes
+read back from the vectors); the `___lent_` functions appear in the C, and the ordinary function is shaken out
+when no caller passes it a counted object. **Built** (2026-09-27; proposed by Claude, unconfirmed).
+
 ### An `Items`' storage is chosen while compiling
 
 **What it does.** `Items<T>` ([collections.md](collections.md#itemst-the-storage-chosen-for-you), D218) is one
@@ -1132,6 +1301,20 @@ unless the divisor is a constant other than zero, or a proof in scope says it is
 that cannot change `parts` and drops across one that may. The check, where it stays, is one compare and a
 branch the CPU predicts. What you can observe: nothing but speed; `check.sh` holds that
 `conformance/stage6/division_by_zero`'s proven `whole / pieces` carries no check in its C.
+
+### Signed arithmetic is checked only while developing
+
+**Built.** In a `--debug-memory` or an inspectable build, every `+`, `-` and `*` done in `Tiny`, `Short`,
+`Integer` or `Long` is the C compiler's overflow builtin in that type, and an answer that does not fit halts
+([values_and_types.md](values_and_types.md#numeric-types--implemented-provisional)). A production build -- the
+ordinary one and `--optimized` -- emits the plain operator, so its C is the same as before the check existed and
+the answer wraps. The unsigned whole numbers are never checked. What you can observe: in a development build, a
+halt instead of a wrapped answer; in a production build, nothing. **Cost, measured** (best of seven runs, each
+benchmark built with `--development` by the compiler before and after the check, C at `-O2`, on a machine other
+sessions were loading): `plain_loops` 201 -> 216 ms, `fused_chain` 240 -> 345 ms, `game_maths` 180 -> 189 ms,
+`dictionary_keys` 177 -> 179 ms. The compiler built with `--debug-memory` compiling itself carries 1 506 checked
+operations and took 5.2 s before and 4.7 s after, best of eight: inside the noise. **Planned:** leave out the check
+where a proof already bounds the operands, as a proven divisor leaves out its zero check.
 
 ### Short text lives inside the `String`
 
@@ -1333,6 +1516,96 @@ more for itself as it always did (`conformance/stage6/sparse_rows` reads its ref
 show no tick slower beyond the run-to-run noise. **Built** (2026-09-26, with D225; proposed by Claude,
 unconfirmed).
 
+### Objects that never leave their function live in the frame
+
+**What it does.** Every class is passed by reference ([D149](decisions.md)), so `var moved = position +
+velocity.scaled(delta)` reads as two new objects. When the compiler can prove an object never outlives the call
+that made it, it is not made on the heap at all: it gets a slot in the function's own frame, the way a buffer
+([D108](decisions.md), [D211](decisions.md)) and a list ([D222](decisions.md)) already do. Four places use it:
+
+- **A local.** `var name = <a fresh object>` gets a frame slot when nothing after it in its block lets the object
+  go: it is only read and written through its attributes, handed as the receiver or as an argument to functions
+  proven to keep nothing, compared, or asked for its `.memory`. It may be given a new fresh object
+  (`position = position + moved`), which is worked out in a second slot and copied into the first; and when the
+  function returns its class, `return name` copies it to the heap once, at the return, instead of once per step.
+  Anything else lets it go and keeps it on the heap as before: storing it in an attribute, a list or a dictionary,
+  returning it from a function that answers some other type, naming it in another variable (`var other = name`),
+  passing it to a function that keeps it, to a `Parallel` or a `Concurrent` (their constructors keep it), as a
+  function value (`name.update`, which holds the object), to a variadic list (`console.print(name)`), or naming it
+  in a text's hole other than as `{name.attribute}`.
+- **A result, into the caller's slot.** A function whose every `return` gives a fresh object -- `return
+  Vector3(...)`, a local that lives in the frame, or another such call -- gets a second, hidden version that writes
+  its answer into a slot its caller passes, a calling convention chosen per call site ([D36](decisions.md): both
+  versions may exist, and neither is visible). So `var moved = velocity.scaled(delta)`, whose `moved` stays in the
+  frame, calls the hidden version with `moved`'s slot, and nothing is allocated. `Matrix4.multiply`, which builds
+  its product in a local and returns it, becomes the same.
+- **A temporary.** In `a + b + c`, `(first + second).length_squared()` or `transform.transform_point(point)` passed
+  to a function that keeps nothing, each intermediate answer is written into a frame slot of its own.
+- **A copy used as a value.** This is D149's answer to value classes, which Spite does not have: "instead we can
+  copy() a instance because thats user intention, but if a copy is only used as a value, we internally compile it
+  as a value, the compiler is smart, the users arent". `var local = other.copy()` (or `other.deep_copy()`, the
+  same thing for a class of numbers) whose `local` never leaves the function is a frame slot filled by copying the
+  attributes -- a `memcpy` of the object's numbers after the C compiler is done -- with no heap allocation and no
+  count kept anywhere. Changing `local` never changes `other`, as with any copy.
+  `conformance/stage6/frame_objects` pins it: two such copies change `heap.live_allocations()` by 0 (by 2 before).
+
+**Which objects.** An instance of a class whose attributes are all numbers, `Boolean`s, enum values or singletons
+([D144](decisions.md) binds a singleton as an attribute, and it is never counted) -- `Vector3`, `Matrix4`,
+`Quaternion`, a program's own `Velocity`, SlopEngine's `Math.Matrix4` -- with no `drop()`, that is not a singleton and whose
+constructor keeps nothing, and whose class is not read with `.instances` anywhere in the program. What "keeps
+nothing" means is proven from the source of each function, parameter by parameter and for the object it is called
+on: a parameter kept nowhere in the body -- not stored, returned, captured, named in another variable, or passed on
+to a function that keeps it -- is lent. A function without a body the compiler reads (a foreign or built-in one) and
+a recursive call are assumed to keep.
+
+**How it stays safe.** A frame object starts with a reference count of 2^30 that its frame never lets go, so the
+count's ordinary ups and downs around calls never free it, and it is never on the heap to be freed. Nothing is kept
+anywhere, so no reference outlives the frame, and none reaches another thread: a program cannot tell where it lives
+except by asking.
+
+**When.** Every build but the inspectable ones (`--repl`, `--repl-port`, `--hot-reload`, `--development`), where
+every object stays an ordinary heap object that reflection and reloading can see, and not in a function that
+waits. Objects of classes holding text, lists or other objects are not placed yet: their attributes would have to
+be let go at the end of the frame, which is planned (below).
+
+**What you notice.** Fewer allocations under `--debug-memory`, and `value.memory.section` answering `'stack'` for a
+local that lives in the frame ([memory.md](memory.md#where-a-value-lives-memory)). `benchmarks/game_maths` (a
+million `position + velocity.scaled(delta)` steps, 200 000 `Matrix4` products, a million `transform_point`s): 3 200
+046 allocations before, 37 after, and the hand-written C with the same structs in `benchmarks/game_maths/game_maths.c`
+is the measure of speed -- see [the benchmarks](../benchmarks/README.md#game-maths-d213); `small_allocations` makes
+3 004 007 (9 004 007), and every other benchmark the same as before. On a copy of SlopEngine,
+whose `Math.Matrix4` holds its two singletons as attributes: `flex_layout` makes 99 789 allocations (100 514
+before), `scene_probe` 32 413 (32 518), `render_parity` 14 142 (14 171), with the same output; `stress` keeps
+its components in columns and makes the same 5 606 191. The pins that moved in `conformance/`: `lent_arguments`
+allocates 122 times (130), because the `Entity` a generic runner makes for each entity it hands to a system that
+keeps nothing is now in the frame; `singleton_counts` 65 times (200 065), because the `TallyHolder` each of its
+200 000 passes makes holds only a singleton and is only read, so it is in the frame; `frame_objects` pins the
+rest (2 098 allocations before, 86 after). In a program that starts
+threads, passing a frame object to a function still counts it up and down atomically, as it does any object; the
+count is never read. **Built** (2026-09-26, extending D108/D211 placement to objects under [D149](decisions.md);
+proposed by Claude, unconfirmed, decided under D205/D214).
+
+### The C is compiled in parallel units, and cached
+
+(Proposed by Claude, unconfirmed.) In an `--optimized` build, the C of a program bigger than 1.5 MB is split into
+a header and up to 64 translation units, compiled as many at once as the machine has processors and linked, and each unit's object is
+kept under the hash of what it was compiled from, so a build that changed nothing only links and a build that
+changed one function's body compiles one unit ([compiler.md](compiler.md#translation-units-the-c-compiled-in-parallel-and-cached),
+where the rules are). It changes nothing a program does: the same functions and variables, with `static` dropped so
+another unit can call them. What you could notice: in a build without link-time optimisation a call from one unit
+into another is not inlined by the C compiler -- which the default `-O0` build never does anyway, and which
+`--optimized` recovers ([below](#a-release-build-is--o3-with-link-time-optimisation)); and the object cache in
+`.spite-cache/objects` grows until it is deleted. `--translation-units=1` builds from one file as before.
+
+### A release build is `-O3` with link-time optimisation
+
+(Proposed by Claude, unconfirmed.) `--optimized` asks the C compiler for `-O3`, and a build from several units adds
+ThinLTO (`-flto=thin`, clang) or `-flto=auto` (gcc) so functions are still inlined across units. What you could
+notice: the link takes longer, since it is where the optimisation across units happens. The default build is `-O0`,
+Mortaro's choice to keep; `--tune-for-this-machine` adds `-march=native`, which makes the executable specific to
+processors like the one that built it ([compiler.md](compiler.md#release-builds)). The measurements are in
+[benchmarks/README.md](../benchmarks/README.md#release-builds).
+
 ## Planned
 
 Decided by Mortaro, not built yet. When one is built, it moves up to **Built** in the same change.
@@ -1356,7 +1629,12 @@ optimises behind it ([D149](decisions.md)): a copy used only once is passed by v
 allocated; a copy that is never changed shares the original, when that is cheaper; an object that never escapes
 its function is laid out inline or in registers; and reference counting is left out wherever ownership is
 provable. You keep writing `copy()` where you mean an independent object. (D152's allocator set right after
-construction, the one part of this already built, is [above](#an-allocator-set-after-construction-is-where-the-object-is-made).)
+construction is [above](#an-allocator-set-after-construction-is-where-the-object-is-made), and so is the first
+part of objects that never escape: [objects of numbers in the frame](#objects-that-never-leave-their-function-live-in-the-frame),
+including a `copy()` of one.) Not built yet: frame objects of classes that hold text, lists or other objects
+(their attributes let go at the end of the frame), an attribute object laid inline in a frame-held object where
+the attribute is never shared, and leaving out the count on a frame object passed to a function, which needs
+callees that borrow their parameters rather than taking a count.
 
 ### Other planned optimisations
 

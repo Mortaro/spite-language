@@ -1,0 +1,13 @@
+singleton
+
+var values = Vector<Score>()
+
+func add(points: Integer) {
+    var score = Score()
+    score.points = points
+    values.append(score)
+}
+
+func at(index: Integer): Score {
+    return values[index]
+}

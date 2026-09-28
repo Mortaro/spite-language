@@ -1,0 +1,16 @@
+[42] is 42
+[ -12 ] is -12
+[0] is 0
+[+7 days] is not an Integer
+[forty two] is not an Integer
+[] is not an Integer
+[9000000000] is not an Integer
+[2.5] is 2.5
+[-1.5e2] is -150
+[1e] is not a Double
+[nan] is not a Double
+long 9000000000
+300 is not a Byte
+-1 is not an UnsignedInteger
+typed 12 true
+width 640 1

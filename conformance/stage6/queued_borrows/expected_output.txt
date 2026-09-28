@@ -1,0 +1,4 @@
+queued while borrowed 3 1
+printed while borrowed 3
+applied 7
+loud, and 2 positions before it

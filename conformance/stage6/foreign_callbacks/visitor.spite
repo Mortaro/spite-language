@@ -1,0 +1,11 @@
+var console = Console()
+var limit = 0.0
+
+func Visitor(starting_limit: Double) {
+    limit = starting_limit
+}
+
+func visit(index: Integer, weight: Double): Boolean {
+    console.print("visit", index, weight)
+    return weight < limit
+}

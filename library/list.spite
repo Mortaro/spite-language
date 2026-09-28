@@ -91,6 +91,24 @@ func remove_first(): $element_type? {
     return null
 }
 
+func truncate(kept_count: Integer) {
+    if kept_count >= 0 and kept_count < item_count {
+        var index = kept_count
+        while index < item_count {
+            values.release_value(items, index)
+            index = index + 1
+        }
+        item_count = kept_count
+    }
+}
+
+func swap(first_index: Integer, second_index: Integer) {
+    var first_in = first_index >= 0 and first_index < item_count
+    if first_in and second_index >= 0 and second_index < item_count {
+        values.swap_values(items, first_index, second_index)
+    }
+}
+
 func first(): $element_type? {
     if item_count > 0 {
         return values.read_value(items, 0)
@@ -205,6 +223,26 @@ func filter_member(member: Symbol<$element_type>): List<$element_type> {
     return filtered
 }
 
+func remove_where_member(member: Symbol<$element_type>) {
+    var kept = 0
+    var index = 0
+    while index < item_count {
+        var item = values.read_value(items, index)
+        var keep = true
+        if item.attributes[member] {
+            keep = false
+        }
+        if keep {
+            if kept != index and index < item_count {
+                values.swap_values(items, kept, index)
+            }
+            kept = kept + 1
+        }
+        index = index + 1
+    }
+    truncate(kept)
+}
+
 func count_member(member: Symbol<$element_type>): Integer {
     var counted = 0
     var index = 0
@@ -234,7 +272,9 @@ func all_member(member: Symbol<$element_type>): Boolean {
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
-        assert item.attributes[member]
+        if not item.attributes[member] {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -285,18 +325,72 @@ func find_by_member(member: Symbol<$element_type>, value: member.class): $elemen
 }
 
 func sort_by_member(member: Symbol<$element_type>): List<$element_type> {
-    var sorted = List<$element_type>()
     var keys = List<member.class>()
+    var order = List<Integer>()
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
         var key = item.attributes[member]
-        var previous = keys.count() - 1
-        while previous >= 0 and previous < keys.count() and keys[previous] > key {
-            previous = previous - 1
+        keys.append(key)
+        order.append(index)
+        index = index + 1
+    }
+    var merged = order.copy()
+    var width = 1
+    while width < item_count {
+        var start = 0
+        while start < item_count {
+            var middle = start + width
+            if middle > item_count {
+                middle = item_count
+            }
+            var end = middle + width
+            if end > item_count {
+                end = item_count
+            }
+            var left = start
+            var right = middle
+            var placed = start
+            while placed < end {
+                var takes_left = right >= end
+                if left < middle and not takes_left {
+                    var left_position = order[left]
+                    var right_position = order[right]
+                    crash left_position
+                    crash right_position
+                    var left_key = keys[left_position]
+                    var right_key = keys[right_position]
+                    crash left_key
+                    crash right_key
+                    var right_first = left_key > right_key
+                    takes_left = not right_first
+                }
+                var taken = right
+                if takes_left {
+                    taken = left
+                    left = left + 1
+                } else {
+                    right = right + 1
+                }
+                var position = order[taken]
+                crash position
+                merged.set_at(placed, position)
+                placed = placed + 1
+            }
+            start = end
         }
-        keys.insert(previous + 1, key)
-        sorted.insert(previous + 1, item)
+        var previous = order
+        order = merged
+        merged = previous
+        width = width * 2
+    }
+    var sorted = List<$element_type>()
+    index = 0
+    while index < item_count {
+        var source = order[index]
+        crash source
+        var item = values.read_value(items, source)
+        sorted.append(item)
         index = index + 1
     }
     return sorted

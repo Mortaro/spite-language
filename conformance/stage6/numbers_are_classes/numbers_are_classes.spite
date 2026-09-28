@@ -13,6 +13,7 @@ func NumbersAreClasses() {
     console.print("{small} {wide} {true}")
     var parsed = "42".to_unsigned_integer()
     var tiny = "-7".to_tiny()
+    crash parsed and tiny
     console.print(parsed, tiny)
     var registry = List<Node>()
     var first = Node("first")

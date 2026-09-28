@@ -16,6 +16,7 @@ var last_hot_state = ""
 var language_folder = "."
 var reloading = false
 var flag_error = ""
+var maximum_passes = 8
 
 func Bootstrap() {
     load "source"
@@ -52,7 +53,9 @@ func Bootstrap() {
 }
 
 func first_argument(arguments: Arguments): String {
-    assert arguments.count() > 0
+    if arguments.count() <= 0 {
+        return ""
+    }
     return arguments.get(0)
 }
 
@@ -148,7 +151,6 @@ func compile_program(entry_path: String, may_format: Boolean) {
         program.exit(1)
         return
     }
-    crash discovery
     if may_format {
         var formatting = formatted_program_files(discovery)
         if formatting == 'refused' {
@@ -169,7 +171,6 @@ func discovered_program(entry_path: String): Discovery.DiscoveryResult? {
         console.error("error: could not read '{entry_path}'")
         return null
     }
-    crash content
     var discoverer = Discovery.ProgramDiscovery()
     discoverer.language_folder = language_folder
     discoverer.supplied_settings = supplied_settings.copy()
@@ -187,7 +188,7 @@ func formatted_program_files(discovery: Discovery.DiscoveryResult): Formatting {
     var outcome = 'unchanged'
     var index = 0
     while index < discovery.program_paths.count() {
-        var file_outcome = formatted_program_file(discovery.program_paths[index])
+        var file_outcome = formatted_program_file(discovery, discovery.program_paths[index])
         if file_outcome == 'refused' or outcome == 'unchanged' {
             outcome = file_outcome
         }
@@ -196,13 +197,15 @@ func formatted_program_files(discovery: Discovery.DiscoveryResult): Formatting {
     return outcome
 }
 
-func formatted_program_file(path: String): Formatting {
-    var content = File(path).read()
+func formatted_program_file(discovery: Discovery.DiscoveryResult, path: String): Formatting {
+    var content = discovery.program_texts[path]
+    if not content {
+        content = File(path).read()
+    }
     if not content {
         console.error("error: could not read '{path}'")
         return 'refused'
     }
-    crash content
     var formatter = Syntax.Formatter()
     var formatted = formatter.format(content)
     if not formatted {
@@ -211,7 +214,6 @@ func formatted_program_file(path: String): Formatting {
         )
         return 'refused'
     }
-    crash formatted
     if formatted == content {
         return 'unchanged'
     }
@@ -304,12 +306,14 @@ func generated(discovery: Discovery.DiscoveryResult): Generation.Generator? {
 
 func keyed_generator(discovery: Discovery.DiscoveryResult, host_classes: List<String>): Generation.Generator {
     var number_keys = Dictionary<Analysis.SpiteType>()
-    var generator = generator_pass(discovery, host_classes, number_keys)
+    var notes = Dictionary<String>()
+    var generator = generator_pass(discovery, host_classes, number_keys, notes, 1)
     var passes = 1
-    while generator.key_sites_changed and passes < 8 {
+    while generator.key_sites_changed and passes < maximum_passes {
         number_keys = generator.learned_key_sites
-        generator = generator_pass(discovery, host_classes, number_keys)
+        notes = generator.learned_key_use_notes
         passes = passes + 1
+        generator = generator_pass(discovery, host_classes, number_keys, notes, passes)
     }
     return generator
 }
@@ -318,11 +322,15 @@ func generator_pass(
     discovery: Discovery.DiscoveryResult,
     host_classes: List<String>,
     number_keys: Dictionary<Analysis.SpiteType>,
+    notes: Dictionary<String>,
+    pass: Integer,
 ): Generation.Generator {
     var generator = Generation.Generator()
     configure(generator)
+    generator.another_pass_follows_a_change = pass < maximum_passes
     generator.seed_class_names(host_classes)
     generator.number_key_sites = number_keys
+    generator.key_use_notes = notes
     var prelude = Generation.Prelude()
     var header = prelude.header()
     var structs = prelude.structs()
@@ -364,7 +372,10 @@ func configure(generator: Generation.Generator) {
     generator.development = is_on("development") or is_on("hot_reload")
     generator.hot_reload = is_on("hot_reload")
     generator.debug_memory = is_on("debug_memory")
+    generator.trace_asserts = is_on("trace_asserts")
     generator.keeps_internals = generator.development or generator.read_evaluate_print_loop
+    generator.working_folder = program.working_directory()
+    generator.language_folder = language_folder
     if generator.hot_reload {
         generator.hot_reload_compiler = program.executable_path()
         generator.hot_reload_arguments = reload_arguments()
@@ -390,7 +401,9 @@ func reload_arguments(): String {
 }
 
 func is_output_flag(argument: String): Boolean {
-    assert argument.starts_with("--")
+    if not argument.starts_with("--") {
+        return false
+    }
     var outputs = ["run", "executable", "executable_path", "c_source", "c_path", "final_classes"]
     var name = setting_name(argument)
     return outputs.contains(name)
@@ -407,7 +420,9 @@ func flag_name(argument: String): String {
 
 func remote_loop_port(): Integer {
     var port_text = option("repl_port")
-    assert port_text != "0"
+    if port_text == "0" {
+        return 0
+    }
     return port_number(port_text)
 }
 
@@ -520,7 +535,9 @@ func wrote_final_classes(
         }
         index = index + 1
     }
-    assert written
+    if not written {
+        return false
+    }
     var instantiated_class_names = generator.instantiated_class_names()
     var instantiated_class_sources = generator.instantiated_class_sources()
     return wrote_class_views(output_directory, "instantiated", instantiated_class_names, instantiated_class_sources)
@@ -638,7 +655,6 @@ func built_executable(): Boolean {
     var output_path = executable_path()
     var output_folder = directory_of(output_path)
     create_folder(output_folder)
-    var c_file_path = c_to_compile(output_path)
     var c_compiler = find_c_compiler()
     if c_compiler.is_empty() {
         console.error(
@@ -646,17 +662,22 @@ func built_executable(): Boolean {
         )
         return false
     }
-    var process_arguments = List<String>()
-    if is_on("optimized") {
-        process_arguments.append("-O2")
-    } else {
-        process_arguments.append("-O0")
+    var splitter = Translation.UnitSplitter()
+    if splits_into_units(splitter) {
+        var built = built_from_units(splitter, c_compiler, output_path)
+        if not built or reported_missing_output(output_path) {
+            return false
+        }
+        write_companions(output_path)
+        return true
     }
-    process_arguments.append("-Wno-parentheses-equality")
-    process_arguments.append("-I.")
+    var c_file_path = c_to_compile(output_path)
+    var process_arguments = List<String>()
+    append_code_settings(process_arguments, c_compiler, false)
     if is_on("hot_reload") {
         append_shared_runtime(process_arguments, c_compiler)
     }
+    append_frame_pointers(process_arguments)
     process_arguments.append(c_file_path)
     process_arguments.append("-o")
     process_arguments.append(output_path)
@@ -668,8 +689,131 @@ func built_executable(): Boolean {
         console.error(output)
         return false
     }
+    if reported_missing_output(output_path) {
+        return false
+    }
     write_companions(output_path)
     return true
+}
+
+func splits_into_units(splitter: Translation.UnitSplitter): Boolean {
+    if is_on("hot_reload") or generated_code.contains("#include \"") {
+        return false
+    }
+    var wanted = wanted_translation_units(generated_code)
+    return wanted > 1 and splitter.split(generated_code, wanted)
+}
+
+func wanted_translation_units(code: String): Integer {
+    var chosen = option("translation_units").to_integer()
+    crash chosen
+    if chosen > 0 or not is_on("optimized") {
+        return chosen.maximum(1)
+    }
+    var by_size = code.length() / 786432
+    var by_processors = processor_count()
+    var units = 1
+    while units * 2 <= by_size and units * 2 <= by_processors and units < 64 {
+        units = units * 2
+    }
+    return units
+}
+
+func processor_count(): Integer {
+    var named = program.environment("NUMBER_OF_PROCESSORS")
+    if named {
+        var count = named.trim().to_integer()
+        if count and count > 0 {
+            return count
+        }
+    }
+    var no_arguments = List<String>()
+    var probe = Process("getconf _NPROCESSORS_ONLN", no_arguments)
+    if probe.run() == 0 {
+        var probed = probe.output()
+        var probed_count = probed.trim().to_integer()
+        if probed_count and probed_count > 0 {
+            return probed_count
+        }
+    }
+    return 4
+}
+
+func built_from_units(splitter: Translation.UnitSplitter, c_compiler: String, output_path: String): Boolean {
+    var cache_folder = "{language_folder}/.spite-cache/objects"
+    create_folder(cache_folder)
+    var build = Translation.UnitBuild(c_compiler, cache_folder)
+    build.running_limit = processor_count()
+    append_code_settings(build.compile_arguments, c_compiler, true)
+    append_frame_pointers(build.compile_arguments)
+    append_link_settings(build.link_arguments, c_compiler)
+    append_maths_library(build.link_arguments, generated_code)
+    return build.built(splitter.header_text, splitter.unit_texts, output_path)
+}
+
+func append_code_settings(process_arguments: List<String>, c_compiler: String, split: Boolean) {
+    if is_on("optimized") {
+        process_arguments.append("-O3")
+        if split {
+            append_link_time_optimization(process_arguments, c_compiler)
+        }
+    } else {
+        process_arguments.append("-O0")
+    }
+    if is_on("tune_for_this_machine") {
+        append_machine_tuning(process_arguments, c_compiler)
+    }
+    process_arguments.append("-Wno-parentheses-equality")
+    process_arguments.append("-I.")
+}
+
+func append_link_settings(process_arguments: List<String>, c_compiler: String) {
+    if is_on("optimized") {
+        process_arguments.append("-O3")
+        append_link_time_optimization(process_arguments, c_compiler)
+    }
+    if is_on("tune_for_this_machine") {
+        append_machine_tuning(process_arguments, c_compiler)
+    }
+}
+
+func append_link_time_optimization(process_arguments: List<String>, c_compiler: String) {
+    var family = compiler_family(c_compiler)
+    if family == "clang" {
+        process_arguments.append("-flto=thin")
+        if option("operating_system") != "mac" {
+            process_arguments.append("-fuse-ld=lld")
+        }
+    }
+    if family == "gcc" {
+        process_arguments.append("-flto=auto")
+    }
+}
+
+func append_machine_tuning(process_arguments: List<String>, c_compiler: String) {
+    var no_arguments = List<String>()
+    var probe = Process("{c_compiler} -dumpmachine", no_arguments)
+    probe.run()
+    var machine = probe.output()
+    if machine.starts_with("aarch64") or machine.starts_with("arm") {
+        process_arguments.append("-mcpu=native")
+    } else {
+        process_arguments.append("-march=native")
+    }
+}
+
+func compiler_family(c_compiler: String): String {
+    var no_arguments = List<String>()
+    var probe = Process("{c_compiler} --version", no_arguments)
+    probe.run()
+    var version = probe.output()
+    if version.contains("clang") {
+        return "clang"
+    }
+    if version.contains("Free Software Foundation") or version.contains("gcc") {
+        return "gcc"
+    }
+    return ""
 }
 
 func c_to_compile(output_path: String): String {
@@ -680,10 +824,31 @@ func c_to_compile(output_path: String): String {
     Directory(cache_folder).create()
     var base = without_executable_extension(output_path)
     var name = last_segment(base)
-    var path = "{cache_folder}/{name}.c"
+    var path = "{cache_folder}/{name}_{path_fingerprint(output_path)}.c"
     var wrote = File(path).write(generated_code)
     crash wrote
     return path
+}
+
+func path_fingerprint(path: String): Long {
+    var fingerprint: Long = 7
+    var index = 0
+    while index < path.length() {
+        var code: Long = path.code_at(index)
+        fingerprint = (fingerprint * 31 + code) % 1000000007
+        index = index + 1
+    }
+    return fingerprint
+}
+
+func reported_missing_output(output_path: String): Boolean {
+    if File(output_path).exists() {
+        return false
+    }
+    console.error(
+        "error: the C compiler reported success but '{output_path}' is not there: nothing was built, so nothing runs (another build writing the same executable, or a virus scanner, may have removed it)",
+    )
+    return true
 }
 
 func write_companions(output_path: String) {
@@ -699,6 +864,13 @@ func append_maths_library(process_arguments: List<String>, written: String) {
     if written.contains("#include <math.h>") and option("operating_system") != "windows" {
         process_arguments.append("-lm")
     }
+}
+
+func append_frame_pointers(process_arguments: List<String>) {
+    var inspectable = is_on("development") or is_on("hot_reload") or is_on("repl") or remote_loop_port() > 0
+    assert inspectable and option("target_operating_system") != "windows"
+    process_arguments.append("-fno-omit-frame-pointer")
+    process_arguments.append("-DSPITE_FRAME_POINTERS")
 }
 
 func append_shared_runtime(process_arguments: List<String>, c_compiler: String) {
@@ -745,8 +917,6 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
         program.exit(1)
         return
     }
-    crash host_text
-    crash state_text
     var reload = Generation.HotReloadLibrary()
     reload.read_host(host_text)
     reload.read_state(state_text)
@@ -828,7 +998,7 @@ func build_library(code: String, library_c_path: String, library_path: String): 
     var process_arguments = List<String>()
     process_arguments.append("-shared")
     if is_on("optimized") {
-        process_arguments.append("-O2")
+        process_arguments.append("-O3")
     } else {
         process_arguments.append("-O0")
     }
@@ -938,14 +1108,12 @@ func formatted_file(path: String, only_check: Boolean): Boolean {
         console.error("error: could not read '{path}'")
         return false
     }
-    crash content
     var formatter = Syntax.Formatter()
     var formatted = formatter.format(content)
     if not formatted {
         console.error("{path}: not formatted: {formatter.refusal}")
         return false
     }
-    crash formatted
     if formatted == content {
         return true
     }
@@ -974,7 +1142,7 @@ func port_number(text: String): Integer {
         index = index + 1
     }
     var number = text.to_integer()
-    if number < 1 or number > 65535 {
+    if not number or number < 1 or number > 65535 {
         return -1
     }
     return number
@@ -1021,7 +1189,9 @@ func run_connect(arguments: Arguments) {
 func talk(connection: Socket, line: String): Boolean {
     var sent = connection.write_line(line)
     var response = connection.read_line()
-    assert response
+    if not response {
+        return false
+    }
     var pretty = pretty_response(response)
     if not pretty.is_empty() {
         console.print(pretty)
@@ -1084,14 +1254,10 @@ func json_string_at(text: String, start: Integer): String {
 }
 
 func unescaped(escaped: String): String {
-    if escaped == "n" {
-        return "\n"
+    switch escaped {
+        "n": return "\n"
+        "r": return "\r"
+        "t": return "\t"
+        _: return escaped
     }
-    if escaped == "r" {
-        return "\r"
-    }
-    if escaped == "t" {
-        return "\t"
-    }
-    return escaped
 }

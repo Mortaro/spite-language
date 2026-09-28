@@ -1,0 +1,125 @@
+var console = Console()
+var despawns = Despawns()
+
+func BulkRemoval() {
+    remove_numbers()
+    remove_creatures()
+    remove_velocities()
+    remove_packs()
+    remove_by_mask()
+}
+
+func remove_numbers() {
+    var numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    numbers.remove_where(is_odd)
+    var evens = numbers.join(", ")
+    numbers.truncate(3)
+    numbers.truncate(7)
+    numbers.swap(0, 2)
+    numbers.swap(0, 9)
+    var cut = numbers.join(", ")
+    console.print("evens", evens, "cut and swapped", cut)
+}
+
+func remove_creatures() {
+    var creatures = List<Creature>()
+    var names = ["ant", "bee", "cat", "dog", "eel", "fox"]
+    var healths = [3, 0, 5, -1, 0, 2]
+    var index = 0
+    while index < names.count() {
+        var name = names.get_at(index)
+        var health = healths.get_at(index)
+        var creature = Creature(name, health)
+        creatures.append(creature)
+        index = index + 1
+    }
+    creatures.remove_where_dead()
+    var alive = creatures.map_name().join(", ")
+    console.print("alive", alive)
+}
+
+func remove_velocities() {
+    var velocities = Vector<Velocity>()
+    var first = Velocity(1.0, "first long label that lives on the heap")
+    velocities.append(first)
+    var second = Velocity(0.0, "second long label that lives on the heap")
+    velocities.append(second)
+    var third = Velocity(2.5, "third long label that lives on the heap")
+    velocities.append(third)
+    var fourth = Velocity(0.0, "fourth")
+    velocities.append(fourth)
+    velocities.remove_where_stopped()
+    var labels = velocities.map_label().join(" | ")
+    var weights = Items<Float>()
+    weights.append(0.5)
+    weights.append(3.0)
+    weights.append(1.5)
+    weights.append(4.0)
+    weights.remove_where(is_light)
+    var heavy = weights.sum(identity)
+    var moving = velocities.count()
+    console.print("moving", moving, labels, "heavy", heavy)
+}
+
+func remove_packs() {
+    var packs = Items<Pack>()
+    var kept = Pack("kept")
+    kept.tag("rope")
+    packs.append(kept)
+    var dropped = Pack("dropped")
+    packs.append(dropped)
+    var also_kept = Pack("also kept")
+    also_kept.tag("lamp")
+    packs.append(also_kept)
+    packs.remove_where_empty()
+    var owners = packs.map_owner().join(", ")
+    console.print("packs", owners)
+}
+
+func remove_by_mask() {
+    var entities = Items<Integer>()
+    var velocities = Items<Velocity>()
+    var entity = 0
+    while entity < 8 {
+        entities.append(entity)
+        var velocity = Velocity(1.0 * entity, "velocity of entity {entity}, long enough for the heap")
+        velocities.append(velocity)
+        if entity % 3 == 0 {
+            despawns.mark(entity)
+        }
+        entity = entity + 1
+    }
+    var kept = 0
+    var row = 0
+    while row < velocities.count() {
+        var owner = entities.get_at(row)
+        if not despawns.marked(owner) {
+            velocities.swap(row, kept)
+            kept = kept + 1
+        }
+        row = row + 1
+    }
+    velocities.truncate(kept)
+    entities.remove_where(despawns.marked)
+    var survivors = entities.map(identity_number)
+    var joined = survivors.join(", ")
+    var total = velocities.sum_across()
+    var rows = velocities.count()
+    console.print("survivors", joined, "across", total, "rows", rows)
+}
+
+func is_odd(number: Integer): Boolean {
+    return number % 2 == 1
+}
+
+func is_light(weight: Float): Boolean {
+    return weight < 2.0
+}
+
+func identity(weight: Float): Float {
+    return weight
+}
+
+func identity_number(number: Integer): Integer {
+    return number
+}
