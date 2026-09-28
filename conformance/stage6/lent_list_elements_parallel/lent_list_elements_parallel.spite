@@ -21,5 +21,6 @@ func LentListElementsParallel() {
     var peeked: Integer = peek_run
     var last = trails.at(399)
     var lefts = last.lefts.count()
+    crash positions.values[399]
     console.print("moved", moved, "peeked", peeked, "last trail", lefts, positions.values[399].left)
 }

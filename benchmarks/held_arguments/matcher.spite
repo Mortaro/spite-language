@@ -8,7 +8,7 @@ func Matcher(column_count: Integer) {
     }
 }
 
-func match_into(entity: Integer, found: Vector<Integer>): Boolean {
+func match_into(entity: Integer, found: List<Integer>): Boolean {
     var index = 0
     var all = true
     while all and index < headers.count() {
@@ -18,7 +18,7 @@ func match_into(entity: Integer, found: Vector<Integer>): Boolean {
     return all
 }
 
-func find_row(index: Integer, entity: Integer, found: Vector<Integer>): Boolean {
+func find_row(index: Integer, entity: Integer, found: List<Integer>): Boolean {
     crash headers[index]
     var place = entity % headers[index]
     found[index] = place

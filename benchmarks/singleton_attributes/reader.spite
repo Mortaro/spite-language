@@ -2,12 +2,14 @@ var column = Column<Heat>()
 
 func run(): Float {
     var rows = column.count()
-    var places = Vector<Integer>()
+    var places = List<Integer>()
     places.append(0)
     var total = 0.0
     var row = 0
     while row < rows {
         places[0] = rows - 1 - row
+        crash places[0]
+        crash column.values[places[0]]
         total = total + column.values[places[0]].value
         row = row + 1
     }

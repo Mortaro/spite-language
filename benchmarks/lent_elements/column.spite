@@ -14,5 +14,6 @@ func insert(value: $component_type) {
 }
 
 func at(row: Integer): $component_type {
-    return references.get_at(row)
+    crash references[row]
+    return references[row]
 }

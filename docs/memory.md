@@ -1472,7 +1472,7 @@ kept past its use. What is built (the error texts and the readings marked are pr
   - **A reference column's element lent to the row** (D269, decided by Claude under D205, D214 and D244, asked by
     SlopEngine; the readings below proposed by Claude, unconfirmed). The count above is left out when it cannot
     matter: the attribute's line calls a function of a singleton (`Column<Trail>().at(found[3])`) whose body is
-    only `return <list>.get_at(<index>)` or `return <list>[<index>]`, optionally after `crash` of that same read,
+    only `return <list>[<index>]` after `crash` of that same read (which D225 asks for, since the read is a `T?`),
     where `<list>` is an attribute of the singleton holding a `List` of a class that nothing assigns after the
     singleton is made and `<index>` is a whole-number parameter or literal, the function takes nothing counted, and
     the rest of the row's block is proven to let go of nothing: every call in it is one the compiler can name (a
