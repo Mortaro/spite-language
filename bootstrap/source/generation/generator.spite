@@ -136,6 +136,14 @@ var hot_reload_program_file = ""
 var hot_slot_names = List<String>()
 var hot_slot_owners = List<String>()
 var hot_slot_displays = List<String>()
+var layout_host: HotReloadLibrary? = null
+var field_signatures = Dictionary<String>()
+var migrating_classes = List<String>()
+var changing_layouts = List<String>()
+var migration_notes = List<String>()
+var live_slot_positions = List<Integer>()
+var live_slot_owners = List<String>()
+var live_slot_displays = List<String>()
 var seeded_class_ids = Dictionary<Integer>()
 var reflect_function_names = List<String>()
 var body_narrowed_names = List<String>()
@@ -739,7 +747,6 @@ func generate(
     }
     refresh_union_releases()
     finish_wait_questions()
-    emit_hot_reload_support()
     if parallel_used {
         finish_singleton_guards()
     }
@@ -769,6 +776,10 @@ func generate(
         report_unused_attributes()
     }
     finish_allocated_classes()
+    slot_live_supports()
+    emit_live_support()
+    emit_migrations()
+    emit_hot_reload_support()
     if reload_host and not has_error {
         partial_refusal = partial_problem(reload_host)
     }
@@ -3054,6 +3065,7 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
         }
         lines.append("}")
         var joined_lines = lines.join("\n")
+        note_union_slot(information, "'s call of {name}")
         builder.add_support(joined_lines)
         caller_index = caller_index + 1
     }
@@ -3161,6 +3173,7 @@ func emit_union_class_of_bodies() {
             )
             lines.append("}")
             var joined_lines = lines.join("\n")
+            note_union_slot(information, "'s class")
             builder.add_support(joined_lines)
         }
         index = index + 1
@@ -3171,6 +3184,7 @@ func emit_union_release(information: Analysis.UnionInfo) {
     var position = builder.support_count()
     union_release_positions.set(information.c_name, position)
     var release_text = union_release_text(information)
+    note_union_slot(information, "'s release")
     builder.add_support(release_text)
 }
 
@@ -3220,13 +3234,14 @@ func emit_shape_peekers(information: Analysis.UnionInfo) {
         while member_index < information.members.count() {
             var member = information.members[member_index]
             lines.append(
-                "if {class_id_test("self", member)} return (({member.c_name}*)self)->{c_value_name(field_name)};",
+                "if {class_id_test("self", member)} return {field_place("(({member.c_name}*)self)", member, field_name)};",
             )
             member_index = member_index + 1
         }
         lines.append("return 0;")
         lines.append("}")
         var joined_lines = lines.join("\n")
+        note_union_slot(information, "'s peek at {field_name}")
         builder.add_support(joined_lines)
         index = index + 1
     }
@@ -3252,14 +3267,16 @@ func emit_shape_bodies() {
                     var member_index = 0
                     while member_index < information.members.count() {
                         var member = information.members[member_index]
+                        var member_place = field_place("(({member.c_name}*)self)", member, field_name)
                         lines.append(
-                            "if {class_id_test("self", member)} return {retain_call(field_type, "(({member.c_name}*)self)->{c_value_name(field_name)}")};",
+                            "if {class_id_test("self", member)} return {retain_call(field_type, member_place)};",
                         )
                         member_index = member_index + 1
                     }
                     lines.append("return {default_value_for_type(field_type)};")
                     lines.append("}")
                     var joined_lines = lines.join("\n")
+                    note_union_slot(information, "'s read of {field_name}")
                     builder.add_support(joined_lines)
                 }
                 reader_index = reader_index + 1
@@ -3277,7 +3294,7 @@ func emit_shape_bodies() {
                     var writer_member_index = 0
                     while writer_member_index < information.members.count() {
                         var writer_member = information.members[writer_member_index]
-                        var target = "(({writer_member.c_name}*)self)->{c_value_name(written)}"
+                        var target = field_place("(({writer_member.c_name}*)self)", writer_member, written)
                         writer_lines.append(
                             "if {class_id_test("self", writer_member)} \{ {release_statement(written_type, target)} {target} = value; return; }",
                         )
@@ -3287,6 +3304,7 @@ func emit_shape_bodies() {
                     writer_lines.append(release_line)
                     writer_lines.append("}")
                     var joined_writer_lines = writer_lines.join("\n")
+                    note_union_slot(information, "'s write of {written}")
                     builder.add_support(joined_writer_lines)
                 }
                 writer_index = writer_index + 1
@@ -6143,7 +6161,7 @@ func append_item_references(lines: List<String>, item_class: Analysis.ClassInfo,
         var field = item_class.fields[index]
         var field_type = field.get_type()
         if type_needs_drop(field_type) {
-            var code = "spite_slot->{c_value_name(field.name)}"
+            var code = field_place("spite_slot", item_class, field.name)
             if retaining {
                 lines.append("(void){retain_call(field_type, code)};")
             } else {
@@ -7804,10 +7822,12 @@ func generate_identifier(
             return string_storage_code(identifier.name, "self", field_type)
         }
         if atomic_owner == class_information.c_name and atomic_fields.contains(identifier.name) {
-            var loaded = "SPITE_SINGLETON_LOAD({class_information.c_name}, self->{c_value_name(identifier.name)})"
+            var loaded_place = field_place("self", class_information, identifier.name)
+            var loaded = "SPITE_SINGLETON_LOAD({class_information.c_name}, {loaded_place})"
             return ExpressionResult(loaded, field_type)
         }
-        return ExpressionResult("self->{c_value_name(identifier.name)}", field_type)
+        var read_place = field_place("self", class_information, identifier.name)
+        return ExpressionResult(read_place, field_type)
     }
     if identifier.name == "class" {
         var self_type = Analysis.Types.ClassRefType(class_information.c_name)
@@ -14664,6 +14684,7 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
         builder.add_prototype("{list_name}* {function_c_name}({information.c_name}* self);")
         append_live_attributes(information, list_name, lines)
         var joined_lines = lines.join("\n")
+        note_live_slot(information, "'s attributes")
         builder.add_support(joined_lines)
         return function_c_name
     }
@@ -14671,7 +14692,7 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
     while index < information.fields.count() {
         var field = information.fields[index]
         var field_type = field.get_type()
-        var field_code = "self->{c_value_name(field.name)}"
+        var field_code = field_place("self", information, field.name)
         if information.is_stateless_singleton {
             field_code = "({field.default_value_code})"
         }
@@ -14687,6 +14708,7 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
     lines.append("}")
     builder.add_prototype("{list_name}* {function_c_name}({information.c_name}* self);")
     var joined_lines = lines.join("\n")
+    note_live_slot(information, "'s attributes")
     builder.add_support(joined_lines)
     return function_c_name
 }
@@ -14846,6 +14868,7 @@ func emit_union_attributes_bodies() {
             lines.append("return {list_name}___make();")
             lines.append("}")
             var joined_lines = lines.join("\n")
+            note_union_slot(information, "'s attributes")
             builder.add_support(joined_lines)
         }
         index = index + 1
@@ -14902,7 +14925,7 @@ func emit_functions_function(information: Analysis.ClassInfo) {
     if information.is_container {
         instantiate_member_templates_of(information)
     }
-    if is_hot_class(information) {
+    if is_slotted_class(information) {
         add_hot_functions_slot(information, list_name)
     }
     var declared_count = information.declared_functions.count()
@@ -14943,7 +14966,7 @@ func functions_list_text(information: Analysis.ClassInfo, list_name: String, arg
     var function_c_name = "{information.c_name}___functions"
     var lines = List<String>()
     var defined_name = function_c_name
-    if is_hot_class(information) {
+    if is_slotted_class(information) {
         defined_name = "{function_c_name}___hot"
     }
     lines.append("{list_name}* {defined_name}({information.c_name}* self) \{")
@@ -14967,7 +14990,7 @@ func functions_list_text(information: Analysis.ClassInfo, list_name: String, arg
                 parameter_index = parameter_index + 1
             }
             var retained_self = "{information.c_name}___retain(self)"
-            if is_hot_class(information) {
+            if is_slotted_class(information) {
                 retained_self = "(\{ if (self != 0) SPITE_COUNT_UP(self->header.ref_count); self; })"
             }
             lines.append("described->spite_owner = {retained_self};")
@@ -15018,7 +15041,7 @@ func append_live_attributes(information: Analysis.ClassInfo, list_name: String, 
         var reflect = ensure_reflect_function(field_type)
         lines.append("\{")
         lines.append(
-            "Spite_Attribute* spite_field = {reflect}({ensure_symbol(field.name)}, self->{c_value_name(field.name)});",
+            "Spite_Attribute* spite_field = {reflect}({ensure_symbol(field.name)}, {field_place("self", information, field.name)});",
         )
         var assign = ensure_assign_function(information, field)
         if not assign.is_empty() {
@@ -15217,15 +15240,17 @@ func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.Fie
         }
     }
     if not through_setter {
+        var assigned_place = field_place("self", information, field.name)
         if type_needs_drop(field_type) {
-            lines.append("{release_call(field_type, "self->{c_value_name(field.name)}")};")
+            lines.append("{release_call(field_type, assigned_place)};")
         }
-        lines.append("self->{c_value_name(field.name)} = assigned;")
+        lines.append("{assigned_place} = assigned;")
     }
     lines.append("return true;")
     lines.append("}")
     builder.add_prototype("bool {function_c_name}(void* owner, SpiteString text);")
     var joined_lines = lines.join("\n")
+    note_live_slot(information, "'s assignment of {field.name}")
     builder.add_support(joined_lines)
     return function_c_name
 }
@@ -15432,7 +15457,8 @@ func generate_reflection_read(
             if real_field {
                 mark_attribute_read(object_class, member_name)
                 var real_field_type = real_field.get_type()
-                var retained_field = retain_call(real_field_type, "spite_reflected->{c_value_name(member_name)}")
+                var reflected_place = field_place("spite_reflected", object_class, member_name)
+                var retained_field = retain_call(real_field_type, reflected_place)
                 return ExpressionResult(
                     "(\{ {object_c_type} spite_reflected = {object_result.code}; {c_type_name(real_field_type)} spite_reflected_value = {retained_field}; {release_object} spite_reflected_value; })",
                     real_field_type,
@@ -15606,16 +15632,18 @@ func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
-        var target = "copied->{c_value_name(field.name)}"
+        var target = field_place("copied", information, field.name)
+        var source = field_place("self", information, field.name)
         var field_type = field.get_type()
         var release_line = release_statement(field_type, target)
         lines.append(release_line)
-        lines.append("{target} = {deep_copy_code(field_type, "self->{c_value_name(field.name)}")};")
+        lines.append("{target} = {deep_copy_code(field_type, source)};")
         index = index + 1
     }
     lines.append("return copied;")
     lines.append("}")
     var joined_lines = lines.join("\n")
+    note_live_slot(information, "'s deep copy")
     builder.add_support(joined_lines)
     return function_c_name
 }
@@ -15807,7 +15835,8 @@ func generate_index_read(
     if is_bound_attributes_index(index_expression) {
         crash bound_field_type
         mark_bound_attribute_read(class_information)
-        return ExpressionResult("self->{c_value_name(bound_field_name)}", bound_field_type)
+        var bound_place = field_place("self", class_information, bound_field_name)
+        return ExpressionResult(bound_place, bound_field_type)
     }
     var counted_read = counted_item(index_expression.object, index_expression.index, scope, class_information)
     if not counted_read.is_empty() and reads_counted_item(index_expression, scope) {
@@ -18264,12 +18293,14 @@ func generate_member_read_raw(
     if object_result.peek_union and scalar_default {
         var peeked = peeked_code(object_result)
         var peeked_temporary = next_temporary()
-        var peeked_read = "(\{ {c_type_name(object_result_type)} {peeked_temporary} = {peeked}; {peeked_temporary} != 0 ? ({peeked_temporary})->{c_value_name(member.name)} : ({field.default_value_code}); })"
+        var peeked_place = field_place("({peeked_temporary})", target_class, member.name)
+        var peeked_read = "(\{ {c_type_name(object_result_type)} {peeked_temporary} = {peeked}; {peeked_temporary} != 0 ? {peeked_place} : ({field.default_value_code}); })"
         return ExpressionResult(peeked_read, peeked_field_type)
     }
     if stays_with_singleton(target_class, field) {
         var stable_type = field.get_type()
-        var stable_read = ExpressionResult("({object_result.code})->{c_value_name(member.name)}", stable_type)
+        var stable_place = field_place("({object_result.code})", target_class, member.name)
+        var stable_read = ExpressionResult(stable_place, stable_type)
         stable_read.owning_override = false
         return stable_read
     }
@@ -18281,7 +18312,7 @@ func generate_member_read_raw(
         var field_temporary = next_temporary()
         var lines = List<String>()
         lines.append("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
-        var field_code = "({object_temporary})->{c_value_name(member.name)}"
+        var field_code = field_place("({object_temporary})", target_class, member.name)
         var field_type = field.get_type()
         if type_needs_drop(field_type) {
             field_code = retain_call(field_type, field_code)
@@ -18294,7 +18325,8 @@ func generate_member_read_raw(
         return owned_read
     }
     var field_type = field.get_type()
-    var alias_read = ExpressionResult("({object_result.code})->{c_value_name(member.name)}", field_type)
+    var alias_place = field_place("({object_result.code})", target_class, member.name)
+    var alias_read = ExpressionResult(alias_place, field_type)
     alias_read.owning_override = false
     if type_needs_drop(field_type) and is_row_name(member.object, scope) {
         alias_read.borrowed_from = operand_text(member.object)
@@ -20229,12 +20261,12 @@ func lent_element_index_of(value: Syntax.Expressions.Expression): Syntax.Express
     return indexed.index
 }
 
-func lent_element_range_failed(function: Analysis.FunctionInfo): String {
+func lent_element_range_failed(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
     var returned = lent_element_return(function)
     crash returned
     var index_ast = lent_element_index_of(returned)
     var index_code = lent_element_index_code(index_ast, function)
-    var list_code = "self->{c_value_name(function.lent_element)}"
+    var list_code = field_place("self", information, function.lent_element)
     return "{index_code} < 0 || {index_code} >= ({list_code})->item_count_"
 }
 
@@ -20250,8 +20282,8 @@ func lent_element_read(information: Analysis.ClassInfo, function: Analysis.Funct
     var index_ast = lent_element_index_of(returned)
     var index_code = lent_element_index_code(index_ast, function)
     var get_at = list_function(element, "get_at")
-    var list_code = "self->{c_value_name(field.name)}"
-    var failed = lent_element_range_failed(function)
+    var list_code = field_place("self", information, field.name)
+    var failed = lent_element_range_failed(information, function)
     var item = list_item_code(element, list_code, index_code)
     return "(({failed}) ? {get_at}({list_code}, {index_code}) : {item})"
 }
@@ -22870,7 +22902,9 @@ func ensure_made_in(information: Analysis.ClassInfo) {
     lines.append("{information.c_name}* self = ({information.c_name}*)(intptr_t)spite_address;")
     lines.append("self->header.ref_count = 1;")
     lines.append("self->header.class_id = {information.class_id};")
+    append_live_start(lines, information, "self")
     lines.append("{information.c_name}___init(self);")
+    append_live_add(lines, information, "self")
     lines.append("self->spite_allocator = spite_allocator;")
     lines.append("self->spite_give_back = spite_give_back;")
     lines.append("#ifdef SPITE_TRACKS_{information.c_name}")
@@ -23355,26 +23389,16 @@ func generate_store(
             emit_atomic_store(identifier.name, field_type, assignment.value, scope, class_information)
             return
         }
-        emit_owning_assignment(
-            "self->{c_value_name(identifier.name)}",
-            field_type,
-            assignment.value,
-            scope,
-            class_information,
-        )
+        var assigned_field = field_place("self", class_information, identifier.name)
+        emit_owning_assignment(assigned_field, field_type, assignment.value, scope, class_information)
         return
     }
     var index_target = shape.as_index(assignment.target)
     if index_target {
         if is_bound_attributes_index(index_target) {
             crash bound_field_type
-            emit_owning_assignment(
-                "self->{c_value_name(bound_field_name)}",
-                bound_field_type,
-                assignment.value,
-                scope,
-                class_information,
-            )
+            var assigned_bound = field_place("self", class_information, bound_field_name)
+            emit_owning_assignment(assigned_bound, bound_field_type, assignment.value, scope, class_information)
             return
         }
         assert index_target.object
@@ -23555,17 +23579,21 @@ func generate_store(
         var plain_write = not type_needs_drop(field_type) and not guards_outside_write(target_class)
         if object_result.peek_union and plain_write and watch_expression(watch, assignment.value, scope, class_information) {
             var peeked = peeked_code(object_result)
-            builder.add_user("{target_class.c_name} {object_temporary}_scratch;")
+            var scratch_start = ""
+            if is_hot_class(target_class) {
+                scratch_start = " = \{ 0 }"
+            }
+            builder.add_user("{target_class.c_name} {object_temporary}_scratch{scratch_start};")
             builder.add_user("{c_type_name(object_result_type)} {object_temporary} = {peeked};")
             builder.add_user("if ({object_temporary} == 0) {object_temporary} = &{object_temporary}_scratch;")
-            var peeked_target = "({object_temporary})->{c_value_name(member.name)}"
+            var peeked_target = field_place("({object_temporary})", target_class, member.name)
             emit_owning_assignment(peeked_target, field_type, assignment.value, scope, class_information)
             return
         }
-        var target_code = "({object_result.code})->{c_value_name(member.name)}"
+        var target_code = field_place("({object_result.code})", target_class, member.name)
         if not writes_through_local(member.object, object_result, scope) {
             builder.add_user("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
-            target_code = "({object_temporary})->{c_value_name(member.name)}"
+            target_code = field_place("({object_temporary})", target_class, member.name)
         }
         if guards_outside_write(target_class) {
             emit_guarded_outside_write(
@@ -27916,7 +27944,7 @@ func generate_union_dispatch(
         if is_call {
             branch_code = union_member_call(member, member_name, casted_object, argument_temporaries, information)
         } else {
-            branch_code = "{casted_object}->{c_value_name(member_name)}"
+            branch_code = field_place(casted_object, member, member_name)
             if owning_object and type_needs_drop(result_type) {
                 branch_code = retain_call(result_type, branch_code)
             }
@@ -30658,7 +30686,8 @@ func generate_statement_kind(
     }
     var assert_statement = shape.as_assert_statement(statement)
     if assert_statement and not function_information.lent_element.is_empty() {
-        builder.add_user("if ({lent_element_range_failed(function_information)}) \{")
+        var range_failed = lent_element_range_failed(class_information, function_information)
+        builder.add_user("if ({range_failed}) \{")
         generate_assert_statement(assert_statement, scope, class_information, function_information)
         builder.add_user("}")
         return false
@@ -30982,7 +31011,8 @@ func emit_class_support(information: Analysis.ClassInfo) {
     var field_index = 0
     while field_index < information.fields.count() {
         var field = information.fields[field_index]
-        initialize_lines.append("self->{c_value_name(field.name)} = {field.default_value_code};")
+        var initialized_place = field_place("self", information, field.name)
+        initialize_lines.append("{initialized_place} = {field.default_value_code};")
         field_index = field_index + 1
     }
     if information.c_name == "Spite_Class" {}
@@ -31020,7 +31050,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
         allocate_lines.append("spite_debug_register_object(self, {class_id_text});")
         allocate_lines.append("#endif")
     }
+    append_live_start(allocate_lines, information, "self")
     allocate_lines.append("{information.c_name}___init(self);")
+    append_live_add(allocate_lines, information, "self")
     allocate_lines.append("#ifdef SPITE_TRACKS_{information.c_name}")
     allocate_lines.append("spite_track_{information.c_name}(self);")
     allocate_lines.append("#endif")
@@ -31028,6 +31060,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     allocate_lines.append("}")
     var joined_allocate_lines = allocate_lines.join("\n")
     information.allocate_position = builder.support_count()
+    note_live_slot(information, "'s allocation")
     builder.add_support(joined_allocate_lines)
     var default_instance = "{information.c_name}___allocate()"
     if information.is_stateless_singleton {
@@ -31089,7 +31122,8 @@ func emit_class_support(information: Analysis.ClassInfo) {
         var field = information.fields[drop_field_index]
         var field_type = field.get_type()
         if type_needs_drop(field_type) {
-            release_lines.append("{release_call(field_type, "self->{c_value_name(field.name)}")};")
+            var released_place = field_place("self", information, field.name)
+            release_lines.append("{release_call(field_type, released_place)};")
         }
         drop_field_index = drop_field_index + 1
     }
@@ -31106,6 +31140,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
             "if (self->spite_held != 0 && self->spite_release_held != 0) self->spite_release_held(self->spite_held);",
         )
     }
+    append_live_remove(release_lines, information)
     release_lines.append("#ifdef SPITE_TRACKS_{information.c_name}")
     release_lines.append("spite_untrack_{information.c_name}(self);")
     release_lines.append("#endif")
@@ -31116,6 +31151,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     release_lines.append("}")
     var joined_release_lines = release_lines.join("\n")
     information.release_position = builder.support_count()
+    note_live_slot(information, "'s release")
     builder.add_support(joined_release_lines)
     assert not information.find_function("copy")
     if information.is_singleton {
@@ -31131,6 +31167,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     )
     copy_lines.append("spite_copy->header.ref_count = 1;")
     copy_lines.append("spite_copy->header.class_id = {class_id_text};")
+    append_live_start(copy_lines, information, "spite_copy")
     if debug_memory {
         copy_lines.append("#ifdef SPITE_DEBUG_MEMORY")
         copy_lines.append("spite_debug_register_object(spite_copy, {class_id_text});")
@@ -31142,12 +31179,13 @@ func emit_class_support(information: Analysis.ClassInfo) {
     var copy_field_index = 0
     while copy_field_index < information.fields.count() {
         var field = information.fields[copy_field_index]
-        var value_code = "self->{c_value_name(field.name)}"
+        var value_code = field_place("self", information, field.name)
         var field_type = field.get_type()
         if type_needs_drop(field_type) {
             value_code = retain_call(field_type, value_code)
         }
-        copy_lines.append("spite_copy->{c_value_name(field.name)} = {value_code};")
+        var copied_place = field_place("spite_copy", information, field.name)
+        copy_lines.append("{copied_place} = {value_code};")
         copy_field_index = copy_field_index + 1
     }
     if information.c_name == "Spite_Function" {
@@ -31159,6 +31197,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
         var cleared_links = hidden_attribute_links_cleared("spite_copy")
         copy_lines.append(cleared_links)
     }
+    append_live_add(copy_lines, information, "spite_copy")
     copy_lines.append("#ifdef SPITE_TRACKS_{information.c_name}")
     copy_lines.append("spite_track_{information.c_name}(spite_copy);")
     copy_lines.append("#endif")
@@ -31166,6 +31205,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     copy_lines.append("}")
     var joined_copy_lines = copy_lines.join("\n")
     information.copy_position = builder.support_count()
+    note_live_slot(information, "'s copy")
     builder.add_support(joined_copy_lines)
 }
 
@@ -31174,7 +31214,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     function.is_emitted = true
     if runs_in_host(information, function) {
         skipped_in_reload[function.c_name] = true
-        if is_hot_class(information) {
+        if is_slotted_class(information) {
             note_hot_slot(information, function)
         }
         return
@@ -31185,6 +31225,12 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         }
         note_maths_macro(function)
         builder.add_typedef(function.supplied_body)
+        return
+    }
+    if not function.has_body and is_slotted_class(information) and not is_hot_class(information) {
+        var supplied_hot_name = "{function.c_name}___hot"
+        add_hot_slot(information, function)
+        builder.add_user("{named_signature(information, function, supplied_hot_name)} \{\n{function.supplied_body}\n}")
         return
     }
     if not function.has_body {
@@ -31256,7 +31302,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         machine_candidate_functions.append(function)
     }
     var defined_name = function.c_name
-    if is_hot_class(information) {
+    if is_slotted_class(information) {
         defined_name = "{function.c_name}___hot"
         add_hot_slot(information, function)
     }
@@ -31366,6 +31412,10 @@ func emit_class(information: Analysis.ClassInfo) {
     var struct_lines = List<String>()
     struct_lines.append("struct {information.c_name} \{")
     struct_lines.append("SpiteHeader header;")
+    if has_live_registry(information) {
+        struct_lines.append("void* spite_moved;")
+        struct_lines.append("int64_t spite_live;")
+    }
     var field_index = 0
     while field_index < information.fields.count() {
         var field = information.fields[field_index]
@@ -31396,6 +31446,11 @@ func emit_class(information: Analysis.ClassInfo) {
     var joined_struct_lines = struct_lines.join("\n")
     information.struct_position = builder.typedef_count()
     builder.add_typedef(joined_struct_lines)
+    if is_hot_class(information) {
+        add_live_layout(information)
+    } else if has_live_registry(information) {
+        add_live_set(information.c_name)
+    }
     emit_class_prototypes(information)
     emit_class_support(information)
     assert not information.is_instantiated
@@ -33198,7 +33253,7 @@ func emit_atomic_store(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ) {
-    var place = "self->{c_value_name(name)}"
+    var place = field_place("self", class_information, name)
     var owner = class_information.c_name
     var binary = shape.as_binary(value)
     if binary {
@@ -33269,7 +33324,7 @@ func guarded_outside_read(
     var field_temporary = next_temporary()
     var lines = List<String>()
     lines.append("{c_type_name(object_type)} {object_temporary} = {object_result.code};")
-    var place = "({object_temporary})->{c_value_name(field.name)}"
+    var place = field_place("({object_temporary})", target_class, field.name)
     var atomic = atomic_singleton_fields(target_class)
     var loaded_atomically = atomic.contains(field.name)
     if loaded_atomically {
@@ -33821,6 +33876,761 @@ func is_hot_class(information: Analysis.ClassInfo): Boolean {
     return hot_reload and program_class and not information.is_value_class
 }
 
+func is_slotted_class(information: Analysis.ClassInfo): Boolean {
+    if is_hot_class(information) {
+        return true
+    }
+    if not hot_reload or information.is_value_class or not is_library_class(information) {
+        return false
+    }
+    return made_for_program_class(information)
+}
+
+func made_for_program_class(information: Analysis.ClassInfo): Boolean {
+    var codec = TypeCodec()
+    var index = 0
+    while index < information.codegen_types.count() {
+        var encoded = codec.encoded(information.codegen_types[index])
+        var tokens = encoded.split("|")
+        var token_index = 0
+        while token_index < tokens.count() {
+            var named = find_class_by_c_name(tokens[token_index])
+            if named {
+                if is_hot_class(named) {
+                    return true
+                }
+            }
+            token_index = token_index + 1
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func field_place(object_code: String, owner: Analysis.ClassInfo, name: String): String {
+    var field_code = c_value_name(name)
+    if is_hot_class(owner) {
+        return "{owner.c_name}___fields({object_code})->{field_code}"
+    }
+    return "{object_code}->{field_code}"
+}
+
+func field_signature(information: Analysis.ClassInfo): String {
+    var codec = TypeCodec()
+    var parts = List<String>()
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        var encoded = codec.encoded(field_type)
+        parts.append("{field.name}={encoded}")
+        index = index + 1
+    }
+    var fits = class_fits_vector(information)
+    parts.append("fits={fits}")
+    return parts.join(";")
+}
+
+func host_field_signature(c_name: String): String {
+    if not layout_host {
+        return ""
+    }
+    var found = layout_host.host_fields[c_name]
+    if not found {
+        return ""
+    }
+    return found
+}
+
+func running_field_signature(c_name: String): String {
+    if not layout_host {
+        return ""
+    }
+    if layout_host.running_fields[c_name] {
+        return layout_host.running_fields[c_name]
+    }
+    return host_field_signature(c_name)
+}
+
+func note_layout_change(information: Analysis.ClassInfo, running: String, now: String) {
+    var was = signature_types(running)
+    var fields = signature_types(now)
+    var notes = List<String>()
+    var taken = List<String>()
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var old_name = renamed_from(information, field.name)
+        crash fields[field.name]
+        var type_now = fields[field.name]
+        var renamed = not old_name.is_empty() and was.has(old_name) and was[old_name] == type_now
+        if renamed {
+            taken.append(old_name)
+            notes.append("{old_name} is now {field.name}")
+        } else if not was.has(field.name) {
+            notes.append("{field.name} is new and holds its default")
+        } else if was[field.name] != type_now {
+            taken.append(field.name)
+            notes.append("{field.name} has a new type and holds its default")
+        } else {
+            taken.append(field.name)
+        }
+        index = index + 1
+    }
+    var old_names = was.keys()
+    index = 0
+    while index < old_names.count() {
+        var old_name = old_names[index]
+        if old_name != "fits" and not taken.contains(old_name) {
+            notes.append("{old_name} is gone, and what it held was released")
+        }
+        index = index + 1
+    }
+    if was["fits"] != fields["fits"] {
+        report(
+            "'{information.qualified_dotted}' changes whether its objects fit in an Items' own memory, and a reload does not yet move them between the two kinds of storage: restart the program to take this change, or undo it (docs/failure.md#still-open)",
+        )
+    }
+    if notes.is_empty() {
+        notes.append("its attributes were reordered")
+    }
+    migration_notes.append("moved every {information.qualified_dotted} to its new attributes: {notes.join("; ")}")
+}
+
+func signature_types(signature: String): Dictionary<String> {
+    var types = Dictionary<String>()
+    var parts = signature.split(";")
+    var index = 0
+    while index < parts.count() {
+        var part = parts[index]
+        var equals = part.index_of("=")
+        if equals > 0 {
+            var part_length = part.length()
+            var name = part.slice(0, equals)
+            types[name] = part.slice(equals + 1, part_length)
+        }
+        index = index + 1
+    }
+    return types
+}
+
+func add_live_layout(information: Analysis.ClassInfo) {
+    var c_name = information.c_name
+    var signature = field_signature(information)
+    field_signatures[c_name] = signature
+    var host_signature = host_field_signature(c_name)
+    var running_signature = running_field_signature(c_name)
+    var moved_before = false
+    if layout_host {
+        moved_before = layout_host.running_fields.has(c_name)
+    }
+    if not running_signature.is_empty() and running_signature != signature {
+        changing_layouts.append(c_name)
+        note_layout_change(information, running_signature, signature)
+    }
+    if not host_signature.is_empty() and (host_signature != signature or moved_before) {
+        migrating_classes.append(c_name)
+        builder.add_typedef(
+            "static inline {c_name}* {c_name}___fields({c_name}* object) \{ return object->spite_moved != 0 ? ({c_name}*)object->spite_moved : object; }",
+        )
+    } else {
+        builder.add_typedef("#define {c_name}___fields(object) (object)")
+    }
+    add_live_set(c_name)
+    builder.add_prototype("const SpiteLayout* {c_name}___layout(void);")
+    var descriptor = layout_descriptor(information)
+    builder.add_support(descriptor)
+    builder.add_prototype("const SpiteLayout** {c_name}___layout_now(void);")
+    builder.add_support(
+        "const SpiteLayout** {c_name}___layout_now(void) \{\nstatic const SpiteLayout* now = 0;\nif (now == 0) now = {c_name}___layout();\nreturn &now;\n}",
+    )
+}
+
+func add_live_set(c_name: String) {
+    builder.add_prototype("SpiteLiveSet* {c_name}___live(void);")
+    builder.add_support(
+        "SpiteLiveSet* {c_name}___live(void) \{\nstatic SpiteLiveSet live = \{ 0, 0, 0, 0, 0 };\nreturn &live;\n}",
+    )
+}
+
+func has_live_registry(information: Analysis.ClassInfo): Boolean {
+    if is_hot_class(information) {
+        return true
+    }
+    var item = live_item_class(information)
+    if item {
+        return true
+    }
+    return false
+}
+
+func live_item_class(information: Analysis.ClassInfo): Analysis.ClassInfo? {
+    assert hot_reload and is_library_class(information) and not information.is_value_class
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        var reference = type_shape.as_class_ref(field_type)
+        if reference {
+            var item = inline_memory_item(reference.c_name)
+            if item {
+                return item
+            }
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func inline_memory_item(c_name: String): Analysis.ClassInfo? {
+    var held = find_class_by_c_name(c_name)
+    assert held
+    assert held.qualified_dotted == "InlineMemory" and held.codegen_types.count() == 1
+    var item_reference = type_shape.as_class_ref(held.codegen_types[0])
+    assert item_reference
+    var item = find_class_by_c_name(item_reference.c_name)
+    assert item
+    if is_hot_class(item) and class_fits_vector(item) {
+        return item
+    }
+    return null
+}
+
+func layout_descriptor(information: Analysis.ClassInfo): String {
+    var c_name = information.c_name
+    var codec = TypeCodec()
+    var facts = ProgramFacts()
+    var entries = List<String>()
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        var field_code = c_value_name(field.name)
+        var releaser = "0"
+        if type_needs_drop(field_type) {
+            releaser = "{c_name}___release_field_{field.name}"
+            var released = release_call(field_type, "*({c_type_name(field_type)}*)place")
+            builder.add_support("static void {releaser}(void* place) \{\n{released};\n}")
+        }
+        var encoded = codec.encoded(field_type)
+        var type_hash = facts.text_hash(encoded)
+        entries.append(
+            "\{ \"{field.name}\", \"{type_hash}\", (int64_t)offsetof({c_name}, {field_code}), (int64_t)sizeof((({c_name}*)0)->{field_code}), {releaser} }",
+        )
+        index = index + 1
+    }
+    entries.append("\{ 0, 0, 0, 0, 0 }")
+    var count = information.fields.count()
+    return "const SpiteLayout* {c_name}___layout(void) \{\nstatic const SpiteLayoutField fields[] = \{ {entries.join(", ")} };\nstatic const SpiteLayout layout = \{ \"{information.qualified_dotted}\", (int64_t)sizeof({c_name}), {count}, fields };\nreturn &layout;\n}"
+}
+
+func append_live_start(lines: List<String>, information: Analysis.ClassInfo, object_code: String) {
+    if has_live_registry(information) {
+        lines.append("{object_code}->spite_moved = 0;")
+        lines.append("{object_code}->spite_live = 0;")
+    }
+}
+
+func append_live_add(lines: List<String>, information: Analysis.ClassInfo, object_code: String) {
+    if has_live_registry(information) {
+        lines.append("spite_live_add({information.c_name}___live(), {object_code}, &{object_code}->spite_live);")
+    }
+}
+
+func append_live_remove(lines: List<String>, information: Analysis.ClassInfo) {
+    if has_live_registry(information) {
+        lines.append("spite_live_remove({information.c_name}___live(), self, &self->spite_live);")
+        lines.append("if (self->spite_moved != 0) SPITE_FREE(self->spite_moved);")
+    }
+}
+
+func note_live_slot(information: Analysis.ClassInfo, what: String) {
+    if is_hot_class(information) {
+        var position = builder.support_count()
+        live_slot_positions.append(position)
+        live_slot_owners.append(information.c_name)
+        live_slot_displays.append("{information.qualified_dotted}{what}")
+    }
+}
+
+func moved_state_lines(): String {
+    var lines = List<String>()
+    var index = 0
+    while index < migrating_classes.count() {
+        var c_name = migrating_classes[index]
+        crash field_signatures[c_name]
+        lines.append("fields {c_name} {field_signatures[c_name]}")
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func migrating_display(): String {
+    var names = List<String>()
+    var index = 0
+    while index < changing_layouts.count() {
+        var moved = find_class_by_c_name(changing_layouts[index])
+        crash moved
+        names.append(moved.qualified_dotted)
+        index = index + 1
+    }
+    return names.join(", ")
+}
+
+func mentions_migrating_layout(text: String): Boolean {
+    var index = 0
+    while index < changing_layouts.count() {
+        var c_name = changing_layouts[index]
+        if text.contains("{c_name}___fields(") or text.contains("sizeof({c_name})") {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func migration_local_names(): List<String> {
+    var names = List<String>()
+    var index = 0
+    while index < changing_layouts.count() {
+        var c_name = changing_layouts[index]
+        names.append("{c_name}___layout")
+        index = index + 1
+    }
+    return names
+}
+
+func emit_migrations() {
+    assert not changing_layouts.is_empty()
+    builder.add_typedef(
+        "typedef struct SpiteMoving \{ void** places; void (**releases)(void*); int64_t count; int64_t capacity; void** blocks; int64_t block_count; int64_t block_capacity; } SpiteMoving;",
+    )
+    builder.add_typedef(
+        "typedef struct SpitePlan \{ const SpiteLayout** now; const SpiteLayout* old; const SpiteLayout* fresh; int64_t* from; int32_t* taken; void** objects; int64_t count; void** holders; int64_t holder_count; } SpitePlan;",
+    )
+    var helpers = moving_helpers()
+    builder.add_support(helpers)
+    var prepare_lines = List<String>()
+    var move_lines = List<String>()
+    var index = 0
+    while index < changing_layouts.count() {
+        var moved = find_class_by_c_name(changing_layouts[index])
+        crash moved
+        emit_class_migration(moved)
+        prepare_lines.append("const char* spite_refused_{index} = {moved.c_name}___prepare(&spite_plan_{index});")
+        prepare_lines.append("if (spite_refused_{index} != 0) return spite_refused_{index};")
+        move_lines.append("{moved.c_name}___move_all(&spite_plan_{index}, &moving);")
+        index = index + 1
+    }
+    var plans = List<String>()
+    index = 0
+    while index < changing_layouts.count() {
+        plans.append("SpitePlan spite_plan_{index} = \{ 0 };")
+        index = index + 1
+    }
+    var finishes = List<String>()
+    index = 0
+    while index < changing_layouts.count() {
+        finishes.append("spite_plan_finish(&spite_plan_{index});")
+        index = index + 1
+    }
+    builder.add_support(
+        "static const char* spite_migrate_all(void) \{\n{plans.join("\n")}\n{prepare_lines.join("\n")}\nSpiteMoving moving = \{ 0 };\n{move_lines.join("\n")}\n{finishes.join("\n")}\nspite_moving_finish(&moving);\nreturn 0;\n}",
+    )
+}
+
+func moving_helpers(): String {
+    var lines = List<String>()
+    lines.append("static void spite_moving_release(SpiteMoving* moving, void (*release)(void*), void* place) \{")
+    lines.append(
+        "if (moving->count == moving->capacity) \{ moving->capacity = moving->capacity == 0 ? 64 : moving->capacity * 2; moving->places = (void**)realloc(moving->places, (size_t)moving->capacity * sizeof(void*)); moving->releases = (void (**)(void*))realloc(moving->releases, (size_t)moving->capacity * sizeof(void (*)(void*))); }",
+    )
+    lines.append(
+        "moving->places[moving->count] = place; moving->releases[moving->count] = release; moving->count = moving->count + 1;",
+    )
+    lines.append("}")
+    lines.append("static void spite_moving_free(SpiteMoving* moving, void* block) \{")
+    lines.append(
+        "if (moving->block_count == moving->block_capacity) \{ moving->block_capacity = moving->block_capacity == 0 ? 64 : moving->block_capacity * 2; moving->blocks = (void**)realloc(moving->blocks, (size_t)moving->block_capacity * sizeof(void*)); }",
+    )
+    lines.append("moving->blocks[moving->block_count] = block; moving->block_count = moving->block_count + 1;")
+    lines.append("}")
+    lines.append("static void spite_moving_finish(SpiteMoving* moving) \{")
+    lines.append(
+        "for (int64_t index = 0; index < moving->count; index = index + 1) moving->releases[index](moving->places[index]);",
+    )
+    lines.append(
+        "for (int64_t index = 0; index < moving->block_count; index = index + 1) SPITE_FREE(moving->blocks[index]);",
+    )
+    lines.append("free(moving->places); free(moving->releases); free(moving->blocks);")
+    lines.append("}")
+    lines.append("static int32_t spite_same_layout(const SpiteLayout* old, const SpiteLayout* fresh) \{")
+    lines.append("if (old->size != fresh->size || old->count != fresh->count) return 0;")
+    lines.append("for (int64_t index = 0; index < old->count; index = index + 1) \{")
+    lines.append(
+        "const SpiteLayoutField* was = &old->fields[index]; const SpiteLayoutField* is = &fresh->fields[index];",
+    )
+    lines.append(
+        "if (strcmp(was->name, is->name) != 0 || strcmp(was->type, is->type) != 0 || was->offset != is->offset || was->size != is->size) return 0;",
+    )
+    lines.append("}")
+    lines.append("return 1;")
+    lines.append("}")
+    lines.append("static int64_t spite_old_field(const SpiteLayout* old, const char* name, const char* type) \{")
+    lines.append("if (name == 0) return -1;")
+    lines.append(
+        "for (int64_t index = 0; index < old->count; index = index + 1) if (strcmp(old->fields[index].name, name) == 0 && strcmp(old->fields[index].type, type) == 0) return index;",
+    )
+    lines.append("return -1;")
+    lines.append("}")
+    lines.append(
+        "static const char* spite_plan(SpitePlan* plan, const SpiteLayout** now, const SpiteLayout* fresh, const char* const* renamed, SpiteLiveSet* live) \{",
+    )
+    lines.append("plan->now = now; plan->old = *now; plan->fresh = fresh;")
+    lines.append("if (spite_same_layout(plan->old, fresh)) return 0;")
+    lines.append("plan->from = (int64_t*)calloc((size_t)fresh->count + 1, sizeof(int64_t));")
+    lines.append("plan->taken = (int32_t*)calloc((size_t)plan->old->count + 1, sizeof(int32_t));")
+    lines.append("for (int64_t index = 0; index < fresh->count; index = index + 1) \{")
+    lines.append("int64_t found = spite_old_field(plan->old, renamed[index], fresh->fields[index].type);")
+    lines.append(
+        "if (found < 0 || plan->taken[found]) found = spite_old_field(plan->old, fresh->fields[index].name, fresh->fields[index].type);",
+    )
+    lines.append("if (found >= 0 && plan->taken[found]) found = -1;")
+    lines.append("plan->from[index] = found;")
+    lines.append("if (found >= 0) plan->taken[found] = 1;")
+    lines.append("}")
+    lines.append("plan->count = live->count;")
+    lines.append("plan->objects = (void**)malloc((size_t)(live->count + 1) * sizeof(void*));")
+    lines.append(
+        "for (int64_t index = 0; index < live->count; index = index + 1) plan->objects[index] = live->objects[index];",
+    )
+    lines.append("return 0;")
+    lines.append("}")
+    lines.append("static void spite_plan_holders(SpitePlan* plan, SpiteLiveSet* holders) \{")
+    lines.append("if (plan->from == 0) return;")
+    lines.append(
+        "plan->holders = (void**)realloc(plan->holders, (size_t)(plan->holder_count + holders->count + 1) * sizeof(void*));",
+    )
+    lines.append(
+        "for (int64_t index = 0; index < holders->count; index = index + 1) plan->holders[plan->holder_count + index] = holders->objects[index];",
+    )
+    lines.append("plan->holder_count = plan->holder_count + holders->count;")
+    lines.append("}")
+    lines.append("static void spite_plan_finish(SpitePlan* plan) \{")
+    lines.append("if (plan->from != 0) *plan->now = plan->fresh;")
+    lines.append("free(plan->from); free(plan->taken); free(plan->objects); free(plan->holders);")
+    lines.append("}")
+    lines.append("static void spite_forget_fields(char* was, const SpitePlan* plan, SpiteMoving* moving) \{")
+    lines.append(
+        "for (int64_t index = 0; index < plan->old->count; index = index + 1) if (!plan->taken[index] && plan->old->fields[index].release != 0) spite_moving_release(moving, plan->old->fields[index].release, was + plan->old->fields[index].offset);",
+    )
+    lines.append("}")
+    return lines.join("\n")
+}
+
+func emit_class_migration(information: Analysis.ClassInfo) {
+    var c_name = information.c_name
+    var renamed = List<String>()
+    var fill_lines = List<String>()
+    fill_lines.append("static void {c_name}___fill({c_name}* fresh, char* was, const SpitePlan* plan) \{")
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        var field_code = c_value_name(field.name)
+        var old_name = renamed_from(information, field.name)
+        if old_name.is_empty() {
+            renamed.append("0")
+        } else {
+            renamed.append("\"{old_name}\"")
+        }
+        var released = release_statement(field_type, "fresh->{field_code}")
+        fill_lines.append(
+            "if (plan->from[{index}] >= 0) \{ {released} memcpy(&fresh->{field_code}, was + plan->old->fields[plan->from[{index}]].offset, sizeof(fresh->{field_code})); }",
+        )
+        index = index + 1
+    }
+    fill_lines.append("(void)fresh; (void)was; (void)plan;")
+    fill_lines.append("}")
+    var fill_text = fill_lines.join("\n")
+    builder.add_support(fill_text)
+    renamed.append("0")
+    var holders = live_holders_of(information)
+    var plan_lines = List<String>()
+    plan_lines.append("static const char* {c_name}___prepare(SpitePlan* plan) \{")
+    plan_lines.append("static const char* const renamed[] = \{ {renamed.join(", ")} };")
+    plan_lines.append(
+        "const char* refused = spite_plan(plan, {c_name}___layout_now(), {c_name}___layout(), renamed, {c_name}___live());",
+    )
+    plan_lines.append("if (refused != 0) return refused;")
+    var holder_index = 0
+    while holder_index < holders.count() {
+        plan_lines.append("spite_plan_holders(plan, {holders[holder_index].c_name}___live());")
+        holder_index = holder_index + 1
+    }
+    plan_lines.append("return 0;")
+    plan_lines.append("}")
+    var plan_text = plan_lines.join("\n")
+    builder.add_support(plan_text)
+    var move_lines = List<String>()
+    move_lines.append("static void {c_name}___move_all(SpitePlan* plan, SpiteMoving* moving) \{")
+    move_lines.append("if (plan->from == 0) return;")
+    move_lines.append("for (int64_t index = 0; index < plan->count; index = index + 1) \{")
+    move_lines.append("{c_name}* object = ({c_name}*)plan->objects[index];")
+    move_lines.append("char* was = object->spite_moved != 0 ? (char*)object->spite_moved : (char*)object;")
+    move_lines.append("{c_name}* fresh = ({c_name}*)SPITE_MALLOC(sizeof({c_name}));")
+    move_lines.append("memset(fresh, 0, sizeof({c_name}));")
+    move_lines.append("{c_name}___init___hot(fresh);")
+    move_lines.append("{c_name}___fill(fresh, was, plan);")
+    move_lines.append("spite_forget_fields(was, plan, moving);")
+    move_lines.append("if (object->spite_moved != 0) spite_moving_free(moving, object->spite_moved);")
+    move_lines.append("object->spite_moved = fresh;")
+    move_lines.append("}")
+    holder_index = 0
+    while holder_index < holders.count() {
+        move_lines.append("{holders[holder_index].c_name}___move_items(plan, moving);")
+        holder_index = holder_index + 1
+    }
+    move_lines.append("}")
+    holder_index = 0
+    while holder_index < holders.count() {
+        var holder = holders[holder_index]
+        var items_lines = List<String>()
+        items_lines.append("static void {holder.c_name}___move_items(SpitePlan* plan, SpiteMoving* moving) \{")
+        items_lines.append("int64_t old_stride = plan->old->size - (int64_t)sizeof(SpiteHeader);")
+        items_lines.append("int64_t fresh_stride = (int64_t)sizeof({c_name}) - (int64_t)sizeof(SpiteHeader);")
+        items_lines.append("for (int64_t index = 0; index < plan->holder_count; index = index + 1) \{")
+        items_lines.append("{holder.c_name}* holder = ({holder.c_name}*)plan->holders[index];")
+        items_lines.append("if (holder->items_ == 0) continue;")
+        items_lines.append(
+            "char* block = (char*)SPITE_MALLOC((size_t)((int64_t)holder->capacity_ * fresh_stride + (int64_t)sizeof(SpiteHeader)));",
+        )
+        items_lines.append("for (int64_t item = 0; item < (int64_t)holder->item_count_; item = item + 1) \{")
+        items_lines.append("char* was = (char*)(intptr_t)holder->items_ + item * old_stride;")
+        items_lines.append("{c_name}* fresh = ({c_name}*)(block + item * fresh_stride);")
+        items_lines.append("memset((char*)fresh + sizeof(SpiteHeader), 0, (size_t)fresh_stride);")
+        items_lines.append("{c_name}___init___hot(fresh);")
+        items_lines.append("{c_name}___fill(fresh, was, plan);")
+        items_lines.append("spite_forget_fields(was, plan, moving);")
+        items_lines.append("}")
+        items_lines.append("spite_moving_free(moving, (void*)(intptr_t)holder->items_);")
+        items_lines.append("holder->items_ = (int64_t)(intptr_t)block;")
+        items_lines.append("}")
+        items_lines.append("}")
+        var items_text = items_lines.join("\n")
+        builder.add_support(items_text)
+        holder_index = holder_index + 1
+    }
+    var move_text = move_lines.join("\n")
+    builder.add_support(move_text)
+}
+
+func live_holders_of(item: Analysis.ClassInfo): List<Analysis.ClassInfo> {
+    var holders = List<Analysis.ClassInfo>()
+    var index = 0
+    while index < classes.count() {
+        var candidate = classes[index]
+        var held = live_item_class(candidate)
+        if held {
+            if held.c_name == item.c_name {
+                var items_field = candidate.find_field("items")
+                var count_field = candidate.find_field("item_count")
+                var capacity_field = candidate.find_field("capacity")
+                if not items_field or not count_field or not capacity_field {
+                    report(
+                        "'{candidate.qualified_dotted}' keeps '{item.qualified_dotted}' objects in its own memory without the 'items', 'item_count' and 'capacity' attributes a reload moves them through",
+                    )
+                }
+                holders.append(candidate)
+            }
+        }
+        index = index + 1
+    }
+    return holders
+}
+
+func renamed_from(information: Analysis.ClassInfo, attribute: String): String {
+    var function = information.find_function("renamed_from_{attribute}")
+    if not function {
+        return ""
+    }
+    var returned = returned_literal_text(function)
+    if returned.is_empty() {
+        report(
+            "'renamed_from_{attribute}()' names the attribute '{attribute}' had before, so it returns one text literal: 'return \"old_name\"'",
+        )
+    }
+    return returned
+}
+
+func returned_literal_text(function: Analysis.FunctionInfo): String {
+    if function.body.count() != 1 {
+        return ""
+    }
+    var only = function.body[0]
+    var returned = shape.as_return_statement(only)
+    if not returned {
+        return ""
+    }
+    var value = returned.value
+    if not value {
+        return ""
+    }
+    var literal = shape.as_string_literal(value)
+    if not literal {
+        return ""
+    }
+    return literal.value
+}
+
+func note_union_slot(information: Analysis.UnionInfo, what: String) {
+    var owner = union_slot_owner(information)
+    if not owner.is_empty() {
+        var position = builder.support_count()
+        live_slot_positions.append(position)
+        live_slot_owners.append(owner)
+        live_slot_displays.append("{information.simple_name}{what}")
+    }
+}
+
+func union_slot_owner(information: Analysis.UnionInfo): String {
+    if not hot_reload {
+        return ""
+    }
+    var index = 0
+    while index < information.members.count() {
+        var member = information.members[index]
+        if is_hot_class(member) {
+            return member.c_name
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func slot_live_supports() {
+    var index = 0
+    while index < live_slot_positions.count() {
+        var position = live_slot_positions[index]
+        var text = builder.support_at(position)
+        var owner = live_slot_owners[index]
+        var display = live_slot_displays[index]
+        crash owner
+        crash display
+        var slotted = slotted_support(text, owner, display)
+        crash not slotted.is_empty()
+        builder.replace_support(position, slotted)
+        index = index + 1
+    }
+}
+
+func slotted_support(text: String, owner: String, display: String): String {
+    var line_end = text.index_of("\n")
+    if line_end <= 0 {
+        return ""
+    }
+    var first = text.slice(0, line_end)
+    var first_length = first.length()
+    if not first.ends_with(") \{") or first.starts_with("static") {
+        return ""
+    }
+    var signature = first.slice(0, first_length - 2)
+    var open = signature.index_of("(")
+    if open <= 0 {
+        return ""
+    }
+    var head = signature.slice(0, open)
+    var shaker = TreeShaker()
+    var head_length = head.length()
+    var name = shaker.name_before(head, head_length)
+    var name_length = name.length()
+    if name_length <= 0 {
+        return ""
+    }
+    var returned = head.slice(0, head_length - name_length).trim()
+    var signature_length = signature.length()
+    var parameters = signature.slice(open + 1, signature_length - 1)
+    var arguments = argument_names(parameters)
+    var hot_signature = "{returned} {name}___hot({parameters})"
+    builder.add_prototype("{hot_signature};")
+    builder.add_slot(name, "static {returned} (*{name}___slot)({parameters}) = {name}___hot;")
+    var result = "return "
+    if returned == "void" {
+        result = ""
+    }
+    builder.add_support("{signature} \{\n{result}{name}___slot({arguments});\n}")
+    hot_slot_names.append(name)
+    hot_slot_owners.append(owner)
+    hot_slot_displays.append(display)
+    var text_length = text.length()
+    var rest = text.slice(line_end, text_length)
+    return "{hot_signature} \{{rest}"
+}
+
+func argument_names(parameters: String): String {
+    var trimmed = parameters.trim()
+    if trimmed == "void" or trimmed.is_empty() {
+        return ""
+    }
+    var names = List<String>()
+    var depth = 0
+    var start = 0
+    var index = 0
+    var parameters_length = parameters.length()
+    while index <= parameters_length {
+        var at_end = index == parameters_length
+        var code = 44
+        if not at_end {
+            code = parameters.code_at(index)
+        }
+        if code == 40 {
+            depth = depth + 1
+        } else if code == 41 {
+            depth = depth - 1
+        } else if code == 44 and depth == 0 {
+            var parameter = parameters.slice(start, index)
+            var named = c_parameter_name(parameter)
+            names.append(named)
+            start = index + 1
+        }
+        index = index + 1
+    }
+    return names.join(", ")
+}
+
+func c_parameter_name(parameter: String): String {
+    var trimmed = parameter.trim()
+    var pointer = trimmed.index_of("(*")
+    if pointer >= 0 {
+        var trimmed_length = trimmed.length()
+        var after = trimmed.slice(pointer + 2, trimmed_length)
+        var close = after.index_of(")")
+        crash close > 0
+        return after.slice(0, close)
+    }
+    var shaker = TreeShaker()
+    var trimmed_length = trimmed.length()
+    return shaker.name_before(trimmed, trimmed_length)
+}
+
+func live_support_types(): String {
+    return "typedef struct SpiteLayoutField \{ const char* name; const char* type; int64_t offset; int64_t size; void (*release)(void*); } SpiteLayoutField;\ntypedef struct SpiteLayout \{ const char* name; int64_t size; int64_t count; const SpiteLayoutField* fields; } SpiteLayout;\ntypedef struct SpiteLiveSet \{ void** objects; int64_t** places; int64_t count; int64_t capacity; int32_t lock; } SpiteLiveSet;"
+}
+
+func emit_live_support() {
+    assert hot_reload
+    var types = live_support_types()
+    builder.add_typedef(types)
+    builder.add_prototype("void spite_live_add(SpiteLiveSet* set, void* object, int64_t* place);")
+    builder.add_prototype("void spite_live_remove(SpiteLiveSet* set, void* object, int64_t* place);")
+    builder.add_support(
+        "void spite_live_add(SpiteLiveSet* set, void* object, int64_t* place) \{\nSPITE_LOCK(set->lock);\nif (set->count == set->capacity) \{\nset->capacity = set->capacity == 0 ? 64 : set->capacity * 2;\nset->objects = (void**)realloc(set->objects, (size_t)set->capacity * sizeof(void*));\nset->places = (int64_t**)realloc(set->places, (size_t)set->capacity * sizeof(int64_t*));\nif (set->objects == 0 || set->places == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: out of memory for the list of live objects a reload moves to a new layout\\n\");\nexit(1);\n}\n}\nset->objects[set->count] = object;\nset->places[set->count] = place;\n*place = set->count + 1;\nset->count = set->count + 1;\nSPITE_UNLOCK(set->lock);\n}",
+    )
+    builder.add_support(
+        "void spite_live_remove(SpiteLiveSet* set, void* object, int64_t* place) \{\nSPITE_LOCK(set->lock);\nint64_t index = *place - 1;\nif (index < 0 || index >= set->count || set->objects[index] != object) \{\nfflush(stdout);\nfprintf(stderr, \"spite: an object was released that the list of live objects does not hold\\n\");\nexit(1);\n}\nint64_t last = set->count - 1;\nset->objects[index] = set->objects[last];\nset->places[index] = set->places[last];\n*set->places[index] = index + 1;\nset->count = last;\n*place = 0;\nSPITE_UNLOCK(set->lock);\n}",
+    )
+}
+
 func add_hot_slot(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
     var hot_name = "{function.c_name}___hot"
     builder.add_prototype("{named_signature(information, function, hot_name)};")
@@ -34008,6 +34818,14 @@ func hot_manifest(): String {
         index = index + 1
     }
     var fact_lines = snapshot_manifest_lines()
+    var signed = field_signatures.keys()
+    var signed_index = 0
+    while signed_index < signed.count() {
+        var signed_name = signed[signed_index]
+        crash field_signatures[signed_name]
+        fact_lines.append("fields {signed_name} {field_signatures[signed_name]}")
+        signed_index = signed_index + 1
+    }
     var variant_index = 0
     while variant_index < lent_variant_lines.count() {
         fact_lines.append(lent_variant_lines[variant_index])
@@ -34126,6 +34944,7 @@ func reload_library(
     }
     if not partial {
         add_reached_classes(reload, owners)
+        add_layout_owners(reload, owners)
     }
     var growing = true
     while growing {
@@ -34145,7 +34964,45 @@ func reload_library(
         rebuilt.append(owner.qualified_dotted)
         index = index + 1
     }
-    return reload.library(builder, hot_slot_names, hot_slot_owners, owners)
+    var local_only = migration_local_names()
+    return reload.library(builder, hot_slot_names, hot_slot_owners, owners, local_only)
+}
+
+func add_layout_owners(reload: HotReloadLibrary, owners: List<String>) {
+    assert not changing_layouts.is_empty()
+    var shaker = reload.program_shaker
+    var index = 0
+    while index < shaker.pieces.count() {
+        var name = shaker.piece_names.get_at(index)
+        var piece = shaker.pieces.get_at(index)
+        var layout_piece = not name.is_empty() and mentions_migrating_layout(piece)
+        if layout_piece and not is_local_migration_piece(name) {
+            var owner = hot_owner_of(name)
+            if owner.is_empty() {
+                if not reload.stale_pieces.contains(name) {
+                    reload.stale_pieces.append(name)
+                }
+            } else if not owners.contains(owner) {
+                owners.append(owner)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func is_local_migration_piece(name: String): Boolean {
+    var index = 0
+    while index < migrating_classes.count() {
+        var c_name = migrating_classes[index]
+        if name == "{c_name}___layout" or name.starts_with("{c_name}___release_field_") {
+            return true
+        }
+        if name == "{c_name}___fill" or name == "{c_name}___prepare" or name == "{c_name}___move_all" {
+            return true
+        }
+        index = index + 1
+    }
+    return name.ends_with("___move_items")
 }
 
 func add_reached_classes(reload: HotReloadLibrary, owners: List<String>) {
@@ -34154,9 +35011,10 @@ func add_reached_classes(reload: HotReloadLibrary, owners: List<String>) {
     while index < changed.count() {
         var name = changed[index]
         var owner = hot_owner_of(name)
-        if owner.is_empty() {
+        var migration_piece = not migrating_classes.is_empty() and is_local_migration_piece(name)
+        if owner.is_empty() and not migration_piece {
             reload.stale_pieces.append(name)
-        } else if not owners.contains(owner) {
+        } else if not owner.is_empty() and not owners.contains(owner) {
             owners.append(owner)
         }
         index = index + 1
@@ -35089,6 +35947,9 @@ func seed_shape_fact(key: String) {
 }
 
 func partial_problem(host: HotReloadLibrary): String {
+    if not changing_layouts.is_empty() {
+        return "the attributes of {migrating_display()} changed, and their live objects move to the new layout"
+    }
     if partial_falls_short() {
         return "a function of a changed class has another parameter list or return type"
     }
