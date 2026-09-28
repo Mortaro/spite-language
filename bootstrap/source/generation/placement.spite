@@ -577,6 +577,6 @@ func call_only_reads(name: String, call: Syntax.Expressions.CallExpression): Boo
 }
 
 func is_list_read(name: String): Boolean {
-    var reads = ["count", "is_empty", "get_at", "find_at", "first", "last", "contains", "join"]
+    var reads = ["count", "is_empty", "get_at", "first", "last", "contains", "join"]
     return reads.contains(name)
 }

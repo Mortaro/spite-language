@@ -199,7 +199,6 @@ func timeout(): Integer {
         return -1
     }
     var now = clock()
-    crash deadlines[0]
     var earliest = deadlines[0]
     var index = 1
     while index < deadlines.count() {

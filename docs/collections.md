@@ -196,7 +196,7 @@ templates run on the items in place the same way, and a chain of them is one loo
 | `vector[index]` / `get_at(index)` | `T?` | the item itself, borrowed once narrowed; `null` out of range |
 | `vector[index] = value` / `set_at(index, value)` | | copies `value` over the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
-| `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` for plain values only |
+| `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` is a `List`'s only (D225) |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `reserve(count)` | | makes room for `count` items in all without making any, so appending up to there never grows the block (proposed by Claude, unconfirmed; D208) |
 | `copy()` / `deep_copy()` | `Vector<T>` | a new vector with its own copy of every item |
@@ -303,7 +303,7 @@ of moving every later one down, which is what a sparse set wants.
 | `items[index] = value` / `set_at(index, value)` | | replaces the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
 | `remove_swapping(index)` | | moves the last item into `index` (name provisional); nothing happens out of range |
-| `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` for plain values only |
+| `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` is a `List`'s only (D225) |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `copy()` / `deep_copy()` | `Items<T>` | inline: every item copied; references: one level, or all the way down |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()`, `parallel_each_<member>()` | | as on a vector; `filter_` gives an `Items<T>`, and a chain is one loop |
@@ -341,7 +341,7 @@ An engine's column holds its values in an `Items`, and D217's walked row reads t
 
 `remove_where(test)` removes every element a function is true for, and `remove_where_<member>()` every element
 whose member is true, in **one pass** that keeps the others in their order: a `List`, a `Vector` and an `Items`
-all have both. `truncate(count)` keeps the first `count` and lets go of the rest, and `swap(first, second)`
+all have both (the passed-function form on a `List` only, since D225 moved a list of plain values there). `truncate(count)` keeps the first `count` and lets go of the rest, and `swap(first, second)`
 exchanges two, which is what a pass of your own is written with when the test is not a function of the element
 -- an engine removing a column's rows by a mask of despawned entities:
 
@@ -363,7 +363,7 @@ func BulkRemovalDoc() {
     numbers.remove_where(is_odd)
     numbers.truncate(2)
     var velocities = Items<Velocity>()
-    var entities = Items<Integer>()
+    var entities = List<Integer>()
     var entity = 0
     while entity < 5 {
         var velocity = Velocity(1.0 * entity)
@@ -376,7 +376,8 @@ func BulkRemovalDoc() {
     var kept = 0
     var row = 0
     while row < velocities.count() {
-        var owner = entities.get_at(row)
+        crash entities[row]
+        var owner = entities[row]
         if not is_despawned(owner) {
             velocities.swap(row, kept)
             kept = kept + 1
@@ -397,7 +398,8 @@ func is_odd(number: Integer): Boolean {
 }
 
 func is_despawned(entity: Integer): Boolean {
-    return despawned.get_at(entity)
+    crash entity < despawned.count()
+    return despawned[entity]
 }
 ```
 ```output
@@ -1219,8 +1221,8 @@ names `remove_where`, `truncate` and `swap`, and the readings below, are propose
 - **`remove_where(test)` and `remove_where_<member>()`.** One template, `remove_where_member(member:
   Symbol<$element_type>)` in each of `library/list.spite`, `vector.spite` and `items.spite`, so it answers both a
   member (`creatures.remove_where_dead()`, D15's table: the member returns `Boolean`) and a passed function
-  (`numbers.remove_where(is_odd)`, D148: on a `List` of anything, and on a `Vector` or `Items` of plain values
-  only, D221, since a borrowed item is never passed on). It walks the collection once; an element that stays is
+  (`numbers.remove_where(is_odd)`, D148: on a `List` of anything, never on a `Vector` or `Items`, whose items
+  are borrowed or text since D225, and a borrowed item is never passed on). It walks the collection once; an element that stays is
   exchanged with the first place not yet kept, and when the walk ends everything past the kept ones is released.
   The survivors keep their order, and the test sees every element once, first to last.
 - **Why exchange, not move.** At every moment of the walk the collection holds each of its original elements

@@ -354,14 +354,14 @@ func sort_by_member(member: Symbol<$element_type>): List<$element_type> {
             while placed < end {
                 var takes_left = right >= end
                 if left < middle and not takes_left {
+                    crash order[left]
+                    crash order[right]
                     var left_position = order[left]
                     var right_position = order[right]
-                    crash left_position
-                    crash right_position
+                    crash keys[left_position]
+                    crash keys[right_position]
                     var left_key = keys[left_position]
                     var right_key = keys[right_position]
-                    crash left_key
-                    crash right_key
                     var right_first = left_key > right_key
                     takes_left = not right_first
                 }
@@ -372,8 +372,8 @@ func sort_by_member(member: Symbol<$element_type>): List<$element_type> {
                 } else {
                     right = right + 1
                 }
+                crash order[taken]
                 var position = order[taken]
-                crash position
                 merged.set_at(placed, position)
                 placed = placed + 1
             }
@@ -387,8 +387,8 @@ func sort_by_member(member: Symbol<$element_type>): List<$element_type> {
     var sorted = List<$element_type>()
     index = 0
     while index < item_count {
+        crash order[index]
         var source = order[index]
-        crash source
         var item = values.read_value(items, source)
         sorted.append(item)
         index = index + 1

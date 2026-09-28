@@ -41,6 +41,10 @@ var remote_loop_port = 0
 var refused_serialiser = false
 var division_check_written = false
 var overflow_check_written = false
+var index_check_written = false
+var unproven_read_code = ""
+var unproven_read_path = ""
+var unproven_read_bound = ""
 var always_crashing_functions = List<String>()
 var always_crashing_paths = List<String>()
 var always_crashing_lines = List<Integer>()
@@ -2098,9 +2102,13 @@ func check_plain_items(instance: Analysis.ClassInfo) {
 
 func is_address_type(spite_type: Analysis.SpiteType): Boolean {
     var class_reference = type_shape.as_class_ref(spite_type)
-    assert class_reference
+    if not class_reference {
+        return false
+    }
     var information = find_class_by_c_name(class_reference.c_name)
-    assert information
+    if not information {
+        return false
+    }
     return information.qualified_dotted == "Memory.Address"
 }
 
@@ -3490,7 +3498,7 @@ func shaped_value(
             }
         }
     } else {
-        report_mismatch(from, to)
+        report_mismatch(from, to, code)
     }
     return "(({information.c_name})({code}))"
 }
@@ -4114,7 +4122,7 @@ func filled_by_walk(
     if borrow_index >= borrow_statements.count() or next_index >= borrow_statements.count() {
         return false
     }
-    var here_statement = borrow_statements.get_at(borrow_index)
+    var here_statement = borrow_statements[borrow_index]
     var here = shape.as_variable_declaration(here_statement)
     if not here {
         return false
@@ -4133,7 +4141,7 @@ func walks_into(
 ): Boolean {
     var index = start
     while index < statements.count() {
-        var statement = statements.get_at(index)
+        var statement = statements[index]
         if statement_walks_into(statement, name, class_information) {
             return true
         }
@@ -4729,7 +4737,7 @@ func index_namespace_walk(walk: NamespaceWalk) {
     walk.last_positions = Dictionary<Integer>()
     var index = 0
     while index < walk.member_names.count() {
-        var member_name = walk.member_names.get_at(index)
+        var member_name = walk.member_names[index]
         if not walk.first_positions.has(member_name) {
             walk.first_positions.set(member_name, index)
         }
@@ -4981,7 +4989,8 @@ func describe_range_binding(
         var walk = namespace_walk(template)
         var last = walk.last_positions.get(instance.symbol_field_name)
         if last {
-            var named = walk.classes.get_at(last)
+            crash walk.classes[last]
+            var named = walk.classes[last]
             instance.symbol_display_name = named.qualified_dotted
         }
     }
@@ -5060,7 +5069,8 @@ func template_member_type(
             var walk = namespace_walk(template)
             var first = walk.first_positions.get(member_name)
             assert first
-            var named = walk.classes.get_at(first)
+            crash walk.classes[first]
+            var named = walk.classes[first]
             return class_type_of(named)
         }
         var range_class = template_range_class(information, template)
@@ -6316,7 +6326,6 @@ func bound_type_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
     var bound_type = bound_field_type
     var index = 2
     while index < named.path.count() {
-        crash bound_type
         var segment = named.path[index]
         var member_type = codegen_member_type(bound_type, segment)
         if not member_type {
@@ -6366,7 +6375,6 @@ func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? 
     }
     var index = 1
     while index < named.path.count() {
-        crash bound_type
         var segment = named.path[index]
         var member_type = codegen_member_type(bound_type, segment)
         if not member_type {
@@ -7080,7 +7088,7 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         if is_enum_type(from) {
             return string_conversion(code, from)
         }
-        report_mismatch(from, to)
+        report_mismatch(from, to, code)
         return code
     }
     if type_shape.as_string(from) {
@@ -7108,10 +7116,10 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
             }
             return "{conversion}(0, {code})"
         }
-        report_mismatch(from, to)
+        report_mismatch(from, to, code)
         return code
     }
-    report_mismatch(from, to)
+    report_mismatch(from, to, code)
     return code
 }
 
@@ -7139,7 +7147,65 @@ func numeric_conversion(from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     return conversion_name
 }
 
-func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
+func null_opening(code: String, type_text: String): String {
+    if code.is_empty() or code != unproven_read_code {
+        return "this value may be null (it is {type_text})"
+    }
+    return "'{unproven_read_path}' may be missing, since every '[ ]' answers a 'T?' (this one is {type_text})"
+}
+
+func null_advice(code: String): String {
+    if code.is_empty() or code != unproven_read_code {
+        return "narrow it first with 'if value \{ }', 'assert value' or 'crash value'"
+    }
+    var path = unproven_read_path
+    return "narrow it first with 'crash {path}', 'assert {path}' or 'if {path} \{ }'{unproven_read_bound}"
+}
+
+func noted_read(
+    read: ExpressionResult,
+    index_expression: Syntax.Expressions.IndexExpression,
+    object_type: Analysis.SpiteType,
+): ExpressionResult {
+    var read_type = read.get_type()
+    if not type_shape.as_nullable(read_type) {
+        return read
+    }
+    var path = operand_text(index_expression)
+    if path.is_empty() {
+        return read
+    }
+    crash index_expression.object
+    crash index_expression.index
+    unproven_read_code = read.code
+    unproven_read_path = path
+    unproven_read_bound = ""
+    var object_text = operand_text(index_expression.object)
+    var bounded = false
+    if type_shape.as_list(object_type) {
+        bounded = true
+    }
+    var object_class_ref = type_shape.as_class_ref(object_type)
+    if object_class_ref {
+        var object_class = find_class_by_c_name(object_class_ref.c_name)
+        if object_class {
+            bounded = is_library_collection(object_class)
+        }
+    }
+    if not bounded or object_text.is_empty() {
+        return read
+    }
+    var literal = shape.as_integer_literal(index_expression.index)
+    if literal {
+        unproven_read_bound = ", or prove the count first, 'crash {object_text}.count() > {literal.value}'"
+        return read
+    }
+    var index_text = Syntax.SourcePrinter().source_expression(index_expression.index)
+    unproven_read_bound = ", or read it where a bound proves it, inside 'while {index_text} < {object_text}.count()'"
+    return read
+}
+
+func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType, code: String) {
     assert not (type_shape.is_void(from) or type_shape.is_void(to))
     var names = type_display_names(from, to)
     var first_name = names.first()
@@ -7149,9 +7215,7 @@ func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
     var found_name = with_article(first_name)
     var wanted_name = with_article(last_name)
     if type_shape.as_nullable(from) {
-        report(
-            "this value may be null (it is {found_name}), but {wanted_name} is needed: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
-        )
+        report("{null_opening(code, found_name)}, but {wanted_name} is needed: {null_advice(code)}")
         return
     }
     assert first_name != last_name or not reported_key_kinds(from, to)
@@ -8357,8 +8421,9 @@ func generate_binary(
             )
         }
         if binary.operator != 'logical_and' and binary.operator != 'logical_or' {
+            var shown_left_type = type_with_article(left_type)
             report(
-                "this value may be null (it is {type_with_article(left_type)}), so '{binary_operator_symbol(binary.operator)}' cannot use it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                "{null_opening(left.code, shown_left_type)}, so '{binary_operator_symbol(binary.operator)}' cannot use it yet: {null_advice(left.code)}",
             )
             return void_result()
         }
@@ -11271,7 +11336,7 @@ func generate_method_call(
         var object_type_name = type_with_article(object_result_type)
         if type_shape.as_nullable(object_result_type) {
             report(
-                "this value may be null (it is {object_type_name}), so '{member.name}' cannot be called on it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                "{null_opening(object_result.code, object_type_name)}, so '{member.name}' cannot be called on it yet: {null_advice(object_result.code)}",
             )
         } else {
             report("{object_type_name} has no function '{member.name}'")
@@ -15393,7 +15458,8 @@ func generate_index_read(
             scope,
             class_information,
         )
-        return proven_read(read, element, proven, present)
+        var list_read = proven_read(read, element, proven, present, read_path)
+        return noted_read(list_read, index_expression, object_result_type)
     }
     var indexed_class_ref = type_shape.as_class_ref(object_result_type)
     if indexed_class_ref {
@@ -15417,9 +15483,11 @@ func generate_index_read(
                 lend_item(got, indexed_class, "get_at", index_expression.object)
                 if is_library_collection(indexed_class) {
                     crash indexed_class.codegen_types[0]
-                    return proven_read(got, indexed_class.codegen_types[0], proven, present)
+                    var collection_read = proven_read(got, indexed_class.codegen_types[0], proven, present, read_path)
+                    return noted_read(collection_read, index_expression, object_result_type)
                 }
-                return proven_item(got, present)
+                var class_read = proven_item(got, present)
+                return noted_read(class_read, index_expression, object_result_type)
             }
             report("indexing a '{indexed_class.simple_name}' needs it to define 'get_at(index)'")
             return void_result()
@@ -15447,7 +15515,7 @@ func generate_index_read(
             class_information,
         )
         if not proven or not scope.is_present_narrowed(read_path) {
-            return lookup
+            return noted_read(lookup, index_expression, object_result_type)
         }
         var lookup_temporary = next_temporary()
         nullable_type = nullable_type_of(value_type)
@@ -15480,11 +15548,43 @@ func proven_read(
     element: Analysis.SpiteType,
     proven: Boolean,
     present: Boolean,
+    read_path: String,
 ): ExpressionResult {
-    if type_shape.as_nullable(element) {
+    if type_shape.as_nullable(element) or present or not proven {
         return proven_item(got, present)
     }
-    return proven_item(got, proven)
+    return bounded_item(got, read_path)
+}
+
+func bounded_item(got: ExpressionResult, read_path: String): ExpressionResult {
+    var got_type = got.get_type()
+    var nullable = type_shape.as_nullable(got_type)
+    if not nullable {
+        return got
+    }
+    var inner = nullable.get_inner()
+    if not index_check_written {
+        index_check_written = true
+        builder.add_prototype(
+            "static void spite_outside_list(const char* read, const char* where) __attribute__((noreturn, cold));",
+        )
+        builder.add_support(
+            "static void spite_outside_list(const char* read, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' is outside its list: a bound proves only the top of an index, and this one is below 0 or the list changed, at %s\\n\", read, where);\nexit(1);\n}",
+        )
+    }
+    var temporary = next_temporary()
+    var where = escape_c_string("{current_path}:{current_line} in {current_owner}.{current_function}")
+    var read = escape_c_string(read_path)
+    var declaration = "{c_type_name(got_type)} {temporary} = {got.code};"
+    var halt = "spite_outside_list(\"{read}\", \"{where}\");"
+    var code = "(\{ {declaration} if (__builtin_expect(!{temporary}.has_value, 0)) {halt} {temporary}.value; })"
+    if type_is_reference(inner) {
+        code = "(\{ {declaration} if (__builtin_expect(!({present_code(temporary, inner)}), 0)) {halt} {temporary}; })"
+    }
+    var bounded = ExpressionResult(code, inner)
+    bounded.owning_override = got.owning_override
+    bounded.borrowed_from = got.borrowed_from
+    return bounded
 }
 
 func library_list_field(list_type: Analysis.SpiteType, name: String): Analysis.FieldInfo? {
@@ -17717,8 +17817,9 @@ func generate_member_read_raw(
         }
         switch object_result_type {
             Analysis.Types.NullableType: {
+                var shown_read_type = type_with_article(object_result_type)
                 report(
-                    "this value may be null (it is {type_with_article(object_result_type)}), so '{member.name}' cannot be read from it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                    "{null_opening(object_result.code, shown_read_type)}, so '{member.name}' cannot be read from it yet: {null_advice(object_result.code)}",
                 )
             }
             Analysis.Types.VoidType: report("'{member.name}' cannot be read from this value")
@@ -20065,10 +20166,10 @@ func emit_cached_check(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ): Boolean {
-    assert check.value and check.is_crash
+    crash check.value and check.is_crash
     var checked = check.value
     var path = operand_text(checked)
-    assert not path.is_empty() and shape.as_index(checked)
+    crash not path.is_empty() and shape.as_index(checked)
     var saved_counter = temporary_counter
     var read = generate_expression(checked, scope, class_information)
     var read_type = read.get_type()
@@ -20078,7 +20179,6 @@ func emit_cached_check(
         return false
     }
     var owned = owns(read, checked)
-    crash nullable
     var inner = nullable.get_inner()
     var temporary = next_temporary()
     builder.add_user("{c_type_name(read_type)} {temporary} = {read.code};")
@@ -20091,7 +20191,7 @@ func emit_cached_check(
     }
     record_site(check, "crash", function_information.name, scope, class_information)
     builder.add_user("if (!({present})) \{")
-    emit_check_failure(check, false, scope, class_information, function_information)
+    emit_check_failure(check, null, false, scope, class_information, function_information)
     scope.narrow_path(path)
     var cached = ExpressionResult(cached_code, inner)
     cached.owning_override = false
@@ -22579,8 +22679,9 @@ func generate_store(
         var object_class_ref = type_shape.as_class_ref(object_result_type)
         if not object_class_ref {
             if type_shape.as_nullable(object_result_type) {
+                var shown_store_type = type_with_article(object_result_type)
                 report(
-                    "this value may be null (it is {type_with_article(object_result_type)}), so '{member.name}' cannot be assigned through it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                    "{null_opening(object_result.code, shown_store_type)}, so '{member.name}' cannot be assigned through it yet: {null_advice(object_result.code)}",
                 )
             } else if not has_error {
                 report("cannot assign to '{member.name}' through {type_with_article(object_result_type)}")
@@ -27603,10 +27704,12 @@ func finish_coarse_loops() {
     settle_wait_facts()
     var index = 0
     while index < coarse_site_owners.count() {
-        var owner = coarse_site_owners.get_at(index)
-        var called_text = coarse_site_calls.get_at(index)
+        var owner = coarse_site_owners[index]
+        crash coarse_site_calls[index]
+        crash coarse_site_keys[index]
+        var called_text = coarse_site_calls[index]
         var called = called_text.split(" ")
-        var keys_text = coarse_site_keys.get_at(index)
+        var keys_text = coarse_site_keys[index]
         var keys = keys_text.split(" ")
         var holds = coarse_holds(owner, called, keys)
         var reading = read_guarded_names.contains(owner) and all_reading(called)
@@ -27677,8 +27780,10 @@ func coarse_holds(owner: String, called: List<String>, keys: List<String>): Bool
 }
 
 func call_unguarded_between(site: Integer, called: List<String>) {
-    var line_index = coarse_site_starts.get_at(site)
-    var end = coarse_site_ends.get_at(site)
+    crash coarse_site_starts[site]
+    crash coarse_site_ends[site]
+    var line_index = coarse_site_starts[site]
+    var end = coarse_site_ends[site]
     while line_index < end {
         var line = builder.user_at(line_index)
         var changed = line
@@ -28248,7 +28353,7 @@ func is_counted_call(
     }
     var receiver = shape.as_identifier(member.object)
     if receiver and holds_counted_values(receiver.name, scope) {
-        var reads = ["count", "is_empty", "get_at", "find_at", "set_at", "first", "last", "contains"]
+        var reads = ["count", "is_empty", "get_at", "set_at", "first", "last", "contains"]
         return reads.contains(member.name)
     }
     return maths.is_member(member.name) and is_counted_plain(member.object, plain_names, scope, class_information)
@@ -28635,10 +28740,14 @@ func operand_text(expression: Syntax.Expressions.Expression): String {
 }
 
 func is_generic_singleton_call(construction: Syntax.Expressions.GenericCallExpression): Boolean {
-    assert construction.arguments.is_empty() and not construction.names_class
+    if not construction.arguments.is_empty() or construction.names_class {
+        return false
+    }
     crash construction.callee
     var template = try_resolve_static_path(construction.callee, current_owner)
-    assert template
+    if not template {
+        return false
+    }
     return template.is_generic_template and template.is_singleton
 }
 
@@ -28835,11 +28944,14 @@ func emit_missing_report(guard: NullableGuard, scope: Scope, class_information: 
     while position < nullable_links.count() {
         var link_position = nullable_links[position]
         while next_link < link_position {
-            var present_link = guard.links.get_at(next_link)
+            crash guard.links[next_link]
+            var present_link = guard.links[next_link]
             var narrowed_path = operand_text(present_link)
             probe_scope.narrow_path(narrowed_path)
             next_link = next_link + 1
         }
+        crash guard.link_tests[link_position]
+        crash guard.links[link_position]
         var last = position == nullable_links.count() - 1
         if position > 0 {
             builder.add_user("else")
@@ -28847,10 +28959,10 @@ func emit_missing_report(guard: NullableGuard, scope: Scope, class_information: 
         if last {
             builder.add_user("\{")
         } else {
-            builder.add_user("if (!({guard.link_tests.get_at(link_position)})) \{")
+            builder.add_user("if (!({guard.link_tests[link_position]})) \{")
         }
         conditional_depth = conditional_depth + 1
-        var missing_link = guard.links.get_at(link_position)
+        var missing_link = guard.links[link_position]
         emit_missing_link(missing_link, probe_scope, class_information)
         conditional_depth = conditional_depth - 1
         builder.add_user("}")
@@ -30830,8 +30942,10 @@ func finish_singleton_guards() {
     index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
-        var information = guarded_classes.get_at(position)
-        var function = guarded_functions.get_at(position)
+        crash guarded_classes[position]
+        crash guarded_functions[position]
+        var information = guarded_classes[position]
+        var function = guarded_functions[position]
         if not guarded_names.contains(information.c_name) {
             guarded_names.append(information.c_name)
             builder.add_support("static SpiteGuard {information.c_name}___guard = \{ 0, 0 };")
@@ -30841,7 +30955,8 @@ func finish_singleton_guards() {
         }
         var unguarded_name = "{function.c_name}___unguarded"
         var unguarded_signature = named_signature(information, function, unguarded_name)
-        var guarded_at = guarded_positions.get_at(position)
+        crash guarded_positions[position]
+        var guarded_at = guarded_positions[position]
         builder.replace_user(guarded_at, "{unguarded_signature} \{")
         builder.add_prototype("{unguarded_signature};")
         emit_guard_wrapper(information, function, unguarded_name)
@@ -30860,8 +30975,10 @@ func find_reading_functions(wrapped: List<Integer>) {
     var index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
-        var information = guarded_classes.get_at(position)
-        var function = guarded_functions.get_at(position)
+        crash guarded_classes[position]
+        crash guarded_functions[position]
+        var information = guarded_classes[position]
+        var function = guarded_functions[position]
         var visiting = List<String>()
         if reads_only(information, function, visiting) {
             if not readers.contains(information.c_name) {
@@ -30875,8 +30992,10 @@ func find_reading_functions(wrapped: List<Integer>) {
     index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
-        var information = guarded_classes.get_at(position)
-        var function = guarded_functions.get_at(position)
+        crash guarded_classes[position]
+        crash guarded_functions[position]
+        var information = guarded_classes[position]
+        var function = guarded_functions[position]
         var name = information.c_name
         var shared = readers.contains(name) and not written_on_threads.contains(name)
         if shared and not call_effects.writes_from_reached(information.simple_name, reached) {
@@ -31157,7 +31276,6 @@ func call_reads_only(
         var reading = [
             "count"
             "get_at"
-            "find_at"
             "get"
             "has"
             "is_empty"
@@ -31472,8 +31590,10 @@ func report_locked_waits(wrapped: List<Integer>) {
     var index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
-        var information = guarded_classes.get_at(position)
-        var function = guarded_functions.get_at(position)
+        crash guarded_classes[position]
+        crash guarded_functions[position]
+        var information = guarded_classes[position]
+        var function = guarded_functions[position]
         wrapped_function_names.set(function.c_name, true)
         if not is_instantiated_class(information) {
             locked_keys.set("{information.simple_name}#{function.name}", information.simple_name)
@@ -31483,8 +31603,10 @@ func report_locked_waits(wrapped: List<Integer>) {
     index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
-        var information = guarded_classes.get_at(position)
-        var function = guarded_functions.get_at(position)
+        crash guarded_classes[position]
+        crash guarded_functions[position]
+        var information = guarded_classes[position]
+        var function = guarded_functions[position]
         if not is_instantiated_class(information) {
             report_waits_in(function.body, function.body, information, function, locked_keys)
         }
@@ -31536,7 +31658,8 @@ func report_joined_parallel(
     assert starter.name == "Parallel" and not handle_escapes(declared.name, whole)
     var site = parallel_site_at(declared.line, information, function)
     assert site >= 0
-    var work_key = parallel_site_keys.get_at(site)
+    crash parallel_site_keys[site]
+    var work_key = parallel_site_keys[site]
     var entries = [work_key]
     var reached = call_effects.reached_functions(entries)
     var reached_keys = reached.keys()
@@ -31557,10 +31680,10 @@ func report_joined_parallel(
 func parallel_site_at(line: Integer, information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Integer {
     var index = 0
     while index < parallel_site_places.count() {
-        var site_place = parallel_site_places.get_at(index)
+        var site_place = parallel_site_places[index]
         var place = site_place.split("\n")
-        var same_line = place.get_at(1) == line.to_string()
-        if same_line and place.get_at(2) == information.qualified_dotted and place.get_at(3) == function.name {
+        var same_line = place[1] == line.to_string()
+        if same_line and place[2] == information.qualified_dotted and place[3] == function.name {
             return index
         }
         index = index + 1
@@ -31575,13 +31698,16 @@ func report_locked_wait(
     site: Integer,
     key: String,
 ) {
-    var site_place = parallel_site_places.get_at(site)
+    crash parallel_site_places[site]
+    crash parallel_site_texts[site]
+    var site_place = parallel_site_places[site]
     var place = site_place.split("\n")
-    current_path = place.get_at(0)
+    crash place[0]
+    current_path = place[0]
     current_line = declared.line
     current_owner = information.qualified_dotted
     current_function = function.name
-    var work_text = parallel_site_texts.get_at(site)
+    var work_text = parallel_site_texts[site]
     var hash = key.index_of("#")
     var key_length = key.length()
     var locked_name = key.slice(hash + 1, key_length)

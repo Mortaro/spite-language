@@ -26,9 +26,9 @@ func remove_creatures() {
     var names = ["ant", "bee", "cat", "dog", "eel", "fox"]
     var healths = [3, 0, 5, -1, 0, 2]
     var index = 0
-    while index < names.count() {
-        var name = names.get_at(index)
-        var health = healths.get_at(index)
+    while index < names.count() and index < healths.count() {
+        var name = names[index]
+        var health = healths[index]
         var creature = Creature(name, health)
         creatures.append(creature)
         index = index + 1
@@ -50,7 +50,7 @@ func remove_velocities() {
     velocities.append(fourth)
     velocities.remove_where_stopped()
     var labels = velocities.map_label().join(" | ")
-    var weights = Items<Float>()
+    var weights = List<Float>()
     weights.append(0.5)
     weights.append(3.0)
     weights.append(1.5)
@@ -77,7 +77,7 @@ func remove_packs() {
 }
 
 func remove_by_mask() {
-    var entities = Items<Integer>()
+    var entities = List<Integer>()
     var velocities = Items<Velocity>()
     var entity = 0
     while entity < 8 {
@@ -92,7 +92,8 @@ func remove_by_mask() {
     var kept = 0
     var row = 0
     while row < velocities.count() {
-        var owner = entities.get_at(row)
+        crash entities[row]
+        var owner = entities[row]
         if not despawns.marked(owner) {
             velocities.swap(row, kept)
             kept = kept + 1
