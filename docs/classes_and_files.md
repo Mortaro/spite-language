@@ -454,7 +454,7 @@ fix. A `D` number is a row of the [decision log](decisions.md).
   - `generics` is kept only to report the removed header list: `there is no 'generics' list: a class declares
     each codegen value on its own line at the top of the file, like 'generic $damage_type'`.
 - There is no `do`: `if value { } else { }` narrows in place instead
-  ([Null safety and `assert` narrowing](failure.md#null-safety-and-assert-narrowing--implemented)). Writing `do`
+  ([Null safety and `assert` narrowing](failure.md#narrowing)). Writing `do`
   is a parse error naming that form: `Spite has no 'do': an 'if' on a value that may be null narrows it in place,
   'if value { ... } else { ... }', and inside the block 'value' is the value itself` (`diagnostics/old_do`).
 - There is no `let` and no `const`: `let total = 1` is `Spite has no 'let': a variable is declared 'var name =

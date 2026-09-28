@@ -139,9 +139,6 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 - **See.** D3, D43, D45, D69; [failure.md: Narrowing](failure.md#narrowing),
   [Narrowing a path](failure.md#narrowing-a-path); `conformance/stage6/path_narrowing`,
   `conformance/stage6/present_zero`, `diagnostics/store_through_nullable`, `diagnostics/path_narrow_else`.
-- **Compiler today.** Several pages link `failure.md#null-safety-and-assert-narrowing--implemented`, a heading that
-  no longer exists; its rules are the paragraphs under
-  [Nothing fails silently](failure.md#nothing-fails-silently--the-rule).
 
 ### Every side of an `and` narrows
 
@@ -154,8 +151,6 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   side of an `and` sees only proven *indices* from the left side, not narrowed `T?`s: such code is refused. Write
   `while node { if ... }`, or an `if`. `or` narrows only in [an `if` that leaves](#an-if-that-leaves-proves-the-rest).
 - **See.** D43; [failure.md: Narrowing](failure.md#narrowing); `conformance/stage6/and_narrowing`.
-- **Compiler today.** failure.md says "for `assert`, `crash` and `if` alike", which is exact, but does not say that
-  `while` conditions and expressions do not narrow a `T?` across `and`.
 
 ### An `if` that leaves proves the rest
 
@@ -174,9 +169,8 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   narrows nothing; a `not` side that is not a path (`not x.ready()`) proves nothing. Use `assert` or `crash`.
 - **See.** D256; [failure.md: An `if` that leaves proves the rest](failure.md#an-if-that-leaves-proves-the-rest);
   `conformance/stage6/leaving_if`, `conformance/stage6/returning_branch_proof`.
-- **Compiler today.** failure.md names "a `return` or a bare `crash`"; the compiler also counts a `switch` whose
-  cases all leave (said only in [control_flow.md](control_flow.md#switch-over-values-1)). "Leaving" here is narrower
-  than [every path ends](#every-path-ends-in-a-return), which also counts `if`/`else` and `while true`.
+- **Compiler today.** "Leaving" here is narrower than [every path ends](#every-path-ends-in-a-return), which also counts
+  `if`/`else` and `while true`.
 
 ### Assigning undoes a proof
 
@@ -217,10 +211,8 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   [optimizations.md: Proofs that survive a call](optimizations.md#proofs-that-survive-a-call);
   `diagnostics/call_undoes_proof`, `diagnostics/receiver_call_undoes_proof`, `diagnostics/branch_undoes_proof`,
   `conformance/stage6/receiver_call_effects`.
-- **Compiler today.** failure.md lists the shrinking calls as `clear`, `remove_at`, `remove_first`, `remove_last` and
-  a dictionary's `remove`; the compiler also counts `remove_swapping`, `remove_where...`, `truncate` and `swap`
-  (D263). A proven divisor is kept as a list-like fact, so a call that may shrink any list (through a function value)
-  undoes it too.
+- **Compiler today.** A proven divisor is kept as a list-like fact, so a call that may shrink any list (through a
+  function value) undoes it too.
 
 ### Proving what is proven is an error
 
@@ -234,8 +226,8 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 - **Falls back.** Delete the line.
 - **See.** D43, D256; [failure.md: Narrowing a path](failure.md#narrowing-a-path);
   `diagnostics/check_proves_nothing`, `diagnostics/proven_element`, `diagnostics/proven_index_check`.
-- **Compiler today.** The "proves nothing" message is given for a class; asserting an already narrowed `String?`,
-  number or enum a second time is refused with the message for a non-`Boolean` condition instead.
+- **Compiler today.** On a narrowed class the message is "proves nothing"; on a narrowed `String?`, number or enum it
+  is the error for a non-`Boolean` condition, which names the wrong fix. Still open in [failure.md](failure.md#nothing-fails-silently--the-rule).
 
 ### A copy made to narrow is an error
 
@@ -248,7 +240,7 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 - **See.** D63; [failure.md: Narrowing a path](failure.md#narrowing-a-path); `diagnostics/copy_to_narrow`.
 - **Compiler today.** D63 says "which is then narrowed", in any way; the compiler recognises only a condition that is
   exactly the bare name, so a copy narrowed by `if not copy { return }`, `while copy` or `assert copy and ...` is not
-  caught.
+  caught. Still open in [failure.md](failure.md#nothing-fails-silently--the-rule).
 
 ### A class test narrows its block
 
@@ -277,7 +269,8 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 - **See.** The D244 implementation row of 2026-09-27; [failure.md: Every path ends in a
   `return`](failure.md#every-path-ends-in-a-return); `diagnostics/falling_end`.
 - **Compiler today.** `while true` ends a path whether or not its body can leave, and nothing reports such a loop
-  outside a locked singleton function. Statements after a `return` in the same block are compiled without an error.
+  outside a locked singleton function; statements after a `return` in the same block compile without an error. Both
+  still open in [failure.md](failure.md#nothing-fails-silently--the-rule).
 
 ### A guard `assert` answers only "nothing"
 
@@ -298,8 +291,8 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   [The last `if` of a function](failure.md#the-last-if-of-a-function); `diagnostics/default_answer`,
   `diagnostics/default_guard`, `diagnostics/returning_guard`, `diagnostics/terminal_if`.
 - **Compiler today.** D106's lint recognises only the literal defaults `null`, `false`, `0`, `0.0`, `""` and a bare
-  `return`, so in a function answering a `List` or `Dictionary`, `if ... { return List<T>() }` is not refused as the
-  rule says. A function that lends a list element (D269) is not checked for a guard `assert`.
+  `return`, so `if ... { return List<T>() }` in a function answering a `List` is not refused, and a function that
+  lends a list element (D269) is not checked for a guard `assert`. Still open in [failure.md](failure.md#nothing-fails-silently--the-rule).
 
 ### A switch covers every case
 
@@ -315,7 +308,7 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   [`switch` over values](control_flow.md#switch-over-values); `diagnostics/missing_switch_case`,
   `diagnostics/switch_rest_case`, `diagnostics/switch_chain`, `conformance/stage6/rest_case`.
 - **Compiler today.** The union message reads "has no case for File: every member is covered, so a member added
-  later cannot be forgotten", which says the opposite of what it means; the enum message is worded correctly.
+  later cannot be forgotten", which says the opposite of what it means. Still open in [failure.md](failure.md#nothing-fails-silently--the-rule).
 
 ## Indices and numbers
 
@@ -362,8 +355,6 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 - **See.** D222; [optimizations.md: A loop over plain values reads its count once and its items
   unchecked](optimizations.md#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked);
   `conformance/stage6/counted_loops`.
-- **Compiler today.** optimizations.md says "a `List` or `Vector`"; the compiler also needs the list to be a bare
-  local or parameter and the counter an `Integer`.
 
 ### A proven divisor is not checked
 
@@ -466,12 +457,8 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   time](optimizations.md#deciding-conditions-at-compile-time),
   [metaprogramming.md: Asking what a generic was given](metaprogramming.md#asking-what-a-generic-was-given);
   `conformance/stage6/codegen_member_fold`, `conformance/stage6/walked_class_fold`.
-- **Compiler today.** optimizations.md says an `assert` or `crash` on any of these folds the same way. The compiler
-  folds an `assert` or `crash` only when its condition asks a codegen question (`$` values, `attribute.class`, the
-  function questions below); a `Build` field in an `assert` or `crash` is tested at run time, so
-  [D250](#a-crash-that-folds-false-is-a-compile-error) does not apply to it. metaprogramming.md's rules say a
-  `has_function` pattern "is true when some function's name fits it with a non-empty middle"; the compiler, and D180
-  on the same page, need the hole to name an enum.
+- **Compiler today.** A `Build` field in an `assert` or `crash` is not folded (only codegen questions are), so
+  [D250](#a-crash-that-folds-false-is-a-compile-error) does not apply to it: still open in [failure.md](failure.md#nothing-fails-silently--the-rule).
 
 ### Whether a function waits
 
@@ -532,9 +519,8 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   `diagnostics/snapshot_argument_writes`.
 - **Compiler today.** A function whose body the compiler supplies counts as writing only when its name is on a fixed
   list (`resize`, `free`, `copy_to`, `write_value`, ...) or starts with `write_`; any other supplied function answers
-  "does not write". The page says "and the like", and "where it cannot decide, the answer is `true`": a supplied
-  function that writes but is not on the list would answer a silent `false`. This analysis decides no memory layout;
-  the memory proofs below use their own.
+  "does not write", a silent `false`. Still open in [failure.md](failure.md#nothing-fails-silently--the-rule). This analysis decides no memory layout; the memory
+  proofs below use their own.
 
 ### A `crash` that folds false is a compile error
 
@@ -548,9 +534,6 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   value through `or` is a run-time check.
 - **See.** D250; [metaprogramming.md: Codegen values](metaprogramming.md#codegen-values---implemented);
   `diagnostics/folded_crash`, `conformance/stage6/folded_crash_uncalled`.
-- **Compiler today.** metaprogramming.md says a `crash` that also reads a run-time value is unchanged; since `and`
-  sides are split first, `crash $T.has_function("x") and ready` is still the compile error when the folded side is
-  false. Only an `or` keeps it a run-time check.
 
 ### Tree shaking: what `main` can reach
 
@@ -582,9 +565,9 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   `--hot-reload` build.
 - **See.** D108, D151, D211; [memory.md: Placement](memory.md#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed);
   `conformance/stage6/lent_buffers`.
-- **Compiler today.** The page names `TypedMemory`'s reads and writes; the compiler accepts `read_value`,
-  `write_value`, `release_value` and `swap_values` by name on any receiver, so a program's own `write_value` that
-  keeps the address would pass.
+- **Compiler today.** The compiler accepts `read_value`, `write_value`, `release_value` and `swap_values` by name on
+  any receiver, not only `TypedMemory`'s, so a program's own `write_value` that keeps the address would pass. Still
+  open in [failure.md](failure.md#nothing-fails-silently--the-rule).
 
 ### Objects that never leave their function live in the frame
 
@@ -604,10 +587,6 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   builds; in a function that waits; and for a class holding text, lists or objects (planned).
 - **See.** D108, D149; [optimizations.md: Objects that never leave their function live in the
   frame](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame); `conformance/stage6/frame_objects`.
-- **Compiler today.** optimizations.md says passing a frame object to a function still counts it, and lists leaving
-  that count out as planned; since D270 a frame local passed by name to a program function that never assigns the
-  parameter goes through the [held](#an-argument-its-caller-holds-is-passed-uncounted) copy, uncounted.
-  optimizations.md also says `singleton_counts` allocates 65 times; its pin is 64.
 
 ### Local and variadic lists in the frame
 
@@ -744,7 +723,6 @@ have moved.
 - **See.** D270; [optimizations.md: An argument its caller holds is passed without
   counting](optimizations.md#an-argument-its-caller-holds-is-passed-without-counting);
   `conformance/stage6/held_arguments`.
-- **Compiler today.** optimizations.md's "When" does not list `--development`, which the compiler excludes too.
 
 ### A singleton attribute that never changes is read in place
 
@@ -795,8 +773,6 @@ These apply only in a program that makes a `Parallel`, runs a `parallel_each_` p
   form](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form),
   [concurrency.md: A value per thread, and a lock](concurrency.md#a-value-per-thread-and-a-lock);
   `conformance/stage6/singleton_forms`.
-- **Compiler today.** optimizations.md's "When" names `Parallel` and `parallel_each_`; a `ForeignCallback` counts
-  too.
 
 ### Read-only and atomic singletons
 
@@ -811,8 +787,6 @@ These apply only in a program that makes a `Parallel`, runs a `parallel_each_` p
 - **See.** D183, D184; [optimizations.md: Thread safety for singletons, the cheapest safe
   form](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form); `conformance/stage6/singleton_forms`,
   `conformance/stage6/singleton_lock_calls`.
-- **Compiler today.** optimizations.md ("the rest of the plan") and concurrency.md's rules still list a
-  reader-writer lock as not built; D266's readers' side (below) is one, built.
 
 ### A function that touches no changing state takes no lock
 
