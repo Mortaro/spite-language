@@ -7,6 +7,10 @@ esoteric shit". Open questions 15 and 20 in `docs/open_questions.md`, items 2 an
 Everything below is analysis. No code was changed. The rules at the end are **(proposed by Claude,
 unconfirmed)**.
 
+**Status (2026-09-28): nothing here waits on Mortaro.** Both rules are decided and built (D170, D171), the
+findings are built (D105), the D113 form was replaced by D148, and `switch` over an enum is D239. What is left
+is a record; the file can be deleted whenever Mortaro likes.
+
 ## Built (D170, D171)
 
 Both proposed rules are decided and built (2026-09-25): the nested `if`/`else` rule of section 5 as written

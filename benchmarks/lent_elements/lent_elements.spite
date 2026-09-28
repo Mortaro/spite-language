@@ -1,0 +1,48 @@
+var console = Console()
+var clock = Clock()
+var positions = Column<Position>()
+var bags = Column<Bag>()
+var row_total = 100000
+
+func LentElements() {
+    var row = 0
+    while row < row_total {
+        var position = Position()
+        positions.insert(position)
+        var bag = Bag()
+        bags.insert(bag)
+        row = row + 1
+    }
+    var touching = best_of_ticks(true)
+    var passing = best_of_ticks(false)
+    console.print("inline + reference, touching it: {touching} ns per row; not touching it: {passing} ns per row")
+}
+
+func best_of_ticks(touch: Boolean): Long {
+    var best: Long = 0
+    var tick = 0
+    while tick < 20 {
+        var start = clock.elapsed_nanoseconds()
+        one_tick(touch)
+        var took = clock.elapsed_nanoseconds() - start
+        if tick == 0 or took < best {
+            best = took
+        }
+        tick = tick + 1
+    }
+    return best / row_total
+}
+
+func one_tick(touch: Boolean) {
+    if touch {
+        var touching = Runner<Touching, Touching.Carried>(row_total)
+        var touched = Parallel(touching.run)
+        var done: Integer = touched
+        assert done == row_total
+    } else {
+        var passing = Runner<Passing, Passing.Carried>(row_total)
+        var passed = Parallel(passing.run)
+        var done: Integer = passed
+        assert done == row_total
+    }
+}

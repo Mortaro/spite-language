@@ -1,0 +1,39 @@
+var kept: Bag? = null
+var seen = List<Bag>()
+
+func pack_all(bag: Bag, count: Integer): Integer {
+    var index = 0
+    var total = 0
+    while index < count {
+        total = total + pack(bag, index)
+        index = index + 1
+    }
+    return total
+}
+
+func pack(bag: Bag, value: Integer): Integer {
+    bag.items.append(value)
+    return weigh(bag)
+}
+
+func weigh(bag: Bag): Integer {
+    return bag.items.count()
+}
+
+func keep(bag: Bag) {
+    kept = bag
+    seen.append(bag)
+}
+
+func hand_back(bag: Bag): Bag {
+    return bag
+}
+
+func swap_in(bag: Bag, other: Bag): Integer {
+    bag = other
+    return bag.items.count()
+}
+
+func keep_through(bag: Bag) {
+    keep(bag)
+}

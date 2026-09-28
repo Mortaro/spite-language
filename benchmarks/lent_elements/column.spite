@@ -1,0 +1,18 @@
+singleton
+
+generic $component_type
+
+var values = Items<$component_type>()
+var references = List<$component_type>()
+
+func insert(value: $component_type) {
+    if $component_type.fits_vector() {
+        values.append(value)
+    } else {
+        references.append(value)
+    }
+}
+
+func at(row: Integer): $component_type {
+    return references.get_at(row)
+}

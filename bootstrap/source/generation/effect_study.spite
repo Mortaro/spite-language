@@ -5,6 +5,7 @@ var parameters = List<String>()
 var local_sources = Dictionary<String>()
 var local_classes = Dictionary<String>()
 var local_elements = Dictionary<String>()
+var local_types = Dictionary<String>()
 var in_constructor = false
 var class_name = ""
 var table: CallEffects? = null
@@ -25,6 +26,7 @@ func take_parameters(declared: List<Syntax.Statements.Parameter>) {
         crash parameter.type_reference
         var parameter_class = table.type_class_name(parameter.type_reference)
         local_classes.set(parameter.name, parameter_class)
+        local_types.set(parameter.name, parameter_class)
         var parameter_element = table.element_class_name(parameter.type_reference)
         local_elements.set(parameter.name, parameter_element)
         index = index + 1
@@ -165,7 +167,10 @@ func study_expression(expression: Syntax.Expressions.Expression) {
             study_expression(expression.right)
         }
         Syntax.Expressions.UnaryExpression: study_optional(expression.operand)
-        Syntax.Expressions.MemberExpression: study_optional(expression.object)
+        Syntax.Expressions.MemberExpression: {
+            study_optional(expression.object)
+            record_member_read(expression)
+        }
         Syntax.Expressions.IndexExpression: {
             study_optional(expression.object)
             study_optional(expression.index)
@@ -174,6 +179,13 @@ func study_expression(expression: Syntax.Expressions.Expression) {
         Syntax.Expressions.ObjectLiteralExpression: expression.fields.each(study_field)
         _: return
     }
+}
+
+func record_member_read(member: Syntax.Expressions.MemberExpression) {
+    crash member.object
+    crash recorded
+    var owner = owner_class(member.object)
+    recorded.member_reads.append("{owner}#{member.name}")
 }
 
 func study_element(element: Syntax.Expressions.ListElement) {
@@ -340,7 +352,7 @@ func owner_class(expression: Syntax.Expressions.Expression): String {
         crash member.object
         var object_class = owner_class(member.object)
         if object_class == "*" {
-            return "*"
+            return type_attribute_class(member.object, member.name)
         }
         return field_class(object_class, member.name)
     }
@@ -443,6 +455,23 @@ func field_class(owner: String, field: String): String {
         return known_or_any(found)
     }
     return "*"
+}
+
+func type_attribute_class(object: Syntax.Expressions.Expression, name: String): String {
+    var identifier = shape.as_identifier(object)
+    if not identifier {
+        return "*"
+    }
+    var type_name = local_types.get(identifier.name)
+    if not type_name {
+        return "*"
+    }
+    crash table
+    var found = table.type_field_classes.get("{type_name}#{name}")
+    if not found {
+        return "*"
+    }
+    return known_or_any(found)
 }
 
 func known_or_any(found_class: String): String {
@@ -549,6 +578,7 @@ func growing_key(key: String): String {
 func add_release_key(owner: String, field: String) {
     crash table
     assert not table.plain_fields.has("{owner}#{field}")
+    assert owner != "*" or table.counted_field_names.has(field)
     add_key("release")
 }
 

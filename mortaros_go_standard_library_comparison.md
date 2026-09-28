@@ -5,6 +5,15 @@ in ours so i decide what we offer". Written by Claude Opus 5.5 from `master` at 
 every "fit" note and every suggestion is **(proposed by Claude, unconfirmed)**. The decisions it cites are in
 the decision log, `docs/decisions.md`.
 
+**Status (2026-09-28).** The tables below are the 2026-09-24 snapshot and have not been redone. Built since:
+bit functions (D117), maths as members of the number classes and game maths (D204, D213), time, dates, time
+zones and a nanosecond clock (`docs/time.md`, D252), `JsonWriter`/`JsonReader`/`BinaryWriter`/`BinaryReader`
+(D208), `Atomic<T>` (D253), mapped files (D254), a file and folder watcher (D194), and `TypedMemory<T>` for
+every width, and `Socket` beyond localhost (`connect(host, port)`, `listen_everywhere`). Still missing from the
+suggestions: `Random` and secure random bytes, HTTP, a database, hashes (SHA-256, HMAC), TLS, base64 and gzip --
+most of which the Theseus port needs (its PLAN.md L5). The question is item 21 of
+`mortaros_missing_decisions.md`.
+
 **What Spite has today**, for reference: `library/` holds `File`, `Directory`, `Process`, `Program`, `Console`,
 `Environment`, `Socket`, `Concurrent`, `Parallel`, `Scheduler`, `List<T>`, `Dictionary<T>`, `String` (reopened in
 `library/string.spite`), `TextBytes`, `NumberText`, `ForeignText`, `AllocationTable` and the REPL

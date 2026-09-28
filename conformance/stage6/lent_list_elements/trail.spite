@@ -1,0 +1,6 @@
+var lefts = List<Float>()
+var owner = -1
+
+func Trail(new_owner: Integer) {
+    owner = new_owner
+}

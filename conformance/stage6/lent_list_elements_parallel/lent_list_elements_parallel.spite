@@ -1,0 +1,25 @@
+var console = Console()
+var positions = Column<Position>()
+var trails = Column<Trail>()
+
+func LentListElementsParallel() {
+    var entity = 0
+    while entity < 400 {
+        var position = Position()
+        positions.insert(position)
+        var trail = Trail(entity)
+        trails.insert(trail)
+        entity = entity + 1
+    }
+    var low = Runner<Mover, Mover.Moving>(0, 200)
+    var high = Runner<Mover, Mover.Moving>(200, 400)
+    var peeking = Runner<Peeker, Peeker.Moving>(0, 400)
+    var low_run = Parallel(low.run)
+    var high_run = Parallel(high.run)
+    var moved: Integer = low_run + high_run
+    var peek_run = Parallel(peeking.run)
+    var peeked: Integer = peek_run
+    var last = trails.at(399)
+    var lefts = last.lefts.count()
+    console.print("moved", moved, "peeked", peeked, "last trail", lefts, positions.values[399].left)
+}

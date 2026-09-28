@@ -1,0 +1,12 @@
+type Moving {
+    position: Position
+    trail: Trail
+}
+
+var steps = 0
+
+func update_each(moving: Moving) {
+    moving.position.left = moving.position.left + 1.5
+    moving.trail.lefts.append(moving.position.left)
+    steps = steps + moving.trail.lefts.count()
+}

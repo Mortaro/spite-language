@@ -946,6 +946,63 @@ threads that want the singleton waiting for all of it. In the C, the loop is bet
 `spite_coarse_<n>_leave()` and calls `<function>___unguarded`; `conformance/stage6/coarse_locks` holds that in
 `check.sh`. **Built** (2026-09-26).
 
+### An argument its caller holds is passed without counting
+
+**What it does.** Passing an object to a function counts it once more for the callee's own name and lets that
+count go when the callee returns: two atomic operations on the object's header in a program with threads. When
+the argument is a name the caller already holds for the whole call -- one of its own parameters, or a local it
+owns -- the count adds nothing: nothing the call runs can reassign the caller's name. So the call goes to a copy of
+the function, `<name>___held_<positions>`, in which those parameters are not released at its end, and the caller
+passes them as they are ([D270](decisions.md)). SlopEngine's `run_positions(..., rows)` calling
+`matcher.match_into(entity, rows)`, which hands `found` on to `find_row(index, entity, found)` for every column,
+counts nothing per entity now: each is a `___held_` copy passing its own parameter on to the next.
+
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port` and the resumable copy of a function a
+`Concurrent` runs, for a call written by name to a program's own function (not the library's), at a place whose
+parameter is a class, list or dictionary (not text, a union or a variadic list), when the callee never assigns that
+parameter itself; not for a constructor, and not where the call's result is made in the caller's frame (the
+frame-made result keeps the ordinary function). Keeping the parameter needs nothing extra: storing it, returning it
+or passing it to a function that keeps it counts it there, as storing any name does.
+
+**What you notice.** Speed: `benchmarks/held_arguments`, a `Vector` passed on through two calls for each of a
+million entities in a program with threads, 18 ns to 13 ns an entity. A `___held_` function appears in the C
+beside the ordinary one for each set of positions a program passes this way (about 3% more C in the compiler
+compiling itself), and the ordinary one is shaken out when nothing else calls it. Allocations and results are the
+same (`conformance/stage6/held_arguments`, whose C `check.sh` reads: a bag passed on, kept, returned and assigned
+over). **Built** (2026-09-28; proposed by Claude, unconfirmed).
+
+### A singleton's attribute that never changes is read in place
+
+**What it does.** Reading an attribute of a singleton from another class -- `Column<Heat>().values[rows[0]]`,
+`column.values.count()` -- counted the attribute's object for the expression and, in a program where a `Parallel`
+reaches the singleton, took its lock or readers' side around the read ([D211](decisions.md)). When the attribute
+holds an object (a class, list or dictionary, not text or a number) that nothing assigns after the singleton is
+made -- no function of the singleton outside its constructor and no other class assigns it -- the object stays the
+singleton's for the rest of the program, so the read is the attribute's address: no count and no lock
+([D271](decisions.md)). What is then done with the object is unchanged: a call on it takes whatever that object's
+functions take, and keeping it in a name or an attribute counts it there. This also takes the lock out of a loop
+that only reads through such an attribute, since there is none left to hoist.
+
+**When.** Every build but `--hot-reload`, `--repl` and `--repl-port`, for a singleton of the program's own whose
+attribute has no getter. Whether anything assigns the attribute is read from the call effects of the whole program
+(`generation/call_effects.spite`), the same facts D183 decides its locks from.
+
+**What you notice.** Speed: `benchmarks/singleton_attributes`, a million items read through a column's attribute
+in a `Parallel`, 6.0 ns to 3.2 ns a read; in SlopEngine's `stream_bench` each inline component of a row was a
+count, a lock and a release per row. Nothing a program prints or allocates changes
+(`conformance/stage6/singleton_attribute_reads`, whose C `check.sh` reads: `names` read in place from a `Parallel`,
+`current`, which a function replaces, still read under the lock). **Built** (2026-09-28; proposed by Claude,
+unconfirmed).
+
+Two readings of the call effects became more exact on the way, since both proofs above depend on them. A plural
+call to a template of the same class (`fill_attributes(row, found)`, `run_phases_each()`) is now followed into its
+template, so what the template's lines call -- a reference column's `at` -- counts as reached from the caller, from
+a `Parallel` included; before, it was reached by nothing, so such a column could take no lock at all while pool
+work called it (a bug under [D244](decisions.md)). And an attribute read through a `type`
+(`moving.trail.lefts.append(...)`) is known to be the class the `type` declares for it, and assigning an attribute
+that holds a plain value in every class of the program (`moving.position.left = ...`) lets go of nothing, so a
+system writing its components' numbers no longer counts as letting go of objects.
+
 ### The fault handler is in every program
 
 **What it is.** The one piece of C nothing tree-shakes: a program can meet a native fault -- a null read inside a
@@ -1246,6 +1303,32 @@ the end of the row's block. **What you notice.** No allocation per row for a fra
 7.4 ms a tick against 24.0 ms with reference columns and a reused row object. A frame-made object is not
 registered with `--debug-memory`'s table, like the row itself, and is not in `.instances`. **Built** (2026-09-26;
 proposed by Claude, unconfirmed).
+
+**A reference column's element is lent to the row** ([D269](decisions.md)). When that counted attribute is the
+result of a function that only returns an element of its singleton's `List` -- a reference column's `at(row)`,
+`return references.get_at(row)` or `crash references[row]` then `return references[row]`, with a whole-number
+parameter as the index and a list attribute that nothing assigns after the singleton is made -- and nothing the
+rest of the row's block runs can let go of anything, the row takes the element uncounted: the compiler writes a
+copy of the function, `<name>___lent_element`, that returns the element as it lies in the list (it answers exactly
+what the function answers, crash included, when the index is out of range), and neither retains it nor releases
+it at the end of the block. The proof walks what the rest of the block runs: every call must be one the compiler
+can name (a phase template's `system.phase_each(row)` is named as the phase's own `update_each`), and none of them,
+nor anything they call, may let go of an object, remove from or replace into a list, or call through a function
+value (the proof of [a list's templates](#a-lists-templates-read-its-elements-without-counting-them), stricter);
+no class of the program whose objects can be let go while it runs may have a `drop()` that reaches the column. In
+a program with threads the element is also kept from other threads' writes for the rest of the block: the block
+takes the column's readers' side ([D266](decisions.md)) or its lock once, where a call would have taken it once
+anyway, and only when what the block runs reaches no singleton at all and waits for nothing (the conditions of
+[a counted loop](#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once)), so holding it cannot deadlock;
+otherwise the row calls the ordinary function and counts the element, as before. Which of the three it is is
+decided with the column's lock, when the program is finished: the C calls `spite_lend_<n>_read(...)` between
+`spite_lend_<n>_enter()` and `spite_lend_<n>_leave(...)`, macros that are nothing, the readers' side or lock, or the
+ordinary counted call and its release. **What you notice.** Speed, most where the system does not touch the
+reference: `benchmarks/lent_elements`, 100 000 rows of an inline and a reference component run in a `Parallel`,
+83 ns to 14 ns a row reading the reference and 35 ns to 9 ns not reading it (with the two optimisations below;
+best of twenty ticks, `--optimized`). Nothing a program prints or allocates changes (`conformance/stage6/lent_list_elements`,
+`conformance/stage6/lent_list_elements_parallel`, which `check.sh` also reads the C of: a system that removes from
+the column, or reads the column itself, keeps its count). **Built** (2026-09-28; proposed by Claude, unconfirmed).
 
 The arguments a plural value template fills (D220, `system.phase_each(made_arguments(found))`) are written out
 the same way, in the caller: when the template's body, folded for an argument, is one `return` of a walked line

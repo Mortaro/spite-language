@@ -6,6 +6,7 @@ var calls = List<EffectCall>()
 var incoming = List<EffectCall>()
 var taken = List<String>()
 var member_writes = List<String>()
+var member_reads = List<String>()
 var own_keys = List<String>()
 var functions_studied = 0
 var variadic_position = -1

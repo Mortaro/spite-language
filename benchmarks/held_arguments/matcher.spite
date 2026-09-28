@@ -1,0 +1,26 @@
+var headers = List<Integer>()
+
+func Matcher(column_count: Integer) {
+    var index = 0
+    while index < column_count {
+        headers.append(index + 1)
+        index = index + 1
+    }
+}
+
+func match_into(entity: Integer, found: Vector<Integer>): Boolean {
+    var index = 0
+    var all = true
+    while all and index < headers.count() {
+        all = find_row(index, entity, found)
+        index = index + 1
+    }
+    return all
+}
+
+func find_row(index: Integer, entity: Integer, found: Vector<Integer>): Boolean {
+    crash headers[index]
+    var place = entity % headers[index]
+    found[index] = place
+    return place >= 0
+}

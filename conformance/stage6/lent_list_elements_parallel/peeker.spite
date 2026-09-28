@@ -1,0 +1,13 @@
+type Moving {
+    position: Position
+    trail: Trail
+}
+
+var trails = Column<Trail>()
+var steps = 0
+
+func update_each(moving: Moving) {
+    var all = trails.references.count()
+    moving.trail.lefts.append(moving.position.left)
+    steps = steps + all + moving.trail.owner
+}

@@ -4,27 +4,111 @@ Agents add here what only Mortaro can decide; Mortaro answers inline or in `mort
 moves the answer into the docs (the page that teaches it, and a row of `docs/decisions.md`) and removes the
 item. Each item links to where the docs argue it.
 
+## Start here
+
+Sorted 2026-09-28. Item numbers never change; the full items follow below. "D244" marks an item where something
+can go wrong silently today, which D244 calls a bug. "Claude could decide under D205" marks one whose safe
+answer adds no syntax and costs nothing; nobody has decided it yet.
+
+**Waiting in SlopEngine or the Theseus port** (their docs cite these; most urgent first):
+
+- **109** -- what a function reads and writes, per attribute. Theseus L6 and SlopEngine's `Changed<T>` and field
+  skipping need it. D209/D229/D261/D268 already answer waits, running in pieces and per-parameter writes. Performance;
+  Claude could decide under D205, as D261 was.
+- **6** (open question 8) -- an unrelated `get_x()` silently takes over reads of `.x`. It is on Theseus's list of
+  traps (L8, D10). D244; Claude could decide the stricter option under D205.
+- **213** -- the default build's `-O` level. Theseus left it for you to pick from the numbers. Performance.
+- **153** (with 187) -- kebab-case settings after `--`. SlopEngine lists it as open (INSIGHTS #32). Taste.
+- **218** -- a message on `crash`. SlopEngine wants it for D244 crashes and D261's engine refusals. Taste (syntax).
+- **21** -- what the standard library offers. Theseus L5 needs HTTP, TLS, SHA-256/HMAC, secure random, Argon2id,
+  base64url and gzip. Taste.
+- **212** -- whether `--run=false` builds the executable. Theseus ran a stale executable. D244. Taste.
+- **173** -- `Memory.Frame` and an arena `reset()`, and the rule that keeps frame-made objects from outliving the
+  frame. SlopEngine's frame allocations need it. Taste.
+- **175** -- a class reading its own allocator, so a list's buffer follows its arena. SlopEngine. Taste (syntax).
+- **208**, **209** -- the one-`List` study (D222): how a fallback to references is reported, and whether a kept
+  item is weak. SlopEngine's hot path. Taste.
+- **155** -- a dedicated OS thread (`Thread(function)`) for loops that block forever, e.g. SlopEngine's window
+  thread. Taste (new name).
+- **206** -- a walk nested inside a walk, for SlopEngine's relation systems (low priority; these copy for now).
+  Taste (new metaprogramming).
+
+**Taste: Mortaro's call** (names, syntax, how it reads):
+
+- **5** -- two versions of one dependency (needs D38 built).
+- **6** (open questions 9, 10, 11) -- `${` in text (D244; Claude could decide the error under D205),
+  `--final-classes` provenance, function-valued `type` members.
+- **9** -- the floor: what stays C, and how `--final-classes` shows it.
+- **10** -- confirm the old unconfirmed rows from 2026-09-23/24.
+- **22** -- `Directory.Entry`, and whether `files()`/`folders()` go.
+- **25** -- the metaprogramming forms serialisation needed, each a yes or no.
+- **34** -- `from_type` as a class-level form (`Float.from_int(count)`).
+- **36** -- unions of number classes.
+- **39** -- moving the C left in `main` into Spite.
+- **46** -- singletons with arguments: is `DynamicLibrary` the exception or the rule?
+- **64** -- live reload of a changed attribute or enum (more urgent since D242).
+- **68** -- the live reload names.
+- **71** -- finding `*_system` functions across the program (maybe stale since D115's folder walk).
+- **76** -- enums declaring more than `to_string()`/`to_debug()`.
+- **79** -- the REPL showing values through `to_debug()`.
+- **89** -- the name `source_folder()` (D228 built it).
+- **90** -- a loaded folder that is a program silently merges into the loader. D244.
+- **93** -- foreign calls converting silently through a header's prototype. D244.
+- **98**, **99**, **100**, **108** -- the D114-D116 template spellings as built (99: a misspelled plural walk does
+  nothing, D244).
+- **105** -- naming a root class a nearer one shadows.
+- **134**, **136**, **138** -- choosing outputs, where a run's executable goes, two ways to format.
+- **161** -- where an enum reopening's values go.
+- **166** -- the watcher's name and members.
+- **171** -- who may read and write an address.
+- **183** -- a capped `ShortText<32>`.
+- **187** -- the kebab-case stop-gap (follows 153).
+- **188** -- `$value_type == Enum`.
+- **202** -- the reader and writer names.
+- **204**, **205** -- the maths names, `Float.pi()` and `x_value`; 204 also asks whether `minimum`/`maximum`
+  pass a not-a-number through (a compare or two per call).
+- **211** -- `ForeignCallback` names and its two limits ((a) a call after the drop is not caught: D244).
+- **217** -- whether unsigned arithmetic halts on overflow too (and `-fwrapv`).
+- **219** -- confirm D263-D267 and the names `remove_where`, `truncate`, `swap`.
+
+**Performance: settle by measurement** (D214, the faster of two similar ways):
+
+- **178** -- a wait inside an expression runs first; keeping written order costs frame fields.
+- **179** -- waits that run the loop in place; two such waits can hang silently. D244; Claude could decide under
+  D205 to close the gaps where measured no slower.
+- **197** -- a flush per printed line (5x slower to a file); whether a program can keep the buffer.
+- **210** -- whether `Float` maths rounds after each operation (2-3x faster loops, but printed last bits change,
+  so not D205).
+- **214** -- `--optimized` at `-O3` or `-O2`; the numbers pick no clear winner. Claude could decide under D205.
+- **215** -- the build flag names are taste; not splitting a default build was measured. Claude could decide
+  that part under D205.
+- **216** -- cleaning the object cache. Claude could decide under D205.
+
 ## Open questions still open in docs/open_questions.md
 
 5. **Open question 16: two versions of one dependency.** Needs D38 (git dependencies) first.
-6. **Open questions 1, 3, 6, 8, 9, 10, 11**, the older ones: `= null` on a generic field, right-to-left casting
-   in comparisons, `_` meaning private and unused, an unrelated `get_x()` intercepting `.x`, `${` in text,
-   where `--final-classes` shows provenance, and function-valued `type` members.
+6. **Open questions 8, 9, 10, 11**, the older ones: an unrelated `get_x()` intercepting `.x`, `${` in text,
+   where `--final-classes` shows provenance, and function-valued `type` members. (1, 3 and 6 are answered: D236,
+   D251, D136/D137.)
 
 ## Proposals built and waiting for a yes or no
 
 9. **The floor** (section 15, "The floor, named"): what stays C, and D82's form for showing it in
    `--final-classes`.
 10. **Rows marked "(proposed by Claude, unconfirmed)"** in the decision log from 2026-09-23 and 2026-09-24:
-    `Memory.address_of`/`compare_bytes`/`take_text`, the tree shaker, `nan` printing as `nan`, the REPL's
-    command names and output, `Environment`'s sources and their order, `--operational_system` (superseded by
-    D86, and spelled `operating_system` now), the containers row, and the D91/D105 rows (a `List` template's symbol names the element's member;
-    how a chain fuses).
+    the tree shaker, `nan` printing as `nan`, the REPL's command names and output, `Environment`'s sources and
+    their order, the containers row, and the D91/D105 rows (a `List` template's symbol names the element's
+    member; how a chain fuses). (`Memory.address_of` and `take_text` are gone with the `Memory` namespace, D178;
+    `--operational_system` was superseded by D86.)
 
 ## What the standard library offers
 
 21. **Go's standard library against Spite's**, package by package, with a suggested order of what to add:
-    [mortaros_go_standard_library_comparison.md](mortaros_go_standard_library_comparison.md).
+    [mortaros_go_standard_library_comparison.md](mortaros_go_standard_library_comparison.md). Its first
+    suggestions are built (bit functions D117, maths D204/D213, time and a clock D252, readers and writers D208);
+    still open are `Random`, HTTP, a database, hashes, TLS, base64 and gzip. The
+    Theseus port needs HTTP, TLS, SHA-256/HMAC, secure random bytes, Argon2id, base64url and gzip. D213 settled
+    games' maths as "fill every gap SlopEngine asks for"; should the rest follow the same rule?
 
 ## From D93 and D95 (directories and JSON)
 
@@ -87,10 +171,9 @@ Behaviour that does not match the manual. The language was not changed; each is 
     documented sessions depend on that. Switching means quoting text and nesting fully in every answer. Want it?
 ## From the Vulkan renderer bugs (`docs/packages.md`, `docs/style.md`, `docs/compiler.md`, `docs/standard_library.md` and `docs/foreign_libraries.md`)
 
-89. **A loaded package cannot find its own folder at run time.** SlopEngine locates its shader sources by
-    reopening `Build` with `var slop_folder = "../../slop"`, a copy of its `load` literal that breaks when the
-    loader moves. Proposal: `Spite.Namespace.folder` -- the folder a namespace was loaded from, as the compiler
-    resolved it -- or the `load` path available per namespace some other way. Which, if either?
+89. **The name of a package's own folder.** Answered by D228: `$T.source_folder()` and
+    `class.source_folder()` fold to the absolute folder of the file that declares the class. Only the name is
+    left: `source_folder()` is provisional (D214). Keep it?
 90. **A loaded folder that is itself a program merges into the loader.** A test program that `load`s a game
     folder, and has its own root `composition.spite` or `plugin.spite`, silently reopens the game's classes of
     the same name (reopening, by design), which cost SlopEngine a debugging round. Master now makes reopening
@@ -124,9 +207,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     function (the pattern as a member name), and a template over `$system_type.phase_each` called from inside
     walks the matched function's arguments, its instances named `<name>_in_<function>`. Is a member name
     changing meaning inside a template acceptable, or should the matched function be reached some other way?
-102. **What `has_function` counts**: folded, the functions a class declares (not its constructor, not a `_`
-    function, not what a template generated for it); at run time, `.functions`, which includes what templates
-    generated. The two can disagree for a template-generated name. Align them, and which way?
 ## From the SlopEngine regressions after item 85
 
 105. **Naming a root class that a nearer one shadows.** Inside `click_test/`, `Plugin()` finds `ClickTest.Plugin`
@@ -159,6 +239,11 @@ Behaviour that does not match the manual. The language was not changed; each is 
      Resource.World()`: the marker is noise, and the engine should learn "this system changes the world" from the
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
+     **Partly answered since:** D209 (`function_waits`), D229 (`function_runs_in_pieces`) and D261/D268
+     (`function_writes_parameter`) give an engine those facts per function and per parameter. Still open: the
+     same per attribute (which attributes of its arguments a system reads and writes), which lets SlopEngine skip
+     unread fields and add `Changed<T>` and is the Theseus port's L6, and what becomes of the marker attributes
+     (`Resource.World`, `Resource.MainThread`) once the compiler can answer "calls `Spawn`".
 
 ## Outputs and paths (D128, D129, D130)
 
@@ -229,11 +314,17 @@ Behaviour that does not match the manual. The language was not changed; each is 
 173. **`Memory.Arena` and `Memory.Frame`.** D151 names `Memory.Heap`, `Memory.Arena` and `Memory.Frame`. Built:
      `Memory.Arena(block_bytes)` hands out memory from chained blocks and frees them all when the arena itself is
      dropped; everything made in it holds it, so it cannot go while they live. Not built: a `reset()` that
-     reuses the blocks each frame, and `Memory.Frame`. Both need `mortaros_allocators_proposal.md` question 3
-     (an object must not outlive a reset). Is `Memory.Frame` an arena the engine resets once per frame (and
-     storing a frame-made object anywhere that outlives the frame a compile error), or something else -- a ring
-     of two arenas, say? Until then, is an arena without `reset()` the right first step?
-175. **D154's list buffer and `Vector<T>`.** A `List` placed in an arena keeps its buffer of references on the
+     reuses the blocks each frame, and `Memory.Frame`. Both need a safety rule first, the one question left
+     from the old allocators proposal (the rest became D149-D154): an object must not outlive a reset. Resetting
+     an arena is nearly free (one pointer goes back to the start), but anything still pointing into it then
+     reads memory that something else is being made in. The proposal (Claude, unconfirmed) makes that a compile
+     error, not a crash: an object made in the frame arena cannot be stored in an attribute, a component, a list
+     or anything else that outlives the frame, and the error says to `copy()` it out; a debug build could add a
+     generation check per arena as a backstop. Ring buffers (commands, events) are then an arena that wraps
+     around. Agree with that rule? Is `Memory.Frame` an arena the engine resets once per frame, or something
+     else -- a ring of two arenas, say? Until then, is an arena without `reset()` the right first step?
+175. **D154's list buffer (the `Vector<T>` name half is built, see the end).** A `List` placed in an arena
+     keeps its buffer of references on the
      heap: for the buffer to follow, `library/list.spite` has to ask its own object for its allocator, and
      Spite has no way yet for a class to read its own `.memory` (`this` only passes the object, D146). Proposal
      (Claude): inside a class, `memory.allocator` reads the object's own allocator, the way a number's `this`
@@ -284,34 +375,11 @@ Behaviour that does not match the manual. The language was not changed; each is 
      device. Nothing cheaper shows every line promptly without a thread. Keep it for every program, or should a
      program be able to say it prints to a file nobody watches (a build setting, say) and keep the buffer?
 
-## From SlopEngine's MongoDB driver
-
-200. **A default that is a real answer, under D106.** `if document.is_empty() { return 0 }` in a size function
-     is an error naming `assert not document.is_empty()`, though there 0 means "zero bytes", not "no answer".
-     Built, with nothing exempted: the message now says the default "is how a guard is written" and names the way
-     to give a real 0 -- a local set in an `if`/`else` and returned once (`docs/failure.md`). Should functions
-     whose default is a real answer be exempt, and if so, how would the compiler recognise one (a name such as
-     `size`/`count`/`length`, a function returning a number that never returns `null`-like absence elsewhere, a
-     mark written on the function)?
-
 ## `JsonWriter`/`JsonReader` and `BinaryWriter`/`BinaryReader` (D208)
 
 202. **The names.** Built (Claude, unconfirmed): `append_to(bytes)` for writing onto a buffer the program has,
      `read_memory(address, count)` for reading a socket's buffer without a copy, `position` and `remaining()` on the
      reader, and no `read_or_crash()` for bytes (JSON keeps it). Keep them?
-
-## Which list is the default (Mortaro, relayed by SlopEngine)
-
-198. **Should the everyday list keep its items inline?** Mortaro: "are List in spite just a list of pointers? if yes
-     its a bad default for most assets since we need continuous memory cache". Today `List<Integer>` and other
-     number lists are contiguous, but `List<SomeClass>` holds references to objects spread through the heap, and
-     `Vector<SomeClass>` (D154, D204) is the inline form: one block, no header or count per item, items borrowed
-     rather than shared. Options (Claude, unconfirmed): (a) keep both, `List` for shared objects and `Vector` for
-     data, and teach `Vector` first for assets; (b) make the inline form the one called `List` and give the
-     reference list another name (`References<T>`?), since most game data is values; (c) let the compiler pick the
-     layout per list -- inline when every item is only ever reached through that list, references otherwise --
-     behind one name. (c) is the most "zero noise" but a borrowed item and a shared object behave differently
-     (D204's keep rules), so the difference would show up as errors rather than as a type name. Which default?
 
 ## The maths functions (for SlopEngine's skinning, animation and PBR)
 

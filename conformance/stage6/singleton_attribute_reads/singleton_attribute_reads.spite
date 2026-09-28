@@ -1,0 +1,19 @@
+var console = Console()
+var registry = Registry()
+var kept = List<String>()
+
+func SingletonAttributeReads() {
+    registry.add("alpha")
+    registry.add("beta")
+    var counter = Counter()
+    var counting = Parallel(counter.count)
+    var counted: Integer = counting
+    kept = registry.names
+    var names = registry.names
+    registry.replace(10)
+    registry.add("gamma")
+    var size = registry.current.size
+    var seen = kept.count()
+    var named = names.count()
+    console.print("counted", counted, "kept sees", seen, "the local sees", named, "board", size)
+}
