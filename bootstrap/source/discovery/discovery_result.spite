@@ -7,6 +7,7 @@ var launcher_mangled_name = ""
 var loaded_folders = List<String>()
 var program_paths = List<String>()
 var program_texts = Dictionary<String>()
+var checkout_folders = List<String>()
 
 func DiscoveryResult(
     result_class_files: List<DiscoveredClass>,

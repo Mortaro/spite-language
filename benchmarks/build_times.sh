@@ -3,7 +3,7 @@
 # compiled in parallel and cached (docs/compiler.md#translation-units). Not part of check.sh. Run from anywhere:
 #   bash benchmarks/build_times.sh [compiler] [program folder ...]
 # With no program named it times the compiler itself (bootstrap) and a generated program of about 200 000 lines
-# (written to .spite-cache/build_times/synthetic by the awk below); name another folder -- a copy of a SlopEngine
+# (written to .spite/build_times/synthetic by the awk below); name another folder -- a copy of a SlopEngine
 # example, say -- to time that too. Every build is timed four ways, with and without --optimized:
 #   one file   --translation-units=1, the whole C in one file and one C compiler process, as before
 #   cold       translation units, with the object cache emptied first
@@ -11,12 +11,12 @@
 #   one edit   then one function body changed (its last `+ 1` made `+ 2`), and built again
 # Times are wall-clock milliseconds of the whole `spite` command, the Spite compile to C included. The edit is made
 # in place (a program's paths are in its C, so a copy elsewhere would be another program) and undone afterwards.
-# Warning: "cold" empties .spite-cache/objects, the cache every build from this repository shares.
+# Warning: "cold" empties .spite/objects, the cache every build from this repository shares.
 cd "$(dirname "$0")/.." || exit 1
 repository=$(pwd)
-compiler=${1:-.spite-cache/spite_development.exe}
+compiler=${1:-.spite/spite_development.exe}
 shift
-work=.spite-cache/build_times
+work=.spite/build_times
 mkdir -p "$work"
 
 # The synthetic program: 400 classes of 30 functions each, every function a few lines of arithmetic, a branch, a
@@ -89,7 +89,7 @@ for program in "${programs[@]}"; do
     for optimized in false true; do
         flags="--executable --run=false --optimized=$optimized --executable-path=$repository/$work/$name.exe"
         one_file=$(milliseconds "$compiler" "$program" $flags --translation-units=1)
-        rm -rf .spite-cache/objects
+        rm -rf .spite/objects
         cold=$(milliseconds "$compiler" "$program" $flags)
         warm=$(milliseconds "$compiler" "$program" $flags)
         edit_one_function "$program"

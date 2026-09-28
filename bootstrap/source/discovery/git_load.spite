@@ -1,0 +1,546 @@
+var console = Console()
+var paths = Paths()
+var working_folder = "."
+var cache_folder = ".spite"
+var problem = ""
+var git_checked = false
+var git_found = false
+var verified = List<String>()
+var pins = Dictionary<String>()
+var pin_sites = Dictionary<String>()
+var origins = Dictionary<String>()
+var displays = Dictionary<String>()
+var checkout_folders = List<String>()
+
+func is_git_load(text: String): Boolean {
+    return text.contains("@")
+}
+
+func misses_commit(text: String): Boolean {
+    if is_url(text) {
+        return true
+    }
+    if is_local(text) {
+        return false
+    }
+    var first = first_segment(text)
+    return first.contains(".") and text.contains("/")
+}
+
+func first_segment(text: String): String {
+    var forward = text.replace("\\", "/")
+    var slash = forward.index_of("/")
+    if slash < 0 {
+        return forward
+    }
+    return forward.slice(0, slash)
+}
+
+func is_url(text: String): Boolean {
+    var schemes = ["https://", "http://", "ssh://", "git://", "file://"]
+    var index = 0
+    while index < schemes.count() {
+        if text.starts_with(schemes[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func is_local(text: String): Boolean {
+    var starts_relative = text.starts_with("./") or text.starts_with("../") or text.starts_with(".\\")
+    return starts_relative or text.starts_with("..\\") or text == "." or text == ".." or paths.is_absolute(text)
+}
+
+func last_at(text: String): Integer {
+    var found = -1
+    var index = 0
+    while index < text.length() {
+        if text.code_at(index) == 64 {
+            found = index
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func is_commit(text: String): Boolean {
+    var text_length = text.length()
+    if text_length < 7 or text_length > 40 {
+        return false
+    }
+    var index = 0
+    while index < text_length {
+        var code = text.code_at(index)
+        var is_digit = code >= 48 and code <= 57
+        var is_hex_letter = code >= 97 and code <= 102
+        if not is_digit and not is_hex_letter {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func form(): String {
+    return "A git load is 'load \"<repository>@<commit>\"' or 'load \"<repository>@<commit>/<folder inside it>\"', the repository a URL (github.com/mortaro/engine, https://..., ssh://..., file://...) or a folder on this machine by a path starting with ./, ../, / or a drive letter (../slop_engine), and the commit 7 to 40 lowercase hexadecimal digits"
+}
+
+func folder_of(text: String, file_folder: String, site: String): String? {
+    problem = ""
+    var at = last_at(text)
+    crash at >= 0
+    var repository = text.slice(0, at)
+    var text_length = text.length()
+    var pinned = text.slice(at + 1, text_length)
+    var commit = pinned
+    var inner = ""
+    var slash = pinned.replace("\\", "/").index_of("/")
+    if slash >= 0 {
+        commit = pinned.slice(0, slash)
+        var pinned_length = pinned.length()
+        var written_inner = pinned.slice(slash + 1, pinned_length)
+        inner = paths.normalized(written_inner)
+    }
+    if not is_commit(commit) {
+        problem = "'load \"{text}\"' pins '{commit}', which is not a commit: a branch or a tag moves, and a pin must not. {form()}"
+        return null
+    }
+    if inner.starts_with("..") or paths.is_absolute(inner) {
+        problem = "'load \"{text}\"' names the folder '{inner}', which is not inside the repository: {form()}"
+        return null
+    }
+    var local = is_local(repository)
+    var host = first_segment(repository)
+    if not local and not is_url(repository) and not host.contains(".") {
+        problem = "'load \"{text}\"' names no repository: '{repository}' is neither a URL nor a path starting with ./, ../, / or a drive letter. {form()}"
+        return null
+    }
+    var source = ""
+    var display = ""
+    if local {
+        var base = relative_base(file_folder, repository)
+        assert base
+        source = paths.absolute(repository, base)
+        display = source
+    } else {
+        source = repository
+        if not is_url(repository) {
+            source = "https://{repository}"
+        }
+        display = source
+    }
+    var identity = display
+    if local and paths.is_absolute(display) and display.slice(1, 2) == ":" {
+        identity = display.lower_case()
+    }
+    var key_folder = "{cache_folder}/git/{paths.label_of(display)}_{paths.fingerprint(identity)}"
+    var checkout = "{key_folder}/{commit}"
+    var full_commit = checked_out(text, source, display, local, key_folder, commit)
+    assert full_commit
+    assert pinned_once(text, identity, display, commit, full_commit, site)
+    if not checkout_folders.contains("{checkout}/") {
+        checkout_folders.append("{checkout}/")
+        origins[checkout] = ""
+        if local {
+            origins[checkout] = source
+        }
+        displays[checkout] = "{display}@{commit}"
+    }
+    if not verified.contains(checkout) {
+        assert unchanged_checkout(checkout, key_folder, commit, display)
+        verified.append(checkout)
+    }
+    if inner.is_empty() or inner == "." {
+        return checkout
+    }
+    var folder = "{checkout}/{inner}"
+    if not Directory(folder).exists() {
+        problem = "'load \"{text}\"': the commit {commit} of {display} has no folder '{inner}'"
+        return null
+    }
+    return folder
+}
+
+func is_checkout_root(folder: String): Boolean {
+    return checkout_folders.contains("{folder}/")
+}
+
+func relative_base(file_folder: String, repository: String): String? {
+    var absolute_folder = paths.absolute(file_folder, working_folder)
+    if paths.is_absolute(repository) {
+        return absolute_folder
+    }
+    var index = 0
+    while index < checkout_folders.count() {
+        var checkout_slash = checkout_folders[index]
+        var checkout_length = checkout_slash.length()
+        var checkout = checkout_slash.slice(0, checkout_length - 1)
+        var rest = paths.inside(absolute_folder, checkout)
+        var same = paths.normalized(absolute_folder).lower_case() == checkout.lower_case()
+        if rest or same {
+            crash origins[checkout]
+            var origin = origins[checkout]
+            if origin.is_empty() {
+                crash displays[checkout]
+                problem = "'load \"{repository}@...\"' is written in {displays[checkout]}, fetched from a URL, and names a repository by a path on this machine: a fetched package names another repository by its URL"
+                return null
+            }
+            if same {
+                return origin
+            }
+            crash rest
+            return "{origin}/{rest}"
+        }
+        index = index + 1
+    }
+    return absolute_folder
+}
+
+func checkout_holding(file_folder: String): String? {
+    var absolute_folder = paths.absolute(file_folder, working_folder)
+    var index = 0
+    while index < checkout_folders.count() {
+        var checkout_slash = checkout_folders[index]
+        var checkout_length = checkout_slash.length()
+        var checkout = checkout_slash.slice(0, checkout_length - 1)
+        var same = paths.normalized(absolute_folder).lower_case() == checkout.lower_case()
+        if same or paths.inside(absolute_folder, checkout) {
+            return checkout
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func escapes_checkout(file_folder: String, loaded_folder: String, text: String): Boolean {
+    var checkout = checkout_holding(file_folder)
+    if not checkout {
+        return false
+    }
+    var absolute_loaded = paths.absolute(loaded_folder, working_folder)
+    var same = absolute_loaded.lower_case() == checkout.lower_case()
+    if same or paths.inside(absolute_loaded, checkout) {
+        return false
+    }
+    crash displays[checkout]
+    problem = "'load \"{text}\"' is written in {displays[checkout]} and leaves that repository: a checkout holds only its commit's files, so a folder of another repository is loaded by a git load of its own, like 'load \"../other_repository@<commit>/folder\"'"
+    return true
+}
+
+func pinned_once(
+    text: String,
+    identity: String,
+    display: String,
+    commit: String,
+    full_commit: String,
+    site: String,
+): Boolean {
+    if not pins.has(identity) {
+        pins[identity] = full_commit
+        pin_sites[identity] = "{site} ('load \"{text}\"')"
+        return true
+    }
+    crash pins[identity]
+    if pins[identity] == full_commit {
+        return true
+    }
+    crash pin_sites[identity]
+    problem = "'load \"{text}\"' pins {display} at {commit}, and {pin_sites[identity]} pins it at another commit: two commits of one repository would reopen each other's classes, so pin the same commit in both"
+    return false
+}
+
+func checked_out(
+    text: String,
+    source: String,
+    display: String,
+    local: Boolean,
+    key_folder: String,
+    commit: String,
+): String? {
+    var checkout = "{key_folder}/{commit}"
+    var stamp = File("{key_folder}/{commit}.files")
+    var stamped = stamp.read()
+    if stamped and Directory(checkout).exists() {
+        var recorded_line = first_line(stamped)
+        if recorded_line.starts_with("commit ") {
+            var line_length = recorded_line.length()
+            return recorded_line.slice(7, line_length).trim()
+        }
+    }
+    assert has_git(text, display)
+    var repository = source
+    if local {
+        assert local_repository(text, source)
+    } else {
+        repository = "{key_folder}/repository"
+        create_folder(key_folder)
+        assert Directory(repository).exists() or cloned(text, source, repository)
+    }
+    var full_commit = resolved(repository, commit)
+    if not full_commit and not local {
+        fetched(source, repository)
+        full_commit = resolved(repository, commit)
+    }
+    if not full_commit {
+        problem = "'load \"{text}\"': {display} has no commit {commit}. A pin names a commit the repository already holds: commit and push it first, or correct the hash"
+        return null
+    }
+    if not full_commit.starts_with(commit) {
+        problem = "'load \"{text}\"': '{commit}' is the name of a branch or a tag of {display}, not the start of a commit hash ({full_commit}), and a branch or a tag moves: pin the commit itself"
+        return null
+    }
+    create_folder(checkout)
+    if not wrote_files(repository, key_folder, commit, full_commit) {
+        problem = "'load \"{text}\"': git could not write the files of {display}@{commit} into '{checkout}': {problem}"
+        return null
+    }
+    var manifest = manifest_of(checkout)
+    if not stamp.write("commit {full_commit}\n{manifest}") {
+        problem = "'load \"{text}\"': could not write '{key_folder}/{commit}.files', which records what the checkout of {display}@{commit} holds"
+        return null
+    }
+    console.error("fetched {display}@{commit} into {checkout}")
+    return full_commit
+}
+
+func has_git(text: String, display: String): Boolean {
+    if not git_checked {
+        git_checked = true
+        var no_arguments = List<String>()
+        var probe = Process("git --version 2>&1", no_arguments)
+        git_found = probe.run() == 0
+    }
+    if not git_found {
+        problem = "'load \"{text}\"' fetches {display} with git, and there is no 'git' on the PATH: install git, or load a folder instead"
+    }
+    return git_found
+}
+
+func git(repository: String, arguments: List<String>, index_file: String): Process {
+    var all = ["-c", "core.longpaths=true", "-C", repository]
+    var index = 0
+    while index < arguments.count() {
+        all.append(arguments[index])
+        index = index + 1
+    }
+    var command = Process("git", all)
+    if not index_file.is_empty() {
+        command.environment_variables["GIT_INDEX_FILE"] = index_file
+    }
+    var line = command.command_line()
+    var no_arguments = List<String>()
+    return Process("{line} 2>&1", no_arguments)
+}
+
+func answer_of(process: Process): String? {
+    var exit_code = process.run()
+    var output = process.output()
+    if exit_code != 0 {
+        problem = first_line(output)
+        return null
+    }
+    return output.trim()
+}
+
+func first_line(text: String): String {
+    var trimmed = text.trim()
+    var newline = trimmed.index_of("\n")
+    if newline < 0 {
+        return trimmed
+    }
+    var line = trimmed.slice(0, newline)
+    return line.trim()
+}
+
+func local_repository(text: String, source: String): Boolean {
+    if not Directory(source).exists() {
+        problem = "'load \"{text}\"' names the repository '{source}', and there is no such folder"
+        return false
+    }
+    var prefix_arguments = ["rev-parse", "--show-prefix"]
+    var asked = git(source, prefix_arguments, "")
+    var prefix = answer_of(asked)
+    if not prefix {
+        problem = "'load \"{text}\"' names '{source}', which is not a git repository ({problem})"
+        return false
+    }
+    if not prefix.is_empty() {
+        var prefix_length = prefix.length()
+        var folder = prefix
+        if prefix.ends_with("/") {
+            folder = prefix.slice(0, prefix_length - 1)
+        }
+        problem = "'load \"{text}\"' names '{source}', which is the folder '{folder}' inside a repository: name the repository's own folder, and the folder inside it after the commit, like '<repository>@<commit>/{folder}'"
+        return false
+    }
+    return true
+}
+
+func cloned(text: String, url: String, repository: String): Boolean {
+    var clone_arguments = ["-c", "core.longpaths=true", "clone", "--bare", "--quiet", url, repository]
+    var no_arguments = List<String>()
+    var command = Process("git", clone_arguments)
+    var line = command.command_line()
+    var cloning = Process("{line} 2>&1", no_arguments)
+    if answer_of(cloning) {
+        return true
+    }
+    problem = "'load \"{text}\"' could not fetch {url}: {problem}"
+    return false
+}
+
+func fetched(url: String, repository: String) {
+    var fetch_arguments = ["fetch", "--quiet", url, "+refs/heads/*:refs/heads/*", "+refs/tags/*:refs/tags/*"]
+    var fetching = git(repository, fetch_arguments, "")
+    assert answer_of(fetching)
+}
+
+func resolved(repository: String, commit: String): String? {
+    var resolve_arguments = ["rev-parse", "--verify", "--quiet", "{commit}^\{commit}"]
+    var resolving = git(repository, resolve_arguments, "")
+    var answer = answer_of(resolving)
+    assert answer
+    assert not answer.is_empty()
+    return answer
+}
+
+func wrote_files(repository: String, key_folder: String, commit: String, full_commit: String): Boolean {
+    var index_file = "{key_folder}/{commit}.index"
+    var read_arguments = ["read-tree", full_commit]
+    var reading = git(repository, read_arguments, index_file)
+    if not answer_of(reading) {
+        return false
+    }
+    var checkout = "{key_folder}/{commit}"
+    var write_arguments = ["--work-tree={checkout}", "checkout-index", "--all", "--force"]
+    var writing = git(repository, write_arguments, index_file)
+    var written = answer_of(writing)
+    File(index_file).remove()
+    if not written {
+        return false
+    }
+    return true
+}
+
+func manifest_of(checkout: String): String {
+    var found = List<String>()
+    files_under(checkout, "", found)
+    var lines = List<String>()
+    var index = 0
+    while index < found.count() {
+        var relative = found[index]
+        var print = file_print("{checkout}/{relative}")
+        lines.append("{print}\t{relative}")
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func file_print(path: String): String {
+    var file = File(path)
+    if path.ends_with(".spite") {
+        var content = file.read()
+        if not content {
+            return "unreadable"
+        }
+        return paths.content_hash(content)
+    }
+    var bytes = file.size()
+    var modified = file.modified()
+    if not bytes or not modified {
+        return "unreadable"
+    }
+    return "{bytes} bytes, modified {modified}"
+}
+
+func files_under(root: String, relative: String, found: List<String>) {
+    var folder = root
+    var prefix = ""
+    if not relative.is_empty() {
+        folder = "{root}/{relative}"
+        prefix = "{relative}/"
+    }
+    var directory = Directory(folder)
+    var names = directory.files()
+    var index = 0
+    while index < names.count() {
+        found.append("{prefix}{names[index]}")
+        index = index + 1
+    }
+    var folders = directory.folders()
+    index = 0
+    while index < folders.count() {
+        files_under(root, "{prefix}{folders[index]}", found)
+        index = index + 1
+    }
+}
+
+func unchanged_checkout(checkout: String, key_folder: String, commit: String, display: String): Boolean {
+    var stamped = File("{key_folder}/{commit}.files").read()
+    crash stamped
+    var recorded = stamped.split("\n")
+    recorded.remove_first()
+    var expected = Dictionary<String>()
+    var index = 0
+    while index < recorded.count() {
+        var line = recorded[index]
+        var tab = line.index_of("\t")
+        if tab > 0 {
+            var line_length = line.length()
+            var recorded_path = line.slice(tab + 1, line_length)
+            expected[recorded_path] = line.slice(0, tab)
+        }
+        index = index + 1
+    }
+    var changed = changed_file(checkout, expected)
+    if changed.is_empty() {
+        return true
+    }
+    problem = "'{checkout}/{changed}' is not what the commit {commit} of {display} holds: a checkout is read-only, so a pinned commit never changes. Delete the folder '{checkout}' to fetch it again, and change the code in the repository itself"
+    return false
+}
+
+func changed_file(checkout: String, expected: Dictionary<String>): String {
+    var found = List<String>()
+    files_under(checkout, "", found)
+    var index = 0
+    while index < found.count() {
+        var relative = found[index]
+        if expected.has(relative) {
+            var print = file_print("{checkout}/{relative}")
+            if expected[relative] != print {
+                return relative
+            }
+        } else if relative.ends_with(".spite") {
+            return relative
+        }
+        index = index + 1
+    }
+    var recorded_paths = expected.keys()
+    index = 0
+    while index < recorded_paths.count() {
+        if not found.contains(recorded_paths[index]) {
+            return recorded_paths[index]
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func create_folder(path: String) {
+    var segments = path.split("/")
+    var current = ""
+    var index = 0
+    while index < segments.count() {
+        if index > 0 {
+            current = "{current}/"
+        }
+        current = "{current}{segments[index]}"
+        if not current.is_empty() and not current.ends_with(":") {
+            Directory(current).create()
+        }
+        index = index + 1
+    }
+}

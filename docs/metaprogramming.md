@@ -656,7 +656,7 @@ written as straight-line code ([D209](decisions.md); the spelling is proposed, u
 
 ```gdscript title=waiting_question/loader.spite
 var console = Console()
-var notes = File(".spite-cache/documentation_waiting_notes.txt")
+var notes = File(".spite/documentation_waiting_notes.txt")
 
 func update_each() {
     var text = notes.read()
@@ -692,7 +692,7 @@ func run() {
 ```
 ```gdscript title=waiting_question/waiting_question.spite entry
 func WaitingQuestion() {
-    var notes = File(".spite-cache/documentation_waiting_notes.txt")
+    var notes = File(".spite/documentation_waiting_notes.txt")
     notes.write("the map")
     var loading = Stage<Loader>()
     loading.run()
@@ -781,7 +781,7 @@ its row, so a write to that row would be lost -- silently, which D244 forbids --
 var requested = false
 ```
 ```gdscript title=io_row_error/saver.spite
-var log = File(".spite-cache/documentation_io_row.txt")
+var log = File(".spite/documentation_io_row.txt")
 
 func last_each(quitting: Quitting) {
     log.append("saved")

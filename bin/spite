@@ -1,10 +1,10 @@
 #!/bin/bash
 # Runs the Spite compiler, rebuilding it first if the sources moved on.
-#   spite thing                  build thing/thing.exe beside the program and run it
-#   spite thing --c-source       write thing/thing.c as well
+#   spite thing                  build .spite/build/thing/thing.exe in the working folder and run it
+#   spite thing --c-source       write .spite/build/thing/thing.c as well
 here="$(cd "$(dirname "$0")/.." && pwd)"
 seed="$here/bootstrap/seed/spite_compiler.c"
-binary="$here/.spite-cache/spite.exe"   # not in bin/, or it would shadow this launcher on PATH
+binary="$here/.spite/spite.exe"   # not in bin/, or it would shadow this launcher on PATH
 
 find_c_compiler() {
     for candidate in cc clang gcc; do
@@ -34,7 +34,7 @@ export CC
 
 if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
     echo "spite: building the compiler" >&2
-    mkdir -p "$here/.spite-cache"
+    mkdir -p "$here/.spite"
     maths_library="-lm"   # the compiler folds maths with the C library's own, which Linux and macOS keep in libm
     case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) maths_library="" ;; esac
     # Another build may be running the old compiler, or building its own copy, at this moment: each build writes
@@ -46,7 +46,7 @@ if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
         mv -f "$binary" "$binary.$$.old" 2>/dev/null
         mv -f "$fresh" "$binary" 2>/dev/null
     fi
-    rm -f "$fresh" "$here/.spite-cache/"spite.exe.*.old 2>/dev/null   # an old one still running stays until it ends
+    rm -f "$fresh" "$here/.spite/"spite.exe.*.old 2>/dev/null   # an old one still running stays until it ends
     [ -x "$binary" ] || { echo "spite: the compiler was built but could not be put in place at $binary" >&2; exit 1; }
 fi
 

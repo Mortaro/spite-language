@@ -29,7 +29,7 @@ these five are what is left, with where each stands today.
    D24's three outcomes and D25's report ([failure.md](failure.md#three-outcomes-and-no-others)), in a different
    shape from the note: `crash condition` takes a condition, not a message; the report is one tab-separated line
    naming the site and the values the condition read, followed by the asserts that failed before it (the
-   standard library's own asserts are left out, D189), not a `.spite-cache/crash.json`. Not built from the note:
+   standard library's own asserts are left out, D189), not a `.spite/crash.json`. Not built from the note:
    `crash` inside a lint at compile time, and a `--diagnostics=json` form for compile errors (proposed by Claude,
    unconfirmed).
 4. **The compiler is also the language server**, so editors get real time validation. After the bootstrap,
@@ -153,7 +153,10 @@ these five are what is left, with where each stands today.
     without asking. When the versions differ in members that are used, the compiler treats them as two packages
     in two namespaces, so both keep working, and a command lists these splits for whoever wants to unify them --
     "not actually broken, just annoying". Belongs to D38 (a dependency is a git URL plus a commit in `load`),
-    which is not implemented; recorded so the design starts here.
+    which is built since D283/D284 with D38's own rule: two pins of one repository at different commits are an
+    error naming both `load` lines ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)). Using
+    one version when nothing used differs, and splitting into two namespaces when something does, is still open
+    and starts here.
 17. **(Answered by D83/D88: `this` where a class names itself.)** **A syntax for `this`** (Mortaro, 2026-09-23): to be discussed when something needs it. Today bare names
     reach attributes and `class` is the instance's class, so nothing does yet.
 18. **(Answered by D89, and finished by D130: a `.spite` file path is an error naming the folder form.)** **The entry file is always the file named after its folder** (Mortaro, 2026-09-23, asked to be argued for).

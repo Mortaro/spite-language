@@ -19,8 +19,8 @@ Linux and macOS keep it apart, and Windows needs no flag. The compiler it gives 
 `library/` from its own executable, so the executable lives in the repository or a folder inside it. The seed is
 committed, and `check.sh` says when it has drifted from the sources (`bash check.sh --update-seed` refreshes it
 after an intended change). The compiler is a program like any other, named by its folder: `bootstrap/`, whose entry
-is `bootstrap/bootstrap.spite` (class `Bootstrap`). Its C goes to the default place beside it because every `Build`
-field is a constant in what is built: a `--c-path` naming some other file would be written into the C, and the next
+is `bootstrap/bootstrap.spite` (class `Bootstrap`). Its C goes to the default place,
+`.spite/build/bootstrap/bootstrap.c` (D283), because every `Build` field is a constant in what is built: a `--c-path` naming some other file would be written into the C, and the next
 generation would differ ([compiler.md](compiler.md#outputs)).
 
 ## What proves it
@@ -32,7 +32,8 @@ generation would differ ([compiler.md](compiler.md#outputs)).
    the two must be **byte identical**, or one more generation must settle it;
 3. runs every program in `conformance/` and `examples/` with `--debug-memory`, requiring its exact output and
    balanced allocations;
-4. runs a program from another folder, which must open its relative paths there and be built beside itself, and
+4. runs a program from another folder, which must open its relative paths there and be built into that folder's
+   `.spite/` and never beside its source, builds a program that loads a local repository pinned to a commit, and
    runs the thread pool without `--debug-memory`;
 5. reads the C of production builds: `examples/hello` must carry no library class it never uses, and the
    singletons a `Parallel` reaches must take their cheapest safe form ([optimizations.md](optimizations.md));

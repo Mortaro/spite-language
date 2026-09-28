@@ -22,7 +22,7 @@ func advance() {
 }
 
 func start() {
-    var task = BlobLoad(".spite-cache/pooled_loads_wait.txt")
+    var task = BlobLoad(".spite/pooled_loads_wait.txt")
     var loading = Parallel(task.run)
     loads.append(loading)
     started = true
@@ -37,7 +37,7 @@ func finish_if_done(index: Integer) {
 }
 
 func locate_then_start() {
-    var index_file = File(".spite-cache/pooled_loads_wait.txt")
+    var index_file = File(".spite/pooled_loads_wait.txt")
     var index_text = index_file.read()
     assert index_text
     start()
