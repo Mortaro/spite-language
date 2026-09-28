@@ -1,0 +1,25 @@
+var console = Console()
+var world = World()
+var positions = Column<Position>()
+
+func QueuedBorrows() {
+    var first = Position()
+    first.left = 3
+    positions.insert(1, first)
+    var entity = Entity(1)
+    var lookup = Lookup<Position>()
+    var place = lookup.of(1)
+    crash place
+    var moved = Position()
+    moved.left = 7
+    entity.add_component(moved)
+    var waiting = world.queued()
+    console.print("queued while borrowed", place.left, waiting)
+    console.print("printed while borrowed", place.left)
+    world.flush()
+    var again = lookup.of(1)
+    crash again
+    console.print("applied", again.left)
+    var loud = Loud()
+    console.print(loud)
+}

@@ -1309,6 +1309,29 @@ kept past its use. What is built (the error texts and the readings marked are pr
   line 13 may move the items of 'velocities', so 'again' is not read after it: read 'velocities[index]' again after
   that line, or keep 'again.copy()', an independent object`. A vector named by a local variable is taken to change
   only through the calls it is passed to and through calls that resize an attribute holding a `Vector`.
+- **What a call can reach** (D262, decided by Claude under D205 and D244, a bug fix: the readings below proposed
+  by Claude, unconfirmed). The call effects follow only what the call can run, so a call that cannot resize the
+  item's vector is not refused:
+  - **A collection read with `[ ]` from an attribute is that attribute's element.** `buffers[buffer].append(command)`
+    grows an item of `World.buffers`, not "some collection": when `buffers` is a `List<List<Command>>` it can only
+    move the items of a `List`, never those of an `Items` or `Vector` borrowed from, so `entity.add_component(...)`,
+    which queues a command into such a buffer, leaves an item of `Column<Position>().values` borrowed. The grown
+    item still counts when its class is the vector's own (a `List<Items<Position>>` item may be that very vector),
+    when its class is not known, when the item is itself read with `[ ]` from another item, and for a vector named
+    by a local variable (`diagnostics/dispatched_resizes`).
+  - **A call through a `type` reaches the classes it is actually handed.** `console.print("at", place.left)` calls
+    `to_string()` on each of its arguments through `Printable`; at the call the arguments are a `String` and an
+    `Integer`, so only `String.to_string` and `Integer.to_string` are followed, not every `to_string` in the
+    program. The classes come from the arguments at the call: a text or `Boolean` literal, or a name or attribute
+    path whose type is a class, a number, a `Boolean` or `String`, read through a `type`'s own attribute too
+    (`follower.entity.id`) and through a local declared before the call. They pass into the functions the
+    arguments are handed on to, a variadic list keeping the classes of the arguments it was made from while no
+    function it reaches assigns, appends to, stores or hands it anywhere else. Anything the compiler cannot place
+    -- a nullable, a union, a `type`, the result of a call, a parameter reassigned in the function -- is followed
+    through every function of that name, as before, so a class whose `to_string()` grows the vector is still
+    refused when it is printed (`console.print("printing", loud)` in `diagnostics/dispatched_resizes`).
+  - **Cost.** None at run time; both are read while compiling from the effects already gathered.
+    `conformance/stage6/queued_borrows` holds an item across a queued command and a print.
 - **Inside the item's class.** A function of the item's class runs on a borrowed item when a template or a call
   reaches it, so it may not use `this` as a value (the item-class error in
   [collections.md's rules](collections.md#vectort--implemented)).

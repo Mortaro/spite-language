@@ -1,0 +1,10 @@
+var shelves = List<Items<Position>>()
+
+func stack(position: Position) {
+    if shelves.is_empty() {
+        var shelf = Items<Position>()
+        shelves.append(shelf)
+    }
+    crash shelves[0]
+    shelves[0].append(position)
+}

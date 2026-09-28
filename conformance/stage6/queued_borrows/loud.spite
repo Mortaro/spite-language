@@ -1,0 +1,8 @@
+var positions = Column<Position>()
+
+func to_string(): String {
+    var added = Position()
+    added.left = positions.values.count()
+    positions.insert(9, added)
+    return "loud, and {added.left} positions before it"
+}

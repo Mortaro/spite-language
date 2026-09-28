@@ -1,0 +1,197 @@
+var shape = Analysis.AstShape()
+var name = ""
+var named_values = List<String>()
+var assigned = false
+var list_kept = true
+
+func ParameterUses(parameter_name: String, parameter_names: List<String>) {
+    name = parameter_name
+    named_values = parameter_names.copy()
+}
+
+func study(statements: List<Syntax.Statements.Statement>) {
+    statements.each(declare_statement)
+    statements.each(walk_statement)
+}
+
+func declare_statement(statement: Syntax.Statements.Statement) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            named_values.append(statement.name)
+            if statement.name == name {
+                assigned = true
+                list_kept = false
+            }
+        }
+        Syntax.Statements.IfStatement: {
+            statement.then_branch.each(declare_statement)
+            statement.else_branch.each(declare_statement)
+        }
+        Syntax.Statements.WhileStatement: statement.body.each(declare_statement)
+        Syntax.Statements.SwitchStatement: statement.cases.each(declare_case)
+        _: return
+    }
+}
+
+func declare_case(switch_case: Syntax.Statements.SwitchCase) {
+    switch_case.body.each(declare_statement)
+}
+
+func walk_statement(statement: Syntax.Statements.Statement) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: visit_optional(statement.value)
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            walk_target(statement.target)
+            visit_optional(statement.value)
+        }
+        Syntax.Statements.IfStatement: {
+            visit_optional(statement.condition)
+            statement.then_branch.each(walk_statement)
+            statement.else_branch.each(walk_statement)
+        }
+        Syntax.Statements.WhileStatement: {
+            visit_optional(statement.condition)
+            statement.body.each(walk_statement)
+        }
+        Syntax.Statements.SwitchStatement: {
+            visit_optional(statement.subject)
+            statement.cases.each(walk_case)
+        }
+        Syntax.Statements.AssertStatement: visit_optional(statement.value)
+        Syntax.Statements.ReturnStatement: visit_optional(statement.value)
+        Syntax.Statements.ExpressionStatement: visit_optional(statement.value)
+        _: return
+    }
+}
+
+func walk_case(switch_case: Syntax.Statements.SwitchCase) {
+    visit_optional(switch_case.value)
+    switch_case.body.each(walk_statement)
+}
+
+func walk_target(target: Syntax.Expressions.Expression) {
+    var identifier = shape.as_identifier(target)
+    if identifier {
+        if identifier.name == name {
+            assigned = true
+            list_kept = false
+        }
+        return
+    }
+    if is_rooted_here(target) {
+        list_kept = false
+    }
+    visit(target)
+}
+
+func is_rooted_here(expression: Syntax.Expressions.Expression): Boolean {
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        return identifier.name == name
+    }
+    var member = shape.as_member(expression)
+    if member {
+        crash member.object
+        return is_rooted_here(member.object)
+    }
+    var indexed = shape.as_index(expression)
+    if indexed {
+        crash indexed.object
+        return is_rooted_here(indexed.object)
+    }
+    return false
+}
+
+func visit_optional(expression: Syntax.Expressions.Expression?) {
+    assert expression
+    visit(expression)
+}
+
+func visit(expression: Syntax.Expressions.Expression) {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: {
+            if expression.name == name {
+                list_kept = false
+            }
+        }
+        Syntax.Expressions.CallExpression: visit_call(expression)
+        Syntax.Expressions.GenericCallExpression: expression.arguments.each(visit_argument)
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            if not is_named_here(expression.object) {
+                visit(expression.object)
+            }
+            visit_optional(expression.index)
+        }
+        Syntax.Expressions.MemberExpression: visit_optional(expression.object)
+        Syntax.Expressions.BinaryExpression: {
+            visit_optional(expression.left)
+            visit_optional(expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: visit_optional(expression.operand)
+        Syntax.Expressions.ListLiteralExpression: expression.elements.each(visit_element)
+        Syntax.Expressions.ObjectLiteralExpression: expression.fields.each(visit_field)
+        Syntax.Expressions.StringLiteralExpression: {
+            if expression.value.contains(name) {
+                list_kept = false
+            }
+        }
+        _: return
+    }
+}
+
+func visit_element(element: Syntax.Expressions.ListElement) {
+    visit_optional(element.value)
+}
+
+func visit_field(field: Syntax.Expressions.ObjectField) {
+    visit_optional(field.value)
+}
+
+func is_named_here(expression: Syntax.Expressions.Expression): Boolean {
+    var identifier = shape.as_identifier(expression)
+    if not identifier {
+        return false
+    }
+    return identifier.name == name
+}
+
+func visit_call(call: Syntax.Expressions.CallExpression) {
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    if member {
+        crash member.object
+        var reading = ["count", "is_empty", "get_at", "first", "last", "contains"]
+        if is_named_here(member.object) {
+            if not reading.contains(member.name) {
+                list_kept = false
+            }
+        } else {
+            visit(member.object)
+        }
+        if member.name == "call_function" {
+            call.arguments.each(visit)
+            return
+        }
+        call.arguments.each(visit_argument)
+        return
+    }
+    var callee_identifier = shape.as_identifier(call.callee)
+    if callee_identifier {
+        if named_values.contains(callee_identifier.name) {
+            call.arguments.each(visit)
+            return
+        }
+        call.arguments.each(visit_argument)
+        return
+    }
+    visit(call.callee)
+    call.arguments.each(visit)
+}
+
+func visit_argument(argument: Syntax.Expressions.Expression) {
+    if not is_named_here(argument) {
+        visit(argument)
+    }
+}
