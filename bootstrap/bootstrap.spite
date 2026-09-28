@@ -1022,6 +1022,7 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
     }
     console.print("library {library_path}")
     console.print("state {library_base}.files")
+    program.exit(0)
 }
 
 func read_reload(host_text: String, state_text: String): Generation.HotReloadLibrary {
