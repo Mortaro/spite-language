@@ -101,6 +101,7 @@ func walk_statement(statement: Syntax.Statements.Statement) {
         Syntax.Statements.ReturnStatement: {
             line = statement.line
             visit_optional(statement.value)
+            record_returned(statement.value)
         }
         Syntax.Statements.ExpressionStatement: {
             line = statement.line
@@ -600,6 +601,14 @@ func member_type(member: Syntax.Expressions.MemberExpression): Analysis.SpiteTyp
     crash member.object
     var object_type = type_of(member.object)
     assert object_type
+    var shaped = type_shape.as_union(object_type)
+    if shaped {
+        var studying_generator = tools()
+        var information = studying_generator.find_union_by_c_name(shaped.c_name)
+        assert information
+        assert information.is_shape
+        return studying_generator.shape_field_type(information, member.name)
+    }
     var object_class = class_of(object_type)
     assert object_class
     var field = object_class.find_field(member.name)
@@ -724,8 +733,62 @@ func named_roots(name: String): String {
 func call_roots(call: Syntax.Expressions.CallExpression): String {
     resolve_call(call)
     var receiver = called_receiver
-    var handed = argument_roots(call.arguments)
-    return united(receiver, handed)
+    if called_kind != "function" {
+        var handed = argument_roots(call.arguments)
+        return united(receiver, handed)
+    }
+    if called_made {
+        return ""
+    }
+    crash called_owner
+    crash called_function
+    return returned_roots(call, receiver, called_owner, called_function)
+}
+
+func returned_roots(
+    call: Syntax.Expressions.CallExpression,
+    receiver: String,
+    callee_owner: Analysis.ClassInfo,
+    callee: Analysis.FunctionInfo,
+): String {
+    var table_now = writes()
+    var studying_generator = tools()
+    table_now.summarize(studying_generator, callee_owner, callee)
+    var key = callee.c_name
+    var gathered = ""
+    if table_now.writes(key, "r:this") {
+        gathered = receiver
+    }
+    var last_position = callee.parameters.count() - 1
+    var index = 0
+    while index < call.arguments.count() {
+        var position = index
+        if position > last_position {
+            position = last_position
+        }
+        if position >= 0 and table_now.writes(key, "r:{position}") {
+            var passed_roots = roots_of(call.arguments[index])
+            gathered = united(gathered, passed_roots)
+        }
+        index = index + 1
+    }
+    return gathered
+}
+
+func record_returned(value: Syntax.Expressions.Expression?) {
+    assert value
+    var returned = roots_of(value)
+    var studied = the_function()
+    var table_now = writes()
+    var pieces = returned.split("|")
+    var index = 0
+    while index < pieces.count() {
+        var slot = pieces[index]
+        if not slot.is_empty() and not table_now.writes(studied.c_name, "r:{slot}") {
+            table_now.record(studied.c_name, "r:{slot}", "returns it")
+        }
+        index = index + 1
+    }
 }
 
 func argument_roots(arguments: List<Syntax.Expressions.Expression>): String {

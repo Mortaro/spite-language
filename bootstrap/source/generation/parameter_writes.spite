@@ -37,6 +37,12 @@ func summarize(generator: Generator, owner: Analysis.ClassInfo, function: Analys
 }
 
 func summarize_supplied(function: Analysis.FunctionInfo) {
+    record(function.c_name, "r:this", "returns it")
+    var returned_index = 0
+    while returned_index < function.parameters.count() {
+        record(function.c_name, "r:{returned_index}", "returns it")
+        returned_index = returned_index + 1
+    }
     var writing = [
         "resize"
         "free"

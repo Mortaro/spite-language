@@ -982,13 +982,12 @@ func folded_function_question(
     var member = shape.as_member(call.callee)
     assert member
     crash member.object
-    if member.name == "fits_vector" {
-        return fits_vector_question(member.object, call.arguments, class_information)
+    switch member.name {
+        "fits_vector": return fits_vector_question(member.object, call.arguments, class_information)
+        "function_writes_parameter": return parameter_write_question(member.object, call.arguments, class_information)
+        "any_attribute_fits_vector": return inline_attribute_question(member.object, call.arguments, class_information)
+        _: assert member.name == "has_function" or member.name == "function_waits"
     }
-    if member.name == "function_writes_parameter" {
-        return parameter_write_question(member.object, call.arguments, class_information)
-    }
-    assert member.name == "has_function" or member.name == "function_waits"
     var symbol_class = shape.as_member(member.object)
     if symbol_class {
         return symbol_function_question(symbol_class, member.name, call.arguments, class_information)
@@ -1419,57 +1418,128 @@ func parameter_write_question(
 ): Boolean? {
     var asked = Syntax.SourcePrinter().source_expression(object)
     var pattern_literal: Syntax.Expressions.StringLiteralExpression? = null
-    var index_literal: Syntax.Expressions.IntegerLiteral? = null
+    var asked_index: Long = -1
     if arguments.count() == 2 {
         pattern_literal = shape.as_string_literal(arguments[0])
-        index_literal = shape.as_integer_literal(arguments[1])
+        asked_index = asked_parameter_index(arguments[1])
     }
-    if not pattern_literal or not index_literal {
+    if not pattern_literal or asked_index < 0 {
         report(
-            "'{asked}.function_writes_parameter(...)' is decided while compiling, so it takes the function's name as text and the parameter's number, counted from 0, as literals: '{asked}.function_writes_parameter(\"last_each\", 1)'",
+            "'{asked}.function_writes_parameter(...)' is decided while compiling, so it takes the function's name as text and the parameter's number, counted from 0, as a literal or as a walked argument's '.index': '{asked}.function_writes_parameter(\"last_each\", 1)'",
         )
         return false
     }
-    var symbol_class = shape.as_member(object)
-    if symbol_class {
-        assert symbol_class.name == "class" and not bound_symbol_name.is_empty()
-        crash symbol_class.object
-        var symbol_identifier = shape.as_identifier(symbol_class.object)
-        assert symbol_identifier
-        assert symbol_identifier.name == bound_symbol_name
-        assert bound_field_type
-        var walked_class_ref = type_shape.as_class_ref(bound_field_type)
-        if not walked_class_ref {
-            return false
-        }
-        var walked_owner = find_class_by_c_name(walked_class_ref.c_name)
-        crash walked_owner
-        return class_writes_parameter(walked_owner, pattern_literal.value, index_literal.value, class_information)
+    var walked_function = ""
+    if not shape.as_integer_literal(arguments[1]) {
+        walked_function = bound_function_name
     }
-    var generic_identifier = shape.as_generic_identifier(object)
-    assert generic_identifier
-    var bare_name = without_dollar(generic_identifier.name)
-    var bound = codegen_index(class_information, bare_name)
-    assert bound >= 0
-    crash class_information.codegen_codes[bound]
-    assert class_information.codegen_codes[bound].is_empty()
-    crash class_information.codegen_types[bound]
-    var bound_class_ref = type_shape.as_class_ref(class_information.codegen_types[bound])
-    if not bound_class_ref {
+    var asked_type = asked_item_type(object, class_information)
+    assert asked_type
+    var asked_class_ref = type_shape.as_class_ref(asked_type)
+    if not asked_class_ref {
         return false
     }
-    var owner = find_class_by_c_name(bound_class_ref.c_name)
+    var owner = find_class_by_c_name(asked_class_ref.c_name)
     crash owner
-    return class_writes_parameter(owner, pattern_literal.value, index_literal.value, class_information)
+    return class_writes_parameter(owner, pattern_literal.value, asked_index, walked_function, class_information)
+}
+
+func inline_attribute_question(
+    subject: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
+    var asked_type = asked_item_type(subject, class_information)
+    assert asked_type
+    var skipped = List<String>()
+    var index = 0
+    while index < arguments.count() {
+        var named = try_resolve_static_path(arguments[index], class_information.qualified_dotted)
+        if named {
+            skipped.append(named.c_name)
+        } else {
+            var written = Syntax.SourcePrinter().source_expression(arguments[index])
+            report(
+                "'{written}' is not a class: 'any_attribute_fits_vector(...)' is decided while compiling, and what it is given are the classes whose attributes it skips, such as 'any_attribute_fits_vector(Entity)'",
+            )
+        }
+        index = index + 1
+    }
+    var attribute_types = attribute_types_of(asked_type)
+    var attribute_index = 0
+    while attribute_index < attribute_types.count() {
+        var attribute_type = attribute_types[attribute_index]
+        var attribute_class_ref = type_shape.as_class_ref(attribute_type)
+        if attribute_class_ref and not skipped.contains(attribute_class_ref.c_name) {
+            var attribute_class = find_class_by_c_name(attribute_class_ref.c_name)
+            if attribute_class and not attribute_class.is_value_class and class_fits_vector(attribute_class) {
+                return true
+            }
+        }
+        attribute_index = attribute_index + 1
+    }
+    return false
+}
+
+func attribute_types_of(asked_type: Analysis.SpiteType): List<Analysis.SpiteType> {
+    var found = List<Analysis.SpiteType>()
+    var shaped = type_shape.as_union(asked_type)
+    if shaped {
+        var information = find_union_by_c_name(shaped.c_name)
+        crash information
+        assert information.is_shape
+        var field_index = 0
+        while field_index < information.shape_fields.count() {
+            var field_name = information.shape_fields[field_index].name
+            var field_type = shape_field_type(information, field_name)
+            if field_type {
+                found.append(field_type)
+            }
+            field_index = field_index + 1
+        }
+        return found
+    }
+    var asked_class = class_of_type(asked_type)
+    assert asked_class
+    var attribute_index = 0
+    while attribute_index < asked_class.fields.count() {
+        var field = asked_class.fields[attribute_index]
+        if field.spite_type {
+            found.append(field.spite_type)
+        }
+        attribute_index = attribute_index + 1
+    }
+    return found
+}
+
+func asked_parameter_index(expression: Syntax.Expressions.Expression): Long {
+    var literal = shape.as_integer_literal(expression)
+    if literal {
+        return literal.value
+    }
+    var read = shape.as_member(expression)
+    if not read or bound_field_index < 0 or bound_symbol_name.is_empty() {
+        return -1
+    }
+    crash read.object
+    if read.name != "index" or not is_identifier_named(read.object, bound_symbol_name) {
+        return -1
+    }
+    var place: Long = bound_field_index
+    return place
 }
 
 func class_writes_parameter(
     owner: Analysis.ClassInfo,
     pattern: String,
     asked_index: Long,
+    walked_function: String,
     asking: Analysis.ClassInfo,
 ): Boolean {
     var wanted = wanted_function_names(pattern, asking)
+    if not walked_function.is_empty() and wanted.contains(walked_function) {
+        wanted = [walked_function]
+    }
     var functions = declared_functions_of(owner)
     var writes = false
     var index = 0
@@ -17222,7 +17292,7 @@ func generate_call(
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
-        if member.name == "has_function" or member.name == "function_waits" or member.name == "fits_vector" or member.name == "function_writes_parameter" {
+        if member.name == "has_function" or member.name == "function_waits" or member.name == "fits_vector" or member.name == "function_writes_parameter" or member.name == "any_attribute_fits_vector" {
             var answered = folded_function_question(call, class_information)
             if answered == true or answered == false {
                 var answer_type: Analysis.SpiteType = Analysis.Types.ScalarType('boolean_kind')
@@ -28761,7 +28831,7 @@ func asks_while_compiling(expression: Syntax.Expressions.Expression): Boolean {
                 return false
             }
             var named = member.name
-            return named == "has_function" or named == "function_waits" or named == "fits_vector" or named == "argument_count" or named == "function_writes_parameter"
+            return named == "has_function" or named == "function_waits" or named == "fits_vector" or named == "argument_count" or named == "function_writes_parameter" or named == "any_attribute_fits_vector"
         }
         _: return false
     }

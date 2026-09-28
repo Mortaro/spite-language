@@ -1,0 +1,13 @@
+pair 0 0
+Mover update
+moving writes: true holds an inline component: true
+Streamer update
+loaded writes: false holds an inline component: false
+moving writes: false holds an inline component: true
+Streamer keep
+loaded writes: true holds an inline component: false
+loaded may run on a snapshot
+moving may run on a snapshot
+loaded may run on a snapshot
+Pair true false true
+Loaded false false false

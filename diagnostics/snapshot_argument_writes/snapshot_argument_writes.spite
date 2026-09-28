@@ -1,0 +1,4 @@
+func SnapshotArgumentWrites() {
+    var refusing = Refuser<Mover>()
+    refusing.refuse()
+}

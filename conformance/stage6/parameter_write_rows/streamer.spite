@@ -1,0 +1,25 @@
+type Loaded {
+    library: Library
+}
+
+var loader = Loader()
+var console = Console()
+
+func update_each(loaded: Loaded, moving: Moving) {
+    var library = loaded.library
+    var index = 0
+    while index < library.slots.count() {
+        var slot = library.slots.get_at(index)
+        console.print(slot, moving.position.left)
+        index = index + 1
+    }
+    var navigation = loader.load_map(library)
+    navigation.steps = navigation.steps + 1
+    var named = library.names.count()
+    console.print(navigation.steps, named)
+}
+
+func keep_each(loaded: Loaded) {
+    var same = loader.pick(loaded.library)
+    same.names.append("kept")
+}
