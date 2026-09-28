@@ -218,7 +218,9 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 
 ### Proving what is proven is an error
 
-- **Status.** Built.
+- **Status.** Partial. [D279](decisions.md) (Mortaro) makes it every fact the compiler holds: a narrowed
+  `T?` of any type, a proven read or divisor, a decided class test, a condition checked twice with nothing between
+  that could change it, and a folded condition -- each refused with where it was proven. Built today: the two below.
 - **Proves.** A check adds nothing, because the value is already narrowed or the read already proven.
 - **Rule.** `assert`/`crash` on a `[]` read a bound or count already proves names the proof: `'codes[index]' is
   already proven by the loop condition 'index < codes.count()', so this 'crash' proves nothing: remove it`. On a
