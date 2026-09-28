@@ -160,9 +160,15 @@ even use things that would not compile for this build. That covers:
   it: so `$list_type.element_type == List and $list_type.element_type.element_type == Float` folds for a list of
   text, whose items have no `element_type` to ask about.
 
-An `assert` or `crash` whose condition is one of these folds the same way: a check that holds writes nothing,
-and one that fails writes its failure (the default returned, or the crash report) with no test, the rest of its
-block not compiled ([metaprogramming.md](metaprogramming.md#codegen-values---implemented)).
+An `assert` or `crash` folds too, but only when its condition asks a codegen question: a `$` value or a test of a
+codegen type, `attribute.class`, `has_function`, `function_waits`, `fits_vector`, `any_attribute_fits_vector`,
+`argument_count` or `function_writes_parameter`, and `not`, `and` and `or` over them. A check that holds writes
+nothing, and one that fails writes its failure (the default returned, or the crash report) with no test, the rest
+of its block not compiled ([metaprogramming.md](metaprogramming.md#codegen-values---implemented)). A `Build` field,
+or a class test on a value (`item == $wanted_type`), in an `assert` or `crash` is not folded: it is tested at run
+time, where the C compiler usually removes the test, since a `Build` field is a constant of the program. So a
+`crash` on a `Build` field that is false halts when it runs, rather than being the compile error a folded `crash`
+is ([D250](decisions.md); still open in [failure.md](failure.md#nothing-fails-silently--the-rule)).
 
 A function of a generic class is then compiled for one instantiation only when code that survived folding names
 it, so a helper reached only from a removed branch is never checked against a type it cannot work with.
@@ -784,8 +790,8 @@ How the lock is kept cheap:
   letting go of it is nothing: a singleton's retain and release compile to nothing
   ([D142](decisions.md)), in generic singletons too.
 
-**When.** Only in programs that make a `Parallel` or run a `parallel_each_` pass, and only for a singleton that a
-`Parallel` can reach; in any other program a write from another class is a plain store. **What you notice.** An
+**When.** Only in programs that make a `Parallel`, run a `parallel_each_` pass or make a `ForeignCallback` (C may
+call one from a thread of its own, [D234](decisions.md)), and only for a singleton that such a thread can reach; in any other program a write from another class is a plain store. **What you notice.** An
 uncontended lock per call to such a singleton (two atomic operations), and waiting when two threads call it at
 once. `conformance/stage6/singleton_lock_calls` holds these points from its C in `check.sh`: `Registry` is
 locked, pads its lock, calls itself unlocked and locks the write `registry.last = ...` and the read of
@@ -830,7 +836,7 @@ writes a `Journal` holding a `List` (nothing: no `Parallel` reaches it). Before,
 took a lock; now no singleton in it does, and `check.sh` holds that from its C.
 
 **When.** Every build that is not `--hot-reload` (which is not guarded at all yet), in programs that make a
-`Parallel` or run a `parallel_each_` pass. An atomic singleton in a program without `Parallel`, or one no
+`Parallel`, run a `parallel_each_` pass or make a `ForeignCallback` (D234). An atomic singleton in a program without `Parallel`, or one no
 `Parallel` reaches, compiles its reads and writes as plain ones: the executable is the same as with no form at
 all.
 
@@ -957,8 +963,8 @@ passes them as they are ([D270](decisions.md)). SlopEngine's `run_positions(...,
 `matcher.match_into(entity, rows)`, which hands `found` on to `find_row(index, entity, found)` for every column,
 counts nothing per entity now: each is a `___held_` copy passing its own parameter on to the next.
 
-**When.** Every build but `--hot-reload`, `--repl`, `--repl-port` and the resumable copy of a function a
-`Concurrent` runs, for a call written by name to a program's own function (not the library's), at a place whose
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port`, `--development` and the resumable copy of a
+function a `Concurrent` runs, for a call written by name to a program's own function (not the library's), at a place whose
 parameter is a class, list or dictionary (not text, a union or a variadic list), when the callee never assigns that
 parameter itself; not for a constructor, and not where the call's result is made in the caller's frame (the
 frame-made result keeps the ordinary function). Keeping the parameter needs nothing extra: storing it, returning it
@@ -1537,10 +1543,10 @@ four items, which grew its buffer while it was filled): `conformance/stage6/text
 ### A loop over plain values reads its count once and its items unchecked
 
 **What it does.** A `while index < values.count()` over a `List` of numbers or `Boolean` (the only list that holds
-them since [D225](decisions.md)) is written as
-the plain C loop a C compiler can turn into vector instructions (SIMD), when the compiler can prove three things:
+them since [D225](decisions.md)) -- `values` a local or a parameter named bare, not an attribute or any other expression -- is written as the plain C loop a C compiler can turn into vector instructions (SIMD), when the compiler can prove three things:
 
-- **The counter stays in range.** `index` is a local whose every assignment in the function is a whole-number
+- **The counter stays in range.** `index` is a local `Integer` (not a parameter, and not a `Long` or other
+  width) whose every assignment in the function is a whole-number
   literal of 0 or more, or `index = index + 1` as the last statement of a loop bounded by `index < ....count()` or a
   literal, with no other write to it in that loop. So it is never negative, never wraps, and inside the loop it is
   below `values.count()`.
@@ -1681,11 +1687,13 @@ whose `Math.Matrix4` holds its two singletons as attributes: `flex_layout` makes
 before), `scene_probe` 32 413 (32 518), `render_parity` 14 142 (14 171), with the same output; `stress` keeps
 its components in columns and makes the same 5 606 191. The pins that moved in `conformance/`: `lent_arguments`
 allocates 122 times (130), because the `Entity` a generic runner makes for each entity it hands to a system that
-keeps nothing is now in the frame; `singleton_counts` 65 times (200 065), because the `TallyHolder` each of its
+keeps nothing is now in the frame; `singleton_counts` 64 times (200 065), because the `TallyHolder` each of its
 200 000 passes makes holds only a singleton and is only read, so it is in the frame; `frame_objects` pins the
-rest (2 098 allocations before, 86 after). In a program that starts
-threads, passing a frame object to a function still counts it up and down atomically, as it does any object; the
-count is never read. **Built** (2026-09-26, extending D108/D211 placement to objects under [D149](decisions.md);
+rest (2 098 allocations before, 86 after). A frame object passed by name to a program function that never assigns
+that parameter is not counted at all: the call goes to the function's `___held_` copy
+([below](#an-argument-its-caller-holds-is-passed-without-counting), D270). Passed anywhere else -- a library
+function, one that assigns the parameter, an inspectable or resumable build -- it is counted up and down as any
+object is (atomically in a program that starts threads), and the count is never read. **Built** (2026-09-26, extending D108/D211 placement to objects under [D149](decisions.md);
 proposed by Claude, unconfirmed, decided under D205/D214).
 
 ### The C is compiled in parallel units, and cached
@@ -1718,9 +1726,10 @@ Decided by Mortaro, not built yet. When one is built, it moves up to **Built** i
 A singleton reached from a `Parallel` is made thread-safe by the compiler, with no keyword
 ([D183](decisions.md)), and the compiler picks the cheapest form that is safe for what that singleton's
 functions actually do ([D184](decisions.md)). Built (above): nothing for read-only state or a
-singleton no `Parallel` reaches, atomics for counters and flags, and the lock as the fallback. Not built yet: state
+singleton no `Parallel` reaches, atomics for counters and flags, the lock as the fallback, and its readers' side
+for functions that only read (D266). Not built yet: state
 that is only appended to (a log, a command queue) gets a buffer per thread merged in order; state each thread
-touches its own part of is split per thread; and reads that far outnumber writes take a reader-writer lock. Its
+touches its own part of is split per thread. Its
 functions may hand out only numbers, text, copies or other singletons made safe the same way, which is a
 compile-time check at `return`, also not built. All of it is absent from a program that never makes a `Parallel`.
 You will write nothing.
@@ -1736,8 +1745,8 @@ construction is [above](#an-allocator-set-after-construction-is-where-the-object
 part of objects that never escape: [objects of numbers in the frame](#objects-that-never-leave-their-function-live-in-the-frame),
 including a `copy()` of one.) Not built yet: frame objects of classes that hold text, lists or other objects
 (their attributes let go at the end of the frame), an attribute object laid inline in a frame-held object where
-the attribute is never shared, and leaving out the count on a frame object passed to a function, which needs
-callees that borrow their parameters rather than taking a count.
+the attribute is never shared. (Leaving out the count on a frame object passed to a function is built where the
+callee never assigns the parameter, D270.)
 
 ### Other planned optimisations
 

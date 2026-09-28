@@ -927,6 +927,11 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   smaller types widen and call `Long.to_string()`. `Boolean.to_string()` answers `"true"` or `"false"`.
   Interpolation (`"count {count}"`), `+` onto a `String` and `console.print` call it (D109,
   [standard_library.md](standard_library.md)).
+- **Decided, not built ([D275](decisions.md), replacing the rule below):** a conversion belongs to the value
+  being converted. The function behind a cast is the source's `to_<type>()` (`count.to_float()`); a class becomes
+  castable by defining `to_<type>()`; declaring a function named `from_<type>` is a compile error naming
+  `to_<type>()`. Both the implicit cast (`var half: Float = count`) and the explicit call `count.to_float()` are
+  allowed for now; the call may be limited later. Until it is built, the rule below describes the compiler.
 - **Casting is a function of the class cast to** (D100, decided by Mortaro): each number class has
   `func from_type(type: Symbol, value: type.class)`, a Symbol codegen function whose symbol ranges over the
   program's types, so the right-to-left cast of an `Integer` into a `Float` is `Float.from_integer(value)`. Its body is
@@ -1119,7 +1124,7 @@ simpler with no cost to reading is made to be, but a one-liner nobody can read b
 that would need an `else` stays a switch, and so does a switch with more cases: `_:` narrows to each remaining
 member (D60), which an `else` cannot.
 
-Memory safety is done with unions instead of borrow checking noise: `T?` is the union of `T` and `Null`, and it is narrowed before use with `if ... else`, `assert`, `crash` or `switch` ([Null safety and `assert` narrowing](failure.md#null-safety-and-assert-narrowing--implemented)).
+Memory safety is done with unions instead of borrow checking noise: `T?` is the union of `T` and `Null`, and it is narrowed before use with `if ... else`, `assert`, `crash` or `switch` ([Null safety and `assert` narrowing](failure.md#narrowing)).
 **`Monster?` is a union, and `Nullable<T>` is gone** (D45, decided by Mortaro, 2026-09-20). A `?` suffix is
 sugar for the union of a type and nothing:
 

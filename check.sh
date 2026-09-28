@@ -310,6 +310,12 @@ if ! grep -qF 'load_on_build/kitchen\nconformance/stage6/load_on_build/salty\nco
   echo "FAILED: a --hot-reload build should watch every loaded folder and check its loops with one load of a flag"; exit 1
 fi
 echo "live reload: every loaded folder is watched, and a loop's check point is one load of a flag"
+# A --hot-reload build keeps every function and, with a REPL, every member template that fits a reachable list:
+# kept_templates (run above with --development) must build that way too, its lists of Parallel and ThreadLocal
+# and its two unrelated dictionaries included (docs/collections.md#how-the-member-templates-are-written).
+"$work/generation_two.exe" conformance/stage6/kept_templates --executable --run=false --hot-reload --repl-port=4000 --executable-path="$work/kept_templates_hot.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED: kept_templates does not build with --hot-reload --repl-port"; head -5 "$work/c_errors.txt"; exit 1; }
+echo "live reload: a build that keeps every function compiles the library's templates it keeps"
 # Maths on constants is worked out while compiling (docs/optimizations.md): every folded_ value in maths_folding is
 # a literal in its C, and the program itself holds each one to the bits the C library computes at run time.
 "$work/generation_two.exe" conformance/stage6/maths_folding --run=false --c-source --c-path="$work/folding.c" > /dev/null 2>&1 || {
@@ -497,6 +503,16 @@ for attempt in $(seq 1 150); do
   sleep 0.2
 done
 [ "$grown" == '{"ok":true,"value":"Goblin growls","type":"String"}' ] || hot_fail "a function added by a reload was not callable: $grown"
+# A file that holds none of the program's classes -- here a reopening of Environment -- cannot be swapped in, and a
+# reload says so rather than answering that nothing changed (D244); once it is gone, nothing has changed again.
+printf 'var greeting_word = "hello"\n' > "$hot_folder/environment.spite"
+refused=$(ask reload)
+case "$refused" in
+  *"environment.spite' changed, and a reload swaps only the functions of the program's own classes"*) ;;
+  *) hot_fail "a reload of a new environment.spite answered $refused" ;;
+esac
+rm "$hot_folder/environment.spite"
+expect 'reload' '{"ok":true,"value":"nothing changed since the code the program runs","type":""}'
 expect 'exit' '{"ok":true,"value":"","type":""}'
 for attempt in $(seq 1 50); do kill -0 $served 2>/dev/null || break; sleep 0.2; done
 kill -0 $served 2>/dev/null && hot_fail "the program kept running after exit"

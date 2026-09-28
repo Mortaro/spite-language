@@ -224,7 +224,8 @@ or an `assert` on a plain `Tracker`.
 A call between a proof and a read undoes the proof only when the call may change what the proof depends on
 ([D169](decisions.md)). The compiler follows the called function, and everything it calls, to see
 which attributes it can assign and which lists it can shrink (`clear`, `remove_at`, `remove_first`,
-`remove_last`, a dictionary's `remove`). If it may change an attribute the proven path reads through -- or the
+`remove_last`, `remove_swapping`, `remove_where` and `remove_where_<member>`, `truncate`, `swap`, a dictionary's
+`remove`). If it may change an attribute the proven path reads through -- or the
 list a proven `[]` reads, or anything its index reads -- the proof is gone and the read must be proven again; if
 it provably cannot, the proof stands and nothing more is written. There is no `const` to declare: the compiler
 reads the code.
@@ -350,7 +351,7 @@ compiler also understands the usual proofs for the library's collections, so mos
   library's collections only, so `while index < shelf.count()` proves nothing about `shelf[index]` when `Shelf`
   is yours: narrow the read with `crash`, `assert` or `if` (`conformance/stage6/indexable_class`).
 
-Every case, with its exact messages, is in [the rules](#null-safety-and-assert-narrowing--implemented). A proven
+Every case, with its exact messages, is in [the rules](#nothing-fails-silently--the-rule). A proven
 read still checks its bounds at run time and halts naming the read when its index was outside the list, so a
 proof removes a line of source, not a safety check.
 
@@ -537,8 +538,8 @@ is how a closed file says it is not open.
 
 ### An `if` that leaves proves the rest
 
-An `if` with no `else` whose block ends by leaving the function -- a `return` or a bare `crash` -- proves the
-opposite of its condition for the rest of the block, the way an `assert` does. So `if not found { return -1 }`
+An `if` with no `else` whose block ends by leaving the function -- a `return`, a bare `crash`, or a `switch` whose
+every case ends so -- proves the opposite of its condition for the rest of the block, the way an `assert` does. So `if not found { return -1 }`
 narrows `found`, `if not left or not right { return 0 }` narrows both, and `if index >= names.count() { return
 "" }` proves `names[index]`:
 
@@ -677,7 +678,7 @@ false
 ```
 
 The message turns the condition around for you -- `if count < 0 or count > limit` becomes
-`assert count >= 0 and count <= limit` ([how](#null-safety-and-assert-narrowing--implemented)).
+`assert count >= 0 and count <= limit` ([how](#nothing-fails-silently--the-rule)).
 
 In a function returning a number, a `Boolean`, a `String`, an enum or an object, nothing of this applies: `assert`
 is not allowed there ([above](#a-default-that-looks-like-an-answer-is-an-error)), and an `if` returning `0` or
@@ -969,11 +970,11 @@ word needs a reason, and a place where the compiler lets one through is a bug to
 
 | Would go wrong silently | What happens instead | Where |
 |---|---|---|
-| reading a value that may be absent as if it were there | `T?` must be narrowed first; `value == null` is an error | [narrowing](#null-safety-and-assert-narrowing--implemented) |
+| reading a value that may be absent as if it were there | `T?` must be narrowed first; `value == null` is an error | [narrowing](#narrowing) |
 | an index past the end, a key never set | `[]`, `first()`, `last()`, `remove_first()` answer a `T?` | [reading with `[]`](#reading-with--answers-t) |
 | a read a loop bound proved, with a counter gone below zero | halts naming the read and the line (D225) | [reading with `[]`](#reading-with--answers-t) |
 | a guard `assert` answering a `0`, `false`, `""` or default object the caller takes for a real answer | compile error unless the result can say "nothing" (D244, D245) | [a default that looks like an answer](#a-default-that-looks-like-an-answer-is-an-error) |
-| a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is never a condition | [null safety](#null-safety-and-assert-narrowing--implemented) |
+| a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is never a condition | [null safety](#narrowing) |
 | text that is not a number, read as `0` | `to_integer()` and the other readings answer a `T?`; text assigned to a plain number is an error (D244) | [standard_library.md](standard_library.md#string) |
 | a function that declares a result reaching its end without a `return` | compile error at its last line naming the path | [every path ends in a `return`](#every-path-ends-in-a-return) |
 | a proof that went stale after an assignment or a call | the read must be proven again; in a loop, an error naming the call | [a call may undo a proof](#a-call-may-undo-a-proof) |
@@ -1016,6 +1017,40 @@ Also open: the proof that lets a `List` template lend its items without counting
 `drop()` functions that run when an object is let go, so a `drop()` that removes from the list being walked
 could free a lent item while it is in use. D269's lend of a list element checks `drop()`; the template proof
 should do the same.
+
+Also open, each a bug under D244, found cataloguing the compiler's proofs ([proofs.md](proofs.md)):
+
+- **A write question answers a silent `false`.** `function_writes_parameter` counts a function whose body the
+  compiler supplies as writing only when its name is on a fixed list or starts with `write_`; any other supplied
+  function answers "does not write", where the rule is `true` for whatever it cannot decide
+  ([metaprogramming.md](metaprogramming.md#asking-whether-a-function-writes-a-parameter)).
+- **A copy made only to narrow slips through** (D63). The check sees only a condition that is exactly the copy's
+  bare name, so a copy narrowed by `if not copy { return }`, `while copy` or `assert copy and ...` compiles.
+- **A second `assert` on a narrowed value gets the wrong error.** On a narrowed class it is "proves nothing:
+  remove the check"; on a narrowed `String?`, number or enum it is the error for a condition that is not a
+  `Boolean`, which names the wrong fix.
+- **The guard lint sees only literal defaults** (D106). An `if` whose only statement returns `null`, `false`,
+  `0`, `0.0`, `""` or nothing is caught; `if ... { return List<T>() }` in a function answering a `List` is not. And
+  a function that lends a list element (D269) is not checked for a guard `assert` at all.
+- **The union `switch` message says the opposite of what it means**: "has no case for File: every member is
+  covered, so a member added later cannot be forgotten". The enum message is worded right.
+- **A frame buffer's uses are matched by name.** Placing an allocation in the frame accepts `read_value`,
+  `write_value`, `release_value` and `swap_values` on any receiver, not only `TypedMemory`'s, so a program's own
+  `write_value` that keeps the address would pass ([memory.md](memory.md#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)).
+- **A `crash` on a `Build` field is not folded.** Only codegen questions fold in an `assert` or `crash`, so a `crash`
+  on a `Build` field that is false halts at run time instead of being D250's compile error
+  ([optimizations.md](optimizations.md#deciding-conditions-at-compile-time)).
+- **The smallest signed value divided by `-1`** wraps to itself in every build, a development build included,
+  where every other signed result that does not fit halts (D249).
+- **A `while true` that can never leave** ends its function's paths for the missing-`return` check, and nothing
+  reports it outside a locked singleton function: a hang.
+- **Statements after a `return`** in the same block are compiled without a word: a skipped step.
+- **A wider value assigned, passed or returned into a narrower name** (`var small: Tiny = wide`) wraps in every
+  build; only operators are checked (D162, D251).
+- **Two threads writing one number attribute of an instance they share** is not refused: the reach rules (D35,
+  D179) allow plain-value attributes, and the result is whichever write lands last.
+- **Two `Concurrent`s that each wait for the other** never end, and nothing reports it
+  ([optimizations.md](optimizations.md#hidden-asyncawait-as-compile-time-state-machines)).
 
 
 `assert` doubles as the way to prove a `T?` is not null without nesting: after `assert value` on a
@@ -1105,8 +1140,8 @@ allowed (D28), the message names `crash` instead. `diagnostics/default_guard`, `
 **[implemented]**
 
 **An `if` that leaves proves the opposite of its condition** (proposed by Claude, unconfirmed, 2026-09-27, so that
-D244's explicit answers read as guards do). An `if` with no `else` whose block's last statement is a `return` or a
-bare `crash` proves, for the rest of the enclosing block, what an `assert` of the opposite condition would: each
+D244's explicit answers read as guards do). An `if` with no `else` whose block's last statement is a `return`, a
+bare `crash`, or a `switch` whose every case's last statement is one of these proves, for the rest of the enclosing block, what an `assert` of the opposite condition would: each
 side of an `or` in its condition written `not path` narrows that path, as `assert path` does (the later sides
 already see the earlier ones narrowed, so `if not found or found.count() == 0 { return 0 }` is one test), and every
 other side proves the `[]` reads its opposite bounds (`if index >= names.count() { return "" }` proves
@@ -1124,7 +1159,7 @@ console.print(class.namespace.namespace.name)
 ```
 
 One `assert` proves the whole path, so `class.namespace` and `class.namespace.namespace` are both plain values
-for the rest of that block and any block nested inside it. It is the same rule [Null safety and `assert` narrowing](#null-safety-and-assert-narrowing--implemented) already has for
+for the rest of that block and any block nested inside it. It is the same rule [narrowing](#narrowing) already has for
 `assert value and other_condition`, applied along a member chain instead of across an `and`.  **[implemented]**
 Across an `and`, every side narrows, for `assert`, `crash` and `if` alike, since each side is known true when the
 whole is: `crash names[position] and ages[position]` proves both elements, as two `crash` lines would (proposed by
@@ -1182,7 +1217,7 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   what the condition guards, so `while not found and index < names.count()` proves `names[index]` in the body.
   A list in a local, a parameter and an attribute are proven alike, and `assert`/`crash` on a read already
   proven is an error that says so (proposed by Claude, unconfirmed; `diagnostics/proven_index_check`).
-- **Assigning the list or the index undoes it**, as for any path ([Null safety and `assert` narrowing](#null-safety-and-assert-narrowing--implemented), D43): `index = index + 1`
+- **Assigning the list or the index undoes it**, as for any path ([narrowing](#narrowing), D43): `index = index + 1`
   un-proves `names[index]`, and so do `names.clear()`, `remove_at`, `remove_first` and `remove_last`. Inside a
   loop, undoing a proof made before the loop that the loop has read is an error.
 - **Any index without a call is a path** (proposed by Claude, unconfirmed, 2026-09-24): `crash glyphs[code - 32]`
@@ -1198,7 +1233,8 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   chances of altering that value (without needing to have a const keyword)." This covers every proof -- a
   narrowed path or attribute and a proven `[]` read alike. The compiler follows the called function and what it
   calls, and collects which attributes it may assign and which lists it may shrink (`clear`, `remove_at`,
-  `remove_first`, `remove_last`, `remove`); a proof that reads through one of them is undone, and reading it again
+  `remove_first`, `remove_last`, `remove_swapping`, `remove_where` and `remove_where_<member>`, `truncate`, `swap`
+  (D263: it changes which item an index names), and `remove`); a proof that reads through one of them is undone, and reading it again
   unproven is the usual error. How it is followed (proposed by Claude, unconfirmed): an attribute is known by its
   class and name, so assigning `Scope.owned` does not undo a proof about `Monster.owned`; a receiver's class is
   read from declared types (a parameter's type, a `var` built by a constructor or annotated), a `List`,
@@ -1208,7 +1244,7 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   (`names.copy().count()` reaches `List.count`), the element class of a `[]` read on a `List`, `Vector` or
   `Dictionary` (`lists[0].count()`), an attribute read's declared class (`receiver_call_effects`); a call whose
   receiver's class cannot be told (a shape, a type parameter, a function value) is followed into every function
-  of that name; `clear`, `remove_at`, `remove_first` or `remove_last` on a collection reached through `[]` or a
+  of that name; any of those shrinking calls but `remove` on a collection reached through `[]` or a
   call rather than a name may be the very list a proof reads, so it undoes every proof about a list
   (`append`, `prepend` and `insert` there count as growing a borrowed `Vector`'s storage, D204/D206); the calls a `return` makes undo nothing, since nothing after it runs on that path (a call in a branch
   before its `return` still undoes proofs after the branch); a list passed to a function that
@@ -1266,7 +1302,7 @@ exceptions, no error unions, no bubbling, and no error value carrying a message,
 tend to be useless: they tell us a message we have no action to take about them".
 
 1. **A compile error**, for anything the compiler can know. This is already where the language keeps landing:
-   an unserialisable type ([Foreign libraries](foreign_libraries.md#foreign-libraries--partial)), the wrong target (D20), an unfilled codegen hole ([Codegen values (`$`)](metaprogramming.md#codegen-values---implemented)), a
+   an unserialisable type ([Foreign libraries](foreign_libraries.md#foreign-libraries--partial)), the wrong target (D20, planned: [targets.md](targets.md)), an unfilled codegen hole ([Codegen values (`$`)](metaprogramming.md#codegen-values---implemented)), a
    missing foreign symbol ([Foreign libraries](foreign_libraries.md#foreign-libraries--partial)), a member that does not fit a template ([Standard library metaprogramming](collections.md#standard-library-metaprogramming--partial)), a symbol outside its
    enum ([Types](values_and_types.md#types)).
 2. **`assert`**, for when the program should keep running.

@@ -1,0 +1,43 @@
+# ../../../docs/collections.md#how-the-member-templates-are-written
+var console = Console()
+var headers = Headers()
+var fingerprints = Fingerprints()
+var runs = List<Parallel<Integer>>()
+var slots = List<ThreadLocal<Integer>>()
+var header_books = List<Headers>()
+var fingerprint_books = List<Fingerprints>()
+
+func KeptTemplates() {
+    var worker = Worker(7)
+    var first = Parallel(worker.work)
+    runs.append(first)
+    var second = Parallel(worker.work)
+    runs.append(second)
+    var total = 0
+    var index = 0
+    while index < runs.count() {
+        var result: Integer = runs.get_at(index)
+        total = total + result
+        index = index + 1
+    }
+    var all_finished = runs.all_finished()
+    console.print("parallel total:", total, "all finished:", all_finished)
+    var slot = ThreadLocal<Integer>()
+    slot.set(3)
+    slots.append(slot)
+    var slot_count = slots.count()
+    console.print("thread locals:", slot_count)
+    headers.name(4096, "position")
+    fingerprints.read("\{\"hero\": \"a1\"}")
+    var header_name = headers.of(4096)
+    var found = fingerprints.of("hero")
+    console.print(header_name, found)
+    header_books.append(headers)
+    fingerprint_books.append(fingerprints)
+    var books = header_books.count() + fingerprint_books.count()
+    console.print("books:", books)
+    var worker_kind = worker.class
+    var described = worker_kind.attributes
+    var described_count = described.count()
+    console.print("worker attributes:", described_count)
+}

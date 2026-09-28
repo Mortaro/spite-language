@@ -3,6 +3,10 @@ var host_prototypes = Dictionary<String>()
 var host_slots = Dictionary<String>()
 var host_classes = List<String>()
 var host_layouts = Dictionary<String>()
+var host_key_sites = Dictionary<Analysis.SpiteType>()
+var program_shaker = TreeShaker()
+var program_prototypes = Dictionary<String>()
+var program_prototype_text = ""
 var generation = 0
 var running_hashes = Dictionary<String>()
 var installed = List<String>()
@@ -133,7 +137,31 @@ func read_host_line(kind: String, rest: String) {
     } else if kind == "layout" and space > 0 {
         var name = rest.slice(0, space)
         host_layouts[name] = rest.slice(space + 1, rest_length)
+    } else if kind == "key" and space > 0 {
+        var label = rest.slice(0, space)
+        var key_type = number_key_type(label)
+        crash key_type
+        host_key_sites[rest.slice(space + 1, rest_length)] = key_type
     }
+}
+
+func number_key_type(label: String): Analysis.SpiteType? {
+    switch label {
+        "Tiny": return scalar_key('tiny_kind')
+        "Byte": return scalar_key('byte_kind')
+        "Short": return scalar_key('short_kind')
+        "UnsignedShort": return scalar_key('unsigned_short_kind')
+        "Integer": return scalar_key('integer_kind')
+        "UnsignedInteger": return scalar_key('unsigned_integer_kind')
+        "Long": return scalar_key('long_kind')
+        "UnsignedLong": return scalar_key('unsigned_long_kind')
+        _: return null
+    }
+}
+
+func scalar_key(kind: Analysis.Types.NumericKind): Analysis.SpiteType {
+    var key_type: Analysis.SpiteType = Analysis.Types.ScalarType(kind)
+    return key_type
 }
 
 func read_state(text: String) {
@@ -231,22 +259,19 @@ func is_bound(name: String, prototypes: Dictionary<String>, local_names: Diction
     return running == prototype and not local_names.has(name) and not name.starts_with("spite_foreign_library_")
 }
 
-func changed_signatures(
-    slot_names: List<String>,
-    slot_owners: List<String>,
-    rebuilt: List<String>,
-    prototype_text: String,
-    bodies: String,
-): List<String> {
-    var shaker = TreeShaker()
-    shaker.split_pieces(bodies)
-    var prototypes = new_prototypes(prototype_text, shaker)
+func split_program(prototype_text: String, bodies: String) {
+    program_shaker.split_pieces(bodies)
+    program_prototypes = new_prototypes(prototype_text, program_shaker)
+    program_prototype_text = prototype_text
+}
+
+func changed_signatures(slot_names: List<String>, slot_owners: List<String>, rebuilt: List<String>): List<String> {
     var changed = List<String>()
     var index = 0
     while index < slot_names.count() and index < slot_owners.count() {
         var name = slot_names[index]
         var added_later = not host_slots.has(name)
-        if rebuilt.contains(slot_owners[index]) and (added_later or host_prototypes[name] != prototypes[name]) {
+        if rebuilt.contains(slot_owners[index]) and (added_later or host_prototypes[name] != program_prototypes[name]) {
             changed.append(name)
         }
         index = index + 1
@@ -259,20 +284,17 @@ func callers_of(
     slot_names: List<String>,
     slot_owners: List<String>,
     rebuilt: List<String>,
-    bodies: String,
 ): List<String> {
-    var shaker = TreeShaker()
-    shaker.split_pieces(bodies)
     var callers = List<String>()
     var index = 0
     while index < slot_names.count() and index < slot_owners.count() {
         var owner = slot_owners[index]
         var hot_name = "{slot_names[index]}___hot"
         var hot_name_length = hot_name.length()
-        var position = shaker.find_function(hot_name, 0, hot_name_length)
+        var position = program_shaker.find_function(hot_name, 0, hot_name_length)
         if position >= 0 and not rebuilt.contains(owner) and not callers.contains(owner) {
-            crash shaker.pieces[position]
-            if mentions_any(shaker.pieces[position], changed) {
+            crash program_shaker.pieces[position]
+            if mentions_any(program_shaker.pieces[position], changed) {
                 callers.append(owner)
             }
         }
@@ -293,11 +315,9 @@ func mentions_any(text: String, names: List<String>): Boolean {
 }
 
 func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<String>, rebuilt: List<String>): String {
-    var bodies = builder.bodies_text()
-    var prototype_text = builder.prototypes.join("\n")
-    var shaker = TreeShaker()
-    shaker.split_pieces(bodies)
-    var prototypes = new_prototypes(prototype_text, shaker)
+    var shaker = program_shaker
+    var prototypes = program_prototypes
+    var prototype_text = program_prototype_text
     var local_names = Dictionary<String>()
     var roots = List<Integer>()
     var index = 0

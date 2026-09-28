@@ -1,0 +1,10 @@
+var names = Dictionary<String>()
+
+func name(header: Long, text: String) {
+    names.set(header, text)
+}
+
+func of(header: Long): String {
+    crash names[header]
+    return names[header]
+}

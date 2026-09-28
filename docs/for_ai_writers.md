@@ -357,6 +357,9 @@ func is_alive(): Boolean {
   an attribute the proof reads or shrink a list it reads; prove it again after such a call, or read what you need
   before it. A call that cannot change it keeps the proof. Calling a function value keeps no proof about
   attributes or lists.
+- Every proof the compiler makes -- narrowing, proven `[]` reads, a proven divisor, frame objects, borrowed items,
+  singleton locks -- is listed in [proofs.md](proofs.md), with when it does **not** apply. Read its "Which proofs
+  apply to my code" first: where a proof does not hold, you write the check yourself.
 - A `switch` is over a union or a `T?` and covers every member; `_:` as the last case answers for the rest, and
   two cases doing the same thing are an error: write it once as `_:`. A `switch` over an enum, a whole number or
   a text has value cases: `'red': return 30`, `-1: ...`, `"es": ...`; over an enum it covers every value or ends

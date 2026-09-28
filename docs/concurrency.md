@@ -16,7 +16,7 @@
 > A singleton of the program's own that a `Parallel` reaches is made thread-safe by the compiler, in the cheapest
 > form it can prove safe. A program that uses none of this carries none of it ([what it costs](#what-it-costs)).
 > Windows runs all of it; the Linux and macOS folders are held to compiling. **Not built:** HTTP, cancelling a
-> `Concurrent`, and D184's per-thread and reader-writer forms
+> `Concurrent`, and D184's per-thread forms (its reader-writer form is built, D266)
 > ([the rules in full](#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows)).
 
 There is no `async` and no `await` in Spite, and there never will be. In JavaScript or C# a function that waits
@@ -875,7 +875,10 @@ one waits; the value is kept, so later ones do not). Exactly, a `Concurrent<T>` 
 
 It stays a handle where a handle is expected (`List<Parallel<T>>.append(handle)`), in a `var` without a written
 type (`var loading = Parallel(asset.load)` is the running work), and for the handle's own members, `finished` and
-`finished_value()`. A
+`finished_value()` -- and `class`, `attributes` and `functions`, which every object has (proposed by Claude,
+unconfirmed), so a member template over a
+`List<Parallel<T>>` reads the handles (`runs.all_finished()`, `conformance/stage6/kept_templates`; before, it read
+the results and failed inside `library/list.spite`). A
 `T` of `Nothing` is never read, so such a handle only joins on drop. Comparing two handles with `==` compares their
 values; there is no way to compare the handles themselves (proposed: nothing has needed it). The compiler writes
 each join as a call to the class's private `_result()`, which `library/concurrent.spite` and
@@ -1232,7 +1235,7 @@ compile error** too ([memory.md](memory.md#rules-in-full), `diagnostics/weak_acr
 
 A program without `Parallel` gets none of it: an atomic singleton compiles to plain reads and writes, and no
 singleton has a lock. **Not built:** D184's buffer per thread for state only appended to, splitting state each
-thread touches its own part of, and a reader-writer lock; D183's compile-time check at `return` that such a
+thread touches its own part of; D183's compile-time check at `return` that such a
 singleton hands out only numbers, text, copies or other safe singletons; guarding in a `--hot-reload` build; and
 library singletons (`Console`, input, `Clock`) doing better by hand, which D183 allows.
 `conformance/stage6/singleton_guard`, `singleton_forms`, `singleton_lock_calls`. D179's rule for
