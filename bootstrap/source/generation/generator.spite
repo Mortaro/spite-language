@@ -11546,9 +11546,7 @@ func report_not_a_number_constant(information: Analysis.ClassInfo, name: String,
     }
     var class_name = information.qualified_dotted
     if name.starts_with("from_") and function {
-        report(
-            "'{class_name}.{name}()' is the cast the compiler writes, which '--final-classes' shows, and a program does not call it: casts are written by assignment, 'var converted: {class_name} = value', or by passing the value where {with_article(class_name)} is expected",
-        )
+        report_cast_by_name(information, name)
         return
     }
     if function {
@@ -11558,6 +11556,27 @@ func report_not_a_number_constant(information: Analysis.ClassInfo, name: String,
         return
     }
     report("the class {class_name} answers only its constants, {constants}, and '{name}' is not one of them")
+}
+
+func report_cast_by_name(information: Analysis.ClassInfo, name: String) {
+    var class_name = information.qualified_dotted
+    var name_length = name.length()
+    var source_words = name.slice(5, name_length)
+    var source_name = joined_case_spelling(source_words, true)
+    var target_words = snake_words(information.simple_name)
+    var assignment = "'var converted: {class_name} = value'"
+    var source = find_class_by_qualified(source_name)
+    if source {
+        if source.find_function("to_{target_words}") {
+            report(
+                "'{class_name}.{name}()' is not a function a program calls: a conversion belongs to the value converted (D275), so write 'value.to_{target_words}()', or cast by assignment: {assignment}",
+            )
+            return
+        }
+    }
+    report(
+        "'{class_name}.{name}()' is not a function a program calls: a conversion belongs to the value converted (D275), and {with_article(source_name)} has no 'to_{target_words}()' yet, so cast by assignment: {assignment}, or pass the value where {with_article(class_name)} is expected",
+    )
 }
 
 func forget_indices_if_shrinking(name: String, object_ast: Syntax.Expressions.Expression, scope: Scope) {

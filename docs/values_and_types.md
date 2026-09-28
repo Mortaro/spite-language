@@ -167,9 +167,9 @@ func NumberMethods() {
 None of this costs anything at run time: a number is still a plain value (an `Integer` is an `int32_t`), the
 class gives it functions, not a header, and a function the program never calls is not emitted. A cast from one
 number type to another is written by assignment, `var half: Float = count`, or by passing the value where the
-other type is expected; it compiles to the one machine conversion. The compiler writes each cast as a function of
-the class cast to, `from_integer` on `Float`, which is what `--final-classes` shows, but a program never calls it by
-name ([rules](#numbers-are-classes-and-this--implemented)).
+other type is expected; it compiles to the one machine conversion. A conversion belongs to the value converted
+([D275](decisions.md)): its function is the source's `to_<type>()`, so `count.to_float()` will be the call form
+once that is built ([rules](#numbers-are-classes-and-this--implemented)).
 
 `this` works in every class, not only numbers, to hand the object itself to something:
 `registry.append(this)`. Reading your own members through it is an error, because a class already reads them by
@@ -935,15 +935,18 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   allowed for now; the call may be limited later. Until it is built, the rule below describes the compiler.
 - **Casting is a function of the class cast to** (D100, decided by Mortaro): each number class has
   `func from_type(type: Symbol, value: type.class)`, a Symbol codegen function whose symbol ranges over the
-  program's types, so the right-to-left cast of an `Integer` into a `Float` is compiled as `Float.from_integer`. Its
-  body is the compiler's (a C cast, emitted inline, so a cast costs only the conversion), and `--final-classes`
-  prints the declaration in every number class, which is where a reader sees how a cast is made. **A program writes
-  a cast by assignment or by passing**, never by calling that function: `var half: Float = count`, or `count` handed
-  to a parameter typed `Float`; the compiler calls `from_integer` there. Calling it by name is an error that names
-  the assignment form (D274, decided by Claude under D205, from the Theseus port; `diagnostics/cast_by_name`):
-  "'Float.from_integer()' is the cast the compiler writes, which '--final-classes' shows, and a program does not
-  call it: casts are written by assignment, 'var converted: Float = value', or by passing the value where a Float
-  is expected" -- for every number class's `from_<type>`, where it used to say, wrongly, to call it on a value. `type` may name a parameter and begin a type path for this, although it is
+  program's types, which the compiler uses to make each right-to-left cast. Its body is the compiler's (a C cast,
+  emitted inline, so a cast costs only the conversion), and `--final-classes` prints the declaration in every
+  number class, which is where a reader sees how a cast is made; it is the compiler's, not a function a program
+  calls. **A program writes a cast by assignment or by passing**: `var half: Float = count`, or `count` handed to a
+  parameter typed `Float`. Calling a number class's `from_<type>` by name is an error that points to the
+  conversion on the value converted and to the assignment form (D274, decided by Claude under D205, from the
+  Theseus port, and worded for D275; `diagnostics/cast_by_name`): when the source has `to_<type>()`, "... a
+  conversion belongs to the value converted (D275), so write 'value.to_float()', or cast by assignment: 'var
+  converted: Float = value'"; until then, "'Float.from_integer()' is not a function a program calls: a conversion
+  belongs to the value converted (D275), and an Integer has no 'to_float()' yet, so cast by assignment: 'var
+  converted: Float = value', or pass the value where a Float is expected". It used to say, wrongly, to call it on
+  a value. `type` may name a parameter and begin a type path for this, although it is
   a keyword elsewhere (proposed by Claude, unconfirmed).
 - **Bitwise operations are functions of the whole-number classes** (D117, decided by Mortaro; the names and the
   rules below proposed by Claude, unconfirmed). `Tiny`, `Short`, `Integer`, `Long`, `Byte`, `UnsignedShort`,
