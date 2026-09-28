@@ -9,6 +9,8 @@ var host_variants = List<String>()
 var host_instances = List<String>()
 var host_slot_owners = Dictionary<String>()
 var split_done = false
+var host_members = Dictionary<String>()
+var host_declared = Dictionary<String>()
 var library_bodies = List<String>()
 var library_body_names = List<String>()
 var host_hashes = Dictionary<String>()
@@ -170,6 +172,14 @@ func read_host_line(kind: String, rest: String) {
     } else if kind == "owner" and space > 0 {
         var owned_slot = rest.slice(0, space)
         host_slot_owners[owned_slot] = rest.slice(space + 1, rest_length)
+    } else if kind == "declared" {
+        var declared_tab = rest.index_of("\t")
+        crash declared_tab > 0
+        host_declared[rest.slice(0, declared_tab)] = rest.slice(declared_tab + 1, rest_length)
+    } else if kind == "members" {
+        var member_tab = rest.index_of("\t")
+        crash member_tab > 0
+        host_members[rest.slice(0, member_tab)] = rest.slice(member_tab + 1, rest_length)
     } else if kind == "instance" {
         host_instances.append(rest)
     } else if kind == "variant" {

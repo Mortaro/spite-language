@@ -184,6 +184,9 @@ var reload_changed_paths = List<String>()
 var reload_owners = List<String>()
 var seeded_waiting_names = List<String>()
 var lent_variant_lines = List<String>()
+var listed_function_classes = List<Analysis.ClassInfo>()
+var listed_function_counts = List<Integer>()
+var listed_function_positions = List<Integer>()
 var instance_lines = List<String>()
 var skipped_in_reload = Dictionary<Boolean>()
 var seeded_shape_callers = List<String>()
@@ -721,6 +724,10 @@ func generate(
         emit_pending_functions()
     }
     emit_attribute_object_bodies()
+    while refresh_functions_lists() {
+        emit_pending_functions()
+        emit_functions_function_bodies()
+    }
     refresh_union_releases()
     finish_wait_questions()
     emit_hot_reload_support()
@@ -14868,7 +14875,6 @@ func ensure_functions_function(information: Analysis.ClassInfo): String {
 }
 
 func emit_functions_function(information: Analysis.ClassInfo) {
-    var function_c_name = "{information.c_name}___functions"
     var function_class = find_class_by_c_name("Spite_Function")
     var argument_class = find_class_by_c_name("Spite_Argument")
     if not function_class {
@@ -14890,11 +14896,49 @@ func emit_functions_function(information: Analysis.ClassInfo) {
     if information.is_container {
         instantiate_member_templates_of(information)
     }
+    if is_hot_class(information) {
+        add_hot_functions_slot(information, list_name)
+    }
+    var declared_count = information.declared_functions.count()
+    var listed = functions_list_text(information, list_name, arguments_list_name)
+    listed_function_classes.append(information)
+    listed_function_counts.append(declared_count)
+    var position = builder.support_count()
+    listed_function_positions.append(position)
+    builder.add_support(listed)
+}
+
+func refresh_functions_lists(): Boolean {
+    var refreshed = false
+    var index = 0
+    while index < listed_function_classes.count() {
+        var information = listed_function_classes.get_at(index)
+        var count = information.declared_functions.count()
+        if count != listed_function_counts.get_at(index) {
+            listed_function_counts.set_at(index, count)
+            var function_class = find_class_by_c_name("Spite_Function")
+            var argument_class = find_class_by_c_name("Spite_Argument")
+            crash function_class and argument_class
+            var class_type = class_type_of(function_class)
+            var list_name = ensure_list(class_type)
+            var argument_class_type = class_type_of(argument_class)
+            var arguments_list_name = ensure_list(argument_class_type)
+            var listed = functions_list_text(information, list_name, arguments_list_name)
+            var position = listed_function_positions.get_at(index)
+            builder.replace_support(position, listed)
+            refreshed = true
+        }
+        index = index + 1
+    }
+    return refreshed
+}
+
+func functions_list_text(information: Analysis.ClassInfo, list_name: String, arguments_list_name: String): String {
+    var function_c_name = "{information.c_name}___functions"
     var lines = List<String>()
     var defined_name = function_c_name
     if is_hot_class(information) {
         defined_name = "{function_c_name}___hot"
-        add_hot_functions_slot(information, list_name)
     }
     lines.append("{list_name}* {defined_name}({information.c_name}* self) \{")
     lines.append("{list_name}* result = {list_name}___make();")
@@ -14946,8 +14990,7 @@ func emit_functions_function(information: Analysis.ClassInfo) {
     }
     lines.append("return result;")
     lines.append("}")
-    var joined_lines = lines.join("\n")
-    builder.add_support(joined_lines)
+    return lines.join("\n")
 }
 
 func emit_functions_function_bodies() {
@@ -33963,6 +34006,24 @@ func hot_manifest(): String {
         fact_lines.append(instance_lines[instance_index])
         instance_index = instance_index + 1
     }
+    var declared_index = 0
+    while declared_index < classes.count() {
+        var declaring = classes[declared_index]
+        if is_hot_class(declaring) and not declaring.is_generic_template {
+            var declared_names = declaring.declared_functions.map_c_name()
+            fact_lines.append("declared {declaring.c_name}\t{declared_names.join(",")}")
+        }
+        declared_index = declared_index + 1
+    }
+    var union_index = 0
+    while union_index < unions.count() {
+        var shaped = unions[union_index]
+        if shaped.is_shape {
+            var shaped_members = shaped.members.map_c_name()
+            fact_lines.append("members {shaped.c_name}\t{shaped_members.join(",")}")
+        }
+        union_index = union_index + 1
+    }
     var owner_index = 0
     while owner_index < hot_slot_names.count() and owner_index < hot_slot_owners.count() {
         fact_lines.append("owner {hot_slot_names[owner_index]} {hot_slot_owners[owner_index]}")
@@ -35025,6 +35086,31 @@ func changed_interface(host: HotReloadLibrary, snapshot: Dictionary<String>): St
     return ""
 }
 
+func differing_members(host: HotReloadLibrary, information: Analysis.UnionInfo): String {
+    var running = host.host_members[information.c_name]
+    if not running {
+        return "the running program has none"
+    }
+    var running_names = running.split(",")
+    var now = information.members.map_c_name()
+    var differing = List<String>()
+    var index = 0
+    while index < running_names.count() {
+        if not now.contains(running_names[index]) {
+            differing.append("-{running_names[index]}")
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < now.count() {
+        if not running_names.contains(now[index]) {
+            differing.append("+{now[index]}")
+        }
+        index = index + 1
+    }
+    return differing.join(" ")
+}
+
 func shown_or_none(value: String?): String {
     if not value {
         return "none"
@@ -35040,7 +35126,8 @@ func library_problem(host: HotReloadLibrary): String {
         var information = unions[index]
         var key = "members {information.c_name}"
         if information.is_shape and host.host_snapshot[key] != snapshot[key] and local_text.contains(information.c_name) {
-            return "the classes that fit '{information.simple_name}' are not all known without compiling the whole program"
+            var differing = differing_members(host, information)
+            return "the classes that fit '{information.simple_name}' are not all known without compiling the whole program ({differing})"
         }
         index = index + 1
     }
@@ -35048,6 +35135,24 @@ func library_problem(host: HotReloadLibrary): String {
 }
 
 func missing_slot(host: HotReloadLibrary): String {
+    var owner_index = 0
+    while owner_index < reload_owners.count() {
+        var rebuilt_name = reload_owners[owner_index]
+        var rebuilt = find_class_by_c_name(rebuilt_name)
+        var declared = host.host_declared[rebuilt_name]
+        if rebuilt and declared {
+            var names = declared.split(",")
+            var existing = rebuilt.declared_functions.map_c_name()
+            var name_index = 0
+            while name_index < names.count() {
+                if not names[name_index].is_empty() and not existing.contains(names[name_index]) {
+                    return names[name_index]
+                }
+                name_index = name_index + 1
+            }
+        }
+        owner_index = owner_index + 1
+    }
     var running = host.host_slot_owners.keys()
     var index = 0
     while index < running.count() {
@@ -35062,6 +35167,16 @@ func missing_slot(host: HotReloadLibrary): String {
 }
 
 func seed_made_members(host: HotReloadLibrary) {
+    var owner_index = 0
+    while owner_index < reload_owners.count() {
+        var rebuilt_name = reload_owners[owner_index]
+        var rebuilt = find_class_by_c_name(rebuilt_name)
+        var declared = host.host_declared[rebuilt_name]
+        if rebuilt and declared {
+            make_declared_again(rebuilt, declared)
+        }
+        owner_index = owner_index + 1
+    }
     var running = host.host_slot_owners.keys()
     var index = 0
     while index < running.count() {
@@ -35076,6 +35191,19 @@ func seed_made_members(host: HotReloadLibrary) {
     }
 }
 
+func make_declared_again(owner: Analysis.ClassInfo, declared: String) {
+    var names = declared.split(",")
+    var existing = owner.declared_functions.map_c_name()
+    var index = 0
+    while index < names.count() {
+        var c_name = names[index]
+        if not c_name.is_empty() and not existing.contains(c_name) {
+            make_member_again(owner, c_name)
+        }
+        index = index + 1
+    }
+}
+
 func make_member_again(owner: Analysis.ClassInfo, slot: String) {
     if slot == "{owner.c_name}___functions" {
         ensure_functions_function(owner)
@@ -35083,7 +35211,7 @@ func make_member_again(owner: Analysis.ClassInfo, slot: String) {
     }
     var prefix_length = owner.c_name.length() + 1
     var slot_length = slot.length()
-    assert slot_length > prefix_length and not slot.ends_with("___init")
+    assert slot_length > prefix_length and not slot.ends_with("___init") and slot.starts_with("{owner.c_name}_")
     var name = slot.slice(prefix_length, slot_length)
     assert not owner.find_function(name)
     find_or_instantiate_function(owner, name)
