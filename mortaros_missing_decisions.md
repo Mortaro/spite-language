@@ -539,3 +539,12 @@ Behaviour that does not match the manual. The language was not changed; each is 
      Column<attribute.class>().values[rows[attribute.index]]`), walked per attribute and written before the row,
      at no cost beyond D218's (the checked read is the row's read). The other reading is that a walked read halts
      on its own, as D218's `Items[]` did, with no line written. Which?
+
+## Foreign status results (D272)
+
+222. **May a switch over a foreign status enum end with `_:`?** D272 makes a `VkResult`-style result a Spite enum
+     that must be switched on. The C header does not say which of `VkResult`'s ~40 values `vkQueuePresentKHR` can
+     answer, so a switch with no `_:` lists all of them. (a) No `_:`, ever: every outcome is a written line, and a
+     binding writes the long switch once per kind of call (proposed by Claude, the D244 reading); (b) `_:` allowed
+     but it may not `crash` or `assert`, so the rest must be handled, not halted on; (c) `_:` allowed freely, like
+     any enum switch.
