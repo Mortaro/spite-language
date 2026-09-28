@@ -5,7 +5,7 @@ enum Phase {
 }
 
 var system: $system_type = null
-var found = Items<Integer>()
+var found = List<Integer>()
 var missing = false
 
 func run(entity_count: Integer) {
@@ -34,6 +34,8 @@ func find_argument(argument: Symbol<$system_type.phase_each>, entity: Integer) {
     found.append(dense)
 }
 
-func made_argument(argument: Symbol<$system_type.phase_each>, rows: Items<Integer>): argument.class {
+func made_argument(argument: Symbol<$system_type.phase_each>, rows: List<Integer>): argument.class {
+    crash rows[argument.index]
+    crash Column<argument.class>().values[rows[argument.index]]
     return Column<argument.class>().values[rows[argument.index]]
 }

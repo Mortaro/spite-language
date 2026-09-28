@@ -13,7 +13,7 @@ func SingletonFunctionValues() {
     }
     var index = 0
     while index < filling.count() {
-        var seen: Integer = filling.get_at(index)
+        var seen: Integer = filling[index]
         crash seen <= 400
         index = index + 1
     }

@@ -50,6 +50,8 @@ func SparseRows() {
     console.print("sparse Vector columns and walked rows, microseconds per tick", sparse_microseconds)
     console.print("sparse reference columns and a reused row object, microseconds per tick", referenced_microseconds)
     var last = positions.values.count() - 2
+    crash positions.values[last]
+    crash healths.values[0]
     var sparse_left: Integer = positions.values[last].left
     var referenced_left: Integer = referenced_positions.at(last).left
     var sparse_amount = healths.values[0].amount

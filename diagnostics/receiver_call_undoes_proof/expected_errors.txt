@@ -1,1 +1,1 @@
-diagnostics/receiver_call_undoes_proof/receiver_call_undoes_proof.spite:10: error: this value may be null (it is a String?), but a Printable is needed: narrow it first with 'if value { }', 'assert value' or 'crash value' (in ReceiverCallUndoesProof.ReceiverCallUndoesProof)
+diagnostics/receiver_call_undoes_proof/receiver_call_undoes_proof.spite:9: error: this value may be null (it is a String?), but a Printable is needed: narrow it first with 'if value { }', 'assert value' or 'crash value' (in ReceiverCallUndoesProof.ReceiverCallUndoesProof)

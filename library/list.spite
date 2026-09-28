@@ -38,13 +38,7 @@ func insert(index: Integer, value: $element_type) {
     item_count = item_count + 1
 }
 
-func get_at(index: Integer): $element_type {
-    if index >= 0 and index < item_count {
-        return values.read_value(items, index)
-    }
-}
-
-func find_at(index: Integer): $element_type? {
+func get_at(index: Integer): $element_type? {
     if index >= 0 and index < item_count {
         return values.read_value(items, index)
     }
@@ -63,6 +57,18 @@ func remove_at(index: Integer) {
         values.release_value(items, index)
         move_items(index + 1, index, item_count - index - 1)
         item_count = item_count - 1
+    }
+}
+
+func remove_swapping(index: Integer) {
+    if index >= 0 and index < item_count {
+        values.release_value(items, index)
+        var final_index = item_count - 1
+        if index != final_index {
+            var bytes = values.value_bytes()
+            (items + bytes * final_index).copy_to(items + bytes * index, bytes)
+        }
+        item_count = final_index
     }
 }
 
@@ -299,6 +305,18 @@ func sort_by_member(member: Symbol<$element_type>): List<$element_type> {
 func drop() {
     clear()
     heap.free(items)
+}
+
+func reserve(wanted: Integer) {
+    if wanted > capacity {
+        var grown = capacity * 2
+        if grown < wanted {
+            grown = wanted
+        }
+        var bytes = values.value_bytes()
+        items = heap.resize(items, bytes * grown)
+        capacity = grown
+    }
 }
 
 func make_room() {

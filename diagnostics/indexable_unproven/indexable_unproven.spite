@@ -1,0 +1,12 @@
+var console = Console()
+var ruler = Ruler()
+
+func IndexableUnproven() {
+    var total = 0
+    var index = 0
+    while index < ruler.count() {
+        total = total + ruler[index]
+        index = index + 1
+    }
+    console.print(total)
+}

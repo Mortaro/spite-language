@@ -6,6 +6,7 @@ var history = List<Velocity>()
 func VectorBorrows() {
     var first = Velocity(1.0, 2.0, "first")
     velocities.append(first)
+    crash velocities[0]
     var velocity = velocities[0]
     velocities.append(first)
     velocity.across = 3.0
@@ -19,6 +20,7 @@ func VectorBorrows() {
     var bound = stored.integrate
     console.print(alias.across)
     bound.call_function()
+    crash velocities.count() >= 2
     var passed = velocities[0]
     describe(passed)
     passed = velocities[1]
@@ -42,5 +44,6 @@ func describe(described: Velocity) {
 }
 
 func leaked(): Velocity {
+    crash velocities[0]
     return velocities[0]
 }

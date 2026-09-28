@@ -1,0 +1,41 @@
+var console = Console()
+var shelf = Shelf()
+
+func IndexableClass() {
+    shelf.put(3)
+    shelf.put(5)
+    shelf[1] = 8
+    crash shelf[0]
+    var raised = shelf[0] + 1
+    console.print("first raised", raised)
+    if shelf[1] {
+        console.print("second", shelf[1])
+    }
+    var seventh_is_two = shelf[7] == 2
+    console.print("seventh is two", seventh_is_two)
+    var total = 0
+    var index = 0
+    while index < shelf.count() {
+        if shelf[index] {
+            total = total + shelf[index]
+        }
+        index = index + 1
+    }
+    console.print("total", total)
+    var tallest = tallest_of(shelf)
+    console.print("tallest", tallest)
+}
+
+func tallest_of(heights: Shelf): Integer {
+    assert heights[0]
+    var tallest = heights[0]
+    var index = 1
+    while index < heights.count() {
+        var height = heights[index]
+        if height and height > tallest {
+            tallest = height
+        }
+        index = index + 1
+    }
+    return tallest
+}

@@ -1,6 +1,6 @@
 generic $row_type
 
-var rows = Vector<Integer>()
+var rows = List<Integer>()
 var missing = false
 
 func match(entity: Integer) {

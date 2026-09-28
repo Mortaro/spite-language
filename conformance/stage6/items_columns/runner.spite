@@ -1,6 +1,6 @@
 generic $row_type
 
-var found = Items<Integer>()
+var found = List<Integer>()
 var missing = false
 
 func run(mover: Mover, entity_count: Integer) {
@@ -35,10 +35,12 @@ func note(dense: Integer) {
     found.append(dense)
 }
 
-func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Items<Integer>, entity: Integer) {
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Integer>, entity: Integer) {
     if attribute.class == Entity {
         row.attributes[attribute] = Entity(entity)
     } else {
+        crash rows[attribute.index]
+        crash Column<attribute.class>().values[rows[attribute.index]]
         row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
     }
 }

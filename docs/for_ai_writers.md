@@ -165,8 +165,12 @@ func is_alive(): Boolean {
   or an enum only: on a list of a class use `any(f)` or `find_by_<member>`), `is_empty`, `clear`, `reverse`,
   `join` (text, numbers, `Boolean` and enum values all join), never `add` or `pop`, `list[index]` (a `T?`: out of range gives nothing -- `crash names[index]` narrows it like a path,
   and so does `crash glyphs[code - 32]`, or any index with no call in it, with no copy into a local first;
-  `crash names.count() == 3` proves `names[0]` to `names[2]`, and `while index < names.count()` proves
-  `names[index]` in the loop body, so a `crash names[index]` inside that loop is an error saying so: delete it).
+  `crash names.count() == 3` proves `names[0]` to `names[2]`, so does `var names = ["a", "b", "c"]`, and
+  `while index < names.count()` proves `names[index]` in the loop body, so a `crash names[index]` inside that loop
+  is an error saying so: delete it). `get_at(index)` is the same function as `[]` and answers the same `T?`; write
+  `names[index]`, which proofs can narrow. Every `[]` answers a `T?` -- a `Vector`'s and an `Items`' too. A list of
+  numbers, `Boolean`, enums or `Memory.Address` is always a `List` (`Vector<Integer>` is an error naming
+  `List<Integer>`); it has `remove_swapping(index)` and `reserve(count)` too.
   `Dictionary<T>` (insertion order): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`,
   `values`, `dictionary["key"]` (a `T?`, like `list[index]`: `inventory["shield"] == 0` is false for an absent
   key). Keys are text or whole numbers, decided from the keys you give it: key by the number itself
@@ -174,20 +178,19 @@ func is_alive(): Boolean {
   One dictionary never takes both kinds (a compile error naming both places). A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
   'Printable'`; print `list.join(", ")`, or `console.debug(list)`.
 - A chain of templates, `teams.filter_active().map_lead().sum_age()`, runs as one loop with no list in between.
-- `Vector<T>` holds its items inline for fast walks (`append`, `vector[index]`, `set_at`, `remove_at`, `count`,
+- `Vector<T>` holds objects inline for fast walks (`append`, `vector[index]`, `set_at`, `remove_at`, `count`,
   `clear`, `copy`, and `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `parallel_each_` templates).
-  An item is a number, `Boolean`, enum, `String`, or a class of only those (a `List` attribute is an error naming
-  it). `var velocity = velocities[index]` is the item itself, borrowed: `velocity.across = 3.0` writes the vector.
+  An item is a `String` or a class whose attributes are only numbers, `Boolean`, enums and `String` (a `List`
+  attribute is an error naming it). `velocities[index]` is a `Velocity?`: after `crash velocities[index]` (or
+  inside `while index < velocities.count()`), `var velocity = velocities[index]` is the item itself, borrowed:
+  `velocity.across = 3.0` writes the vector.
   A borrowed item is used through its members only and never kept: storing it in an attribute or a list,
   returning it, passing it as an argument, `velocity.integrate` as a function value, `var alias = velocity`, and
   reading it after a line that may resize the vector (`append`, `remove_at`, `clear`, or a call that may do one)
   are errors, each naming the fix: `velocity.copy()`, an independent object, or reading `velocities[index]` again.
   A class kept in a `Vector` may not use `this` as a value, nor have a `drop()`.
-- Only a class item is borrowed. An item that is a number, `Boolean` or enum is copied when read (D221): keep,
-  pass or return `numbers[index]` freely, and pass functions as on a list: `numbers.each(found.append)`,
-  `weights.map(double_of)`, `weights.filter(is_heavy).sum(double_of)` (`each`, `map`, `filter`, `count`, `any`,
-  `all`, `sum`; not `find` or `sort_by`, which only a `List` has). A `Vector<String>` takes no passed function:
-  keep text you pass on in a `List<String>`.
+- A `Vector` or an `Items` takes no passed function (`each(f)`, `map(f)`, ...): its items are borrowed, or text.
+  Numbers go in a `List`, which takes them all: `numbers.each(found.append)`, `weights.filter(is_heavy).sum(double_of)`.
 - A row of borrowed items for a system: `var row: Moving = {position: positions[index], velocity:
   velocities[index]}` (`Moving` a `type`), then `mover.update_each(row)`. The row costs nothing (it lives in the
   frame) and may be passed only to a function called by name whose parameter is a `type`; inside it,
@@ -198,31 +201,37 @@ func is_alive(): Boolean {
   append to or remove from the vectors it borrows from`) are errors. Build a row only of borrowed items and plain
   values.
 - A generic runner builds the same row with a walk: `var row: $row_type = null`, then on the next line
-  `fill_attributes(row, index)` whose template is the one line `row.attributes[attribute] =
-  columns.attributes[attribute][index]`. The compiler writes the literal in its place (D212), with the same rules.
+  `fill_attributes(row, index)` whose template is `crash columns.attributes[attribute][index]` and then the line
+  `row.attributes[attribute] = columns.attributes[attribute][index]`: a `[]` read answers a `T?` and a row holds
+  items, so the template states each read with a `crash` line before the fill. The compiler writes those checks
+  and the literal in its place (D212), with the same rules.
 - Over sparse sets (each entity at a different place in each column), the runner first walks the attributes to
-  fill `found: Vector<Integer>` with each one's place, then the fill template reads each attribute from its own
-  generic singleton: `row.attributes[attribute] = Column<attribute.class>().values[found[attribute.index]]`. Choose
+  fill `found: List<Integer>` with each one's place, then the fill template reads each attribute from its own
+  generic singleton, after a `crash` line for each read (the places arrive as the parameter `rows`): `crash
+  rows[attribute.index]`, `crash Column<attribute.class>().values[rows[attribute.index]]`, then
+  `row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]`. Choose
   per attribute with an `if` on `attribute.class == Entity` or `attribute.class.fits_vector()` (both decided while
   compiling), each branch one such line: `Entity(entity)` is made in the frame, a reference column's value
-  (`ReferenceColumn<attribute.class>().at(found[attribute.index])`) is counted for the row (D217). Keep the index
+  (`ReferenceColumn<attribute.class>().at(rows[attribute.index])`, after `crash rows[attribute.index]`) is counted
+  for the row (D217). Keep the index
   expression to parameters, `attribute.index` and whole numbers; work anything else out before the walk. The
-  places may live in another object: pass its vector straight in (`fill_attributes(row, matcher.rows)`) or read
-  `matcher.rows[attribute.index]` in the line -- its items are numbers, copied (D221) -- and never copy them into a
-  vector of the runner's first.
+  places may live in another object: pass its list straight in (`fill_attributes(row, matcher.rows)`) or read
+  `matcher.rows[attribute.index]` in the line -- its items are numbers in a `List` -- and never copy them into a
+  list of the runner's first.
 - In a generic class that keeps values of a type it does not know (an engine's `Column<$component_type>`), use
   `Items<$component_type>()` (D218, name provisional): inline and borrowed like a `Vector` when the type fits
-  one, references like a `List` when not, with one set of members (`append`, `items[index]` (a `T`, out of range
-  halts), `set_at`, `remove_at`, `remove_swapping(index)` (the last item moves into `index`), `count`, `is_empty`,
+  one, references like a `List` when not, with one set of members (`append`, `items[index]` (a `T?`, `null` out
+  of range, narrowed like a list's), `set_at`, `remove_at`, `remove_swapping(index)` (the last item moves into `index`), `count`, `is_empty`,
   `clear`, `copy`, `deep_copy`, and the `each_`/`map_`/`filter_`/`count_`/`any_`/`all_`/`sum_`/`parallel_each_`
-  templates; `each(f)` forms only for numbers, `Boolean` and enums). Then one column class serves every component,
+  templates; no `each(f)` forms). Then one column class serves every component,
   and the walked row's line is
   `Column<attribute.class>().values[found[attribute.index]]` for all of them, with no `fits_vector()` branch. The
   borrow rules above apply only to a type that fits; the error then starts `'Velocity' fits a Vector, so the
   items of 'velocities' are borrowed: ...`.
 - A system may take components as arguments (`update_each(position: Position, velocity: Velocity)`); the runner
   passes them with `system.phase_each(made_arguments(found))` on a line of its own, where `made_argument(argument:
-  Symbol<$system_type.phase_each>, rows: Items<Integer>): argument.class` is the one line `return
+  Symbol<$system_type.phase_each>, rows: List<Integer>): argument.class` is `crash rows[argument.index]`, `crash
+  Column<argument.class>().values[rows[argument.index]]` and `return
   Column<argument.class>().values[rows[argument.index]]` (an `if` on `argument.class == Entity` may choose another
   line, such as `return Entity(entity)`). The items are borrowed for that one call only (D220): the system may not
   keep them or resize their columns, and calling `made_position(...)` anywhere else is the error for returning a
@@ -336,7 +345,9 @@ func is_alive(): Boolean {
 - `person.age = 1` calls `set_age(1)` and `person.age` calls `get_age()` when the class has them.
 - Operators are functions a class may define: `sum`, `subtract`, `multiply`, `divide`, `remainder`, `equals`,
   `less_than`, `greater_than`, `negate`, `get_at(index)`, `set_at(index, value)`. Without `equals`, `==` compares
-  identity.
+  identity. `a[x]` calls `get_at(x)`, which must answer a `T?` (`func get_at(index: Integer): Integer?`, `null` when
+  nothing is there); a plain `T` is an error. A read through your own class is narrowed by what you write (`crash
+  shelf[0]`): a loop over `shelf.count()` proves nothing about it.
 - Codegen values: `generic $damage_type` and `generic $is_magic`, one per line at the top of `weapon.spite`, and
   `Weapon<Integer, true>(10)` supplies them in that order; `Pair("a", 1)` may leave them out when the constructor's
   arguments say them (through `$T`, `$T?`, `List<$T>`, `Dictionary<$T>` or a function value). The constructor
@@ -421,7 +432,7 @@ between frames, or where one's value is read or its handle dropped. A loop polli
 reads back only as a name the program already uses. Writing a `Float` or `Double` that is infinity or not-a-number
 to JSON crashes naming the attribute (`'Order.price' is infinity, which JSON cannot hold`): check the number first
 if `null` is wanted. **Between Spite programs, and for files a Spite program reads back, use bytes instead**:
-`BinaryWriter(value).write(): Vector<Byte>` (or `append_to(bytes)` to add to a buffer you have) and
+`BinaryWriter(value).write(): List<Byte>` (or `append_to(bytes)` to add to a buffer you have) and
 `BinaryReader<T>(bytes).read(): T?`, which reads the next value each call and is `null` on bytes that are not a `T`;
 a quarter of JSON's size and more than ten times faster, with no keys, so both ends must be built from the same
 classes. `read_memory(address, count)` reads straight from a socket's buffer. To catch two ends built from

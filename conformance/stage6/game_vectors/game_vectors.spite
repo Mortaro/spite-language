@@ -27,6 +27,7 @@ func three() {
     var positions = Vector<Vector3>()
     positions.append(first)
     positions.append(second)
+    crash positions.count() == 2
     var stored = positions[1]
     console.print("in a Vector column {stored.x_value} {positions.count()}")
 }

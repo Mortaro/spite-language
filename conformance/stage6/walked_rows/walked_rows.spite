@@ -11,6 +11,8 @@ func WalkedRows() {
     runner.run(mover)
     var index = 0
     while index < world.size() {
+        crash world.position[index]
+        crash world.velocity[index]
         var position = world.position[index]
         var velocity = world.velocity[index]
         console.print("entity", index, "left", position.left, "across", velocity.across)

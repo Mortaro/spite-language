@@ -288,10 +288,14 @@ error.
 ### Reading with `[]` answers `T?`
 
 An index or a key may not be there, so `names[index]` and `table["key"]` are `T?` and are narrowed like any other
-path. The compiler also understands the usual proofs, so most reads need nothing extra:
+path. Every `[]` answers this way ([D225](decisions.md)): a `List`, a `Dictionary`, a `Vector`, an `Items`, and any
+class of your own, since `a[x]` is only a shortcut for `a.get_at(x)` and every `get_at` answers a `T?`
+([D226](decisions.md), [functions_and_operators.md](functions_and_operators.md#operators--implemented)). The
+compiler also understands the usual proofs for the library's collections, so most reads need nothing extra:
 
 - **A proven count proves the indices below it**: after `crash names.count() == 3`, `names[0]` to `names[2]`
-  are plain values.
+  are plain values, and so are `sizes[0]` to `sizes[2]` after `var sizes = [3, 5, 8]`: a list literal proves the
+  indices of its items until the list or its name changes.
 - **A bound proves its index**: `while index < names.count()` proves `names[index]` in the loop body, and
   `while index < lines.count() and lines[index] != "end"` needs nothing more.
 - **The index may be any expression without a call**: `crash glyphs[code - 32]` proves `glyphs[code - 32]`
@@ -302,6 +306,9 @@ path. The compiler also understands the usual proofs, so most reads need nothing
   simply go.
 - A `Boolean?` cannot be a condition: `if flags[index]` would test that the element is there, not that it is true.
   Prove it is there first, or compare it: `flags[index] == true`.
+- **A class of your own is proven by what you write.** The compiler knows what `count()` and `get_at` mean for the
+  library's collections only, so `while index < shelf.count()` proves nothing about `shelf[index]` when `Shelf`
+  is yours: narrow the read with `crash`, `assert` or `if` (`conformance/stage6/indexable_class`).
 
 Every case, with its exact messages, is in [the rules](#null-safety-and-assert-narrowing--implemented). A proven
 read still checks its bounds at run time, so a proof removes a line of source, not a safety check.
@@ -815,8 +822,22 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   attribute's list is not tracked (a proven read still checks its bounds). Inside a `while`, a call that undoes a
   proof made before the loop and read inside it is an error naming the call (`diagnostics/call_undoes_proof`).
   All of it happens while compiling; nothing is emitted. **[implemented]**
-- **A proven read still checks its bounds at runtime** and answers the default out of range, so a counter that
-  went negative gives a wrong value rather than reading memory it does not own.
+- **A proven read still checks its bounds at runtime** -- the read is the collection's `get_at`, which compares
+  the index once -- and needs no second test of the `T?` it answers: out of range it gives an empty value (zero, or
+  no object) rather than reading memory it does not own, so a counter that went negative gives a wrong value.
+- **Every `[]` answers `T?`** (D225, decided by Mortaro, 2026-09-26: "any [] should return a T? and needs to be
+  asserted"; D226: "keep in mind [] is just a shortcut for a function so users can also implement []able
+  classes"). `List`, `Dictionary`, `Vector` and `Items` alike, and every class that declares `get_at`: the
+  function must answer a `T?`, and one declared with a plain `T` is `'get_at' answers 'Integer', but it is what
+  '[ ]' calls, and every '[ ]' answers a 'T?' that is narrowed before use: declare it to answer 'Integer?', and
+  answer null when nothing is at the index` (`diagnostics/plain_get_at`). The proofs above -- counts, bounds, a
+  literal's items, D169's call effects and D222's counted loops -- hold for the library's collections, whose
+  `count()` and `get_at` the compiler knows; a read through a program's own `get_at` is narrowed only by what the
+  program writes (`diagnostics/indexable_unproven`; proposed by Claude, unconfirmed: a class that declares
+  `count()` and whose `get_at` answers `null` exactly outside `0..count()` could earn the same proofs later). A
+  list literal proving its indices is proposed by Claude, unconfirmed (D225 asks that proofs the compiler holds
+  count). Calling `get_at(index)` by name answers the same `T?`, but a call is not a path, so narrow `list[index]`
+  instead.
 - **A `Boolean?` cannot be a condition** -- not in `if`, `while`, `assert` or `crash`, and not under `not`, `and`
   or `or`: `if flags[index]` would test that the element is there, not that it is true, and the two mean
   opposite things for `false`. Prove the element is there first, or `switch` over it; `== true` also works,

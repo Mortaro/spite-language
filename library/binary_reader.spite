@@ -1,11 +1,11 @@
 generic $value_type
 
-var bytes: Vector<Byte>? = null
+var bytes: List<Byte>? = null
 var position = 0
 var format = BinaryFormat<$value_type>()
 var input = BinaryInput()
 
-func BinaryReader(source: Vector<Byte>?) {
+func BinaryReader(source: List<Byte>?) {
     bytes = source
 }
 

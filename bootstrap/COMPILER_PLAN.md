@@ -514,3 +514,20 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   `SpiteString`, a shape passed to a foreign library) and every `->member`. The hand-written C that names a
   Spite member or parameter says so (`->_bytes_`, `->item_count_`, `address_`, `count_` in `Prelude`, the
   `TypedMemory` and `HotReload` bodies). `reserved_names` and its diagnostic are gone.
+- 2026-09-26 (D225, D226): `generate_index_read` reads a `List`'s `[]` through the list class's `get_at` and types
+  it from the element (`T?`), and `proven_read` unwraps it when a proof holds -- a range proof unwraps an element
+  that is not itself a `T?`, a presence proof (`crash`/`assert`/`if`) unwraps either. `Vector` and `Items` reads take
+  the same path (`is_library_collection`); a program's own `get_at` is unwrapped only by a presence proof.
+  `report_plain_get_at` (in `resolve_function`) refuses a `get_at` whose return type is not nullable, and
+  `check_plain_items` (on instantiation) refuses a `Vector` or `Items` of a number, `Boolean`, enum or
+  `Memory.Address`. `narrow_literal_indices` proves a list literal's indices after its `var`. `operand_text` prints
+  a no-argument generic singleton call as a path root (`is_generic_singleton_call`), so `crash
+  Column<Position>().values[found[1]]` narrows that read. A walked row's template (`walked_assignment`,
+  `walk_checks`, `emit_walked_checks`) and a lent argument's (`walk_lent_checks`) may lead with `crash` lines,
+  walked per attribute and written before the row or the call; `emit_cached_check` reads each such
+  line's item once into a temporary, and `generate_index_read` answers the same path from that temporary
+  (`cached_walked_read`) until the row or call is written (`forget_walked_reads`), so the check costs no second read. `library_list_field` lets `library/` code read and
+  write a `List`'s own attributes (`items`, `item_count`), which the binary classes use on a `List<Byte>`. The
+  counted loop is `List`-only (`counted_element_type`), and an explicit `get_at` call there is an ordinary call.
+  Landed in two seeds: the first read `[]` through whichever reader the library had (`find_at` or `get_at`), so
+  the library could then drop `find_at`.

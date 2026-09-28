@@ -2,10 +2,10 @@ var console = Console()
 var clock = Clock()
 var move = System.Move()
 var regenerate = System.Regenerate()
-var position_rows = Vector<Integer>()
-var velocity_rows = Vector<Integer>()
-var health_rows = Vector<Integer>()
-var regeneration_rows = Vector<Integer>()
+var position_rows = List<Integer>()
+var velocity_rows = List<Integer>()
+var health_rows = List<Integer>()
+var regeneration_rows = List<Integer>()
 var packed_positions = Vector<Component.Position>()
 var packed_velocities = Vector<Component.Velocity>()
 var packed_healths = Vector<Component.Health>()
@@ -39,8 +39,11 @@ func VectorRows() {
     console.print("Vector columns and borrowed rows, microseconds per tick", packed_microseconds)
     console.print("List columns and a reused row object, microseconds per tick", listed_microseconds)
     var last = packed_positions.count() - 2
+    crash packed_positions[last]
     var packed_left: Integer = packed_positions[last].left
-    var packed_amount = packed_healths[packed_healths.count() - 1].amount
+    var final_health = packed_healths.count() - 1
+    crash packed_healths[final_health]
+    var packed_amount = packed_healths[final_health].amount
     crash listed_positions[last]
     var listed_left: Integer = listed_positions[last].left
     console.print("left", packed_left, listed_left, "health", packed_amount)
@@ -74,16 +77,18 @@ func spawn(entity: Integer) {
 
 func packed_tick() {
     var entity = 0
-    while entity < position_rows.count() {
+    while entity < position_rows.count() and entity < velocity_rows.count() and entity < health_rows.count() and entity < regeneration_rows.count() {
         var position_row = position_rows[entity]
         var velocity_row = velocity_rows[entity]
         if position_row >= 0 and velocity_row >= 0 {
+            crash packed_positions[position_row] and packed_velocities[velocity_row]
             var moving = {position: packed_positions[position_row], velocity: packed_velocities[velocity_row]}
             move.update_each(moving)
         }
         var health_row = health_rows[entity]
         var regeneration_row = regeneration_rows[entity]
         if health_row >= 0 and regeneration_row >= 0 {
+            crash packed_healths[health_row] and packed_regenerations[regeneration_row]
             var mending = {health: packed_healths[health_row], regeneration: packed_regenerations[regeneration_row]}
             regenerate.update_each(mending)
         }
@@ -95,7 +100,7 @@ func listed_tick() {
     var moving = MovingRow()
     var mending = MendingRow()
     var entity = 0
-    while entity < position_rows.count() {
+    while entity < position_rows.count() and entity < velocity_rows.count() and entity < health_rows.count() and entity < regeneration_rows.count() {
         var position_row = position_rows[entity]
         var velocity_row = velocity_rows[entity]
         if position_row >= 0 and velocity_row >= 0 {

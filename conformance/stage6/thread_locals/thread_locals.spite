@@ -17,7 +17,7 @@ func ThreadLocals() {
     var every_one = true
     index = 0
     while index < runs.count() {
-        var kept: Boolean = runs.get_at(index)
+        var kept: Boolean = runs[index]
         every_one = every_one and kept
         index = index + 1
     }

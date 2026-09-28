@@ -39,6 +39,8 @@ func spawn(entity: Integer) {
 func report(entity: Integer) {
     var dense = positions.dense_index(entity)
     var trail_dense = trails.dense_index(entity)
+    crash trails.values[trail_dense]
+    crash positions.values[dense]
     var trail = trails.values[trail_dense]
     var lefts = trail.lefts.join(" ")
     var steps = "[{lefts}]"

@@ -1,4 +1,5 @@
 func grow_from(other: Vector<$element_type>) {
+    crash other[0]
     var first = other[0]
     other.append(first)
     append(first)

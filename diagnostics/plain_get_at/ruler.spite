@@ -1,0 +1,3 @@
+func get_at(index: Integer): Integer {
+    return index * 10
+}

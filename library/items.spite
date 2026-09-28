@@ -25,10 +25,8 @@ func append(value: $element_type) {
     item_count = item_count + 1
 }
 
-func get_at(index: Integer): $element_type {
-    if index < 0 or index >= item_count {
-        _out_of_range(index)
-    }
+func get_at(index: Integer): $element_type? {
+    assert index >= 0 and index < item_count
     if $element_type.fits_vector() {
         return inline.item_at(items, index)
     }

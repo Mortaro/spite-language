@@ -5,7 +5,7 @@ enum Phase {
     'update'
 }
 
-var found = Items<Integer>()
+var found = List<Integer>()
 
 func run(system: $system_type, entity_count: Integer) {
     run_phases_each(system, entity_count)
@@ -27,7 +27,7 @@ func find_attribute(attribute: Symbol<$row_type>, entity: Integer) {
     found.append(dense)
 }
 
-func streamed_argument(argument: Symbol<$system_type.phase_each>, rows: Items<Integer>): argument.class {
+func streamed_argument(argument: Symbol<$system_type.phase_each>, rows: List<Integer>): argument.class {
     if argument.class == $row_type {
         var row: $row_type = null
         fill_attributes(row, rows)
@@ -37,6 +37,8 @@ func streamed_argument(argument: Symbol<$system_type.phase_each>, rows: Items<In
     return other
 }
 
-func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Items<Integer>) {
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Integer>) {
+    crash rows[attribute.index]
+    crash Column<attribute.class>().values[rows[attribute.index]]
     row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
 }

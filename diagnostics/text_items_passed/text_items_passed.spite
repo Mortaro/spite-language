@@ -1,0 +1,14 @@
+var console = Console()
+var names = Vector<String>()
+var labels = Items<String>()
+
+func TextItemsPassed() {
+    names.append("Ada")
+    names.each(greet)
+    labels.append("Grace")
+    labels.each(greet)
+}
+
+func greet(name: String) {
+    console.print(name)
+}

@@ -1,0 +1,10 @@
+func count(): Integer {
+    return 3
+}
+
+func get_at(index: Integer): Integer? {
+    if index >= 0 and index < 3 {
+        return index * 10
+    }
+    return null
+}

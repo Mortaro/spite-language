@@ -22,11 +22,14 @@ func equals(other: Displacement): Boolean {
     return x_component == other.x_component and y_component == other.y_component
 }
 
-func get_at(index: Integer): Float {
+func get_at(index: Integer): Float? {
     if index == 0 {
         return x_component
     }
-    return y_component
+    if index == 1 {
+        return y_component
+    }
+    return null
 }
 
 func set_at(index: Integer, value: Float) {

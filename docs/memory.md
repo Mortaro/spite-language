@@ -83,10 +83,10 @@ costs nothing. In exchange the compiler never lets it be kept -- in an attribute
 function value, or past a line that may grow or shrink the vector -- and each of those errors names `copy()`,
 which makes an independent object ([the rules](#borrowed-items-of-a-vectort--implemented)).
 
-Only an item that is a class is lent. An item that is a plain value -- a number, a `Boolean`, an enum -- is
-copied as it is read ([D221](decisions.md)): `var count = counts[index]` is a number of its own, as reading a
-list's number is, so it may be kept, passed, returned and read after `counts` grows, and a vector of numbers takes
-a passed function (`counts.each(found.append)`, `weights.filter(is_heavy).sum(double_of)`) as a list does.
+Only a class is lent: numbers, `Boolean`s and enums are kept in a `List`, never a `Vector`
+([D225](decisions.md)), and reading one gives a number of its own. `velocities[index]`, like every `[]`, answers a
+`T?`, so an item is lent once the read is narrowed -- by `crash velocities[index]`, or by a proof such as the loop
+bound `index < velocities.count()`.
 
 ### A row of borrowed items, for one call
 
@@ -125,6 +125,7 @@ func VectorRowDoc() {
     positions.append(position)
     var velocity = Velocity(2.5)
     velocities.append(velocity)
+    crash positions[0] and velocities[0]
     var tick = 0
     while tick < 4 {
         var row: Moving = {position: positions[0], velocity: velocities[0]}
@@ -194,6 +195,7 @@ func run(mover: Mover) {
 }
 
 func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, index: Integer) {
+    crash columns.attributes[attribute][index]
     row.attributes[attribute] = columns.attributes[attribute][index]
 }
 ```
@@ -210,6 +212,7 @@ func WalkedRowDoc() {
     columns.velocity.append(velocity)
     runner.run(mover)
     runner.run(mover)
+    crash columns.position[0]
     console.print(columns.position[0].left)
 }
 ```
@@ -217,17 +220,22 @@ func WalkedRowDoc() {
 5
 ```
 
-The compiler writes the walk out where it is called: for `Runner<Moving>` the two lines become
-`var row: Moving = {position: columns.position[index], velocity: columns.velocity[index]}`, so the row costs what
-the literal costs and follows the same rules, and `fill_attribute` is never called.
+Every `[]` answers a `T?` ([D225](decisions.md)) and a row's attributes are items, so the template states each
+read with a `crash` line before the fill: nothing the walk knows proves that `index` is inside each column. The
+compiler writes the walk out where it is called: for `Runner<Moving>` the two lines become `crash
+columns.position[index]`, `crash columns.velocity[index]` and `var row: Moving = {position:
+columns.position[index], velocity: columns.velocity[index]}`, where each `crash` line's read is made once and
+the literal uses it, so the row costs what the literal costs, follows the same rules, and `fill_attribute` is
+never called.
 
 An engine that adds and removes components all the time keeps each one in a **sparse set**: a generic singleton
 `Column<Position>` whose `Vector` is packed, so each entity sits at a different place in each column. The runner
 works out those places first, one per attribute, and the walk's line reads each attribute from its own column at
 its own place: `Column<attribute.class>().values[found[attribute.index]]`, where `attribute.index` is the
-attribute's place in the `type` ([D217](decisions.md)). The places are numbers, copied as they are read, so they
-may come from any `Vector<Integer>` -- the runner's own, or another object's, `fill_attributes(row,
-matcher.rows)` ([D221](decisions.md)). A class that cannot be a `Vector` item stays a reference
+attribute's place in the `type` ([D217](decisions.md)), after one `crash` line for the place and one for the item.
+A generic singleton made with no arguments is the same object every time, so `Column<Position>()` starts a path
+that `crash` narrows like a name. The places are numbers in a `List`, so they may come from any `List<Integer>`
+-- the runner's own, or another object's, `fill_attributes(row, matcher.rows)` ([D221](decisions.md)). A class that cannot be a `Vector` item stays a reference
 in a `List`, `attribute.class.fits_vector()` choosing while compiling, and the row may hold it beside the borrowed
 items, as it may hold an `Entity` made from the id:
 
@@ -318,7 +326,7 @@ func at(dense: Integer): $component_type {
 ```gdscript title=sparse_row_doc/runner.spite
 generic $row_type
 
-var found = Vector<Integer>()
+var found = List<Integer>()
 
 func run(mover: Mover, entity_count: Integer) {
     var entity = 0
@@ -346,12 +354,15 @@ func find_attribute(attribute: Symbol<$row_type>, entity: Integer) {
     }
 }
 
-func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Vector<Integer>, entity: Integer) {
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Integer>, entity: Integer) {
     if attribute.class == Entity {
         row.attributes[attribute] = Entity(entity)
     } else if attribute.class.fits_vector() {
+        crash rows[attribute.index]
+        crash Column<attribute.class>().values[rows[attribute.index]]
         row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
     } else {
+        crash rows[attribute.index]
         row.attributes[attribute] = ReferenceColumn<attribute.class>().at(rows[attribute.index])
     }
 }
@@ -402,10 +413,12 @@ the class fits and by reference when it does not ([D218](decisions.md)), so one 
 `var values = Items<$component_type>()` serves every component, and the fill template needs no `fits_vector()`:
 
 ```gdscript
-func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Items<Integer>, entity: Integer) {
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Integer>, entity: Integer) {
     if attribute.class == Entity {
         row.attributes[attribute] = Entity(entity)
     } else {
+        crash rows[attribute.index]
+        crash Column<attribute.class>().values[rows[attribute.index]]
         row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
     }
 }
@@ -456,7 +469,7 @@ enum Phase {
 }
 
 var system: $system_type = null
-var found = Items<Integer>()
+var found = List<Integer>()
 
 func run(index: Integer) {
     found.clear()
@@ -469,7 +482,9 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
     system.phase_each(made_arguments(found))
 }
 
-func made_argument(argument: Symbol<$system_type.phase_each>, rows: Items<Integer>): argument.class {
+func made_argument(argument: Symbol<$system_type.phase_each>, rows: List<Integer>): argument.class {
+    crash rows[argument.index]
+    crash Column<argument.class>().values[rows[argument.index]]
     return Column<argument.class>().values[rows[argument.index]]
 }
 ```
@@ -486,6 +501,7 @@ func LentArgumentsDoc() {
     velocities.values.append(velocity)
     runner.run(0)
     runner.run(0)
+    crash positions.values[0]
     console.print(positions.values[0].left)
 }
 ```
@@ -1144,19 +1160,15 @@ kept past its use. What is built (the error texts and the readings marked are pr
   object would lay them out, with no header, no class and no reference count, one after another
   (`InlineMemory<T>`, `library/inline_memory.spite`, whose functions the compiler writes per item type). A vector
   of numbers, `Boolean`s, enums or `String`s is a plain array of them, like a list's buffer.
-- **Only a class is borrowed; a plain value is copied** (D221, decided by Claude under D205 and D214; the
-  readings below proposed by Claude, unconfirmed). An item of a `Vector<T>` or an `Items<T>` whose `T` is a plain
-  value -- a whole number of any size, `Float`, `Double`, `Boolean`, an enum, `Memory.Address` -- is copied when
-  it is read and never borrowed: none of the rules below applies to it, so `var first = numbers[0]` may be kept in
-  an attribute or a list, returned, passed, given a second name, captured and read after `numbers` grows, as a
-  list's number may. The passed-function forms `each`, `map`, `filter`, `count`, `any`, `all` and `sum` work on
-  such a vector or `Items` as on a list ([collections.md](collections.md#passing-a-function-for-each-element)),
-  and a list's own functions may be passed (`numbers.each(found.append)`). A `String` is not a plain value for
-  this rule: it is read as a counted reference, as a list's is, which is safe, but the passed-function forms stay
-  a list's, the conservative choice (a `String` item holds a reference to its text beyond 15 bytes). Nothing is
-  weakened: a copied number cannot outlive or be moved away from anything, and a copy of eight bytes costs no
-  more than an address. `conformance/stage6/plain_items`, `diagnostics/plain_items`.
-- **A borrowed item** is what `vector[index]`, `vector.get_at(index)` and the item a member template visits are.
+- **Only a class is borrowed** (D221, decided by Claude under D205 and D214, which copied a plain item as it was
+  read; D225, decided by Mortaro, then moved plain values out of `Vector` and `Items` altogether). A whole number
+  of any size, `Float`, `Double`, `Boolean`, an enum or `Memory.Address` is kept in a `List`, and
+  `Vector<Integer>` or `Items<Integer>` is an error naming `List<Integer>`, so every item of a `Vector` is a class
+  or a `String`, read as a counted reference as a list's is. `conformance/stage6/plain_items`,
+  `diagnostics/plain_items`.
+- **A borrowed item** is what `vector[index]`, `vector.get_at(index)` and the item a member template visits are,
+  once the `T?` a read answers is narrowed (D225): `crash velocities[index]`, `assert`, `if`, or a proof the
+  compiler holds.
   It is the address of the item inside the block, and reading or writing its attributes (`first.down = 2.0`,
   `velocities[0].across`, `first.integrate()`) reads and writes the vector's own item. It is never retained or
   released: it costs nothing to take and nothing to let go.
@@ -1249,14 +1261,31 @@ kept past its use. What is built (the error texts and the readings marked are pr
 - **A row filled by a walk** (D212, decided by Claude under D205; the readings below proposed by Claude,
   unconfirmed). A local declared as a `type` with `= null` (`var row: $row_type = null`) and filled on the very next
   line by a plural walk of its own class (`fill_attributes(row, index)`, whose template ranges over that `type`
-  with `attribute: Symbol<$row_type>`) is a row when the walk writes out to one: the template's body is the one
-  statement `row.attributes[attribute] = <value>`, the value built from `<object>.attributes[attribute]` (read as
+  with `attribute: Symbol<$row_type>`) is a row when the walk writes out to one: the template's body is the
+  statement `row.attributes[attribute] = <value>`, after any number of `crash` lines, the value built from `<object>.attributes[attribute]` (read as
   `<object>.<the attribute's name>`), member reads, `[ ]`, the template's other parameters and whole numbers, and
   the call's arguments are the row and names, attribute paths (`matcher.rows`, D221) or number or `Boolean`
-  literals. The compiler then writes the literal
-  in place of the two lines, one attribute for each attribute of the `type` in its order
-  (`{position: columns.position[index], velocity: columns.velocity[index]}`), and every rule above applies to it
-  unchanged, the check for a resize starting on the line after the walk. The template is not called, so it is not
+  literals. The compiler then writes, in place of the two lines, each attribute's `crash` lines walked as the
+  value is (`crash columns.position[index]`), then the literal, one attribute for each attribute of the `type` in
+  its order (`{position: columns.position[index], velocity: columns.velocity[index]}`), and every rule above
+  applies to it unchanged, the check for a resize starting on the line after the walk.
+  **A walked read is narrowed by the template's `crash` lines** (proposed by Claude, unconfirmed, under D225:
+  every `[]` answers `T?`, and a row's attribute is an item, never a `T?`). The walk cannot prove its index -- the
+  places come from a list the runner filled, and nothing the compiler knows ties them to the columns' counts -- so
+  the template states each read it relies on, innermost first (`crash rows[attribute.index]`, then `crash
+  Column<attribute.class>().values[rows[attribute.index]]`); a read the lines do not narrow is the usual `this
+  value may be null` error on the walk's line. The lines sit inside the branch they narrow, so a template that
+  chooses per attribute keeps its shape (`if attribute.class.fits_vector() { crash ...; row.attributes[attribute] =
+  Column<attribute.class>().values[...] } else { crash ...; row.attributes[attribute] =
+  ReferenceColumn<attribute.class>().values[...] }`), and a reference read from a `List` column is narrowed the same
+  way. A `crash` line is walked like the fill line, and a generic
+  singleton made with no arguments is a path root (`Column<Position>().values[found[1]]` narrows like a name's
+  read), so each line narrows the very read the literal makes. Cost: none beyond D218's: a walked `crash` line
+  reads the item once into a local and tests it, and the literal (or the lent argument) uses that local instead
+  of reading again, so a row costs one compare per read, as D218's halting `[]` did; the borrowed items, the
+  frame-made row and the resize check are unchanged (`benchmarks/matched_rows`, `benchmarks/sparse_rows`,
+  `benchmarks/lent_arguments`, run against the compiler before D225: no tick slower beyond the run-to-run
+  noise). The template is not called, so it is not
   compiled for that walk. A walk of any other shape leaves the local an ordinary `type` value, and storing a
   borrowed item in it is the error for keeping one. Nothing runs for it: the rewrite is done while compiling.
 - **A walked row over sparse columns** (D217, decided by Claude under D205; the names `attribute.index` and
@@ -1270,8 +1299,8 @@ kept past its use. What is built (the error texts and the readings marked are pr
     included (the D144 and D110 errors leave it out).
   - **The place of the attribute.** `attribute.index` is the attribute's place among those walked, from 0, a
     constant written into the line (`found[attribute.index]` becomes `found[1]`), and it may be read in any
-    function a walk of attributes calls. The places are read from a `Vector<Integer>` or `Items<Integer>`, whose
-    items are copied (D221), so the vector may be any object's: the runner's own attribute, a walk argument such
+    function a walk of attributes calls. The places are read from a `List<Integer>` (a `Vector` or `Items` of
+    them until D225), whose numbers are values of their own, so the list may be any object's: the runner's own attribute, a walk argument such
     as `matcher.rows`, or `matcher.rows[attribute.index]` read in the line itself. It is read once, when the row is
     made, and no rule of the row reaches it; a runner no longer copies another object's places into its own
     vector first. `benchmarks/matched_rows`: 200 000 entities, two systems, 6.8 ms a tick reading the places
@@ -1283,10 +1312,10 @@ kept past its use. What is built (the error texts and the readings marked are pr
     of a walk that would borrow is `'row' is a row filled by the walk on the next line, and its line for
     'position' reads 'attribute.index + 1', which a walked row cannot write out: ... so work out 'attribute.index
     + 1' before the walk and pass it in`.
-  - **A choice per attribute.** The template's one statement may be an `if` whose conditions are decided while
+  - **A choice per attribute.** The template's statement may be an `if` whose conditions are decided while
     compiling for each attribute -- `attribute.class == Entity`, `attribute.class.fits_vector()`,
-    `attribute.class.has_function(...)` -- each branch holding one such line; the branch taken for an attribute is
-    the line written out for it.
+    `attribute.class.has_function(...)` -- each branch holding one such line and its `crash` lines; the branch
+    taken for an attribute is what is written out for it.
   - **Mixed attributes.** Beside borrowed items, an attribute of a walked row may hold any other value. A
     construction of a class that could be a `Vector` item and holds nothing counted (`Entity(entity)`) is made in
     the frame, never allocated, and is borrowed like the items: it lives exactly as long as the row, and its
@@ -1315,7 +1344,9 @@ kept past its use. What is built (the error texts and the readings marked are pr
   one call, and its results may carry borrowed items into it. For each argument in order, the compiler folds the
   template's body for that argument (an `if` decided while compiling keeps only its branch, as in a walked row)
   and writes it out before the call when what is left is:
-  - **one `return` of a walked line**, built as a walked row's line is (`<value>.attributes[...]` aside):
+  - **one `return` of a walked line**, after any `crash` lines that narrow its reads (written out before the
+    call, walked for each argument, as a walked row's are), built as a walked row's line is
+    (`<value>.attributes[...]` aside):
     attribute reads, `[ ]`, calls and constructions, the template's other parameters (read as the plural's
     arguments), `argument.index` and whole numbers, with `Column<argument.class>()` the singleton made with the
     argument's class -- `return Column<argument.class>().values[rows[argument.index]]`. It is a local of the call;

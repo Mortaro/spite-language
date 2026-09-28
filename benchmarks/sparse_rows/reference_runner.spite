@@ -1,7 +1,7 @@
 generic $row_type
 generic $system_type
 
-var found = Vector<Integer>()
+var found = List<Integer>()
 var missing = false
 
 func run(system: $system_type, row: $row_type, entity_count: Integer) {
@@ -27,6 +27,7 @@ func find_attribute(attribute: Symbol<$row_type>, entity: Integer) {
     found.append(dense)
 }
 
-func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Vector<Integer>) {
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Integer>) {
+    crash rows[attribute.index]
     row.attributes[attribute] = ReferenceColumn<attribute.class>().at(rows[attribute.index])
 }

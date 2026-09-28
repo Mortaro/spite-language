@@ -28,7 +28,6 @@ func shrinking() {
 
 func passing() {
     var local_names = ["grace"]
-    crash local_names[0]
     empty(local_names)
     var first = local_names[0]
     console.print(first)
