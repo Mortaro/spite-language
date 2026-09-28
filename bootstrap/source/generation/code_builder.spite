@@ -86,6 +86,9 @@ func typedef_count(): Integer {
 
 func replace_typedef(position: Integer, line: String) {
     typedefs.set_at(position, line)
+    if position < scanned_typedefs {
+        scan_names(line)
+    }
 }
 
 func add_prototype(line: String) {
@@ -115,6 +118,9 @@ func support_at(position: Integer): String {
 
 func replace_support(position: Integer, line: String) {
     support_bodies.set_at(position, line)
+    if position < scanned_support {
+        scan_names(line)
+    }
 }
 
 func add_user(line: String) {
