@@ -502,8 +502,8 @@ the entry class's own Spite name). Built:
   which must end the expression. A call that answers a value is walked on like any path,
   `World().position_of(1).across`, and it runs once; a call that answers `Nothing` ends the expression, and a
   path after one is refused after it ran: `World().spawn() ran, and it answers nothing, so nothing can follow it`
-  (D284, decided by Claude under D205, implementing D242).
-- **singletons by name** (D284, decided by Claude under D205, implementing D242). A call whose name starts with a
+  (D285, decided by Claude under D205, implementing D242).
+- **singletons by name** (D285, decided by Claude under D205, implementing D242). A call whose name starts with a
   capital letter, alone or after a namespace (`World()`, `Ui.Panel()`, `Column<Position>()`), names a singleton
   class and binds the one instance the program holds, as the program's own `var world = World()` does; a path,
   call or assignment continues from it (`Tick().step_milliseconds = 50`). It never makes an instance: a singleton
@@ -540,7 +540,7 @@ the entry class's own Spite name). Built:
   prompt can call: 'classes' lists the singletons, whose functions the prompt can call, such as
   World().entity_count()`, and `... which has no attributes`. A function whose name starts with `_` is private to
   its class and `drop()` runs only when a value is released, so the prompt neither lists nor calls either:
-  `'_swap' is private to values, and the prompt calls what code outside the class may call`. `classes` (D284) answers the singletons the prompt
+  `'_swap' is private to values, and the prompt calls what code outside the class may call`. `classes` (D285) answers the singletons the prompt
   can bind, `World()` a line with `not made yet` after one the program has not made, then the program's other
   classes a line each. Then `help`, `exit`, and `reload` and `last_reload`
   ([Live reload and 6b](#live-reload-and-6b--implemented-on-windows-the-mechanism-and-the-rules-below-proposed-by-claude-unconfirmed)).
