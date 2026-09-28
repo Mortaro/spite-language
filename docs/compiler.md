@@ -338,6 +338,17 @@ class is added (`namespace_walk` in the generator). A program whose dictionary k
 shaken, since the second pass writes it again. Every file is read once: the formatter formats the text the
 compile read. The compiler compiling itself, which has neither, takes 1.7 s of CPU, as before.
 
+Two more steps that were quadratic, found building SlopTheseus with `--hot-reload` (about 460 files; 880,000 lines
+of C for its server, 1.3 million for its client): which functions can reach a wait (D209) was worked out by
+sweeping every call the program makes until nothing changed, again for every question asked, and whether a
+function not yet written is called through a shape looked through every union for every such function on every
+sweep of the pending functions. A wait now spreads from the functions that wait to their callers once, through a
+table of who calls whom that only grows, and the shape question first asks a table of the names any shape calls.
+The server's whole compile went from 159 to 72 seconds (one generation pass from 48 to 17), the client's from
+268 to 110 (the C compiler's share included). A reload ([repl.md](repl.md#live-reload---hot-reload))
+skips the C of the whole program, which it never uses, and cuts the program's C into functions once rather than
+three times.
+
 Where a record's 104 lines go: 13 are its `fill` body; about 47 are the allocate, default, release and init
 functions of the record class and of its `Filler<...>` instance, 18 of them `#ifdef` blocks for instance tracking
 and weak references that the C preprocessor removes; 11 are prototypes, 7 the walk's step for that record, and

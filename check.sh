@@ -503,6 +503,16 @@ for attempt in $(seq 1 150); do
   sleep 0.2
 done
 [ "$grown" == '{"ok":true,"value":"Goblin growls","type":"String"}' ] || hot_fail "a function added by a reload was not callable: $grown"
+# A file that holds none of the program's classes -- here a reopening of Environment -- cannot be swapped in, and a
+# reload says so rather than answering that nothing changed (D244); once it is gone, nothing has changed again.
+printf 'var greeting_word = "hello"\n' > "$hot_folder/environment.spite"
+refused=$(ask reload)
+case "$refused" in
+  *"environment.spite' changed, and a reload swaps only the functions of the program's own classes"*) ;;
+  *) hot_fail "a reload of a new environment.spite answered $refused" ;;
+esac
+rm "$hot_folder/environment.spite"
+expect 'reload' '{"ok":true,"value":"nothing changed since the code the program runs","type":""}'
 expect 'exit' '{"ok":true,"value":"","type":""}'
 for attempt in $(seq 1 50); do kill -0 $served 2>/dev/null || break; sleep 0.2; done
 kill -0 $served 2>/dev/null && hot_fail "the program kept running after exit"
