@@ -327,6 +327,23 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 
 ### REPL and live reload  **[partial]**
 
+**Decided, not built ([D280](decisions.md), Mortaro): nothing needs a restart.** "the fact that anything needs a
+restart is a fault in language or engine design." Every refusal in [What a reload can change](#what-a-reload-can-change)
+is a gap to close, not a rule. The plan (proposed by Claude, unconfirmed), in the order Theseus meets them:
+1. **A class's attributes change**: the reload migrates every live instance to the new layout -- a
+   `--hot-reload` build already knows its instances ([reflection](reflection.md), `.instances`) -- copying kept
+   attributes by name, giving new ones their defaults and releasing removed ones; a component's column storage is
+   migrated the same way. A rename is written as a member-template function beside the attribute,
+   `func renamed_from_<attribute>(): String { return "old_name" }`, the same form as `json_key_<attribute>` (D273),
+   deleted once the program has reloaded.
+2. **Dependents are rebuilt**: a change whose dependents cannot be swapped alone compiles the whole program into
+   the reload library and re-points every slot, keeping the heap, instead of refusing.
+3. **Enums change**: stored values are re-mapped by name; a value removed while something still holds it is
+   refused naming the holder, as a stale value would otherwise be a silent wrong answer (D244).
+4. **`environment.spite` and `build.spite`**: a `Build` field is a constant folded into the code, so changing one is
+   step 2 -- the whole program recompiled with the new value and swapped in live.
+All of it lives only in a `--hot-reload` build (D143): a normal build carries none of it.
+
 A REPL that inspects and drives the *running* program, local (`--repl`) and remote (`--repl-port`), and live
 reload (`--hot-reload`, D111, D112). The REPL is Spite, `library/read_evaluate_print_loop.spite` (D72), walking the
 program through reflection; nothing of it is in a build that did not ask for it (D177, D143). **Built:** paths,
