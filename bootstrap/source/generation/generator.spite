@@ -35338,7 +35338,9 @@ func changed_snapshot(host_snapshot: Dictionary<String>, snapshot: Dictionary<St
     var index = 0
     while index < keys.count() {
         var key = keys[index]
-        if host_snapshot[key] != snapshot[key] and not key.starts_with("members ") and not key.starts_with("interface ") {
+        var compared_elsewhere = key.starts_with("members ") or key.starts_with("interface ")
+        var new_function = key.starts_with("effects ") and not host_snapshot.has(key)
+        if host_snapshot[key] != snapshot[key] and not compared_elsewhere and not new_function {
             return "{key} changed"
         }
         index = index + 1
