@@ -39,6 +39,181 @@ func effects_of(class_name: String, name: String): List<String> {
     return List<String>()
 }
 
+func effects_key(class_name: String, name: String): String {
+    var own_key = "{class_name}#{name}"
+    if by_function.has(own_key) {
+        return own_key
+    }
+    var any_key = "*#{name}"
+    if by_function.has(any_key) {
+        return any_key
+    }
+    return ""
+}
+
+func variadic_position_of(key: String): Integer {
+    var effects = by_function.get(key)
+    if not effects or effects.functions_studied != 1 {
+        return -2
+    }
+    return effects.variadic_position
+}
+
+func resolved_effects(key: String, classes: DispatchClasses, visiting: List<String>): List<String> {
+    var effects = by_function.get(key)
+    if not effects {
+        return List<String>()
+    }
+    if visiting.contains(key) or visiting.count() > 12 or effects.functions_studied != 1 or not classes.any_known() {
+        return effects.keys
+    }
+    visiting.append(key)
+    var gathered = FunctionEffects(key)
+    effects.own_keys.each(gathered.add)
+    var call_index = 0
+    while call_index < effects.calls.count() {
+        var call = effects.calls[call_index]
+        var called_keys = resolved_call_keys(call, effects, classes, visiting)
+        var key_index = 0
+        while key_index < called_keys.count() {
+            var translated = call.translated(called_keys[key_index])
+            if not translated.is_empty() {
+                gathered.add(translated)
+            }
+            key_index = key_index + 1
+        }
+        call_index = call_index + 1
+    }
+    visiting.remove_last()
+    return gathered.keys
+}
+
+func resolved_call_keys(
+    call: EffectCall,
+    caller: FunctionEffects,
+    classes: DispatchClasses,
+    visiting: List<String>,
+): List<String> {
+    var callee_key = resolved_key("{call.callee_class}#{call.callee}")
+    if callee_key.is_empty() {
+        return List<String>()
+    }
+    var dispatched = dispatched_classes(call, caller, classes)
+    if not dispatched.is_empty() {
+        return dispatched_keys(call.callee, dispatched)
+    }
+    var callee = by_function.get(callee_key)
+    crash callee
+    var passed = passed_classes(call, callee, classes)
+    if passed.any_known() {
+        return resolved_effects(callee_key, passed, visiting)
+    }
+    return callee.keys
+}
+
+func dispatched_classes(call: EffectCall, caller: FunctionEffects, classes: DispatchClasses): String {
+    var position = call.dispatch_parameter
+    if position < 0 {
+        return ""
+    }
+    var position_text: String = position
+    if not call.dispatch_element {
+        if not caller.kept_values.has(position_text) {
+            return ""
+        }
+        return classes.value_at(position)
+    }
+    var seen = List<String>()
+    if not list_kept_through(caller.key, position, seen) {
+        return ""
+    }
+    return classes.element_at(position)
+}
+
+func dispatched_keys(name: String, dispatched: String): List<String> {
+    var gathered = FunctionEffects(name)
+    var class_list = dispatched.split(",")
+    var index = 0
+    while index < class_list.count() {
+        var dispatched_key = resolved_key("{class_list[index]}#{name}")
+        var dispatched_effects = by_function.get(dispatched_key)
+        if dispatched_effects {
+            dispatched_effects.keys.each(gathered.add)
+        }
+        index = index + 1
+    }
+    return gathered.keys
+}
+
+func passed_classes(call: EffectCall, callee: FunctionEffects, classes: DispatchClasses): DispatchClasses {
+    var argument_count = call.arguments.count()
+    var passed = DispatchClasses(argument_count)
+    if callee.functions_studied != 1 {
+        return passed
+    }
+    var index = 0
+    while index < argument_count {
+        var argument = call.arguments[index]
+        crash argument
+        var spread = callee.variadic_position >= 0 and index >= callee.variadic_position
+        if argument.starts_with("parameter:") and not spread {
+            var argument_length = argument.length()
+            var position_text = argument.slice(10, argument_length)
+            var position = position_text.to_integer()
+            crash position
+            passed.values[index] = classes.value_at(position)
+            passed.elements[index] = classes.element_at(position)
+        }
+        index = index + 1
+    }
+    return passed
+}
+
+func list_kept_through(key: String, position: Integer, seen: List<String>): Boolean {
+    var effects = by_function.get(key)
+    if not effects or effects.functions_studied != 1 {
+        return false
+    }
+    var position_text: String = position
+    if not effects.kept_lists.has(position_text) {
+        return false
+    }
+    var seen_key = "{key}@{position}"
+    if seen.contains(seen_key) {
+        return true
+    }
+    seen.append(seen_key)
+    var passed_key = "parameter:{position}"
+    var call_index = 0
+    while call_index < effects.calls.count() {
+        var call = effects.calls[call_index]
+        var argument_index = 0
+        while argument_index < call.arguments.count() {
+            if call.arguments[argument_index] == passed_key {
+                if not handed_list_kept(call, argument_index, seen) {
+                    return false
+                }
+            }
+            argument_index = argument_index + 1
+        }
+        call_index = call_index + 1
+    }
+    return true
+}
+
+func handed_list_kept(call: EffectCall, argument_index: Integer, seen: List<String>): Boolean {
+    var callee_key = "{call.callee_class}#{call.callee}"
+    if call.callee_class == "*" or not by_function.has(callee_key) {
+        return false
+    }
+    var callee = by_function.get(callee_key)
+    crash callee
+    if callee.variadic_position >= 0 and argument_index >= callee.variadic_position {
+        return false
+    }
+    return list_kept_through(callee_key, argument_index, seen)
+}
+
 func record_fields(statements: List<Syntax.Statements.Statement>, class_name: String) {
     var index = 0
     while index < statements.count() {
@@ -293,6 +468,7 @@ func study_class(statements: List<Syntax.Statements.Statement>, class_name: Stri
             reader.in_constructor = function.name == class_name
             reader.take_parameters(function.parameters)
             reader.study_block(function.body)
+            reader.keep_parameters(function.parameters, function.body)
         }
         function_index = function_index + 1
     }
@@ -303,6 +479,7 @@ func settle() {
     while index < function_keys.count() {
         var effects = by_function.get(function_keys[index])
         crash effects
+        effects.own_keys = effects.keys.copy()
         link_calls(effects)
         index = index + 1
     }

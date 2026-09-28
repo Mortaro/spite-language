@@ -1,0 +1,15 @@
+var entity = 0
+var component: Anything? = null
+var positions = Column<Position>()
+
+func AddComponent(new_entity: Integer, new_component: Anything) {
+    entity = new_entity
+    component = new_component
+}
+
+func apply() {
+    crash component
+    if component == Position {
+        positions.insert(entity, component)
+    }
+}

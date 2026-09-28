@@ -279,7 +279,48 @@ func study_method_call(member: Syntax.Expressions.MemberExpression, argument_key
         receiver_class = member.name
     }
     var effect_call = EffectCall(receiver_class, member.name, argument_keys)
+    if receiver_class == "*" {
+        mark_dispatch(effect_call, member.object)
+    }
     calls.append(effect_call)
+}
+
+func mark_dispatch(effect_call: EffectCall, receiver: Syntax.Expressions.Expression) {
+    var named = shape.as_identifier(receiver)
+    var element = false
+    var indexed = shape.as_index(receiver)
+    if indexed {
+        crash indexed.object
+        named = shape.as_identifier(indexed.object)
+        element = true
+    }
+    assert named and not local_sources.has(named.name)
+    var position = parameter_position(named.name)
+    assert position >= 0
+    effect_call.dispatch_parameter = position
+    effect_call.dispatch_element = element
+}
+
+func keep_parameters(declared: List<Syntax.Statements.Parameter>, body: List<Syntax.Statements.Statement>) {
+    crash recorded
+    recorded.functions_studied = recorded.functions_studied + 1
+    var index = 0
+    while index < declared.count() {
+        var parameter = declared[index]
+        if parameter.is_variadic {
+            recorded.variadic_position = index
+        }
+        var uses = ParameterUses(parameter.name, parameters)
+        uses.study(body)
+        var position_text: String = index
+        if not uses.assigned {
+            recorded.kept_values.set(position_text, true)
+        }
+        if uses.list_kept {
+            recorded.kept_lists.set(position_text, true)
+        }
+        index = index + 1
+    }
 }
 
 func owner_class(expression: Syntax.Expressions.Expression): String {
@@ -438,9 +479,18 @@ func classify(expression: Syntax.Expressions.Expression): String {
     }
     var indexed = shape.as_index(expression)
     if indexed {
-        return "shrink:*"
+        crash indexed.object
+        var collection_key = classify(indexed.object)
+        return element_key(collection_key)
     }
     return "fresh"
+}
+
+func element_key(collection_key: String): String {
+    if not collection_key.starts_with("shrink:") or collection_key == "shrink:*" {
+        return "shrink:*"
+    }
+    return "{collection_key}[]"
 }
 
 func parameter_position(name: String): Integer {

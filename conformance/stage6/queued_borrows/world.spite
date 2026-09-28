@@ -1,0 +1,34 @@
+singleton
+
+type Command {
+    apply()
+}
+
+var buffers = List<List<Command>>()
+
+func queue(command: Command) {
+    if buffers.is_empty() {
+        var buffer = List<Command>()
+        buffers.append(buffer)
+    }
+    crash buffers[0]
+    buffers[0].append(command)
+}
+
+func queued(): Integer {
+    var commands = buffers.first()
+    crash commands
+    return commands.count()
+}
+
+func flush() {
+    var commands = buffers.first()
+    assert commands
+    var index = 0
+    while index < commands.count() {
+        var command = commands[index]
+        command.apply()
+        index = index + 1
+    }
+    commands.clear()
+}

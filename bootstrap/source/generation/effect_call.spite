@@ -1,6 +1,8 @@
 var callee_class = ""
 var callee = ""
 var arguments = List<String>()
+var dispatch_parameter = -1
+var dispatch_element = false
 var passes_parameters = false
 var caller = ""
 

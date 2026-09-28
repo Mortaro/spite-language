@@ -18200,7 +18200,7 @@ func dependency_changes(effect: String, dependency: String): Boolean {
     if effect == "field:*" {
         return not is_list
     }
-    if effect == "shrink:*" {
+    if effect == "shrink:*" or effect.starts_with("shrink:") and effect.ends_with("[]") {
         return is_list
     }
     var effect_length = effect.length()
@@ -20646,9 +20646,10 @@ func borrow_outlives_resize(
     class_information: Analysis.ClassInfo,
 ): Boolean {
     var index = start
+    var lookahead = Scope(scope)
     while index < statements.count() {
         var statement = statements[index]
-        var resize = resize_in_statement(statement, source, scope, class_information)
+        var resize = resize_in_statement(statement, source, lookahead, class_information)
         if not resize.is_empty() {
             var mentioned = List<String>()
             if shape.as_while_statement(statement) {
@@ -20666,13 +20667,23 @@ func borrow_outlives_resize(
                 )
                 return true
             }
-            if borrow_outlives_resize_within(name, source, statement, scope, class_information) {
+            if borrow_outlives_resize_within(name, source, statement, lookahead, class_information) {
                 return true
             }
         }
+        declare_ahead(statement, lookahead, class_information)
         index = index + 1
     }
     return false
+}
+
+func declare_ahead(statement: Syntax.Statements.Statement, lookahead: Scope, class_information: Analysis.ClassInfo) {
+    var declaration = shape.as_variable_declaration(statement)
+    assert declaration and not declaration.type_reference
+    crash declaration.value
+    var declared_type = receiver_type_of(declaration.value, lookahead, class_information)
+    assert declared_type
+    lookahead.declare(declaration.name, declared_type)
 }
 
 func borrow_outlives_resize_within(
@@ -20888,10 +20899,152 @@ func call_resizes(
         }
     }
     var effects = resize_effects_of(call.callee, scope, class_information)
-    if effects_resize(effects, source, call.arguments, scope, class_information) {
-        return "'{callee_text}()'"
+    if not effects_resize(effects, source, call.arguments, scope, class_information) {
+        return ""
     }
-    return ""
+    var dispatched = dispatched_call_effects(call, scope, class_information)
+    if dispatched and not effects_resize(dispatched, source, call.arguments, scope, class_information) {
+        return ""
+    }
+    return "'{callee_text}()'"
+}
+
+func dispatched_call_effects(
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): List<String>? {
+    crash call.callee
+    var key = called_effects_key(call.callee, scope, class_information)
+    assert not key.is_empty() and not key.starts_with("*#")
+    var variadic = call_effects.variadic_position_of(key)
+    assert variadic >= -1
+    var argument_count = call.arguments.count()
+    var classes = DispatchClasses(argument_count)
+    var spread_classes = List<String>()
+    var index = 0
+    while index < argument_count {
+        var argument_class = argument_class_name(call.arguments[index], scope, class_information)
+        if variadic >= 0 and index >= variadic {
+            spread_classes.append(argument_class)
+        } else {
+            classes.values[index] = argument_class
+        }
+        index = index + 1
+    }
+    if variadic >= 0 and variadic < argument_count and not spread_classes.contains("") {
+        classes.elements[variadic] = spread_classes.join(",")
+    }
+    var visiting = List<String>()
+    return call_effects.resolved_effects(key, classes, visiting)
+}
+
+func called_effects_key(
+    callee: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var identifier = shape.as_identifier(callee)
+    if identifier {
+        if scope.written_type(identifier.name) or class_information.find_field(identifier.name) {
+            return ""
+        }
+        if call_effects.names_a_class(identifier.name) {
+            return call_effects.effects_key(identifier.name, identifier.name)
+        }
+        return call_effects.effects_key(class_information.simple_name, identifier.name)
+    }
+    var member = shape.as_member(callee)
+    if not member or member.name == "call_function" {
+        return ""
+    }
+    if call_effects.names_a_class(member.name) {
+        return call_effects.effects_key(member.name, member.name)
+    }
+    crash member.object
+    var root = shape.as_identifier(member.object)
+    if root {
+        var known = scope.written_type(root.name) or class_information.find_field(root.name)
+        if not known and not call_effects.names_a_class(root.name) {
+            return ""
+        }
+    }
+    var owner = receiver_owner(member.object, scope, class_information)
+    if resizes_unnamed_collection(member, owner) {
+        return ""
+    }
+    return call_effects.effects_key(owner, member.name)
+}
+
+func argument_class_name(
+    argument: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    if shape.as_string_literal(argument) {
+        return "String"
+    }
+    if shape.is_true_literal(argument) or shape.is_false_literal(argument) {
+        return "Boolean"
+    }
+    var argument_type = argument_type_of(argument, scope, class_information)
+    if not argument_type or type_shape.as_nullable(argument_type) {
+        return ""
+    }
+    var scalar = type_shape.as_scalar(argument_type)
+    if scalar {
+        return type_label(argument_type)
+    }
+    if type_shape.as_string(argument_type) {
+        return "String"
+    }
+    var class_reference = type_shape.as_class_ref(argument_type)
+    if not class_reference or class_reference.has_signature {
+        return ""
+    }
+    var argument_class = find_class_by_c_name(class_reference.c_name)
+    if not argument_class or not call_effects.class_names.has(argument_class.simple_name) {
+        return ""
+    }
+    return argument_class.simple_name
+}
+
+func argument_type_of(
+    argument: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var identifier = shape.as_identifier(argument)
+    if identifier {
+        var local_type = scope.written_type(identifier.name)
+        if local_type {
+            return local_type
+        }
+        var field = class_information.find_field(identifier.name)
+        assert field
+        return field.get_type()
+    }
+    var member = shape.as_member(argument)
+    assert member
+    crash member.object
+    var object_type = argument_type_of(member.object, scope, class_information)
+    assert object_type
+    var plain = object_type
+    var nullable = type_shape.as_nullable(object_type)
+    if nullable {
+        plain = nullable.get_inner()
+    }
+    var united = type_shape.as_union(plain)
+    if united {
+        var shaped = find_union_by_c_name(united.c_name)
+        assert shaped and shaped.is_shape
+        return shape_field_type(shaped, member.name)
+    }
+    var object_class = class_of_type(plain)
+    assert object_class
+    var member_field = object_class.find_field(member.name)
+    assert member_field
+    return member_field.get_type()
 }
 
 func resize_effects_of(
@@ -20991,6 +21144,9 @@ func effect_resizes(
     if resized.is_empty() {
         return false
     }
+    if resized.ends_with("[]") {
+        return element_may_be_source(resized, links, local_root)
+    }
     if local_root {
         if resized.starts_with("*#") {
             return true
@@ -21006,6 +21162,28 @@ func effect_resizes(
         return false
     }
     return links_meet(resized, vector_link)
+}
+
+func element_may_be_source(resized: String, links: List<String>, local_root: Boolean): Boolean {
+    var resized_length = resized.length()
+    var holder = resized.slice(0, resized_length - 2)
+    if local_root or holder.ends_with("[]") {
+        return true
+    }
+    var element_class = call_effects.element_classes.get(holder)
+    var vector_link = links.last()
+    if not element_class or not vector_link {
+        return true
+    }
+    var source_class = call_effects.field_classes.get(vector_link)
+    if not source_class {
+        return true
+    }
+    var collections = ["List", "Vector", "Items", "Dictionary"]
+    if not collections.contains(element_class) or not collections.contains(source_class) {
+        return true
+    }
+    return element_class == source_class
 }
 
 func borrowed_element(
