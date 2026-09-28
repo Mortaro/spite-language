@@ -37,7 +37,17 @@ if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
     mkdir -p "$here/.spite-cache"
     maths_library="-lm"   # the compiler folds maths with the C library's own, which Linux and macOS keep in libm
     case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) maths_library="" ;; esac
-    $CC -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$binary" $maths_library || exit 1
+    # Another build may be running the old compiler, or building its own copy, at this moment: each build writes
+    # its own file and swaps it in, so none of them fails on a file in use. Windows refuses to overwrite a running
+    # executable but lets it be renamed, so the old one is moved aside first.
+    fresh="$binary.$$.exe"
+    $CC -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$fresh" $maths_library || { rm -f "$fresh"; exit 1; }
+    if ! mv -f "$fresh" "$binary" 2>/dev/null; then
+        mv -f "$binary" "$binary.$$.old" 2>/dev/null
+        mv -f "$fresh" "$binary" 2>/dev/null
+    fi
+    rm -f "$fresh" "$here/.spite-cache/"spite.exe.*.old 2>/dev/null   # an old one still running stays until it ends
+    [ -x "$binary" ] || { echo "spite: the compiler was built but could not be put in place at $binary" >&2; exit 1; }
 fi
 
 # Git for Windows' bash rewrites every argument that looks like a POSIX path when it starts a Windows program, so
