@@ -389,7 +389,7 @@ class.
 A program that makes things from its own code -- an engine that cooks assets with recipes written in Spite -- needs
 to know when that code changed, so it can make them again with the new code. Watching the files cannot tell it:
 the watcher sees the save before the new code is swapped in. The standard library's `Reload` singleton answers from
-the swaps themselves ([D285](decisions.md)): `generation()` is how many reloads the program has swapped in, and
+the swaps themselves ([D286](decisions.md)): `generation()` is how many reloads the program has swapped in, and
 `rebuilt_since(generation)` the qualified names of the classes rebuilt after that one, as `$type.name` gives them.
 
 ```gdscript title=recooking/recooking.spite entry
