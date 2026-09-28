@@ -1622,13 +1622,14 @@ func check_json_keys(information: Analysis.ClassInfo) {
         var second = first + 1
         while second < keys.count() {
             if keys[first] == keys[second] {
-                var giver = givers.get_at(second)
-                var taker = owners.get_at(second)
-                var other = owners.get_at(first)
+                crash givers[first] and givers[second] and owners[first] and owners[second]
+                var giver = givers[second]
+                var taker = owners[second]
+                var other = owners[first]
                 if giver.is_empty() {
-                    giver = givers.get_at(first)
-                    taker = owners.get_at(first)
-                    other = owners.get_at(second)
+                    giver = givers[first]
+                    taker = owners[first]
+                    other = owners[second]
                 }
                 var giving = information.find_function(giver)
                 crash giving
@@ -15296,9 +15297,10 @@ func refresh_functions_lists(): Boolean {
     var refreshed = false
     var index = 0
     while index < listed_function_classes.count() {
-        var information = listed_function_classes.get_at(index)
+        var information = listed_function_classes[index]
         var count = information.declared_functions.count()
-        if count != listed_function_counts.get_at(index) {
+        crash listed_function_counts[index]
+        if count != listed_function_counts[index] {
             listed_function_counts.set_at(index, count)
             var function_class = find_class_by_c_name("Spite_Function")
             var argument_class = find_class_by_c_name("Spite_Argument")
@@ -15308,7 +15310,8 @@ func refresh_functions_lists(): Boolean {
             var argument_class_type = class_type_of(argument_class)
             var arguments_list_name = ensure_list(argument_class_type)
             var listed = functions_list_text(information, list_name, arguments_list_name)
-            var position = listed_function_positions.get_at(index)
+            crash listed_function_positions[index]
+            var position = listed_function_positions[index]
             builder.replace_support(position, listed)
             refreshed = true
         }
@@ -34738,9 +34741,10 @@ func emit_hot_reload_support() {
 
 func seed_class_names(names: List<String>, identities: List<String>) {
     var index = 0
-    while index < names.count() and index < identities.count() {
-        var identity = identities.get_at(index)
-        var name = names.get_at(index)
+    while index < names.count() {
+        crash identities[index]
+        var identity = identities[index]
+        var name = names[index]
         class_names_by_id.append(name)
         class_identities.append(identity)
         seeded_class_ids[identity] = index
@@ -35578,7 +35582,7 @@ func folded_decimal(expression: Syntax.Expressions.Expression, class_information
 func seed_host_waits(host: HotReloadLibrary) {
     var index = 0
     while index < host.host_waiting.count() {
-        var name = host.host_waiting.get_at(index)
+        var name = host.host_waiting[index]
         var owner = class_of_function_c_name(name)
         var rebuilt = false
         if owner {
@@ -35596,16 +35600,16 @@ func seed_lent_variants(host: HotReloadLibrary) {
     while index < host.host_variants.count() {
         var fields = host.host_variants[index].split("\t")
         crash fields.count() == 4
-        var variant_c_name = fields.get_at(0)
-        var original_c_name = fields.get_at(1)
+        var variant_c_name = fields[0]
+        var original_c_name = fields[1]
         var owner = class_of_function_c_name(original_c_name)
         if owner {
             var original = function_by_c_name(owner, original_c_name)
             var exists = function_by_c_name(owner, variant_c_name)
             if original and not exists and reload_owners.contains(owner.c_name) {
-                var position_text = fields.get_at(2)
+                var position_text = fields[2]
                 var positions = position_text.split("_")
-                var sources = fields.get_at(3)
+                var sources = fields[3]
                 add_lent_variant(owner, original, variant_c_name, positions, sources)
             }
         }
@@ -35643,13 +35647,13 @@ func instance_record(
 func replay_instances(host: HotReloadLibrary) {
     var index = 0
     while index < host.host_instances.count() {
-        var record = host.host_instances.get_at(index)
+        var record = host.host_instances[index]
         replay_instance(record)
         index = index + 1
     }
     index = 0
     while index < host.host_literals.count() {
-        var literal = host.host_literals.get_at(index)
+        var literal = host.host_literals[index]
         replay_literal(literal)
         index = index + 1
     }
@@ -35673,7 +35677,7 @@ func replay_literal(record: String) {
     var codec = TypeCodec()
     var fields = record.split("\t")
     crash fields.count() >= 1
-    var joined_names = fields.get_at(0)
+    var joined_names = fields[0]
     var names = joined_names.split(",")
     if joined_names.is_empty() {
         names = List<String>()
@@ -35682,7 +35686,8 @@ func replay_literal(record: String) {
     var types = List<Analysis.SpiteType>()
     var index = 0
     while index < names.count() {
-        var encoded_type = fields.get_at(index + 1)
+        crash fields[index + 1]
+        var encoded_type = fields[index + 1]
         var decoded = codec.decoded(encoded_type)
         assert decoded
         types.append(decoded)
@@ -35695,12 +35700,12 @@ func replay_instance(record: String) {
     var codec = TypeCodec()
     var fields = record.split("\t")
     crash fields.count() >= 3
-    var label = fields.get_at(0)
+    var label = fields[0]
     assert not find_class_by_c_name(label)
-    var template_name = fields.get_at(1)
+    var template_name = fields[1]
     var template = find_class_by_c_name(template_name)
     assert template
-    var count_text = fields.get_at(2)
+    var count_text = fields[2]
     var count = count_text.to_integer()
     crash count
     crash fields.count() == 3 + count * 2
@@ -35709,7 +35714,8 @@ func replay_instance(record: String) {
     var codes = List<String>()
     var index = 0
     while index < count {
-        var encoded_type = fields.get_at(3 + index)
+        crash fields[3 + index]
+        var encoded_type = fields[3 + index]
         var decoded = codec.decoded(encoded_type)
         assert decoded
         types.append(decoded)
@@ -35717,22 +35723,23 @@ func replay_instance(record: String) {
     }
     index = 0
     while index < count {
-        var escaped_text = fields.get_at(3 + count + index)
+        crash fields[3 + count + index]
+        var escaped_text = fields[3 + count + index]
         var text = codec.unescaped(escaped_text)
         texts.append(text)
-        var text_type = types.get_at(index)
+        var text_type = types[index]
         var code = code_of_text(text, text_type)
         codes.append(code)
         index = index + 1
     }
     if template.qualified_dotted == "List" {
-        var listed = types.get_at(0)
+        var listed = types[0]
         ensure_list(listed)
         return
     }
     if template.qualified_dotted == "Dictionary" {
-        var element = types.get_at(0)
-        var key = types.get_at(1)
+        var element = types[0]
+        var key = types[1]
         var dictionary_type = Analysis.Types.DictionaryType(element, key, "")
         ensure_dictionary(dictionary_type)
         return

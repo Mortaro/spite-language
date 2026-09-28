@@ -1333,7 +1333,7 @@ proposed by Claude, unconfirmed).
 
 **A reference column's element is lent to the row** ([D269](decisions.md)). When that counted attribute is the
 result of a function that only returns an element of its singleton's `List` -- a reference column's `at(row)`,
-`return references.get_at(row)` or `crash references[row]` then `return references[row]`, with a whole-number
+`crash references[row]` then `return references[row]` (D225 makes the read a `T?`, so the `crash` is needed), with a whole-number
 parameter as the index and a list attribute that nothing assigns after the singleton is made -- and nothing the
 rest of the row's block runs can let go of anything, the row takes the element uncounted: the compiler writes a
 copy of the function, `<name>___lent_element`, that returns the element as it lies in the list (it answers exactly

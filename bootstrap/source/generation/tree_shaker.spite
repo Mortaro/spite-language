@@ -83,7 +83,8 @@ func shake_declarations(types: String, prototypes: String, roots: String) {
         var name = piece_names[index]
         crash name
         if name.is_empty() {
-            var piece = pieces.get_at(index)
+            crash pieces[index]
+            var piece = pieces[index]
             keep_named_in(piece)
         }
         index = index + 1

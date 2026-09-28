@@ -72,13 +72,7 @@ func text_hash(text: String): UnsignedLong {
 }
 
 func distinct_digest(items: List<String>): String {
-    var total: UnsignedLong = 0
-    var index = 0
-    while index < items.count() {
-        var item = items.get_at(index)
-        total = total + text_hash(item)
-        index = index + 1
-    }
+    var total = items.sum(text_hash)
     return "{items.count()}:{total}"
 }
 

@@ -732,8 +732,8 @@ have moved.
 
 - **Status.** Built.
 - **Proves.** An element of a singleton's `List` read into a row cannot be let go while the row's block runs.
-- **Rule.** The row's line calls a singleton function whose body is only `return <list>.get_at(<index>)` (or `[]`,
-  optionally after `crash` of that read), the list an attribute nothing assigns after the singleton is made, the
+- **Rule.** The row's line calls a singleton function whose body is only `crash <list>[<index>]` then
+  `return <list>[<index>]` (D225), the list an attribute nothing assigns after the singleton is made, the
   index a whole-number parameter or literal; the rest of the block names every call it makes, none of which lets go
   of an object, removes from a list, assigns an attribute holding an object or calls a function value; and no class
   whose objects may be let go meanwhile has a `drop()` reaching that singleton or list. With threads, the block takes
