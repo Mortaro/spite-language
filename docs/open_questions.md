@@ -153,7 +153,7 @@ these five are what is left, with where each stands today.
     without asking. When the versions differ in members that are used, the compiler treats them as two packages
     in two namespaces, so both keep working, and a command lists these splits for whoever wants to unify them --
     "not actually broken, just annoying". Belongs to D38 (a dependency is a git URL plus a commit in `load`),
-    which is built since D283/D285 with D38's own rule: two pins of one repository at different commits are an
+    which is built since D283/D289 with D38's own rule: two pins of one repository at different commits are an
     error naming both `load` lines ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)). Using
     one version when nothing used differs, and splitting into two namespaces when something does, is still open
     and starts here.
