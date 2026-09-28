@@ -1324,7 +1324,10 @@ camelCase key with them ([json.md](json.md#a-camelcase-or-pascalcase-key)).
   attribute, so 'count_attribute' has to return nothing" (`diagnostics/every_attribute`). It replaces the
   compile-time `for instance.attributes`, which went with `for`. Over another class's attributes it calls only
   the ones that class lets others read: a private `_` attribute is skipped rather than being the private error
-  (proposed by Claude, unconfirmed). **A plural over nothing is an empty function**, not a missing one: over a class
+  (proposed by Claude, unconfirmed). **Decided, not built ([D278](decisions.md), Mortaro): a walk sees every
+  attribute, private ones included**, since a walk that skips some silently builds an incomplete copy, column or
+  layout. The walk may read and write a private attribute through the walked symbol (`value.attributes[attribute]`);
+  naming `_x` outside its class stays the private error. **A plural over nothing is an empty function**, not a missing one: over a class
   with no attributes, and over a `Symbol<$value_type>` whose value is no class or `type` -- a number, a `T?`, a
   `List` -- where the single template answers nothing, the plural calls nothing, so one generic compiles for a
   marker and for a number alike (`conformance/stage6/empty_plural`).
