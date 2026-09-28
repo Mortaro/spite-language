@@ -1,0 +1,9 @@
+var amount = 0
+
+func Worker(starting_amount: Integer) {
+    amount = starting_amount
+}
+
+func work(): Integer {
+    return amount * 2
+}

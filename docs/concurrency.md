@@ -875,7 +875,10 @@ one waits; the value is kept, so later ones do not). Exactly, a `Concurrent<T>` 
 
 It stays a handle where a handle is expected (`List<Parallel<T>>.append(handle)`), in a `var` without a written
 type (`var loading = Parallel(asset.load)` is the running work), and for the handle's own members, `finished` and
-`finished_value()`. A
+`finished_value()` -- and `class`, `attributes` and `functions`, which every object has (proposed by Claude,
+unconfirmed), so a member template over a
+`List<Parallel<T>>` reads the handles (`runs.all_finished()`, `conformance/stage6/kept_templates`; before, it read
+the results and failed inside `library/list.spite`). A
 `T` of `Nothing` is never read, so such a handle only joins on drop. Comparing two handles with `==` compares their
 values; there is no way to compare the handles themselves (proposed: nothing has needed it). The compiler writes
 each join as a call to the class's private `_result()`, which `library/concurrent.spite` and

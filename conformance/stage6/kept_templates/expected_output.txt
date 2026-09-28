@@ -1,0 +1,4 @@
+parallel total: 28 all finished: true
+thread locals: 1
+position a1
+books: 2

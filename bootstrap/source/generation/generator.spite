@@ -172,6 +172,12 @@ var key_use_notes = Dictionary<String>()
 var learned_key_use_notes = Dictionary<String>()
 var key_sites_changed = false
 var another_pass_follows_a_change = false
+var key_flows_ignored = false
+var key_site_owners = Dictionary<String>()
+var key_site_functions = Dictionary<String>()
+var key_ties = Dictionary<String>()
+var number_key_use_sites = Dictionary<String>()
+var text_key_use_sites = Dictionary<String>()
 var namespace_walks = Dictionary<NamespaceWalk>()
 var class_member_names = Dictionary<String>()
 var class_names_by_id = List<String>()
@@ -4908,6 +4914,10 @@ func template_attribute_names(information: Analysis.ClassInfo, template: Analysi
 func find_or_instantiate_function(information: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
     var existing = information.find_function(name)
     if existing {
+        if existing.kept_for_prompt {
+            crash not existing.is_emitted
+            existing.kept_for_prompt = false
+        }
         return existing
     }
     var registered_name = name
@@ -7196,10 +7206,14 @@ func key_kind_text(dictionary: Analysis.Types.DictionaryType): String {
     }
     var root = key_site_root(dictionary.site)
     if numbered and number_key_uses[root] {
-        return "{kind}, from the key at {key_use_text(number_key_uses[root])}"
+        var number_use = key_use_text(number_key_uses[root])
+        var number_ties = key_ties_text(dictionary.site, number_key_use_sites[root])
+        return "{kind}, from the key at {number_use}{number_ties}"
     }
     if not numbered and text_key_uses[root] {
-        return "{kind}, from the key at {key_use_text(text_key_uses[root])}"
+        var text_use = key_use_text(text_key_uses[root])
+        var text_ties = key_ties_text(dictionary.site, text_key_use_sites[root])
+        return "{kind}, from the key at {text_use}{text_ties}"
     }
     if key_use_notes[dictionary.site] {
         return "{kind}, from the key at {key_use_notes[dictionary.site]}"
@@ -7212,6 +7226,68 @@ func key_kind_text(dictionary: Analysis.Types.DictionaryType): String {
 
 func key_use_text(use: KeyUse): String {
     return "{use.path}:{use.line} (in {use.owner}.{use.function_name})"
+}
+
+func key_ties_text(site: String, use_site: String?): String {
+    if not use_site {
+        return ""
+    }
+    var places = key_ties_between(site, use_site)
+    if places.is_empty() {
+        return ""
+    }
+    var shown = places.copy()
+    var more = ""
+    if places.count() > 4 {
+        shown.truncate(4)
+        more = " and {places.count() - 4} more"
+    }
+    return ", which reaches it through {shown.join(", ")}{more}"
+}
+
+func key_site_chain(site: String): List<String> {
+    var chain = [site]
+    var node = site
+    while key_site_parents.has(node) and key_site_parents[node] != node {
+        var parent = key_site_parents[node]
+        crash parent
+        chain.append(parent)
+        node = parent
+    }
+    return chain
+}
+
+func key_ties_between(first_site: String, second_site: String): List<String> {
+    var first_chain = key_site_chain(first_site)
+    var second_chain = key_site_chain(second_site)
+    var places = List<String>()
+    var index = 0
+    while index < first_chain.count() and not second_chain.contains(first_chain[index]) {
+        add_key_tie(places, first_chain[index])
+        index = index + 1
+    }
+    var second_places = List<String>()
+    index = 0
+    while index < second_chain.count() and not first_chain.contains(second_chain[index]) {
+        add_key_tie(second_places, second_chain[index])
+        index = index + 1
+    }
+    second_places.reverse()
+    index = 0
+    while index < second_places.count() {
+        if not places.contains(second_places[index]) {
+            places.append(second_places[index])
+        }
+        index = index + 1
+    }
+    return places
+}
+
+func add_key_tie(places: List<String>, node: String) {
+    assert key_ties[node]
+    if not places.contains(key_ties[node]) {
+        places.append(key_ties[node])
+    }
 }
 
 func note_key_uses() {
@@ -7466,7 +7542,8 @@ func is_implicit_join(member: Syntax.Expressions.MemberExpression): Boolean {
 }
 
 func forwards_to_result(handle: Analysis.ClassInfo, name: String): Boolean {
-    if name == "finished" or name == "class" or name.starts_with("_") {
+    var every_object_has = name == "class" or name == "attributes" or name == "functions"
+    if name == "finished" or every_object_has or name.starts_with("_") {
         return false
     }
     if handle.find_function(name) {
@@ -12069,7 +12146,8 @@ func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
     index = 0
     while index < element_class.declared_functions.count() {
         var function = element_class.declared_functions[index]
-        if not function.is_constructor and function.parameters.is_empty() {
+        var outside_readable = not function.name.starts_with("_")
+        if outside_readable and not function.is_constructor and function.parameters.is_empty() {
             member_names.append(function.name)
             if function.name.starts_with("get_") {
                 var name_length = function.name.length()
@@ -12094,7 +12172,7 @@ func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
                 var requirement = member_requirement(template.prefix, is_field, member_name, member_type)
                 var name = "{template.prefix}{member_name}{template.suffix}"
                 if requirement.is_empty() and not list_class.find_function(name) {
-                    instantiate_template(
+                    var kept = instantiate_template(
                         list_class,
                         template,
                         member_name,
@@ -12103,6 +12181,7 @@ func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
                         name,
                         null,
                     )
+                    kept.kept_for_prompt = true
                 }
             }
             member_index = member_index + 1
@@ -15677,6 +15756,8 @@ func dictionary_type_at(element: Analysis.SpiteType, line: Integer, column: Inte
     if not key_site_parents.has(site) {
         key_site_parents[site] = site
         key_sites.append(site)
+        key_site_owners[site] = current_owner
+        key_site_functions[site] = current_function
     }
     var key_type = string_type()
     if number_key_sites[site] {
@@ -15697,16 +15778,23 @@ func key_site_root(site: String): String {
 }
 
 func join_key_sites(left_site: String, right_site: String) {
+    assert not key_flows_ignored
     assert not left_site.is_empty() and not right_site.is_empty()
     var left_root = key_site_root(left_site)
     var right_root = key_site_root(right_site)
     assert left_root != right_root
     key_site_parents[right_root] = left_root
+    var tied_here = key_use_here()
+    key_ties[right_root] = key_use_text(tied_here)
     if text_key_uses[right_root] and not text_key_uses.has(left_root) {
         text_key_uses[left_root] = text_key_uses[right_root]
+        crash text_key_use_sites[right_root]
+        text_key_use_sites[left_root] = text_key_use_sites[right_root]
     }
     if number_key_uses[right_root] and not number_key_uses.has(left_root) {
         number_key_uses[left_root] = number_key_uses[right_root]
+        crash number_key_use_sites[right_root]
+        number_key_use_sites[left_root] = number_key_use_sites[right_root]
     }
     assert number_key_types[right_root]
     widen_number_key(left_root, number_key_types[right_root])
@@ -15771,18 +15859,22 @@ func dictionary_key_parameter(
     var given = probe.get_type()
     var root = key_site_root(dictionary.site)
     if is_whole_number_type(given) {
-        if not number_key_uses.has(root) {
-            number_key_uses[root] = key_use_here()
+        if not key_flows_ignored {
+            if not number_key_uses.has(root) {
+                number_key_uses[root] = key_use_here()
+                number_key_use_sites[root] = dictionary.site
+            }
+            widen_number_key(root, given)
         }
-        widen_number_key(root, given)
         if type_shape.as_string(key_type) {
             return given
         }
         return key_type
     }
     if type_shape.as_string(given) or type_shape.is_symbol(given) or is_enum_type(given) {
-        if not text_key_uses.has(root) {
+        if not text_key_uses.has(root) and not key_flows_ignored {
             text_key_uses[root] = key_use_here()
+            text_key_use_sites[root] = dictionary.site
         }
         return string_type()
     }
@@ -15833,6 +15925,10 @@ func report_unsettled_keys() {
             parts.remove_last()
             parts.remove_last()
             current_path = parts.join(":")
+            crash key_site_owners[site]
+            crash key_site_functions[site]
+            current_owner = key_site_owners[site]
+            current_function = key_site_functions[site]
             var learned_kind = "text"
             if learned_key_sites[site] {
                 learned_kind = "whole numbers"
@@ -15879,8 +15975,12 @@ func report_mixed_keys(root: String) {
     current_line = number_use.line
     current_owner = number_use.owner
     current_function = number_use.function_name
+    var ties = ""
+    if number_key_use_sites[root] {
+        ties = key_ties_text(number_key_use_sites[root], text_key_use_sites[root])
+    }
     report(
-        "this dictionary is given a whole-number key here and a text key at {text_use.path}:{text_use.line} (in {text_use.owner}.{text_use.function_name}): a dictionary is keyed by text or by whole numbers, never both -- give every key of it the same kind",
+        "this dictionary is given a whole-number key here and a text key at {text_use.path}:{text_use.line} (in {text_use.owner}.{text_use.function_name}){ties}: a dictionary is keyed by text or by whole numbers, never both -- give every key of it the same kind",
     )
 }
 
@@ -30101,6 +30201,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         current_path = function.source_path
     }
     bind_symbol_of(function)
+    key_flows_ignored = function.kept_for_prompt
     study_lent_parameters_of(information)
     placement.foreign_libraries = foreign_library_attributes(information)
     var waiting = waiting_kind(information, function)
@@ -30176,6 +30277,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     }
     close_rebindings(scope)
     builder.add_user("}")
+    key_flows_ignored = false
     into_function_active = false
     object_frames_open = false
     current_return_c_name = ""

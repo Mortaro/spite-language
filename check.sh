@@ -285,6 +285,12 @@ if ! grep -qF 'load_on_build/kitchen\nconformance/stage6/load_on_build/salty\nco
   echo "FAILED: a --hot-reload build should watch every loaded folder and check its loops with one load of a flag"; exit 1
 fi
 echo "live reload: every loaded folder is watched, and a loop's check point is one load of a flag"
+# A --hot-reload build keeps every function and, with a REPL, every member template that fits a reachable list:
+# kept_templates (run above with --development) must build that way too, its lists of Parallel and ThreadLocal
+# and its two unrelated dictionaries included (docs/collections.md#how-the-member-templates-are-written).
+"$work/generation_two.exe" conformance/stage6/kept_templates --executable --run=false --hot-reload --repl-port=4000 --executable-path="$work/kept_templates_hot.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED: kept_templates does not build with --hot-reload --repl-port"; head -5 "$work/c_errors.txt"; exit 1; }
+echo "live reload: a build that keeps every function compiles the library's templates it keeps"
 # Maths on constants is worked out while compiling (docs/optimizations.md): every folded_ value in maths_folding is
 # a literal in its C, and the program itself holds each one to the bits the C library computes at run time.
 "$work/generation_two.exe" conformance/stage6/maths_folding --run=false --c-source --c-path="$work/folding.c" > /dev/null 2>&1 || {
