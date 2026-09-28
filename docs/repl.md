@@ -238,6 +238,10 @@ func entity_count(): Integer {
 func position_of(entity: Integer): Position? {
     return positions[entity]
 }
+
+func step_length(): Integer {
+    return tick.step_milliseconds
+}
 ```
 ```gdscript title=repl_world/repl_world.spite entry
 var console = Console()
@@ -276,7 +280,7 @@ $ spite connect 4000 --command="Tick().step_milliseconds = 50"
 $ spite connect 4000 --command="functions World()"
 {"ok":true,"value":"spawn(across: Integer, along: Integer): Nothing
 entity_count(): Integer
-position_of(entity: Integer): Position?\nto_debug(): String","type":""}
+position_of(entity: Integer): Position?\nstep_length(): Integer\nto_debug(): String","type":""}
 
 $ spite connect 4000 --command="Position()"
 {"ok":false,"error":"'Position' is a class, not a singleton: the prompt never makes an object, it reads the ones the program holds, and 'classes' lists the singletons"}

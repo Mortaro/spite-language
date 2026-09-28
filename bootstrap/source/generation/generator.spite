@@ -14731,7 +14731,7 @@ func emit_class_object_bodies() {
                 var described_folder = absolute_source_folder(described)
                 lines.append("{function_c_name}_cache->_source_folder_ = {render_string_literal(described_folder)};")
             }
-            if package_folder_used {
+            if package_folder_used and not described.source_path.is_empty() {
                 var described_package = package_folder(described)
                 lines.append("{function_c_name}_cache->_package_folder_ = {render_string_literal(described_package)};")
             }
