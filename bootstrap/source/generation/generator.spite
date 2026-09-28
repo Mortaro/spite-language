@@ -178,6 +178,19 @@ var another_pass_follows_a_change = false
 var key_flows_ignored = false
 var shape_caller_names = Dictionary<Boolean>()
 var renders_program = true
+var partial_snapshot = Dictionary<String>()
+var reload_host: HotReloadLibrary? = null
+var reload_changed_paths = List<String>()
+var reload_owners = List<String>()
+var seeded_waiting_names = List<String>()
+var lent_variant_lines = List<String>()
+var instance_lines = List<String>()
+var skipped_in_reload = Dictionary<Boolean>()
+var seeded_shape_callers = List<String>()
+var seeded_shape_callees = List<String>()
+var partial_refusal = ""
+var program_facts = ProgramFacts()
+var fact_owner = ""
 var key_site_owners = Dictionary<String>()
 var key_site_functions = Dictionary<String>()
 var key_ties = Dictionary<String>()
@@ -645,6 +658,9 @@ func generate(
     if has_error {
         return ""
     }
+    if reload_host {
+        prepare_partial(reload_host)
+    }
     var index = 0
     while index < classes.count() {
         if not classes[index].is_generic_template {
@@ -737,9 +753,13 @@ func generate(
         report_unused_attributes()
     }
     finish_allocated_classes()
+    if reload_host and not has_error {
+        partial_refusal = partial_problem(reload_host)
+    }
     builder.shakes = not keeps_internals
     builder.hot_reload = hot_reload
     builder.debug_memory = debug_memory
+    builder.constant_texts = constant_texts
     var rendered = ""
     if renders_program {
         rendered = builder.render()
@@ -1599,7 +1619,9 @@ func asks_about_parameter(owner: Analysis.ClassInfo, function: Analysis.Function
         if asked_index == position {
             var parameter = function.parameters[position]
             var slot: String = position
-            if not parameter_writes.answer(this, owner, function, slot) {
+            var written = parameter_writes.answer(this, owner, function, slot)
+            note_fact("asks writes {function.c_name} {slot} {written}")
+            if not written {
                 return false
             }
             var why = parameter_writes.reason_of(function.c_name, slot)
@@ -1627,7 +1649,16 @@ func class_function_waits(owner: Analysis.ClassInfo, pattern: String, asking: An
         var function = functions[index]
         if wanted.contains(function.name) {
             var asked = "{owner.simple_name}.{function.name}"
-            if wait_facts.answer(function.c_name, asked, current_path, current_line, current_owner, current_function) {
+            var answered = wait_facts.answer(
+                function.c_name,
+                asked,
+                current_path,
+                current_line,
+                current_owner,
+                current_function,
+            )
+            note_fact("asks waits {function.c_name}")
+            if answered {
                 waits = true
             }
         }
@@ -1637,7 +1668,7 @@ func class_function_waits(owner: Analysis.ClassInfo, pattern: String, asking: An
 }
 
 func settle_wait_facts() {
-    var seeds = List<String>()
+    var seeds = seeded_waiting_names.copy()
     var index = 0
     while index < waiting_functions.count() {
         if waiting_kinds.get_at(index) != "yield" {
@@ -1648,6 +1679,13 @@ func settle_wait_facts() {
     }
     wait_facts.shape_callers.clear()
     wait_facts.shape_callees.clear()
+    var seeded_index = 0
+    while seeded_index < seeded_shape_callers.count() {
+        var seeded_caller = seeded_shape_callers.get_at(seeded_index)
+        var seeded_callee = seeded_shape_callees.get_at(seeded_index)
+        wait_facts.add_shape_edge(seeded_caller, seeded_callee)
+        seeded_index = seeded_index + 1
+    }
     index = 0
     while index < unions.count() {
         var information = unions[index]
@@ -1668,7 +1706,9 @@ func add_shape_wait_edges(information: Analysis.UnionInfo) {
             var member = information.members[member_index]
             var called = member.find_function(name)
             if called {
-                wait_facts.add_shape_edge("{information.c_name}___call_{name}", called.c_name)
+                var shape_caller = "{information.c_name}___call_{name}"
+                wait_facts.add_shape_edge(shape_caller, called.c_name)
+                program_facts.note("sedge {shape_caller} -> {called.c_name}", "")
             }
             member_index = member_index + 1
         }
@@ -1679,6 +1719,7 @@ func add_shape_wait_edges(information: Analysis.UnionInfo) {
 func note_wait_edge(callee: String) {
     assert not resumable_mode and not current_function_c_name.is_empty()
     wait_facts.add_edge(current_function_c_name, callee)
+    note_fact("vedge {current_function_c_name} -> {callee}")
 }
 
 func value_call_key(arguments: List<Analysis.SpiteType>, returns: Analysis.SpiteType?): String {
@@ -2084,6 +2125,8 @@ func instantiated_with(
     texts: List<String>,
     label: String,
 ): Analysis.ClassInfo {
+    var record = instance_record(template, types, texts, label)
+    instance_lines.append(record)
     var class_id = allocate_class_id(label)
     var instance = Analysis.ClassInfo(
         label,
@@ -2851,6 +2894,7 @@ func generate_shape_call(
 
 func ensure_shape_caller(information: Analysis.UnionInfo, name: String): String {
     var function_c_name = "{information.c_name}___call_{name}"
+    note_fact("shape caller {information.c_name} {name}")
     if not information.caller_names.contains(name) {
         information.caller_names.append(name)
         shape_caller_names[name] = true
@@ -2886,8 +2930,10 @@ func shape_function_value(
     if task_value_arguments == 0 {
         var value_call = value_call_key(signature.arguments, signature.returns)
         wait_facts.add_edge(value_call, caller)
+        note_fact("vedge {value_call} -> {caller}")
     }
     var maker = "spite_function_value_{caller}"
+    note_fact("maker {maker}")
     if not function_value_makers.contains(maker) {
         function_value_makers.append(maker)
         var argument_class = find_class_by_c_name("Spite_Argument")
@@ -3010,6 +3056,7 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
 }
 
 func admit_to_union(information: Analysis.UnionInfo, candidate: Analysis.ClassInfo) {
+    note_fact("admit {information.c_name} {candidate.c_name}")
     assert not information.has_member(candidate.c_name)
     if not information.is_shape {
         report("'{candidate.simple_name}' is not a member of union '{information.simple_name}'")
@@ -3078,6 +3125,7 @@ func ensure_shape_writer(information: Analysis.UnionInfo, field_name: String, fi
 
 func ensure_union_class_of(information: Analysis.UnionInfo): String {
     var function_c_name = "{information.c_name}___class_of"
+    note_fact("flag class_of {information.c_name}")
     if not information.class_of_used {
         information.class_of_used = true
         builder.add_prototype("Spite_Class* {function_c_name}({information.c_name} self);")
@@ -3545,6 +3593,7 @@ func shaped_value(
 
 func record_shape_flow(source: Analysis.UnionInfo, target: Analysis.UnionInfo) {
     var key = "{source.c_name}>{target.c_name}"
+    note_fact("flow {key}")
     assert not shape_flow_keys.contains(key)
     shape_flow_keys.append(key)
     shape_flow_sources.append(source.c_name)
@@ -5907,6 +5956,7 @@ func weak_body(information: Analysis.ClassInfo, name: String): String {
 }
 
 func ensure_weak_runtime(c_name: String) {
+    note_fact("weak {c_name}")
     if not weak_classes.contains(c_name) {
         weak_classes.append(c_name)
         builder.add_typedef("#define SPITE_WEAK_{c_name} 1")
@@ -7727,6 +7777,7 @@ func generate_identifier(
         mark_attribute_read(class_information, identifier.name)
         if identifier.name == "_namespace" and class_information.c_name == "Spite_Class" {
             namespace_read_used = true
+            note_fact("flag namespace_read_used")
         }
         if class_information.is_value_class and class_information.c_name != "SpiteString" {
             report(
@@ -10461,6 +10512,7 @@ func function_value(
         crash value_signature
         var value_call = value_call_key(value_signature.arguments, value_signature.returns)
         wait_facts.add_edge(value_call, function.c_name)
+        note_fact("vedge {value_call} -> {function.c_name}")
     }
     var starts_work = concurrent_arguments > 0 or not is_library_class(information)
     if function.parameters.is_empty() and starts_work and not task_root_names.contains(function.c_name) {
@@ -10468,6 +10520,7 @@ func function_value(
         task_root_classes.append(information)
         task_root_functions.append(function)
     }
+    note_fact("maker {maker}")
     if not function_value_makers.contains(maker) {
         function_value_makers.append(maker)
         var argument_class = find_class_by_c_name("Spite_Argument")
@@ -11076,6 +11129,17 @@ func lent_items_variant_name(
     lent_callers.set(variant_c_name, "the call on line {current_line} of '{current_function}'")
     var original = function_by_c_name(owner, function_c_name)
     crash original
+    add_lent_variant(owner, original, variant_c_name, positions, sources)
+    return variant_c_name
+}
+
+func add_lent_variant(
+    owner: Analysis.ClassInfo,
+    original: Analysis.FunctionInfo,
+    variant_c_name: String,
+    positions: List<String>,
+    sources: String,
+) {
     var original_return_type = original.get_return_type()
     var variant = Analysis.FunctionInfo(
         original.name,
@@ -11108,7 +11172,7 @@ func lent_items_variant_name(
     }
     owner.declared_functions.append(variant)
     builder.add_prototype("{function_signature(owner, variant)};")
-    return variant_c_name
+    lent_variant_lines.append("variant {variant_c_name}\t{original.c_name}\t{positions.join("_")}\t{sources}")
 }
 
 func held_variant_name(
@@ -11653,9 +11717,11 @@ func generate_method_call(
     var asks_functions = member.name == "has_function" or member.name == "function_waits" or member.name == "argument_count"
     if asks_functions and target_class.c_name == "Spite_Class" {
         class_level_functions_used = true
+        note_fact("flag class_level_functions_used")
     }
     if member.name == "source_folder" and target_class.c_name == "Spite_Class" {
         source_folder_used = true
+        note_fact("flag source_folder_used")
     }
     var parameter_types = parameter_types_of(function.parameters)
     var function_return_type = function.get_return_type()
@@ -12579,7 +12645,9 @@ func generate_parallel_each(
     assert piece
     var entry_source = "func {fused_name}() \{\n    var pool = ThreadPool()\n    pool.run_pieces({piece_name}, item_count)\n}\n"
     builder.threads = true
+    note_fact("flag threads")
     parallel_used = true
+    note_fact("flag parallel_used")
     return register_fused_function(base_list, entry_source, fused_name)
 }
 
@@ -14684,6 +14752,7 @@ func has_attribute_object(spite_type: Analysis.SpiteType): Boolean {
 
 func ensure_union_attributes(information: Analysis.UnionInfo): String {
     var function_c_name = "{information.c_name}___attributes"
+    note_fact("flag attributes of {information.c_name}")
     if not information.attributes_used {
         information.attributes_used = true
         var attribute_class = find_class_by_c_name("Spite_Attribute")
@@ -15301,9 +15370,11 @@ func generate_reflection_read(
     if object_class_ref {
         if object_class_ref.c_name == "Spite_Class" and member_name == "functions" {
             class_level_functions_used = true
+            note_fact("flag class_level_functions_used")
         }
         if object_class_ref.c_name == "Spite_Class" and member_name == "attributes" {
             class_level_attributes_used = true
+            note_fact("flag class_level_attributes_used")
         }
         var object_class = find_class_by_c_name(object_class_ref.c_name)
         if object_class {
@@ -15896,20 +15967,27 @@ func supply_list_functions(list_class: Analysis.ClassInfo, element: Analysis.Spi
 
 func supply_concurrency_functions(instance: Analysis.ClassInfo) {
     builder.threads = true
+    note_fact("flag threads")
     if instance.qualified_dotted == "Parallel" {
         parallel_used = true
+        note_fact("flag parallel_used")
     }
     if instance.qualified_dotted == "Concurrent" {
-        if not scheduler_used {
-            builder.add_typedef(
-                "typedef struct SpiteFrame \{ bool (*step)(void*); int32_t state; int32_t flags; void* work; } SpiteFrame;",
-            )
-            builder.add_typedef(
-                "#define SPITE_SUSPEND(point) do \{ spite_frame->spite_head.state = (point); return false; } while (0)",
-            )
-        }
-        scheduler_used = true
+        use_scheduler()
+        note_fact("flag scheduler_used")
     }
+}
+
+func use_scheduler() {
+    if not scheduler_used {
+        builder.add_typedef(
+            "typedef struct SpiteFrame \{ bool (*step)(void*); int32_t state; int32_t flags; void* work; } SpiteFrame;",
+        )
+        builder.add_typedef(
+            "#define SPITE_SUSPEND(point) do \{ spite_frame->spite_head.state = (point); return false; } while (0)",
+        )
+    }
+    scheduler_used = true
 }
 
 func ensure_dictionary(dictionary: Analysis.Types.DictionaryType): String {
@@ -16095,6 +16173,9 @@ func dictionary_key_parameter(
 }
 
 func settle_key_sites() {
+    if reload_host {
+        keep_host_key_kinds()
+    }
     var index = 0
     while index < key_sites.count() {
         var site = key_sites[index]
@@ -16103,6 +16184,9 @@ func settle_key_sites() {
             learned_key_sites[site] = number_key_types[root]
         }
         index = index + 1
+    }
+    if reload_host {
+        carry_unvisited_key_kinds()
     }
     key_sites_changed = not same_key_sites(learned_key_sites, number_key_sites)
     note_key_uses()
@@ -16116,6 +16200,31 @@ func settle_key_sites() {
         var site = key_sites[index]
         if key_site_root(site) == site {
             report_mixed_keys(site)
+        }
+        index = index + 1
+    }
+}
+
+func carry_unvisited_key_kinds() {
+    var seeded = number_key_sites.keys()
+    var index = 0
+    while index < seeded.count() {
+        var site = seeded[index]
+        if not key_site_parents.has(site) {
+            crash number_key_sites[site]
+            learned_key_sites[site] = number_key_sites[site]
+        }
+        index = index + 1
+    }
+}
+
+func keep_host_key_kinds() {
+    var index = 0
+    while index < key_sites.count() {
+        var site = key_sites[index]
+        if number_key_sites[site] {
+            var root = key_site_root(site)
+            widen_number_key(root, number_key_sites[site])
         }
         index = index + 1
     }
@@ -16579,6 +16688,7 @@ func as_text(result: ExpressionResult): ExpressionResult {
 }
 
 func ensure_symbol(name: String): String {
+    note_fact("symbol {name}")
     if symbol_positions.has(name) {
         crash symbol_positions[name]
         return "spite_symbol_{symbol_positions[name]}"
@@ -16606,6 +16716,7 @@ func generate_symbol_lookup(
         builder.add_prototype("SpiteString spite_symbol_find(SpiteString text);")
     }
     symbol_lookup_used = true
+    note_fact("flag symbol_lookup_used")
     var string_spite_type = string_type()
     var single_types = one_type(string_spite_type)
     var text_code = generate_argument_list(arguments_ast, single_types, scope, class_information)
@@ -16915,7 +17026,9 @@ func generate_foreign_callback(
         return refused_callback(target_class)
     }
     builder.threads = true
+    note_fact("flag threads")
     parallel_used = true
+    note_fact("flag parallel_used")
     if position == "no_context" and not owner.is_singleton {
         report(
             "'{call_text}' gives C no context to find its '{owner.simple_name}' by, so '{function_name}' must belong to a singleton: move it into a singleton that tells them apart by what C passes, or hand C the context with 'context_first' or 'context_last'",
@@ -17884,6 +17997,7 @@ func generate_member_read_raw(
         if named_class {
             if named_class.c_name == "Spite_Class" {
                 all_classes_used = true
+                note_fact("flag all_classes_used")
                 var class_type = class_type_of(named_class)
                 var every_class_type = list_type_of(class_type)
                 builder.add_prototype("{c_type_name(every_class_type)} spite_all_classes(void);")
@@ -17971,6 +18085,7 @@ func generate_member_read_raw(
         if namespace_receiver {
             if namespace_receiver.c_name == "Spite_Class" {
                 namespace_read_used = true
+                note_fact("flag namespace_read_used")
             }
         }
     }
@@ -17980,6 +18095,7 @@ func generate_member_read_raw(
             var read_by_the_loop = class_information.qualified_dotted == "ReadEvaluatePrintLoop"
             if object_receiver.c_name == "Spite_Attribute" and (read_evaluate_print_loop or not read_by_the_loop) {
                 attribute_object_used = true
+                note_fact("flag attribute_object_used")
             }
         }
     }
@@ -17988,6 +18104,7 @@ func generate_member_read_raw(
         if tree_receiver {
             if tree_receiver.c_name == "Spite_Namespace" {
                 namespace_tree_used = true
+                note_fact("flag namespace_tree_used")
             }
         }
     }
@@ -22591,11 +22708,16 @@ func allocated_declaration(
     scope.declare_owned(declaration.name, declared_type)
     scope.check_last(current_line)
     check_value_name(declaration.name, "variable")
+    note_fact("allocated {placed_class.c_name}")
+    note_allocated_class(placed_class)
+    return true
+}
+
+func note_allocated_class(placed_class: Analysis.ClassInfo) {
     if not allocated_class_names.contains(placed_class.c_name) {
         allocated_class_names.append(placed_class.c_name)
         allocated_classes.append(placed_class)
     }
-    return true
 }
 
 func allocator_class_of(allocator_type: Analysis.SpiteType): Analysis.ClassInfo? {
@@ -24889,6 +25011,7 @@ func report_unused(scope: Scope) {
 
 func mark_attribute_read(information: Analysis.ClassInfo, name: String) {
     read_attributes["{information.qualified_dotted}.{name}"] = true
+    note_fact("read {information.qualified_dotted}.{name}")
 }
 
 func mark_folded_words_read(statements: List<Syntax.Statements.Statement>) {
@@ -24908,6 +25031,7 @@ func mark_words_read(text: String, members_only: Boolean, metadata_receivers: Li
                 var word = text.slice(start, position)
                 if not members_only or is_member_read_at(text, start, position, previous_word, metadata_receivers) {
                     folded_words[word] = true
+                    note_fact("word {word}")
                 }
                 previous_word = word
             }
@@ -30998,6 +31122,13 @@ func emit_class_support(information: Analysis.ClassInfo) {
 func emit_user_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
     assert not function.is_emitted
     function.is_emitted = true
+    if runs_in_host(information, function) {
+        skipped_in_reload[function.c_name] = true
+        if is_hot_class(information) {
+            note_hot_slot(information, function)
+        }
+        return
+    }
     if is_inline_supplied(function) {
         if function.supplied_body.ends_with(schema_pending) {
             function.supplied_body = schema_body(information, function)
@@ -31034,6 +31165,8 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     }
     bind_symbol_of(function)
     key_flows_ignored = function.kept_for_prompt
+    var outer_fact_owner = fact_owner
+    fact_owner = information.c_name
     study_lent_parameters_of(information)
     placement.foreign_libraries = foreign_library_attributes(information)
     var waiting = waiting_kind(information, function)
@@ -31041,6 +31174,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         waiting_classes.append(information)
         waiting_functions.append(function)
         waiting_kinds.append(waiting)
+        note_fact("wait {function.c_name} {waiting}")
         var user_count = builder.user_count()
         waiting_positions.append(user_count)
     }
@@ -31083,6 +31217,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     }
     if function.c_name == "Spite_Function_waits" {
         function_waits_table_used = true
+        note_fact("flag function_waits_table_used")
         builder.add_prototype("static bool spite_function_waits(void* typed_call);")
         builder.add_user("self->_waits_ = spite_function_waits(self->spite_typed_call);")
     }
@@ -31110,6 +31245,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     close_rebindings(scope)
     builder.add_user("}")
     key_flows_ignored = false
+    fact_owner = outer_fact_owner
     into_function_active = false
     object_frames_open = false
     current_return_c_name = ""
@@ -33378,6 +33514,7 @@ func finish_skipped_guards() {
 func finish_waiting_points() {
     assert scheduler_used or remote_loop_port > 0 or hot_reload
     builder.threads = true
+    note_fact("flag threads")
     var scheduler_class = find_class_by_qualified("Scheduler")
     crash scheduler_class
     var scheduler = singleton_call(scheduler_class)
@@ -33493,6 +33630,7 @@ func offloaded_call_lines(
 
 func remote_loop_start(entry_class: Analysis.ClassInfo, lines: List<String>) {
     builder.threads = true
+    note_fact("flag threads")
     var program_symbol = ensure_symbol("program")
     builder.add_support(
         "static ReadEvaluatePrintLoop* spite_remote_loop = 0;\nstatic {entry_class.c_name}* spite_remote_program = 0;\nstatic void* spite_remote_loop_thread(void* unused) \{\n(void)unused;\nspite_fault_thread();\nReadEvaluatePrintLoop_serve(spite_remote_loop, spite_reflect_{entry_class.c_name}({program_symbol}, spite_remote_program));\nreturn 0;\n}",
@@ -33660,6 +33798,44 @@ func add_hot_slot(information: Analysis.ClassInfo, function: Analysis.FunctionIn
     hot_slot_displays.append("{information.qualified_dotted}.{function.name}")
 }
 
+func note_fact(key: String) {
+    program_facts.note(key, fact_owner)
+}
+
+func runs_in_host(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
+    if not reload_host or reload_owners.contains(information.c_name) or not function.has_body {
+        return false
+    }
+    if is_inline_supplied(function) {
+        return false
+    }
+    return reload_host.host_prototypes[function.c_name] == "{function_signature(information, function)};"
+}
+
+func note_hot_slot(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    hot_slot_names.append(function.c_name)
+    hot_slot_owners.append(information.c_name)
+    hot_slot_displays.append("{information.qualified_dotted}.{function.name}")
+}
+
+func partial_falls_short(): Boolean {
+    if not reload_host {
+        return false
+    }
+    var prototype_text = builder.prototypes.join("\n")
+    var bodies = builder.bodies_text()
+    reload_host.split_program(prototype_text, bodies)
+    var changed = reload_host.changed_signatures(hot_slot_names, hot_slot_owners, reload_owners)
+    var index = 0
+    while index < changed.count() {
+        if reload_host.host_slots.has(changed[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func add_hot_functions_slot(information: Analysis.ClassInfo, list_name: String) {
     var functions_name = "{information.c_name}___functions"
     builder.add_prototype("{list_name}* {functions_name}___hot({information.c_name}* self);")
@@ -33776,6 +33952,27 @@ func hot_manifest(): String {
         key_lines.append("key {type_label(number_key_sites[site])} {site}")
         index = index + 1
     }
+    var fact_lines = snapshot_manifest_lines()
+    var variant_index = 0
+    while variant_index < lent_variant_lines.count() {
+        fact_lines.append(lent_variant_lines[variant_index])
+        variant_index = variant_index + 1
+    }
+    var instance_index = 0
+    while instance_index < instance_lines.count() {
+        fact_lines.append(instance_lines[instance_index])
+        instance_index = instance_index + 1
+    }
+    var owner_index = 0
+    while owner_index < hot_slot_names.count() and owner_index < hot_slot_owners.count() {
+        fact_lines.append("owner {hot_slot_names[owner_index]} {hot_slot_owners[owner_index]}")
+        owner_index = owner_index + 1
+    }
+    var fact_index = 0
+    while fact_index < fact_lines.count() {
+        key_lines.append(fact_lines[fact_index])
+        fact_index = fact_index + 1
+    }
     if key_lines.is_empty() {
         return manifest
     }
@@ -33830,11 +34027,21 @@ func classes_of_paths(paths: List<String>): List<String> {
     return owners
 }
 
-func reload_library(reload: HotReloadLibrary, changed_paths: List<String>, rebuilt: List<String>): String {
+func reload_library(
+    reload: HotReloadLibrary,
+    changed_paths: List<String>,
+    rebuilt: List<String>,
+    partial: Boolean,
+): String {
     var owners = classes_of_paths(changed_paths)
-    var prototype_text = builder.prototypes.join("\n")
-    var bodies = builder.bodies_text()
-    reload.split_program(prototype_text, bodies)
+    if not partial or not reload.split_done {
+        var prototype_text = builder.prototypes.join("\n")
+        var bodies = builder.bodies_text()
+        reload.split_program(prototype_text, bodies)
+    }
+    if not partial {
+        add_reached_classes(reload, owners)
+    }
     var growing = true
     while growing {
         var changed_signatures = reload.changed_signatures(hot_slot_names, hot_slot_owners, owners)
@@ -33856,6 +34063,38 @@ func reload_library(reload: HotReloadLibrary, changed_paths: List<String>, rebui
     return reload.library(builder, hot_slot_names, hot_slot_owners, owners)
 }
 
+func add_reached_classes(reload: HotReloadLibrary, owners: List<String>) {
+    var changed = reload.changed_bodies(constant_texts)
+    var index = 0
+    while index < changed.count() {
+        var name = changed[index]
+        var owner = hot_owner_of(name)
+        if owner.is_empty() {
+            reload.stale_pieces.append(name)
+        } else if not owners.contains(owner) {
+            owners.append(owner)
+        }
+        index = index + 1
+    }
+}
+
+func hot_owner_of(piece_name: String): String {
+    var slot = piece_name
+    if piece_name.ends_with("___hot") {
+        var name_length = piece_name.length()
+        slot = piece_name.slice(0, name_length - 6)
+    }
+    var index = 0
+    while index < hot_slot_names.count() {
+        if hot_slot_names[index] == slot {
+            crash hot_slot_owners[index]
+            return hot_slot_owners[index]
+        }
+        index = index + 1
+    }
+    return ""
+}
+
 func frame_result_body(information: Analysis.ClassInfo): String {
     crash information.codegen_types[0]
     var result_type = information.codegen_types[0]
@@ -33874,6 +34113,7 @@ func record_call(callee: String) {
     assert not resumable_mode and not current_function_c_name.is_empty()
     call_edge_callers.append(current_function_c_name)
     call_edge_callees.append(callee)
+    note_fact("edge {current_function_c_name} -> {callee}")
 }
 
 func hoisted_wait(
@@ -34061,6 +34301,11 @@ func queue_machine(callee: String): Boolean {
 }
 
 func find_waiting_functions() {
+    var seeded_index = 0
+    while seeded_index < seeded_waiting_names.count() {
+        waiting_names.set(seeded_waiting_names[seeded_index], true)
+        seeded_index = seeded_index + 1
+    }
     var index = 0
     while index < waiting_functions.count() {
         if waiting_kinds.get_at(index) != "yield" {
@@ -34140,6 +34385,8 @@ func emit_resumable_function(information: Analysis.ClassInfo, function: Analysis
         current_path = function.source_path
     }
     bind_symbol_of(function)
+    var outer_fact_owner = fact_owner
+    fact_owner = information.c_name
     var start = builder.user_count()
     var scope = parameter_scope(function)
     terminal_if = terminal_if_of(function.body)
@@ -34159,6 +34406,7 @@ func emit_resumable_function(information: Analysis.ClassInfo, function: Analysis
     close_rebindings(scope)
     var body = builder.take_user_from(start)
     resumable_mode = false
+    fact_owner = outer_fact_owner
     while crash_map_lines.count() > crash_lines {
         crash_map_lines.remove_last()
     }
@@ -34470,4 +34718,596 @@ func folded_decimal(expression: Syntax.Expressions.Expression, class_information
     }
     assert maths.is_member(member.name) and not maths.is_constant(member.name) and not maths.is_predicate(member.name)
     return folded_maths_value(member.name, member.object, call.arguments, class_information)
+}
+
+func seed_lent_variants(host: HotReloadLibrary) {
+    var index = 0
+    while index < host.host_variants.count() {
+        var fields = host.host_variants[index].split("\t")
+        crash fields.count() == 4
+        var variant_c_name = fields.get_at(0)
+        var original_c_name = fields.get_at(1)
+        var owner = class_of_function_c_name(original_c_name)
+        if owner {
+            var original = function_by_c_name(owner, original_c_name)
+            var exists = function_by_c_name(owner, variant_c_name)
+            if original and not exists and reload_owners.contains(owner.c_name) {
+                var position_text = fields.get_at(2)
+                var positions = position_text.split("_")
+                var sources = fields.get_at(3)
+                add_lent_variant(owner, original, variant_c_name, positions, sources)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func instance_record(
+    template: Analysis.ClassInfo,
+    types: List<Analysis.SpiteType>,
+    texts: List<String>,
+    label: String,
+): String {
+    var codec = TypeCodec()
+    var fields = List<String>()
+    fields.append(label)
+    fields.append(template.c_name)
+    var count = types.count().to_string()
+    fields.append(count)
+    var index = 0
+    while index < types.count() {
+        var encoded_type = codec.encoded(types[index])
+        fields.append(encoded_type)
+        index = index + 1
+    }
+    index = 0
+    while index < texts.count() {
+        var escaped_text = codec.escaped(texts[index])
+        fields.append(escaped_text)
+        index = index + 1
+    }
+    return "instance {fields.join("\t")}"
+}
+
+func replay_instances(host: HotReloadLibrary) {
+    var index = 0
+    while index < host.host_instances.count() {
+        var record = host.host_instances.get_at(index)
+        replay_instance(record)
+        index = index + 1
+    }
+}
+
+func replay_instance(record: String) {
+    var codec = TypeCodec()
+    var fields = record.split("\t")
+    crash fields.count() >= 3
+    var label = fields.get_at(0)
+    assert not find_class_by_c_name(label)
+    var template_name = fields.get_at(1)
+    var template = find_class_by_c_name(template_name)
+    assert template
+    var count_text = fields.get_at(2)
+    var count = count_text.to_integer()
+    crash count
+    crash fields.count() == 3 + count * 2
+    var types = List<Analysis.SpiteType>()
+    var texts = List<String>()
+    var codes = List<String>()
+    var index = 0
+    while index < count {
+        var encoded_type = fields.get_at(3 + index)
+        var decoded = codec.decoded(encoded_type)
+        assert decoded
+        types.append(decoded)
+        index = index + 1
+    }
+    index = 0
+    while index < count {
+        var escaped_text = fields.get_at(3 + count + index)
+        var text = codec.unescaped(escaped_text)
+        texts.append(text)
+        var text_type = types.get_at(index)
+        var code = code_of_text(text, text_type)
+        codes.append(code)
+        index = index + 1
+    }
+    if template.qualified_dotted == "List" {
+        var listed = types.get_at(0)
+        ensure_list(listed)
+        return
+    }
+    if template.qualified_dotted == "Dictionary" {
+        var element = types.get_at(0)
+        var key = types.get_at(1)
+        var dictionary_type = Analysis.Types.DictionaryType(element, key, "")
+        ensure_dictionary(dictionary_type)
+        return
+    }
+    instantiated_with(template, types, codes, texts, label)
+}
+
+func code_of_text(text: String, spite_type: Analysis.SpiteType): String {
+    if text.is_empty() {
+        return ""
+    }
+    var text_length = text.length()
+    var value = text.slice(2, text_length)
+    if text.starts_with("s:") {
+        return render_string_literal(value)
+    }
+    if text.starts_with("e:") {
+        var written_enum = type_shape.as_enum(spite_type)
+        crash written_enum
+        return "{written_enum.c_name}_{value}"
+    }
+    return value
+}
+
+func prepare_partial(host: HotReloadLibrary) {
+    replay_instances(host)
+    reload_owners = classes_of_paths(reload_changed_paths)
+    seed_host_facts(host)
+}
+
+func seed_host_facts(host: HotReloadLibrary) {
+    seed_lent_variants(host)
+    seed_made_members(host)
+    var index = 0
+    while index < host.host_facts.keys.count() {
+        var key = host.host_facts.keys[index]
+        if host.host_facts.kept_without(key, reload_owners) {
+            seed_host_fact(key)
+        }
+        index = index + 1
+    }
+}
+
+func seed_host_fact(key: String) {
+    var key_length = key.length()
+    if key.starts_with("edge ") {
+        var arrow = key.index_of(" -> ")
+        var caller = key.slice(5, arrow)
+        var callee = key.slice(arrow + 4, key_length)
+        call_edge_callers.append(caller)
+        call_edge_callees.append(callee)
+        return
+    }
+    if key.starts_with("sedge ") {
+        var shape_arrow = key.index_of(" -> ")
+        var shape_caller = key.slice(6, shape_arrow)
+        var shape_callee = key.slice(shape_arrow + 4, key_length)
+        seeded_shape_callers.append(shape_caller)
+        seeded_shape_callees.append(shape_callee)
+        return
+    }
+    if key.starts_with("vedge ") {
+        var value_arrow = key.index_of(" -> ")
+        var value_caller = key.slice(6, value_arrow)
+        var value_callee = key.slice(value_arrow + 4, key_length)
+        wait_facts.add_edge(value_caller, value_callee)
+        return
+    }
+    if key.starts_with("wait ") {
+        var words = key.split(" ")
+        if words.count() == 3 and words[2] != "yield" {
+            seeded_waiting_names.append(words[1])
+        }
+        return
+    }
+    if key.starts_with("read ") {
+        read_attributes[key.slice(5, key_length)] = true
+        return
+    }
+    if key.starts_with("word ") {
+        folded_words[key.slice(5, key_length)] = true
+        return
+    }
+    if key == "flag threads" {
+        builder.threads = true
+        return
+    }
+    if key.starts_with("allocated ") {
+        var allocated_name = key.slice(10, key_length)
+        var allocated = find_class_by_c_name(allocated_name)
+        if allocated {
+            note_allocated_class(allocated)
+        }
+        return
+    }
+    if key.starts_with("admit ") or key.starts_with("flow ") or key.starts_with("shape caller ") {
+        seed_shape_fact(key)
+    }
+}
+
+func admitted_class_named(c_name: String): Analysis.ClassInfo? {
+    var found = find_class_by_c_name(c_name)
+    if found {
+        return found
+    }
+    if c_name == "SpiteSymbol" {
+        var symbol_type: Analysis.SpiteType = Analysis.Types.SymbolType()
+        return boxed_class_of(symbol_type)
+    }
+    var index = 0
+    while index < enums.count() {
+        if enums[index].c_name == c_name {
+            var boxed_enum = enum_type_of(enums[index])
+            return boxed_class_of(boxed_enum)
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func seed_shape_fact(key: String) {
+    var words = key.split(" ")
+    if key.starts_with("admit ") {
+        crash words[1]
+        crash words[2]
+        var admitting = find_union_by_c_name(words[1])
+        var admitted = admitted_class_named(words[2])
+        if admitting and admitted {
+            if admitting.is_shape and not admitting.has_member(admitted.c_name) {
+                admit_to_union(admitting, admitted)
+            }
+        }
+        return
+    }
+    if key.starts_with("flow ") {
+        crash words[1]
+        var ends = words[1].split(">")
+        crash ends[0]
+        crash ends[1]
+        var source = find_union_by_c_name(ends[0])
+        var target = find_union_by_c_name(ends[1])
+        if source and target {
+            if not shape_flow_keys.contains(words[1]) {
+                record_shape_flow(source, target)
+            }
+        }
+        return
+    }
+    crash words[2]
+    crash words[3]
+    var called = find_union_by_c_name(words[2])
+    assert called
+    ensure_shape_caller(called, words[3])
+}
+
+func partial_problem(host: HotReloadLibrary): String {
+    if partial_falls_short() {
+        return "a function of a changed class has another parameter list or return type"
+    }
+    var missing = missing_slot(host)
+    if not missing.is_empty() {
+        return "'{missing}' of a changed class is not made without compiling the whole program"
+    }
+    var fact_problem = changed_fact(host)
+    if not fact_problem.is_empty() {
+        return fact_problem
+    }
+    var write_problem = changed_write_answer(host)
+    if not write_problem.is_empty() {
+        return write_problem
+    }
+    var snapshot = analysis_snapshot()
+    var snapshot_problem = changed_snapshot(host.host_snapshot, snapshot)
+    if not snapshot_problem.is_empty() {
+        return snapshot_problem
+    }
+    partial_snapshot = snapshot
+    var interface_problem = changed_interface(host, snapshot)
+    if not interface_problem.is_empty() {
+        return interface_problem
+    }
+    return changed_key_kind()
+}
+
+func changed_interface(host: HotReloadLibrary, snapshot: Dictionary<String>): String {
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        var function_index = 0
+        while function_index < information.declared_functions.count() {
+            var function = information.declared_functions[function_index]
+            var key = "interface {function.c_name}"
+            var compiled = function.is_emitted and not skipped_in_reload.has(function.c_name)
+            var before_text = shown_or_none(host.host_snapshot[key])
+            var after_text = shown_or_none(snapshot[key])
+            if compiled and before_text != after_text {
+                return "how '{function.c_name}' takes its arguments changed"
+            }
+            function_index = function_index + 1
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func shown_or_none(value: String?): String {
+    if not value {
+        return "none"
+    }
+    return value
+}
+
+func library_problem(host: HotReloadLibrary): String {
+    var local_text = host.library_bodies.join("\n")
+    var snapshot = partial_snapshot
+    var index = 0
+    while index < unions.count() {
+        var information = unions[index]
+        var key = "members {information.c_name}"
+        if information.is_shape and host.host_snapshot[key] != snapshot[key] and local_text.contains(information.c_name) {
+            return "the classes that fit '{information.simple_name}' are not all known without compiling the whole program"
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func missing_slot(host: HotReloadLibrary): String {
+    var running = host.host_slot_owners.keys()
+    var index = 0
+    while index < running.count() {
+        var slot = running[index]
+        crash host.host_slot_owners[slot]
+        if reload_owners.contains(host.host_slot_owners[slot]) and not hot_slot_names.contains(slot) {
+            return slot
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func seed_made_members(host: HotReloadLibrary) {
+    var running = host.host_slot_owners.keys()
+    var index = 0
+    while index < running.count() {
+        var slot = running[index]
+        crash host.host_slot_owners[slot]
+        var slot_owner = host.host_slot_owners[slot]
+        var owner = find_class_by_c_name(slot_owner)
+        if owner and reload_owners.contains(slot_owner) {
+            make_member_again(owner, slot)
+        }
+        index = index + 1
+    }
+}
+
+func make_member_again(owner: Analysis.ClassInfo, slot: String) {
+    if slot == "{owner.c_name}___functions" {
+        ensure_functions_function(owner)
+        return
+    }
+    var prefix_length = owner.c_name.length() + 1
+    var slot_length = slot.length()
+    assert slot_length > prefix_length and not slot.ends_with("___init")
+    var name = slot.slice(prefix_length, slot_length)
+    assert not owner.find_function(name)
+    find_or_instantiate_function(owner, name)
+}
+
+func changed_fact(host: HotReloadLibrary): String {
+    var looked_up = host.host_facts.has("flag symbol_lookup_used")
+    var waits_listed = host.host_facts.has("flag function_waits_table_used")
+    var index = 0
+    while index < program_facts.keys.count() {
+        var key = program_facts.keys[index]
+        if not host.host_facts.has(key) and not fact_may_differ(key, looked_up, waits_listed) {
+            return "the change adds '{key}'"
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < host.host_facts.keys.count() {
+        var host_key = host.host_facts.keys[index]
+        var kept = host.host_facts.kept_without(host_key, reload_owners)
+        if not kept and not program_facts.has(host_key) and not fact_may_differ(host_key, looked_up, waits_listed) {
+            return "the change takes away '{host_key}'"
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func fact_may_differ(key: String, looked_up: Boolean, waits_listed: Boolean): Boolean {
+    var about_calls = key.starts_with("edge ") or key.starts_with("vedge ") or key.starts_with("sedge ") or key.starts_with("wait ")
+    var about_reads = key.starts_with("read ") or key.starts_with("word ") or key.starts_with("asks writes ")
+    if about_calls or about_reads {
+        return true
+    }
+    if key.starts_with("symbol ") {
+        return not looked_up
+    }
+    if key.starts_with("maker ") {
+        return not waits_listed
+    }
+    return false
+}
+
+func changed_write_answer(host: HotReloadLibrary): String {
+    var index = 0
+    while index < host.host_facts.keys.count() {
+        var key = host.host_facts.keys[index]
+        if key.starts_with("asks writes ") and host.host_facts.kept_without(key, reload_owners) {
+            var words = key.split(" ")
+            crash words[2]
+            crash words[3]
+            crash words[4]
+            var owner = class_of_function_c_name(words[2])
+            if not owner {
+                return "'{words[2]}' asked about is gone"
+            }
+            var function = function_by_c_name(owner, words[2])
+            if not function {
+                return "'{words[2]}' asked about is gone"
+            }
+            var answered = parameter_writes.answer(this, owner, function, words[3])
+            if answered.to_string() != words[4] {
+                return "whether '{words[2]}' writes its argument {words[3]} changed"
+            }
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func changed_snapshot(host_snapshot: Dictionary<String>, snapshot: Dictionary<String>): String {
+    var keys = snapshot.keys()
+    var index = 0
+    while index < keys.count() {
+        var key = keys[index]
+        if host_snapshot[key] != snapshot[key] and not key.starts_with("members ") and not key.starts_with("interface ") {
+            return "{key} changed"
+        }
+        index = index + 1
+    }
+    var host_keys = host_snapshot.keys()
+    index = 0
+    while index < host_keys.count() {
+        var host_key = host_keys[index]
+        var compared_elsewhere = host_key.starts_with("members ") or host_key.starts_with("interface ")
+        if not snapshot.has(host_key) and not compared_elsewhere {
+            return "{host_key} changed"
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func changed_key_kind(): String {
+    var index = 0
+    while index < key_sites.count() {
+        var site = key_sites[index]
+        var at = site.index_of("@")
+        var site_owner = site.slice(0, at)
+        var owned = at > 0 and reload_owners.contains(site_owner)
+        if not owned and key_label(learned_key_sites[site]) != key_label(number_key_sites[site]) {
+            return "the keys of the dictionary made at {site} changed kind"
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func analysis_snapshot(): Dictionary<String> {
+    var snapshot = Dictionary<String>()
+    var digest = ProgramFacts()
+    var outside = Dictionary<List<String>>()
+    var index = 0
+    while index < call_effects.function_keys.count() {
+        var key = call_effects.function_keys[index]
+        var effects = call_effects.by_function.get(key)
+        crash effects
+        snapshot["effects {key}"] = digest.distinct_digest(effects.keys)
+        note_outside_writes(key, effects, outside)
+        index = index + 1
+    }
+    var written_classes = outside.keys()
+    index = 0
+    while index < written_classes.count() {
+        var written = written_classes[index]
+        crash outside[written]
+        snapshot["outside {written}"] = digest.set_digest(outside[written])
+        index = index + 1
+    }
+    var reached_classes = call_effects.thread_reached_classes()
+    var reached_class_names = reached_classes.keys()
+    snapshot["reach classes"] = digest.set_digest(reached_class_names)
+    var reached_functions = call_effects.thread_reached_functions()
+    var reached_function_names = reached_functions.keys()
+    snapshot["reach functions"] = digest.set_digest(reached_function_names)
+    snapshot["table fields"] = digest.pairs_digest(call_effects.field_classes)
+    snapshot["table elements"] = digest.pairs_digest(call_effects.element_classes)
+    snapshot["table returns"] = digest.pairs_digest(call_effects.return_classes)
+    snapshot["table types"] = digest.pairs_digest(call_effects.type_field_classes)
+    var plain_names = call_effects.plain_fields.keys()
+    snapshot["table plain"] = digest.set_digest(plain_names)
+    var counted_names = call_effects.counted_field_names.keys()
+    snapshot["table counted"] = digest.set_digest(counted_names)
+    var shared_names = call_effects.shared_defaults.keys()
+    snapshot["table shared"] = digest.set_digest(shared_names)
+    if not instance_lists_studied {
+        instance_lists_studied = true
+        classes.each(study_instance_lists)
+    }
+    var listed = instance_listed_names.copy()
+    if every_class_listed {
+        listed.append("*")
+    }
+    snapshot["instances"] = digest.set_digest(listed)
+    settle_wait_facts()
+    var waiting_names_now = wait_facts.waits.keys()
+    snapshot["waits"] = digest.set_digest(waiting_names_now)
+    add_interface_snapshot(snapshot, digest)
+    index = 0
+    while index < unions.count() {
+        var information = unions[index]
+        if information.is_shape {
+            var member_names = information.members.map_c_name()
+            snapshot["members {information.c_name}"] = digest.set_digest(member_names)
+        }
+        index = index + 1
+    }
+    return snapshot
+}
+
+func note_outside_writes(key: String, effects: FunctionEffects, outside: Dictionary<List<String>>) {
+    var hash = key.index_of("#")
+    var writer = key.slice(0, hash)
+    assert writer != "*"
+    var index = 0
+    while index < effects.member_writes.count() {
+        var written = effects.member_writes[index]
+        var written_hash = written.index_of("#")
+        var written_class = written.slice(0, written_hash)
+        if written_class != writer {
+            if not outside.has(written_class) {
+                var fresh = List<String>()
+                outside[written_class] = fresh
+            }
+            var names = outside[written_class]
+            crash names
+            names.append(written)
+        }
+        index = index + 1
+    }
+}
+
+func add_interface_snapshot(snapshot: Dictionary<String>, digest: ProgramFacts) {
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if not information.is_generic_template {
+            var function_index = 0
+            while function_index < information.declared_functions.count() {
+                var function = information.declared_functions[function_index]
+                var lent = function.lent_parameters.join(",")
+                var held = function.held_parameters.join(",")
+                var shown = "{lent}|{function.lent_sources}|{held}|{function.lent_element}|{function.result_slot}"
+                if shown != "||||false" {
+                    var parts = [shown]
+                    snapshot["interface {function.c_name}"] = digest.set_digest(parts)
+                }
+                function_index = function_index + 1
+            }
+        }
+        index = index + 1
+    }
+}
+
+func snapshot_manifest_lines(): List<String> {
+    var snapshot = analysis_snapshot()
+    var lines = program_facts.manifest_lines()
+    var keys = snapshot.keys()
+    var index = 0
+    while index < keys.count() {
+        var key = keys[index]
+        crash snapshot[key]
+        lines.append("snapshot {snapshot[key]}\t{key}")
+        index = index + 1
+    }
+    return lines
 }

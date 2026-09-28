@@ -71,6 +71,26 @@ func shake_program(types: String, prototypes: String, main_function: String, bod
     return kept_text(type_piece_count, body_piece_end)
 }
 
+func shake_declarations(types: String, prototypes: String, roots: String) {
+    names_types = true
+    reserve_slots("{types}\n{prototypes}")
+    split_pieces(types)
+    type_piece_count = pieces.count()
+    add_undefined_prototypes(prototypes)
+    keep_named_in(roots)
+    var index = 0
+    while index < type_piece_count {
+        var name = piece_names[index]
+        crash name
+        if name.is_empty() {
+            var piece = pieces.get_at(index)
+            keep_named_in(piece)
+        }
+        index = index + 1
+    }
+    keep_waiting()
+}
+
 func keep_waiting() {
     while not waiting.is_empty() {
         var next = waiting.last()

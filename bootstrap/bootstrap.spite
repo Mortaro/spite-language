@@ -17,6 +17,11 @@ var language_folder = "."
 var reloading = false
 var flag_error = ""
 var maximum_passes = 8
+var partial_host: Generation.HotReloadLibrary? = null
+var partial_paths = List<String>()
+var reload_code = ""
+var reload_rebuilt = List<String>()
+var reload_generator: Generation.Generator? = null
 
 func Bootstrap() {
     load "source"
@@ -33,6 +38,9 @@ func Bootstrap() {
     language_folder = folder_holding_launcher()
     reloading = command == "reload"
     read_supplied_settings(arguments)
+    if reloading {
+        restore_host_settings()
+    }
     if not flag_error.is_empty() {
         report_error(flag_error)
         program.exit(1)
@@ -334,6 +342,8 @@ func generator_pass(
     configure(generator)
     generator.another_pass_follows_a_change = pass < maximum_passes
     generator.renders_program = not reloading
+    generator.reload_host = partial_host
+    generator.reload_changed_paths = partial_paths
     generator.seed_class_names(host_classes)
     generator.number_key_sites = number_keys
     generator.key_use_notes = notes
@@ -371,7 +381,25 @@ func hot_state(
         hashes.append(hash)
         index = index + 1
     }
-    return reload.state_text(next_generation, paths, hashes)
+    var state = reload.state_text(next_generation, paths, hashes)
+    var settings = List<String>()
+    var outputs = ["run", "executable", "executable_path", "c_source", "c_path", "final_classes"]
+    var index_of_output = 0
+    while index_of_output < outputs.count() {
+        var name = outputs[index_of_output]
+        if supplied_settings[name] {
+            var bare = "given"
+            if bare_settings.contains(name) {
+                bare = "bare"
+            }
+            settings.append("setting {name}\t{supplied_settings[name]}\t{bare}")
+        }
+        index_of_output = index_of_output + 1
+    }
+    if settings.is_empty() {
+        return state
+    }
+    return "{state}\n{settings.join("\n")}"
 }
 
 func configure(generator: Generation.Generator) {
@@ -466,6 +494,29 @@ func read_supplied_settings(arguments: Arguments) {
         var argument_length = argument.length()
         if argument.starts_with("--") and argument_length > 2 {
             read_flag(argument)
+        }
+        index = index + 1
+    }
+}
+
+func restore_host_settings() {
+    assert supplied_settings["executable_path"]
+    var base = without_executable_extension(supplied_settings["executable_path"])
+    var state_text = File("{base}.reload_files").read()
+    assert state_text
+    var lines = state_text.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        if line.starts_with("setting ") {
+            var line_length = line.length()
+            var fields = line.slice(8, line_length).split("\t")
+            crash fields.count() == 3
+            var name = fields.get_at(0)
+            supplied_settings[name] = fields.get_at(1)
+            if fields.get_at(2) == "bare" and not bare_settings.contains(name) {
+                bare_settings.append(name)
+            }
         }
         index = index + 1
     }
@@ -927,19 +978,75 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
         program.exit(1)
         return
     }
-    var reload = Generation.HotReloadLibrary()
-    reload.read_host(host_text)
-    reload.read_state(state_text)
+    var reload = read_reload(host_text, state_text)
     var changed_files = changed_paths(discovery, reload)
+    var checked = program.environment("SPITE_RELOAD_CHECK")
+    if checked {
+        if checked != "1" and not changed_files.contains(checked) {
+            changed_files.append(checked)
+        }
+        check_reload(discovery, host_text, state_text, changed_files)
+        return
+    }
     if changed_files.is_empty() {
         console.print("unchanged")
         return
     }
-    var generator = keyed_generator(discovery, reload.host_classes, reload.host_key_sites)
-    if generator.has_error {
-        console.print(generator.error_message)
+    var outcome = compile_reload(discovery, reload, changed_files, true)
+    if outcome.starts_with("whole ") {
+        var outcome_length = outcome.length()
+        var reason = outcome.slice(6, outcome_length)
+        console.error("spite: compiling the whole program, since {reason}")
+        reload = read_reload(host_text, state_text)
+        outcome = compile_reload(discovery, reload, changed_files, false)
+    }
+    if not outcome.is_empty() {
+        console.print(outcome)
         program.exit(1)
         return
+    }
+    var next_generation = reload.generation + 1
+    var state = hot_state(discovery, reload, next_generation)
+    var library_base = "{base}_reload_{next_generation}"
+    var library_path = "{library_base}.{library_extension()}"
+    if not build_library(reload_code, "{library_base}.c", library_path) {
+        program.exit(1)
+        return
+    }
+    File("{library_base}.files").write(state)
+    console.print("rebuilt {reload_rebuilt.join(", ")}")
+    if not reload.removed.is_empty() {
+        console.print("removed {reload.removed.join(", ")}")
+    }
+    console.print("library {library_path}")
+    console.print("state {library_base}.files")
+}
+
+func read_reload(host_text: String, state_text: String): Generation.HotReloadLibrary {
+    var reload = Generation.HotReloadLibrary()
+    reload.read_host(host_text)
+    reload.read_state(state_text)
+    return reload
+}
+
+func compile_reload(
+    discovery: Discovery.DiscoveryResult,
+    reload: Generation.HotReloadLibrary,
+    changed_files: List<String>,
+    partial: Boolean,
+): String {
+    partial_host = null
+    if partial {
+        partial_host = reload
+        partial_paths = changed_files
+    }
+    var generator = keyed_generator(discovery, reload.host_classes, reload.host_key_sites)
+    partial_host = null
+    if generator.has_error {
+        return generator.error_message
+    }
+    if not generator.partial_refusal.is_empty() {
+        return "whole {generator.partial_refusal}"
     }
     var swappable = generator.program_source_paths()
     var fixed = List<String>()
@@ -951,35 +1058,99 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
         changed_index = changed_index + 1
     }
     if not fixed.is_empty() {
-        console.print(
-            "error: '{fixed.join("', '")}' changed, and a reload swaps only the functions of the program's own classes, which it holds none of (it reopens a class of the standard library, or sets how the program is built): restart the program to change it, or undo that change to reload the rest",
-        )
-        program.exit(1)
-        return
+        return "error: '{fixed.join("', '")}' changed, and a reload swaps only the functions of the program's own classes, which it holds none of (it reopens a class of the standard library, or sets how the program is built): restart the program to change it, or undo that change to reload the rest"
     }
-    var next_generation = reload.generation + 1
-    var state = hot_state(discovery, reload, next_generation)
     var layout_problem = reload.layout_problem(generator.builder.typedefs)
     if not layout_problem.is_empty() {
-        console.print("error: {layout_problem}")
-        program.exit(1)
-        return
+        return "error: {layout_problem}"
     }
     var rebuilt = List<String>()
-    var library_code = generator.reload_library(reload, changed_files, rebuilt)
-    var library_base = "{base}_reload_{next_generation}"
-    var library_path = "{library_base}.{library_extension()}"
-    if not build_library(library_code, "{library_base}.c", library_path) {
+    var code = generator.reload_library(reload, changed_files, rebuilt, partial)
+    if partial {
+        var library_problem = generator.library_problem(reload)
+        if not library_problem.is_empty() {
+            return "whole {library_problem}"
+        }
+    }
+    if not reload.stale_pieces.is_empty() {
+        return "error: the change reaches '{reload.stale_pieces.join("', '")}', which the running program cannot swap: restart the program to take the change, or undo it"
+    }
+    reload_code = code
+    reload_rebuilt = rebuilt
+    reload_generator = generator
+    return ""
+}
+
+func used_constants(): Dictionary<String> {
+    crash reload_generator
+    return reload_generator.constant_texts
+}
+
+func check_reload(
+    discovery: Discovery.DiscoveryResult,
+    host_text: String,
+    state_text: String,
+    changed_files: List<String>,
+) {
+    var fast = read_reload(host_text, state_text)
+    var outcome = compile_reload(discovery, fast, changed_files, true)
+    if outcome.starts_with("whole ") {
+        console.print("reload check: {outcome}")
+        return
+    }
+    if not outcome.is_empty() {
+        console.print("reload check: the fast reload failed: {outcome}")
         program.exit(1)
         return
     }
-    File("{library_base}.files").write(state)
-    console.print("rebuilt {rebuilt.join(", ")}")
-    if not reload.removed.is_empty() {
-        console.print("removed {reload.removed.join(", ")}")
+    var fast_rebuilt = reload_rebuilt.copy()
+    var fast_constants = used_constants()
+    var fast_hashes = fast.library_hashes(fast_constants)
+    var whole = read_reload(host_text, state_text)
+    var whole_outcome = compile_reload(discovery, whole, changed_files, false)
+    if not whole_outcome.is_empty() {
+        console.print("reload check: the fast reload succeeded where a whole compile answers: {whole_outcome}")
+        program.exit(1)
+        return
     }
-    console.print("library {library_path}")
-    console.print("state {library_base}.files")
+    var whole_constants = used_constants()
+    var whole_hashes = whole.library_hashes(whole_constants)
+    var differences = List<String>()
+    if fast_rebuilt.join(", ") != reload_rebuilt.join(", ") {
+        differences.append("rebuilt {fast_rebuilt.join(", ")} against {reload_rebuilt.join(", ")}")
+    }
+    var names = whole_hashes.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if not fast_hashes.has(name) {
+            differences.append("only the whole compile writes {name}")
+        } else if fast_hashes[name] != whole_hashes[name] {
+            differences.append("{name} differs")
+        }
+        index = index + 1
+    }
+    var fast_names = fast_hashes.keys()
+    index = 0
+    while index < fast_names.count() {
+        if not whole_hashes.has(fast_names[index]) {
+            differences.append("only the fast reload writes {fast_names[index]}")
+        }
+        index = index + 1
+    }
+    if differences.is_empty() {
+        console.print("reload check: the fast reload matches a whole compile, rebuilt {reload_rebuilt.join(", ")}")
+        return
+    }
+    var checked_program = executable_path()
+    var base = without_executable_extension(checked_program)
+    var fast_text = fast.library_bodies.join("\n")
+    var whole_text = whole.library_bodies.join("\n")
+    var fast_written = File("{base}.check_fast.c").write(fast_text)
+    var whole_written = File("{base}.check_whole.c").write(whole_text)
+    crash fast_written and whole_written
+    console.print("reload check: the fast reload differs from a whole compile: {differences.join("; ")}")
+    program.exit(1)
 }
 
 func changed_paths(discovery: Discovery.DiscoveryResult, reload: Generation.HotReloadLibrary): List<String> {

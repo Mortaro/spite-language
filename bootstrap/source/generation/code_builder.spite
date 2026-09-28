@@ -18,6 +18,7 @@ var threads = false
 var hot_reload = false
 var debug_memory = false
 var host = HotReloadLibrary()
+var constant_texts = Dictionary<String>()
 var faults = NativeFaults()
 var function_owners = Dictionary<String>()
 var function_names = Dictionary<String>()
@@ -302,7 +303,7 @@ func render(): String {
     var slot_text = ""
     if hot_reload {
         slot_text = "{slot_lines.join("\n")}\n"
-        host.record_host(prototype_lines, bodies)
+        host.record_host(prototype_lines, bodies, constant_texts)
         var symbol_table = host.symbol_table()
         bodies = "{bodies}\n{symbol_table}"
     }
