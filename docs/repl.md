@@ -277,6 +277,7 @@ program runs`. For an AI: edit the file, send `reload`, and read `last_reload` i
 | an attribute's default value | instances made after the reload get the new default |
 | a class's attributes or enums | refused: `the attributes of Monster changed, ... restart the program to change a class's attributes or enums`, and the program keeps all of its code |
 | a file that does not compile | refused with the compiler's error, and the program keeps all of its code |
+| a file that declares none of the program's classes: `environment.spite`, `build.spite`, a reopening of a class of the standard library | refused: `'environment.spite' changed, and a reload swaps only the functions of the program's own classes, ...`, and the program keeps all of its code |
 | a new class | its functions are compiled into the new code; the REPL does not see it until a restart |
 
 A refused reload leaves the program exactly as it was, so a save that caught a file half-written is harmless: the
@@ -293,10 +294,14 @@ next save reloads.
 - **Only what changed is compiled again.** The build writes two files beside the executable: `game.reload_host`
   (every function the program has, its classes and their layouts) and `game.reload_files` (a hash of each of the
   program's files). A reload runs the compiler that built the program with the same options, as `spite reload`.
-  The compiler reads the program again -- which takes milliseconds -- but writes C only for the classes whose files
-  changed and whatever those need that the program does not already have, and compiles that into
-  `game_reload_1.dll` (`.so` on Linux, `.dylib` on macOS). Everything else the new code calls, it reaches in the
-  running program.
+  The compiler reads the program's files and compares their hashes first, so a save that changed nothing answers
+  at once. Otherwise it compiles the whole program again, starting from the dictionary key kinds the build
+  settled on, but writes C only for the classes whose files changed and whatever those need that the program does
+  not already have, and compiles that into `game_reload_1.dll` (`.so` on Linux, `.dylib` on macOS). Everything
+  else the new code calls, it reaches in the running program. What that costs grows with the program: for
+  SlopTheseus's server (about 460 files and 880,000 lines of C) a save that changed nothing answers in under a
+  second and a changed system is swapped in about 20 seconds after the save, most of it compiling the whole
+  program again.
 - **The swap happens where the program waits** ([D37](decisions.md)), or at the end of a pass of one of its
   loops: the program loads the library
   with the operating system's loader, the one `DynamicLibrary` uses, hands it the addresses of the program's
@@ -496,15 +501,27 @@ session against a copy of the program it edits.
   indirect call that the C compiler cannot inline, about a nanosecond: 200 million calls to a one-line function
   took about 0.62 s instead of 0.44 s at `-O0` and 0.40 s instead of 0.18 s with `--optimized` (Windows, clang).
 - **What the build records.** Beside the executable, `<program>.reload_host` lists every function the executable
-  defines with its C prototype, its slots, its class ids in order and the C layout of every class and enum;
-  `<program>.reload_files` holds a generation number and a hash of each of the program's files. The executable
+  defines with its C prototype, its slots, its class ids in order, the C layout of every class and enum, and every
+  dictionary the build keyed by whole numbers (`key Long Columns@slop/columns.spite:11:43`, D224);
+  `<program>.reload_files` holds a generation number and a hash of each of the program's files -- every file it
+  compiled from outside `library/`, not only those declaring its classes. The executable
   holds a table of its functions' addresses by name, the path of the compiler that built it and that compiler's
   options, so it must run from the directory it was built from.
 - **Rebuilding: `spite reload <folder> <options> --executable-path=<program>`** (a command since D128, when
   `--mode` went; proposed by Claude, unconfirmed). A reload runs that compiler with those options, less the
   outputs, and prints its errors to standard output, where the running program reads them.
-  It reads the whole program again (milliseconds), with the class ids seeded from the manifest so every class keeps
-  the id its instances carry, and compares file hashes: nothing changed answers `unchanged`. The rebuilt set is the
+  It reads the program's files and compares their hashes before compiling anything: nothing changed answers
+  `unchanged` (under a second for SlopTheseus; before, it compiled the whole program twice to say so, 90 seconds).
+  Otherwise it compiles the whole program again, with the class ids seeded from the manifest so every class keeps
+  the id its instances carry and the dictionary key kinds seeded from it too, so a program whose kinds did not
+  change is compiled once rather than twice (proposed by Claude, unconfirmed). It writes no C for the whole
+  program, only the library's. **A changed file that declares none of the program's classes is refused** (proposed
+  by Claude, unconfirmed; D244): a file reopening a class of the standard library, as `environment.spite` reopens
+  `Environment`, or `build.spite`, holds nothing a slot can swap, and before, its change was answered `unchanged`
+  and silently not applied. Now the reload answers `'<file>' changed, and a reload swaps only the functions of the
+  program's own classes, which it holds none of (it reopens a class of the standard library, or sets how the
+  program is built): restart the program to change it, or undo that change to reload the rest`, and the program
+  keeps all of its code. The rebuilt set is the
   classes the changed files declare, plus every class whose code calls a function of the set that the running
   program has with another prototype or does not have at all (the running caller would still call the old one),
   repeated until nothing is added. It writes C only for the rebuilt classes' functions and what they reach that the

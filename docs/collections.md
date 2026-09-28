@@ -810,7 +810,10 @@ one loop.
 ([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)); everything else is written in the file. A
 build with `--repl` or `--repl-port` compiles every template that fits every element class of a list the loop
 can reach, so `monsters.sum_health()` can be typed at the prompt; that is the one build where templates nobody
-calls are in the program ([D143](decisions.md)).
+calls are in the program ([D143](decisions.md)). A private member (`_name`) of the element gets none: a template is
+`List`'s code, and a private name is read only inside its own class
+([classes_and_files.md](classes_and_files.md#private-names)), so `List<Parallel<Integer>>` has no `each__join`
+in any build.
 
 ## Write your own member template
 
@@ -1034,14 +1037,22 @@ it: `Dictionary<T>` stays the one spelling.
   decides it for all of them.
 - One dictionary given a text key and a number key is a compile error at the number key, naming the text key's
   place: `this dictionary is given a whole-number key here and a text key at <file>:<line> (in <class>.<function>):
-  a dictionary is keyed by text or by whole numbers, never both -- give every key of it the same kind`
-  (`diagnostics/mixed_dictionary_keys`).
+  a dictionary is keyed by text or by whole numbers, never both -- give every key of it the same kind`, with the
+  places that tied the two before the colon when they were given to different dictionaries (below;
+  `diagnostics/mixed_dictionary_keys`).
 - **Only the program's own flows decide it** (proposed by Claude, unconfirmed; a SlopEngine bug). The descriptions
   the compiler writes for `to_debug()` -- `Spite.Debug<T>` and `Spite.DebugInstance<T>`, one of each per type for
   the whole program -- take a dictionary as the kind it already has and never tie it to another. Before, every
   `Dictionary<String>` attribute of every class described passed through the one `Spite.Debug<Dictionary<String>>`
   and was tied to all the others, so a number key given to one changed the kind of an unrelated one, and removing
   code that made some class be described changed what compiled (`conformance/stage6/debug_dictionary_keys`).
+  The same holds for the member templates a build compiles only so the prompt can call them (a `--repl`,
+  `--repl-port` or `--hot-reload` build, [below](#how-the-member-templates-are-written)): `map_<member>` over a
+  dictionary attribute appends it to the one `List<Dictionary<String>>` of the program, so each such template tied
+  every dictionary attribute of every listed class together, and a `--hot-reload` build of SlopTheseus failed with
+  a kind its `--optimized` build never had. A template kept for the prompt neither ties dictionaries nor gives one a
+  key; one the program calls does both (`conformance/stage6/kept_templates`, which `check.sh` also builds with
+  `--hot-reload --repl-port`). The kinds are the same in every build of one program.
 - **Two kinds that meet are named.** Where a dictionary of one kind is given where one of the other kind is
   wanted, the error says which is which and what decided each, rather than naming two `Dictionary<String>`s:
   `a Dictionary<String> keyed by whole numbers (Long), from the key at slop/columns.spite:47 (in
@@ -1049,7 +1060,14 @@ it: `Dictionary<T>` stays the one spelling.
   slop/recipes/cache_reader.spite:25 (in Recipes.CacheReader.fingerprint_of) is needed: a dictionary is keyed by
   text or by whole numbers, decided while compiling by the keys it is given, and these two were decided apart --
   give both the same kind of key, or copy the entries across one by one`. A kind nothing decided reads `text,
-  since nothing gives it a whole-number key`.
+  since nothing gives it a whole-number key`. **A key that reaches a dictionary through others names the way it
+  came** (proposed by Claude, unconfirmed): when the deciding key was given to another dictionary tied to this one,
+  the kind -- here and in the mixed-keys error above -- adds `, which reaches it through <file>:<line> (in
+  <class>.<function>), ...`, each place that tied two of them (an assignment, an argument, a return), up to four
+  and `and N more`. Before, a dictionary tied to an unrelated one by code the reader never wrote -- a template kept
+  for the prompt -- showed only the far key, and nothing said how it got there.
+- The error that a dictionary never settles names the class and function that make it, not whichever function the
+  compiler read last.
 - **The kinds always settle, or it is an error.** They are found by compiling again with what the last pass
   learned, at most eight times; a program whose kinds are still changing then is a compile error at a dictionary
   that keeps changing, `the dictionary made here never settles on text or whole-number keys: each pass of the

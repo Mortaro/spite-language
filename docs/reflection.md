@@ -613,6 +613,12 @@ way. `Spite.Attribute.class` and `Spite.Argument.class` are real `Spite.Class` o
   run-time cost is one list and one `Spite.Attribute` per field per read. `attributes[symbol]` inside a class is
   a separate, compile-time-only form: that same field indexed by a `Symbol` (see [Symbol
   codegen](metaprogramming.md#symbol-codegen--implemented)).
+  A `List<T>`'s or `Dictionary<T>`'s `attributes` are its entries (named by index or by key), not the fields of
+  the class that stores them, whichever way it is reached -- a value's `.attributes`, an attribute holding the
+  collection, or the class object's `.attributes`. The class object's, which lists what a fresh value holds, is
+  therefore empty for a collection. Before, a program that read a class object's `.attributes` and reflected a
+  list (every `--repl-port` or `--hot-reload` build of SlopTheseus) was given two C functions of one name for that
+  list, and the C compiler refused it (`conformance/stage6/kept_templates`).
 - **`attribute.value` is the actual instance the attribute refers to** (D164, decided by Mortaro, replacing the
   text `.value` and the `.object` D123 added; the readings below proposed by Claude, unconfirmed).
   **[implemented]** Its type is `Anything?`, the library's built-in empty `type` (D163), so
