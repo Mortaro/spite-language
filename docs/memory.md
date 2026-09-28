@@ -393,7 +393,8 @@ func SparseRowDoc() {
 For `Runner<Moving>` the walk is written out as `{entity: <an Entity in the frame>, position:
 Column<Position>().values[found[1]], velocity: Column<Velocity>().values[found[2]], trail:
 ReferenceColumn<Trail>().at(found[3])}`: the `Entity` is made in the frame, since `Entity` could be a `Vector`
-item, and the `Trail` is counted once for the row and let go after the call. Only `Position` and `Velocity` are
+item, and the `Trail` is counted once for the row and let go after the call -- unless nothing the call runs can
+let go of it, when `at` lends it to the row uncounted ([below](#borrowed-items-of-a-vectort--implemented), D269). Only `Position` and `Velocity` are
 borrowed, so only their vectors are checked for a resize during the call.
 
 Two column classes, and a choice in every line that reaches them, are only there because a `Vector<Trail>` cannot
@@ -1070,7 +1071,10 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
   reaches is the same walk over calls that decides which singletons need a lock.
 - Parameters follow the same rule as everything else in [Functions](functions_and_operators.md#functions--implemented): a scalar is passed by value (copied); anything
   else is passed by reference (the same object, retained for the callee's own binding and released when the
-  callee's scope ends); nothing is written at the call site.
+  callee's scope ends); nothing is written at the call site. A name the caller already holds for the whole call --
+  its own parameter, or a local it owns -- is passed without that count when the callee never assigns the
+  parameter (D270, proposed by Claude, unconfirmed): nothing the call runs can let the caller's name go, so the
+  count would change nothing a program can see ([optimizations.md](optimizations.md#an-argument-its-caller-holds-is-passed-without-counting)).
 
 Every function/method return retains its result, so a getter's returned value is always a fresh, independent
 reference -- including through attribute read interception ([Operators](functions_and_operators.md#operators--implemented)): a `person.age`-shaped read answered by a
@@ -1434,6 +1438,26 @@ kept past its use. What is built (the error texts and the readings marked are pr
     a `String`) is counted once when the row is made and let go at the end of the row's block, so a call that
     removes it from its column cannot free it under the row. The resize check covers the borrowed items' vectors
     only. A row written as a literal keeps D206's rule, borrowed items and plain values only.
+  - **A reference column's element lent to the row** (D269, decided by Claude under D205, D214 and D244, asked by
+    SlopEngine; the readings below proposed by Claude, unconfirmed). The count above is left out when it cannot
+    matter: the attribute's line calls a function of a singleton (`Column<Trail>().at(found[3])`) whose body is
+    only `return <list>.get_at(<index>)` or `return <list>[<index>]`, optionally after `crash` of that same read,
+    where `<list>` is an attribute of the singleton holding a `List` of a class that nothing assigns after the
+    singleton is made and `<index>` is a whole-number parameter or literal, the function takes nothing counted, and
+    the rest of the row's block is proven to let go of nothing: every call in it is one the compiler can name (a
+    phase template's call named as the phase's own function), and none of them, nor anything they reach, lets go of
+    an object, removes from or replaces into a list, assigns an attribute holding an object or calls through a
+    function value, and no class whose objects can be let go in the meantime has a `drop()` reaching that
+    singleton or its list. The row then holds the element as it lies in the list, never retained or released, read
+    through a copy of the function, `<name>___lent_element`, which answers exactly what the function answers, crash
+    included. In a program where a `Parallel` reaches the singleton, the element is also held against other
+    threads for the rest of the block: the block takes the singleton's readers' side (D266) or its lock once, and
+    only when what the block runs reaches no singleton and nothing that waits; otherwise the line calls the function
+    and counts its result as above. Nothing is an error: every other caller of the function, and every line that
+    keeps the element, counts it as before. **Cost**: none; the lock or readers' side is taken once for the block
+    where the call would have taken it once. `conformance/stage6/lent_list_elements`,
+    `conformance/stage6/lent_list_elements_parallel`, `benchmarks/lent_elements`
+    ([optimizations.md](optimizations.md#a-row-of-borrowed-items-lives-in-the-frame)).
   - **Cost.** Nothing runs for any of it: the singleton is the one a program would reach anyway, `attribute.index`
     is a constant, the choice is made while compiling, and the frame-made object is a struct in the frame.
     `benchmarks/sparse_rows`: 200 000 entities, two systems, sparse sets for every component, 7.4 ms a tick with

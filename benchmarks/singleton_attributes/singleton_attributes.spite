@@ -1,0 +1,30 @@
+var console = Console()
+var clock = Clock()
+var heats = Column<Heat>()
+var row_total = 1000000
+
+func SingletonAttributes() {
+    var row = 0
+    while row < row_total {
+        var heat = Heat()
+        heats.insert(heat)
+        row = row + 1
+    }
+    var best: Long = 0
+    var total = 0.0
+    var round = 0
+    while round < 7 {
+        var start = clock.elapsed_nanoseconds()
+        var reader = Reader()
+        var reading = Parallel(reader.run)
+        var read: Float = reading
+        total = read
+        var took = clock.elapsed_nanoseconds() - start
+        if round == 0 or took < best {
+            best = took
+        }
+        round = round + 1
+    }
+    var per_thousand = best / (row_total / 1000)
+    console.print("an item read through a singleton's attribute: {per_thousand} ns per 1000 reads", total)
+}

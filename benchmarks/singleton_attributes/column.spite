@@ -1,0 +1,13 @@
+singleton
+
+generic $component_type
+
+var values = Items<$component_type>()
+
+func insert(value: $component_type) {
+    values.append(value)
+}
+
+func count(): Integer {
+    return values.count()
+}

@@ -1,0 +1,33 @@
+generic $system_type
+generic $row_type
+
+var rows = 0
+
+func Runner(row_count: Integer) {
+    rows = row_count
+}
+
+func run(): Integer {
+    var system = $system_type()
+    var found = Vector<Integer>()
+    found.append(0)
+    found.append(0)
+    var row = 0
+    while row < rows {
+        found[0] = row
+        found[1] = rows - 1 - row
+        var carried: $row_type = null
+        fill_attributes(carried, found)
+        system.update_each(carried)
+        row = row + 1
+    }
+    return rows
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, places: Vector<Integer>) {
+    if attribute.class.fits_vector() {
+        row.attributes[attribute] = Column<attribute.class>().values[places[attribute.index]]
+    } else {
+        row.attributes[attribute] = Column<attribute.class>().at(places[attribute.index])
+    }
+}

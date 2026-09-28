@@ -1,0 +1,25 @@
+var console = Console()
+var packer = Packer()
+
+func HeldArguments() {
+    var bag = Bag("first")
+    var packed = packer.pack_all(bag, 4)
+    var items = bag.items.count()
+    console.print("packed", packed, items)
+    passes_on(bag)
+    var other = Bag("second")
+    var swapped = packer.swap_in(bag, other)
+    console.print("swapped reads the other bag", swapped)
+    var back = packer.hand_back(bag)
+    bag = other
+    console.print("handed back", back.label, "and the local now names", bag.label)
+    crash packer.kept
+    var seen = packer.seen.count()
+    console.print("kept", packer.kept.label, seen)
+}
+
+func passes_on(bag: Bag) {
+    packer.keep_through(bag)
+    var weighed = packer.weigh(bag)
+    console.print("weighed", weighed)
+}

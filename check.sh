@@ -247,7 +247,32 @@ if ! grep -A1 "^Parallel__Integer\* Ledger_start_posting(Ledger\* self, int32_t 
    || ! grep -q "spite_enter_skipped(spite_skipped\[spite_index\])" "$unshared"; then
   echo "FAILED: unshared_locks should skip Ledger's lock while no task runs and take it when one starts"; exit 1
 fi
-echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock"
+# D269: a row borrows a reference column's element when nothing the rest of its block runs can let go of it, holding
+# the column's readers' side for the block in a program with threads; a system that reads the column counts it.
+lent_elements="$work/lent_list_elements_parallel.c"
+"$work/generation_two.exe" conformance/stage6/lent_list_elements_parallel --run=false --c-source --c-path="$lent_elements" > /dev/null 2>&1 || {
+  echo "FAILED: lent_list_elements_parallel does not write its C"; exit 1; }
+if ! grep -q "^#define spite_lend_0_enter() int64_t\* spite_lend_0 = spite_read_enter(&Column__Trail___guard, Column__Trail___readers)$" "$lent_elements" \
+   || ! grep -q "^#define spite_lend_0_read(lent, counted, receiver, index) lent(receiver, index)$" "$lent_elements" \
+   || ! grep -q "^#define spite_lend_1_read(lent, counted, receiver, index) counted(receiver, index)$" "$lent_elements"; then
+  echo "FAILED: lent_list_elements_parallel should lend Mover its trail under the readers' side and count Peeker's"; exit 1
+fi
+# D270: a parameter passed on is not counted again; D271: a singleton's attribute nothing reassigns is read in place.
+held="$work/held_arguments.c"
+"$work/generation_two.exe" conformance/stage6/held_arguments --run=false --c-source --c-path="$held" > /dev/null 2>&1 || {
+  echo "FAILED: held_arguments does not write its C"; exit 1; }
+if ! grep -q "^int32_t Packer_pack___held_0(Packer\* self, Bag\* bag_, int32_t value_) {$" "$held" \
+   || ! grep -q "^int32_t Packer_swap_in___held_1(Packer\* self, Bag\* bag_, Bag\* other_) {$" "$held"; then
+  echo "FAILED: held_arguments should pass held bags uncounted, except to the parameter swap_in assigns"; exit 1
+fi
+attribute_reads="$work/singleton_attribute_reads.c"
+"$work/generation_two.exe" conformance/stage6/singleton_attribute_reads --run=false --c-source --c-path="$attribute_reads" > /dev/null 2>&1 || {
+  echo "FAILED: singleton_attribute_reads does not write its C"; exit 1; }
+if ! grep -q "while (((index_ < List_String_count((self->registry_)->names_)))) {" "$attribute_reads" \
+   || ! grep -q "Registry___outside_read_enter(); Board\* " "$attribute_reads"; then
+  echo "FAILED: singleton_attribute_reads should read names in place and current under the lock"; exit 1
+fi
+echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock, a row borrows a reference column's element, a held argument is not counted again, a singleton's fixed attribute is read in place"
 # D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
 # division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no check for it.
 "$work/generation_two.exe" conformance/stage6/division_by_zero --run=false --c-source --c-path="$work/division.c" > /dev/null 2>&1 || {

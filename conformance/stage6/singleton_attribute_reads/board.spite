@@ -1,0 +1,5 @@
+var size = 0
+
+func Board(new_size: Integer) {
+    size = new_size
+}

@@ -1,0 +1,34 @@
+generic $system_type
+generic $row_type
+
+var first = 0
+var end = 0
+
+func Runner(new_first: Integer, new_end: Integer) {
+    first = new_first
+    end = new_end
+}
+
+func run(): Integer {
+    var system = $system_type()
+    var found = Vector<Integer>()
+    var entity = first
+    while entity < end {
+        found.clear()
+        found.append(entity)
+        found.append(entity)
+        var row: $row_type = null
+        fill_attributes(row, found)
+        system.update_each(row)
+        entity = entity + 1
+    }
+    return system.steps
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Vector<Integer>) {
+    if attribute.class.fits_vector() {
+        row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+    } else {
+        row.attributes[attribute] = Column<attribute.class>().at(rows[attribute.index])
+    }
+}

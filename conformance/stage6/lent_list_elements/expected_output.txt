@@ -1,0 +1,2 @@
+moved 3 2 9
+removed while borrowed 12 2
