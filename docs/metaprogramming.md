@@ -1347,7 +1347,10 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
 
 - **`$system_type.has_function("run_each")` in a condition folds like `if $is_magic`** (D114). The name is a
   literal -- a symbol, or text holding a pattern such as `"<phase>_each"` (D116), which is true when some
-  function's name fits it with a non-empty middle. Only the taken branch is compiled, so it may call what only
+  function's name fits it with the hole naming one value of the enum named for the hole, as for every pattern
+(D180, [below](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)):
+`"<phase>_each"` is true when the class declares `update_each` and `update` is a `Phase`, and a hole no enum is
+named for is an error (`diagnostics/hole_values`). Only the taken branch is compiled, so it may call what only
   that type has; any other argument is an error: "'$system_type.has_function(...)' is decided while compiling, so
   the name it asks for is written as a literal" (`diagnostics/function_reflection`). It is an ordinary member of
   `Spite.Class` (`library/spite/class.spite`, D92), so `klass.has_function("boost")` also answers at run time,
@@ -1482,6 +1485,13 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
   argument.class.any_attribute_fits_vector(Entity)` in `refuse_snapshot_argument(argument:
   Symbol<$system_type.phase_each>)` (`conformance/stage6/parameter_write_rows`, `diagnostics/snapshot_argument_writes`).
   Nothing is left at run time.
+- **`$system_type.function_runs_in_pieces("<phase>_each")` is whether a function may run in pieces across the
+  thread pool** (D229, decided by Mortaro; the spelling proposed by SlopEngine, provisional). **[decided, not
+  built]** It would fold like `has_function`, `true` when the function, with everything it calls, is safe to run
+  in pieces in D35's terms -- it writes no attribute of its own class, touches its arguments only through their own
+  attributes, and otherwise only locals and singletons made safe -- so an engine picks the pieces branch or the
+  one-thread branch and never errors; the reads a piece makes of shared state must not take a lock per row (D184's
+  read-only and single-owner forms). Nothing in the compiler answers it yet.
 - **`phase.argument_count()` and `$system_type.argument_count("update_each")` are the number of arguments a
   function takes, as a constant** (D219, decided by Claude under D205; the name provisional under D214, the readings
   below proposed by Claude, unconfirmed).  **[implemented]** Inside a template over the functions a pattern matches
@@ -1752,8 +1762,11 @@ change what the condition asks` (`diagnostics/folded_crash`). Only a function th
 same reach tree shaking keeps in a production build, worked out for an inspectable build too, where nothing is
 shaken -- so an instance whose function nobody calls compiles (`conformance/stage6/folded_crash_uncalled`). This
 is how a library turns its rules into compile errors: a `crash $system_type.has_function("update_each")` in the
-function that runs a system fails the build for the class that breaks the rule, not the run. A `crash` whose
-condition also reads a run-time value is unchanged. Before, such a condition was compiled as
+function that runs a system fails the build for the class that breaks the rule, not the run. The sides of an `and`
+are checked one at a time, as two `crash` lines would be, so in `crash $system_type.has_function("update_each") and
+ready` the first side folds on its own and is this compile error when it is false, whatever `ready` holds; only a
+condition that mixes a run-time value in through `or` (or `not` over an `and`) is tested at run time as a whole.
+Before, such a condition was compiled as
 a value and was the error "'$slot_type' is a type here, so it cannot be used as a value". A condition that also
 reads a run-time value is compiled as before.
 

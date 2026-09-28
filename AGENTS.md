@@ -60,13 +60,19 @@ place: make a small folder beside it whose entry file `load`s the original and r
 (D156). Mortaro runs that folder to test the change, and only an approved change is merged into the real code.
 Nothing is copied, so a worktree costs only the files it changes.
 
-## Changing the compiler: every optimisation is documented in the same commit
+## Changing the compiler: every optimisation and every proof is documented in the same commit
 
 A change that makes the compiler optimise something on its own -- or builds a planned optimisation -- updates
 [`docs/optimizations.md`](docs/optimizations.md) in the same commit (D185, D102): what it does, when it applies,
 built or planned, and anything a user could observe (allocation counts under `--debug-memory`, reflection, order of
 calls). An optimisation with a user-visible cost says so there; one that contradicts a rule in the docs goes into
 `mortaros_missing_decisions.md`.
+
+A change that adds a proof -- a fact the compiler establishes while compiling to accept code, drop a run-time check,
+choose cheaper code or refuse code -- or changes what an existing proof covers updates
+[`docs/proofs.md`](docs/proofs.md) in the same commit (D276): what it proves, the rule, what it buys, when it does
+**not** apply and what the user writes then, its status, and a program that shows it. The rule itself stays on the
+page that teaches it; `proofs.md` summarises and links.
 
 ## Decisions
 

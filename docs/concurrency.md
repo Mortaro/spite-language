@@ -16,7 +16,7 @@
 > A singleton of the program's own that a `Parallel` reaches is made thread-safe by the compiler, in the cheapest
 > form it can prove safe. A program that uses none of this carries none of it ([what it costs](#what-it-costs)).
 > Windows runs all of it; the Linux and macOS folders are held to compiling. **Not built:** HTTP, cancelling a
-> `Concurrent`, and D184's per-thread and reader-writer forms
+> `Concurrent`, and D184's per-thread forms (its reader-writer form is built, D266)
 > ([the rules in full](#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows)).
 
 There is no `async` and no `await` in Spite, and there never will be. In JavaScript or C# a function that waits
@@ -1235,7 +1235,7 @@ compile error** too ([memory.md](memory.md#rules-in-full), `diagnostics/weak_acr
 
 A program without `Parallel` gets none of it: an atomic singleton compiles to plain reads and writes, and no
 singleton has a lock. **Not built:** D184's buffer per thread for state only appended to, splitting state each
-thread touches its own part of, and a reader-writer lock; D183's compile-time check at `return` that such a
+thread touches its own part of; D183's compile-time check at `return` that such a
 singleton hands out only numbers, text, copies or other safe singletons; guarding in a `--hot-reload` build; and
 library singletons (`Console`, input, `Clock`) doing better by hand, which D183 allows.
 `conformance/stage6/singleton_guard`, `singleton_forms`, `singleton_lock_calls`. D179's rule for
