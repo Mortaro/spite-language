@@ -74,6 +74,7 @@ nothing at run time because they emit nothing.
 | [Maths on constants is worked out while compiling](#maths-on-constants-is-worked-out-while-compiling) | built | every | nothing but speed; a folded call is the compiling machine's C library's answer |
 | [A local list of known size lives in the frame](#a-local-list-of-known-size-lives-in-the-frame) | built | every but the inspectable ones | fewer allocations |
 | [A loop over plain values reads its count once and its items unchecked](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked) | built | every but `--repl`, `--repl-port` and `--hot-reload` | nothing but speed |
+| [A proven read tests only its bounds](#a-proven-read-tests-only-its-bounds) | built | every | nothing but speed; a read outside its list halts |
 | [A walked `crash` line's read is the row's read](#a-walked-crash-lines-read-is-the-rows-read) | built | every | nothing but speed |
 | [Objects that never leave their function live in the frame](#objects-that-never-leave-their-function-live-in-the-frame) | built | every but the inspectable ones | fewer allocations; `.memory.section` answers `'stack'` |
 | [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | built | `--optimized` (any build given `--translation-units`), but not `--hot-reload` | nothing but build time; `.spite-cache/objects` grows |
@@ -1494,6 +1495,25 @@ still worked out in `double` precision in the C, as it always was, which halves 
 two loops would take about 100 and 70 µs, but some results would change in their last bits, so that is a question
 for Mortaro and is not done (`mortaros_missing_decisions.md`, item 210). **Built** (2026-09-26, the second part of
 [D222](decisions.md); proposed by Claude, unconfirmed).
+
+### A proven read tests only its bounds
+
+**What it does.** Every `[]` answers a `T?` ([D225](decisions.md)), and a read the compiler proves -- a loop bound
+`index < list.count()`, a proven count, a list literal's indices, D169's call effects -- needs nothing written. It
+also costs no presence test of the `T?`: the compiler reads the element through the collection's `get_at` and takes
+the value directly, with one branch the C compiler is told is never taken, which halts naming the read if the index
+was outside the list after all (a bound proves only the top of an index, so a counter that went negative is
+caught, [failure.md](failure.md#reading-with--answers-t)). A read inside a counted loop ([above](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked))
+proves both ends and is a plain indexed load, `spite_temp[index_]`, with no call and no test at all: `check.sh`
+greps `counted_loops`' C for it, and `benchmarks/plain_loops`' two loops compile to the same C as before D225.
+
+**When.** Every build, for a read of a `List`, `Vector` or `Items` that a range proof narrows. A read narrowed by
+`crash`, `assert` or `if` is unwrapped with no test, since that line tested it. A program's own `get_at` is never
+unwrapped by a range proof (its `count()` is not known to mean anything).
+
+**What you notice.** Nothing but speed: the same compare `List.get_at` made when it halted out of range (D244), and
+the same halt, now named by the read (`conformance/stage6/proven_read_outside`). **Built** (2026-09-27, with D225;
+proposed by Claude, unconfirmed).
 
 ### A walked `crash` line's read is the row's read
 

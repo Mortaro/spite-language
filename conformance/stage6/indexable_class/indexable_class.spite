@@ -27,7 +27,7 @@ func IndexableClass() {
 }
 
 func tallest_of(heights: Shelf): Integer {
-    assert heights[0]
+    crash heights[0]
     var tallest = heights[0]
     var index = 1
     while index < heights.count() {

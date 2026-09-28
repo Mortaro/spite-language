@@ -1,0 +1,13 @@
+var console = Console()
+
+func ProvenReadOutside() {
+    var sizes = [3, 5, 8]
+    var total = 0
+    var index = -1
+    console.print("adding the sizes")
+    while index < sizes.count() {
+        total = total + sizes[index]
+        index = index + 1
+    }
+    console.print("never printed", total)
+}

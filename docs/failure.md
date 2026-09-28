@@ -340,12 +340,19 @@ compiler also understands the usual proofs for the library's collections, so mos
   simply go.
 - A `Boolean?` cannot be a condition: `if flags[index]` would test that the element is there, not that it is true.
   Prove it is there first, or compare it: `flags[index] == true`.
+- **An unproven read names how to prove it.** `names[0].upper_case()` with nothing proving `names[0]` is
+  `'names[0]' may be missing, since every '[ ]' answers a 'T?' (this one is a String?), so 'upper_case' cannot be
+  called on it yet: narrow it first with 'crash names[0]', 'assert names[0]' or 'if names[0] { }', or prove the
+  count first, 'crash names.count() > 0'`; a read by a counter names the loop bound instead (`... or read it where a
+  bound proves it, inside 'while index < names.count()'`), and a `Dictionary` or a class of your own names the
+  three narrowing lines only (`diagnostics/index_reads`).
 - **A class of your own is proven by what you write.** The compiler knows what `count()` and `get_at` mean for the
   library's collections only, so `while index < shelf.count()` proves nothing about `shelf[index]` when `Shelf`
   is yours: narrow the read with `crash`, `assert` or `if` (`conformance/stage6/indexable_class`).
 
 Every case, with its exact messages, is in [the rules](#null-safety-and-assert-narrowing--implemented). A proven
-read still checks its bounds at run time, so a proof removes a line of source, not a safety check.
+read still checks its bounds at run time and halts naming the read when its index was outside the list, so a
+proof removes a line of source, not a safety check.
 
 ```gdscript title=index_reads_doc/index_reads_doc.spite entry
 var console = Console()
@@ -964,6 +971,7 @@ word needs a reason, and a place where the compiler lets one through is a bug to
 |---|---|---|
 | reading a value that may be absent as if it were there | `T?` must be narrowed first; `value == null` is an error | [narrowing](#null-safety-and-assert-narrowing--implemented) |
 | an index past the end, a key never set | `[]`, `first()`, `last()`, `remove_first()` answer a `T?` | [reading with `[]`](#reading-with--answers-t) |
+| a read a loop bound proved, with a counter gone below zero | halts naming the read and the line (D225) | [reading with `[]`](#reading-with--answers-t) |
 | a guard `assert` answering a `0`, `false`, `""` or default object the caller takes for a real answer | compile error unless the result can say "nothing" (D244, D245) | [a default that looks like an answer](#a-default-that-looks-like-an-answer-is-an-error) |
 | a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is never a condition | [null safety](#null-safety-and-assert-narrowing--implemented) |
 | text that is not a number, read as `0` | `to_integer()` and the other readings answer a `T?`; text assigned to a plain number is an error (D244) | [standard_library.md](standard_library.md#string) |
@@ -994,7 +1002,7 @@ a word unless the program runs with `--debug-memory`, which prints the allocatio
 ([memory.md](memory.md#cycles-leak)); signed arithmetic wraps in production builds and unsigned arithmetic
 wraps in every build (D249); a `Concurrent` polled for `finished` under `resume_only_when_asked()` without
 `run_ready()` never ends ([concurrency.md](concurrency.md#choosing-where-concurrents-resume)); a `List`'s
-`set_at` and `remove_at` do nothing out of range ([collections.md](collections.md#listt-additions--implemented));
+`set_at`, `remove_at` and `remove_swapping` do nothing out of range ([collections.md](collections.md#listt-additions--implemented));
 text assigned to an enum that names none of its values becomes the enum's first value
 ([values_and_types.md](values_and_types.md)); and a Windows `__fastfail` (`0xC0000409`), or a corrupted heap on
 Linux and macOS (the C library's own message and `SIGABRT`), ends the program without Spite's report or frames
@@ -1029,7 +1037,7 @@ console.print(length)
 Narrowing tests presence and never the value it holds: a `T?` of a number, an enum or a `String` holding `0`,
 `0.0` or `""` is present, and so is an in-range `[]` read of an element holding it. A value type's `T?` carries a
 presence flag beside the value (`has_value`), a reference's `T?` is its pointer, and a `[]` read goes through
-`find_at`/`get`, which answer that flag -- no representation uses a sentinel, so no value can be mistaken for
+`get_at`/`get`, which answer that flag -- no representation uses a sentinel, so no value can be mistaken for
 absence (`conformance/stage6/present_zero`, which narrows zeros, `false` and `""` from lists, a dictionary, an
 `Integer?` result, `first()`/`last()` and `remove_first()` by `crash`, `assert`, `if` and `and`). A `Boolean?` is
 never a condition (below), so `false` meets only `== true`/`== false` or a `switch`.
@@ -1223,7 +1231,9 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   `count()` and whose `get_at` answers `null` exactly outside `0..count()` could earn the same proofs later). A
   list literal proving its indices is proposed by Claude, unconfirmed (D225 asks that proofs the compiler holds
   count). Calling `get_at(index)` by name answers the same `T?`, but a call is not a path, so narrow `list[index]`
-  instead.
+  instead. A read used before it is narrowed is an error that names the read and the lines that would
+  narrow it: `crash`, `assert` and `if` on the read itself, then the count or loop bound that proves it for a
+  library collection ([above](#reading-with--answers-t), `diagnostics/index_reads`).
 - **A `Boolean?` cannot be a condition** -- not in `if`, `while`, `assert` or `crash`, and not under `not`, `and`
   or `or`: `if flags[index]` would test that the element is there, not that it is true, and the two mean
   opposite things for `false`. Prove the element is there first, or `switch` over it; `== true` also works,

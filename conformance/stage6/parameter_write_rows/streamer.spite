@@ -9,7 +9,7 @@ func update_each(loaded: Loaded, moving: Moving) {
     var library = loaded.library
     var index = 0
     while index < library.slots.count() {
-        var slot = library.slots.get_at(index)
+        var slot = library.slots[index]
         console.print(slot, moving.position.left)
         index = index + 1
     }

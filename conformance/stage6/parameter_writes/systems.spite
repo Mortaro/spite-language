@@ -80,6 +80,7 @@ func pong(row: Row, steps: Integer) {
 }
 
 func lent(row: Row) {
+    crash row.requests[0]
     var request = row.requests[0]
     stamp(request)
 }
@@ -90,6 +91,7 @@ func stamp(request: Request) {
 
 func reads(checked: Row, quitting: Row) {
     var total = checked.counter.total() + checked.health + quitting.flags.count()
+    crash quitting.requests[0]
     var request = quitting.requests[0]
     var tries = request.tries
     var stamped = request.stamped

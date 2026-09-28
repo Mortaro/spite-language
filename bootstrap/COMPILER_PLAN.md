@@ -531,3 +531,11 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   counted loop is `List`-only (`counted_element_type`), and an explicit `get_at` call there is an ordinary call.
   Landed in two seeds: the first read `[]` through whichever reader the library had (`find_at` or `get_at`), so
   the library could then drop `find_at`.
+- 2026-09-27 (D225, after merging master's D227-D268): a read a range proof narrows is `bounded_item`: the
+  `get_at` answer in a temporary, taken directly, with one never-taken branch to `spite_outside_list` (written
+  once per program, `index_check_written`) that halts naming the read -- a bound proves only the top of an index,
+  and master's halting `List.get_at` is gone. `noted_read` remembers the last unproven read's code and path, and
+  `null_opening`/`null_advice` turn a may-be-null error about that code into one naming the read, its three
+  narrowing lines and the count or bound that proves it (`report_mismatch` takes the code for this). Bootstrapped
+  from master's seed with a transitional `library/` (a halting `get_at` beside `find_at`, master's binary classes),
+  then two generations on the real library.
