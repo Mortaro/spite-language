@@ -1,0 +1,5 @@
+var tally = WalkTally()
+
+func seen(): Integer {
+    return tally.notes
+}

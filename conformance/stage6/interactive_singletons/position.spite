@@ -1,0 +1,13 @@
+var across = 0
+var along = 0
+
+func Position(new_across: Integer, new_along: Integer) {
+    across = new_across
+    along = new_along
+}
+
+func distance_to(other_across: Integer, other_along: Integer): Integer {
+    var across_gap = across - other_across
+    var along_gap = along - other_along
+    return across_gap * across_gap + along_gap * along_gap
+}

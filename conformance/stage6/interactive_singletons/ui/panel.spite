@@ -1,0 +1,4 @@
+singleton
+
+var shown = 0
+var title = "status"

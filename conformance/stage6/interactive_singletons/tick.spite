@@ -1,0 +1,4 @@
+singleton
+
+var step = 0
+var step_milliseconds = 16

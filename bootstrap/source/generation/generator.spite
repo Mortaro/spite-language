@@ -141,6 +141,7 @@ var reflect_function_names = List<String>()
 var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
 var singleton_names = List<String>()
+var singleton_classes = List<Analysis.ClassInfo>()
 var tracked_class_names = List<String>()
 var singleton_releases = List<String>()
 var class_object_displays = List<String>()
@@ -154,6 +155,7 @@ var all_classes_used = false
 var class_level_attributes_used = false
 var namespace_read_used = false
 var source_folder_used = false
+var package_folder_used = false
 var working_folder = ""
 var language_folder = ""
 var namespace_tree_used = false
@@ -662,6 +664,7 @@ func generate(
             var class_type = class_type_of(looped_class)
             ensure_reflect_function(class_type)
         }
+        emit_loop_singletons()
     }
     var settle = 0
     while settle < 4 {
@@ -1027,6 +1030,7 @@ func folded_function_question(
         "fits_vector": return fits_vector_question(member.object, call.arguments, class_information)
         "function_writes_parameter": return parameter_write_question(member.object, call.arguments, class_information)
         "any_attribute_fits_vector": return inline_attribute_question(member.object, call.arguments, class_information)
+        "has_state": return state_question(member.object, call.arguments, class_information)
         _: assert member.name == "has_function" or member.name == "function_waits"
     }
     var symbol_class = shape.as_member(member.object)
@@ -1114,6 +1118,60 @@ func fits_vector_question(
     assert asked and arguments.is_empty()
     var problem = vector_item_problem(asked)
     return problem.is_empty()
+}
+
+func state_question(
+    subject: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
+    var asked = asked_item_type(subject, class_information)
+    assert asked
+    if not arguments.is_empty() {
+        var written = Syntax.SourcePrinter().source_expression(subject)
+        report("'{written}.has_state()' is decided while compiling, and it takes nothing: '{written}.has_state()'")
+        return false
+    }
+    var asked_class_ref = type_shape.as_class_ref(asked)
+    if not asked_class_ref {
+        return false
+    }
+    var owner = find_class_by_c_name(asked_class_ref.c_name)
+    crash owner
+    var visited = List<String>()
+    return class_has_state(owner, visited)
+}
+
+func class_has_state(owner: Analysis.ClassInfo, visited: List<String>): Boolean {
+    if visited.contains(owner.c_name) or owner.is_value_class {
+        return false
+    }
+    visited.append(owner.c_name)
+    var functions = declared_functions_of(owner)
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        var studied = not function.is_constructor and function.name != "drop" and function.has_body
+        if studied and parameter_writes.answer(this, owner, function, "this") {
+            var why = parameter_writes.reason_of(function.c_name, "this")
+            writes_reasons.append("'{owner.simple_name}.{function.name}' writes its own attributes {why}")
+            return true
+        }
+        index = index + 1
+    }
+    var field_index = 0
+    while field_index < owner.fields.count() {
+        var field_type = owner.fields[field_index].get_type()
+        var field_class_ref = type_shape.as_class_ref(field_type)
+        if field_class_ref {
+            var bound = find_class_by_c_name(field_class_ref.c_name)
+            if bound and bound.is_singleton and class_has_state(bound, visited) {
+                return true
+            }
+        }
+        field_index = field_index + 1
+    }
+    return false
 }
 
 func asked_item_type(
@@ -4715,6 +4773,9 @@ func template_range_kind(information: Analysis.ClassInfo, template: Analysis.Tem
         return codegen_range_kind(information, template)
     }
     var joined = path.join(".")
+    if joined == "Spite.Class" {
+        return "namespace"
+    }
     if find_class(joined, information.namespace_dotted) or find_union(joined) {
         return "class"
     }
@@ -5021,7 +5082,8 @@ func namespace_walk(template: Analysis.TemplateInfo): NamespaceWalk {
     var grew = false
     while walk.scanned < classes.count() {
         var candidate = classes[walk.scanned]
-        var in_namespace = candidate.namespace_dotted == joined or candidate.namespace_dotted.ends_with(".{joined}")
+        var every_class = joined == "Spite.Class" and not candidate.source_path.is_empty() and not candidate.c_name.starts_with("Object_")
+        var in_namespace = every_class or candidate.namespace_dotted == joined or candidate.namespace_dotted.ends_with(".{joined}")
         if in_namespace and not candidate.is_generic_template and not is_instantiated_class(candidate) {
             walk.classes.append(candidate)
             grew = true
@@ -5949,6 +6011,9 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         }
         if class_path == "hot_reload" and function.name != "open" {
             function.supplied_body = hot_reload_body(function.name)
+        }
+        if class_path == "read_evaluate_print_loop" {
+            function.supplied_body = read_evaluate_print_loop_body(function.name)
         }
         if class_path == "memory/address" {
             function.supplied_body = address_body(function)
@@ -10365,6 +10430,7 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
     }
     if not singleton_names.contains(function_c_name) {
         singleton_names.append(function_c_name)
+        singleton_classes.append(target_class)
         builder.add_typedef("static {target_class.c_name}* {function_c_name}_cache = 0;")
         builder.add_prototype("{target_class.c_name}* {function_c_name}(void);")
         var lines = List<String>()
@@ -11945,6 +12011,9 @@ func generate_method_call(
     }
     if member.name == "source_folder" and target_class.c_name == "Spite_Class" {
         source_folder_used = true
+    }
+    if member.name == "package_folder" and target_class.c_name == "Spite_Class" {
+        package_folder_used = true
     }
     var parameter_types = parameter_types_of(function.parameters)
     var function_return_type = function.get_return_type()
@@ -14363,6 +14432,20 @@ func folded_source_folder(
     return ExpressionResult(folder_code, text_type)
 }
 
+func folded_package_folder(
+    member: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    crash member.object
+    var asked = source_folder_class(member.object, scope, class_information)
+    assert asked
+    var folder = package_folder(asked)
+    var folder_code = render_string_literal(folder)
+    var text_type = string_type()
+    return ExpressionResult(folder_code, text_type)
+}
+
 func source_folder_class(
     object: Syntax.Expressions.Expression,
     scope: Scope,
@@ -14386,6 +14469,12 @@ func source_folder_class(
     }
     var read = shape.as_member(object)
     if read {
+        if is_symbol_class_read(object) {
+            crash bound_field_type
+            var walked_ref = type_shape.as_class_ref(bound_field_type)
+            assert walked_ref
+            return find_class_by_c_name(walked_ref.c_name)
+        }
         if read.name == "class" {
             crash read.object
             var saved_counter = temporary_counter
@@ -14400,7 +14489,7 @@ func source_folder_class(
     }
     var named = try_resolve_static_path(object, class_information.qualified_dotted)
     assert named
-    assert not named.find_function("source_folder")
+    assert not named.find_function("source_folder") and not named.find_function("package_folder")
     return named
 }
 
@@ -14414,6 +14503,10 @@ func absolute_source_folder(information: Analysis.ClassInfo): String {
     if path.starts_with("/") or path.slice(1, 2) == ":" {
         joined = path
     }
+    return normalized_folder(joined)
+}
+
+func normalized_folder(joined: String): String {
     var segments = joined.split("/")
     segments.remove_last()
     var kept = List<String>()
@@ -14461,6 +14554,10 @@ func emit_class_object_bodies() {
             if source_folder_used {
                 var described_folder = absolute_source_folder(described)
                 lines.append("{function_c_name}_cache->_source_folder_ = {render_string_literal(described_folder)};")
+            }
+            if package_folder_used {
+                var described_package = package_folder(described)
+                lines.append("{function_c_name}_cache->_package_folder_ = {render_string_literal(described_package)};")
             }
             if namespace_read_used {
                 crash class_object_namespaces[position]
@@ -17950,7 +18047,7 @@ func generate_call(
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
-        if member.name == "has_function" or member.name == "function_waits" or member.name == "fits_vector" or member.name == "function_writes_parameter" or member.name == "any_attribute_fits_vector" {
+        if member.name == "has_function" or member.name == "function_waits" or member.name == "fits_vector" or member.name == "function_writes_parameter" or member.name == "any_attribute_fits_vector" or member.name == "has_state" {
             var answered = folded_function_question(call, class_information)
             if answered == true or answered == false {
                 var answer_type: Analysis.SpiteType = Analysis.Types.ScalarType('boolean_kind')
@@ -17967,6 +18064,12 @@ func generate_call(
             var folded_folder = folded_source_folder(member, scope, class_information)
             if folded_folder {
                 return folded_folder
+            }
+        }
+        if member.name == "package_folder" and call.arguments.is_empty() {
+            var folded_package = folded_package_folder(member, scope, class_information)
+            if folded_package {
+                return folded_package
             }
         }
         if member.name == "class" {
@@ -30573,7 +30676,7 @@ func asks_while_compiling(expression: Syntax.Expressions.Expression): Boolean {
                 return false
             }
             var named = member.name
-            return named == "has_function" or named == "function_waits" or named == "fits_vector" or named == "argument_count" or named == "function_writes_parameter" or named == "any_attribute_fits_vector"
+            return named == "has_function" or named == "function_waits" or named == "fits_vector" or named == "argument_count" or named == "function_writes_parameter" or named == "any_attribute_fits_vector" or named == "has_state"
         }
         _: return false
     }
@@ -34763,4 +34866,110 @@ func folded_decimal(expression: Syntax.Expressions.Expression, class_information
     }
     assert maths.is_member(member.name) and not maths.is_constant(member.name) and not maths.is_predicate(member.name)
     return folded_maths_value(member.name, member.object, call.arguments, class_information)
+}
+
+func read_evaluate_print_loop_body(name: String): String {
+    if name == "singletons" {
+        if read_evaluate_print_loop {
+            builder.add_prototype("List_Spite_Attribute* spite_loop_singletons(void);")
+            return "return spite_loop_singletons();"
+        }
+        return "return List_Spite_Attribute___make();"
+    }
+    if read_evaluate_print_loop {
+        builder.add_prototype("SpiteString spite_loop_class_names(void);")
+        return "return spite_loop_class_names();"
+    }
+    return "return spite_string_from_cstring_owned(\"\");"
+}
+
+func emit_loop_singletons() {
+    var attribute_class = find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var attribute_type = class_type_of(attribute_class)
+    var list_name = ensure_list(attribute_type)
+    var lines = List<String>()
+    lines.append("{list_name}* spite_loop_singletons(void) \{")
+    lines.append("{list_name}* result = {list_name}___make();")
+    var index = 0
+    while index < singleton_classes.count() {
+        var information = singleton_classes[index]
+        if not is_library_class(information) or information.codegen_types.is_empty() {
+            var listed = listed_singleton(information, list_name)
+            lines.append(listed)
+        }
+        index = index + 1
+    }
+    lines.append("return result;")
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_support(joined_lines)
+    var names = List<String>()
+    index = 0
+    while index < classes.count() {
+        if is_listed_class(classes[index]) and not classes[index].is_singleton {
+            var class_name = singleton_display_name(classes[index])
+            names.append(class_name)
+        }
+        index = index + 1
+    }
+    var joined_names = names.join("\n")
+    builder.add_support("SpiteString spite_loop_class_names(void) \{\nreturn {owned_c_text(joined_names)};\n}")
+}
+
+func listed_singleton(information: Analysis.ClassInfo, list_name: String): String {
+    var class_type = class_type_of(information)
+    var reflect = ensure_reflect_function(class_type)
+    var cache = "spite_singleton_{information.c_name}_cache"
+    var display_name = singleton_display_name(information)
+    var named = ensure_symbol(display_name)
+    var unmade = "Spite_Attribute___make({named}, {class_object_call(class_type)})"
+    return "\{ {information.c_name}* made = __atomic_load_n(&{cache}, __ATOMIC_ACQUIRE); {list_name}_append(result, made != 0 ? {reflect}({named}, made) : {unmade}); }"
+}
+
+func package_folder(information: Analysis.ClassInfo): String {
+    var folder = absolute_source_folder(information)
+    var roots = List<String>()
+    var entry_class = find_class_by_c_name(entry_class_c_name)
+    crash entry_class
+    var program_folder = absolute_source_folder(entry_class)
+    roots.append(program_folder)
+    var language = language_folder.replace("\\", "/")
+    var library_root = normalized_folder("{language}/library/")
+    roots.append(library_root)
+    var launcher_root = normalized_folder("{language}/launcher/")
+    roots.append(launcher_root)
+    var index = 0
+    while index < loaded_folders.count() {
+        var loaded = loaded_folders[index].replace("\\", "/")
+        if not loaded.starts_with("/") and loaded.slice(1, 2) != ":" {
+            var base = working_folder.replace("\\", "/")
+            loaded = "{base}/{loaded}"
+        }
+        var loaded_root = normalized_folder(loaded)
+        roots.append(loaded_root)
+        index = index + 1
+    }
+    var best = ""
+    index = 0
+    while index < roots.count() {
+        var root = roots[index]
+        var holds = folder == root or folder.starts_with("{root}/")
+        if holds and root.length() > best.length() {
+            best = root
+        }
+        index = index + 1
+    }
+    if best.is_empty() {
+        report(
+            "'{information.qualified_dotted}' was declared in '{information.source_path}', which is in no folder the program loads, so it has no package folder",
+        )
+        return ""
+    }
+    if folder == best {
+        return ""
+    }
+    var folder_length = folder.length()
+    var best_length = best.length()
+    return folder.slice(best_length + 1, folder_length)
 }

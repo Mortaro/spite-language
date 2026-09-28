@@ -1,0 +1,7 @@
+singleton
+
+var notes = 0
+
+func add_note() {
+    notes = notes + 1
+}

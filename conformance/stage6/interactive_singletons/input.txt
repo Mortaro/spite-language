@@ -1,0 +1,28 @@
+attributes
+functions
+classes
+World()
+World().entity_count()
+World().position_of(1)
+World().position_of(1).across
+World().position_of(0).distance_to(0, 0)
+World().positions[1].along
+World().tick.step
+Tick().step_milliseconds
+Tick().step_milliseconds = 50
+Tick().step_milliseconds
+Ui.Panel()
+Panel().title
+Column<Position>()
+Column<Position>().values[0]
+functions World()
+attributes Tick()
+functions Tick()
+Position()
+Wrld()
+World(3)
+World().nope()
+World().spawn(1, 1).across
+World().drop()
+world.entity_count()
+exit

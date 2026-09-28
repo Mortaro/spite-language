@@ -1,0 +1,48 @@
+entities 2
+spite> console: Console = Console {...}
+world: World = World {...}
+spite> program is an InteractiveSingletons, which has no function the prompt can call: 'classes' lists the singletons, whose functions the prompt can call, such as World().entity_count()
+spite> Memory.Heap()
+Build()
+Console()
+TimeText() not made yet
+Program()
+Scheduler()
+TimeZones() not made yet
+HotReload()
+Clock() not made yet
+World()
+Tick()
+Column<Position>()
+Ui.Panel()
+NumberText() not made yet
+InteractiveSingletons
+Position
+spite> World { positions: List<Position>(2), tick: Tick {...}, column: Column {...}, panel: Panel {...} }
+spite> 2
+spite> Position { across: 7, along: 1 }
+spite> 7
+spite> 25
+spite> 1
+spite> 2
+spite> 16
+spite> 50
+spite> 50
+spite> Panel { shown: 2, title: status }
+spite> status
+spite> Column { values: List<Position>(2) }
+spite> Position { across: 3, along: 4 }
+spite> spawn(across: Integer, along: Integer): Nothing
+entity_count(): Integer
+position_of(entity: Integer): Position?
+spite> step: Integer = 2
+step_milliseconds: Integer = 50
+spite> Tick is a Tick, which has no function the prompt can call
+spite> 'Position' is a class, not a singleton: the prompt never makes an object, it reads the ones the program holds, and 'classes' lists the singletons
+spite> no singleton 'Wrld' in the program: 'classes' lists them
+spite> 'World' is a singleton, so it takes no arguments: there is one instance, and the prompt reads it
+spite> no function 'nope' in World: 'functions' lists them
+spite> World().spawn() ran, and it answers nothing, so nothing can follow it
+spite> 'drop' runs when World is released, and the prompt never runs it
+spite> 3
+spite> 

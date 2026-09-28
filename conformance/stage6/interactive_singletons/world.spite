@@ -1,0 +1,22 @@
+singleton
+
+var positions = List<Position>()
+var tick = Tick()
+var column = Column<Position>()
+var panel = Ui.Panel()
+
+func spawn(across: Integer, along: Integer) {
+    var made = Position(across, along)
+    positions.append(made)
+    column.values.append(made)
+    tick.step = tick.step + 1
+    panel.shown = panel.shown + 1
+}
+
+func entity_count(): Integer {
+    return positions.count()
+}
+
+func position_of(entity: Integer): Position? {
+    return positions[entity]
+}

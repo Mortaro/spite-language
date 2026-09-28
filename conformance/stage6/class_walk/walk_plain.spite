@@ -1,0 +1,5 @@
+var factor = 2
+
+func doubled(amount: Integer): Integer {
+    return amount * factor
+}

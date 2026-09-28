@@ -1,0 +1,27 @@
+var console = Console()
+var counter = WalkCounter()
+var holder = WalkHolder()
+var plain = WalkPlain()
+var part = Parts.WalkPart()
+var watcher = WalkWatcher()
+
+func ClassWalk() {
+    counter.count_up()
+    holder.note()
+    var doubled = plain.doubled(part.size)
+    var seen = watcher.seen()
+    console.print("ran", counter.total, doubled, seen)
+    var part_class = part.class
+    var part_folder = part_class.package_folder()
+    console.print("at run time", part_folder)
+    check_kinds()
+}
+
+func check_kind(kind: Symbol<Spite.Class>) {
+    var name: String = kind.name
+    if name.starts_with("Walk") or name.starts_with("Parts.") or name == "Console" or name == "Spite.Class" {
+        var stateful = kind.class.has_state()
+        var folder = kind.class.package_folder()
+        console.print(name, stateful, "'{folder}'")
+    }
+}

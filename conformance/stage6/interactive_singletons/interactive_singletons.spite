@@ -1,0 +1,9 @@
+var console = Console()
+var world = World()
+
+func InteractiveSingletons() {
+    world.spawn(3, 4)
+    world.spawn(7, 1)
+    var count = world.entity_count()
+    console.print("entities", count)
+}

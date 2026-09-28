@@ -1,0 +1,5 @@
+var tally = WalkTally()
+
+func note() {
+    tally.add_note()
+}

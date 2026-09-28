@@ -216,6 +216,7 @@ func reopened_classes(): List<String> {
         "binary_reader"
         "dynamic_library"
         "hot_reload"
+        "read_evaluate_print_loop"
         "concurrent"
         "thread_pool"
         "scheduler"
@@ -401,6 +402,7 @@ func supplied_members(stem: String): List<String> {
                     switch stem {
                         "dynamic_library": return dynamic_library_members()
                         "hot_reload": return hot_reload_members()
+                        "read_evaluate_print_loop": return read_evaluate_print_loop_members()
                         "spite/attribute": return attribute_members()
                         "spite/function": return function_members()
                         _: return List<String>()
@@ -578,6 +580,15 @@ func hot_reload_members(): List<String> {
         "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA(spite_string_bytes(&file_));\n#else\nvoid* opened = dlopen(spite_string_bytes(&file_), RTLD_NOW);\n#endif\nSpiteString___release(file_);\nreturn (int64_t)(intptr_t)opened;"
         "func install(library: Long): String"
         "written per build by the generator: binds the library to the program and swaps its functions in"
+    ]
+}
+
+func read_evaluate_print_loop_members(): List<String> {
+    return [
+        "func singletons(): List<Spite.Attribute>"
+        "written per build by the generator: every singleton the program binds, one not made yet without a value"
+        "func class_names(): String"
+        "written per build by the generator: the program's own classes that are not singletons, one per line"
     ]
 }
 

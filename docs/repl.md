@@ -1,15 +1,17 @@
 # REPL and live reload
 
 > **What is built:** `spite program --repl` runs the program, then answers `attributes`,
-> `functions`, `help`, `exit`, paths such as `monsters[0].health` or `program.player_name`, assignment of a
+> `functions` and `classes`, `help`, `exit`, paths such as `monsters[0].health` or `program.player_name`, a
+> singleton by its class's name (`World().entity_count()`, `Tick().step_milliseconds`), assignment of a
 > number, Boolean, text or enum literal (`monsters[0].health = 5`, which prints the value read back), and calls with
-> literal arguments that print what they return (`monsters[0].roar()`, `monsters.count()`), written in Spite
+> literal arguments that print what they return, chained like any path (`monsters[0].roar()`, `monsters.count()`,
+> `World().position_of(1).across`), written in Spite
 > (`library/read_evaluate_print_loop.spite`). `--repl-port` answers the same commands over TCP, one JSON line
 > each, answered where the program waits or at the end of a loop's pass ([concurrency.md](concurrency.md#the-repl-answers-at-the-waits)),
 > and `spite connect` is its client. `--hot-reload` swaps the classes whose files changed into the running
 > program, keeping its state, when a file is saved or when the REPL is sent `reload`
 > ([Live reload](#live-reload---hot-reload)); Windows runs it, and Linux and macOS are held to compiling.
-> **Not built yet:** the meta commands (`classes`, `describe`, `enums`, `memory`), a few paths and assignments,
+> **Not built yet:** the meta commands `describe`, `enums` and `memory`, a few paths and assignments,
 > and reloading a change to a class's attributes -- [the list](#repl-and-live-reload--partial).
 >
 > ```text
@@ -135,11 +137,14 @@ The commands are the ones `--repl` answers:
 
 - **paths**: `program`, `program.monsters`, `program.monsters[0].health`. A `T?` that holds a value is walked
   through, and a `Dictionary`'s entries are walked by key: `program.settings.volume`.
-- **calls**: `program.monsters.count()`, `program.monsters[0].roar()`, with literal arguments. A call must be the
-  last part of an expression; chaining after `()` is not supported yet.
+- **calls**: `program.monsters.count()`, `program.monsters[0].roar()`, with literal arguments. A call that answers
+  an object is walked on like any path: `World().position_of(1).across`.
+- **singletons**, by their class's name: `World()`, `Tick().step_milliseconds`, `Ui.Panel().title`,
+  `Column<Position>().values[0]`. The name binds the instance the program already has and never makes one.
 - **assignment** of a number, `Boolean`, text or enum literal: `program.player_name = "Aria"` -- through
   `set_<attribute>` when the class declares one, answering the value read back afterwards.
-- `attributes`, `functions`, `help`, `exit`.
+- `attributes`, `functions` (of the program, or of any path: `functions World()`), `classes` (the singletons the
+  prompt can bind, then the program's other classes), `help`, `exit`.
 - `reload` and `last_reload`, which answer in a `--hot-reload` build ([Live reload](#live-reload---hot-reload)) and
   fail everywhere else with `'reload' answers in a program built with --hot-reload, which swaps its code while it
   runs, and this one was not`.
@@ -181,9 +186,104 @@ $ spite connect 4000 --command="exit"
 ```
 
 For an AI driving this: issue one command per `spite connect --command="..."` call (or hold one interactive
-session open), read the single JSON line back, and branch on `"ok"`. `attributes` and `functions` first, to see
+session open), read the single JSON line back, and branch on `"ok"`. `attributes`, `functions` and `classes` first, to see
 what is there (only functions whose arguments are numbers, Boolean, text or an enum can be called), then walk paths
 down to the value in question before mutating anything.
+
+## Singletons: where a game's state lives
+
+A game's state rarely hangs off its entry class: the entry makes an app and runs it, and the world, the clock and
+the columns of components are singletons. The prompt binds a singleton by its class's name, the way the program's
+own code does -- `World()`, `Ui.Panel()`, `Column<Position>()` -- and reads, calls and assigns through it. It
+binds the one instance the program already made; it never makes one, so reading a singleton the program has not
+asked for yet says so instead of creating it.
+
+```gdscript title=repl_world/position.spite
+var across = 0
+var along = 0
+
+func Position(new_across: Integer, new_along: Integer) {
+    across = new_across
+    along = new_along
+}
+
+func distance_to(other_across: Integer, other_along: Integer): Integer {
+    var across_gap = across - other_across
+    var along_gap = along - other_along
+    return across_gap * across_gap + along_gap * along_gap
+}
+```
+```gdscript title=repl_world/tick.spite
+singleton
+
+var step = 0
+var step_milliseconds = 16
+```
+```gdscript title=repl_world/world.spite
+singleton
+
+var positions = List<Position>()
+var tick = Tick()
+
+func spawn(across: Integer, along: Integer) {
+    var made = Position(across, along)
+    positions.append(made)
+    tick.step = tick.step + 1
+}
+
+func entity_count(): Integer {
+    return positions.count()
+}
+
+func position_of(entity: Integer): Position? {
+    return positions[entity]
+}
+```
+```gdscript title=repl_world/repl_world.spite entry
+var console = Console()
+var world = World()
+
+func ReplWorld() {
+    world.spawn(3, 4)
+    world.spawn(7, 1)
+    var count = world.entity_count()
+    console.print("entities", count)
+}
+```
+```output
+entities 2
+```
+
+`check.sh` replays this session against it, built with `--repl-port`:
+
+```wire repl_world
+# The entry class has no function but its constructor, and the answer says so rather than answering an empty list.
+$ spite connect 4000 --command="functions"
+{"ok":true,"value":"program is a ReplWorld, which has no function the prompt can call: 'classes' lists the singletons, whose functions the prompt can call, such as World().entity_count()","type":""}
+
+$ spite connect 4000 --command="World().entity_count()"
+{"ok":true,"value":"2","type":"Integer"}
+
+$ spite connect 4000 --command="World().position_of(1)"
+{"ok":true,"value":"Position { across: 7, along: 1 }","type":"Position?"}
+
+$ spite connect 4000 --command="World().position_of(0).distance_to(0, 0)"
+{"ok":true,"value":"25","type":"Integer"}
+
+$ spite connect 4000 --command="Tick().step_milliseconds = 50"
+{"ok":true,"value":"50","type":"Integer"}
+
+$ spite connect 4000 --command="functions World()"
+{"ok":true,"value":"spawn(across: Integer, along: Integer): Nothing
+entity_count(): Integer
+position_of(entity: Integer): Position?","type":""}
+
+$ spite connect 4000 --command="Position()"
+{"ok":false,"error":"'Position' is a class, not a singleton: the prompt never makes an object, it reads the ones the program holds, and 'classes' lists the singletons"}
+
+$ spite connect 4000 --command="exit"
+{"ok":true,"value":"","type":""}
+```
 
 ## Live reload: `--hot-reload`
 
@@ -347,13 +447,15 @@ All of it lives only in a `--hot-reload` build (D143): a normal build carries no
 A REPL that inspects and drives the *running* program, local (`--repl`) and remote (`--repl-port`), and live
 reload (`--hot-reload`, D111, D112). The REPL is Spite, `library/read_evaluate_print_loop.spite` (D72), walking the
 program through reflection; nothing of it is in a build that did not ask for it (D177, D143). **Built:** paths,
-assignment of a literal, calls with literal arguments, `attributes`, `functions`, `help`, `exit`, `reload` and
-`last_reload` (`conformance/stage6/interactive_loop`, `conformance/stage6/interactive_paths`), `--repl-port` with
+singletons by name, assignment of a literal, calls with literal arguments and paths through what they answer,
+`attributes`, `functions`, `classes`, `help`, `exit`, `reload` and `last_reload`
+(`conformance/stage6/interactive_loop`, `conformance/stage6/interactive_paths`,
+`conformance/stage6/interactive_singletons`), `--repl-port` with
 `spite connect` over `Socket`, answered where the program waits and at each loop's check point (D37, D174), and
 live reload on Windows, with the Linux and macOS folders held to compiling. **Not built:** the meta commands
-`classes`, `describe`, `enums` and `memory`; a key in brackets (`settings["volume"]`) and walking into a union;
-assigning a `T?`, a list or dictionary element or a whole instance; chaining after a call; compiling new Spite
-code typed at the prompt; and reloading a change to a class's attributes.
+`describe`, `enums` and `memory`; walking into a union; assigning a `T?`, a list or dictionary element or a whole
+instance; calling a generic class's function on an instance nothing holds (`Lookup<Position>().of(12)`, below);
+compiling new Spite code typed at the prompt; and reloading a change to a class's attributes.
 
 #### Reflection in a REPL build  **[implemented]**
 
@@ -381,14 +483,51 @@ the entry class's own Spite name). Built:
   name the same value (proposed by Claude, unconfirmed). Walking through a non-null `T?` is transparent; a
   dictionary's entries are walked by key.
 - **calls**: `program.monsters.count()`, `program.monsters[0].roar()`, `program.player.set_age(3)` (any
-  callable function, including an instantiated Symbol-codegen one); `List<T>`'s and `Dictionary<T>`'s `count()`.
-  A call must be the last part of an expression.
+  callable function, including an instantiated Symbol-codegen one); `List<T>`'s and `Dictionary<T>`'s `count()`,
+  which must end the expression. A call that answers a value is walked on like any path,
+  `World().position_of(1).across`, and it runs once; a call that answers `Nothing` ends the expression, and a
+  path after one is refused after it ran: `World().spawn() ran, and it answers nothing, so nothing can follow it`
+  (D284, decided by Claude under D205, implementing D242).
+- **singletons by name** (D284, decided by Claude under D205, implementing D242). A call whose name starts with a
+  capital letter, alone or after a namespace (`World()`, `Ui.Panel()`, `Column<Position>()`), names a singleton
+  class and binds the one instance the program holds, as the program's own `var world = World()` does; a path,
+  call or assignment continues from it (`Tick().step_milliseconds = 50`). It never makes an instance: a singleton
+  the program has not asked for yet is refused, `Tick has not been made yet: nothing in the program has asked for
+  it, and the prompt never makes one`, and so is a class that is not a singleton (`'Position' is a class, not a
+  singleton: the prompt never makes an object, it reads the ones the program holds, and 'classes' lists the
+  singletons`), an argument (`'World' is a singleton, so it takes no arguments: ...`) and a name no singleton has
+  (`no singleton 'Wrld' in the program: 'classes' lists them`). The whole name is the class's qualified name with
+  its generic arguments; the name without its namespace is accepted when one singleton has it, and a name two
+  singletons share is refused naming both. A generic class that is not a singleton, such as `Lookup<Position>()`,
+  is refused like any class: reaching its functions without an instance is the plan below.
+- **How the loop finds them** (proposed by Claude, unconfirmed). In a REPL build the compiler writes two functions
+  of `ReadEvaluatePrintLoop`: `singletons()`, a `Spite.Attribute` for each singleton the program binds, named by
+  its qualified name and linked to the instance when it has been made (read from the singleton's static slot
+  with an acquiring load, never through its constructor), without a value when it has not; and `class_names()`,
+  the program's own classes that are not singletons. The standard library's generic singletons (`TypedMemory<T>`,
+  `InlineMemory<T>`) are left out. Any other build writes them as an empty list and empty text, and nothing calls
+  them, so they are shaken out with the rest of the loop: a normal build carries none of it (D143, D177).
+- **Generic functions beyond the instances the program holds** (the plan, proposed by Claude, unconfirmed; not
+  built). The prompt calls what the build compiled: a generic class's functions on an instance some path reaches,
+  or on a generic singleton (`Column<Position>().values[0]`). An expression the build never compiled --
+  `Lookup<Position>().of(12)`, which makes a `Lookup` -- needs code the program lacks. In a `--hot-reload` build
+  the reload machinery already compiles the whole program and writes a library of what changed; the prompt would
+  hand it the typed expression as the body of a function of a class of its own, compile that library, load it
+  and call the function once, with the loop's usual reflection for the answer. The program must allow the
+  construction it asks for, so that path is refused for a singleton's constructor exactly as above.
 - **assignment** of a number, `Boolean`, text or enum literal: `program.player.age = 5`,
   `program.monsters[1].name = "rat"`, `program.player.job = 'knight'`, through `set_<attribute>` when the class
   declares one -- the same rule ordinary compiled Spite code follows. It answers the value read back afterwards,
   so a `set_<attribute>` that refused it shows the old one. A text literal has no escapes yet.
 - `attributes` (the entry instance's attributes, `name: Class = value` a line), `functions` (its functions,
-  `name(argument: Class, ...): Returns` a line), `help`, `exit`, and `reload` and `last_reload`
+  `name(argument: Class, ...): Returns` a line), both also of any path (`functions World()`, `attributes
+  Tick()`); an empty list is never an empty answer (D244): `program is a ReplWorld, which has no function the
+  prompt can call: 'classes' lists the singletons, whose functions the prompt can call, such as
+  World().entity_count()`, and `... which has no attributes`. A function whose name starts with `_` is private to
+  its class and `drop()` runs only when a value is released, so the prompt neither lists nor calls either:
+  `'_swap' is private to values, and the prompt calls what code outside the class may call`. `classes` (D284) answers the singletons the prompt
+  can bind, `World()` a line with `not made yet` after one the program has not made, then the program's other
+  classes a line each. Then `help`, `exit`, and `reload` and `last_reload`
   ([Live reload and 6b](#live-reload-and-6b--implemented-on-windows-the-mechanism-and-the-rules-below-proposed-by-claude-unconfirmed)).
 - Printing a class instance shows `ClassName { attribute: value, ... }` one level deep: a nested class attribute
   prints as `ClassName {...}`; a list or dictionary prints as `List<T>(count)`/`Dictionary<T>(count)` regardless
@@ -403,7 +542,7 @@ the entry class's own Spite name). Built:
 
 **Not built** (the design, kept for when it is): `program.settings["volume"]`; walking into a union's active
 member (`program.shape.radius`); `Dictionary<T>`'s `keys()` and `has(key)` at the prompt; assigning a `T?`, a list
-or dictionary element or a whole instance; chaining a `.`/`[...]` after `()`; and the meta commands `classes` (every reflected class's qualified name), `describe
+or dictionary element or a whole instance; and the meta commands `describe
 Engine.Renderer` (its attributes and functions with signatures), `enums` and `memory` (live allocation count and
 bytes).
 

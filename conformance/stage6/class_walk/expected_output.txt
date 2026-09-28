@@ -1,0 +1,10 @@
+ran 1 42 1
+at run time parts
+Console true ''
+Parts.WalkPart false 'parts'
+Spite.Class true 'spite'
+WalkCounter true ''
+WalkHolder true ''
+WalkPlain false ''
+WalkTally true ''
+WalkWatcher true ''

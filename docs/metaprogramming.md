@@ -998,6 +998,39 @@ System.Idle waits 3
 wave runs
 ```
 
+### Every class in the program
+
+`kind: Symbol<Spite.Class>` ranges over every class the program holds: its own, every package it loads and the
+standard library's, in order of their dotted names (D285). It is the folder walk with no folder: `kind.class` is
+the class and `kind.name` its dotted name, and every question a walked class answers folds for each one. Two
+questions exist for this walk above all. **`kind.class.package_folder()`** is the folder of the class's file
+relative to the root of the `load` that brought it in -- the program's folder for its own classes, the loaded
+folder for a package's (`ui/layout` for a class in `plugins/slop_ui_plugin/ui/layout`, loaded as
+`load "../../plugins/slop_ui_plugin"`), and `library/` for the standard library's (`spite` for `Spite.Class`) --
+so a check can tell whose a class is without knowing where anything lives; `source_folder()` stays the absolute
+folder. **`kind.class.has_state()`** is `true` when some function of the class other than its constructor and
+`drop()` writes the class's own attributes, or anything reached through them, or when a singleton the class binds
+has state; it is the same study `function_writes_parameter` answers from ([below](#asking-whether-a-function-writes-a-parameter)),
+asked of the object itself. Both are constants while compiling, so the walk costs nothing when the program runs,
+and a program that never walks carries nothing of it.
+
+```gdscript
+func check_kind(kind: Symbol<Spite.Class>) {
+    var name: String = kind.name
+    if name.starts_with("Walk") {
+        var stateful = kind.class.has_state()
+        var folder = kind.class.package_folder()
+        console.print(name, stateful, "'{folder}'")
+    }
+}
+```
+
+Called as `check_kinds()`, over `WalkCounter` (whose `count_up()` writes `total`), `WalkWatcher` (which only reads
+a `WalkTally` singleton, whose `add_note()` writes it) and `Parts.WalkPart` (in `parts/`, holding one attribute
+nobody writes after it is made), it prints `WalkCounter true ''`, `WalkWatcher true ''` and
+`Parts.WalkPart false 'parts'` (`conformance/stage6/class_walk`). The standard library's classes are walked too,
+and they answer the same way: `Console` has state, since reading a line writes its buffer through its heap.
+
 ### A name that says when it runs
 
 When the parameter's own name is a word of the function named in the range, that word is a hole, exactly as it
@@ -1387,6 +1420,33 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   while compiling, so the name it asks for is written as a literal: ..." (`diagnostics/returned_text`). It has no
   run-time form. `JsonReader` and `JsonWriter` read a class's `json_key_<attribute>()` with it
   ([json.md](json.md#a-key-that-is-not-an-attributes-name)).
+- **`Symbol<Spite.Class>` walks every class the program holds** (D285, decided by Claude under D205, asked for by
+  SlopEngine and D282; the spellings provisional under D214).  **[implemented]** A template whose `Symbol`
+  parameter ranges over `Spite.Class` is called once per class -- the program's, every loaded package's and the
+  standard library's, not a generic class's instances and not the compiler's own object literals -- in order of
+  their dotted names, and is read like a folder walk: `kind.class`, `kind.name`, the plural `check_kinds()`, and
+  every question a walked class answers. It replaces what `Symbol<Spite.Class>` meant before, the attributes of
+  `Spite.Class`, which nothing used.
+- **`$T.package_folder()` is the folder of a class's file relative to the root of the load that brought it in**
+  (D285; the name provisional).  **[implemented]** Asked as `source_folder()` is (`class.package_folder()`,
+  `Name.package_folder()`, `$T.package_folder()`, `kind.class.package_folder()` in a walk, and
+  `value.class.package_folder()` at run time), it folds to the path below the deepest root holding the file: the
+  program's folder, a folder a `load` names, or the standard library's `library/`; a file at a root answers `""`.
+  A class in no such folder is the error "'Name' was declared in '...', which is in no folder the program loads,
+  so it has no package folder".
+- **`$T.has_state()` answers whether a class keeps state** (D286, decided by Claude under D205, asked for by
+  SlopEngine; the name provisional).  **[implemented]** It folds wherever it is written, for `$T`, a class named
+  statically and a walked class, to `true` when a function of the class other than its constructor and `drop()`
+  writes its own object -- an attribute set on it or on anything reached through it, a call that writes it -- by
+  the study `function_writes_parameter` uses (D261, [proofs.md](proofs.md#whether-a-class-keeps-state)), or when an
+  attribute of the class holds a singleton that has state, followed through singletons however deep. An attribute
+  written only by other classes' code does not count: that write is state of the class that makes it. It has no
+  run-time form, and it takes nothing: `'$T.has_state()' is decided while compiling, and it takes nothing`.
+- **Not built: `$T.argument_class("update_each", 0)`** (asked for by SlopEngine; proposed by Claude, unconfirmed):
+  the class of a function's parameter as a type a generic may take, `Column<$T.argument_class("update_each", 0)>()`.
+  A generic argument is written as a type, and a type cannot hold a call yet; the plan is to parse a codegen
+  question in that position and fold it as `returned_text` is. Until then a walk over the function's arguments,
+  `argument: Symbol<$T.update_each>` with `Column<argument.class>()`, reaches the same class.
 - **`$system_type.function_waits("update_each")` folds exactly like `has_function`** (D209, decided by Mortaro;
   the spelling and the reading below are proposed by Claude, unconfirmed).  **[implemented]** It is `true` when a
   function the class declares, whose name fits the literal (a name, or a pattern whose hole is read as

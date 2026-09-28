@@ -93,6 +93,7 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 | [How many arguments a function takes](#how-many-arguments-a-function-takes) | built | one branch per arity | -- |
 | [Whether a class fits a `Vector`](#whether-a-class-fits-a-vector) | built | inline storage | reference storage |
 | [Whether a function writes a parameter](#whether-a-function-writes-a-parameter) | built | engines refuse lost writes | `true` where unsure |
+| [Whether a class keeps state](#whether-a-class-keeps-state) | built | engines refuse stateful systems | `true` where unsure |
 | [A `crash` that folds false is an error](#a-crash-that-folds-false-is-a-compile-error) | built | a certain halt becomes a build error | a run-time check |
 | [Tree shaking](#tree-shaking-what-main-can-reach) | built | smaller program | an inspectable build keeps all |
 | [Buffers in the frame](#a-buffer-freed-in-its-block-lives-in-the-frame) | built | no allocation | the heap |
@@ -523,6 +524,21 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   list (`resize`, `free`, `copy_to`, `write_value`, ...) or starts with `write_`; any other supplied function answers
   "does not write", a silent `false`. Still open in [failure.md](failure.md#nothing-fails-silently--the-rule). This analysis decides no memory layout; the memory
   proofs below use their own.
+
+### Whether a class keeps state
+
+- **Status.** Built.
+- **Proves.** No function of a class writes its own object after it is made, and no singleton it binds keeps
+  state -- or that one does.
+- **Rule.** `$T.has_state()` folds, and so does `kind.class.has_state()` in a walk over `Symbol<Spite.Class>`. It
+  asks the question of [Whether a function writes a parameter](#whether-a-function-writes-a-parameter) of each
+  function's own object, skipping the constructor and `drop()`, and follows the singletons the class binds.
+- **Buys.** An engine can refuse a system that keeps state between frames, for every system at once.
+- **Falls back.** As that question does: where the study cannot decide, the answer is `true`. The standard
+  library counts like any code, so a class binding `Console` has state (reading a line writes its buffer).
+- **See.** D286; [metaprogramming.md: Every class in the program](metaprogramming.md#every-class-in-the-program);
+  `conformance/stage6/class_walk`.
+- **Compiler today.** A supplied function outside the fixed list answers "does not write", as above.
 
 ### A `crash` that folds false is a compile error
 
