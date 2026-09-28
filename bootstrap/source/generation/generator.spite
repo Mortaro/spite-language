@@ -14543,6 +14543,15 @@ func spite_class_type(): Analysis.SpiteType {
 }
 
 func ensure_attributes_function(information: Analysis.ClassInfo): String {
+    if information.qualified_dotted == "List" and information.codegen_types.count() == 1 {
+        return ensure_list_attributes_function(information.codegen_types[0])
+    }
+    if information.qualified_dotted == "Dictionary" and information.codegen_types.count() == 2 {
+        var fixed = fixed_dictionary_type(information)
+        var dictionary = type_shape.as_dictionary(fixed)
+        crash dictionary
+        return ensure_dictionary_attributes_function(dictionary)
+    }
     var function_c_name = "{information.c_name}___attributes"
     if attributes_function_names.contains(function_c_name) {
         return function_c_name

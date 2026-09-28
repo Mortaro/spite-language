@@ -36,4 +36,8 @@ func KeptTemplates() {
     fingerprint_books.append(fingerprints)
     var books = header_books.count() + fingerprint_books.count()
     console.print("books:", books)
+    var worker_kind = worker.class
+    var described = worker_kind.attributes
+    var described_count = described.count()
+    console.print("worker attributes:", described_count)
 }
