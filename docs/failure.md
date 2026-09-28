@@ -862,6 +862,11 @@ It holds the asserts of the program and of every package it `load`s, never those
 match, a read past the end), and those would push the program's own entries out of the ring. The compiler leaves
 the record out of a library `assert` altogether, so it costs what an `if` costs. A crash inside the library still
 reports its own site ([D189](decisions.md)).
+A crash reports the ring as it stood when the crash began. Other threads may still be failing asserts while it
+prints -- a game's pool threads running their guards -- and those never lengthen the report: it is the crash line,
+at most 32 `spite.assert` lines and the `earlier=` count, and then the program exits. Only the first thread to crash
+reports; one that crashes while that report is being written waits for the program to end, so two reports never
+interleave.
 
 ### What a native fault reports
 
@@ -1002,6 +1007,10 @@ Also open: the proof that lets a `List` template lend its items without counting
 `drop()` functions that run when an object is let go, so a `drop()` that removes from the list being walked
 could free a lent item while it is in use. D269's lend of a list element checks `drop()`; the template proof
 should do the same.
+Also open: the assert ring is written without atomics, so asserts failing on several threads at once can lose
+counts, and a crash's `spite.assert	earlier=<count>` line can then be lower than the number that failed. An atomic
+count would cost every failed `assert` a locked add; a per-thread ring would cost a crash nothing extra but cannot
+say which thread's asserts came first.
 
 Also open, each a bug under D244, found cataloguing the compiler's proofs ([proofs.md](proofs.md)):
 
@@ -1420,7 +1429,21 @@ line to the error stream when it fails, in a program that cannot crash too. It i
 holds, with no values, and it covers the asserts the ring covers (the program's and its loaded packages', never
 `library/`'s, D189). Cost: none without the flag, since the macro is the same one store and count; with it, a
 flush and a write per failed `assert`. `conformance/stage6/quiet_asserts` (four calls, two failing: nothing but the
-program's lines), `conformance/stage6/trace_asserts` (the same with `--trace-asserts`). **[implemented]**
+program's lines), `conformance/stage6/trace_asserts` (the same with `--trace-asserts`),
+`conformance/stage6/quiet_asserts_optimized` (an `--optimized` build failing a guard 500 times: nothing but the
+program's line) and `conformance/stage6/trace_asserts_optimized` (`--optimized --trace-asserts`). **[implemented]**
+
+**A crash prints the ring as it stood when it began, and only the first crash reports** (implements D244; proposed
+by Claude, unconfirmed; found by the Theseus port, A73). The report reads the ring's count once, when it starts,
+and prints at most 32 lines and the `earlier=` count from it. It used to re-read the count on every line, so a
+crash on one thread while pool threads kept failing guard asserts chased the count forever: every failed `assert`
+of the program reached the error stream, and the crash never reached its `exit` -- a 1.4 GB log in five minutes,
+from a client that looked as if it printed its asserts in an `--optimized` build. A native fault's report reads the
+count once the same way. A crash first claims the report with one atomic exchange; a thread that crashes while
+another's report is being written waits for the program to end instead of interleaving a second report. Cost:
+only on the crash path; a failed `assert` still costs one store and one count. `check.sh` builds a program whose
+pool thread fails an `assert` without end while the program's thread crashes, and requires one crash line, at most
+32 assert lines, the `earlier=` count and exit status 1 within a minute. **[implemented]**
 
 D26 refinement (proposed by Claude, unconfirmed; **not built**): the trace would record **predicate asserts
 only**. A narrowing assert firing is routine control flow -- thousands an hour on a server -- and on concurrent
