@@ -1,0 +1,16 @@
+var console = Console()
+var names = ["ada", "bo"]
+
+func TraceAssertsOptimized() {
+    var index = 0
+    while index < 3 {
+        greet(index)
+        index = index + 1
+    }
+    console.print("done")
+}
+
+func greet(index: Integer) {
+    assert index < names.count()
+    console.print("hello", names[index])
+}

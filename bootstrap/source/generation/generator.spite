@@ -641,7 +641,7 @@ func generate(
     var header_text = runtime_header_text.replace("/*spite_allocator*/", allocator)
     builder.add_typedef(header_text)
     builder.add_typedef(
-        "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_kept = spite_assert_total < 32 ? spite_assert_total : 32;\nfor (int64_t spite_index = spite_assert_total - spite_kept; spite_index < spite_assert_total; spite_index = spite_index + 1) \{ fputs(spite_assert_trace[spite_index % 32], stderr); }\nif (spite_assert_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_assert_total - 32)); }\n}",
+        "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic int32_t spite_crashing = 0;\nstatic void spite_crash_begin(void) \{\nif (__atomic_exchange_n(&spite_crashing, 1, __ATOMIC_ACQ_REL) != 0) \{ for (;;) \{ } }\n}\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_total = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE);\nint64_t spite_kept = spite_total < 32 ? spite_total : 32;\nfor (int64_t spite_index = spite_total - spite_kept; spite_index < spite_total; spite_index = spite_index + 1) \{ const char* spite_site = spite_assert_trace[spite_index % 32]; if (spite_site != 0) fputs(spite_site, stderr); }\nif (spite_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_total - 32)); }\n}",
     )
     var traced = "#define SPITE_TRACE_ASSERT(site) (spite_assert_trace[spite_assert_total % 32] = (site), spite_assert_total = spite_assert_total + 1)"
     var untraced = "#define SPITE_TRACE_ASSERT(site) ((void)0)"
@@ -31117,6 +31117,7 @@ func emit_check_failure(
     function_information: Analysis.FunctionInfo,
 ) {
     if assert_statement.is_crash {
+        builder.add_user("spite_crash_begin();")
         builder.add_user("fflush(stdout);")
         builder.add_user(
             "fputs(\"spite.crash\\t{current_site_id}\\t{escape_c_string(current_path)}:{current_line}\\t{current_owner}\\t{function_information.name}\\t{escape_c_string(assert_statement.condition_text)}\", stderr);",
