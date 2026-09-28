@@ -1,0 +1,8 @@
+generic $system_type
+
+var system = $system_type()
+var column = Column<$system_type.argument_class("update_each", 0)>()
+
+func run() {
+    column.values.each(system.update_each)
+}

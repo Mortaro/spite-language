@@ -6819,6 +6819,7 @@ func bound_type_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
     while index < named.path.count() {
         var segment = named.path[index]
         var member_type = codegen_member_type(bound_type, segment)
+        assert member_type or not segment.starts_with("argument_class(")
         if not member_type {
             report(
                 "{type_with_article(bound_type)} has no codegen value named '{segment}' -- List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
@@ -6868,6 +6869,7 @@ func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? 
     while index < named.path.count() {
         var segment = named.path[index]
         var member_type = codegen_member_type(bound_type, segment)
+        assert member_type or not segment.starts_with("argument_class(")
         if not member_type {
             report(
                 "{type_with_article(bound_type)} has no codegen value named '${segment}' -- List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
@@ -6881,6 +6883,9 @@ func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? 
 }
 
 func codegen_member_type(owner: Analysis.SpiteType, name: String): Analysis.SpiteType? {
+    if name.starts_with("argument_class(") {
+        return parameter_class_type(owner, name)
+    }
     var owner_list = type_shape.as_list(owner)
     if owner_list {
         assert name == "element_type"
@@ -36479,4 +36484,43 @@ func package_folder(information: Analysis.ClassInfo): String {
     var folder_length = folder.length()
     var best_length = best.length()
     return folder.slice(best_length + 1, folder_length)
+}
+
+func parameter_class_type(owner: Analysis.SpiteType, segment: String): Analysis.SpiteType? {
+    var pieces = segment.split("\"")
+    crash pieces.count() == 3
+    var function_name = pieces[1]
+    var number_piece = pieces[2]
+    var number_text = number_piece.replace(",", "").replace(")", "").trim()
+    var asked_index = number_text.to_integer()
+    crash asked_index
+    var owner_class_ref = type_shape.as_class_ref(owner)
+    if not owner_class_ref {
+        report(
+            "'argument_class(\"{function_name}\", {asked_index})' asks a class for the class of a parameter, and {type_with_article(owner)} is not a class",
+        )
+        return null
+    }
+    var owner_class = find_class_by_c_name(owner_class_ref.c_name)
+    crash owner_class
+    var functions = declared_functions_of(owner_class)
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if function.name == function_name {
+            var parameter = function.parameters[asked_index]
+            if not parameter {
+                report(
+                    "'{owner_class.simple_name}.{function_name}' takes {function.parameters.count()} arguments, so it has no parameter {asked_index} for 'argument_class' to name: parameters are counted from 0",
+                )
+                return null
+            }
+            return parameter.get_type()
+        }
+        index = index + 1
+    }
+    report(
+        "'argument_class(\"{function_name}\", {asked_index})' names the class of a parameter of '{owner_class.simple_name}.{function_name}', and '{owner_class.simple_name}' has no function '{function_name}'",
+    )
+    return null
 }

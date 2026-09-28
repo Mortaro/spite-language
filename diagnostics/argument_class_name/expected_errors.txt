@@ -1,0 +1,1 @@
+diagnostics/argument_class_name/namer.spite:4: error: 'argument_class("repair", 0)' names the class of a parameter of 'Mender.repair', and 'Mender' has no function 'repair' (in Namer.)

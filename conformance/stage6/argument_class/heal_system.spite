@@ -1,0 +1,3 @@
+func update_each(health: Health) {
+    health.points = health.points + 1
+}

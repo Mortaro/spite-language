@@ -1,0 +1,3 @@
+func mend(amount: Integer): Integer {
+    return amount + 1
+}

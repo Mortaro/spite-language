@@ -1,0 +1,8 @@
+generic $system_type
+
+var console = Console()
+var held = List<$system_type.argument_class("repair", 0)>()
+
+func show() {
+    console.print(held.count())
+}

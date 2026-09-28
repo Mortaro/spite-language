@@ -1,0 +1,5 @@
+var holder = Holder<Mender>()
+
+func ArgumentClass() {
+    holder.show()
+}

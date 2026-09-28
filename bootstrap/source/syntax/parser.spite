@@ -976,13 +976,29 @@ func generic_member_type(generic_name: String): Syntax.Types.Type {
         advance()
         if check('identifier') {
             var segment_token = advance()
-            path.append(segment_token.text)
+            var segment = segment_token.text
+            if check('left_paren') {
+                segment = codegen_question_segment(segment)
+            }
+            path.append(segment)
         } else {
             fail("expected the name of a codegen value after '.' but found {found_text()}")
         }
     }
     var no_generic_arguments = List<Syntax.Types.GenericArgument>()
     return Syntax.Types.NamedType(path, no_generic_arguments)
+}
+
+func codegen_question_segment(name: String): String {
+    advance()
+    var function_name = expect(
+        'string_literal',
+        "the function's name as text, as in '$system_type.argument_class(\"update_each\", 0)'",
+    )
+    expect('comma', "',' and the parameter's number after the function's name")
+    var number = expect('integer_literal', "the parameter's number, counted from 0")
+    expect('right_paren', "')'")
+    return "{name}(\"{function_name.text}\", {number.text})"
 }
 
 func parse_generic_argument(): Syntax.Types.GenericArgument {

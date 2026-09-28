@@ -1439,11 +1439,16 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   attribute of the class holds a singleton that has state, followed through singletons however deep. An attribute
   written only by other classes' code does not count: that write is state of the class that makes it. It has no
   run-time form, and it takes nothing: `'$T.has_state()' is decided while compiling, and it takes nothing`.
-- **Not built: `$T.argument_class("update_each", 0)`** (asked for by SlopEngine; proposed by Claude, unconfirmed):
-  the class of a function's parameter as a type a generic may take, `Column<$T.argument_class("update_each", 0)>()`.
-  A generic argument is written as a type, and a type cannot hold a call yet; the plan is to parse a codegen
-  question in that position and fold it as `returned_text` is. Until then a walk over the function's arguments,
-  `argument: Symbol<$T.update_each>` with `Column<argument.class>()`, reaches the same class.
+- **`$T.argument_class("update_each", 0)` is the class of a function's parameter, as a type** (D287, decided by
+  Claude under D205, asked for by SlopEngine; the name provisional).  **[implemented]** Written where a type is, on
+  a codegen type, with the function's name as text and the parameter's number from 0 as literals:
+  `var column = Column<$system_type.argument_class("update_each", 0)>()` binds the column of whatever a system's
+  `update_each` takes first (`conformance/stage6/argument_class`). It resolves while compiling to the parameter's
+  declared type, so it costs nothing at run time. A number past the last parameter is "'Mender.mend' takes 1
+  arguments, so it has no parameter 1 for 'argument_class' to name: parameters are counted from 0"
+  (`diagnostics/argument_class`), and a name the class does not declare is "'argument_class("repair", 0)' names
+  the class of a parameter of 'Mender.repair', and 'Mender' has no function 'repair'"
+  (`diagnostics/argument_class_name`).
 - **`$system_type.function_waits("update_each")` folds exactly like `has_function`** (D209, decided by Mortaro;
   the spelling and the reading below are proposed by Claude, unconfirmed).  **[implemented]** It is `true` when a
   function the class declares, whose name fits the literal (a name, or a pattern whose hole is read as

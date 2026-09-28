@@ -1,0 +1,5 @@
+var namer = Namer<Mender>()
+
+func ArgumentClassName() {
+    namer.show()
+}

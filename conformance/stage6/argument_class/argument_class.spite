@@ -1,0 +1,13 @@
+var console = Console()
+var healths = Column<Health>()
+var runner = Runner<HealSystem>()
+
+func ArgumentClass() {
+    var first = Health()
+    healths.values.append(first)
+    var second = Health()
+    second.points = 9
+    healths.values.append(second)
+    runner.run()
+    console.print(first.points, second.points)
+}
