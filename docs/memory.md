@@ -555,6 +555,7 @@ func LentResultDoc() {
     var layout = lookup.of(0)
     crash layout
     layout.order = 3
+    crash layouts.values[0]
     console.print(layouts.values[0].order)
 }
 ```
@@ -600,6 +601,7 @@ var input = Input()
 func LentCallDoc() {
     var made = Mouse()
     mice.append(made)
+    crash mice[0]
     var mouse = mice[0]
     input.apply(3, mouse)
     input.apply(4, mice[0])

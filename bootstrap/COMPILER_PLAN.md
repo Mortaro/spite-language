@@ -539,3 +539,5 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   narrowing lines and the count or bound that proves it (`report_mismatch` takes the code for this). Bootstrapped
   from master's seed with a transitional `library/` (a halting `get_at` beside `find_at`, master's binary classes),
   then two generations on the real library.
+  `library_list_field` also admits `BinaryOutput` and `BinaryReader` by name (`reaches_list_storage`), since
+  `--final-classes` prints them into the program's folder, where the `library/` path test no longer holds.

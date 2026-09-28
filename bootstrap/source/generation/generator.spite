@@ -15657,8 +15657,12 @@ func bounded_item(got: ExpressionResult, read_path: String): ExpressionResult {
     return bounded
 }
 
+func reaches_list_storage(): Boolean {
+    return current_owner == "BinaryOutput" or current_owner == "BinaryReader"
+}
+
 func library_list_field(list_type: Analysis.SpiteType, name: String): Analysis.FieldInfo? {
-    assert current_path.starts_with("library/")
+    assert current_path.starts_with("library/") or reaches_list_storage()
     var listed = type_shape.as_list(list_type)
     assert listed
     var element = listed.get_element()
