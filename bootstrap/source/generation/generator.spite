@@ -188,6 +188,7 @@ var listed_function_classes = List<Analysis.ClassInfo>()
 var listed_function_counts = List<Integer>()
 var listed_function_positions = List<Integer>()
 var instance_lines = List<String>()
+var literal_lines = List<String>()
 var skipped_in_reload = Dictionary<Boolean>()
 var seeded_shape_callers = List<String>()
 var seeded_shape_callees = List<String>()
@@ -202,6 +203,7 @@ var text_key_use_sites = Dictionary<String>()
 var namespace_walks = Dictionary<NamespaceWalk>()
 var class_member_names = Dictionary<String>()
 var class_names_by_id = List<String>()
+var class_identities = List<String>()
 var current_owner = ""
 var nullable_scalar_labels = List<String>()
 var has_error = false
@@ -370,13 +372,19 @@ func report(message: String) {
 }
 
 func allocate_class_id(debug_name: String): Integer {
+    return allocate_class_id_of(debug_name, debug_name)
+}
+
+func allocate_class_id_of(debug_name: String, identity: String): Integer {
     if class_names_by_id.is_empty() {
         class_names_by_id.append("String")
+        class_identities.append("String")
     }
-    if seeded_class_ids[debug_name] {
-        return seeded_class_ids[debug_name]
+    if seeded_class_ids[identity] {
+        return seeded_class_ids[identity]
     }
     class_names_by_id.append(debug_name)
+    class_identities.append(identity)
     return class_names_by_id.count() - 1
 }
 
@@ -725,8 +733,11 @@ func generate(
     }
     emit_attribute_object_bodies()
     while refresh_functions_lists() {
-        emit_pending_functions()
+        emit_class_object_bodies()
+        emit_namespace_object_bodies()
         emit_functions_function_bodies()
+        emit_attribute_object_bodies()
+        emit_pending_functions()
     }
     refresh_union_releases()
     finish_wait_questions()
@@ -3401,6 +3412,7 @@ func generate_object_literal(
     if not information {
         var class_id = allocate_class_id(label)
         var created = Analysis.ClassInfo(label, "Object", "", label, class_id)
+        note_literal_class(names, types)
         var field_index = 0
         while field_index < names.count() {
             var listed_name = names[field_index]
@@ -3457,6 +3469,7 @@ func shape_default(information: Analysis.UnionInfo): String {
     if not information_class {
         var class_id = allocate_class_id(label)
         var created = Analysis.ClassInfo(label, "Object", "", label, class_id)
+        note_literal_class(names, types)
         var field_index = 0
         while field_index < names.count() {
             var listed_name = names[field_index]
@@ -3821,7 +3834,7 @@ func ensure_box(member: Analysis.ClassInfo, value_type: Analysis.SpiteType): Str
         )
     }
     boxed_value_types[member.c_name] = value_type
-    member.class_id = allocate_class_id(member.simple_name)
+    member.class_id = allocate_class_id_of(member.simple_name, "box {member.c_name}")
     var box = "SpiteBox_{member.c_name}"
     var value_c_type = c_type_name(value_type)
     builder.add_typedef("typedef struct {box} \{ SpiteHeader header; {value_c_type} value; } {box};")
@@ -5587,10 +5600,17 @@ func is_pending(information: Analysis.ClassInfo, function: Analysis.FunctionInfo
     if function.is_emitted {
         return false
     }
-    if not information.is_instantiated {
+    if not information.is_instantiated or ran_in_host(information, function) {
         return true
     }
     return builder.mentions(function.c_name) or is_called_through_shape(information, function.name)
+}
+
+func ran_in_host(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
+    if not reload_host {
+        return false
+    }
+    return reload_owners.contains(information.c_name) and reload_host.host_slots.has(function.c_name)
 }
 
 func is_called_through_shape(information: Analysis.ClassInfo, name: String): Boolean {
@@ -21322,6 +21342,7 @@ func literal_class(names: List<String>, types: List<Analysis.SpiteType>): Analys
     }
     var class_id = allocate_class_id(label)
     var created = Analysis.ClassInfo(label, "Object", "", label, class_id)
+    note_literal_class(names, types)
     var field_index = 0
     while field_index < names.count() {
         var listed_name = names[field_index]
@@ -33972,20 +33993,26 @@ func emit_hot_reload_support() {
     )
 }
 
-func seed_class_names(names: List<String>) {
+func seed_class_names(names: List<String>, identities: List<String>) {
     var index = 0
-    while index < names.count() {
-        var name = names[index]
+    while index < names.count() and index < identities.count() {
+        var identity = identities.get_at(index)
+        var name = names.get_at(index)
         class_names_by_id.append(name)
-        if not seeded_class_ids.has(name) {
-            seeded_class_ids[name] = index
-        }
+        class_identities.append(identity)
+        seeded_class_ids[identity] = index
         index = index + 1
     }
 }
 
 func hot_manifest(): String {
-    var manifest = builder.host.host_manifest(hot_slot_names, hot_slot_displays, class_names_by_id, builder.typedefs)
+    var manifest = builder.host.host_manifest(
+        hot_slot_names,
+        hot_slot_displays,
+        class_names_by_id,
+        class_identities,
+        builder.typedefs,
+    )
     var key_lines = List<String>()
     var sites = number_key_sites.keys()
     var index = 0
@@ -34005,6 +34032,11 @@ func hot_manifest(): String {
     while instance_index < instance_lines.count() {
         fact_lines.append(instance_lines[instance_index])
         instance_index = instance_index + 1
+    }
+    var literal_index = 0
+    while literal_index < literal_lines.count() {
+        fact_lines.append(literal_lines[literal_index])
+        literal_index = literal_index + 1
     }
     var declared_index = 0
     while declared_index < classes.count() {
@@ -34837,6 +34869,48 @@ func replay_instances(host: HotReloadLibrary) {
         replay_instance(record)
         index = index + 1
     }
+    index = 0
+    while index < host.host_literals.count() {
+        var literal = host.host_literals.get_at(index)
+        replay_literal(literal)
+        index = index + 1
+    }
+}
+
+func note_literal_class(names: List<String>, types: List<Analysis.SpiteType>) {
+    var codec = TypeCodec()
+    var fields = List<String>()
+    var joined_names = names.join(",")
+    fields.append(joined_names)
+    var index = 0
+    while index < types.count() {
+        var encoded_type = codec.encoded(types[index])
+        fields.append(encoded_type)
+        index = index + 1
+    }
+    literal_lines.append("literal {fields.join("\t")}")
+}
+
+func replay_literal(record: String) {
+    var codec = TypeCodec()
+    var fields = record.split("\t")
+    crash fields.count() >= 1
+    var joined_names = fields.get_at(0)
+    var names = joined_names.split(",")
+    if joined_names.is_empty() {
+        names = List<String>()
+    }
+    crash fields.count() == names.count() + 1
+    var types = List<Analysis.SpiteType>()
+    var index = 0
+    while index < names.count() {
+        var encoded_type = fields.get_at(index + 1)
+        var decoded = codec.decoded(encoded_type)
+        assert decoded
+        types.append(decoded)
+        index = index + 1
+    }
+    literal_class(names, types)
 }
 
 func replay_instance(record: String) {

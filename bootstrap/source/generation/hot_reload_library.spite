@@ -2,11 +2,13 @@ var host_names = List<String>()
 var host_prototypes = Dictionary<String>()
 var host_slots = Dictionary<String>()
 var host_classes = List<String>()
+var host_class_identities = List<String>()
 var host_layouts = Dictionary<String>()
 var host_key_sites = Dictionary<Analysis.SpiteType>()
 var host_facts = ProgramFacts()
 var host_variants = List<String>()
 var host_instances = List<String>()
+var host_literals = List<String>()
 var host_slot_owners = Dictionary<String>()
 var split_done = false
 var host_members = Dictionary<String>()
@@ -80,6 +82,7 @@ func host_manifest(
     slot_names: List<String>,
     slot_displays: List<String>,
     class_names: List<String>,
+    class_identities: List<String>,
     typedefs: List<String>,
 ): String {
     var lines = List<String>()
@@ -96,8 +99,8 @@ func host_manifest(
         index = index + 1
     }
     index = 0
-    while index < class_names.count() {
-        lines.append("class {class_names[index]}")
+    while index < class_names.count() and index < class_identities.count() {
+        lines.append("class {class_names[index]}\t{class_identities[index]}")
         index = index + 1
     }
     var hashed = host_hashes.keys()
@@ -155,7 +158,12 @@ func read_host_line(kind: String, rest: String) {
     var space = rest.index_of(" ")
     var rest_length = rest.length()
     if kind == "class" {
-        host_classes.append(rest)
+        var class_tab = rest.index_of("\t")
+        crash class_tab > 0
+        var class_name = rest.slice(0, class_tab)
+        var identity = rest.slice(class_tab + 1, rest_length)
+        host_classes.append(class_name)
+        host_class_identities.append(identity)
     } else if kind == "slot" and space > 0 {
         var name = rest.slice(0, space)
         host_slots[name] = rest.slice(space + 1, rest_length)
@@ -180,6 +188,8 @@ func read_host_line(kind: String, rest: String) {
         var member_tab = rest.index_of("\t")
         crash member_tab > 0
         host_members[rest.slice(0, member_tab)] = rest.slice(member_tab + 1, rest_length)
+    } else if kind == "literal" {
+        host_literals.append(rest)
     } else if kind == "instance" {
         host_instances.append(rest)
     } else if kind == "variant" {

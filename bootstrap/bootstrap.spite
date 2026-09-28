@@ -299,7 +299,7 @@ func is_on(name: String): Boolean {
 func generated(discovery: Discovery.DiscoveryResult): Generation.Generator? {
     var no_host_classes = List<String>()
     var no_keys = Dictionary<Analysis.SpiteType>()
-    var generator = keyed_generator(discovery, no_host_classes, no_keys)
+    var generator = keyed_generator(discovery, no_host_classes, no_host_classes, no_keys)
     if generator.has_error {
         report_error(generator.error_message)
         return null
@@ -316,17 +316,18 @@ func generated(discovery: Discovery.DiscoveryResult): Generation.Generator? {
 func keyed_generator(
     discovery: Discovery.DiscoveryResult,
     host_classes: List<String>,
+    host_identities: List<String>,
     starting_keys: Dictionary<Analysis.SpiteType>,
 ): Generation.Generator {
     var number_keys = starting_keys
     var notes = Dictionary<String>()
-    var generator = generator_pass(discovery, host_classes, number_keys, notes, 1)
+    var generator = generator_pass(discovery, host_classes, host_identities, number_keys, notes, 1)
     var passes = 1
     while generator.key_sites_changed and passes < maximum_passes {
         number_keys = generator.learned_key_sites
         notes = generator.learned_key_use_notes
         passes = passes + 1
-        generator = generator_pass(discovery, host_classes, number_keys, notes, passes)
+        generator = generator_pass(discovery, host_classes, host_identities, number_keys, notes, passes)
     }
     return generator
 }
@@ -334,6 +335,7 @@ func keyed_generator(
 func generator_pass(
     discovery: Discovery.DiscoveryResult,
     host_classes: List<String>,
+    host_identities: List<String>,
     number_keys: Dictionary<Analysis.SpiteType>,
     notes: Dictionary<String>,
     pass: Integer,
@@ -344,7 +346,7 @@ func generator_pass(
     generator.renders_program = not reloading
     generator.reload_host = partial_host
     generator.reload_changed_paths = partial_paths
-    generator.seed_class_names(host_classes)
+    generator.seed_class_names(host_classes, host_identities)
     generator.number_key_sites = number_keys
     generator.key_use_notes = notes
     var prelude = Generation.Prelude()
@@ -1040,7 +1042,7 @@ func compile_reload(
         partial_host = reload
         partial_paths = changed_files
     }
-    var generator = keyed_generator(discovery, reload.host_classes, reload.host_key_sites)
+    var generator = keyed_generator(discovery, reload.host_classes, reload.host_class_identities, reload.host_key_sites)
     partial_host = null
     if generator.has_error {
         return generator.error_message
