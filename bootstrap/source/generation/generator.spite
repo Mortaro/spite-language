@@ -14684,7 +14684,7 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
         builder.add_prototype("{list_name}* {function_c_name}({information.c_name}* self);")
         append_live_attributes(information, list_name, lines)
         var joined_lines = lines.join("\n")
-        note_live_slot(information, "'s attributes")
+        note_support_slot(information, "'s attributes")
         builder.add_support(joined_lines)
         return function_c_name
     }
@@ -14708,7 +14708,7 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
     lines.append("}")
     builder.add_prototype("{list_name}* {function_c_name}({information.c_name}* self);")
     var joined_lines = lines.join("\n")
-    note_live_slot(information, "'s attributes")
+    note_support_slot(information, "'s attributes")
     builder.add_support(joined_lines)
     return function_c_name
 }
@@ -15250,7 +15250,7 @@ func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.Fie
     lines.append("}")
     builder.add_prototype("bool {function_c_name}(void* owner, SpiteString text);")
     var joined_lines = lines.join("\n")
-    note_live_slot(information, "'s assignment of {field.name}")
+    note_support_slot(information, "'s assignment of {field.name}")
     builder.add_support(joined_lines)
     return function_c_name
 }
@@ -15643,7 +15643,7 @@ func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
     lines.append("return copied;")
     lines.append("}")
     var joined_lines = lines.join("\n")
-    note_live_slot(information, "'s deep copy")
+    note_support_slot(information, "'s deep copy")
     builder.add_support(joined_lines)
     return function_c_name
 }
@@ -34483,12 +34483,21 @@ func returned_literal_text(function: Analysis.FunctionInfo): String {
     return literal.value
 }
 
+func note_support_slot(information: Analysis.ClassInfo, what: String) {
+    if is_hot_class(information) {
+        var position = builder.support_count()
+        live_slot_positions.append(position)
+        live_slot_owners.append("{information.c_name}___support")
+        live_slot_displays.append("{information.qualified_dotted}{what}")
+    }
+}
+
 func note_union_slot(information: Analysis.UnionInfo, what: String) {
     var owner = union_slot_owner(information)
     if not owner.is_empty() {
         var position = builder.support_count()
         live_slot_positions.append(position)
-        live_slot_owners.append(owner)
+        live_slot_owners.append(information.c_name)
         live_slot_displays.append("{information.simple_name}{what}")
     }
 }
@@ -34960,8 +34969,9 @@ func reload_library(
     var index = 0
     while index < owners.count() {
         var owner = find_class_by_c_name(owners[index])
-        crash owner
-        rebuilt.append(owner.qualified_dotted)
+        if owner {
+            rebuilt.append(owner.qualified_dotted)
+        }
         index = index + 1
     }
     var local_only = migration_local_names()
