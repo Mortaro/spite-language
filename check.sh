@@ -526,13 +526,13 @@ echo "live reload: an edited class was swapped in by reload and another by the w
 # that makes a function write another class's attribute (the call effects its callers were compiled with change).
 checked_port=$((port + 1))
 fast_checked=0
-# Each copy sits as deep below the repository as the conformance folders, so their comments' links resolve.
+# Each copy sits as deep below the repository as a conformance program, so its comments' links resolve.
 mkdir -p "$work/fast_reload"
 for program in .spite-cache/docs/hot_counter conformance/stage6/kept_templates conformance/stage6/items_columns \
                conformance/stage6/class_argument conformance/stage6/json_symbols conformance/stage6/attribute_object \
                conformance/stage6/foreign_callbacks conformance/stage6/waiting_systems conformance/stage6/allocator_choice \
                examples/dungeon; do
-  name=$(basename "$program"); copy="$work/fast_reload_$name"
+  name=$(basename "$program"); copy="$work/$name"
   cp -r "$program" "$copy"
   flags=""; [ -f "$copy/flags.txt" ] && flags=$(tr -d '\r\n' < "$copy/flags.txt")
   "$work/generation_two.exe" "$copy" --executable --run=false --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/$name.exe" $flags > "$work/c_errors.txt" 2>&1 || {
@@ -546,7 +546,7 @@ for program in .spite-cache/docs/hot_counter conformance/stage6/kept_templates c
     esac
   done
 done
-hot_copy="$work/fast_reload_hot_counter"
+hot_copy="$work/hot_counter"
 fall_back() {
   local answer
   answer=$(SPITE_RELOAD_CHECK=1 "$work/generation_two.exe" reload "$hot_copy" --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/hot_counter.exe" 2>&1 | tr -d '\r')
