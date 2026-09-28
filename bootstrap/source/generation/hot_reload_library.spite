@@ -9,6 +9,7 @@ var host_facts = ProgramFacts()
 var host_variants = List<String>()
 var host_instances = List<String>()
 var host_literals = List<String>()
+var host_waiting = List<String>()
 var host_slot_owners = Dictionary<String>()
 var split_done = false
 var host_members = Dictionary<String>()
@@ -188,6 +189,8 @@ func read_host_line(kind: String, rest: String) {
         var member_tab = rest.index_of("\t")
         crash member_tab > 0
         host_members[rest.slice(0, member_tab)] = rest.slice(member_tab + 1, rest_length)
+    } else if kind == "waits" {
+        host_waiting.append(rest)
     } else if kind == "literal" {
         host_literals.append(rest)
     } else if kind == "instance" {
@@ -456,7 +459,17 @@ func library_hashes(constants: Dictionary<String>): Dictionary<String> {
     while index < library_bodies.count() {
         var name = library_body_names.get_at(index)
         var body = library_bodies.get_at(index)
-        hashes[name] = piece_hash(body, constants)
+        var hash = piece_hash(body, constants)
+        var name_length = name.length()
+        if name.starts_with("spite_") and holds_digit(name, 6, name_length) {
+            var occurrence = 0
+            while hashes.has("numbered {hash} {occurrence}") {
+                occurrence = occurrence + 1
+            }
+            hashes["numbered {hash} {occurrence}"] = hash
+        } else {
+            hashes[name] = hash
+        }
         index = index + 1
     }
     return hashes

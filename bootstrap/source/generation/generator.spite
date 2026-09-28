@@ -190,8 +190,6 @@ var listed_function_positions = List<Integer>()
 var instance_lines = List<String>()
 var literal_lines = List<String>()
 var skipped_in_reload = Dictionary<Boolean>()
-var seeded_shape_callers = List<String>()
-var seeded_shape_callees = List<String>()
 var partial_refusal = ""
 var program_facts = ProgramFacts()
 var fact_owner = ""
@@ -1697,13 +1695,6 @@ func settle_wait_facts() {
     }
     wait_facts.shape_callers.clear()
     wait_facts.shape_callees.clear()
-    var seeded_index = 0
-    while seeded_index < seeded_shape_callers.count() {
-        var seeded_caller = seeded_shape_callers.get_at(seeded_index)
-        var seeded_callee = seeded_shape_callees.get_at(seeded_index)
-        wait_facts.add_shape_edge(seeded_caller, seeded_callee)
-        seeded_index = seeded_index + 1
-    }
     index = 0
     while index < unions.count() {
         var information = unions[index]
@@ -1724,9 +1715,7 @@ func add_shape_wait_edges(information: Analysis.UnionInfo) {
             var member = information.members[member_index]
             var called = member.find_function(name)
             if called {
-                var shape_caller = "{information.c_name}___call_{name}"
-                wait_facts.add_shape_edge(shape_caller, called.c_name)
-                program_facts.note("sedge {shape_caller} -> {called.c_name}", "")
+                wait_facts.add_shape_edge("{information.c_name}___call_{name}", called.c_name)
             }
             member_index = member_index + 1
         }
@@ -1737,7 +1726,6 @@ func add_shape_wait_edges(information: Analysis.UnionInfo) {
 func note_wait_edge(callee: String) {
     assert not resumable_mode and not current_function_c_name.is_empty()
     wait_facts.add_edge(current_function_c_name, callee)
-    note_fact("vedge {current_function_c_name} -> {callee}")
 }
 
 func value_call_key(arguments: List<Analysis.SpiteType>, returns: Analysis.SpiteType?): String {
@@ -2948,7 +2936,6 @@ func shape_function_value(
     if task_value_arguments == 0 {
         var value_call = value_call_key(signature.arguments, signature.returns)
         wait_facts.add_edge(value_call, caller)
-        note_fact("vedge {value_call} -> {caller}")
     }
     var maker = "spite_function_value_{caller}"
     note_fact("maker {maker}")
@@ -10539,7 +10526,6 @@ func function_value(
         crash value_signature
         var value_call = value_call_key(value_signature.arguments, value_signature.returns)
         wait_facts.add_edge(value_call, function.c_name)
-        note_fact("vedge {value_call} -> {function.c_name}")
     }
     var starts_work = concurrent_arguments > 0 or not is_library_class(information)
     if function.parameters.is_empty() and starts_work and not task_root_names.contains(function.c_name) {
@@ -31238,7 +31224,6 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         waiting_classes.append(information)
         waiting_functions.append(function)
         waiting_kinds.append(waiting)
-        note_fact("wait {function.c_name} {waiting}")
         var user_count = builder.user_count()
         waiting_positions.append(user_count)
     }
@@ -34056,6 +34041,13 @@ func hot_manifest(): String {
         }
         union_index = union_index + 1
     }
+    settle_wait_facts()
+    var waiting_now = wait_facts.waits.keys()
+    var waiting_index = 0
+    while waiting_index < waiting_now.count() {
+        fact_lines.append("waits {waiting_now[waiting_index]}")
+        waiting_index = waiting_index + 1
+    }
     var owner_index = 0
     while owner_index < hot_slot_names.count() and owner_index < hot_slot_owners.count() {
         fact_lines.append("owner {hot_slot_names[owner_index]} {hot_slot_owners[owner_index]}")
@@ -34206,7 +34198,6 @@ func record_call(callee: String) {
     assert not resumable_mode and not current_function_c_name.is_empty()
     call_edge_callers.append(current_function_c_name)
     call_edge_callees.append(callee)
-    note_fact("edge {current_function_c_name} -> {callee}")
 }
 
 func hoisted_wait(
@@ -34813,6 +34804,22 @@ func folded_decimal(expression: Syntax.Expressions.Expression, class_information
     return folded_maths_value(member.name, member.object, call.arguments, class_information)
 }
 
+func seed_host_waits(host: HotReloadLibrary) {
+    var index = 0
+    while index < host.host_waiting.count() {
+        var name = host.host_waiting.get_at(index)
+        var owner = class_of_function_c_name(name)
+        var rebuilt = false
+        if owner {
+            rebuilt = reload_owners.contains(owner.c_name)
+        }
+        if not rebuilt {
+            seeded_waiting_names.append(name)
+        }
+        index = index + 1
+    }
+}
+
 func seed_lent_variants(host: HotReloadLibrary) {
     var index = 0
     while index < host.host_variants.count() {
@@ -34986,6 +34993,7 @@ func prepare_partial(host: HotReloadLibrary) {
 }
 
 func seed_host_facts(host: HotReloadLibrary) {
+    seed_host_waits(host)
     seed_lent_variants(host)
     seed_made_members(host)
     var index = 0
@@ -35000,36 +35008,6 @@ func seed_host_facts(host: HotReloadLibrary) {
 
 func seed_host_fact(key: String) {
     var key_length = key.length()
-    if key.starts_with("edge ") {
-        var arrow = key.index_of(" -> ")
-        var caller = key.slice(5, arrow)
-        var callee = key.slice(arrow + 4, key_length)
-        call_edge_callers.append(caller)
-        call_edge_callees.append(callee)
-        return
-    }
-    if key.starts_with("sedge ") {
-        var shape_arrow = key.index_of(" -> ")
-        var shape_caller = key.slice(6, shape_arrow)
-        var shape_callee = key.slice(shape_arrow + 4, key_length)
-        seeded_shape_callers.append(shape_caller)
-        seeded_shape_callees.append(shape_callee)
-        return
-    }
-    if key.starts_with("vedge ") {
-        var value_arrow = key.index_of(" -> ")
-        var value_caller = key.slice(6, value_arrow)
-        var value_callee = key.slice(value_arrow + 4, key_length)
-        wait_facts.add_edge(value_caller, value_callee)
-        return
-    }
-    if key.starts_with("wait ") {
-        var words = key.split(" ")
-        if words.count() == 3 and words[2] != "yield" {
-            seeded_waiting_names.append(words[1])
-        }
-        return
-    }
     if key.starts_with("read ") {
         read_attributes[key.slice(5, key_length)] = true
         return
@@ -35315,9 +35293,8 @@ func changed_fact(host: HotReloadLibrary): String {
 }
 
 func fact_may_differ(key: String, looked_up: Boolean, waits_listed: Boolean): Boolean {
-    var about_calls = key.starts_with("edge ") or key.starts_with("vedge ") or key.starts_with("sedge ") or key.starts_with("wait ")
     var about_reads = key.starts_with("read ") or key.starts_with("word ") or key.starts_with("asks writes ")
-    if about_calls or about_reads {
+    if about_reads {
         return true
     }
     if key.starts_with("symbol ") {
