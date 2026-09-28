@@ -275,13 +275,148 @@ program runs`. For an AI: edit the file, send `reload`, and read `last_reload` i
 | a function's parameters or return type | it becomes a new function: the rebuilt class and every class that calls it are rebuilt too |
 | a function you deleted | whatever still holds it -- a function value, the REPL -- keeps its last code; the answer says `removed Monster.roar` |
 | an attribute's default value | instances made after the reload get the new default |
-| a class's attributes or enums | refused: `the attributes of Monster changed, ... restart the program to change a class's attributes or enums`, and the program keeps all of its code |
+| a class's attributes: added, removed, renamed or retyped | every live object of the class moves to the new attributes, components in an `Items`' own memory too ([below](#changing-a-classs-attributes)); the answer says what each class's objects kept |
+| an enum's values | refused: `the layout of ... changed`, and the program keeps all of its code (not built yet, [D280](decisions.md)) |
 | a file that does not compile | refused with the compiler's error, and the program keeps all of its code |
 | a file that declares none of the program's classes: `environment.spite`, `build.spite`, a reopening of a class of the standard library | refused: `'environment.spite' changed, and a reload swaps only the functions of the program's own classes, ...`, and the program keeps all of its code |
 | a new class | its functions are compiled into the new code; the REPL does not see it until a restart |
 
 A refused reload leaves the program exactly as it was, so a save that caught a file half-written is harmless: the
 next save reloads.
+
+### Changing a class's attributes
+
+Add an attribute to a class, remove one, rename one or change its type, and save: the reload moves every object of
+the class the running program holds to the new attributes, and the program carries on with the same objects -- the
+same identity, the same references to them (D280; the rules proposed by Claude, unconfirmed). An attribute that
+kept its name and its type keeps its value. A new attribute, or one whose type changed, holds its default, as it
+would in an object made now. A removed attribute is released, once every object has moved. The answer names every
+class it moved and what its objects kept, so nothing changes silently.
+
+```gdscript title=live_party/hero.spite
+var name = ""
+var level = 1
+
+func Hero(starting_name: String) {
+    name = starting_name
+}
+
+func describe(): String {
+    return "{name} at level {level}"
+}
+```
+```gdscript title=live_party/step.spite
+var distance = 0.0
+
+func Step(new_distance: Float) {
+    distance = new_distance
+}
+```
+```gdscript title=live_party/live_party.spite entry
+var console = Console()
+var hero = Hero("Ann")
+var steps = Items<Step>()
+
+func LiveParty() {
+    var first = Step(1.5)
+    steps.append(first)
+    var second = Step(2.5)
+    steps.append(second)
+    var described = describe()
+    console.print(described)
+}
+
+func describe(): String {
+    return "{hero.describe()}, walked {walked()}"
+}
+
+func walked(): Float {
+    var total = 0.0
+    var index = 0
+    while index < steps.count() {
+        var step = steps.get_at(index)
+        crash step
+        total = total + step.distance
+        index = index + 1
+    }
+    return total
+}
+```
+```output
+Ann at level 1, walked 4
+```
+
+`check.sh` runs this session against a copy of the program, built with `--hot-reload --repl-port`. `Step` fits in
+an `Items`' own memory, so its objects are not separate objects at all, and they move too:
+
+```text
+$ spite connect 4000 --command="program.hero.level = 7"
+{"ok":true,"value":"7","type":"Integer"}
+
+# hero.spite: a new attribute, 'var health = 100', and describe() says "{name} at level {level} with {health}"
+# step.spite: a new attribute, 'var pace = 2.0', before 'distance'
+$ spite connect 4000 --command="reload"
+{"ok":true,"value":"rebuilt Hero, Step, ...\nmoved every Hero to its new attributes: health is new and holds its default\nmoved every Step to its new attributes: pace is new and holds its default","type":""}
+
+$ spite connect 4000 --command="describe()"
+{"ok":true,"value":"Ann at level 7 with 100, walked 4","type":"String"}
+```
+
+**A renamed attribute keeps its value** when the class says what it was called, with a function beside it in the
+same form as a JSON key's ([D273](decisions.md)): `renamed_from_<attribute>()` returns the old name. Without one, a
+rename is a removed attribute and a new one, and the value is released.
+
+```gdscript
+var rank = 1
+
+func renamed_from_rank(): String {
+    return "level"
+}
+```
+
+The reload answers `level is now rank`, and `rank` holds the 7 `level` held. The function does nothing once no
+object has the old name, so it can be deleted after the reload, or kept.
+
+What it costs: a change to a class's attributes compiles the whole program, since every class that reads them is
+compiled again -- about 40 seconds for SlopTheseus's server, against a few for a change to function bodies alone.
+A reload is compared with what the program was built with, so while a class's attributes differ from the build's,
+the reloads after it compile the whole program too. Not built yet ([D280](decisions.md)): an enum whose
+values change, and a class that starts or stops fitting in an `Items`' own memory -- both are refused, naming the
+class.
+
+### Knowing what a reload rebuilt
+
+A program that makes things from its own code -- an engine that cooks assets with recipes written in Spite -- needs
+to know when that code changed, so it can make them again with the new code. Watching the files cannot tell it:
+the watcher sees the save before the new code is swapped in. The standard library's `Reload` singleton answers from
+the swaps themselves ([D285](decisions.md)): `generation()` is how many reloads the program has swapped in, and
+`rebuilt_since(generation)` the qualified names of the classes rebuilt after that one, as `$type.name` gives them.
+
+```gdscript title=recooking/recooking.spite entry
+var console = Console()
+var reload = Reload()
+var cooked = 0
+
+func Recooking() {
+    cook_again_if_changed()
+    console.print("cooked with generation {cooked}")
+}
+
+func cook_again_if_changed() {
+    var rebuilt = reload.rebuilt_since(cooked)
+    if rebuilt.contains("Recooking") {
+        console.print("the recipe changed: cooking again")
+    }
+    cooked = reload.generation()
+}
+```
+```output
+cooked with generation 0
+```
+
+A loop that asks every pass costs a comparison of two numbers until a reload happens. In a build without
+`--hot-reload` nothing is ever swapped in: `generation()` is `0` and `rebuilt_since` answers an empty list, both
+worked out while compiling, so the check folds away with the branch it guards.
 
 ### How it works
 
@@ -317,6 +452,19 @@ next save reloads.
   with `the change reaches '<name>', which the running program cannot swap: restart the program to take the
   change, or undo it`. Either way what swaps in is what compiling the whole program writes; `check.sh` holds it by
   compiling a reload of every file of ten programs both ways and comparing them (`SPITE_RELOAD_CHECK=<file>`).
+- **Every object of a program class can move.** In a `--hot-reload` build each object of the program's own classes
+  carries two hidden words after its header: where its attributes live when they have moved, and its place in a
+  list of the class's live objects, which each allocation adds to and each release takes from. Code reads an
+  attribute through `Monster___fields(object)`, which in the build is the object itself. When a reload changes a
+  class's attributes, the new code reads through a function instead -- the moved attributes when there are some,
+  the object otherwise -- and the reload lays each live object's attributes out anew in a block of their own and
+  points the object at it: the object stays where it was, so every reference to it -- a local of a function
+  running now, a list, another object -- still holds it. An `Items` that keeps a class's objects in its own memory
+  is in a list of its own, and moves every item in place of its old block. The functions that read a class's
+  attributes without being its own -- its allocation, release and copy, the REPL's reflection, a union's dispatch,
+  a template of the standard library made for it (`Items<Step>`) -- are called through slots too, so they move
+  with it. A reload moves nothing until it has installed every slot, and releases nothing a removed attribute held
+  until every object has moved. All of it is in a `--hot-reload` build only (D143).
 - **The swap happens where the program waits** ([D37](decisions.md)), or at the end of a pass of one of its
   loops: the program loads the library
   with the operating system's loader, the one `DynamicLibrary` uses, hands it the addresses of the program's
@@ -342,15 +490,36 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 
 ### REPL and live reload  **[partial]**
 
-**Decided, not built ([D280](decisions.md), Mortaro): nothing needs a restart.** "the fact that anything needs a
+**Decided, step 1 built ([D280](decisions.md), Mortaro): nothing needs a restart.** "the fact that anything needs a
 restart is a fault in language or engine design." Every refusal in [What a reload can change](#what-a-reload-can-change)
 is a gap to close, not a rule. The plan (proposed by Claude, unconfirmed), in the order Theseus meets them:
-1. **A class's attributes change**: the reload migrates every live instance to the new layout -- a
-   `--hot-reload` build already knows its instances ([reflection](reflection.md), `.instances`) -- copying kept
-   attributes by name, giving new ones their defaults and releasing removed ones; a component's column storage is
-   migrated the same way. A rename is written as a member-template function beside the attribute,
-   `func renamed_from_<attribute>(): String { return "old_name" }`, the same form as `json_key_<attribute>` (D273),
-   deleted once the program has reloaded.
+1. **A class's attributes change** -- **built**, [Changing a class's attributes](#changing-a-classs-attributes): the
+   reload moves every live object to the new layout, copying kept attributes by name, giving new ones their
+   defaults and releasing removed ones; an `Items`' own memory moves the same way. A rename is written as a function
+   beside the attribute, `func renamed_from_<attribute>(): String { return "old_name" }`, the same form as
+   `json_key_<attribute>` (D273), and may be deleted once the program has reloaded. The rules as built:
+   - A `--hot-reload` build gives each object of a program class two hidden words after its header, `spite_moved`
+     (its attributes' block once they moved, else 0) and `spite_live` (its place in the class's list of live
+     objects), reads every attribute through `<Class>___fields(object)`, and describes each class's layout --
+     every attribute's name, type, offset, size and release -- in a table the reload reads (`<Class>___layout`).
+     An `Items` or `Vector` holding a class's objects in its own memory is kept in a list of its own.
+   - A class's layout is its attributes' names and types in order, and whether it fits an `Items`' own memory. A
+     reload whose layout for a class differs from what the running program holds compiles the whole program. It
+     compiles every function that reads that class's attributes or its size again and swaps it in; one it could
+     not swap is refused by name (`the change reaches ...`), and the program keeps all of its code.
+   - The library installs every slot it replaces or none, then moves the objects: each live object of a changed
+     class gets a new block, made with the new defaults, into which each attribute of the same name and type is
+     moved -- or of the name `renamed_from_<attribute>()` gives, first. Every attribute of the old layout nothing
+     took is released after every object of every changed class has moved, so a release that reaches another
+     moved object finds it moved. Objects made while moving (a new attribute's default) are made in the new layout
+     and not moved again.
+   - An attribute of a new type is a new attribute: it holds its default. The reload names every class it moved,
+     and for each what is new, gone, renamed or retyped (`moved every Hero to its new attributes: health is new and
+     holds its default`), in its answer and on the error output.
+   - Once a class has moved, its code reads through the function for as long as the program runs. A later reload
+     is compared with the build, so while the running program's facts differ from the build's it compiles the
+     whole program. Refused, not built: a class that starts or stops fitting an `Items`' own
+     memory, an enum whose values change, and a change to a value class (`String` and the numbers).
 2. **Dependents are rebuilt**: a change whose dependents cannot be swapped alone compiles the whole program into
    the reload library and re-points every slot, keeping the heap, instead of refusing.
 3. **Enums change**: stored values are re-mapped by name; a value removed while something still holds it is
