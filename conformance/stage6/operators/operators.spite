@@ -13,7 +13,9 @@ func Operators() {
     console.print(sum_description, negated_description)
     var equal_to_first = Displacement(1, 2)
     console.print(first == equal_to_first, first != second, first < second, first >= second, first <= equal_to_first)
-    console.print(total[0], total[1], total[7])
+    crash total[0] and total[1]
+    var seventh_is_zero = total[7] == 0
+    console.print(total[0], total[1], seventh_is_zero)
     total[0] = 40
     total[1] = total[0] + 2
     total_description = total.describe()

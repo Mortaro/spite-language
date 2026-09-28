@@ -1,2 +1,2 @@
-var slots = Vector<Integer>()
+var slots = List<Integer>()
 var names = List<String>()

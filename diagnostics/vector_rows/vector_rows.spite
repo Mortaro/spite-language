@@ -4,6 +4,7 @@ var last: Moving? = null
 
 func VectorRows() {
     world.spawn()
+    crash world.positions[0] and world.velocities[0]
     var row: Moving = {position: world.positions[0], velocity: world.velocities[0]}
     keeper.store(row)
     last = keeper.pass_back(row)

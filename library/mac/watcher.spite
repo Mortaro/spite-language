@@ -21,7 +21,7 @@ func add_folder(path: String, report_files: Boolean): Boolean {
     var names = directory.files()
     var file_index = 0
     while file_index < names.count() {
-        var name = names.get_at(file_index)
+        var name = names[file_index]
         var file_path = joined(path, name)
         add_entry(file_path, false)
         if report_files {
@@ -32,7 +32,7 @@ func add_folder(path: String, report_files: Boolean): Boolean {
     var inner = directory.folders()
     var index = 0
     while index < inner.count() {
-        var name = inner.get_at(index)
+        var name = inner[index]
         var inner_path = joined(path, name)
         add_folder(inner_path, report_files)
         index = index + 1
@@ -87,14 +87,16 @@ func note_event(descriptor: Long, flags: Integer) {
     var index = 0
     var found = -1
     while index < descriptors.count() {
-        if descriptor == descriptors.get_at(index) {
+        if descriptor == descriptors[index] {
             found = index
         }
         index = index + 1
     }
     assert found != -1
-    var path = paths.get_at(found)
-    var is_folder = is_folders.get_at(found)
+    crash paths[found]
+    crash found < is_folders.count()
+    var path = paths[found]
+    var is_folder = is_folders[found]
     if is_folder and flags.bits_and(2) != 0 {
         add_new_entries(path)
     }
@@ -117,7 +119,7 @@ func add_new_entries(path: String) {
     var names = directory.files()
     var file_index = 0
     while file_index < names.count() {
-        var name = names.get_at(file_index)
+        var name = names[file_index]
         var file_path = joined(path, name)
         if not paths.contains(file_path) {
             add_entry(file_path, false)
@@ -128,7 +130,7 @@ func add_new_entries(path: String) {
     var inner = directory.folders()
     var index = 0
     while index < inner.count() {
-        var name = inner.get_at(index)
+        var name = inner[index]
         var inner_path = joined(path, name)
         if not paths.contains(inner_path) {
             add_folder(inner_path, true)
@@ -162,7 +164,7 @@ func wait_for_event(milliseconds: Long) {
 func drop() {
     var index = 0
     while index < descriptors.count() {
-        var descriptor = descriptors.get_at(index)
+        var descriptor = descriptors[index]
         library.close(descriptor)
         index = index + 1
     }

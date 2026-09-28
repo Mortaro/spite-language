@@ -4,11 +4,11 @@ enum Side {
 }
 
 var console = Console()
-var numbers = Vector<Integer>()
+var numbers = List<Integer>()
 var found = List<Integer>()
-var weights = Vector<Float>()
-var counts = Items<Integer>()
-var sides = Vector<Side>()
+var weights = List<Float>()
+var counts = List<Integer>()
+var sides = List<Side>()
 var runner = Runner<Moving>()
 var mover = Mover()
 var positions = Column<Position>()
@@ -20,8 +20,10 @@ func PlainItems() {
     numbers.each(found.append)
     var joined = found.join(", ")
     console.print("found", joined)
+    crash numbers.count() >= 2
     var first = numbers[0]
     numbers.append(7)
+    crash numbers[2]
     var kept = List<Integer>()
     kept.append(first)
     kept.append(numbers[2])
@@ -76,6 +78,7 @@ func spawn() {
 }
 
 func largest(): Integer {
+    crash numbers[2]
     return numbers[2]
 }
 

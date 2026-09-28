@@ -20,7 +20,7 @@ func ParallelEach() {
     var distinct = List<Integer>()
     index = 0
     while index < workers.count() {
-        var worker = workers.get_at(index)
+        var worker = workers[index]
         if not distinct.contains(worker) {
             distinct.append(worker)
         }

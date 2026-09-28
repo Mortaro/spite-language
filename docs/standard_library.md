@@ -36,7 +36,7 @@ REPL can look at any of it ([D143](decisions.md)).
 | `Instant`, `Duration`, `Date`, `Time`, `DateTime`, `Period`, `TimeZone`, `TimeZones`, `TimeText` | exact time, the calendar, time zones as presentation, ISO 8601 text | [time.md](time.md) |
 | `Environment`, `Build`, `Arguments` | settings and the command line | [programs.md](programs.md) |
 | `JsonWriter<T>`, `JsonReader<T>` | any value to JSON text and back | [json.md](json.md) |
-| `BinaryWriter<T>`, `BinaryReader<T>` | any value to compact bytes (a `Vector<Byte>`) and back, for Spite programs talking to each other and for files | [json.md](json.md#write-and-read-bytes) |
+| `BinaryWriter<T>`, `BinaryReader<T>` | any value to compact bytes (a `List<Byte>`) and back, for Spite programs talking to each other and for files | [json.md](json.md#write-and-read-bytes) |
 | `Vector2`, `Vector3`, `Vector4`, `Matrix3`, `Matrix4`, `Quaternion`, `AxisAlignedBox`, `Plane`, `Frustum`, `Ray`, `Color`, `ColorText`, `CubicBezier`, `Easing`, `Noise` | game maths: points, directions, transforms, rotations, culling and picking, colours in the web's formats, curves, easings and noise | [game_maths.md](game_maths.md) |
 | `Concurrent`, `Parallel`, `ThreadPool` | run a function while waiting, or on the thread pool; the handle is the value | [concurrency.md](concurrency.md) |
 | `ThreadLocal<T>`, `Lock`, `ThreadSlot` | a value per thread, and a lock | [concurrency.md](concurrency.md#a-value-per-thread-and-a-lock) |
@@ -287,7 +287,7 @@ func walk(folder: Directory) {
     var entries: List<Directory.Entry> = folder.entries()
     var index = 0
     while index < entries.count() {
-        var entry = entries.get_at(index)
+        var entry = entries[index]
         switch entry {
             Directory: {
                 console.print("folder", entry.path)

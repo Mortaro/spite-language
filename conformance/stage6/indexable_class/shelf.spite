@@ -1,0 +1,17 @@
+var heights = List<Integer>()
+
+func put(height: Integer) {
+    heights.append(height)
+}
+
+func count(): Integer {
+    return heights.count()
+}
+
+func get_at(index: Integer): Integer? {
+    return heights[index]
+}
+
+func set_at(index: Integer, height: Integer) {
+    heights[index] = height
+}

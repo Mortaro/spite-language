@@ -742,9 +742,10 @@ func written_loads(path: String): List<String> {
     assert not lexer.has_error
     var tokens = lexer.tokens
     var index = 0
-    while index + 1 < tokens.count() {
-        var word = tokens.get_at(index)
-        var named = tokens.get_at(index + 1)
+    while index < tokens.count() - 1 {
+        crash tokens[index + 1]
+        var word = tokens[index]
+        var named = tokens[index + 1]
         if word.kind == 'identifier' and word.lexeme == "load" and named.kind == 'string_literal' {
             names.append(named.text)
         }

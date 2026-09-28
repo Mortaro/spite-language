@@ -18,11 +18,11 @@ func RowWalk(
 func argument_for(identifier: Syntax.Expressions.IdentifierExpression): Syntax.Expressions.Expression? {
     assert identifier.name != symbol_parameter and identifier.name != row_parameter
     var position = 0
-    while position < parameters.count() and parameters.get_at(position) != identifier.name {
+    while position < parameters.count() and parameters[position] != identifier.name {
         position = position + 1
     }
     if position < arguments.count() {
-        return arguments.get_at(position)
+        return arguments[position]
     }
     var unchanged: Syntax.Expressions.Expression = identifier
     return unchanged

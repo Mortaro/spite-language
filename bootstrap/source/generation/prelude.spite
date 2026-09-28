@@ -276,7 +276,8 @@ func number_members(stem: String): List<String> {
     var index = 0
     while index < whole_numbers.count() {
         if whole_numbers[index] == stem {
-            var width = widths.get_at(index)
+            crash widths[index]
+            var width = widths[index]
             var bitwise = bitwise_members(type_name, width, is_signed)
             var member_index = 0
             while member_index < bitwise.count() {
@@ -458,8 +459,9 @@ func address_members(): List<String> {
     var words = ["byte", "short", "unsigned_short", "integer", "unsigned_integer", "long", "float", "double"]
     var index = 0
     while index < types.count() {
-        var type_name = types.get_at(index)
-        var word = words.get_at(index)
+        crash words[index]
+        var type_name = types[index]
+        var word = words[index]
         members.append("func read_{word}(offset: Long): {type_name}")
         members.append("written by the generator: one machine operation")
         members.append("func write_{word}(offset: Long, value: {type_name})")

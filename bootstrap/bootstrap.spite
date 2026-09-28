@@ -516,9 +516,9 @@ func restore_host_settings() {
             var line_length = line.length()
             var fields = line.slice(8, line_length).split("\t")
             crash fields.count() == 3
-            var name = fields.get_at(0)
-            supplied_settings[name] = fields.get_at(1)
-            if fields.get_at(2) == "bare" and not bare_settings.contains(name) {
+            var name = fields[0]
+            supplied_settings[name] = fields[1]
+            if fields[2] == "bare" and not bare_settings.contains(name) {
                 bare_settings.append(name)
             }
         }

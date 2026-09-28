@@ -12,6 +12,7 @@ func VectorItems() {
         velocities.append(more)
         index = index + 1
     }
+    crash velocities.count() >= 2
     var velocity = velocities[1]
     velocity.across = 30.0
     console.print(velocity.name, velocity.across, velocities[1].across, second.across)
@@ -21,9 +22,11 @@ func VectorItems() {
     var moving = velocities.count_moving()
     var velocity_count = velocities.count()
     console.print("total", total, "moving", moving, "count", velocity_count)
+    crash velocities[2]
     var kept = velocities[2].copy()
     velocities.remove_at(0)
     velocity_count = velocities.count()
+    crash velocities[0]
     console.print(velocities[0].name, velocities[0].across, kept.name, velocity_count)
     var probe_index = 0
     while probe_index < velocities.count() {
@@ -77,12 +80,14 @@ func values_inline() {
     words.append("alpha")
     words.append("beta")
     words.remove_at(0)
+    crash words[0]
     var word = words[0]
     var word_count = words.count()
-    var numbers = Vector<Float>()
+    var numbers = List<Float>()
     numbers.append(1.5)
     numbers.append(2.5)
     numbers[0] = 4.0
+    crash numbers[0]
     var number = numbers[0]
     console.print(word, word_count, number)
 }

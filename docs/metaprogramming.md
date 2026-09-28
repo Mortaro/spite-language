@@ -281,15 +281,12 @@ func add(item: $item_type) {
 }
 
 func describe(): String {
-    var texts = List<String>()
-    var index = 0
-    while index < items.count() {
-        var item = items.get_at(index)
-        var text = item.to_string()
-        texts.append(text)
-        index = index + 1
-    }
+    var texts = items.map(text_of)
     return texts.join(", ")
+}
+
+func text_of(item: $item_type): String {
+    return item.to_string()
 }
 ```
 ```gdscript title=generic_constraint/book.spite
@@ -519,11 +516,11 @@ func describe(): String {
 var console = Console()
 
 func FitsVectorDoc() {
-    var numbers = Store<Integer>()
-    var number_answer = numbers.describe()
+    var points = Store<Vector3>()
+    var point_answer = points.describe()
     var lists = Store<List<Integer>>()
     var list_answer = lists.describe()
-    console.print(numbers.inline, number_answer)
+    console.print(points.inline, point_answer)
     console.print(lists.inline, list_answer)
 }
 ```
@@ -1324,7 +1321,10 @@ camelCase key with them ([json.md](json.md#a-camelcase-or-pascalcase-key)).
   attribute, so 'count_attribute' has to return nothing" (`diagnostics/every_attribute`). It replaces the
   compile-time `for instance.attributes`, which went with `for`. Over another class's attributes it calls only
   the ones that class lets others read: a private `_` attribute is skipped rather than being the private error
-  (proposed by Claude, unconfirmed). **A plural over nothing is an empty function**, not a missing one: over a class
+  (proposed by Claude, unconfirmed). **Decided, not built ([D278](decisions.md), Mortaro): a walk sees every
+  attribute, private ones included**, since a walk that skips some silently builds an incomplete copy, column or
+  layout. The walk may read and write a private attribute through the walked symbol (`value.attributes[attribute]`);
+  naming `_x` outside its class stays the private error. **A plural over nothing is an empty function**, not a missing one: over a class
   with no attributes, and over a `Symbol<$value_type>` whose value is no class or `type` -- a number, a `T?`, a
   `List` -- where the single template answers nothing, the plural calls nothing, so one generic compiles for a
   marker and for a number alike (`conformance/stage6/empty_plural`).
@@ -1364,6 +1364,26 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   class), `system.class.has_function("run_each")` with a literal name folds for each class walked, and only the
   branch taken is compiled for it; with a name that is not a literal it is the run-time question of
   `Spite.Class`, since `system.class` is also an ordinary value (`conformance/stage6/symbol_class_function`).
+- **The literal may hold the name of the symbol a template walks** (D273, decided by Claude under D205; built for
+  `JsonReader` and `JsonWriter`).  **[implemented]** Inside a template over attributes,
+  `$value_type.has_function("json_key_{attribute.name}")` is a literal too: the walked symbol's name is a constant
+  of each instance, so the text is known while compiling and the question folds for each attribute walked. Only
+  `{symbol.name}` of the walked symbol may stand in the text; any other `{...}` is the error above.
+- **`$value_type.returned_text("json_key_level")` is the text a function returns, as a constant** (D273, decided by
+  Claude under D205; the name provisional under D214).  **[implemented]** Asked of a codegen type bound to a class,
+  or of a walked symbol's class (`attribute.class.returned_text(...)`), with a name written as `has_function`'s is
+  (a literal, which may hold the walked symbol's name), it answers the literal text that function of the class
+  returns, a `String` constant the C holds, so reading it costs nothing and a comparison with it is the one a
+  literal would make. It reads only a function written `func name(): String { return "..." }`: taking nothing, its
+  body one `return` of a literal with no `{...}` in it. Anything else is an error at that function: "'Label.title'
+  must be written 'func title(): String { return "..." }', taking nothing and returning a literal text with no
+  '{...}' in it, since '$value_type.returned_text("title")' reads it while compiling". A class without the function
+  is the error "'$value_type.returned_text("json_key_level")' reads the text a function of 'Label' returns, and it
+  has no function 'json_key_level': ask '$value_type.has_function("json_key_level")' first, and read the text only
+  in the branch where it is true", and a name that is not a literal is "'$value_type.returned_text(...)' is decided
+  while compiling, so the name it asks for is written as a literal: ..." (`diagnostics/returned_text`). It has no
+  run-time form. `JsonReader` and `JsonWriter` read a class's `json_key_<attribute>()` with it
+  ([json.md](json.md#a-key-that-is-not-an-attributes-name)).
 - **`$system_type.function_waits("update_each")` folds exactly like `has_function`** (D209, decided by Mortaro;
   the spelling and the reading below are proposed by Claude, unconfirmed).  **[implemented]** It is `true` when a
   function the class declares, whose name fits the literal (a name, or a pattern whose hole is read as
@@ -1520,7 +1540,8 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   (`diagnostics/function_reflection`). D77's rule does not apply to it: the call it stands for is
   written by the compiler. **Its results may be borrowed items for that one call** (D220): when the template's
   body folds to one `return` of a walked line, such as `Column<argument.class>().values[rows[argument.index]]`
-  (`argument.index` is the argument's place, from 0), or to a walked row declared, filled and returned, the
+  (`argument.index` is the argument's place, from 0), after the `crash` lines that narrow its reads (every `[]`
+  answers a `T?`, D225), or to a walked row declared, filled and returned, the
   compiler writes each argument out before the call instead of calling the template, and the borrow ends when the
   call returns ([memory.md](memory.md#borrowed-items-of-a-vectort--implemented) has the rules). A condition on the
   argument folds per argument there as in a walked row, `argument.class == $row_type` included. A plural of a

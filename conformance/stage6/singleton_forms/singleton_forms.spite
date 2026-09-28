@@ -22,7 +22,7 @@ func SingletonForms() {
     var rounds = 0
     var index = 0
     while index < working.count() {
-        var done: Integer = working.get_at(index)
+        var done: Integer = working[index]
         rounds = rounds + done
         index = index + 1
     }

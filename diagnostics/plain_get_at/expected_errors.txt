@@ -1,0 +1,1 @@
+diagnostics/plain_get_at/ruler.spite:1: error: 'get_at' answers 'Integer', but it is what '[ ]' calls, and every '[ ]' answers a 'T?' that is narrowed before use: declare it to answer 'Integer?', and answer null when nothing is at the index (in Ruler.)

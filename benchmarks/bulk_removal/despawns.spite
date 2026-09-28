@@ -12,5 +12,6 @@ func mark_every(total: Integer, removed_in_ten: Integer) {
 }
 
 func marked(entity: Integer): Boolean {
-    return marks.get_at(entity)
+    crash entity < marks.count()
+    return marks[entity]
 }

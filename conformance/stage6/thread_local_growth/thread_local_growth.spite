@@ -17,7 +17,7 @@ func ThreadLocalGrowth() {
         }
         index = 0
         while index < runs.count() {
-            var kept: Boolean = runs.get_at(index)
+            var kept: Boolean = runs[index]
             every_round = every_round and kept
             index = index + 1
         }

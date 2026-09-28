@@ -29,11 +29,13 @@ var empty = List<String>()
 | `insert(index, value)` | | an index out of range is clamped to the nearest end |
 | `list[index]` | `T?` | may not be there, so it is narrowed ([failure.md](failure.md#reading-with--answers-t)) |
 | `list[index] = value` | | the explicit form is `set_at(index, value)`; nothing happens out of range |
-| `get_at(index)` | `T` | halts when out of range, naming the index and the count ([D244](decisions.md)) |
+| `get_at(index)` | `T?` | what `list[index]` calls, so it answers the same `T?`, `null` out of range ([D226](decisions.md)) |
 | `remove_at(index)` | | nothing happens out of range |
+| `remove_swapping(index)` | | moves the last element into `index` instead of moving every later one down (name provisional); nothing happens out of range |
 | `remove_where(test)` / `remove_where_<member>()` | | removes every element the test is true for, in one pass, keeping the rest in order ([below](#removing-many-at-once)) |
 | `truncate(count)` | | keeps the first `count` elements and releases the rest; nothing happens when `count` is out of range |
 | `swap(first, second)` | | exchanges two elements; nothing happens when either is out of range |
+| `reserve(count)` | | makes room for `count` elements in all without adding any, so appending up to there never grows the buffer (D208) |
 | `remove_first()` / `remove_last()` | `T?` | removes and returns it; `null` when empty, like `first()` (D211) |
 | `first()` / `last()` | `T?` | `null` when empty, like `[]` (proposed by Claude, unconfirmed): narrow it, `crash first` or `if first { }` |
 | `count()` / `is_empty()` | `Integer` / `Boolean` | `count()` is only ever the list's size |
@@ -139,10 +141,12 @@ text.
 
 ## `Vector<T>`: items inline
 
-A `List` holds references: each element is an object somewhere on the heap, and walking the list follows one
-pointer per element. A `Vector<T>` (`library/vector.spite`) holds its items themselves, one after another in one
-block of memory, the way the processor's cache likes to read them ([D154](decisions.md), [D203](decisions.md)).
-An item has no header and no reference count of its own; appending one copies its attributes into the block.
+A `List` of objects holds references: each element is an object somewhere on the heap, and walking the list
+follows one pointer per element. A `Vector<T>` (`library/vector.spite`) holds objects themselves, one after another
+in one block of memory, the way the processor's cache likes to read them ([D154](decisions.md),
+[D203](decisions.md)). An item has no header and no reference count of its own; appending one copies its
+attributes into the block. Numbers, `Boolean`, enums and `Memory.Address` are already flat in a `List`, so a list
+of them is always a `List`: `Vector<Integer>` is an error naming `List<Integer>` ([D225](decisions.md)).
 
 ```gdscript title=vector_basics/velocity.spite
 var across = 0.0
@@ -168,6 +172,7 @@ func VectorBasics() {
     velocities.append(slow)
     var fast = Velocity(2.0, 3.0)
     velocities.append(fast)
+    crash velocities[0]
     var first = velocities[0]
     first.down = 2.0
     velocities.each_integrate()
@@ -180,31 +185,27 @@ func VectorBasics() {
 8 2 0.5
 ```
 
-`velocities[0]` is not a copy: it is the item inside the vector, **borrowed** ([D204](decisions.md)), so
-`first.down = 2.0` writes the vector's own item. `slow` is still `0.5`, because `append` copied it in. The member
+`velocities[0]` answers a `Velocity?`, like every `[]` ([D225](decisions.md)): `null` when there is no item
+there. `crash velocities[0]` narrows it, and then it is not a copy: it is the item inside the vector,
+**borrowed** ([D204](decisions.md)), so `first.down = 2.0` writes the vector's own item. `slow` is still `0.5`, because `append` copied it in. The member
 templates run on the items in place the same way, and a chain of them is one loop, as on a list.
 
 | Member | Result | Notes |
 |---|---|---|
 | `append(value)` | | copies `value`'s attributes in as a new last item |
-| `vector[index]` / `get_at(index)` | `T` | the item itself, borrowed; a plain value (a number, `Boolean` or enum) is copied instead; an index out of range halts |
+| `vector[index]` / `get_at(index)` | `T?` | the item itself, borrowed once narrowed; `null` out of range |
 | `vector[index] = value` / `set_at(index, value)` | | copies `value` over the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
-| `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` for plain values only |
+| `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` is a `List`'s only (D225) |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `reserve(count)` | | makes room for `count` items in all without making any, so appending up to there never grows the block (proposed by Claude, unconfirmed; D208) |
 | `copy()` / `deep_copy()` | `Vector<T>` | a new vector with its own copy of every item |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()` | | as on a list; `filter_` gives a `Vector<T>` of copies |
-| `each(f)`, `map(f)`, `filter(f)`, `count(f)`, `any(f)`, `all(f)`, `sum(f)` | | only for plain values, as on a list ([below](#passing-a-function-for-each-element)); `filter(f)` gives a `Vector<T>` |
 | `parallel_each_<member>()` | | as on a list ([concurrency.md](concurrency.md#parallel_each_-a-member-on-every-element)) |
 
-An item is of known size: a number, a `Boolean`, an enum, a `String`, or a class whose attributes are only those.
-A class with a `List`, a `Dictionary` or another object in an attribute is an error naming the attribute, and it
-belongs in a `List` ([the rules](#vectort--implemented)).
-
-Only an item that is a class is borrowed. A plain value -- a number, a `Boolean`, an enum -- is copied as it is
-read ([D221](decisions.md)), since copying it costs less than borrowing it, so `var first = numbers[0]` is a number
-of its own that may be kept, passed, returned and read after `numbers` grows.
+An item is a class of known size: its attributes are only numbers, `Boolean`, enums and `String`s. A class with a
+`List`, a `Dictionary` or another object in an attribute is an error naming the attribute, and it belongs in a
+`List` ([the rules](#vectort--implemented)). A `String` may be an item too, held as a counted reference.
 
 A borrowed item is read and written through its members. It is never kept: not in an attribute, a list, a
 returned value or a function value, and not past anything that may change the vector's size or move its block,
@@ -271,11 +272,13 @@ func ItemsBasics() {
     velocities.append(slow)
     var fast = Velocity(4.0)
     velocities.append(fast)
+    crash velocities[0]
     var first = velocities[0]
     first.across = 2.0
     var trails = Items<Trail>()
     var trail = Trail()
     trails.append(trail)
+    crash trails[0]
     var kept = trails[0]
     kept.mark(3.5)
     velocities.remove_swapping(0)
@@ -288,23 +291,22 @@ func ItemsBasics() {
 1 4 3.5 1
 ```
 
-`Velocity` fits a `Vector`, so `velocities[0]` is the item inside the block, borrowed, and `slow` keeps its own
-`1.0`. `Trail` holds a `List`, so it does not fit, and `trails[0]` is `trail` itself, a counted reference like a
+`Velocity` fits a `Vector`, so `velocities[0]`, once `crash velocities[0]` has narrowed it, is the item inside
+the block, borrowed, and `slow` keeps its own `1.0`. `Trail` holds a `List`, so it does not fit, and `trails[0]` is `trail` itself, a counted reference like a
 list's element: writing through it writes `trail`. `remove_swapping(0)` moves the last item into the hole instead
 of moving every later one down, which is what a sparse set wants.
 
 | Member | Result | Notes |
 |---|---|---|
 | `append(value)` | | inline: copies `value`'s attributes in; references: keeps `value` |
-| `items[index]` / `get_at(index)` | `T` | inline: the item, borrowed, or a copy of a plain value; references: the reference; out of range halts, either way |
+| `items[index]` / `get_at(index)` | `T?` | inline: the item, borrowed once narrowed; references: the reference; `null` out of range, either way |
 | `items[index] = value` / `set_at(index, value)` | | replaces the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
 | `remove_swapping(index)` | | moves the last item into `index` (name provisional); nothing happens out of range |
-| `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` for plain values only |
+| `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` is a `List`'s only (D225) |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `copy()` / `deep_copy()` | `Items<T>` | inline: every item copied; references: one level, or all the way down |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()`, `parallel_each_<member>()` | | as on a vector; `filter_` gives an `Items<T>`, and a chain is one loop |
-| `each(f)`, `map(f)`, `filter(f)`, `count(f)`, `any(f)`, `all(f)`, `sum(f)` | | only for plain values, as on a vector; `filter(f)` gives an `Items<T>` |
 
 Where the items are inline every rule of a borrowed item applies, and the error says why the item is borrowed,
 so a class that starts to fit a `Vector` shows where its old uses keep an item:
@@ -339,7 +341,7 @@ An engine's column holds its values in an `Items`, and D217's walked row reads t
 
 `remove_where(test)` removes every element a function is true for, and `remove_where_<member>()` every element
 whose member is true, in **one pass** that keeps the others in their order: a `List`, a `Vector` and an `Items`
-all have both. `truncate(count)` keeps the first `count` and lets go of the rest, and `swap(first, second)`
+all have both (the passed-function form on a `List` only, since D225 moved a list of plain values there). `truncate(count)` keeps the first `count` and lets go of the rest, and `swap(first, second)`
 exchanges two, which is what a pass of your own is written with when the test is not a function of the element
 -- an engine removing a column's rows by a mask of despawned entities:
 
@@ -361,7 +363,7 @@ func BulkRemovalDoc() {
     numbers.remove_where(is_odd)
     numbers.truncate(2)
     var velocities = Items<Velocity>()
-    var entities = Items<Integer>()
+    var entities = List<Integer>()
     var entity = 0
     while entity < 5 {
         var velocity = Velocity(1.0 * entity)
@@ -374,7 +376,8 @@ func BulkRemovalDoc() {
     var kept = 0
     var row = 0
     while row < velocities.count() {
-        var owner = entities.get_at(row)
+        crash entities[row]
+        var owner = entities[row]
         if not is_despawned(owner) {
             velocities.swap(row, kept)
             kept = kept + 1
@@ -395,7 +398,8 @@ func is_odd(number: Integer): Boolean {
 }
 
 func is_despawned(entity: Integer): Boolean {
-    return despawned.get_at(entity)
+    crash entity < despawned.count()
+    return despawned[entity]
 }
 ```
 ```output
@@ -684,22 +688,21 @@ func say_hello(name: String) {
 The template still sees only the element: a function that needs more, such as `print_statement(statement, depth)`,
 is called from a `while`.
 
-A list's own functions are passed the same way, so `numbers.each(found.append)` copies every number into `found`.
-A `Vector` or an `Items` of plain values -- numbers, `Boolean`, enums -- takes every form but `find` and `sort_by`,
-because its items are copied as they are read and there is nothing borrowed to pass on
-([D221](decisions.md)); a chain of them is one loop over the block:
+A list's own functions are passed the same way, so `numbers.each(found.append)` copies every number into `found`,
+and a chain of passed functions over a list of numbers is one loop over its buffer:
 
 ```gdscript title=plain_vector/plain_vector.spite entry
 var console = Console()
 
 func PlainVector() {
-    var weights = Vector<Float>()
+    var weights = List<Float>()
     weights.append(1.5)
     weights.append(2.5)
     weights.append(4.0)
     var found = List<Float>()
     weights.each(found.append)
     var heavy = weights.filter(is_heavy).sum(double_of)
+    crash weights[0]
     var first = weights[0]
     weights.append(8.0)
     var joined = found.join(", ")
@@ -718,9 +721,10 @@ func double_of(weight: Float): Float {
 1.5, 2.5, 4 13 1.5
 ```
 
-An item that is a class is borrowed and never passed on, and a `String` item is not a plain value here
-(`velocities.each(f)` is an error naming a member template instead; `names.each(f)` on a `Vector<String>` says to
-keep the text in a `List<String>`).
+A `Vector` and an `Items` take no passed function: their items are classes, borrowed and never passed on
+(`velocities.each(f)` is an error naming a member template instead), or text (`names.each(f)` on a
+`Vector<String>` says to keep the text in a `List<String>`). Numbers, `Boolean` and enums were the one exception
+until [D225](decisions.md) made a list of them always a `List`.
 
 ## Chains run as one loop
 
@@ -958,9 +962,9 @@ of each element, never a function of this class, so pass this class's 'say_hello
 The caller's function is passed as a bound function value (D17/D39), owned by whoever it is bound to:
 
 - **The forms.** `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and
-  `sum(f)` on a `List` or a `Dictionary` (through its values), for an element of any type, and all but `find` and
-  `sort_by` on a `Vector` or an `Items` of plain values (D221, below); `remove_where(f)` (D263) on a `List` and
-  on a `Vector` or `Items` of plain values, never on a `Dictionary`. `f` takes the element
+  `sum(f)` on a `List` or a `Dictionary` (through its values), for an element of any type, never on a `Vector` or an `Items`,
+  whose items are borrowed or text (D225 moved their plain values into `List`); `remove_where(f)` (D263) on a
+  `List`, never on a `Dictionary`. `f` takes the element
   as its only argument, with exactly the element's type; D15's table applies to what it returns (`filter`, `any`,
   `all`, `count` and `find` want `Boolean`, `sum` a number, `sort_by` a number or a `String`, `map` a value, `each`
   anything). `find(f)` answers the first element `f` is true for, or `null` -- the `find_by_` template with
@@ -1002,9 +1006,14 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 ### List<T> additions  **[implemented]**
 
 A list's members, their results and their edge cases are [the table under `List<T>`](#listt), which is normative:
-out of range, `get_at` halts (D244: before, it answered the element type's default, which read as a real element); `first`, `last`, `remove_first` and `remove_last` answer
-`null` on an empty list (D211, like `[]`),
-`insert` clamps to the nearest end, and `set_at` and `remove_at` do nothing; `list[index]` answers `T?`. There is
+`list[index]` and `get_at(index)` are one function and answer `T?`, `null` out of range (D225, D226: `[]` is only
+a shortcut for `get_at`, [functions_and_operators.md](functions_and_operators.md#operators--implemented); this
+supersedes the `get_at` that halted out of range, and the older one that answered the element type's default,
+which read as a real element, D244); `first`, `last`, `remove_first` and `remove_last` answer `null` on an empty
+list (D211, like `[]`), `insert` clamps to the nearest end, and `set_at`, `remove_at` and `remove_swapping` do
+nothing. `reserve(count)` grows the buffer to hold `count` elements and adds none. A `List` of numbers, `Boolean`,
+enums or `Memory.Address` is the one way to keep a list of them: its buffer holds the values themselves, which is
+what a `Vector` of them held (`conformance/stage6/plain_items`). There is
 no `for`: a list is walked with a template, a passed function ([above](#standard-library-metaprogramming--partial)),
 or a `while` that does more than they do.
 
@@ -1104,8 +1113,12 @@ unconfirmed:
 
 - **The name** is `Vector<T>` (`mortaros_missing_decisions.md` item 175); the classes that were called `Vector` in
   `examples/vectors`, `conformance/stage6/operators` and `benchmarks/small_allocations` are now `Displacement`.
-- **What an item may be.** A number, a `Boolean`, an enum, a `String`, or a class whose attributes are only those
-  (a `T?` of one of them, or a singleton such as `Console`, included). Anything else is an error when the vector
+- **What an item may be.** A `String`, or a class whose attributes are only numbers, `Boolean`s, enums and
+  `String`s (a `T?` of one of them, or a singleton such as `Console`, included). A number, a `Boolean`, an enum or a
+  `Memory.Address` (or a `T?` of one) is not an item since D225 (decided by Mortaro): a `List` holds them flat
+  already, so `Vector<Integer>` is `'Vector<Integer>' holds plain values, and a List keeps numbers, Boolean, enums
+  and Memory.Address flat just as it did, so a list of them has one spelling: write 'List<Integer>'`
+  (`diagnostics/plain_items`), and `Items<Integer>` the same with `Items`. Anything else is an error when the vector
   type is written: `'Holder' cannot be an item of a Vector: its attribute 'scores' is a List<Integer>, and a
   Vector holds each item inline, so every attribute is a number, a Boolean, an enum or a String (keep 'Holder' in
   a 'List<Holder>', or keep 'scores' somewhere else)`; `Vector<List<Integer>>` is `a Vector holds each item
@@ -1115,12 +1128,13 @@ unconfirmed:
   'List<Handle>')`, and a class whose functions use `this` as a value (return it, pass it, keep it, or name one of
   its own functions as a value) is `'Selfish.itself' uses 'this' as a value, and an item of a Vector is borrowed
   from the Vector, never an object to keep or to pass on: read and write its attributes instead`.
-- **Reading.** `vector[index]` and `get_at(index)` answer the item itself, a `T` and never a `T?`: an index out of
-  range halts with the crash report of `library/vector.spite`'s `crash index >= 0 and index < item_count`. A vector
-  of numbers, `Boolean`s, enums or `String`s answers the value, as a list does: a plain value -- a number, a
-  `Boolean`, an enum, `Memory.Address` included -- is copied as it is read and never borrowed (D221, decided by
-  Claude under D205), so none of the borrow rules applies to it; a `String` is answered as a counted reference,
-  as a list's is. What a borrowed item may do, and
+- **Reading.** `vector[index]` and `get_at(index)` are one function (D226) and answer a `T?` (D225, decided by
+  Mortaro, reversing the halt this rule had): `null` out of range, and the item itself, borrowed, once the read is
+  narrowed -- by `crash`, `assert` or `if`, or by a proof the compiler already holds, exactly as for a list
+  ([failure.md](failure.md#reading-with--answers-t)): `while index < velocities.count()` proves
+  `velocities[index]` in the loop, and `crash velocities.count() >= 2` proves `velocities[0]` and `velocities[1]`.
+  A proven read writes no check of its own; the read itself still compares the index once. A vector of `String`s
+  answers a counted reference, as a list does. What a borrowed item may do, and
   what a row of them passed to a system may do (D206), is
   [memory.md's rule](memory.md#borrowed-items-of-a-vectort--implemented).
 - **Writing.** `append(value)` and `set_at(index, value)` (`vector[index] = value`) copy the value's attributes
@@ -1133,18 +1147,14 @@ unconfirmed:
   `library/vector.spite`, written over the borrowed items; `filter_` answers a `Vector<T>` of copies and `map_` a
   `List` of the members' values. A chain of them is one loop over the block (D105), with `filter_` steps in the
   middle, and `parallel_each_<member>()` splits the walk across the thread pool as it does a list's.
-  `sort_by_`, `find_by_` and a program's own templates are not built for a vector. The passed-function forms
-  `each`, `map`, `filter`, `count`, `any`, `all` and `sum` are, for a vector of plain values only (D221): the
-  same templates, instantiated per function as for a list, reading each item as a copy, and fusing in a chain;
-  `filter(f)` answers a `Vector<T>`. `find(f)` and `sort_by(f)` are `'find' takes a function on a List, and a
-  Vector of plain values takes one only in 'each', 'map', 'filter', 'any', 'all', 'count' and 'sum': keep the
-  values in a 'List<Integer>' to use 'find'`. A passed function would take a class item as an argument, which a
-  borrowed item never is, so `velocities.each(f)` is `'each' passes each item to a function, and an item of a
+  `sort_by_`, `find_by_` and a program's own templates are not built for a vector. No passed-function form is:
+  D221's forms for a vector of plain values went with the plain values themselves (D225), since a `List` of numbers
+  takes every form. A passed function would take a class item as an argument, which a borrowed item never is, so
+  `velocities.each(f)` is `'each' passes each item to a function, and an item of a
   Vector is borrowed from it, never passed on: give the item's class a function and call it with a member
-  template, such as 'each_<function>()'`; a vector of `String`s is not counted as plain (it holds references to
-  text, and D221 decided the rule conservatively), so `names.each(f)` is `'each' passes each item to a function,
-  which a Vector does only for plain values -- numbers, Boolean and enums, copied as they are read -- and a String
-  is not one: keep the values in a 'List<String>' to pass them on` (`diagnostics/plain_items`). The D171 rule for
+  template, such as 'each_<function>()'`; and a vector of `String`s, whose items are references to text, has
+  `names.each(f)` as `'each' passes each item to a function, which a Vector never does: keep the values in a
+  'List<String>' to pass them on` (`diagnostics/text_items_passed`). The D171 rule for
   a `while` a template already says does not look at a vector's loops yet.
 - **Its allocator.** `velocities.memory.allocator = arena` on the next line places the `Vector` object in the
   arena, as for any object (D152). **Not built:** its block of items following it there; the block is on the heap,
@@ -1152,7 +1162,7 @@ unconfirmed:
   is still open).
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/plain_items`,
-`conformance/stage6/vector_items`, `conformance/stage6/plain_items`.
+`diagnostics/text_items_passed`, `conformance/stage6/vector_items`, `conformance/stage6/plain_items`.
 
 ### Items\<T\>  **[implemented; the name provisional]**
 
@@ -1170,18 +1180,19 @@ below, and the names `Items` and `remove_swapping`, are proposed by Claude, unco
   bound as attributes (D144), so an `Items` object holds one pointer more than a `Vector` or a `List`, one per
   collection and never per item. No syntax was added: the language already folds a body on `fits_vector()`, and
   the storage did not need an attribute of its own per kind.
-- **Which kind.** `T` fits exactly when a `Vector<T>` could be made (D204's rule: a number, a `Boolean`, an enum, a
-  `String`, or a class made only of those, with no `drop()` and no function that uses `this` as a value). A
-  union, a `type`, a `List`, a `Dictionary` or a class holding one is kept by reference. `Items<Integer>` and
-  `Items<String>` are plain arrays of the values, as a vector's are.
-- **Reading.** `items[index]` and `get_at(index)` answer a `T`, never a `T?`, for both kinds, and an index out of
-  range halts with the crash report of `library/items.spite`'s `_out_of_range`. A plain value (a number, a
-  `Boolean`, an enum) is copied, never borrowed (D221). Otherwise, inline, the item is borrowed, and
-  every rule of [memory.md's borrowed items](memory.md#borrowed-items-of-a-vectort--implemented) applies to it,
-  rows included. By reference, it is a counted reference like a list element read with `get_at`: it may be kept,
-  passed, returned and read after the collection changes size. `List`'s `[]` answers `T?` instead; `Items` does
-  not, so that code reading an item compiles the same whichever kind a class falls into, and so D217's walked row
-  can take the item as it is.
+- **Which kind.** `T` fits exactly when a `Vector<T>` could be made (D204's rule: a `String`, or a class made
+  only of numbers, `Boolean`s, enums and `String`s, with no `drop()` and no function that uses `this` as a value).
+  A union, a `type`, a `List`, a `Dictionary` or a class holding one is kept by reference. `Items<String>` is a
+  plain array of the text's references, as a vector's is. A number, a `Boolean`, an enum or a `Memory.Address` is
+  never an item (D225): `Items<Integer>` is the error naming `List<Integer>`, as for a `Vector`.
+- **Reading.** `items[index]` and `get_at(index)` are one function (D226) and answer a `T?` for both kinds,
+  `null` out of range (D225, decided by Mortaro, superseding D218's reading that they answer `T` and halt). A read is
+  narrowed as a list's is, by `crash`, `assert`, `if` or a proof the compiler holds. Then, inline, the item is
+  borrowed, and every rule of [memory.md's borrowed items](memory.md#borrowed-items-of-a-vectort--implemented)
+  applies to it, rows included. By reference, it is a counted reference like a list element: it may be kept,
+  passed, returned and read after the collection changes size. Code reading an item still compiles the same
+  whichever kind a class falls into, since both kinds answer `T?`, and a walked row states its reads with
+  `crash` lines ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call)).
 - **Items of a `T?`** (proposed by Claude, unconfirmed). `Items<String?>`'s `[]` answers the `String?` that was
   stored, and `crash names[0]`, `assert names[0]` or `if names[index] { }` narrows that item in place until the
   collection or the index changes, as a path is narrowed (`conformance/stage6/items_narrowed`). A loop's
@@ -1204,9 +1215,8 @@ below, and the names `Items` and `remove_swapping`, are proposed by Claude, unco
   `library/items.spite`, each folded the same way; `filter_` answers an `Items<T>` (copies when inline, the same
   references otherwise) and `map_` a `List` of the members' values. A chain is one loop over the block (D105),
   and `parallel_each_<member>()` splits it across the thread pool, as for a vector. The passed-function forms
-  (`each(f)`, `map(f)`, ...) are offered, as on a vector, only for plain values (D221), whose items are copies;
-  `filter(f)` answers an `Items<T>`. For any other item they are not offered for either kind, since an inline
-  item is never passed on: `'each'
+  (`each(f)`, `map(f)`, ...) are not offered for either kind, since an inline item is never passed on and plain
+  values live in a `List` (D225): `'each'
   passes each item to a function, and 'Velocity' fits a Vector, so an item of these Items is borrowed from them,
   never passed on: give the item's class a function and call it with a member template, such as
   'each_<function>()'`; by reference the error says that `Items` does not do it whichever storage it chose.
@@ -1214,12 +1224,12 @@ below, and the names `Items` and `remove_swapping`, are proposed by Claude, unco
   the C, so an `Items<Velocity>` compiles to a `Vector<Velocity>`'s code and an `Items<Trail>` to a
   `List<Trail>`'s, reading its elements uncounted in the templates as a list does
   ([optimizations.md](optimizations.md#a-lists-templates-read-its-elements-without-counting-them)). The range
-  check of `[]` is one comparison, and its crash report sits in a function of its own so that the read is small
-  enough for the C compiler to inline. A program that makes no `Items` carries none of it. Measured in
+  check of `[]` is one comparison that answers `null`, small enough for the C compiler to inline, and a proven
+  read uses the item without testing that answer again. A program that makes no `Items` carries none of it. Measured in
   `benchmarks/items_storage`.
 
 `conformance/stage6/items_columns`, `conformance/stage6/plain_items`, `diagnostics/items_borrows`,
-`diagnostics/plain_items`.
+`diagnostics/plain_items`, `diagnostics/text_items_passed`.
 
 ### Removing many at once  **[implemented; the names provisional]**
 
@@ -1229,8 +1239,8 @@ names `remove_where`, `truncate` and `swap`, and the readings below, are propose
 - **`remove_where(test)` and `remove_where_<member>()`.** One template, `remove_where_member(member:
   Symbol<$element_type>)` in each of `library/list.spite`, `vector.spite` and `items.spite`, so it answers both a
   member (`creatures.remove_where_dead()`, D15's table: the member returns `Boolean`) and a passed function
-  (`numbers.remove_where(is_odd)`, D148: on a `List` of anything, and on a `Vector` or `Items` of plain values
-  only, D221, since a borrowed item is never passed on). It walks the collection once; an element that stays is
+  (`numbers.remove_where(is_odd)`, D148: on a `List` of anything, never on a `Vector` or `Items`, whose items
+  are borrowed or text since D225, and a borrowed item is never passed on). It walks the collection once; an element that stays is
   exchanged with the first place not yet kept, and when the walk ends everything past the kept ones is released.
   The survivors keep their order, and the test sees every element once, first to last.
 - **Why exchange, not move.** At every moment of the walk the collection holds each of its original elements

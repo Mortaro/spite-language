@@ -1,0 +1,5 @@
+var name = ""
+
+func title(): String {
+    return "the {name}"
+}

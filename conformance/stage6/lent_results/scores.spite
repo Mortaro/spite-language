@@ -9,5 +9,6 @@ func add(points: Integer) {
 }
 
 func at(index: Integer): Score {
+    crash values[index]
     return values[index]
 }

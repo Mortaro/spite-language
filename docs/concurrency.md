@@ -392,7 +392,7 @@ func PerThreadBuffers() {
     var recorded = 0
     index = 0
     while index < runs.count() {
-        var count: Integer = runs.get_at(index)
+        var count: Integer = runs[index]
         recorded = recorded + count
         index = index + 1
     }

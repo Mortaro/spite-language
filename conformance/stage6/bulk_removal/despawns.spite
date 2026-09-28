@@ -8,8 +8,8 @@ func mark(entity: Integer) {
 }
 
 func marked(entity: Integer): Boolean {
-    if entity >= marks.count() {
-        return false
+    if entity < marks.count() {
+        return marks[entity]
     }
-    return marks.get_at(entity)
+    return false
 }

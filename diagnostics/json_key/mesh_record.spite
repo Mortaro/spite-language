@@ -1,0 +1,21 @@
+var name = ""
+var minimum_level_of_detail = 0
+var maximum_distance = 0.0
+var instance_count = 0
+var level = 1
+
+func json_key_minimum_level_of_detial(): String {
+    return "min_lod"
+}
+
+func json_key_maximum_distance(): String {
+    return "max_{name}"
+}
+
+func json_key_instance_count(): String {
+    return "level"
+}
+
+func json_key_name(): String {
+    return "the \"name\""
+}

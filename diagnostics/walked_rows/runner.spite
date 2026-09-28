@@ -18,5 +18,6 @@ func pass_back(): $row_type {
 }
 
 func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, index: Integer) {
+    crash world.attributes[attribute][index]
     row.attributes[attribute] = world.attributes[attribute][index]
 }

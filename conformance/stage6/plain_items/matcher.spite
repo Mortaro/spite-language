@@ -1,6 +1,6 @@
 singleton
 
-var rows = Vector<Integer>()
+var rows = List<Integer>()
 var missing = false
 
 func clear() {

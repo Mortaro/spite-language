@@ -3,7 +3,7 @@ singleton
 generic $component_type
 
 var dense_of = List<Integer>()
-var entities = Items<Integer>()
+var entities = List<Integer>()
 var values = Items<$component_type>()
 
 func insert(entity: Integer, value: $component_type) {
@@ -24,6 +24,7 @@ func remove(entity: Integer) {
     var dense = dense_index(entity)
     assert dense >= 0
     var last = entities.count() - 1
+    crash entities[last]
     var moved = entities[last]
     values.remove_swapping(dense)
     entities.remove_swapping(dense)

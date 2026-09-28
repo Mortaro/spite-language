@@ -7,13 +7,10 @@ func add(item: $item_type) {
 }
 
 func describe(): String {
-    var texts = List<String>()
-    var index = 0
-    while index < items.count() {
-        var item = items.get_at(index)
-        var text = item.to_string()
-        texts.append(text)
-        index = index + 1
-    }
+    var texts = items.map(text_of)
     return texts.join(", ")
+}
+
+func text_of(item: $item_type): String {
+    return item.to_string()
 }

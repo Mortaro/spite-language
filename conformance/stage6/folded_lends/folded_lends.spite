@@ -16,6 +16,7 @@ func FoldedLends() {
     tag()
     var marker_count = markers.references.count()
     var tag_count = tags.references.count()
+    crash layouts.values[0]
     console.print(layouts.values[0].order, marker_count, tag_count)
 }
 

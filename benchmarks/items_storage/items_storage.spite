@@ -157,6 +157,7 @@ func vector_reads(velocities: Vector<Velocity>): Float {
     var step = 0
     while step < item_total * 100 {
         place = (place + 7919) % item_total
+        crash velocities[place]
         var velocity = velocities[place]
         velocity.down = velocity.down + 1.0
         total = total + velocity.across
@@ -171,6 +172,7 @@ func inline_reads(velocities: Items<Velocity>): Float {
     var step = 0
     while step < item_total * 100 {
         place = (place + 7919) % item_total
+        crash velocities[place]
         var velocity = velocities[place]
         velocity.down = velocity.down + 1.0
         total = total + velocity.across
@@ -185,7 +187,8 @@ func list_reads(trails: List<Trail>): Float {
     var step = 0
     while step < item_total * 100 {
         place = (place + 7919) % item_total
-        var trail = trails.get_at(place)
+        crash trails[place]
+        var trail = trails[place]
         trail.down = trail.down + 1.0
         total = total + trail.across
         step = step + 1
@@ -199,6 +202,7 @@ func referenced_reads(trails: Items<Trail>): Float {
     var step = 0
     while step < item_total * 100 {
         place = (place + 7919) % item_total
+        crash trails[place]
         var trail = trails[place]
         trail.down = trail.down + 1.0
         total = total + trail.across

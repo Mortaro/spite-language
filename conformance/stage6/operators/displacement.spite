@@ -34,14 +34,14 @@ func greater_than(other: Displacement): Boolean {
     return across + up > other.across + other.up
 }
 
-func get_at(index: Integer): Integer {
+func get_at(index: Integer): Integer? {
     if index == 0 {
         return across
     }
     if index == 1 {
         return up
     }
-    return 0 - 1
+    return null
 }
 
 func set_at(index: Integer, value: Integer) {

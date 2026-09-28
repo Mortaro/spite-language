@@ -74,6 +74,8 @@ nothing at run time because they emit nothing.
 | [Maths on constants is worked out while compiling](#maths-on-constants-is-worked-out-while-compiling) | built | every | nothing but speed; a folded call is the compiling machine's C library's answer |
 | [A local list of known size lives in the frame](#a-local-list-of-known-size-lives-in-the-frame) | built | every but the inspectable ones | fewer allocations |
 | [A loop over plain values reads its count once and its items unchecked](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked) | built | every but `--repl`, `--repl-port` and `--hot-reload` | nothing but speed |
+| [A proven read tests only its bounds](#a-proven-read-tests-only-its-bounds) | built | every | nothing but speed; a read outside its list halts |
+| [A walked `crash` line's read is the row's read](#a-walked-crash-lines-read-is-the-rows-read) | built | every | nothing but speed |
 | [Objects that never leave their function live in the frame](#objects-that-never-leave-their-function-live-in-the-frame) | built | every but the inspectable ones | fewer allocations; `.memory.section` answers `'stack'` |
 | [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | built | `--optimized` (any build given `--translation-units`), but not `--hot-reload` | nothing but build time; `.spite-cache/objects` grows |
 | [A release build is `-O3` with link-time optimisation](#a-release-build-is--o3-with-link-time-optimisation) | built | `--optimized` | nothing but speed, and a slower link |
@@ -603,7 +605,7 @@ row, and D164's `attribute.value`, filled only in a program that reads it).
 
 **What it does.** The `...values` of a variadic call arrive in a `List`. When the call is a statement of its own
 (`console.print(name, count)`), outside `and`/`or` and outside a function that waits, and the function called only
-reads its list -- `count()`, `is_empty()`, `[index]`, `get_at`, `find_at`, `first`, `last`, `contains`, `join`, or
+reads its list -- `count()`, `is_empty()`, `[index]`, `get_at`, `first`, `last`, `contains`, `join`, or
 passing it to a function of its own class that only reads it too -- the list and its items are in the caller's
 frame: no allocation for the list or its items, and its elements (the boxes above) are released after the call
 ([D211](decisions.md)). A function that stores, returns, grows or passes on its list anywhere else gets a list on
@@ -1331,7 +1333,7 @@ proposed by Claude, unconfirmed).
 
 **A reference column's element is lent to the row** ([D269](decisions.md)). When that counted attribute is the
 result of a function that only returns an element of its singleton's `List` -- a reference column's `at(row)`,
-`return references.get_at(row)` or `crash references[row]` then `return references[row]`, with a whole-number
+`crash references[row]` then `return references[row]` (D225 makes the read a `T?`, so the `crash` is needed), with a whole-number
 parameter as the index and a list attribute that nothing assigns after the singleton is made -- and nothing the
 rest of the row's block runs can let go of anything, the row takes the element uncounted: the compiler writes a
 copy of the function, `<name>___lent_element`, that returns the element as it lies in the list (it answers exactly
@@ -1519,7 +1521,7 @@ function's own frame, the way [a variadic list](#a-variadic-list-the-callee-only
 already is. Known size means the literal's items plus the `append`s written as statements of their own in the
 same block after it -- not inside a loop, a branch or another statement -- since each of those runs at most once;
 the items get exactly that many slots. Never leaving means every later statement of the block only reads it:
-`count()`, `is_empty()`, `[index]`, `get_at`, `find_at`, `first`, `last`, `contains`, `join`, or passing it to a
+`count()`, `is_empty()`, `[index]`, `get_at`, `first`, `last`, `contains`, `join`, or passing it to a
 function of its own class that only reads it too. A list that is returned, stored, assigned, put into another list
 or object, changed with `set_at`, `insert`, a `remove_...` or `clear`, handed to a template, or whose `.memory` is
 read is made on the heap as before. At the end of the block its items are let go, and nothing else.
@@ -1540,7 +1542,7 @@ func FrameLists() {
     var names = List<String>()
     names.append("ann")
     names.append("bob")
-    var biggest = sizes.get_at(2)
+    var biggest = sizes[2]
     var joined = names.join(" and ")
     var during = heap.live_allocations()
     console.print(joined, biggest, "allocations while listing:", during - before)
@@ -1561,8 +1563,8 @@ four items, which grew its buffer while it was filled): `conformance/stage6/text
 
 ### A loop over plain values reads its count once and its items unchecked
 
-**What it does.** A `while index < values.count()` over a `List` or `Vector` of numbers or `Boolean` -- `values` a
-local or a parameter named bare, not an attribute or any other expression -- is written as the plain C loop a C compiler can turn into vector instructions (SIMD), when the compiler can prove three things:
+**What it does.** A `while index < values.count()` over a `List` of numbers or `Boolean` (the only list that holds
+them since [D225](decisions.md)) -- `values` a local or a parameter named bare, not an attribute or any other expression -- is written as the plain C loop a C compiler can turn into vector instructions (SIMD), when the compiler can prove three things:
 
 - **The counter stays in range.** `index` is a local `Integer` (not a parameter, and not a `Long` or other
   width) whose every assignment in the function is a whole-number
@@ -1571,18 +1573,21 @@ local or a parameter named bare, not an attribute or any other expression -- is 
   below `values.count()`.
 - **Nothing in the loop changes a list's size.** The body only declares and assigns numbers and `Boolean`s (its own
   locals, not attributes), reads and writes the items of lists of plain values (`[index]`, `get_at`, `set_at`,
-  `find_at`, `first`, `last`, `contains`, `count`, `is_empty`), and calls the maths functions of the number
+  `first`, `last`, `contains`, `count`, `is_empty`), and calls the maths functions of the number
   classes. Any other call, even one to a function that looks harmless, keeps the loop as it was: a call is where a
   list could be resized through another name.
 - **The loop cannot be interrupted.** A `--repl`, `--repl-port` or `--hot-reload` build may run code between two
   passes, so there the loop stays as it was, as it does in a function that waits.
 
 Then `values.count()` is read once before the loop, the address of its items once, and `values[index]`,
-`values.get_at(index)`, `values[index] = x` and `values.set_at(index, x)` read and write the item directly, with no
-range check: the loop's own condition is the proof. A second list indexed by the same counter
+`values[index] = x` and `values.set_at(index, x)` read and write the item directly, with no range check: the loop's
+own condition is the proof, which is also what narrows the `T?` every `[]` answers (D225), so the read is a plain
+value with nothing to test. `values.get_at(index)` written by name answers that `T?` and is an ordinary call; write
+`values[index]`. A second list indexed by the same counter
 (`into[index] = from[index] * 1.5`) is checked once instead, before the loop: when it holds at least as many items
 as the loop runs, the loop runs without its checks; otherwise the loop as it was runs, with every check, so what an
-out-of-range write does (nothing on a `List`, a halt on a `Vector`) is unchanged. The loop is written twice for that,
+out-of-range write does (nothing on a `List`) is unchanged. A read of that second list must be narrowed in the
+source like any other, since the check before the loop is not a proof the reader wrote. The loop is written twice for that,
 so a body with an `assert` or `crash` is not (its crash report would be written twice).
 
 **What the C compiler then does.** An element-by-element loop (a map in place, into another list, a filter's test)
@@ -1594,12 +1599,53 @@ alignment claim, which nothing proves.
 
 **What you notice.** Speed only. `benchmarks/plain_loops` (a million items, `clang -O2`, µs a pass): `into[index] =
 from.get_at(index) * 1.5 + 0.25` over two `List<Float>` 668-697 before, 181-207 after; the same in place over a
-`Vector<Float>` 2 628-2 782 before, 178-195 after; a `Float` sum 640-673 either way (it stays in order); an
+`Vector<Float>` 2 628-2 782 before, 178-195 after (a `List<Float>` since D225, at the same speed); a `Float` sum 640-673 either way (it stays in order); an
 `Integer` sum 112-137 either way (it was already vectorised). A `Float` expression with a decimal literal is
 still worked out in `double` precision in the C, as it always was, which halves the vector width: in `float` the
 two loops would take about 100 and 70 µs, but some results would change in their last bits, so that is a question
 for Mortaro and is not done (`mortaros_missing_decisions.md`, item 210). **Built** (2026-09-26, the second part of
 [D222](decisions.md); proposed by Claude, unconfirmed).
+
+### A proven read tests only its bounds
+
+**What it does.** Every `[]` answers a `T?` ([D225](decisions.md)), and a read the compiler proves -- a loop bound
+`index < list.count()`, a proven count, a list literal's indices, D169's call effects, a bound past the index
+(`at + 2 < list.count()`) or a count kept in a `var` ([D277](decisions.md)) -- needs nothing written. It
+also costs no presence test of the `T?`: the compiler reads the element through the collection's `get_at` and takes
+the value directly, with one branch the C compiler is told is never taken, which halts naming the read if the index
+was outside the list after all (a bound proves only the top of an index, so a counter that went negative is
+caught, [failure.md](failure.md#reading-with--answers-t)). A read inside a counted loop ([above](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked))
+proves both ends and is a plain indexed load, `spite_temp[index_]`, with no call and no test at all: `check.sh`
+greps `counted_loops`' C for it, and `benchmarks/plain_loops`' two loops compile to the same C as before D225.
+
+**When.** Every build, for a read of a `List`, `Vector` or `Items` that a range proof narrows. A read narrowed by
+`crash`, `assert` or `if` is unwrapped with no test, since that line tested it. A program's own `get_at` is never
+unwrapped by a range proof (its `count()` is not known to mean anything).
+
+**What you notice.** Nothing but speed: the same compare `List.get_at` made when it halted out of range (D244), and
+the same halt, now named by the read (`conformance/stage6/proven_read_outside`). **Built** (2026-09-27, with D225;
+proposed by Claude, unconfirmed).
+
+### A walked `crash` line's read is the row's read
+
+**What it does.** Every `[]` answers a `T?` ([D225](decisions.md)), so a walked row's template states each read with
+a `crash` line before the fill ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call)): `crash
+Column<attribute.class>().values[rows[attribute.index]]`, then `row.attributes[attribute] =
+Column<attribute.class>().values[rows[attribute.index]]`. Written out plainly that would read each item twice --
+once to test it, once to fill the row -- and each read of a generic singleton's column enters its guard. The
+compiler reads it once: the walked `crash` line keeps the answer in a local, tests it, and the literal (or a lent
+argument, `made_arguments(found)`) takes the same read from that local.
+
+**When.** For the `crash` lines a walk writes out, and only until the row or the call they stand before is written.
+A read that answers a counted reference (an element of a `List<T>` column, or of an `Items` whose class does not
+fit a `Vector`) is kept counted in that local and let go once the row or call is written, so the row counts it once
+more for itself as it always did (`conformance/stage6/sparse_rows` reads its reference column as
+`ReferenceColumn<attribute.class>().values[rows[attribute.index]]`).
+
+**What you notice.** Speed only: a walked row costs the one compare per read that D218's halting `[]` did.
+`benchmarks/sparse_rows`, `matched_rows` and `lent_arguments`, run alternately against the compiler before D225,
+show no tick slower beyond the run-to-run noise. **Built** (2026-09-26, with D225; proposed by Claude,
+unconfirmed).
 
 ### Objects that never leave their function live in the frame
 

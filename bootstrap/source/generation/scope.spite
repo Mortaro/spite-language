@@ -15,6 +15,7 @@ var range_only_paths = List<String>()
 var is_loop = false
 var rebindings = 0
 var paths_read_from_outside = List<String>()
+var rechecked_paths = List<String>()
 var borrow_names = List<String>()
 var borrow_sources = List<String>()
 var row_names = List<String>()
@@ -293,6 +294,28 @@ func narrow_bound_path(path: String, condition_text: String) {
     }
 }
 
+func recheck_path(path: String) {
+    if not rechecked_paths.contains(path) {
+        rechecked_paths.append(path)
+    }
+}
+
+func proven_inside_loop(candidate: String): Boolean {
+    var index = narrowed_paths.count() - 1
+    while index >= 0 {
+        crash narrowed_paths[index]
+        var narrowed = narrowed_paths[index]
+        if narrowed == candidate or narrowed.starts_with("{candidate}.") or narrowed.starts_with("{candidate}[") {
+            return true
+        }
+        index = index - 1
+    }
+    if is_loop or not parent {
+        return false
+    }
+    return parent.proven_inside_loop(candidate)
+}
+
 func proof_of(path: String): String {
     var index = bound_paths.count() - 1
     while index >= 0 {
@@ -334,6 +357,9 @@ func is_present_narrowed(candidate: String): Boolean {
         }
         index = index - 1
     }
+    if rechecked_paths.contains(candidate) {
+        return false
+    }
     if parent {
         return parent.is_present_narrowed(candidate)
     }
@@ -349,6 +375,9 @@ func narrowing_of(candidate: String): String {
             return narrowed
         }
         index = index - 1
+    }
+    if rechecked_paths.contains(candidate) {
+        return ""
     }
     if parent {
         var answered = parent.narrowing_of(candidate)

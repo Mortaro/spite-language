@@ -1,0 +1,26 @@
+var console = Console()
+
+func BoundProofsUndone() {
+    var spans = [1, 2, 3, 4]
+    var at = 0
+    while at + 1 < spans.count() {
+        console.print(spans[at + 2])
+        at = at + 2
+    }
+    var names = ["ada", "bo"]
+    var count = names.count()
+    names.remove_last()
+    var index = 0
+    while index < count {
+        console.print(names[index])
+        index = index + 1
+    }
+    var ages = Dictionary<Integer>()
+    ages.set(3, 36)
+    var known = ages.count()
+    var key = 0
+    while key < known {
+        console.print(ages[key])
+        key = key + 1
+    }
+}

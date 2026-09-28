@@ -85,7 +85,7 @@ func fill() {
 func swap_remove_each() {
     var row = 0
     while row < entities.count() {
-        var entity = entities.get_at(row)
+        var entity = entities[row]
         if despawns.marked(entity) {
             velocities.remove_swapping(row)
             var last = entities.remove_last()
@@ -102,8 +102,9 @@ func swap_remove_each() {
 func swap_remove_listed() {
     var index = 0
     while index < despawned.count() {
-        var entity = despawned.get_at(index)
-        var row = rows.get_at(entity)
+        var entity = despawned[index]
+        crash rows[entity]
+        var row = rows[entity]
         velocities.remove_swapping(row)
         var last = entities.remove_last()
         crash last
@@ -119,7 +120,7 @@ func compact_by_mask() {
     var kept = 0
     var row = 0
     while row < entities.count() {
-        var entity = entities.get_at(row)
+        var entity = entities[row]
         if not despawns.marked(entity) {
             velocities.swap(row, kept)
             entities.swap(row, kept)

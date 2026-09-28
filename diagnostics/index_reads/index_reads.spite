@@ -9,7 +9,8 @@ func IndexReads() {
 }
 
 func unproven() {
-    var names = ["ada"]
+    var names = List<String>()
+    names.append("ada")
     var shouted = names[0].upper_case()
     console.print(shouted)
 }

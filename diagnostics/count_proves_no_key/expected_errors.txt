@@ -1,1 +1,1 @@
-diagnostics/count_proves_no_key/count_proves_no_key.spite:7: error: this value may be null (it is a String?), so 'upper_case' cannot be called on it yet: narrow it first with 'if value { }', 'assert value' or 'crash value' (in CountProvesNoKey.CountProvesNoKey)
+diagnostics/count_proves_no_key/count_proves_no_key.spite:7: error: 'names[0]' may be missing, since every '[ ]' answers a 'T?' (this one is a String?), so 'upper_case' cannot be called on it yet: narrow it first with 'crash names[0]', 'assert names[0]' or 'if names[0] { }' (in CountProvesNoKey.CountProvesNoKey)

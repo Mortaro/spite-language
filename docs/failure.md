@@ -322,13 +322,32 @@ error.
 ### Reading with `[]` answers `T?`
 
 An index or a key may not be there, so `names[index]` and `table["key"]` are `T?` and are narrowed like any other
-path. The compiler also understands the usual proofs, so most reads need nothing extra:
+path. Every `[]` answers this way ([D225](decisions.md)): a `List`, a `Dictionary`, a `Vector`, an `Items`, and any
+class of your own, since `a[x]` is only a shortcut for `a.get_at(x)` and every `get_at` answers a `T?`
+([D226](decisions.md), [functions_and_operators.md](functions_and_operators.md#operators--implemented)). The
+compiler also understands the usual proofs for the library's collections, so most reads need nothing extra:
 
 - **A proven count proves the indices below it**: after `crash names.count() == 3`, or `>= 3`, or `> 2`,
-  `names[0]` to `names[2]` are plain values, and `crash not names.is_empty()` proves `names[0]`. A
-  `Dictionary`'s count proves no key, since its keys need not be `0`, `1`, `2`.
+  `names[0]` to `names[2]` are plain values, and `crash not names.is_empty()` proves `names[0]`. So are
+  `sizes[0]` to `sizes[2]` after `var sizes = [3, 5, 8]`: a list literal proves the indices of its items until
+  the list or its name changes. A `Dictionary`'s count proves no key, since its keys need not be `0`, `1`, `2`.
 - **A bound proves its index**: `while index < names.count()` proves `names[index]` in the loop body, and
   `while index < lines.count() and lines[index] != "end"` needs nothing more.
+- **A bound past the index proves the reads below it**: `while at + 2 < spans.count()` proves `spans[at]`,
+  `spans[at + 1]` and `spans[at + 2]`, so a loop over records of three reads them with nothing written. The bound
+  is the loop's own condition: `while at < spans.count()` proves only `spans[at]`. Mind what the stronger bound
+  changes: a last record that is not whole is now skipped without a word, where `crash spans[at + 2]` would have
+  halted on it. When the list must hold whole records, say so first: `crash spans.count() % 3 == 0` (D244).
+- **Two lists read by one counter**: `while index < names.count() and index < ages.count()` proves both reads, but
+  it stops at the shorter list without a word. When the two must be as long as each other, keep the one bound and
+  write `crash ages[index]` in the body, which halts on the first missing age instead (D244).
+- **A count kept in a name proves too**: after `var count = values.count()`, `while index < count` proves
+  `values[index]`, until `values` shrinks or `count` is assigned (a shrink inside the loop is then an error, as
+  for any proof the loop reads). A count worked out some other way (`count() / 8`, a width times a height) proves
+  nothing.
+- **Inside a loop, a read may be proven again**: `crash names[index - 1]` inside a loop is accepted even when a
+  line before the loop already proved that read, since the loop changes what the index means from one pass to the
+  next.
 - **The index may be any expression without a call**: `crash glyphs[code - 32]` proves `glyphs[code - 32]`
   on the next line. An index with a call in it, `glyphs[offset()]`, is not a path: name it first.
 - **Changing the list or the index undoes it**: after `index = index + 1` or `names.clear()` -- or a call that
@@ -337,9 +356,19 @@ path. The compiler also understands the usual proofs, so most reads need nothing
   simply go.
 - A `Boolean?` cannot be a condition: `if flags[index]` would test that the element is there, not that it is true.
   Prove it is there first, or compare it: `flags[index] == true`.
+- **An unproven read names how to prove it.** `names[0].upper_case()` with nothing proving `names[0]` is
+  `'names[0]' may be missing, since every '[ ]' answers a 'T?' (this one is a String?), so 'upper_case' cannot be
+  called on it yet: narrow it first with 'crash names[0]', 'assert names[0]' or 'if names[0] { }', or prove the
+  count first, 'crash names.count() > 0'`; a read by a counter names the loop bound instead (`... or read it where a
+  bound proves it, inside 'while index < names.count()'`), and a `Dictionary` or a class of your own names the
+  three narrowing lines only (`diagnostics/index_reads`).
+- **A class of your own is proven by what you write.** The compiler knows what `count()` and `get_at` mean for the
+  library's collections only, so `while index < shelf.count()` proves nothing about `shelf[index]` when `Shelf`
+  is yours: narrow the read with `crash`, `assert` or `if` (`conformance/stage6/indexable_class`).
 
 Every case, with its exact messages, is in [the rules](#nothing-fails-silently--the-rule). A proven
-read still checks its bounds at run time, so a proof removes a line of source, not a safety check.
+read still checks its bounds at run time and halts naming the read when its index was outside the list, so a
+proof removes a line of source, not a safety check.
 
 ```gdscript title=index_reads_doc/index_reads_doc.spite entry
 var console = Console()
@@ -862,6 +891,11 @@ It holds the asserts of the program and of every package it `load`s, never those
 match, a read past the end), and those would push the program's own entries out of the ring. The compiler leaves
 the record out of a library `assert` altogether, so it costs what an `if` costs. A crash inside the library still
 reports its own site ([D189](decisions.md)).
+A crash reports the ring as it stood when the crash began. Other threads may still be failing asserts while it
+prints -- a game's pool threads running their guards -- and those never lengthen the report: it is the crash line,
+at most 32 `spite.assert` lines and the `earlier=` count, and then the program exits. Only the first thread to crash
+reports; one that crashes while that report is being written waits for the program to end, so two reports never
+interleave.
 
 ### What a native fault reports
 
@@ -958,6 +992,7 @@ word needs a reason, and a place where the compiler lets one through is a bug to
 |---|---|---|
 | reading a value that may be absent as if it were there | `T?` must be narrowed first; `value == null` is an error | [narrowing](#narrowing) |
 | an index past the end, a key never set | `[]`, `first()`, `last()`, `remove_first()` answer a `T?` | [reading with `[]`](#reading-with--answers-t) |
+| a read a loop bound proved, with a counter gone below zero | halts naming the read and the line (D225) | [reading with `[]`](#reading-with--answers-t) |
 | a guard `assert` answering a `0`, `false`, `""` or default object the caller takes for a real answer | compile error unless the result can say "nothing" (D244, D245) | [a default that looks like an answer](#a-default-that-looks-like-an-answer-is-an-error) |
 | a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is never a condition | [null safety](#narrowing) |
 | text that is not a number, read as `0` | `to_integer()` and the other readings answer a `T?`; text assigned to a plain number is an error (D244) | [standard_library.md](standard_library.md#string) |
@@ -988,7 +1023,7 @@ a word unless the program runs with `--debug-memory`, which prints the allocatio
 ([memory.md](memory.md#cycles-leak)); signed arithmetic wraps in production builds and unsigned arithmetic
 wraps in every build (D249); a `Concurrent` polled for `finished` under `resume_only_when_asked()` without
 `run_ready()` never ends ([concurrency.md](concurrency.md#choosing-where-concurrents-resume)); a `List`'s
-`set_at` and `remove_at` do nothing out of range ([collections.md](collections.md#listt-additions--implemented));
+`set_at`, `remove_at` and `remove_swapping` do nothing out of range ([collections.md](collections.md#listt-additions--implemented));
 text assigned to an enum that names none of its values becomes the enum's first value
 ([values_and_types.md](values_and_types.md)); and a Windows `__fastfail` (`0xC0000409`), or a corrupted heap on
 Linux and macOS (the C library's own message and `SIGABRT`), ends the program without Spite's report or frames
@@ -1006,6 +1041,10 @@ Also open: the proof that lets a `List` template lend its items without counting
 `drop()` functions that run when an object is let go, so a `drop()` that removes from the list being walked
 could free a lent item while it is in use. D269's lend of a list element checks `drop()`; the template proof
 should do the same.
+Also open: the assert ring is written without atomics, so asserts failing on several threads at once can lose
+counts, and a crash's `spite.assert	earlier=<count>` line can then be lower than the number that failed. An atomic
+count would cost every failed `assert` a locked add; a per-thread ring would cost a crash nothing extra but cannot
+say which thread's asserts came first.
 
 Also open, each a bug under D244, found cataloguing the compiler's proofs ([proofs.md](proofs.md)):
 
@@ -1065,7 +1104,7 @@ console.print(length)
 Narrowing tests presence and never the value it holds: a `T?` of a number, an enum or a `String` holding `0`,
 `0.0` or `""` is present, and so is an in-range `[]` read of an element holding it. A value type's `T?` carries a
 presence flag beside the value (`has_value`), a reference's `T?` is its pointer, and a `[]` read goes through
-`find_at`/`get`, which answer that flag -- no representation uses a sentinel, so no value can be mistaken for
+`get_at`/`get`, which answer that flag -- no representation uses a sentinel, so no value can be mistaken for
 absence (`conformance/stage6/present_zero`, which narrows zeros, `false` and `""` from lists, a dictionary, an
 `Integer?` result, `first()`/`last()` and `remove_first()` by `crash`, `assert`, `if` and `and`). A `Boolean?` is
 never a condition (below), so `false` meets only `== true`/`== false` or a `switch`.
@@ -1206,6 +1245,20 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   what the condition guards, so `while not found and index < names.count()` proves `names[index]` in the body.
   A list in a local, a parameter and an attribute are proven alike, and `assert`/`crash` on a read already
   proven is an error that says so (proposed by Claude, unconfirmed; `diagnostics/proven_index_check`).
+- **A bound past the index proves the reads below it** ([D277](decisions.md), proposed by Claude, unconfirmed).
+  `base + k < names.count()`, `k` a whole-number literal from 1 to 63, proves `names[base]`, `names[base + 1]`
+  ... `names[base + k]`, each compared as printed; `base` is any call-free index. It is proven wherever
+  `index < names.count()` would be (the forms above), and undone the same way. A bound on `base` alone proves
+  only `names[base]`.
+- **A count kept in a name proves as the count does** (D277, proposed by Claude, unconfirmed). `var count =
+  names.count()` (also `names.count() - k`) records that `count` is at most the count; `index < count` then proves
+  `names[index]` as `index < names.count()` would. Shrinking `names` or assigning `count` undoes it, and a loop
+  that proves a read from it and then shrinks `names` is the error for a proof undone inside a loop. Only a
+  `var` whose value is exactly the count (or the count less a literal) counts; nothing else is traced.
+- **A read proven before a loop may be proven again inside it** (D277, proposed by Claude, unconfirmed). An
+  `assert`/`crash` of a `[]` read inside a `while` is refused as proving nothing only when a proof made inside
+  that same loop already covers it; a proof from before the loop does not, since an assignment in the loop would
+  make the next pass read it unproven.
 - **Assigning the list or the index undoes it**, as for any path ([narrowing](#narrowing), D43): `index = index + 1`
   un-proves `names[index]`, and so do `names.clear()`, `remove_at`, `remove_first` and `remove_last`. Inside a
   loop, undoing a proof made before the loop that the loop has read is an error.
@@ -1243,9 +1296,26 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   attribute's list is not tracked (a proven read still checks its bounds). Inside a `while`, a call that undoes a
   proof made before the loop and read inside it is an error naming the call (`diagnostics/call_undoes_proof`).
   All of it happens while compiling; nothing is emitted. **[implemented]**
-- **A proven read still checks its bounds at runtime** and halts out of range, naming the index and the count
-  (`List.get_at`'s own `crash`, as `Vector.get_at` already had), so a counter that went negative stops the program
-  rather than reading memory it does not own or answering a default (D244; before, a `List` answered the default).
+- **A proven read still checks its bounds at runtime** and halts out of range, naming the read and where it is
+  (`spite: 'names[index]' is outside its list: a bound proves only the top of an index, and this one is below 0 or
+  the list changed, at ...`), so a counter that went negative stops the program rather than reading memory it
+  does not own or answering a default (D244). The read is the collection's `get_at`, which compares the index
+  once; a counted loop (D222) proves both ends and reads with no test at all.
+- **Every `[]` answers `T?`** (D225, decided by Mortaro, 2026-09-26: "any [] should return a T? and needs to be
+  asserted"; D226: "keep in mind [] is just a shortcut for a function so users can also implement []able
+  classes"). `List`, `Dictionary`, `Vector` and `Items` alike, and every class that declares `get_at`: the
+  function must answer a `T?`, and one declared with a plain `T` is `'get_at' answers 'Integer', but it is what
+  '[ ]' calls, and every '[ ]' answers a 'T?' that is narrowed before use: declare it to answer 'Integer?', and
+  answer null when nothing is at the index` (`diagnostics/plain_get_at`). The proofs above -- counts, bounds, a
+  literal's items, D169's call effects and D222's counted loops -- hold for the library's collections, whose
+  `count()` and `get_at` the compiler knows; a read through a program's own `get_at` is narrowed only by what the
+  program writes (`diagnostics/indexable_unproven`; proposed by Claude, unconfirmed: a class that declares
+  `count()` and whose `get_at` answers `null` exactly outside `0..count()` could earn the same proofs later). A
+  list literal proving its indices is proposed by Claude, unconfirmed (D225 asks that proofs the compiler holds
+  count). Calling `get_at(index)` by name answers the same `T?`, but a call is not a path, so narrow `list[index]`
+  instead. A read used before it is narrowed is an error that names the read and the lines that would
+  narrow it: `crash`, `assert` and `if` on the read itself, then the count or loop bound that proves it for a
+  library collection ([above](#reading-with--answers-t), `diagnostics/index_reads`).
 - **A `Boolean?` cannot be a condition** -- not in `if`, `while`, `assert` or `crash`, and not under `not`, `and`
   or `or`: `if flags[index]` would test that the element is there, not that it is true, and the two mean
   opposite things for `false`. Prove the element is there first, or `switch` over it; `== true` also works,
@@ -1424,7 +1494,21 @@ line to the error stream when it fails, in a program that cannot crash too. It i
 holds, with no values, and it covers the asserts the ring covers (the program's and its loaded packages', never
 `library/`'s, D189). Cost: none without the flag, since the macro is the same one store and count; with it, a
 flush and a write per failed `assert`. `conformance/stage6/quiet_asserts` (four calls, two failing: nothing but the
-program's lines), `conformance/stage6/trace_asserts` (the same with `--trace-asserts`). **[implemented]**
+program's lines), `conformance/stage6/trace_asserts` (the same with `--trace-asserts`),
+`conformance/stage6/quiet_asserts_optimized` (an `--optimized` build failing a guard 500 times: nothing but the
+program's line) and `conformance/stage6/trace_asserts_optimized` (`--optimized --trace-asserts`). **[implemented]**
+
+**A crash prints the ring as it stood when it began, and only the first crash reports** (implements D244; proposed
+by Claude, unconfirmed; found by the Theseus port, A73). The report reads the ring's count once, when it starts,
+and prints at most 32 lines and the `earlier=` count from it. It used to re-read the count on every line, so a
+crash on one thread while pool threads kept failing guard asserts chased the count forever: every failed `assert`
+of the program reached the error stream, and the crash never reached its `exit` -- a 1.4 GB log in five minutes,
+from a client that looked as if it printed its asserts in an `--optimized` build. A native fault's report reads the
+count once the same way. A crash first claims the report with one atomic exchange; a thread that crashes while
+another's report is being written waits for the program to end instead of interleaving a second report. Cost:
+only on the crash path; a failed `assert` still costs one store and one count. `check.sh` builds a program whose
+pool thread fails an `assert` without end while the program's thread crashes, and requires one crash line, at most
+32 assert lines, the `earlier=` count and exit status 1 within a minute. **[implemented]**
 
 D26 refinement (proposed by Claude, unconfirmed; **not built**): the trace would record **predicate asserts
 only**. A narrowing assert firing is routine control flow -- thousands an hour on a server -- and on concurrent

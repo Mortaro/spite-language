@@ -5,7 +5,7 @@ enum Phase {
 }
 
 var system = $system_type()
-var found = Items<Integer>()
+var found = List<Integer>()
 var missing = false
 
 func run(entity_count: Integer) {
@@ -36,9 +36,11 @@ func find_argument(argument: Symbol<$system_type.phase_each>, entity: Integer) {
     found.append(dense)
 }
 
-func copy_argument(argument: Symbol<$system_type.phase_each>, rows: Items<Integer>) {
+func copy_argument(argument: Symbol<$system_type.phase_each>, rows: List<Integer>) {
     var column = Column<argument.class>()
     var copied = Copied<argument.class>()
+    crash rows[argument.index]
+    crash column.values[rows[argument.index]]
     copied.current = column.values[rows[argument.index]].copy()
 }
 
@@ -47,8 +49,9 @@ func copied_argument(argument: Symbol<$system_type.phase_each>): argument.class 
     return copied.current
 }
 
-func store_argument(argument: Symbol<$system_type.phase_each>, rows: Items<Integer>) {
+func store_argument(argument: Symbol<$system_type.phase_each>, rows: List<Integer>) {
     var column = Column<argument.class>()
     var copied = Copied<argument.class>()
+    crash rows[argument.index]
     column.values.set_at(rows[argument.index], copied.current)
 }

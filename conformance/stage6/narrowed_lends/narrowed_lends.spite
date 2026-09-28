@@ -10,6 +10,7 @@ func NarrowedLends() {
     raise(2)
     raise(3)
     var raised = read(2)
+    crash justifications.values[0]
     console.print(found, missing, raised, justifications.values[0].value)
 }
 

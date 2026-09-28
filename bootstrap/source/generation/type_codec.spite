@@ -48,7 +48,7 @@ func write_enum(written_enum: Analysis.Types.EnumType, written: List<String>) {
     written.append(count)
     var index = 0
     while index < written_enum.values.count() {
-        var value = written_enum.values.get_at(index)
+        var value = written_enum.values[index]
         written.append(value)
         index = index + 1
     }
@@ -94,7 +94,7 @@ func decoded(text: String): Analysis.SpiteType? {
 
 func next_token(): String {
     crash position < tokens.count()
-    var token = tokens.get_at(position)
+    var token = tokens[position]
     position = position + 1
     return token
 }
@@ -151,7 +151,7 @@ func read_scalar(): Analysis.SpiteType? {
     ]
     var index = 0
     while index < kinds.count() {
-        var kind = kinds.get_at(index)
+        var kind = kinds[index]
         if kind_text(kind) == written {
             var scalar_type: Analysis.SpiteType = Analysis.Types.ScalarType(kind)
             return scalar_type

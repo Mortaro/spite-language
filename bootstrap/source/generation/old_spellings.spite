@@ -44,7 +44,8 @@ func new_spelling(name: String): String {
     var index = 0
     while index < old_names.count() {
         if old_names[index] == name {
-            return new_names.get_at(index)
+            crash new_names[index]
+            return new_names[index]
         }
         index = index + 1
     }

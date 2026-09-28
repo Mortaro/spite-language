@@ -1,0 +1,2 @@
+spite: 'sizes[index]' is outside its list: a bound proves only the top of an index, and this one is below 0 or the list changed, at conformance/stage6/proven_read_outside/proven_read_outside.spite:9 in ProvenReadOutside.ProvenReadOutside
+adding the sizes

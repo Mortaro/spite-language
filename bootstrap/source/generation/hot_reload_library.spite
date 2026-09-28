@@ -35,9 +35,10 @@ func record_host(prototype_text: String, bodies: String, constants: Dictionary<S
     shaker.split_pieces(bodies)
     var piece_index = 0
     while piece_index < shaker.pieces.count() {
-        var piece_name = shaker.piece_names.get_at(piece_index)
+        crash shaker.piece_names[piece_index]
+        var piece_name = shaker.piece_names[piece_index]
         if not piece_name.is_empty() {
-            var piece = shaker.pieces.get_at(piece_index)
+            var piece = shaker.pieces[piece_index]
             host_hashes[piece_name] = piece_hash(piece, constants)
         }
         piece_index = piece_index + 1
@@ -136,8 +137,8 @@ func layout_name(text: String): String {
         return ""
     }
     var text_lines = text.split("\n")
-    var line_count = text_lines.count()
-    var last_line = text_lines.get_at(line_count - 1)
+    var last_line = text_lines.last()
+    crash last_line
     return last_line.replace("}", "").replace(";", "").trim()
 }
 
@@ -450,9 +451,10 @@ func changed_bodies(constants: Dictionary<String>): List<String> {
     var changed = List<String>()
     var index = 0
     while index < program_shaker.pieces.count() {
-        var name = program_shaker.piece_names.get_at(index)
+        crash program_shaker.piece_names[index]
+        var name = program_shaker.piece_names[index]
         if not name.is_empty() and host_hashes.has(name) {
-            var piece = program_shaker.pieces.get_at(index)
+            var piece = program_shaker.pieces[index]
             if host_hashes[name] != piece_hash(piece, constants) {
                 changed.append(name)
             }
@@ -466,8 +468,9 @@ func library_hashes(constants: Dictionary<String>): Dictionary<String> {
     var hashes = Dictionary<String>()
     var index = 0
     while index < library_bodies.count() {
-        var name = library_body_names.get_at(index)
-        var body = library_bodies.get_at(index)
+        crash library_body_names[index]
+        var name = library_body_names[index]
+        var body = library_bodies[index]
         var hash = piece_hash(body, constants)
         var name_length = name.length()
         if name.starts_with("spite_") and holds_digit(name, 6, name_length) {

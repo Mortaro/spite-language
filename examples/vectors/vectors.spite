@@ -4,18 +4,22 @@ func Vectors() {
     var first_vector = Displacement(1.0, 2.0)
     var second_vector = Displacement(3.0, 4.0)
     var total = first_vector + second_vector
-    var total_at = total.get_at(0)
-    var at = total.get_at(1)
+    crash total[0] and total[1]
+    var total_at = total[0]
+    var at = total[1]
     console.print("sum", total_at, at)
     var difference = second_vector - first_vector
+    crash difference[0] and difference[1]
     console.print("difference", difference[0], difference[1])
     var same_as_first = Displacement(1.0, 2.0)
     console.print("equal", first_vector == same_as_first)
     console.print("not equal", first_vector != second_vector)
     var scaled = first_vector * 2.0
+    crash scaled[0] and scaled[1]
     console.print("scaled", scaled[0], scaled[1])
     first_vector[0] = 10.0
     first_vector.set_at(1, 20.0)
+    crash first_vector[0] and first_vector[1]
     console.print("mutated", first_vector[0], first_vector[1])
     var length_squared = second_vector.length_squared()
     console.print("length squared", length_squared)

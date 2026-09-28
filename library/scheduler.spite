@@ -65,7 +65,7 @@ func step_ready(): Integer {
     var finished = 0
     var index = 0
     while index < tasks.count() {
-        var frame: Memory.Address = tasks.get_at(index)
+        var frame: Memory.Address = tasks[index]
         if frame.read_integer(12) == 0 and run_frame(frame) {
             remove_one(tasks, frame)
             finished = finished + 1
@@ -98,7 +98,7 @@ func timer_over(deadline: Long): Boolean {
 
 func remove_one(values: List<Long>, value: Long) {
     var index = 0
-    while index < values.count() and values.get_at(index) != value {
+    while index < values.count() and values[index] != value {
         index = index + 1
     }
     if index < values.count() {
@@ -199,10 +199,10 @@ func timeout(): Integer {
         return -1
     }
     var now = clock()
-    var earliest = deadlines.get_at(0)
+    var earliest = deadlines[0]
     var index = 1
     while index < deadlines.count() {
-        var deadline = deadlines.get_at(index)
+        var deadline = deadlines[index]
         if deadline < earliest {
             earliest = deadline
         }

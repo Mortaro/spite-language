@@ -1,0 +1,6 @@
+var console = Console()
+var ruler = Ruler()
+
+func PlainGetAt() {
+    console.print(ruler[2])
+}

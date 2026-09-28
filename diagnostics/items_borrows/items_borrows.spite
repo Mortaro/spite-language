@@ -8,17 +8,20 @@ var runner = Runner<Moving>()
 func ItemsBorrows() {
     var first = Velocity(1.0)
     velocities.append(first)
+    crash velocities[0]
     var velocity = velocities[0]
     velocities.append(first)
     velocity.across = 3.0
     var swapped = velocities[0]
     velocities.remove_swapping(1)
     swapped.across = 4.0
+    crash velocities[0]
     var stored = velocities[0]
     kept = stored
     velocities.each(describe)
     var trail = Trail()
     trails.append(trail)
+    crash trails[0]
     var held = trails[0]
     trails.append(trail)
     held.lefts.append(1.0)
@@ -37,5 +40,6 @@ func note(noted: Trail) {
 }
 
 func leaked(): Velocity {
+    crash velocities[0]
     return velocities[0]
 }

@@ -175,6 +175,51 @@ for attempt in 1 2 3 4 5; do
   fi
 done
 echo "threads: eight threads asking for the same class objects make each once, five runs balanced"
+# A crash reports the asserts that failed before it, as the ring stood when it crashed (D244). A pool thread that keeps
+# failing a guard assert while the program's thread crashes must not keep the report printing -- that streamed every
+# failed assert and never exited -- so the crash ends with its crash line, at most 32 assert lines and an earlier count.
+mkdir -p "$work/crash_while_asserting"
+cat > "$work/crash_while_asserting/crash_while_asserting.spite" <<'SPITE'
+var console = Console()
+var program = Program()
+
+func CrashWhileAsserting() {
+    var guarding = Parallel(guard_forever)
+    program.sleep(100)
+    console.print("crashing while a thread fails asserts")
+    check(0 - 1)
+    console.print("never printed", guarding)
+}
+
+func check(value: Integer) {
+    crash value > 0
+}
+
+func guard_forever(): Integer {
+    var index = 0
+    while true {
+        refuse(index)
+        var text: String = index
+        index = index + text.length()
+    }
+    return index
+}
+
+func refuse(value: Integer) {
+    assert value < 0
+}
+SPITE
+"$work/generation_two.exe" "$work/crash_while_asserting" --optimized --executable --run=false --executable-path="$work/crash_while_asserting.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED: could not build crash_while_asserting"; head -5 "$work/c_errors.txt"; exit 1; }
+timeout 60 "$work/crash_while_asserting.exe" < /dev/null > "$work/crash_while_asserting.txt" 2>&1
+crashed=$?
+reported=$(tr -d '\r' < "$work/crash_while_asserting.txt")
+if [ "$crashed" != "1" ] || [ "$(echo "$reported" | grep -c '^spite.crash	')" != "1" ] \
+   || [ "$(echo "$reported" | grep -c '^spite.assert	[0-9a-f]\{8\}	')" -gt 32 ] \
+   || ! echo "$reported" | tail -1 | grep -qE '^spite.assert	earlier=[0-9]+$'; then
+  echo "FAILED: a crash while another thread fails asserts (exit $crashed, $(echo "$reported" | wc -l) lines)"; echo "$reported" | head -3; exit 1
+fi
+echo "crash reports: a crash while a pool thread keeps failing asserts reports the ring as it stood and exits"
 
 # What a production build leaves out is only visible in its C (docs/optimizations.md): hello carries no struct,
 # allocate or singleton slot of a library class it never makes, and each singleton singleton_forms reaches from a

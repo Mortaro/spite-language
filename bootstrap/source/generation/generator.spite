@@ -41,6 +41,10 @@ var remote_loop_port = 0
 var refused_serialiser = false
 var division_check_written = false
 var overflow_check_written = false
+var index_check_written = false
+var unproven_read_code = ""
+var unproven_read_path = ""
+var unproven_read_bound = ""
 var always_crashing_functions = List<String>()
 var always_crashing_paths = List<String>()
 var always_crashing_lines = List<Integer>()
@@ -233,6 +237,7 @@ var bound_function_name = ""
 var bound_display_name = ""
 var bound_range = ""
 var bound_enum_c_name = ""
+var unliteral_reported = List<String>()
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
@@ -251,6 +256,11 @@ var lent_parameter_names = List<String>()
 var lent_parameter_caller = ""
 var argument_expected_type: Analysis.SpiteType? = null
 var walked_row_filled = false
+var walked_checks = List<Syntax.Expressions.Expression>()
+var walked_check_texts = List<String>()
+var walked_read_paths = List<String>()
+var walked_read_results = List<ExpressionResult>()
+var walked_read_owned = List<Boolean>()
 var walked_row_mixing = false
 var writing_lent_arguments = false
 var lent_plural_text = ""
@@ -639,7 +649,7 @@ func generate(
     var header_text = runtime_header_text.replace("/*spite_allocator*/", allocator)
     builder.add_typedef(header_text)
     builder.add_typedef(
-        "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_kept = spite_assert_total < 32 ? spite_assert_total : 32;\nfor (int64_t spite_index = spite_assert_total - spite_kept; spite_index < spite_assert_total; spite_index = spite_index + 1) \{ fputs(spite_assert_trace[spite_index % 32], stderr); }\nif (spite_assert_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_assert_total - 32)); }\n}",
+        "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic int32_t spite_crashing = 0;\nstatic void spite_crash_begin(void) \{\nif (__atomic_exchange_n(&spite_crashing, 1, __ATOMIC_ACQ_REL) != 0) \{ for (;;) \{ } }\n}\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_total = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE);\nint64_t spite_kept = spite_total < 32 ? spite_total : 32;\nfor (int64_t spite_index = spite_total - spite_kept; spite_index < spite_total; spite_index = spite_index + 1) \{ const char* spite_site = spite_assert_trace[spite_index % 32]; if (spite_site != 0) fputs(spite_site, stderr); }\nif (spite_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_total - 32)); }\n}",
     )
     var traced = "#define SPITE_TRACE_ASSERT(site) (spite_assert_trace[spite_assert_total % 32] = (site), spite_assert_total = spite_assert_total + 1)"
     var untraced = "#define SPITE_TRACE_ASSERT(site) ((void)0)"
@@ -1430,9 +1440,9 @@ func symbol_function_question(
 
 func written_name(arguments: List<Syntax.Expressions.Expression>): String? {
     assert arguments.count() == 1
-    var string_literal = shape.as_string_literal(arguments[0])
-    if string_literal {
-        return string_literal.value
+    var folded_name = folded_name_text(arguments[0])
+    if folded_name {
+        return folded_name
     }
     var enum_literal = shape.as_enum_literal(arguments[0])
     assert enum_literal
@@ -1440,6 +1450,267 @@ func written_name(arguments: List<Syntax.Expressions.Expression>): String? {
         "'{enum_literal.value}' in single quotes is a symbol, and 'has_function' takes the name as text: text is always written in double quotes, so write \"{enum_literal.value}\"",
     )
     return enum_literal.value
+}
+
+func folded_name_text(expression: Syntax.Expressions.Expression): String? {
+    var string_literal = shape.as_string_literal(expression)
+    if string_literal {
+        return string_literal.value
+    }
+    var joined = shape.as_binary(expression)
+    if joined {
+        assert joined.is_text_join
+        crash joined.left
+        crash joined.right
+        var left = folded_name_text(joined.left)
+        assert left
+        var right = folded_name_text(joined.right)
+        assert right
+        return left + right
+    }
+    var member = shape.as_member(expression)
+    assert member and not bound_symbol_name.is_empty()
+    assert member.name == "name"
+    crash member.object
+    assert is_identifier_named(member.object, bound_symbol_name)
+    if not bound_display_name.is_empty() {
+        return bound_display_name
+    }
+    return bound_field_name
+}
+
+func folded_returned_text(
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    crash member
+    crash member.object
+    var asked = operand_text(member.object)
+    var asked_generic = shape.as_generic_identifier(member.object)
+    if asked_generic {
+        asked = "${without_dollar(asked_generic.name)}"
+    }
+    var mentioned = List<String>()
+    collect_each_mentioned_name(call.arguments, mentioned)
+    mark_each_used(mentioned, scope)
+    var owner = asked_function_owner(member.object, class_information)
+    if not owner {
+        report(
+            "'{asked}.returned_text(...)' is decided while compiling, so it is asked of a generic's type or of the class a walk visits, like '$value_type.returned_text(\"json_key_\{attribute.name}\")'",
+        )
+        return void_result()
+    }
+    var name: String? = null
+    if call.arguments.count() == 1 {
+        name = folded_name_text(call.arguments[0])
+    }
+    if not name {
+        report(
+            "'{asked}.returned_text(...)' is decided while compiling, so the name it asks for is written as a literal: '{asked}.returned_text(\"json_key_level\")', or with a walked symbol's name in it, '\"json_key_\{attribute.name}\"'",
+        )
+        return void_result()
+    }
+    var function = owner.find_function(name)
+    if not function {
+        report(
+            "'{asked}.returned_text(\"{name}\")' reads the text a function of '{owner.qualified_dotted}' returns, and it has no function '{name}': ask '{asked}.has_function(\"{name}\")' first, and read the text only in the branch where it is true",
+        )
+        return void_result()
+    }
+    var literal = returned_literal(function)
+    if not literal {
+        report_unliteral_body(owner, function, "'{asked}.returned_text(\"{name}\")' reads it while compiling")
+        return void_result()
+    }
+    var rendered = render_string_literal(literal)
+    var text_type = string_type()
+    var text = ExpressionResult(rendered, text_type)
+    text.constant_text = "s:{literal}"
+    return text
+}
+
+func asked_function_owner(
+    subject: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var generic_identifier = shape.as_generic_identifier(subject)
+    if generic_identifier {
+        var bare_name = without_dollar(generic_identifier.name)
+        var bound = codegen_index(class_information, bare_name)
+        assert bound >= 0
+        crash class_information.codegen_codes[bound]
+        assert class_information.codegen_codes[bound].is_empty()
+        crash class_information.codegen_types[bound]
+        var bound_class_ref = type_shape.as_class_ref(class_information.codegen_types[bound])
+        assert bound_class_ref
+        assert not bound_class_ref.has_signature
+        return find_class_by_c_name(bound_class_ref.c_name)
+    }
+    assert is_symbol_class_read(subject)
+    crash bound_field_type
+    var walked_class_ref = type_shape.as_class_ref(bound_field_type)
+    assert walked_class_ref
+    assert not walked_class_ref.has_signature
+    return find_class_by_c_name(walked_class_ref.c_name)
+}
+
+func returned_literal(function: Analysis.FunctionInfo): String? {
+    assert function.has_body and function.parameters.is_empty() and function.body.count() == 1
+    var returned = shape.as_return_statement(function.body[0])
+    assert returned
+    crash returned.value
+    var literal = shape.as_string_literal(returned.value)
+    assert literal
+    return literal.value
+}
+
+func report_unliteral_body(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, reason: String) {
+    assert not unliteral_reported.contains(function.c_name)
+    unliteral_reported.append(function.c_name)
+    var saved_line = current_line
+    var saved_path = current_path
+    var saved_function = current_function
+    var saved_owner = current_owner
+    current_owner = owner.qualified_dotted
+    current_function = function.name
+    current_line = function.line
+    current_path = owner.source_path
+    if not function.source_path.is_empty() {
+        current_path = function.source_path
+    }
+    report(
+        "'{owner.qualified_dotted}.{function.name}' must be written 'func {function.name}(): String \{ return \"...\" }', taking nothing and returning a literal text with no '\{...}' in it, since {reason}",
+    )
+    current_line = saved_line
+    current_path = saved_path
+    current_function = saved_function
+    current_owner = saved_owner
+}
+
+func check_json_keys(information: Analysis.ClassInfo) {
+    var keys = List<String>()
+    var owners = List<String>()
+    var givers = List<String>()
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        if not field.name.starts_with("_") {
+            keys.append(field.name)
+            owners.append(field.name)
+            givers.append("")
+        }
+        index = index + 1
+    }
+    var saved_line = current_line
+    var saved_path = current_path
+    var saved_function = current_function
+    var function_index = 0
+    while function_index < information.declared_functions.count() {
+        var function = information.declared_functions[function_index]
+        if function.name.starts_with("json_key_") and function.has_body {
+            current_function = function.name
+            current_line = function.line
+            current_path = saved_path
+            if not function.source_path.is_empty() {
+                current_path = function.source_path
+            }
+            var given = given_json_key(information, function, owners)
+            if given {
+                var name_length = function.name.length()
+                var attribute_name = function.name.slice(9, name_length)
+                var place = text_place(owners, attribute_name)
+                keys[place] = given
+                givers[place] = function.name
+            }
+        }
+        function_index = function_index + 1
+    }
+    var first = 0
+    while first < keys.count() {
+        var second = first + 1
+        while second < keys.count() {
+            if keys[first] == keys[second] {
+                crash givers[first] and givers[second] and owners[first] and owners[second]
+                var giver = givers[second]
+                var taker = owners[second]
+                var other = owners[first]
+                if giver.is_empty() {
+                    giver = givers[first]
+                    taker = owners[first]
+                    other = owners[second]
+                }
+                var giving = information.find_function(giver)
+                crash giving
+                current_function = giver
+                current_line = giving.line
+                current_path = saved_path
+                if not giving.source_path.is_empty() {
+                    current_path = giving.source_path
+                }
+                report(
+                    "'{information.simple_name}.{giver}' gives '{taker}' the JSON key \"{keys[first]}\", which is already the key of '{other}', so JsonReader could not tell which attribute a value belongs to: give each attribute a key of its own",
+                )
+            }
+            second = second + 1
+        }
+        first = first + 1
+    }
+    current_line = saved_line
+    current_path = saved_path
+    current_function = saved_function
+}
+
+func given_json_key(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, owners: List<String>): String? {
+    var name_length = function.name.length()
+    var attribute_name = function.name.slice(9, name_length)
+    if text_place(owners, attribute_name) < 0 {
+        var listed = owners.join("', '")
+        report(
+            "'{information.simple_name}.{function.name}' names the JSON key of the attribute '{attribute_name}', and '{information.simple_name}' has no attribute '{attribute_name}': it has '{listed}'. A function whose name starts with 'json_key_' is read by JsonReader and JsonWriter, so the rest of its name is an attribute's",
+        )
+        return null
+    }
+    var literal = returned_literal(function)
+    if not literal {
+        report_unliteral_body(information, function, "JsonReader and JsonWriter read the key while compiling")
+        return null
+    }
+    if written_key_problem(literal) {
+        report(
+            "'{information.simple_name}.{function.name}' returns \"{literal}\", and a JSON key given this way is written as it is, so it cannot be empty or hold a quote, a backslash or a control character",
+        )
+        return null
+    }
+    return literal
+}
+
+func text_place(texts: List<String>, wanted: String): Integer {
+    var index = 0
+    while index < texts.count() {
+        if texts[index] == wanted {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func written_key_problem(key: String): Boolean {
+    if key.is_empty() {
+        return true
+    }
+    var index = 0
+    while index < key.length() {
+        var code = key.code_at(index)
+        if code < 32 or code == 34 or code == 92 {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func class_has_function(owner: Analysis.ClassInfo, pattern: String, asking: Analysis.ClassInfo): Boolean {
@@ -1698,8 +1969,8 @@ func settle_wait_facts() {
     var seeds = seeded_waiting_names.copy()
     var index = 0
     while index < waiting_functions.count() {
-        if waiting_kinds.get_at(index) != "yield" {
-            var waiting = waiting_functions.get_at(index)
+        if waiting_kinds[index] != "yield" {
+            var waiting = waiting_functions[index]
             seeds.append(waiting.c_name)
         }
         index = index + 1
@@ -1806,12 +2077,18 @@ func finish_wait_questions() {
     settle_wait_facts()
     var changed = wait_facts.first_changed_answer()
     if changed >= 0 {
-        current_path = wait_facts.asked_paths.get_at(changed)
-        current_line = wait_facts.asked_lines.get_at(changed)
-        current_owner = wait_facts.asked_owners.get_at(changed)
-        current_function = wait_facts.asked_functions.get_at(changed)
-        var asked = wait_facts.asked_texts.get_at(changed)
-        var asked_name = wait_facts.asked_names.get_at(changed)
+        crash wait_facts.asked_paths[changed]
+        crash wait_facts.asked_lines[changed]
+        crash wait_facts.asked_owners[changed]
+        crash wait_facts.asked_functions[changed]
+        crash wait_facts.asked_texts[changed]
+        crash wait_facts.asked_names[changed]
+        current_path = wait_facts.asked_paths[changed]
+        current_line = wait_facts.asked_lines[changed]
+        current_owner = wait_facts.asked_owners[changed]
+        current_function = wait_facts.asked_functions[changed]
+        var asked = wait_facts.asked_texts[changed]
+        var asked_name = wait_facts.asked_names[changed]
         var now_waits = wait_facts.may_wait(asked_name)
         var before = not now_waits
         report(
@@ -1829,7 +2106,7 @@ func emit_function_waits_table() {
     lines.append("static bool spite_function_waits(void* typed_call) \{")
     var index = 0
     while index < function_value_makers.count() {
-        var maker = function_value_makers.get_at(index)
+        var maker = function_value_makers[index]
         var maker_length = maker.length()
         var made = maker.slice(21, maker_length)
         if wait_facts.may_wait(made) {
@@ -1839,7 +2116,7 @@ func emit_function_waits_table() {
     }
     var listed_index = 0
     while listed_index < listed_typed_calls.count() {
-        var listed = listed_typed_calls.get_at(listed_index)
+        var listed = listed_typed_calls[listed_index]
         var made_too = function_value_makers.contains("spite_function_value_{listed}")
         if not made_too and wait_facts.may_wait(listed) {
             lines.append("if (typed_call == (void*){listed}) return true;")
@@ -2213,7 +2490,37 @@ func instantiated_with(
     if template.qualified_dotted == "Vector" {
         check_vector_item(instance)
     }
+    if template.qualified_dotted == "Vector" or template.qualified_dotted == "Items" {
+        check_plain_items(instance)
+    }
     return instance
+}
+
+func check_plain_items(instance: Analysis.ClassInfo) {
+    crash instance.codegen_types[0]
+    var item_type = instance.codegen_types[0]
+    var plain_type = item_type
+    var nullable = type_shape.as_nullable(item_type)
+    if nullable {
+        plain_type = nullable.get_inner()
+    }
+    assert plain_item_type(plain_type) or is_address_type(plain_type)
+    var label = type_display_name(item_type)
+    report(
+        "'{instance.qualified_dotted}<{label}>' holds plain values, and a List keeps numbers, Boolean, enums and Memory.Address flat just as it did, so a list of them has one spelling: write 'List<{label}>'",
+    )
+}
+
+func is_address_type(spite_type: Analysis.SpiteType): Boolean {
+    var class_reference = type_shape.as_class_ref(spite_type)
+    if not class_reference {
+        return false
+    }
+    var information = find_class_by_c_name(class_reference.c_name)
+    if not information {
+        return false
+    }
+    return information.qualified_dotted == "Memory.Address"
 }
 
 func is_serialiser(template: Analysis.ClassInfo): Boolean {
@@ -2587,11 +2894,15 @@ func constrain_codegen_types(instance: Analysis.ClassInfo) {
 func check_pending_constraints() {
     var index = 0
     while index < pending_constraint_instances.count() {
-        current_path = pending_constraint_paths.get_at(index)
-        current_line = pending_constraint_lines.get_at(index)
-        current_owner = pending_constraint_owners.get_at(index)
-        current_function = pending_constraint_functions.get_at(index)
-        var pending_instance = pending_constraint_instances.get_at(index)
+        crash pending_constraint_paths[index]
+        crash pending_constraint_lines[index]
+        crash pending_constraint_owners[index]
+        crash pending_constraint_functions[index]
+        current_path = pending_constraint_paths[index]
+        current_line = pending_constraint_lines[index]
+        current_owner = pending_constraint_owners[index]
+        current_function = pending_constraint_functions[index]
+        var pending_instance = pending_constraint_instances[index]
         check_constraints_of(pending_instance)
         index = index + 1
     }
@@ -2600,14 +2911,15 @@ func check_pending_constraints() {
 func check_constraints_of(instance: Analysis.ClassInfo) {
     var index = 0
     while index < instance.codegen_constraints.count() and index < instance.codegen_types.count() {
-        var constraint_name = instance.codegen_constraints.get_at(index)
+        var constraint_name = instance.codegen_constraints[index]
         if not constraint_name.is_empty() {
             var constrained = find_union_by_c_name(constraint_name)
             crash constrained
-            var given = instance.codegen_types.get_at(index)
+            var given = instance.codegen_types[index]
             var problem = constraint_problem(constrained, given)
             if not problem.is_empty() {
-                var constrained_name = instance.codegen_names.get_at(index)
+                crash instance.codegen_names[index]
+                var constrained_name = instance.codegen_names[index]
                 report(
                     "'{type_display_name(given)}' does not fit type '{constrained.simple_name}', which '{instance.simple_name}' requires of ${constrained_name}: {problem}",
                 )
@@ -3611,7 +3923,7 @@ func shaped_value(
             }
         }
     } else {
-        report_mismatch(from, to)
+        report_mismatch(from, to, code)
     }
     return "(({information.c_name})({code}))"
 }
@@ -4118,6 +4430,9 @@ func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.
         }
         statement_index = statement_index + 1
     }
+    if not functions_pass {
+        check_json_keys(information)
+    }
 }
 
 func infer_declared_type(
@@ -4236,7 +4551,7 @@ func filled_by_walk(
     if borrow_index >= borrow_statements.count() or next_index >= borrow_statements.count() {
         return false
     }
-    var here_statement = borrow_statements.get_at(borrow_index)
+    var here_statement = borrow_statements[borrow_index]
     var here = shape.as_variable_declaration(here_statement)
     if not here {
         return false
@@ -4255,7 +4570,7 @@ func walks_into(
 ): Boolean {
     var index = start
     while index < statements.count() {
-        var statement = statements.get_at(index)
+        var statement = statements[index]
         if statement_walks_into(statement, name, class_information) {
             return true
         }
@@ -4851,7 +5166,7 @@ func index_namespace_walk(walk: NamespaceWalk) {
     walk.last_positions = Dictionary<Integer>()
     var index = 0
     while index < walk.member_names.count() {
-        var member_name = walk.member_names.get_at(index)
+        var member_name = walk.member_names[index]
         if not walk.first_positions.has(member_name) {
             walk.first_positions.set(member_name, index)
         }
@@ -5107,7 +5422,8 @@ func describe_range_binding(
         var walk = namespace_walk(template)
         var last = walk.last_positions.get(instance.symbol_field_name)
         if last {
-            var named = walk.classes.get_at(last)
+            crash walk.classes[last]
+            var named = walk.classes[last]
             instance.symbol_display_name = named.qualified_dotted
         }
     }
@@ -5186,7 +5502,8 @@ func template_member_type(
             var walk = namespace_walk(template)
             var first = walk.first_positions.get(member_name)
             assert first
-            var named = walk.classes.get_at(first)
+            crash walk.classes[first]
+            var named = walk.classes[first]
             return class_type_of(named)
         }
         var range_class = template_range_class(information, template)
@@ -5705,6 +6022,9 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
             "a class says it is a singleton with a 'singleton' line at the top of its file, not with a function: delete 'is_singleton()' and write 'singleton' as the file's first line",
         )
     }
+    if declaration.name == "get_at" and not type_shape.as_nullable(return_type) {
+        report_plain_get_at(declaration, return_type)
+    }
     function.line = declaration.line
     function.end_line = declaration.end_line
     if is_constructor {
@@ -5725,6 +6045,22 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         existing = existing + 1
     }
     information.declared_functions.append(function)
+}
+
+func report_plain_get_at(declaration: Syntax.Statements.FunctionDeclaration, return_type: Analysis.SpiteType) {
+    var saved_line = current_line
+    current_line = declaration.line
+    var answered = "nothing"
+    var wanted = "the item's type followed by '?'"
+    if not type_shape.is_void(return_type) {
+        var shown = type_display_name(return_type)
+        answered = "'{shown}'"
+        wanted = "'{shown}?'"
+    }
+    report(
+        "'get_at' answers {answered}, but it is what '[ ]' calls, and every '[ ]' answers a 'T?' that is narrowed before use: declare it to answer {wanted}, and answer null when nothing is at the index",
+    )
+    current_line = saved_line
 }
 
 func is_inline_supplied(function: Analysis.FunctionInfo): Boolean {
@@ -6434,8 +6770,7 @@ func bound_type_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
     var bound_type = bound_field_type
     var index = 2
     while index < named.path.count() {
-        crash bound_type
-        var segment = named.path.get_at(index)
+        var segment = named.path[index]
         var member_type = codegen_member_type(bound_type, segment)
         if not member_type {
             report(
@@ -6484,7 +6819,7 @@ func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? 
     }
     var index = 1
     while index < named.path.count() {
-        var segment = named.path.get_at(index)
+        var segment = named.path[index]
         var member_type = codegen_member_type(bound_type, segment)
         if not member_type {
             report(
@@ -7197,7 +7532,7 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         if is_enum_type(from) {
             return string_conversion(code, from)
         }
-        report_mismatch(from, to)
+        report_mismatch(from, to, code)
         return code
     }
     if type_shape.as_string(from) {
@@ -7225,10 +7560,10 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
             }
             return "{conversion}(0, {code})"
         }
-        report_mismatch(from, to)
+        report_mismatch(from, to, code)
         return code
     }
-    report_mismatch(from, to)
+    report_mismatch(from, to, code)
     return code
 }
 
@@ -7256,7 +7591,65 @@ func numeric_conversion(from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     return conversion_name
 }
 
-func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
+func null_opening(code: String, type_text: String): String {
+    if code.is_empty() or code != unproven_read_code {
+        return "this value may be null (it is {type_text})"
+    }
+    return "'{unproven_read_path}' may be missing, since every '[ ]' answers a 'T?' (this one is {type_text})"
+}
+
+func null_advice(code: String): String {
+    if code.is_empty() or code != unproven_read_code {
+        return "narrow it first with 'if value \{ }', 'assert value' or 'crash value'"
+    }
+    var path = unproven_read_path
+    return "narrow it first with 'crash {path}', 'assert {path}' or 'if {path} \{ }'{unproven_read_bound}"
+}
+
+func noted_read(
+    read: ExpressionResult,
+    index_expression: Syntax.Expressions.IndexExpression,
+    object_type: Analysis.SpiteType,
+): ExpressionResult {
+    var read_type = read.get_type()
+    if not type_shape.as_nullable(read_type) {
+        return read
+    }
+    var path = operand_text(index_expression)
+    if path.is_empty() {
+        return read
+    }
+    crash index_expression.object
+    crash index_expression.index
+    unproven_read_code = read.code
+    unproven_read_path = path
+    unproven_read_bound = ""
+    var object_text = operand_text(index_expression.object)
+    var bounded = false
+    if type_shape.as_list(object_type) {
+        bounded = true
+    }
+    var object_class_ref = type_shape.as_class_ref(object_type)
+    if object_class_ref {
+        var object_class = find_class_by_c_name(object_class_ref.c_name)
+        if object_class {
+            bounded = is_library_collection(object_class)
+        }
+    }
+    if not bounded or object_text.is_empty() {
+        return read
+    }
+    var literal = shape.as_integer_literal(index_expression.index)
+    if literal {
+        unproven_read_bound = ", or prove the count first, 'crash {object_text}.count() > {literal.value}'"
+        return read
+    }
+    var index_text = Syntax.SourcePrinter().source_expression(index_expression.index)
+    unproven_read_bound = ", or read it where a bound proves it, inside 'while {index_text} < {object_text}.count()'"
+    return read
+}
+
+func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType, code: String) {
     assert not (type_shape.is_void(from) or type_shape.is_void(to))
     var names = type_display_names(from, to)
     var first_name = names.first()
@@ -7266,9 +7659,7 @@ func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
     var found_name = with_article(first_name)
     var wanted_name = with_article(last_name)
     if type_shape.as_nullable(from) {
-        report(
-            "this value may be null (it is {found_name}), but {wanted_name} is needed: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
-        )
+        report("{null_opening(code, found_name)}, but {wanted_name} is needed: {null_advice(code)}")
         return
     }
     assert first_name != last_name or not reported_key_kinds(from, to)
@@ -7632,7 +8023,7 @@ func is_implicit_join(member: Syntax.Expressions.MemberExpression): Boolean {
     }
     var index = 0
     while index < implicit_joins.count() {
-        if implicit_joins.get_at(index) == member {
+        if implicit_joins[index] == member {
             return true
         }
         index = index + 1
@@ -8544,8 +8935,9 @@ func generate_binary(
             )
         }
         if binary.operator != 'logical_and' and binary.operator != 'logical_or' {
+            var shown_left_type = type_with_article(left_type)
             report(
-                "this value may be null (it is {type_with_article(left_type)}), so '{binary_operator_symbol(binary.operator)}' cannot use it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                "{null_opening(left.code, shown_left_type)}, so '{binary_operator_symbol(binary.operator)}' cannot use it yet: {null_advice(left.code)}",
             )
             return void_result()
         }
@@ -9662,8 +10054,8 @@ func framed_variadic(
     builder.add_user("{list_name} {framed}; {element_c_type} {framed}_items[{slots}]; int32_t {framed}_count = 0;")
     var lines = List<String>()
     var index = 0
-    while index < element_count {
-        var listed = elements.get_at(index)
+    while index < elements.count() {
+        var listed = elements[index]
         crash listed.value
         var element_code = coerce_for_store(listed.value, element, scope, class_information)
         lines.append("{framed}_items[{index}] = {element_code};")
@@ -11464,6 +11856,10 @@ func report_not_a_number_constant(information: Analysis.ClassInfo, name: String,
         constants = "pi(), tau(), euler_number(), infinity(), not_a_number(), largest() and smallest()"
     }
     var class_name = information.qualified_dotted
+    if name.starts_with("from_") and function {
+        report_cast_by_name(information, name)
+        return
+    }
     if function {
         report(
             "'{class_name}.{name}()' calls a function of a value on the class: the class {class_name} answers only its constants, {constants}, so call '{name}' on a {class_name}, like 'value.{name}()'",
@@ -11471,6 +11867,27 @@ func report_not_a_number_constant(information: Analysis.ClassInfo, name: String,
         return
     }
     report("the class {class_name} answers only its constants, {constants}, and '{name}' is not one of them")
+}
+
+func report_cast_by_name(information: Analysis.ClassInfo, name: String) {
+    var class_name = information.qualified_dotted
+    var name_length = name.length()
+    var source_words = name.slice(5, name_length)
+    var source_name = joined_case_spelling(source_words, true)
+    var target_words = snake_words(information.simple_name)
+    var assignment = "'var converted: {class_name} = value'"
+    var source = find_class_by_qualified(source_name)
+    if source {
+        if source.find_function("to_{target_words}") {
+            report(
+                "'{class_name}.{name}()' is not a function a program calls: a conversion belongs to the value converted (D275), so write 'value.to_{target_words}()', or cast by assignment: {assignment}",
+            )
+            return
+        }
+    }
+    report(
+        "'{class_name}.{name}()' is not a function a program calls: a conversion belongs to the value converted (D275), and {with_article(source_name)} has no 'to_{target_words}()' yet, so cast by assignment: {assignment}, or pass the value where {with_article(class_name)} is expected",
+    )
 }
 
 func forget_indices_if_shrinking(name: String, object_ast: Syntax.Expressions.Expression, scope: Scope) {
@@ -11657,7 +12074,7 @@ func generate_method_call(
         var object_type_name = type_with_article(object_result_type)
         if type_shape.as_nullable(object_result_type) {
             report(
-                "this value may be null (it is {object_type_name}), so '{member.name}' cannot be called on it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                "{null_opening(object_result.code, object_type_name)}, so '{member.name}' cannot be called on it yet: {null_advice(object_result.code)}",
             )
         } else {
             report("{object_type_name} has no function '{member.name}'")
@@ -11676,17 +12093,6 @@ func generate_method_call(
             member.name,
             object_result,
             object_ast,
-            scope,
-            class_information,
-        )
-    }
-    if vector_like and is_function_form(member.name, arguments_ast) and copies_items(target_class) {
-        return generate_copied_item_form(
-            target_class,
-            member.name,
-            object_result,
-            object_ast,
-            arguments_ast,
             scope,
             class_information,
         )
@@ -12153,6 +12559,7 @@ func generate_list_method(
         "set_at"
         "get_at"
         "remove_at"
+        "remove_swapping"
         "remove_first"
         "remove_last"
         "truncate"
@@ -12166,6 +12573,7 @@ func generate_list_method(
         "contains"
         "join"
         "copy"
+        "reserve"
     ]
     if public_names.contains(name) {
         var function = list_class_of(element).find_function(name)
@@ -12989,21 +13397,24 @@ func report_weak_across_threads() {
     var index = 0
     while index < parallel_site_keys.count() {
         var keys = List<String>()
-        var site_key = parallel_site_keys.get_at(index)
+        var site_key = parallel_site_keys[index]
         keys.append(site_key)
         var reached = call_effects.reached_classes(keys)
         var weak_name = weak_class_reached(reached)
         if not weak_name.is_empty() {
-            var site_place = parallel_site_places.get_at(index)
+            crash parallel_site_places[index]
+            crash parallel_site_texts[index]
+            var site_place = parallel_site_places[index]
             var place = site_place.split("\n")
-            current_path = place.get_at(0)
-            var line_text = place.get_at(1)
+            crash place.count() >= 4
+            current_path = place[0]
+            var line_text = place[1]
             var line_number = line_text.to_integer()
             crash line_number
             current_line = line_number
-            current_owner = place.get_at(2)
-            current_function = place.get_at(3)
-            var work_text = parallel_site_texts.get_at(index)
+            current_owner = place[2]
+            current_function = place[3]
+            var work_text = parallel_site_texts[index]
             report(
                 "'Parallel({work_text})' runs on another thread, and what it runs reaches '{weak_name}', which is a Weak or is held by one: a Weak is kept in one table that is not shared between threads, so a Weak and the objects it holds stay on the program's own thread. Hold the object itself in the work, or keep the Weak out of what the Parallel reaches",
             )
@@ -13477,7 +13888,7 @@ func unpassed_value_miss(vector_class: Analysis.ClassInfo, name: String): String
         return ""
     }
     var label = type_display_name(item_type)
-    return "'{name}' passes each item to a function, which {vector_kind(vector_class)} does only for plain values -- numbers, Boolean and enums, copied as they are read -- and {type_with_article(item_type)} is not one: keep the values in a 'List<{label}>' to pass them on"
+    return "'{name}' passes each item to a function, which {vector_kind(vector_class)} never does: keep the values in a 'List<{label}>' to pass them on"
 }
 
 func items_form_miss(items_class: Analysis.ClassInfo, name: String): String {
@@ -13739,7 +14150,7 @@ func fused_chain_source(
         before.append("    var sorted = List<{element_spelling}>()")
         before.append("    var keys = List<{member_spelling}>()")
         loop_lines.append(
-            "{indent}var key = {read}\n{indent}var position = keys.count()\n{indent}while position > 0 and keys.get_at(position - 1) > key \{\n{indent}    position = position - 1\n{indent}}\n{indent}keys.insert(position, key)\n{indent}sorted.insert(position, {current_name})",
+            "{indent}var key = {read}\n{indent}var previous = keys.count() - 1\n{indent}while previous >= 0 and previous < keys.count() and keys[previous] > key \{\n{indent}    previous = previous - 1\n{indent}}\n{indent}keys.insert(previous + 1, key)\n{indent}sorted.insert(previous + 1, {current_name})",
         )
         after.append("    return sorted")
     }
@@ -14054,38 +14465,6 @@ func generate_function_form(
         passed_arguments,
         parameter_types,
         function_return_type,
-        scope,
-        class_information,
-    )
-}
-
-func generate_copied_item_form(
-    vector_class: Analysis.ClassInfo,
-    name: String,
-    receiver: ExpressionResult,
-    receiver_ast: Syntax.Expressions.Expression,
-    arguments_ast: List<Syntax.Expressions.Expression>,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
-): ExpressionResult {
-    crash vector_class.codegen_types[0]
-    var element = vector_class.codegen_types[0]
-    var prefix = form_prefix(name)
-    if not template_with_prefix(vector_class, prefix) {
-        var label = type_display_name(element)
-        report(
-            "'{name}' takes a function on a List, and {vector_kind(vector_class)} of plain values takes one only in 'each', 'map', 'filter', 'any', 'all', 'count', 'sum' and 'remove_where': keep the values in a 'List<{label}>' to use '{name}'",
-        )
-        return void_result()
-    }
-    var form_argument = arguments_ast.first()
-    return generate_function_form(
-        vector_class,
-        element,
-        name,
-        receiver,
-        receiver_ast,
-        form_argument,
         scope,
         class_information,
     )
@@ -14941,9 +15320,10 @@ func refresh_functions_lists(): Boolean {
     var refreshed = false
     var index = 0
     while index < listed_function_classes.count() {
-        var information = listed_function_classes.get_at(index)
+        var information = listed_function_classes[index]
         var count = information.declared_functions.count()
-        if count != listed_function_counts.get_at(index) {
+        crash listed_function_counts[index]
+        if count != listed_function_counts[index] {
             listed_function_counts.set_at(index, count)
             var function_class = find_class_by_c_name("Spite_Function")
             var argument_class = find_class_by_c_name("Spite_Argument")
@@ -14953,7 +15333,8 @@ func refresh_functions_lists(): Boolean {
             var argument_class_type = class_type_of(argument_class)
             var arguments_list_name = ensure_list(argument_class_type)
             var listed = functions_list_text(information, list_name, arguments_list_name)
-            var position = listed_function_positions.get_at(index)
+            crash listed_function_positions[index]
+            var position = listed_function_positions[index]
             builder.replace_support(position, listed)
             refreshed = true
         }
@@ -15838,6 +16219,13 @@ func generate_index_read(
         var bound_place = field_place("self", class_information, bound_field_name)
         return ExpressionResult(bound_place, bound_field_type)
     }
+    var walked_read_path = operand_text(index_expression)
+    if not walked_read_paths.is_empty() and not walked_read_path.is_empty() {
+        var walked_read = cached_walked_read(walked_read_path)
+        if walked_read {
+            return walked_read
+        }
+    }
     var counted_read = counted_item(index_expression.object, index_expression.index, scope, class_information)
     if not counted_read.is_empty() and reads_counted_item(index_expression, scope) {
         var counted_type = counted_item_type(index_expression.object, scope)
@@ -15845,6 +16233,7 @@ func generate_index_read(
     }
     var read_path = operand_text(index_expression)
     var proven = not read_path.is_empty() and scope.is_path_narrowed(read_path)
+    var present = not read_path.is_empty() and scope.is_present_narrowed(read_path)
     var object_result = generate_expression(index_expression.object, scope, class_information)
     var arguments_ast = List<Syntax.Expressions.Expression>()
     arguments_ast.append(index_expression.index)
@@ -15852,35 +16241,28 @@ func generate_index_read(
     var object_list = type_shape.as_list(object_result_type)
     if object_list {
         var element = object_list.get_element()
-        if proven {
-            var list_function_name = list_function(element, "get_at")
-            var integer_spite_type = integer_type()
-            var single_types = one_type(integer_spite_type)
-            return generate_generic_call(
-                list_function_name,
-                object_result,
-                index_expression.object,
-                arguments_ast,
-                single_types,
-                element,
-                scope,
-                class_information,
-            )
-        }
-        var list_function_name = list_function(element, "find_at")
+        var list_class = list_class_of(element)
+        var reader = list_class.find_function("get_at")
+        crash reader
         var integer_spite_type = integer_type()
         var single_types = one_type(integer_spite_type)
-        var nullable_type = nullable_type_of(element)
-        return generate_generic_call(
-            list_function_name,
+        var reader_type = element
+        var declared_reader_type = reader.get_return_type()
+        if type_shape.as_nullable(declared_reader_type) {
+            reader_type = nullable_type_of(element)
+        }
+        var read = generate_generic_call(
+            reader.c_name,
             object_result,
             index_expression.object,
             arguments_ast,
             single_types,
-            nullable_type,
+            reader_type,
             scope,
             class_information,
         )
+        var list_read = proven_read(read, element, proven, present, read_path)
+        return noted_read(list_read, index_expression, object_result_type)
     }
     var indexed_class_ref = type_shape.as_class_ref(object_result_type)
     if indexed_class_ref {
@@ -15902,8 +16284,13 @@ func generate_index_read(
                 )
                 got.owning_override = true
                 lend_item(got, indexed_class, "get_at", index_expression.object)
-                var present = not read_path.is_empty() and scope.is_present_narrowed(read_path)
-                return proven_item(got, present)
+                if is_library_collection(indexed_class) {
+                    crash indexed_class.codegen_types[0]
+                    var collection_read = proven_read(got, indexed_class.codegen_types[0], proven, present, read_path)
+                    return noted_read(collection_read, index_expression, object_result_type)
+                }
+                var class_read = proven_item(got, present)
+                return noted_read(class_read, index_expression, object_result_type)
             }
             report("indexing a '{indexed_class.simple_name}' needs it to define 'get_at(index)'")
             return void_result()
@@ -15931,7 +16318,7 @@ func generate_index_read(
             class_information,
         )
         if not proven or not scope.is_present_narrowed(read_path) {
-            return lookup
+            return noted_read(lookup, index_expression, object_result_type)
         }
         var lookup_temporary = next_temporary()
         nullable_type = nullable_type_of(value_type)
@@ -15957,6 +16344,71 @@ func generate_index_read(
         )
     }
     return void_result()
+}
+
+func proven_read(
+    got: ExpressionResult,
+    element: Analysis.SpiteType,
+    proven: Boolean,
+    present: Boolean,
+    read_path: String,
+): ExpressionResult {
+    if type_shape.as_nullable(element) or present or not proven {
+        return proven_item(got, present)
+    }
+    return bounded_item(got, read_path)
+}
+
+func ensure_index_check() {
+    assert not index_check_written
+    index_check_written = true
+    builder.add_prototype(
+        "static void spite_outside_list(const char* read, const char* where) __attribute__((noreturn, cold));",
+    )
+    builder.add_support(
+        "static void spite_outside_list(const char* read, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' is outside its list: a bound proves only the top of an index, and this one is below 0 or the list changed, at %s\\n\", read, where);\nexit(1);\n}",
+    )
+}
+
+func bounded_item(got: ExpressionResult, read_path: String): ExpressionResult {
+    var got_type = got.get_type()
+    var nullable = type_shape.as_nullable(got_type)
+    if not nullable {
+        return got
+    }
+    var inner = nullable.get_inner()
+    ensure_index_check()
+    var temporary = next_temporary()
+    var where = escape_c_string("{current_path}:{current_line} in {current_owner}.{current_function}")
+    var read = escape_c_string(read_path)
+    var declaration = "{c_type_name(got_type)} {temporary} = {got.code};"
+    var halt = "spite_outside_list(\"{read}\", \"{where}\");"
+    var code = "(\{ {declaration} if (__builtin_expect(!{temporary}.has_value, 0)) {halt} {temporary}.value; })"
+    if type_is_reference(inner) {
+        code = "(\{ {declaration} if (__builtin_expect(!({present_code(temporary, inner)}), 0)) {halt} {temporary}; })"
+    }
+    var bounded = ExpressionResult(code, inner)
+    bounded.owning_override = got.owning_override
+    bounded.borrowed_from = got.borrowed_from
+    return bounded
+}
+
+func reaches_list_storage(): Boolean {
+    return current_owner == "BinaryOutput" or current_owner == "BinaryReader"
+}
+
+func library_list_field(list_type: Analysis.SpiteType, name: String): Analysis.FieldInfo? {
+    assert current_path.starts_with("library/") or reaches_list_storage()
+    var listed = type_shape.as_list(list_type)
+    assert listed
+    var element = listed.get_element()
+    return list_class_of(element).find_field(name)
+}
+
+func is_library_collection(information: Analysis.ClassInfo): Boolean {
+    var named = information.qualified_dotted
+    var collection = named == "Vector" or named == "Items"
+    return collection and not information.codegen_types.is_empty()
 }
 
 func proven_item(got: ExpressionResult, proven: Boolean): ExpressionResult {
@@ -17862,6 +18314,9 @@ func generate_call(
                 return ExpressionResult("false", answer_type)
             }
         }
+        if member.name == "returned_text" {
+            return folded_returned_text(call, scope, class_information)
+        }
         if member.name == "source_folder" and call.arguments.is_empty() {
             var folded_folder = folded_source_folder(member, scope, class_information)
             if folded_folder {
@@ -18229,6 +18684,11 @@ func generate_member_read_raw(
             return string_field
         }
     }
+    var list_field = library_list_field(object_result_type, member.name)
+    if list_field {
+        var list_field_type = list_field.get_type()
+        return ExpressionResult("({object_result.code})->{c_value_name(member.name)}", list_field_type)
+    }
     var object_class_ref = type_shape.as_class_ref(object_result_type)
     if not object_class_ref {
         var held = library_function_value(member, object_result, scope, class_information)
@@ -18237,8 +18697,9 @@ func generate_member_read_raw(
         }
         switch object_result_type {
             Analysis.Types.NullableType: {
+                var shown_read_type = type_with_article(object_result_type)
                 report(
-                    "this value may be null (it is {type_with_article(object_result_type)}), so '{member.name}' cannot be read from it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                    "{null_opening(object_result.code, shown_read_type)}, so '{member.name}' cannot be read from it yet: {null_advice(object_result.code)}",
                 )
             }
             Analysis.Types.VoidType: report("'{member.name}' cannot be read from this value")
@@ -19230,14 +19691,6 @@ func plain_item_type(item_type: Analysis.SpiteType): Boolean {
     return type_shape.as_scalar(item_type) or is_enum_type(item_type)
 }
 
-func copies_items(information: Analysis.ClassInfo): Boolean {
-    var vector_like = information.qualified_dotted == "Vector" or is_items_class(information)
-    if not vector_like or information.codegen_types.count() <= 0 {
-        return false
-    }
-    return plain_item_type(information.codegen_types[0])
-}
-
 func is_items_class(information: Analysis.ClassInfo): Boolean {
     return information.qualified_dotted == "Items" and not information.codegen_types.is_empty()
 }
@@ -19487,7 +19940,7 @@ func lent_return_source(
     }
     var storage_type = storage_field.get_type()
     var storage_class = class_behind(storage_type)
-    if not storage_class or not holds_items_inline(storage_class) or copies_items(storage_class) {
+    if not storage_class or not holds_items_inline(storage_class) {
         return ""
     }
     var source = "{singleton_display_name(owner)}().{last}"
@@ -19847,9 +20300,11 @@ func lends_row(
     }
     var lent_index = 0
     while lent_index < lent_names.count() {
-        var lent_value = lent_values.get_at(lent_index)
-        var lent_window = lent_keys.get_at(lent_index)
-        var lent_name = lent_names.get_at(lent_index)
+        crash lent_values[lent_index]
+        crash lent_keys[lent_index]
+        var lent_value = lent_values[lent_index]
+        var lent_window = lent_keys[lent_index]
+        var lent_name = lent_names[lent_index]
         var lent_code = lend_site(lent_value, lent_window, scope, class_information)
         builder.add_user("{storage}.{c_value_name(lent_name)} = {lent_code};")
         lent_index = lent_index + 1
@@ -19890,6 +20345,7 @@ func lends_walked_row(
     walk_refused = ""
     walk_refused_attribute = ""
     walk_partial = null
+    walked_checks.clear()
     var literal = walked_row_literal(declaration, scope, class_information)
     if refused_row(scope, class_information) {
         report(
@@ -19898,7 +20354,7 @@ func lends_walked_row(
         var refused_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
         scope.declare(declaration.name, refused_type)
         scope.check_last(current_line)
-        var filling_statement = borrow_statements.get_at(borrow_index + 1)
+        var filling_statement = borrow_statements[borrow_index + 1]
         var mentioned = List<String>()
         collect_statement_names(filling_statement, mentioned)
         mentioned.each(scope.mark_used)
@@ -19908,6 +20364,7 @@ func lends_walked_row(
     if not literal {
         return false
     }
+    emit_walked_checks(scope, class_information)
     var value: Syntax.Expressions.Expression = literal
     var row_declaration = Syntax.Statements.VariableDeclaration(declaration.name, declaration.type_reference, value)
     row_declaration.line = declaration.line
@@ -19916,6 +20373,7 @@ func lends_walked_row(
     borrow_index = borrow_index + 1
     walked_row_mixing = true
     var lent = lends_row(row_declaration, scope, class_information)
+    forget_walked_reads()
     walked_row_mixing = false
     borrow_index = saved_index
     walked_row_filled = lent
@@ -20281,21 +20739,29 @@ func lent_element_read(information: Analysis.ClassInfo, function: Analysis.Funct
     crash returned
     var index_ast = lent_element_index_of(returned)
     var index_code = lent_element_index_code(index_ast, function)
-    var get_at = list_function(element, "get_at")
     var list_code = field_place("self", information, field.name)
     var failed = lent_element_range_failed(information, function)
     var item = list_item_code(element, list_code, index_code)
-    return "(({failed}) ? {get_at}({list_code}, {index_code}) : {item})"
+    ensure_index_check()
+    var printer = Syntax.SourcePrinter()
+    var returned_text = printer.source_expression(returned)
+    var read = escape_c_string(returned_text)
+    var where = escape_c_string(
+        "{function.source_path}:{function.line} in {information.qualified_dotted}.{function.name}",
+    )
+    return "((__builtin_expect({failed}, 0)) ? (spite_outside_list(\"{read}\", \"{where}\"), {item}) : {item})"
 }
 
 func finish_lend_sites() {
     var reached = call_effects.thread_reached_classes()
     var index = 0
     while index < lend_site_owners.count() {
-        var owner = lend_site_owners.get_at(index)
+        var owner = lend_site_owners[index]
         var name = owner.c_name
-        var releasing = lend_site_releases.get_at(index)
-        var keys_text = lend_site_keys.get_at(index)
+        crash lend_site_releases[index]
+        crash lend_site_keys[index]
+        var releasing = lend_site_releases[index]
+        var keys_text = lend_site_keys[index]
         var threaded = parallel_used and (reached.has(owner.simple_name) or called_implicitly(owner))
         var lent_read = "#define spite_lend_{index}_read(lent, counted, receiver, index) lent(receiver, index)"
         if not threaded {
@@ -20471,6 +20937,7 @@ func lends_spread_arguments(
     writing_lent_arguments = true
     generate_block(statements, scope, class_information, function_information)
     writing_lent_arguments = false
+    forget_walked_reads()
     lent_plural_text = ""
     builder.add_user("}")
     return true
@@ -20536,15 +21003,49 @@ func written_lent_argument(
 ): Boolean? {
     var argument_type = syntax_type_for(parameter_type)
     assert argument_type
-    var folded = folded_template_body(body, scope, class_information)
-    assert folded
+    var written_body = folded_template_body(body, scope, class_information)
+    assert written_body
     var attribute = Syntax.Statements.FieldDeclaration(parameter.name, argument_type)
+    var folded = walk_lent_checks(written_body, attribute, walk, line, statements)
     if folded.count() == 1 {
         return written_lent_value(folded[0], attribute, walk, line, statements, names, scope, class_information)
     }
     assert folded.count() == 3
     assert written_lent_row(folded, attribute, walk, line, statements, names, scope, class_information)
     return true
+}
+
+func walk_lent_checks(
+    folded: List<Syntax.Statements.Statement>,
+    attribute: Syntax.Statements.FieldDeclaration,
+    walk: RowWalk,
+    line: Integer,
+    statements: List<Syntax.Statements.Statement>,
+): List<Syntax.Statements.Statement> {
+    var rest = List<Syntax.Statements.Statement>()
+    var printer = Syntax.SourcePrinter()
+    var index = 0
+    while index < folded.count() {
+        var check = shape.as_assert_statement(folded[index])
+        var walked: Syntax.Expressions.Expression? = null
+        if check and rest.is_empty() {
+            if check.is_crash and check.value {
+                walked = walked_value(check.value, attribute, walk)
+            }
+        }
+        if walked {
+            var walked_check = Syntax.Statements.AssertStatement(walked)
+            walked_check.is_crash = true
+            walked_check.condition_text = printer.source_expression(walked)
+            walked_check.line = line
+            walked_check_texts.append(walked_check.condition_text)
+            statements.append(walked_check)
+        } else {
+            rest.append(folded[index])
+        }
+        index = index + 1
+    }
+    return rest
 }
 
 func written_lent_value(
@@ -20898,11 +21399,11 @@ func walked_row_literal(
     var statements = borrow_statements
     var next_index = borrow_index + 1
     assert next_index < statements.count()
-    var declared_statement = statements.get_at(borrow_index)
+    var declared_statement = statements[borrow_index]
     var here = shape.as_variable_declaration(declared_statement)
     assert here
     assert here.name == declaration.name and here.line == declaration.line
-    var next_statement = statements.get_at(next_index)
+    var next_statement = statements[next_index]
     var filling = shape.as_expression_statement(next_statement)
     assert filling
     crash filling.value
@@ -20916,7 +21417,6 @@ func walked_row_literal(
     var range_shape = template_range_shape(class_information, template)
     assert range_shape
     var template_declaration = template.get_declaration()
-    assert template_declaration.body.count() == 1
     var parameters = template_declaration.parameters.map_name()
     var symbol_position = name_position(parameters, template.symbol_parameter)
     assert symbol_position < parameters.count()
@@ -20927,22 +21427,22 @@ func walked_row_literal(
     var plain = 0
     var plain_argument = true
     while plain_argument and plain < call.arguments.count() {
-        var argument = call.arguments.get_at(plain)
+        var argument = call.arguments[plain]
         plain_argument = walk_argument_is_plain(argument, declaration.name, plain == row_position)
         plain = plain + 1
     }
     assert plain_argument
-    var row_parameter = parameters.get_at(row_position)
-    var filling_statement = template_declaration.body.get_at(0)
+    var row_parameter = parameters[row_position]
+    var filling = template_declaration.body
     var walk = RowWalk(template.symbol_parameter, row_parameter, parameters, call.arguments)
     var attributes = range_shape.shape_fields.filter_is_attribute()
     var fields = List<Syntax.Expressions.ObjectField>()
     var index = 0
     while index < attributes.count() {
-        var attribute = attributes.get_at(index)
+        var attribute = attributes[index]
         var member_type = template_member_type(class_information, template, attribute.name)
         assert member_type
-        var filled = walked_field(filling_statement, attribute, index, member_type, walk, scope, class_information)
+        var filled = walked_field(filling, attribute, index, member_type, walk, scope, class_information)
         assert filled
         var field = Syntax.Expressions.ObjectField(attribute.name, filled)
         fields.append(field)
@@ -20957,7 +21457,7 @@ func walked_row_literal(
 }
 
 func walked_field(
-    filling_statement: Syntax.Statements.Statement,
+    filling: List<Syntax.Statements.Statement>,
     attribute: Syntax.Statements.FieldDeclaration,
     place: Integer,
     member_type: Analysis.SpiteType,
@@ -20974,9 +21474,13 @@ func walked_field(
     bound_field_index = place
     bound_field_type = member_type
     var filled: Syntax.Expressions.Expression? = null
-    var assigned = walked_assignment(filling_statement, scope, class_information)
-    if assigned {
-        filled = walked_assigned_value(assigned, attribute, walk)
+    var folded = folded_template_body(filling, scope, class_information)
+    if folded {
+        var assigned = walked_assignment(folded)
+        if assigned {
+            filled = walked_assigned_value(assigned, attribute, walk)
+            walk_checks(folded, attribute, walk)
+        }
     }
     if not walk_refused.is_empty() and walk_refused_attribute.is_empty() {
         walk_refused_attribute = attribute.name
@@ -20988,27 +21492,132 @@ func walked_field(
     return filled
 }
 
-func walked_assignment(
-    statement: Syntax.Statements.Statement,
+func walked_assignment(folded: List<Syntax.Statements.Statement>): Syntax.Statements.AssignmentStatement? {
+    var last = folded.last()
+    assert last
+    var index = 0
+    while index < folded.count() - 1 {
+        var check = shape.as_assert_statement(folded[index])
+        assert check
+        assert check.is_crash
+        index = index + 1
+    }
+    return shape.as_assignment_statement(last)
+}
+
+func walk_checks(
+    folded: List<Syntax.Statements.Statement>,
+    attribute: Syntax.Statements.FieldDeclaration,
+    walk: RowWalk,
+) {
+    var index = 0
+    while index < folded.count() - 1 {
+        var check = shape.as_assert_statement(folded[index])
+        crash check
+        crash check.value
+        var walked = walked_value(check.value, attribute, walk)
+        crash walked
+        walked_checks.append(walked)
+        index = index + 1
+    }
+}
+
+func emit_walked_checks(scope: Scope, class_information: Analysis.ClassInfo) {
+    var nothing = void_type()
+    var no_parameters = List<Analysis.ParamInfo>()
+    var no_body = List<Syntax.Statements.Statement>()
+    var walking = Analysis.FunctionInfo(current_function, "", no_parameters, nothing, no_body, false)
+    var printer = Syntax.SourcePrinter()
+    var index = 0
+    while index < walked_checks.count() {
+        var check = Syntax.Statements.AssertStatement(walked_checks[index])
+        check.is_crash = true
+        check.condition_text = printer.source_expression(walked_checks[index])
+        check.line = current_line
+        if not emit_cached_check(check, scope, class_information, walking) {
+            generate_assert_statement(check, scope, class_information, walking)
+        }
+        index = index + 1
+    }
+    walked_checks.clear()
+}
+
+func emit_cached_check(
+    check: Syntax.Statements.AssertStatement,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): Syntax.Statements.AssignmentStatement? {
-    var assigned = shape.as_assignment_statement(statement)
-    if assigned {
-        return assigned
+    function_information: Analysis.FunctionInfo,
+): Boolean {
+    crash check.value and check.is_crash
+    var checked = check.value
+    var path = operand_text(checked)
+    crash not path.is_empty() and shape.as_index(checked)
+    var saved_counter = temporary_counter
+    var read = generate_expression(checked, scope, class_information)
+    var read_type = read.get_type()
+    var nullable = type_shape.as_nullable(read_type)
+    if not nullable {
+        rewind_temporaries(saved_counter)
+        return false
     }
-    var chosen = shape.as_if_statement(statement)
-    assert chosen
-    crash chosen.condition
-    var decided = constant_condition(chosen.condition, scope, class_information)
-    if decided == true {
-        assert chosen.then_branch.count() == 1
-        var taken = chosen.then_branch.get_at(0)
-        return walked_assignment(taken, scope, class_information)
+    var owned = owns(read, checked)
+    var inner = nullable.get_inner()
+    var temporary = next_temporary()
+    builder.add_user("{c_type_name(read_type)} {temporary} = {read.code};")
+    var cached_code = temporary
+    var present = "{temporary}.has_value"
+    if type_is_reference(inner) {
+        present = present_code(temporary, inner)
+    } else {
+        cached_code = "{temporary}.value"
     }
-    assert decided == false and chosen.else_branch.count() == 1
-    var otherwise = chosen.else_branch.get_at(0)
-    return walked_assignment(otherwise, scope, class_information)
+    record_site(check, "crash", function_information.name, scope, class_information)
+    builder.add_user("if (!({present})) \{")
+    emit_check_failure(check, null, false, scope, class_information, function_information)
+    scope.narrow_path(path)
+    var cached = ExpressionResult(cached_code, inner)
+    cached.owning_override = false
+    cached.borrowed_from = read.borrowed_from
+    walked_read_paths.append(path)
+    walked_read_results.append(cached)
+    walked_read_owned.append(owned)
+    return true
+}
+
+func cached_walked_read(path: String): ExpressionResult? {
+    assert not path.is_empty()
+    var index = walked_read_paths.count() - 1
+    while index >= 0 {
+        if walked_read_paths[index] == path {
+            crash walked_read_results[index]
+            var cached = walked_read_results[index]
+            var cached_type = cached.get_type()
+            var copied = ExpressionResult(cached.code, cached_type)
+            copied.owning_override = false
+            copied.borrowed_from = cached.borrowed_from
+            return copied
+        }
+        index = index - 1
+    }
+    return null
+}
+
+func forget_walked_reads() {
+    var index = 0
+    while index < walked_read_results.count() {
+        crash index < walked_read_owned.count()
+        if walked_read_owned[index] == true {
+            var unused = walked_read_results[index]
+            var unused_type = unused.get_type()
+            var released = release_statement(unused_type, unused.code)
+            builder.add_user(released)
+        }
+        index = index + 1
+    }
+    walked_read_owned.clear()
+    walked_check_texts.clear()
+    walked_read_paths.clear()
+    walked_read_results.clear()
 }
 
 func walked_assigned_value(
@@ -21027,7 +21636,7 @@ func walked_assigned_value(
 func walk_template(information: Analysis.ClassInfo, call_name: String): Analysis.TemplateInfo? {
     var index = 0
     while index < information.templates.count() {
-        var template = information.templates.get_at(index)
+        var template = information.templates[index]
         if template.range and not template.passed and template.member_name_for(call_name) == "{template.symbol_parameter}s" {
             return template
         }
@@ -21040,7 +21649,7 @@ func row_argument_position(arguments: List<Syntax.Expressions.Expression>, row_n
     var position = 0
     var found = false
     while not found and position < arguments.count() {
-        var argument = arguments.get_at(position)
+        var argument = arguments[position]
         found = is_identifier_named(argument, row_name)
         position = position + 1
     }
@@ -21052,7 +21661,7 @@ func row_argument_position(arguments: List<Syntax.Expressions.Expression>, row_n
 
 func name_position(names: List<String>, name: String): Integer {
     var position = 0
-    while position < names.count() and names.get_at(position) != name {
+    while position < names.count() and names[position] != name {
         position = position + 1
     }
     return position
@@ -21173,7 +21782,7 @@ func walked_arguments(
     var walked_arguments_list = List<Syntax.Expressions.Expression>()
     var index = 0
     while index < arguments.count() {
-        var written = arguments.get_at(index)
+        var written = arguments[index]
         var argument = walked_value(written, attribute, walk)
         assert argument
         walked_arguments_list.append(argument)
@@ -21193,7 +21802,7 @@ func walked_generic_call(
     var type_arguments = List<Syntax.Types.GenericArgument>()
     var index = 0
     while index < generic_call.type_arguments.count() {
-        var type_argument = generic_call.type_arguments.get_at(index)
+        var type_argument = generic_call.type_arguments[index]
         var walked_type = walked_type_argument(type_argument, walk.symbol_parameter)
         if walked_type {
             var walked_reference = qualified_type_reference(bound_field_type, attribute.type_reference)
@@ -23030,11 +23639,14 @@ func freed_from_frame(expression_statement: Syntax.Statements.ExpressionStatemen
     crash expression_statement.value
     var index = placed_names.count() - 1
     while index >= 0 {
-        var receiver_name = placed_receiver_names.get_at(index)
+        crash placed_receiver_names[index]
+        crash placed_frames[index]
+        crash placed_receiver_codes[index]
+        var receiver_name = placed_receiver_names[index]
         var freed = placement.memory_argument(expression_statement.value, receiver_name, "free")
-        if freed == placed_names.get_at(index) {
-            var frame = placed_frames.get_at(index)
-            var receiver_code = placed_receiver_codes.get_at(index)
+        if freed == placed_names[index] {
+            var frame = placed_frames[index]
+            var receiver_code = placed_receiver_codes[index]
             scope.mark_used(freed)
             var freed_code = c_value_name(freed)
             builder.add_user(
@@ -23529,11 +24141,19 @@ func generate_store(
             report("cannot assign to '{member.name}' through this value")
             return
         }
+        var written_field = library_list_field(object_result_type, member.name)
+        if written_field {
+            var written_field_type = written_field.get_type()
+            var stored = coerce_for_store(assignment.value, written_field_type, scope, class_information)
+            builder.add_user("({object_result.code})->{c_value_name(member.name)} = {stored};")
+            return
+        }
         var object_class_ref = type_shape.as_class_ref(object_result_type)
         if not object_class_ref {
             if type_shape.as_nullable(object_result_type) {
+                var shown_store_type = type_with_article(object_result_type)
                 report(
-                    "this value may be null (it is {type_with_article(object_result_type)}), so '{member.name}' cannot be assigned through it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                    "{null_opening(object_result.code, shown_store_type)}, so '{member.name}' cannot be assigned through it yet: {null_advice(object_result.code)}",
                 )
             } else if not has_error {
                 report("cannot assign to '{member.name}' through {type_with_article(object_result_type)}")
@@ -23888,10 +24508,10 @@ func report_template_walk(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ) {
-    var statement = statements.get_at(position)
+    var statement = statements[position]
     var loop = shape.as_while_statement(statement)
     assert loop
-    var before = statements.get_at(position - 1)
+    var before = statements[position - 1]
     var counter_declaration = shape.as_variable_declaration(before)
     assert counter_declaration
     var counter = counter_declaration.name
@@ -24029,7 +24649,7 @@ func start_before(
 ): Syntax.Expressions.Expression? {
     var index = position - 2
     while index >= 0 {
-        var statement = statements.get_at(index)
+        var statement = statements[index]
         var declared = shape.as_variable_declaration(statement)
         if declared and declared.name == name {
             return declared.value
@@ -28033,6 +28653,9 @@ func earlier_proof(value: Syntax.Expressions.Expression, condition: ExpressionRe
     if path.is_empty() {
         return ""
     }
+    if not scope.proven_inside_loop(path) {
+        return ""
+    }
     var proof = scope.proof_of(path)
     if proof.is_empty() {
         return "an earlier check"
@@ -28102,6 +28725,19 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
     }
 }
 
+func narrow_literal_indices(declaration: Syntax.Statements.VariableDeclaration, scope: Scope) {
+    assert declaration.value
+    var literal = shape.as_list_literal(declaration.value)
+    assert literal
+    var printer = Syntax.SourcePrinter()
+    var written = "var {declaration.name} = {printer.source_expression(declaration.value)}"
+    var index = 0
+    while index < literal.elements.count() and index < 64 {
+        scope.narrow_bound_path("{declaration.name}[{index}]", written)
+        index = index + 1
+    }
+}
+
 func narrow_not_empty(negated: Syntax.Expressions.UnaryExpression, scope: Scope) {
     assert negated.operator == 'logical_not'
     crash negated.operand
@@ -28137,12 +28773,89 @@ func narrow_counted_element(condition: Syntax.Expressions.Expression, scope: Sco
     crash binary.left
     crash binary.right
     assert binary.operator == 'less'
-    var counter = operand_text(binary.left)
     var counted = counted_list_text(binary.right)
-    assert not counter.is_empty()
+    if counted.is_empty() {
+        counted = counted_alias(binary.right, scope)
+    }
     assert not counted.is_empty()
     var condition_text = Syntax.SourcePrinter().source_expression(condition)
+    var stride = shape.as_binary(binary.left)
+    if stride {
+        var reach = stride_reach(stride)
+        if reach >= 0 {
+            crash stride.left
+            narrow_stride(counted, stride.left, reach, condition_text, scope)
+            return
+        }
+    }
+    var counter = index_key_text(binary.left)
+    assert not counter.is_empty()
     scope.narrow_bound_path("{counted}[{counter}]", condition_text)
+}
+
+func stride_reach(stride: Syntax.Expressions.BinaryExpression): Integer {
+    if stride.operator != 'add' or not stride.left or not stride.right {
+        return -1
+    }
+    var reach = shape.as_integer_literal(stride.right)
+    if not reach {
+        return -1
+    }
+    if reach.value < 1 or reach.value > 63 {
+        return -1
+    }
+    var reach_value: Integer = reach.value
+    return reach_value
+}
+
+func narrow_stride(
+    counted: String,
+    base: Syntax.Expressions.Expression,
+    reach: Integer,
+    condition_text: String,
+    scope: Scope,
+) {
+    var base_text = index_key_text(base)
+    assert not base_text.is_empty()
+    scope.narrow_bound_path("{counted}[{base_text}]", condition_text)
+    var offset = 1
+    while offset <= reach {
+        var step: Syntax.Expressions.Expression = Syntax.Expressions.IntegerLiteral(offset)
+        var stepped: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression('add', base, step)
+        var key = index_key_text(stepped)
+        if not key.is_empty() {
+            scope.narrow_bound_path("{counted}[{key}]", condition_text)
+        }
+        offset = offset + 1
+    }
+}
+
+func counted_alias(bound: Syntax.Expressions.Expression, scope: Scope): String {
+    var named = shape.as_identifier(bound)
+    if not named {
+        return ""
+    }
+    var suffix = "[< {named.name}]"
+    var paths = scope.visible_narrowed_paths()
+    var index = 0
+    while index < paths.count() {
+        var path = paths[index]
+        if path.ends_with(suffix) {
+            var kept = path.length() - suffix.length()
+            return path.slice(0, kept)
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func note_count_alias(declaration: Syntax.Statements.VariableDeclaration, scope: Scope) {
+    assert declaration.value
+    var counted = counted_list_text(declaration.value)
+    assert not counted.is_empty()
+    var printer = Syntax.SourcePrinter()
+    var written = "var {declaration.name} = {printer.source_expression(declaration.value)}"
+    scope.narrow_bound_path("{counted}[< {declaration.name}]", written)
 }
 
 func counted_list_text(expression: Syntax.Expressions.Expression): String {
@@ -28549,10 +29262,12 @@ func finish_coarse_loops() {
     settle_wait_facts()
     var index = 0
     while index < coarse_site_owners.count() {
-        var owner = coarse_site_owners.get_at(index)
-        var called_text = coarse_site_calls.get_at(index)
+        var owner = coarse_site_owners[index]
+        crash coarse_site_calls[index]
+        crash coarse_site_keys[index]
+        var called_text = coarse_site_calls[index]
         var called = called_text.split(" ")
-        var keys_text = coarse_site_keys.get_at(index)
+        var keys_text = coarse_site_keys[index]
         var keys = keys_text.split(" ")
         var holds = coarse_holds(owner, called, keys)
         var reading = read_guarded_names.contains(owner) and all_reading(called)
@@ -28623,8 +29338,10 @@ func coarse_holds(owner: String, called: List<String>, keys: List<String>): Bool
 }
 
 func call_unguarded_between(site: Integer, called: List<String>) {
-    var line_index = coarse_site_starts.get_at(site)
-    var end = coarse_site_ends.get_at(site)
+    crash coarse_site_starts[site]
+    crash coarse_site_ends[site]
+    var line_index = coarse_site_starts[site]
+    var end = coarse_site_ends[site]
     var unguarded = with_wrapped_copies(called)
     while line_index < end {
         var line = builder.user_at(line_index)
@@ -28775,19 +29492,10 @@ func counted_receiver(expression: Syntax.Expressions.Expression): String {
 
 func counted_element_type(list_type: Analysis.SpiteType): Analysis.SpiteType? {
     var listed = type_shape.as_list(list_type)
-    if listed {
-        var element = listed.get_element()
-        assert type_shape.as_scalar(element)
-        return element
-    }
-    var class_reference = type_shape.as_class_ref(list_type)
-    assert class_reference
-    var owner = find_class_by_c_name(class_reference.c_name)
-    assert owner
-    assert owner.qualified_dotted == "Vector" and owner.codegen_types.count() == 1
-    var item = owner.codegen_types[0]
-    assert type_shape.as_scalar(item)
-    return item
+    assert listed
+    var element = listed.get_element()
+    assert type_shape.as_scalar(element)
+    return element
 }
 
 func holds_counted_values(name: String, scope: Scope): Boolean {
@@ -29225,7 +29933,7 @@ func is_counted_call(
     }
     var receiver = shape.as_identifier(member.object)
     if receiver and holds_counted_values(receiver.name, scope) {
-        var reads = ["count", "is_empty", "get_at", "find_at", "set_at", "first", "last", "contains"]
+        var reads = ["count", "is_empty", "get_at", "set_at", "first", "last", "contains"]
         return reads.contains(member.name)
     }
     return maths.is_member(member.name) and is_counted_plain(member.object, plain_names, scope, class_information)
@@ -29400,7 +30108,7 @@ func collect_counted_optional(
         Syntax.Expressions.IndexExpression: {
             crash expression.object
             crash expression.index
-            if holds_vector_values(expression.object, scope) {
+            if indexes_counted_values(expression.object, scope) {
                 add_counted_other(listed, counter, expression.object, expression.index, scope, others, other_names)
             }
             collect_counted_optional(listed, counter, expression.index, scope, others, other_names)
@@ -29434,16 +30142,9 @@ func collect_counted_call(
     add_counted_other(listed, counter, member.object, first_argument, scope, others, other_names)
 }
 
-func holds_vector_values(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
+func indexes_counted_values(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
     var named = shape.as_identifier(expression)
     if not named {
-        return false
-    }
-    var list_type = scope.written_type(named.name)
-    if not list_type {
-        return false
-    }
-    if type_shape.as_list(list_type) {
         return false
     }
     return holds_counted_values(named.name, scope)
@@ -29490,10 +30191,6 @@ func counted_item(
 }
 
 func reads_counted_item(index_expression: Syntax.Expressions.IndexExpression, scope: Scope): Boolean {
-    crash index_expression.object
-    if holds_vector_values(index_expression.object, scope) {
-        return true
-    }
     var read_path = operand_text(index_expression)
     return scope.is_path_narrowed(read_path)
 }
@@ -29515,15 +30212,12 @@ func counted_method(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult? {
-    assert member.name == "get_at" or member.name == "set_at"
+    assert member.name == "set_at"
     var first_argument = arguments_ast.first()
     assert first_argument
     var item = counted_item(object_ast, first_argument, scope, class_information)
     assert not item.is_empty()
     var element = counted_item_type(object_ast, scope)
-    if member.name == "get_at" {
-        return ExpressionResult(item, element)
-    }
     assert arguments_ast.count() == 2
     var stored = coerce_for_store(arguments_ast[1], element, scope, class_information)
     var nothing = void_type()
@@ -29615,7 +30309,26 @@ func operand_text(expression: Syntax.Expressions.Expression): String {
             }
         }
     }
+    var made = shape.as_generic_call(expression)
+    if made {
+        if is_generic_singleton_call(made) {
+            var printer = Syntax.SourcePrinter()
+            return printer.source_expression(expression)
+        }
+    }
     return ""
+}
+
+func is_generic_singleton_call(construction: Syntax.Expressions.GenericCallExpression): Boolean {
+    if not construction.arguments.is_empty() or construction.names_class {
+        return false
+    }
+    crash construction.callee
+    var template = try_resolve_static_path(construction.callee, current_owner)
+    if not template {
+        return false
+    }
+    return template.is_generic_template and template.is_singleton
 }
 
 func emit_crash_parts(scope: Scope, class_information: Analysis.ClassInfo) {
@@ -29811,11 +30524,14 @@ func emit_missing_report(guard: NullableGuard, scope: Scope, class_information: 
     while position < nullable_links.count() {
         var link_position = nullable_links[position]
         while next_link < link_position {
-            var present_link = guard.links.get_at(next_link)
+            crash guard.links[next_link]
+            var present_link = guard.links[next_link]
             var narrowed_path = operand_text(present_link)
             probe_scope.narrow_path(narrowed_path)
             next_link = next_link + 1
         }
+        crash guard.link_tests[link_position]
+        crash guard.links[link_position]
         var last = position == nullable_links.count() - 1
         if position > 0 {
             builder.add_user("else")
@@ -29823,10 +30539,10 @@ func emit_missing_report(guard: NullableGuard, scope: Scope, class_information: 
         if last {
             builder.add_user("\{")
         } else {
-            builder.add_user("if (!({guard.link_tests.get_at(link_position)})) \{")
+            builder.add_user("if (!({guard.link_tests[link_position]})) \{")
         }
         conditional_depth = conditional_depth + 1
-        var missing_link = guard.links.get_at(link_position)
+        var missing_link = guard.links[link_position]
         emit_missing_link(missing_link, probe_scope, class_information)
         conditional_depth = conditional_depth - 1
         builder.add_user("}")
@@ -30093,6 +30809,14 @@ func and_side_test(
     return "({owned_truth(side_result, side)})"
 }
 
+func recheck_in_loop(value: Syntax.Expressions.Expression, scope: Scope) {
+    assert shape.as_index(value)
+    var path = operand_text(value)
+    if not path.is_empty() and not scope.proven_inside_loop(path) {
+        scope.recheck_path(path)
+    }
+}
+
 func generate_assert_statement(
     assert_statement: Syntax.Statements.AssertStatement,
     scope: Scope,
@@ -30100,6 +30824,10 @@ func generate_assert_statement(
     function_information: Analysis.FunctionInfo,
 ): Boolean {
     if not assert_statement.value {
+        return false
+    }
+    var walked_check = assert_statement.is_crash and walked_check_texts.contains(assert_statement.condition_text)
+    if walked_check and emit_cached_check(assert_statement, scope, class_information, function_information) {
         return false
     }
     var sides = List<Syntax.Expressions.Expression>()
@@ -30119,6 +30847,7 @@ func generate_assert_statement(
         }
         return false
     }
+    recheck_in_loop(assert_statement.value, scope)
     var decided = folded_check(assert_statement.value, scope, class_information)
     if decided == true or decided == false {
         emit_folded_check(assert_statement, decided == true, scope, class_information, function_information)
@@ -30416,6 +31145,7 @@ func emit_check_failure(
     function_information: Analysis.FunctionInfo,
 ) {
     if assert_statement.is_crash {
+        builder.add_user("spite_crash_begin();")
         builder.add_user("fflush(stdout);")
         builder.add_user(
             "fputs(\"spite.crash\\t{current_site_id}\\t{escape_c_string(current_path)}:{current_line}\\t{current_owner}\\t{function_information.name}\\t{escape_c_string(assert_statement.condition_text)}\", stderr);",
@@ -30663,6 +31393,8 @@ func generate_statement_kind(
     var variable_declaration = shape.as_variable_declaration(statement)
     if variable_declaration {
         generate_variable_declaration(variable_declaration, scope, class_information)
+        narrow_literal_indices(variable_declaration, scope)
+        note_count_alias(variable_declaration, scope)
         return false
     }
     var assignment = shape.as_assignment_statement(statement)
@@ -31850,7 +32582,8 @@ func finish_singleton_guards() {
     var touching = state_touching_functions()
     var index = 0
     while index < guarded_functions.count() {
-        var information = guarded_classes.get_at(index)
+        crash guarded_classes[index]
+        var information = guarded_classes[index]
         var function = guarded_functions[index]
         var threaded = reached.has(information.simple_name) or called_implicitly(information)
         if threaded and touching.has(function.c_name) {
@@ -31862,8 +32595,10 @@ func finish_singleton_guards() {
     index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
-        var information = guarded_classes.get_at(position)
-        var function = guarded_functions.get_at(position)
+        crash guarded_classes[position]
+        crash guarded_functions[position]
+        var information = guarded_classes[position]
+        var function = guarded_functions[position]
         if not guarded_names.contains(information.c_name) {
             guarded_names.append(information.c_name)
             builder.add_support("static SpiteGuard {information.c_name}___guard = \{ 0, 0 };")
@@ -31873,7 +32608,8 @@ func finish_singleton_guards() {
         }
         var unguarded_name = "{function.c_name}___unguarded"
         var unguarded_signature = named_signature(information, function, unguarded_name)
-        var guarded_at = guarded_positions.get_at(position)
+        crash guarded_positions[position]
+        var guarded_at = guarded_positions[position]
         builder.replace_user(guarded_at, "{unguarded_signature} \{")
         builder.add_prototype("{unguarded_signature};")
         emit_guard_wrapper(information, function, unguarded_name)
@@ -31892,8 +32628,10 @@ func find_reading_functions(wrapped: List<Integer>) {
     var index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
-        var information = guarded_classes.get_at(position)
-        var function = guarded_functions.get_at(position)
+        crash guarded_classes[position]
+        crash guarded_functions[position]
+        var information = guarded_classes[position]
+        var function = guarded_functions[position]
         var visiting = List<String>()
         if reads_only(information, function, visiting) {
             if not readers.contains(information.c_name) {
@@ -31907,8 +32645,10 @@ func find_reading_functions(wrapped: List<Integer>) {
     index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
-        var information = guarded_classes.get_at(position)
-        var function = guarded_functions.get_at(position)
+        crash guarded_classes[position]
+        crash guarded_functions[position]
+        var information = guarded_classes[position]
+        var function = guarded_functions[position]
         var name = information.c_name
         var shared = readers.contains(name) and not written_on_threads.contains(name)
         if shared and not call_effects.writes_from_reached(information.simple_name, reached) {
@@ -32189,7 +32929,6 @@ func call_reads_only(
         var reading = [
             "count"
             "get_at"
-            "find_at"
             "get"
             "has"
             "is_empty"
@@ -32313,12 +33052,15 @@ func state_touching_functions(): Dictionary<Boolean> {
     touch_callees.clear()
     index = 0
     while index < guarded_functions.count() {
-        var information = guarded_classes.get_at(index)
+        crash guarded_classes[index]
+        crash guarded_positions[index]
+        crash guarded_ends[index]
+        var information = guarded_classes[index]
         var function = guarded_functions[index]
+        var line_index = guarded_positions[index] + 1
+        var end = guarded_ends[index]
         var changing = changing_field_codes(information)
         var touches = call_effects.calls_back_into(information.simple_name, function.name)
-        var line_index = guarded_positions.get_at(index) + 1
-        var end = guarded_ends.get_at(index)
         while line_index < end and not touches {
             var line = builder.user_at(line_index)
             touches = line_touches_state(line, information, changing, function.c_name, own_names)
@@ -32339,8 +33081,9 @@ func spread_touches(touching: Dictionary<Boolean>) {
         spreading = false
         var pair = 0
         while pair < touch_callers.count() {
-            var caller = touch_callers.get_at(pair)
-            var callee = touch_callees.get_at(pair)
+            crash touch_callees[pair]
+            var caller = touch_callers[pair]
+            var callee = touch_callees[pair]
             if touching.has(callee) and not touching.has(caller) {
                 touching.set(caller, true)
                 spreading = true
@@ -32389,8 +33132,9 @@ func line_touches_state(
     var pieces = line.split("self")
     var index = 1
     while index < pieces.count() {
-        var before = pieces.get_at(index - 1)
-        var after = pieces.get_at(index)
+        crash pieces[index - 1]
+        var before = pieces[index - 1]
+        var after = pieces[index]
         var whole = not ends_in_name(before) and not starts_with_name(after)
         if whole and self_touches(before, after, changing, caller, own_names) {
             return true
@@ -32499,8 +33243,10 @@ func report_locked_waits(wrapped: List<Integer>) {
     var index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
-        var information = guarded_classes.get_at(position)
-        var function = guarded_functions.get_at(position)
+        crash guarded_classes[position]
+        crash guarded_functions[position]
+        var information = guarded_classes[position]
+        var function = guarded_functions[position]
         wrapped_function_names.set(function.c_name, true)
         if not is_instantiated_class(information) {
             locked_keys.set("{information.simple_name}#{function.name}", information.simple_name)
@@ -32510,8 +33256,10 @@ func report_locked_waits(wrapped: List<Integer>) {
     index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
-        var information = guarded_classes.get_at(position)
-        var function = guarded_functions.get_at(position)
+        crash guarded_classes[position]
+        crash guarded_functions[position]
+        var information = guarded_classes[position]
+        var function = guarded_functions[position]
         if not is_instantiated_class(information) {
             report_waits_in(function.body, function.body, information, function, locked_keys)
         }
@@ -32563,7 +33311,8 @@ func report_joined_parallel(
     assert starter.name == "Parallel" and not handle_escapes(declared.name, whole)
     var site = parallel_site_at(declared.line, information, function)
     assert site >= 0
-    var work_key = parallel_site_keys.get_at(site)
+    crash parallel_site_keys[site]
+    var work_key = parallel_site_keys[site]
     var entries = [work_key]
     var reached = call_effects.reached_functions(entries)
     var reached_keys = reached.keys()
@@ -32584,10 +33333,10 @@ func report_joined_parallel(
 func parallel_site_at(line: Integer, information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Integer {
     var index = 0
     while index < parallel_site_places.count() {
-        var site_place = parallel_site_places.get_at(index)
+        var site_place = parallel_site_places[index]
         var place = site_place.split("\n")
-        var same_line = place.get_at(1) == line.to_string()
-        if same_line and place.get_at(2) == information.qualified_dotted and place.get_at(3) == function.name {
+        var same_line = place[1] == line.to_string()
+        if same_line and place[2] == information.qualified_dotted and place[3] == function.name {
             return index
         }
         index = index + 1
@@ -32602,13 +33351,16 @@ func report_locked_wait(
     site: Integer,
     key: String,
 ) {
-    var site_place = parallel_site_places.get_at(site)
+    crash parallel_site_places[site]
+    crash parallel_site_texts[site]
+    var site_place = parallel_site_places[site]
     var place = site_place.split("\n")
-    current_path = place.get_at(0)
+    crash place[0]
+    current_path = place[0]
     current_line = declared.line
     current_owner = information.qualified_dotted
     current_function = function.name
-    var work_text = parallel_site_texts.get_at(site)
+    var work_text = parallel_site_texts[site]
     var hash = key.index_of("#")
     var key_length = key.length()
     var locked_name = key.slice(hash + 1, key_length)
@@ -32913,9 +33665,12 @@ func call_unguarded_inside(wrapped: List<Integer>) {
     var index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
-        var information = guarded_classes.get_at(position)
-        var line_index = guarded_positions.get_at(position) + 1
-        var end = guarded_ends.get_at(position)
+        crash guarded_classes[position]
+        crash guarded_positions[position]
+        crash guarded_ends[position]
+        var information = guarded_classes[position]
+        var line_index = guarded_positions[position] + 1
+        var end = guarded_ends[position]
         while line_index < end {
             var line = builder.user_at(line_index)
             var changed = unguarded_calls(line, information, wrapped)
@@ -32933,9 +33688,11 @@ func unguarded_calls(line: String, information: Analysis.ClassInfo, wrapped: Lis
     var index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
-        var owner = guarded_classes.get_at(position)
+        crash guarded_classes[position]
+        var owner = guarded_classes[position]
         if owner.c_name == information.c_name {
-            var called = guarded_functions.get_at(position)
+            crash guarded_functions[position]
+            var called = guarded_functions[position]
             result = replace_call(result, "{called.c_name}(self,", "{called.c_name}___unguarded(self,")
             result = replace_call(result, "{called.c_name}(self)", "{called.c_name}___unguarded(self)")
         }
@@ -32946,10 +33703,12 @@ func unguarded_calls(line: String, information: Analysis.ClassInfo, wrapped: Lis
 
 func replace_call(line: String, from: String, to: String): String {
     var pieces = line.split(from)
-    var result = pieces.get_at(0)
+    crash pieces[0]
+    var result = pieces[0]
     var index = 1
     while index < pieces.count() {
-        var before = pieces.get_at(index - 1)
+        crash pieces[index - 1]
+        var before = pieces[index - 1]
         var last_position = before.length() - 1
         var last = before.code_at(last_position)
         var joins_a_name = last >= 97 and last <= 122 or last >= 65 and last <= 90 or last >= 48 and last <= 57 or last == 95
@@ -32958,7 +33717,7 @@ func replace_call(line: String, from: String, to: String): String {
         } else {
             result = result + to
         }
-        var piece = pieces.get_at(index)
+        var piece = pieces[index]
         result = result + piece
         index = index + 1
     }
@@ -33369,7 +34128,7 @@ func finish_atomic_singletons() {
     var reached = call_effects.thread_reached_classes()
     var index = 0
     while index < atomic_classes.count() {
-        var information = atomic_classes.get_at(index)
+        var information = atomic_classes[index]
         var threaded = parallel_used and (reached.has(information.simple_name) or called_implicitly(information))
         var flag = "0"
         if threaded {
@@ -33503,7 +34262,7 @@ func finish_outside_writes() {
     var reached = call_effects.thread_reached_classes()
     var index = 0
     while index < outside_classes.count() {
-        var information = outside_classes.get_at(index)
+        var information = outside_classes[index]
         var name = information.c_name
         var threaded = parallel_used and (reached.has(information.simple_name) or called_implicitly(information))
         if threaded and not emitted_guards.contains(name) {
@@ -33631,10 +34390,13 @@ func finish_waiting_points() {
     )
     var index = 0
     while index < waiting_functions.count() {
-        var information = waiting_classes.get_at(index)
+        crash waiting_classes[index]
+        crash waiting_positions[index]
+        var information = waiting_classes[index]
+        crash waiting_kinds[index]
         var function = waiting_functions[index]
-        var position = waiting_positions.get_at(index)
-        var kind = waiting_kinds.get_at(index)
+        var position = waiting_positions[index]
+        var kind = waiting_kinds[index]
         if kind != "join" {
             var waited_name = "{function.c_name}___waiting"
             var waited_signature = named_signature(information, function, waited_name)
@@ -34799,9 +35561,10 @@ func emit_hot_reload_support() {
 
 func seed_class_names(names: List<String>, identities: List<String>) {
     var index = 0
-    while index < names.count() and index < identities.count() {
-        var identity = identities.get_at(index)
-        var name = names.get_at(index)
+    while index < names.count() {
+        crash identities[index]
+        var identity = identities[index]
+        var name = names[index]
         class_names_by_id.append(name)
         class_identities.append(identity)
         seeded_class_ids[identity] = index
@@ -34983,8 +35746,9 @@ func add_layout_owners(reload: HotReloadLibrary, owners: List<String>) {
     var shaker = reload.program_shaker
     var index = 0
     while index < shaker.pieces.count() {
-        var name = shaker.piece_names.get_at(index)
-        var piece = shaker.pieces.get_at(index)
+        crash shaker.piece_names[index]
+        var name = shaker.piece_names[index]
+        var piece = shaker.pieces[index]
         var layout_piece = not name.is_empty() and mentions_migrating_layout(piece)
         if layout_piece and not is_local_migration_piece(name) {
             var owner = hot_owner_of(name)
@@ -35143,8 +35907,9 @@ func rewind_temporaries(saved: Integer) {
 }
 
 func newest_wait_counter(): Integer {
-    var counter_count = wait_mark_counters.count()
-    return wait_mark_counters.get_at(counter_count - 1)
+    var newest = wait_mark_counters.last()
+    crash newest
+    return newest
 }
 
 func drop_last_wait_mark() {
@@ -35172,10 +35937,11 @@ func drop_unread_waits(first: Integer) {
 func shift_wait_marks(position: Integer) {
     var index = 0
     while index < wait_mark_positions.count() {
-        if wait_mark_positions.get_at(index) >= position {
-            var shifted = wait_mark_positions.get_at(index) + 1
+        if wait_mark_positions[index] >= position {
+            var shifted = wait_mark_positions[index] + 1
             wait_mark_positions.set_at(index, shifted)
-            var shifted_end = wait_mark_ends.get_at(index) + 1
+            crash wait_mark_ends[index]
+            var shifted_end = wait_mark_ends[index] + 1
             wait_mark_ends.set_at(index, shifted_end)
         }
         index = index + 1
@@ -35227,10 +35993,12 @@ func ensure_machine(callee: String): Boolean {
 func queue_machine(callee: String): Boolean {
     var index = 0
     while index < waiting_functions.count() {
-        var waiting = waiting_functions.get_at(index)
-        var kind = waiting_kinds.get_at(index)
+        crash waiting_kinds[index]
+        var waiting = waiting_functions[index]
+        var kind = waiting_kinds[index]
         if waiting.c_name == callee and kind != "yield" {
-            var waiting_class = waiting_classes.get_at(index)
+            crash waiting_classes[index]
+            var waiting_class = waiting_classes[index]
             machine_primitive_classes.append(waiting_class)
             machine_primitive_functions.append(waiting)
             machine_primitive_kinds.append(kind)
@@ -35240,9 +36008,11 @@ func queue_machine(callee: String): Boolean {
     }
     index = 0
     while index < machine_candidate_names.count() {
-        if machine_candidate_names.get_at(index) == callee {
-            var candidate_class = machine_candidate_classes.get_at(index)
-            var candidate_function = machine_candidate_functions.get_at(index)
+        if machine_candidate_names[index] == callee {
+            crash machine_candidate_classes[index]
+            crash machine_candidate_functions[index]
+            var candidate_class = machine_candidate_classes[index]
+            var candidate_function = machine_candidate_functions[index]
             machine_queue_classes.append(candidate_class)
             machine_queue_functions.append(candidate_function)
             return true
@@ -35260,8 +36030,8 @@ func find_waiting_functions() {
     }
     var index = 0
     while index < waiting_functions.count() {
-        if waiting_kinds.get_at(index) != "yield" {
-            var waiting = waiting_functions.get_at(index)
+        if waiting_kinds[index] != "yield" {
+            var waiting = waiting_functions[index]
             waiting_names.set(waiting.c_name, true)
         }
         index = index + 1
@@ -35271,8 +36041,9 @@ func find_waiting_functions() {
         changed = false
         index = 0
         while index < call_edge_callers.count() {
-            var caller = call_edge_callers.get_at(index)
-            var callee = call_edge_callees.get_at(index)
+            crash call_edge_callees[index]
+            var caller = call_edge_callers[index]
+            var callee = call_edge_callees[index]
             if not waiting_names.has(caller) and waiting_names.has(callee) {
                 waiting_names.set(caller, true)
                 changed = true
@@ -35287,7 +36058,7 @@ func emit_state_machines() {
     var roots = List<String>()
     var index = 0
     while index < task_root_functions.count() {
-        var root = task_root_functions.get_at(index)
+        var root = task_root_functions[index]
         if waiting_names.has(root.c_name) and not roots.contains(root.c_name) and ensure_machine(root.c_name) {
             roots.append(root.c_name)
         }
@@ -35305,7 +36076,7 @@ func emit_state_machines() {
     lines.append("if (spite_work == 0) return 0;")
     index = 0
     while index < roots.count() {
-        var root = roots.get_at(index)
+        var root = roots[index]
         lines.append(
             "if (spite_work->spite_typed_call == (void*){root}) \{ SpiteFrame* spite_started = (SpiteFrame*){root}___begin(spite_work->spite_owner); spite_started->work = spite_work; Spite_Function___retain(spite_work); return spite_started; }",
         )
@@ -35376,14 +36147,15 @@ func emit_resumable_function(information: Analysis.ClassInfo, function: Analysis
     if returns_value {
         result_field = " {c_type_name(return_type)} spite_result;"
     }
+    crash parts[0]
     builder.add_typedef(
-        "typedef struct {name}___frame \{ SpiteFrame spite_head;{result_field} {parts.get_at(0)} self; {machine.frame_fields()} {waits.join(" ")} } {name}___frame;",
+        "typedef struct {name}___frame \{ SpiteFrame spite_head;{result_field} {parts[0]} self; {machine.frame_fields()} {waits.join(" ")} } {name}___frame;",
     )
     emit_machine_begin(name, parts)
     var lines = List<String>()
     lines.append("static bool {name}___step(void* spite_raw) \{")
     lines.append("{name}___frame* spite_frame = ({name}___frame*)spite_raw;")
-    lines.append("{parts.get_at(0)} self = spite_frame->self;")
+    lines.append("{parts[0]} self = spite_frame->self;")
     var resume_switch = machine.resume_switch()
     lines.append(resume_switch)
     var rewritten_body = rewritten.join("\n")
@@ -35419,11 +36191,12 @@ func machine_parts(
 
 func emit_machine_begin(name: String, parts: List<String>) {
     var parameters = List<String>()
-    parameters.append("{parts.get_at(0)} self")
+    crash parts[0]
+    parameters.append("{parts[0]} self")
     var index = 1
     while index + 1 < parts.count() {
-        var c_type = parts.get_at(index)
-        var parameter = parts.get_at(index + 1)
+        var c_type = parts[index]
+        var parameter = parts[index + 1]
         parameters.append("{c_type} {parameter}")
         index = index + 2
     }
@@ -35436,7 +36209,7 @@ func emit_machine_begin(name: String, parts: List<String>) {
     lines.append("spite_frame->self = self;")
     index = 2
     while index < parts.count() {
-        var parameter = parts.get_at(index)
+        var parameter = parts[index]
         lines.append("spite_frame->{parameter} = {parameter};")
         index = index + 2
     }
@@ -35451,9 +36224,11 @@ func emit_machine_begin(name: String, parts: List<String>) {
 func emit_primitive_machines() {
     var index = 0
     while index < machine_primitive_functions.count() {
-        var information = machine_primitive_classes.get_at(index)
-        var function = machine_primitive_functions.get_at(index)
-        var kind = machine_primitive_kinds.get_at(index)
+        crash machine_primitive_classes[index]
+        crash machine_primitive_kinds[index]
+        var information = machine_primitive_classes[index]
+        var function = machine_primitive_functions[index]
+        var kind = machine_primitive_kinds[index]
         emit_primitive_machine(information, function, kind)
         index = index + 1
     }
@@ -35471,10 +36246,11 @@ func emit_primitive_machine(information: Analysis.ClassInfo, function: Analysis.
     if not type_shape.is_void(return_type) {
         fields.append("{c_type_name(return_type)} spite_result;")
     }
-    fields.append("{parts.get_at(0)} self;")
+    crash parts[0]
+    fields.append("{parts[0]} self;")
     var index = 1
     while index + 1 < parts.count() {
-        fields.append("{parts.get_at(index)} {parts.get_at(index + 1)};")
+        fields.append("{parts[index]} {parts[index + 1]};")
         index = index + 2
     }
     var lines = List<String>()
@@ -35628,9 +36404,10 @@ func folded_maths_value(
     while operands.count() < 2 {
         operands.append(0.0)
     }
+    crash operands.count() >= 2
     var value = receiver.operand(is_float)
-    var first = operands.get_at(0)
-    var second = operands.get_at(1)
+    var first = operands[0]
+    var second = operands[1]
     var result = maths.folded(name, is_float, value, first, second)
     return FoldedDecimal(result, receiver.kind)
 }
@@ -35675,7 +36452,7 @@ func folded_decimal(expression: Syntax.Expressions.Expression, class_information
 func seed_host_waits(host: HotReloadLibrary) {
     var index = 0
     while index < host.host_waiting.count() {
-        var name = host.host_waiting.get_at(index)
+        var name = host.host_waiting[index]
         var owner = class_of_function_c_name(name)
         var rebuilt = false
         if owner {
@@ -35693,16 +36470,16 @@ func seed_lent_variants(host: HotReloadLibrary) {
     while index < host.host_variants.count() {
         var fields = host.host_variants[index].split("\t")
         crash fields.count() == 4
-        var variant_c_name = fields.get_at(0)
-        var original_c_name = fields.get_at(1)
+        var variant_c_name = fields[0]
+        var original_c_name = fields[1]
         var owner = class_of_function_c_name(original_c_name)
         if owner {
             var original = function_by_c_name(owner, original_c_name)
             var exists = function_by_c_name(owner, variant_c_name)
             if original and not exists and reload_owners.contains(owner.c_name) {
-                var position_text = fields.get_at(2)
+                var position_text = fields[2]
                 var positions = position_text.split("_")
-                var sources = fields.get_at(3)
+                var sources = fields[3]
                 add_lent_variant(owner, original, variant_c_name, positions, sources)
             }
         }
@@ -35740,13 +36517,13 @@ func instance_record(
 func replay_instances(host: HotReloadLibrary) {
     var index = 0
     while index < host.host_instances.count() {
-        var record = host.host_instances.get_at(index)
+        var record = host.host_instances[index]
         replay_instance(record)
         index = index + 1
     }
     index = 0
     while index < host.host_literals.count() {
-        var literal = host.host_literals.get_at(index)
+        var literal = host.host_literals[index]
         replay_literal(literal)
         index = index + 1
     }
@@ -35770,7 +36547,7 @@ func replay_literal(record: String) {
     var codec = TypeCodec()
     var fields = record.split("\t")
     crash fields.count() >= 1
-    var joined_names = fields.get_at(0)
+    var joined_names = fields[0]
     var names = joined_names.split(",")
     if joined_names.is_empty() {
         names = List<String>()
@@ -35779,7 +36556,8 @@ func replay_literal(record: String) {
     var types = List<Analysis.SpiteType>()
     var index = 0
     while index < names.count() {
-        var encoded_type = fields.get_at(index + 1)
+        crash fields[index + 1]
+        var encoded_type = fields[index + 1]
         var decoded = codec.decoded(encoded_type)
         assert decoded
         types.append(decoded)
@@ -35792,12 +36570,12 @@ func replay_instance(record: String) {
     var codec = TypeCodec()
     var fields = record.split("\t")
     crash fields.count() >= 3
-    var label = fields.get_at(0)
+    var label = fields[0]
     assert not find_class_by_c_name(label)
-    var template_name = fields.get_at(1)
+    var template_name = fields[1]
     var template = find_class_by_c_name(template_name)
     assert template
-    var count_text = fields.get_at(2)
+    var count_text = fields[2]
     var count = count_text.to_integer()
     crash count
     crash fields.count() == 3 + count * 2
@@ -35806,7 +36584,8 @@ func replay_instance(record: String) {
     var codes = List<String>()
     var index = 0
     while index < count {
-        var encoded_type = fields.get_at(3 + index)
+        crash fields[3 + index]
+        var encoded_type = fields[3 + index]
         var decoded = codec.decoded(encoded_type)
         assert decoded
         types.append(decoded)
@@ -35814,22 +36593,23 @@ func replay_instance(record: String) {
     }
     index = 0
     while index < count {
-        var escaped_text = fields.get_at(3 + count + index)
+        crash fields[3 + count + index]
+        var escaped_text = fields[3 + count + index]
         var text = codec.unescaped(escaped_text)
         texts.append(text)
-        var text_type = types.get_at(index)
+        var text_type = types[index]
         var code = code_of_text(text, text_type)
         codes.append(code)
         index = index + 1
     }
     if template.qualified_dotted == "List" {
-        var listed = types.get_at(0)
+        var listed = types[0]
         ensure_list(listed)
         return
     }
     if template.qualified_dotted == "Dictionary" {
-        var element = types.get_at(0)
-        var key = types.get_at(1)
+        var element = types[0]
+        var key = types[1]
         var dictionary_type = Analysis.Types.DictionaryType(element, key, "")
         ensure_dictionary(dictionary_type)
         return

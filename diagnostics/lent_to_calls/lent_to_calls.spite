@@ -5,6 +5,7 @@ var input = Input()
 func LentToCalls() {
     var made = Mouse()
     mice.append(made)
+    crash mice[0]
     var mouse = mice[0]
     input.keep(mouse)
     input.list(mouse)
@@ -15,6 +16,7 @@ func LentToCalls() {
 }
 
 func grown() {
+    crash mice[0]
     var mouse = mice[0]
     input.grow(mouse)
     input.grow(mice[0])

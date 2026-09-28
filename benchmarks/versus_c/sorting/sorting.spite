@@ -19,8 +19,11 @@ func Sorting() {
     index = 0
     while index < numbers.count() {
         checksum = checksum + numbers[index] * (index % 7)
-        if index > 0 and numbers.get_at(index - 1) > numbers.get_at(index) {
-            ordered = false
+        if index > 0 {
+            crash numbers[index - 1]
+            if numbers[index - 1] > numbers[index] {
+                ordered = false
+            }
         }
         index = index + 1
     }
@@ -34,19 +37,22 @@ func sort(numbers: List<Integer>, low: Integer, high: Integer) {
     var right = high
     while left < right {
         var middle = left + (right - left) / 2
-        var pivot = numbers.get_at(middle)
+        crash numbers[middle]
+        var pivot = numbers[middle]
         var lower = left
         var upper = right
         while lower <= upper {
-            while numbers.get_at(lower) < pivot {
+            while lower < numbers.count() and numbers[lower] < pivot {
                 lower = lower + 1
             }
-            while numbers.get_at(upper) > pivot {
+            while upper >= 0 and upper < numbers.count() and numbers[upper] > pivot {
                 upper = upper - 1
             }
             if lower <= upper {
-                var swapped = numbers.get_at(lower)
-                var moved = numbers.get_at(upper)
+                crash numbers[lower]
+                crash numbers[upper]
+                var swapped = numbers[lower]
+                var moved = numbers[upper]
                 numbers[lower] = moved
                 numbers[upper] = swapped
                 lower = lower + 1

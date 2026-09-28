@@ -20,9 +20,11 @@ func append(value: $element_type) {
     item_count = item_count + 1
 }
 
-func get_at(index: Integer): $element_type {
-    crash index >= 0 and index < item_count
-    return values.item_at(items, index)
+func get_at(index: Integer): $element_type? {
+    if index >= 0 and index < item_count {
+        return values.item_at(items, index)
+    }
+    return null
 }
 
 func set_at(index: Integer, value: $element_type) {

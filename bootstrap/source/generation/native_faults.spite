@@ -15,8 +15,9 @@ func places_table(
     var conditional_depth = 0
     var index = 0
     while index < shaker.pieces.count() {
-        var piece = shaker.pieces.get_at(index)
-        var name = shaker.piece_names.get_at(index)
+        var piece = shaker.pieces[index]
+        crash shaker.piece_names[index]
+        var name = shaker.piece_names[index]
         if piece.starts_with("#if") {
             conditional_depth = conditional_depth + 1
         } else if piece.starts_with("#endif") {
@@ -187,13 +188,15 @@ func handler(): String {
         "#endif"
         "spite_fault_write(line);"
         "#ifdef SPITE_FAULT_TRACE"
-        "int64_t kept = spite_assert_total < 32 ? spite_assert_total : 32;"
-        "for (int64_t index = spite_assert_total - kept; index < spite_assert_total; index = index + 1) \{"
+        "int64_t total = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE);"
+        "int64_t kept = total < 32 ? total : 32;"
+        "for (int64_t index = total - kept; index < total; index = index + 1) \{"
+        "if (spite_assert_trace[index % 32] == 0) continue;"
         "spite_fault_add(line, spite_assert_trace[index % 32]);"
         "if (line->length > 0 && line->bytes[line->length - 1] == '\\n') line->length = line->length - 1;"
         "spite_fault_write(line);"
         "}"
-        "if (spite_assert_total > 32) \{ spite_fault_add(line, \"spite.assert\\tearlier=\"); spite_fault_add_number(line, (uint64_t)(spite_assert_total - 32), 10); spite_fault_write(line); }"
+        "if (total > 32) \{ spite_fault_add(line, \"spite.assert\\tearlier=\"); spite_fault_add_number(line, (uint64_t)(total - 32), 10); spite_fault_write(line); }"
         "#endif"
         "}"
         "#ifdef _WIN32"
