@@ -1124,7 +1124,7 @@ simpler with no cost to reading is made to be, but a one-liner nobody can read b
 that would need an `else` stays a switch, and so does a switch with more cases: `_:` narrows to each remaining
 member (D60), which an `else` cannot.
 
-Memory safety is done with unions instead of borrow checking noise: `T?` is the union of `T` and `Null`, and it is narrowed before use with `if ... else`, `assert`, `crash` or `switch` ([Null safety and `assert` narrowing](failure.md#null-safety-and-assert-narrowing--implemented)).
+Memory safety is done with unions instead of borrow checking noise: `T?` is the union of `T` and `Null`, and it is narrowed before use with `if ... else`, `assert`, `crash` or `switch` ([Null safety and `assert` narrowing](failure.md#narrowing)).
 **`Monster?` is a union, and `Nullable<T>` is gone** (D45, decided by Mortaro, 2026-09-20). A `?` suffix is
 sugar for the union of a type and nothing:
 

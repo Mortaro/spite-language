@@ -572,7 +572,7 @@ switch enemy {
 }
 ```
 
-An `if` on a `T?` narrows the value in place ([Null safety and `assert` narrowing](failure.md#null-safety-and-assert-narrowing--implemented)): the block runs with `value` as a plain `T`,
+An `if` on a `T?` narrows the value in place ([Null safety and `assert` narrowing](failure.md#narrowing)): the block runs with `value` as a plain `T`,
 and the `else` runs exactly when it is null/absent -- one rule for narrowing everywhere, `assert`/`if`/`switch`
 alike (D3 gave it its `else`; the `if value do name { }` form it had is gone, and `do` is not a keyword,
 [Lexical structure](classes_and_files.md#lexical-structure--implemented)). The terminal-`if` lint

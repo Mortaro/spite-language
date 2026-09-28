@@ -85,15 +85,17 @@ Read them in this order the first time; each page assumes the ones before it.
 23. [testing.md](testing.md) -- a test is a function that crashes; the test package finds them itself.
 24. [optimizations.md](optimizations.md) -- everything the compiler optimises without being asked, built or
     planned, and what (if anything) you could notice.
-25. [self_hosting.md](self_hosting.md) -- how the compiler builds itself, and what proves it.
+25. [proofs.md](proofs.md) -- every fact the compiler proves while compiling, what each one buys, and when it does
+    not apply, so you know when to write the check yourself.
+26. [self_hosting.md](self_hosting.md) -- how the compiler builds itself, and what proves it.
 
 **Reference**
 
-26. [decisions.md](decisions.md) -- the decision log: every decision, when and why, append-only.
-27. [open_questions.md](open_questions.md) -- decided work that has no page yet, and the questions still open.
-28. [KNOWN_ISSUES.md](KNOWN_ISSUES.md) -- where the compiler falls short of these pages today.
+27. [decisions.md](decisions.md) -- the decision log: every decision, when and why, append-only.
+28. [open_questions.md](open_questions.md) -- decided work that has no page yet, and the questions still open.
+29. [KNOWN_ISSUES.md](KNOWN_ISSUES.md) -- where the compiler falls short of these pages today.
 
 **For AI writers**
 
-29. [for_ai_writers.md](for_ai_writers.md) -- the whole language on one dense page. Paste it into an AI's context
+30. [for_ai_writers.md](for_ai_writers.md) -- the whole language on one dense page. Paste it into an AI's context
     before it writes Spite.

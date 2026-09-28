@@ -9,4 +9,3 @@ page that describes them, not here.
 
 - **Only Windows runs.** The Linux and macOS folders of the library, and the concurrency built on them, are held to
   compiling by `check.sh`, not run.
-- **An enum cannot be switched over**; compare it with `==` in an `if` chain.
