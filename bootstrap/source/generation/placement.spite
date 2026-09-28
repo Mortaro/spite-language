@@ -317,7 +317,7 @@ func lends_address(callee: Syntax.Expressions.Expression, receiver: String): Boo
     if is_address_primitive(member.name) {
         return true
     }
-    var typed = ["read_value", "write_value", "release_value"]
+    var typed = ["read_value", "write_value", "release_value", "swap_values"]
     if typed.contains(member.name) {
         return true
     }

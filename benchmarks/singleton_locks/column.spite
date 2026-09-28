@@ -1,0 +1,11 @@
+singleton
+
+generic $component_type
+
+var total: Long = 0
+var calls = 0
+
+func add(amount: Integer) {
+    total = total + amount
+    calls = calls + 1
+}

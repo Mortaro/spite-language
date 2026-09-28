@@ -1,0 +1,5 @@
+evens 2, 4, 6, 8, 10 cut and swapped 6, 4, 2
+alive ant, cat, fox
+moving 2 first long label that lives on the heap | third long label that lives on the heap heavy 7
+packs kept, also kept
+survivors 1, 2, 4, 5, 7 across 19 rows 5

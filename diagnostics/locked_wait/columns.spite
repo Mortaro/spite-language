@@ -1,0 +1,36 @@
+singleton
+
+var removed = List<Integer>()
+
+func despawn_all(first: Integer, last: Integer): Integer {
+    var remover = Remover(first, last)
+    var removing = Parallel(remover.run)
+    var polls = 0
+    while not removing.finished and polls < 3 {
+        polls = polls + 1
+    }
+    var done: Integer = removing
+    return done
+}
+
+func despawn_later(first: Integer, last: Integer): Boolean {
+    var remover = Remover(first, last)
+    var removing = Parallel(remover.run)
+    removed.append(first)
+    return removing.finished
+}
+
+func start_despawn(first: Integer, last: Integer): Parallel<Integer> {
+    var remover = Remover(first, last)
+    var removing = Parallel(remover.run)
+    removed.append(first)
+    return removing
+}
+
+func remove_row(entity: Integer) {
+    removed.append(entity)
+}
+
+func count(): Integer {
+    return removed.count()
+}

@@ -1,0 +1,15 @@
+singleton
+
+var held = 0
+var delivered = 0
+
+func put(value: Integer) {
+    held = value
+    delivered = delivered + 1
+}
+
+func take(): Integer {
+    var taken = held
+    held = 0
+    return taken
+}

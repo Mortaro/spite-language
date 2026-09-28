@@ -1,0 +1,15 @@
+var ledger = Ledger()
+var count = 0
+
+func Poster(new_count: Integer) {
+    count = new_count
+}
+
+func run(): Integer {
+    var index = 0
+    while index < count {
+        ledger.post()
+        index = index + 1
+    }
+    return count
+}

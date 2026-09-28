@@ -1,0 +1,11 @@
+var entity = 0
+var across = 0.0
+var down = 0.0
+var despawned = false
+
+func Velocity(new_entity: Integer, new_across: Float, new_despawned: Boolean) {
+    entity = new_entity
+    across = new_across
+    down = new_across * 0.5
+    despawned = new_despawned
+}

@@ -1,0 +1,27 @@
+var tally = Tally()
+var mailbox = Mailbox()
+var rounds = 0
+
+func Counter(new_rounds: Integer) {
+    rounds = new_rounds
+}
+
+func count_up(): Integer {
+    var index = 0
+    while index < rounds {
+        tally.add(1)
+        index = index + 1
+    }
+    return rounds
+}
+
+func count_and_post(): Integer {
+    var index = 0
+    while index < rounds {
+        tally.add(2)
+        mailbox.put(index)
+        index = index + 1
+    }
+    mailbox.put(rounds)
+    return rounds
+}

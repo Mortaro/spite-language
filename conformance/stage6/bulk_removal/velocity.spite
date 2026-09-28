@@ -1,0 +1,9 @@
+var across = 0.0
+var label = ""
+var stopped = false
+
+func Velocity(new_across: Float, new_label: String) {
+    across = new_across
+    label = new_label
+    stopped = new_across == 0.0
+}
