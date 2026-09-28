@@ -446,4 +446,15 @@ Behaviour that does not match the manual. The language was not changed; each is 
      text after a comma, `crash record, "never cooked: {id}"`, printed in the report beside the condition and its
      values -- the most readable form for people and AI alike. It is new syntax, so it is yours: add it, spell it
      differently, or keep crash reports to the condition and its values only?
+     Also wanted by D261: an engine refusing a system with `crash not $T.function_writes_parameter(...)` cannot say
+     why in its own words ("an IO system's row is a snapshot: change the world through commands").
 
+## Singleton lock costs (D263-D267, proposed by Claude, unconfirmed)
+
+219. **Confirm D263-D267** (the rows in docs/decisions.md; numbers in docs/optimizations.md). In short:
+     `remove_where`, `truncate` and `swap` remove many items in one pass (D263); waiting for a `Parallel` that calls
+     back into the singleton the waiter holds locked is a compile error (D264); a counted loop of calls into one
+     singleton takes its lock once (D265, 51 ms -> 0.5 ms); a singleton only read while `Parallel` work runs takes
+     only the readers' side of its lock (D266, 202 ns -> 5 ns a row); and a locked call skips its lock while no task
+     is in flight (D267, 19 ns -> 9 ns). None adds syntax; the names `remove_where`, `truncate` and `swap` are
+     provisional (D214). Keep them, or rename?
