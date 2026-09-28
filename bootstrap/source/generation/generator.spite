@@ -35555,7 +35555,7 @@ func emit_hot_reload_support() {
     names.append("0")
     cells.append("0")
     builder.add_support(
-        "static const char* spite_hot_slot_names[] = \{ {names.join(", ")} };\nstatic void** spite_hot_slot_cells[] = \{ {cells.join(", ")} };\nstatic int32_t spite_hot_install(const char* name, void* address) \{\nfor (int64_t index = 0; spite_hot_slot_names[index] != 0; index = index + 1) \{\nif (strcmp(spite_hot_slot_names[index], name) == 0) \{ __atomic_store_n(spite_hot_slot_cells[index], address, __ATOMIC_SEQ_CST); return 1; }\n}\nreturn 0;\n}",
+        "static const char* spite_hot_slot_names[] = \{ {names.join(", ")} };\nstatic void** spite_hot_slot_cells[] = \{ {cells.join(", ")} };\nstatic int32_t spite_hot_install(const char* name, void* address) \{\nfor (int64_t index = 0; spite_hot_slot_names[index] != 0; index = index + 1) \{\nif (strcmp(spite_hot_slot_names[index], name) == 0) \{ if (address != 0) __atomic_store_n(spite_hot_slot_cells[index], address, __ATOMIC_SEQ_CST); return 1; }\n}\nreturn 0;\n}",
     )
 }
 

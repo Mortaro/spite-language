@@ -22,6 +22,7 @@ var last = "nothing has been reloaded yet"
 var answered = false
 var answer = ""
 var reported = false
+var swaps = Reload()
 
 func start() {
     folder = build.program
@@ -202,6 +203,7 @@ func swap_in(library_path: String, state_path: String, told: String) {
     }
     var running = program_file()
     commit(running, state_path)
+    swaps.note_swap(told)
     tell(true, told)
 }
 

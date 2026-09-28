@@ -734,8 +734,14 @@ func bind_function(redirected: List<String>, migrates: Boolean): String {
     }
     index = 0
     while index < installed.count() {
+        var checked = installed[index]
+        lines.append("if (install(\"{checked}\", 0) == 0) return \"{checked}\";")
+        index = index + 1
+    }
+    index = 0
+    while index < installed.count() {
         var name = installed[index]
-        lines.append("if (install(\"{name}\", (void*)&{name}___hot) == 0) return \"{name}\";")
+        lines.append("install(\"{name}\", (void*)&{name}___hot);")
         index = index + 1
     }
     if migrates {
