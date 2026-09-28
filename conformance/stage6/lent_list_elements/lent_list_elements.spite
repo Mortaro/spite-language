@@ -1,0 +1,24 @@
+var console = Console()
+var positions = Column<Position>()
+var trails = Column<Trail>()
+var moving = Runner<Mover, Mover.Moving>()
+var removing = Runner<Remover, Remover.Moving>()
+
+func LentListElements() {
+    var entity = 0
+    while entity < 3 {
+        var position = Position()
+        positions.insert(position)
+        var trail = Trail(entity + 10)
+        trails.insert(trail)
+        entity = entity + 1
+    }
+    moving.run(0, 3)
+    moving.run(0, 3)
+    var last = trails.at(2)
+    var lefts = last.lefts.count()
+    console.print("moved", positions.values[2].left, lefts, moving.system.steps)
+    removing.run(2, 3)
+    var left = trails.references.count()
+    console.print("removed while borrowed", removing.system.owners, left)
+}

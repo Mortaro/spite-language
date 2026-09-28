@@ -163,6 +163,36 @@ func borrow_source(name: String): String {
     return parent.borrow_source(name)
 }
 
+func holds_for_call(name: String): Boolean {
+    if override_names.contains(name) {
+        return false
+    }
+    var index = entry_names.count() - 1
+    while index >= 0 {
+        if entry_names[index] == name {
+            crash index < entry_parameters.count()
+            if entry_parameters[index] {
+                return true
+            }
+            var owned_index = owned.count() - 1
+            while owned_index >= 0 {
+                var owned_local = owned[owned_index]
+                crash owned_local
+                if owned_local.name == name {
+                    return true
+                }
+                owned_index = owned_index - 1
+            }
+            return false
+        }
+        index = index - 1
+    }
+    if not parent {
+        return false
+    }
+    return parent.holds_for_call(name)
+}
+
 func declare_owned(name: String, spite_type: Analysis.SpiteType) {
     declare(name, spite_type)
     var owned_local = OwnedLocal(name, spite_type)

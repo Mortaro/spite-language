@@ -1143,7 +1143,10 @@ proven safe for what its functions actually do; the exact conditions are on
    locked function polling that work (`conformance/stage6/singleton_stateless_calls`); a call it makes to itself
    goes straight to the unguarded body, and a write to its attribute from another class takes the lock too, and so does a read
    of it (D211: `var last = registry.last` in another class loads it under the lock; an atomic singleton's
-   attribute is read with one atomic load; `conformance/stage6/singleton_lock_calls`).
+   attribute is read with one atomic load; `conformance/stage6/singleton_lock_calls`). An attribute holding an
+   object that nothing assigns after the singleton is made is read with no lock and no count, since it stays the
+   same object for the rest of the program (D271, proposed by Claude, unconfirmed;
+   [optimizations.md](optimizations.md#a-singletons-attribute-that-never-changes-is-read-in-place)).
 
 **A loop that cannot end inside a locked singleton function is a compile error** (D211, decided by Claude under
 D205: the lock stays whole-call). A `while true` with no `return`, `assert` or `crash` inside it, in a function of

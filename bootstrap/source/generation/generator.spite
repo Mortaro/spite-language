@@ -70,6 +70,9 @@ var coarse_called = List<String>()
 var coarse_keys = List<String>()
 var coarse_locals = List<String>()
 var coarse_site_owners = List<String>()
+var lend_site_owners = List<Analysis.ClassInfo>()
+var lend_site_keys = List<String>()
+var lend_site_releases = List<String>()
 var coarse_site_calls = List<String>()
 var coarse_site_keys = List<String>()
 var coarse_site_starts = List<Integer>()
@@ -209,6 +212,8 @@ var items_sources = Dictionary<String>()
 var borrow_site = ""
 var lent_argument_positions = List<String>()
 var lent_argument_sources = List<String>()
+var held_argument_positions = List<String>()
+var held_arguments_blocked = false
 var lent_callers = Dictionary<String>()
 var lent_parameter_names = List<String>()
 var lent_parameter_caller = ""
@@ -703,6 +708,9 @@ func generate(
     }
     if not coarse_site_owners.is_empty() {
         finish_coarse_loops()
+    }
+    if not lend_site_owners.is_empty() {
+        finish_lend_sites()
     }
     if parallel_used and not weak_classes.is_empty() {
         report_weak_across_threads()
@@ -9068,8 +9076,10 @@ func generate_argument_list(
     argument_lender_function = null
     var lent_positions = lent_argument_positions
     var lent_sources = lent_argument_sources
+    var held_positions = held_argument_positions
     lent_argument_positions = List<String>()
     lent_argument_sources = List<String>()
+    held_argument_positions = List<String>()
     var variadic = variadic_list(expected_types)
     if variadic {
         return generate_spread_arguments(arguments_ast, expected_types, variadic, scope, class_information)
@@ -9083,8 +9093,9 @@ func generate_argument_list(
     while index < arguments_ast.count() {
         borrow_site = ""
         var lent_at = position_in(lent_positions, index)
+        var held_at = position_in(held_positions, index)
         var framed_code = ""
-        if lent_at < 0 {
+        if lent_at < 0 and held_at < 0 {
             framed_code = argument_in_frame(
                 arguments_ast[index],
                 expected_types[index],
@@ -9101,6 +9112,11 @@ func generate_argument_list(
             borrow_site = "lent:{callee}"
             var lent_code = coerce_for_store(arguments_ast[index], expected_types[index], scope, class_information)
             result.append(lent_code)
+        } else if held_at >= 0 {
+            var held_result = generate_expression(arguments_ast[index], scope, class_information)
+            var held_type = held_result.get_type()
+            var held_code = cast(held_result.code, held_type, expected_types[index])
+            result.append(held_code)
         } else if framed_code.is_empty() {
             borrow_site = "argument:{callee}"
             var stored_code = coerce_for_store(arguments_ast[index], expected_types[index], scope, class_information)
@@ -10541,7 +10557,9 @@ func generate_own_function_call(
     }
     var into_slot = claimed_slot(function.c_name)
     var parameter_types = parameter_types_of(function.parameters)
+    held_arguments_blocked = not into_slot.is_empty()
     var called_c_name = lent_variant_name(function.c_name, arguments_ast, parameter_types, scope, class_information)
+    held_arguments_blocked = false
     argument_lender_class = class_information
     argument_lender_function = function
     argument_callee = function.c_name
@@ -10728,7 +10746,9 @@ func generate_generic_call(
     var into_slot = claimed_slot(function_c_name)
     var into_owner = into_claim_owner
     var into_function = into_claim_function
+    held_arguments_blocked = not into_slot.is_empty()
     var called_c_name = lent_variant_name(function_c_name, arguments_ast, expected_types, scope, class_information)
+    held_arguments_blocked = false
     argument_callee = function_c_name
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
     argument_callee = ""
@@ -10897,6 +10917,18 @@ func lent_variant_name(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): String {
+    held_argument_positions = List<String>()
+    var lent_name = lent_items_variant_name(function_c_name, arguments_ast, expected_types, scope, class_information)
+    return held_variant_name(lent_name, arguments_ast, expected_types, scope)
+}
+
+func lent_items_variant_name(
+    function_c_name: String,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    expected_types: List<Analysis.SpiteType>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
     lent_argument_positions = List<String>()
     lent_argument_sources = List<String>()
     var positions = List<String>()
@@ -10991,6 +11023,169 @@ func lent_variant_name(
     owner.declared_functions.append(variant)
     builder.add_prototype("{function_signature(owner, variant)};")
     return variant_c_name
+}
+
+func held_variant_name(
+    function_c_name: String,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    expected_types: List<Analysis.SpiteType>,
+    scope: Scope,
+): String {
+    if resumable_mode or hot_reload or read_evaluate_print_loop or remote_loop_port != 0 or keeps_internals {
+        return function_c_name
+    }
+    if held_arguments_blocked {
+        return function_c_name
+    }
+    if variadic_list(expected_types) or arguments_ast.count() != expected_types.count() {
+        return function_c_name
+    }
+    var candidates = List<Integer>()
+    var index = 0
+    while index < arguments_ast.count() {
+        var index_text = index.to_string()
+        if not lent_argument_positions.contains(index_text) and held_by_caller(arguments_ast[index], expected_types[index], scope) {
+            candidates.append(index)
+        }
+        index = index + 1
+    }
+    if candidates.is_empty() {
+        return function_c_name
+    }
+    var owner = class_of_function_c_name(function_c_name)
+    if not owner {
+        return function_c_name
+    }
+    if owner.source_path.starts_with("library/") or is_hot_class(owner) {
+        return function_c_name
+    }
+    var original = function_by_c_name(owner, function_c_name)
+    if not original {
+        return function_c_name
+    }
+    if original.is_constructor or not original.has_body or original.result_slot {
+        return function_c_name
+    }
+    var positions = List<String>()
+    var candidate_index = 0
+    while candidate_index < candidates.count() {
+        var position = candidates[candidate_index]
+        crash original.parameters[position]
+        var parameter_name = original.parameters[position].name
+        var position_text = position.to_string()
+        if not assigns_name(original.body, parameter_name) and not original.lent_parameters.contains(parameter_name) {
+            positions.append(position_text)
+        }
+        candidate_index = candidate_index + 1
+    }
+    if positions.is_empty() {
+        return function_c_name
+    }
+    held_argument_positions = positions
+    var variant_c_name = "{function_c_name}___held_{positions.join("_")}"
+    var existing = function_by_c_name(owner, variant_c_name)
+    if existing {
+        return variant_c_name
+    }
+    var original_return_type = original.get_return_type()
+    var variant = Analysis.FunctionInfo(
+        original.name,
+        variant_c_name,
+        original.parameters,
+        original_return_type,
+        original.body,
+        false,
+    )
+    variant.line = original.line
+    variant.source_path = original.source_path
+    variant.symbol_name = original.symbol_name
+    variant.symbol_field_name = original.symbol_field_name
+    variant.symbol_field_index = original.symbol_field_index
+    variant.symbol_field_type = original.symbol_field_type
+    variant.symbol_owner_c_name = original.symbol_owner_c_name
+    variant.symbol_through_caller = original.symbol_through_caller
+    variant.symbol_pattern = original.symbol_pattern
+    variant.symbol_function_name = original.symbol_function_name
+    variant.symbol_display_name = original.symbol_display_name
+    variant.symbol_range = original.symbol_range
+    variant.symbol_enum_c_name = original.symbol_enum_c_name
+    variant.lent_sources = original.lent_sources
+    variant.lent_parameters = original.lent_parameters.copy()
+    var lent_caller = lent_callers.get(function_c_name)
+    if lent_caller {
+        lent_callers.set(variant_c_name, lent_caller)
+    }
+    var parameter_index = 0
+    while parameter_index < original.parameters.count() {
+        var parameter_text = parameter_index.to_string()
+        if positions.contains(parameter_text) {
+            variant.held_parameters.append(original.parameters[parameter_index].name)
+        }
+        parameter_index = parameter_index + 1
+    }
+    owner.declared_functions.append(variant)
+    builder.add_prototype("{function_signature(owner, variant)};")
+    return variant_c_name
+}
+
+func held_by_caller(argument: Syntax.Expressions.Expression, expected_type: Analysis.SpiteType, scope: Scope): Boolean {
+    var identifier = shape.as_identifier(argument)
+    if not identifier {
+        return false
+    }
+    if not type_needs_drop(expected_type) or type_shape.as_union(expected_type) or type_shape.as_string(expected_type) {
+        return false
+    }
+    if type_shape.is_arguments(expected_type) {
+        return false
+    }
+    if not scope.borrow_source(identifier.name).is_empty() or not scope.row_source(identifier.name).is_empty() {
+        return false
+    }
+    return scope.holds_for_call(identifier.name)
+}
+
+func assigns_name(statements: List<Syntax.Statements.Statement>, name: String): Boolean {
+    var index = 0
+    while index < statements.count() {
+        if statement_assigns_name(statements[index], name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func statement_assigns_name(statement: Syntax.Statements.Statement, name: String): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: return statement.name == name
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            var target = shape.as_identifier(statement.target)
+            if target {
+                return target.name == name
+            }
+            return false
+        }
+        Syntax.Statements.IfStatement: {
+            if assigns_name(statement.then_branch, name) {
+                return true
+            }
+            return assigns_name(statement.else_branch, name)
+        }
+        Syntax.Statements.WhileStatement: return assigns_name(statement.body, name)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                if assigns_name(statement.cases[case_index].body, name) {
+                    return true
+                }
+                case_index = case_index + 1
+            }
+            return false
+        }
+        _: return false
+    }
 }
 
 func class_of_function_c_name(function_c_name: String): Analysis.ClassInfo? {
@@ -17788,6 +17983,12 @@ func generate_member_read_raw(
         var peeked_read = "(\{ {c_type_name(object_result_type)} {peeked_temporary} = {peeked}; {peeked_temporary} != 0 ? ({peeked_temporary})->{c_value_name(member.name)} : ({field.default_value_code}); })"
         return ExpressionResult(peeked_read, peeked_field_type)
     }
+    if stays_with_singleton(target_class, field) {
+        var stable_type = field.get_type()
+        var stable_read = ExpressionResult("({object_result.code})->{c_value_name(member.name)}", stable_type)
+        stable_read.owning_override = false
+        return stable_read
+    }
     if reads_changing_singleton(target_class, class_information) {
         return guarded_outside_read(target_class, object_result, member.object, field)
     }
@@ -19268,6 +19469,9 @@ func lends_row(
     var types = List<Analysis.SpiteType>()
     var codes = List<String>()
     var paths = List<String>()
+    var lent_names = List<String>()
+    var lent_values = List<Syntax.Expressions.Expression>()
+    var lent_keys = List<String>()
     var index = 0
     var mixing = walked_row_mixing
     walked_row_mixing = false
@@ -19275,7 +19479,18 @@ func lends_row(
         var field = literal.fields[index]
         crash field.value
         var made = made_in_frame(field.value, mixing, scope, class_information)
-        if made {
+        var window_text = lent_window_of(field.value, mixing, scope, class_information)
+        if window_text {
+            var lent_function = lent_element_function(field.value, mixing, scope, class_information)
+            crash lent_function
+            var lent_type = lent_function.get_return_type()
+            names.append(field.name)
+            types.append(lent_type)
+            codes.append("")
+            lent_names.append(field.name)
+            lent_values.append(field.value)
+            lent_keys.append(window_text)
+        } else if made {
             names.append(field.name)
             var made_type = made.get_type()
             types.append(made_type)
@@ -19309,8 +19524,19 @@ func lends_row(
     var assign_index = 0
     while assign_index < names.count() {
         crash codes[assign_index]
-        builder.add_user("{storage}.{c_value_name(names[assign_index])} = {codes[assign_index]};")
+        if not lent_names.contains(names[assign_index]) {
+            builder.add_user("{storage}.{c_value_name(names[assign_index])} = {codes[assign_index]};")
+        }
         assign_index = assign_index + 1
+    }
+    var lent_index = 0
+    while lent_index < lent_names.count() {
+        var lent_value = lent_values.get_at(lent_index)
+        var lent_window = lent_keys.get_at(lent_index)
+        var lent_name = lent_names.get_at(lent_index)
+        var lent_code = lend_site(lent_value, lent_window, scope, class_information)
+        builder.add_user("{storage}.{c_value_name(lent_name)} = {lent_code};")
+        lent_index = lent_index + 1
     }
     var literal_type: Analysis.SpiteType = Analysis.Types.ClassRefType(information.c_name)
     var row_type = literal_type
@@ -19378,6 +19604,464 @@ func lends_walked_row(
     borrow_index = saved_index
     walked_row_filled = lent
     return lent
+}
+
+func lent_element_function(
+    value: Syntax.Expressions.Expression,
+    mixing: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.FunctionInfo? {
+    assert mixing and not in_vector_library(class_information) and not resumable_mode
+    var call = shape.as_call(value)
+    assert call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member and call.arguments.count() == 1
+    crash member.object
+    var owner = lent_element_owner(member.object, scope, class_information)
+    assert owner
+    var function = find_or_instantiate_function(owner, member.name)
+    assert function
+    assert not lent_element_field(owner, function).is_empty()
+    return function
+}
+
+func lent_window_of(
+    value: Syntax.Expressions.Expression,
+    mixing: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String? {
+    var function = lent_element_function(value, mixing, scope, class_information)
+    assert function
+    var call = shape.as_call(value)
+    crash call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    crash member
+    crash member.object
+    var owner = lent_element_owner(member.object, scope, class_information)
+    crash owner
+    var field_name = lent_element_field(owner, function)
+    assert not drops_reach_list(owner, field_name)
+    return lend_window_text(scope, class_information)
+}
+
+func lent_element_owner(
+    receiver: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var construction = shape.as_generic_call(receiver)
+    if construction {
+        return generic_singleton_made(construction, class_information.qualified_dotted)
+    }
+    var identifier = shape.as_identifier(receiver)
+    assert identifier
+    var receiver_type = scope.written_type(identifier.name)
+    if not receiver_type {
+        var field = class_information.find_field(identifier.name)
+        assert field
+        receiver_type = field.get_type()
+    }
+    var class_ref = type_shape.as_class_ref(receiver_type)
+    assert class_ref
+    return find_class_by_c_name(class_ref.c_name)
+}
+
+func lent_element_field(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    if not owner.is_singleton or owner.is_generic_template or is_library_class(owner) or is_hot_class(owner) {
+        return ""
+    }
+    if function.is_constructor or not function.has_body or function.body.is_empty() {
+        return ""
+    }
+    if not function.lent_parameters.is_empty() or not function.held_parameters.is_empty() or function.result_slot {
+        return ""
+    }
+    var parameter_index = 0
+    while parameter_index < function.parameters.count() {
+        var parameter_type = function.parameters[parameter_index].get_type()
+        if type_needs_drop(parameter_type) {
+            return ""
+        }
+        parameter_index = parameter_index + 1
+    }
+    var last = function.body.last()
+    if not last {
+        return ""
+    }
+    var returned = shape.as_return_statement(last)
+    if not returned or not returned.value {
+        return ""
+    }
+    if not guards_only_the_read(function.body, returned.value) {
+        return ""
+    }
+    var list_name = ""
+    var index_ast: Syntax.Expressions.Expression? = null
+    var call = shape.as_call(returned.value)
+    if call {
+        crash call.callee
+        var member = shape.as_member(call.callee)
+        if not member or member.name != "get_at" or call.arguments.count() != 1 {
+            return ""
+        }
+        crash member.object
+        var list_identifier = shape.as_identifier(member.object)
+        if not list_identifier {
+            return ""
+        }
+        list_name = list_identifier.name
+        index_ast = call.arguments[0]
+    }
+    var indexed = shape.as_index(returned.value)
+    if indexed {
+        crash indexed.object
+        var indexed_identifier = shape.as_identifier(indexed.object)
+        if not indexed_identifier {
+            return ""
+        }
+        list_name = indexed_identifier.name
+        index_ast = indexed.index
+    }
+    if list_name.is_empty() or not index_ast {
+        return ""
+    }
+    if lent_element_index_code(index_ast, function).is_empty() {
+        return ""
+    }
+    var field = owner.find_field(list_name)
+    if not field {
+        return ""
+    }
+    var field_type = field.get_type()
+    var listed = type_shape.as_list(field_type)
+    if not listed {
+        return ""
+    }
+    var element = listed.get_element()
+    var element_class = type_shape.as_class_ref(element)
+    if not element_class {
+        return ""
+    }
+    if element_class.has_signature {
+        return ""
+    }
+    var lent_return_type = function.get_return_type()
+    var returned_plain = lent_return_type
+    var nullable = type_shape.as_nullable(lent_return_type)
+    if nullable {
+        returned_plain = nullable.get_inner()
+    }
+    var returned_class = type_shape.as_class_ref(returned_plain)
+    if not returned_class {
+        return ""
+    }
+    if returned_class.c_name != element_class.c_name {
+        return ""
+    }
+    if not stays_with_singleton(owner, field) {
+        return ""
+    }
+    return list_name
+}
+
+func guards_only_the_read(
+    statements: List<Syntax.Statements.Statement>,
+    value: Syntax.Expressions.Expression,
+): Boolean {
+    var printer = Syntax.SourcePrinter()
+    var read_text = printer.source_expression(value)
+    var index = 0
+    while index < statements.count() - 1 {
+        var guard = shape.as_assert_statement(statements[index])
+        if not guard {
+            return false
+        }
+        if not guard.is_crash or not guard.value {
+            return false
+        }
+        if printer.source_expression(guard.value) != read_text {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func lent_element_index_code(index_ast: Syntax.Expressions.Expression?, function: Analysis.FunctionInfo): String {
+    if not index_ast {
+        return ""
+    }
+    var literal = shape.as_integer_literal(index_ast)
+    if literal {
+        return literal.value.to_string()
+    }
+    var identifier = shape.as_identifier(index_ast)
+    if not identifier {
+        return ""
+    }
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        if parameter.name == identifier.name {
+            var parameter_type = parameter.get_type()
+            var scalar = type_shape.as_scalar(parameter_type)
+            if not scalar {
+                return ""
+            }
+            if scalar.kind != 'integer_kind' {
+                return ""
+            }
+            return c_value_name(parameter.name)
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func lend_window_text(scope: Scope, class_information: Analysis.ClassInfo): String? {
+    assert not hot_reload and not read_evaluate_print_loop and remote_loop_port == 0 and not keeps_internals
+    var watch = ReleaseWatch("")
+    watch.strict = true
+    assert watch_statements(watch, borrow_statements, borrow_index + 1, scope, class_information)
+    return watch.keys.join(" ")
+}
+
+func drops_reach_list(owner: Analysis.ClassInfo, field_name: String): Boolean {
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        var dropped_while_running = not information.is_singleton and not is_library_class(information)
+        if dropped_while_running and information.find_function("drop") {
+            var key = call_effects.effects_key(information.simple_name, "drop")
+            if key.is_empty() {
+                return true
+            }
+            if drop_reaches_list(key, owner, field_name) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func drop_reaches_list(key: String, owner: Analysis.ClassInfo, field_name: String): Boolean {
+    var keys = [key]
+    var effects = call_effects.effects_of_key(key)
+    if effects.contains("field:*") {
+        return true
+    }
+    var reached = call_effects.reached_classes(keys)
+    if reached.has(owner.simple_name) {
+        return true
+    }
+    var accesses = call_effects.reached_accesses(keys)
+    return accesses.contains("{owner.simple_name}#{field_name}") or accesses.contains("*#{field_name}")
+}
+
+func lend_site(
+    value: Syntax.Expressions.Expression,
+    window_text: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var call = shape.as_call(value)
+    crash call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    crash member
+    crash member.object
+    var owner = lent_element_owner(member.object, scope, class_information)
+    crash owner
+    var function = find_or_instantiate_function(owner, member.name)
+    crash function
+    var variant = ensure_lent_element_variant(owner, function)
+    var receiver = generate_expression(member.object, scope, class_information)
+    crash function.parameters[0]
+    var parameter_type = function.parameters[0].get_type()
+    var index_code = coerce_for_store(call.arguments[0], parameter_type, scope, class_information)
+    var site = lend_site_owners.count()
+    var element_type = function.get_return_type()
+    var held_name = next_temporary()
+    var held_code = c_value_name(held_name)
+    builder.add_user("spite_lend_{site}_enter();")
+    builder.add_user(
+        "{c_type_name(element_type)} {held_code} = spite_lend_{site}_read({variant.c_name}, {function.c_name}, {receiver.code}, {index_code});",
+    )
+    lend_site_owners.append(owner)
+    lend_site_keys.append(window_text)
+    var releasing = release_call(element_type, "value")
+    lend_site_releases.append(releasing)
+    scope.declare_owned(held_name, element_type)
+    var held_local = scope.owned.last()
+    crash held_local
+    held_local.framed = true
+    held_local.framed_cleanup = "spite_lend_{site}_leave({held_code})"
+    return held_code
+}
+
+func ensure_lent_element_variant(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo): Analysis.FunctionInfo {
+    var variant_c_name = "{function.c_name}___lent_element"
+    var existing = function_by_c_name(owner, variant_c_name)
+    if existing {
+        return existing
+    }
+    var original_return_type = function.get_return_type()
+    var variant = Analysis.FunctionInfo(
+        function.name,
+        variant_c_name,
+        function.parameters,
+        original_return_type,
+        function.body,
+        false,
+    )
+    variant.line = function.line
+    variant.source_path = function.source_path
+    variant.lent_element = lent_element_field(owner, function)
+    owner.declared_functions.append(variant)
+    builder.add_prototype("{function_signature(owner, variant)};")
+    return variant
+}
+
+func lent_element_return(function: Analysis.FunctionInfo): Syntax.Expressions.Expression? {
+    var last = function.body.last()
+    assert last
+    var returned = shape.as_return_statement(last)
+    assert returned
+    return returned.value
+}
+
+func lent_element_index_of(value: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    var call = shape.as_call(value)
+    if call {
+        return call.arguments[0]
+    }
+    var indexed = shape.as_index(value)
+    assert indexed
+    return indexed.index
+}
+
+func lent_element_range_failed(function: Analysis.FunctionInfo): String {
+    var returned = lent_element_return(function)
+    crash returned
+    var index_ast = lent_element_index_of(returned)
+    var index_code = lent_element_index_code(index_ast, function)
+    var list_code = "self->{c_value_name(function.lent_element)}"
+    return "{index_code} < 0 || {index_code} >= ({list_code})->item_count_"
+}
+
+func lent_element_read(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    var field = information.find_field(function.lent_element)
+    crash field
+    var field_type = field.get_type()
+    var listed = type_shape.as_list(field_type)
+    crash listed
+    var element = listed.get_element()
+    var returned = lent_element_return(function)
+    crash returned
+    var index_ast = lent_element_index_of(returned)
+    var index_code = lent_element_index_code(index_ast, function)
+    var get_at = list_function(element, "get_at")
+    var list_code = "self->{c_value_name(field.name)}"
+    var failed = lent_element_range_failed(function)
+    var item = list_item_code(element, list_code, index_code)
+    return "(({failed}) ? {get_at}({list_code}, {index_code}) : {item})"
+}
+
+func finish_lend_sites() {
+    var reached = call_effects.thread_reached_classes()
+    var index = 0
+    while index < lend_site_owners.count() {
+        var owner = lend_site_owners.get_at(index)
+        var name = owner.c_name
+        var releasing = lend_site_releases.get_at(index)
+        var keys_text = lend_site_keys.get_at(index)
+        var threaded = parallel_used and (reached.has(owner.simple_name) or called_implicitly(owner))
+        var lent_read = "#define spite_lend_{index}_read(lent, counted, receiver, index) lent(receiver, index)"
+        if not threaded {
+            builder.add_typedef("#define spite_lend_{index}_enter() ((void)0)")
+            builder.add_typedef(lent_read)
+            builder.add_typedef("#define spite_lend_{index}_leave(value) ((void)0)")
+        } else if read_guarded_names.contains(name) and lend_window_holds(owner, keys_text) {
+            builder.add_typedef(
+                "#define spite_lend_{index}_enter() int64_t* spite_lend_{index} = spite_read_enter(&{name}___guard, {name}___readers)",
+            )
+            builder.add_typedef(lent_read)
+            builder.add_typedef("#define spite_lend_{index}_leave(value) spite_read_leave(spite_lend_{index})")
+        } else if lend_window_holds(owner, keys_text) {
+            declare_guard(name)
+            builder.add_typedef("#define spite_lend_{index}_enter() spite_guard_enter(&{name}___guard)")
+            builder.add_typedef(lent_read)
+            builder.add_typedef("#define spite_lend_{index}_leave(value) spite_guard_leave(&{name}___guard)")
+        } else {
+            builder.add_typedef("#define spite_lend_{index}_enter() ((void)0)")
+            builder.add_typedef(
+                "#define spite_lend_{index}_read(lent, counted, receiver, index) counted(receiver, index)",
+            )
+            builder.add_typedef("#define spite_lend_{index}_leave(value) {releasing}")
+        }
+        index = index + 1
+    }
+}
+
+func declare_guard(name: String) {
+    assert not emitted_guards.contains(name)
+    emitted_guards.append(name)
+    builder.add_support("static SpiteGuard {name}___guard = \{ 0, 0 };")
+}
+
+func lend_window_holds(owner: Analysis.ClassInfo, keys_text: String): Boolean {
+    var keys = List<String>()
+    if not keys_text.is_empty() {
+        keys = keys_text.split(" ")
+    }
+    var reached = call_effects.reached_classes(keys)
+    if reached.has(owner.simple_name) {
+        return false
+    }
+    var blocking = ["Parallel", "Concurrent", "ThreadPool", "Scheduler", "Lock", "Program", "Console", "File", "Socket"]
+    var index = 0
+    while index < blocking.count() {
+        if reached.has(blocking[index]) {
+            return false
+        }
+        index = index + 1
+    }
+    var accesses = call_effects.reached_accesses(keys)
+    index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if information.is_singleton and not information.is_stateless_singleton {
+            if reached.has(information.simple_name) or accesses_class(accesses, information) {
+                return false
+            }
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func accesses_class(accesses: List<String>, information: Analysis.ClassInfo): Boolean {
+    var index = 0
+    while index < accesses.count() {
+        var access = accesses[index]
+        var hash = access.index_of("#")
+        var access_length = access.length()
+        var owner = access.slice(0, hash)
+        var field_name = access.slice(hash + 1, access_length)
+        if owner == information.simple_name {
+            return true
+        }
+        if owner == "*" and information.find_field(field_name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func lends_spread_arguments(
@@ -21459,6 +22143,14 @@ func watch_expression(
                 return false
             }
             var constructed = called_name_of(expression.callee)
+            if watch.strict {
+                var constructed_key = call_effects.effects_key(constructed, constructed)
+                var constructed_effects = call_effects.effects_of(constructed, constructed)
+                if constructed_key.is_empty() or not window_keeps(constructed_effects) {
+                    return false
+                }
+                watch.keys.append(constructed_key)
+            }
             return not any_releases(constructed)
         }
         Syntax.Expressions.BinaryExpression: {
@@ -21479,6 +22171,9 @@ func watch_expression(
         Syntax.Expressions.MemberExpression: {
             crash expression.object
             if any_releases("get_{expression.name}") {
+                return false
+            }
+            if watch.strict and not reads_local_attribute(watch, expression.object, scope) {
                 return false
             }
             return watch_expression(watch, expression.object, scope, class_information)
@@ -21513,17 +22208,97 @@ func watch_call(
         if member.name == "release_value" or not watch_expression(watch, member.object, scope, class_information) {
             return false
         }
-        if not call_effects.by_function.has("*#{member.name}") and any_releases("missing_function") {
+        var called_name = member.name
+        if watch.strict and called_name == bound_pattern and not bound_pattern.is_empty() {
+            called_name = bound_function_name
+        }
+        if not call_effects.by_function.has("*#{called_name}") and any_releases("missing_function") {
             return false
         }
     } else {
         var identifier = shape.as_identifier(callee)
-        if not identifier or not class_information.find_function(identifier.name) or watch.locals.contains(identifier.name) {
+        if not identifier or watch.locals.contains(identifier.name) {
+            return false
+        }
+        var constructs = watch.strict and call_effects.names_a_class(identifier.name)
+        if not class_information.find_function(identifier.name) and not constructs {
             return false
         }
     }
+    if watch.strict {
+        return watch_strict_call(watch, callee, scope, class_information)
+    }
     var effects = watched_effects(watch, callee, scope, class_information)
     return not effects.contains("release") and not effects.contains("field:*")
+}
+
+func watch_strict_call(
+    watch: ReleaseWatch,
+    callee: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var called = callee
+    var member = shape.as_member(callee)
+    if member {
+        if member.name == bound_pattern and not bound_pattern.is_empty() {
+            crash member.object
+            var named: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(
+                member.object,
+                bound_function_name,
+            )
+            called = named
+        }
+    }
+    var key = called_effects_key(called, scope, class_information)
+    if key.is_empty() {
+        return false
+    }
+    var effects = call_effects.by_function.get(key)
+    if not effects {
+        return false
+    }
+    if not window_keeps(effects.keys) {
+        return false
+    }
+    watch.keys.append(key)
+    return true
+}
+
+func window_keeps(effects: List<String>): Boolean {
+    var index = 0
+    while index < effects.count() {
+        var effect = effects[index]
+        if effect == "release" or effect == "field:*" or effect.starts_with("shrink:") {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func reads_local_attribute(watch: ReleaseWatch, object: Syntax.Expressions.Expression, scope: Scope): Boolean {
+    var identifier = shape.as_identifier(object)
+    if not identifier {
+        var member = shape.as_member(object)
+        if not member {
+            return false
+        }
+        crash member.object
+        return reads_local_attribute(watch, member.object, scope)
+    }
+    if watch.locals.contains(identifier.name) {
+        return true
+    }
+    var local_type = scope.written_type(identifier.name)
+    if not local_type {
+        return false
+    }
+    var local_class = class_behind(local_type)
+    if not local_class {
+        return true
+    }
+    return not local_class.is_singleton
 }
 
 func watched_owner(watched_type: Analysis.SpiteType): String {
@@ -27530,12 +28305,13 @@ func coarse_holds(owner: String, called: List<String>, keys: List<String>): Bool
 func call_unguarded_between(site: Integer, called: List<String>) {
     var line_index = coarse_site_starts.get_at(site)
     var end = coarse_site_ends.get_at(site)
+    var unguarded = with_wrapped_copies(called)
     while line_index < end {
         var line = builder.user_at(line_index)
         var changed = line
         var index = 0
-        while index < called.count() {
-            var name = called[index]
+        while index < unguarded.count() {
+            var name = unguarded[index]
             if wrapped_function_names.has(name) {
                 changed = replace_call(changed, "{name}(", "{name}___unguarded(")
             }
@@ -27546,6 +28322,27 @@ func call_unguarded_between(site: Integer, called: List<String>) {
         }
         line_index = line_index + 1
     }
+}
+
+func with_wrapped_copies(called: List<String>): List<String> {
+    var names = called.copy()
+    var wrapped = wrapped_function_names.keys()
+    var index = 0
+    while index < wrapped.count() {
+        var wrapped_name = wrapped[index]
+        var called_index = 0
+        while called_index < called.count() {
+            var name = called[called_index]
+            var held_copy = wrapped_name.starts_with("{name}___held_")
+            var lent_copy = wrapped_name.starts_with("{name}___lent_")
+            if (held_copy or lent_copy) and not names.contains(wrapped_name) {
+                names.append(wrapped_name)
+            }
+            called_index = called_index + 1
+        }
+        index = index + 1
+    }
+    return names
 }
 
 func generate_while_loop(
@@ -29407,6 +30204,17 @@ func generate_return_statement(
         report("'{function_information.name}' returns {type_with_article(return_type)}, so 'return' needs a value")
         return
     }
+    if return_statement.value and not function_information.lent_element.is_empty() {
+        var mentioned = List<String>()
+        collect_statement_names(return_statement, mentioned)
+        mentioned.each(scope.mark_used)
+        var lent_temporary = next_temporary()
+        var lent_read = lent_element_read(class_information, function_information)
+        builder.add_user("{c_type_name(return_type)} {lent_temporary} = {lent_read};")
+        emit_scope_drops(scope, true)
+        builder.add_user("return {lent_temporary};")
+        return
+    }
     if return_statement.value {
         report_unlent_return(return_statement.value, class_information, function_information)
         assert not returns_object_in_frame(return_statement.value, return_type, scope, class_information)
@@ -29557,6 +30365,12 @@ func generate_statement_kind(
         return false
     }
     var assert_statement = shape.as_assert_statement(statement)
+    if assert_statement and not function_information.lent_element.is_empty() {
+        builder.add_user("if ({lent_element_range_failed(function_information)}) \{")
+        generate_assert_statement(assert_statement, scope, class_information, function_information)
+        builder.add_user("}")
+        return false
+    }
     if assert_statement {
         report_default_assert(assert_statement, function_information)
         return generate_assert_statement(assert_statement, scope, class_information, function_information)
@@ -30221,6 +31035,8 @@ func parameter_scope(function: Analysis.FunctionInfo): Scope {
         }
         if function.lent_parameters.contains(parameter.name) {
             declare_lent_parameter(parameter.name, parameter_type, function.lent_sources, scope)
+        } else if function.held_parameters.contains(parameter.name) {
+            scope.declare(parameter.name, parameter_type)
         } else if type_needs_drop(parameter_type) {
             scope.declare_owned(parameter.name, parameter_type)
         } else {
@@ -30559,6 +31375,9 @@ func guards_singleton(information: Analysis.ClassInfo, function: Analysis.Functi
         return false
     }
     if function.is_constructor or function.name == "drop" or function.body.is_empty() {
+        return false
+    }
+    if not function.lent_element.is_empty() {
         return false
     }
     if is_hot_class(information) {
@@ -32282,6 +33101,37 @@ func is_read_only_class(information: Analysis.ClassInfo, visiting: List<String>)
     }
     read_only_classes.set(information.c_name, read_only)
     return read_only
+}
+
+func stays_with_singleton(target_class: Analysis.ClassInfo, field: Analysis.FieldInfo): Boolean {
+    if not target_class.is_singleton or is_library_class(target_class) or is_hot_class(target_class) {
+        return false
+    }
+    if keeps_internals or hot_reload or read_evaluate_print_loop or remote_loop_port != 0 {
+        return false
+    }
+    if target_class.find_function("get_{field.name}") {
+        return false
+    }
+    var field_type = field.get_type()
+    var held_type = field_type
+    var nullable = type_shape.as_nullable(field_type)
+    if nullable {
+        held_type = nullable.get_inner()
+    }
+    var held_class = type_shape.as_class_ref(held_type)
+    var collection = false
+    if type_shape.as_list(held_type) or type_shape.as_dictionary(held_type) {
+        collection = true
+    }
+    if held_class {
+        if held_class.has_signature {
+            return false
+        }
+    } else if not collection {
+        return false
+    }
+    return not call_effects.assigned_after_construction(target_class.simple_name, field.name)
 }
 
 func guards_outside_write(target_class: Analysis.ClassInfo): Boolean {

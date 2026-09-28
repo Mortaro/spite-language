@@ -1,0 +1,12 @@
+singleton
+
+var names = List<String>()
+var current = Board(1)
+
+func add(name: String) {
+    names.append(name)
+}
+
+func replace(size: Integer) {
+    current = Board(size)
+}

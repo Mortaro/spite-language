@@ -1,0 +1,10 @@
+type Carried {
+    position: Position
+    bag: Bag
+}
+
+var counted: Float = 0.0
+
+func update_each(carried: Carried) {
+    counted = counted + carried.position.left
+}

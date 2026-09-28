@@ -6,6 +6,8 @@ var element_classes = Dictionary<String>()
 var return_classes = Dictionary<String>()
 var class_names = Dictionary<Boolean>()
 var plain_fields = Dictionary<Boolean>()
+var counted_field_names = Dictionary<Boolean>()
+var type_field_classes = Dictionary<String>()
 var shared_defaults = Dictionary<Boolean>()
 
 func study(class_files: List<Discovery.DiscoveredClass>) {
@@ -35,6 +37,14 @@ func effects_of(class_name: String, name: String): List<String> {
     var any = by_function.get("*#{name}")
     if any {
         return any.keys
+    }
+    return List<String>()
+}
+
+func effects_of_key(key: String): List<String> {
+    var effects = by_function.get(key)
+    if effects {
+        return effects.keys
     }
     return List<String>()
 }
@@ -229,6 +239,8 @@ func record_fields(statements: List<Syntax.Statements.Statement>, class_name: St
             }
             if holds_plain_value(declared) {
                 plain_fields.set("{class_name}#{declared.name}", true)
+            } else {
+                counted_field_names.set(declared.name, true)
             }
             if not makes_its_own(declared) {
                 shared_defaults.set("{class_name}#{declared.name}", true)
@@ -237,6 +249,30 @@ func record_fields(statements: List<Syntax.Statements.Statement>, class_name: St
         var function = shape.as_function_declaration(statements[index])
         if function {
             record_return(function, class_name)
+        }
+        var declared_type = shape.as_type_declaration(statements[index])
+        if declared_type {
+            record_type_fields(declared_type)
+        }
+        index = index + 1
+    }
+}
+
+func record_type_fields(declared_type: Syntax.Statements.TypeDeclaration) {
+    var index = 0
+    while index < declared_type.fields.count() {
+        var field = declared_type.fields[index]
+        if field.is_attribute() and field.type_reference {
+            var key = "{declared_type.name}#{field.name}"
+            var field_class = type_class_name(field.type_reference)
+            if field_class.is_empty() {
+                field_class = "*"
+            }
+            var recorded = type_field_classes.get(key)
+            if recorded and recorded != field_class {
+                field_class = "*"
+            }
+            type_field_classes.set(key, field_class)
         }
         index = index + 1
     }
@@ -505,11 +541,37 @@ func link_calls(effects: FunctionEffects) {
         if not callee {
             callee = by_function.get("*#{call.callee}")
         }
+        if not callee {
+            var singular = singular_template(call.callee_class, call.callee)
+            if not singular.is_empty() {
+                call.callee = singular
+                call.arguments.prepend("fresh")
+                callee = by_function.get("{call.callee_class}#{singular}")
+            }
+        }
         if callee {
             callee.incoming.append(call)
         }
         call_index = call_index + 1
     }
+}
+
+func singular_template(class_name: String, plural: String): String {
+    if class_name == "*" {
+        return ""
+    }
+    var plural_length = plural.length()
+    var index = 0
+    while index < plural_length {
+        if plural.code_at(index) == 115 {
+            var candidate = plural.slice(0, index) + plural.slice(index + 1, plural_length)
+            if by_function.has("{class_name}#{candidate}") {
+                return candidate
+            }
+        }
+        index = index + 1
+    }
+    return ""
 }
 
 func pass_to_callers(changed: FunctionEffects, fresh: List<String>, waiting: List<String>) {
@@ -757,6 +819,41 @@ func add_callee_entry(call: EffectCall, entries: List<String>) {
     } else {
         entries.append(resolved)
     }
+}
+
+func reached_accesses(entries: List<String>): List<String> {
+    var accesses = List<String>()
+    var seen = Dictionary<Boolean>()
+    var waiting = entries.copy()
+    while not waiting.is_empty() {
+        var key = waiting.remove_last()
+        crash key
+        if not seen.has(key) {
+            seen.set(key, true)
+            var effects = by_function.get(key)
+            if effects {
+                effects.member_reads.each(accesses.append)
+                effects.member_writes.each(accesses.append)
+                add_callees(effects, waiting)
+            }
+        }
+    }
+    return accesses
+}
+
+func assigned_after_construction(class_name: String, name: String): Boolean {
+    var own = "field:{class_name}#{name}"
+    var any = "field:*#{name}"
+    var index = 0
+    while index < function_keys.count() {
+        var effects = by_function.get(function_keys[index])
+        crash effects
+        if effects.own_keys.contains(own) or effects.own_keys.contains(any) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func writes_from_outside(class_name: String): List<String> {

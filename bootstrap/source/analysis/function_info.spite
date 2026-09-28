@@ -23,6 +23,8 @@ var symbol_range = ""
 var symbol_enum_c_name = ""
 var lent_parameters = List<String>()
 var lent_sources = ""
+var held_parameters = List<String>()
+var lent_element = ""
 var result_slot = false
 
 func FunctionInfo(

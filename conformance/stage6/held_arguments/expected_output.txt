@@ -1,0 +1,5 @@
+packed 10 4
+weighed 4
+swapped reads the other bag 0
+handed back first and the local now names second
+kept first 1
