@@ -1,0 +1,11 @@
+var console = Console()
+var headers = Headers()
+var fingerprints = Fingerprints()
+
+func DebugDictionaryKeys() {
+    headers.name(4096, "position")
+    fingerprints.read("\{\"hero\": \"a1\"}")
+    var found = fingerprints.of("hero")
+    console.print(found)
+    console.debug(headers, fingerprints)
+}

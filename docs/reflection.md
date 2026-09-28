@@ -21,7 +21,7 @@ a generic's type -- is constant data or folds while compiling. The whole list is
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)`, `function_waits(name)`, `argument_count(name)` |
+| `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)`, `function_waits(name)`, `argument_count(name)`, `source_folder()` |
 | `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)`, `waits()`, `argument_count()` |
 | `Spite.Argument` | `.name`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: Anything?` (the value itself; `.value.to_string()` is its text) |
@@ -80,7 +80,8 @@ power Integer 3
 
 - **`class` is not a keyword.** Inside any function of a class it is the class of the instance that function
   answers on -- an attribute every instance inherits -- so `own class` above names the class the function was
-  written in. A local or attribute actually named `class` takes precedence.
+  written in. A local named `class` takes precedence inside its function; an attribute or function cannot be
+  named `class` ([below](#the-names-reflection-gives-every-object)).
 - **A class name reads its own class object**, member by member, with no instance anywhere: `Gadget.name` is
   `"Gadget"`, and `Gadget.namespace` is the same namespace `gadget.class.namespace` gives. A class name is not a
   value you can call a function of the class on, though: there are no static functions, so `Gadget.boost()` is
@@ -89,6 +90,29 @@ power Integer 3
   object's own tag at run time, so it names the class the value really is; an object literal answers `Object`.
 - `value.attributes` holds the values; `Gadget.attributes` describes the declarations. The same word is right at
   both levels, and the case of the receiver says which one you mean.
+
+### The names reflection gives every object
+
+`class`, `attributes`, `functions`, `instances` and `memory` belong to reflection on every class, so a class
+cannot declare an attribute or a function of its own by those names, nor a `get_` or `set_` function that would be
+read as one ([D246](decisions.md), decided by Claude under D205; the list proposed by Claude, unconfirmed). One
+named `attributes` would otherwise hide the real list from everything that walks a class -- `JsonReader` would read
+every key as a key the class does not have. The error names what the member means and a name to use instead:
+
+```gdscript title=reflection_names/reflection_names.spite entry error
+var console = Console()
+var attributes = List<String>()
+
+func ReflectionNames() {
+    attributes.append("heavy")
+    console.print(attributes.count())
+}
+```
+```diagnostic
+the attribute 'attributes' has a name reflection gives every object: 'value.attributes' lists its attributes, and JsonReader, JsonWriter and every attribute walk read through it, and one of its own would hide it. Name it something else, like 'reflection_names_attributes'
+```
+
+A local variable or a parameter may still use any of these names, since nothing reads it through an object.
 
 ### An attribute's value
 
@@ -448,7 +472,7 @@ namespace: a program's `spite/` folder may only reopen its classes, and `load "s
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` (D114; folds on a codegen type), `function_waits(name)` (D209; folds the same way, [metaprogramming.md](metaprogramming.md#asking-whether-a-function-waits)), `argument_count(name)` (D219: how many arguments the first function whose name fits takes, 0 for none; folds the same way, [metaprogramming.md](metaprogramming.md#asking-how-many-arguments-a-function-takes)) -- the functions of `Spite.Class` ([below](#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)) |
+| `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` (D114; folds on a codegen type), `function_waits(name)` (D209; folds the same way, [metaprogramming.md](metaprogramming.md#asking-whether-a-function-waits)), `argument_count(name)` (D219: how many arguments the first function whose name fits takes, 0 for none; folds the same way, [metaprogramming.md](metaprogramming.md#asking-how-many-arguments-a-function-takes)), `source_folder()` (D228: the absolute folder of the file declaring the class, folded where the class is known, [packages.md](packages.md#files-beside-a-packages-source)) -- the functions of `Spite.Class` ([below](#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)) |
 | `Spite.Function` | `.name: Symbol`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)` (D116), `waits()` (D209: whether it can reach a wait), `argument_count()` (D219: how many `.arguments` it has) |
 | `Spite.Argument` | `.name: Symbol`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name: Symbol`, `.class: Spite.Class`, `.value: Anything?` (the value itself; its text is `.value.to_string()`, below) |
@@ -478,10 +502,29 @@ by Claude, unconfirmed): a class instance, a list or a dictionary answers with i
 characters (`'constant'` for a literal, which is part of the program), and a number held in a local with the
 local itself (`'stack'`) or in an attribute with that attribute (`'heap'`). Only a named value has an address: a
 number computed on the spot is "only a named value has memory of its own: give this value a name with 'var'
-first". It is built only where a program reads it. A class with an attribute of its own named `memory` -- most of
-the standard library holds one -- answers that attribute instead, the way an attribute named `class` shadows
-`.class`. Choosing an object's allocator through `.memory.allocator` (D152, D153) is
+first". It is built only where a program reads it. A class cannot have an attribute or function of its own named
+`memory` (D246, [below](#the-names-reflection-gives-every-object--implemented)). Choosing an object's allocator through `.memory.allocator` (D152, D153) is
 [memory.md](memory.md#choosing-an-allocator-memoryallocator)'s.
+
+#### The names reflection gives every object  **[implemented]**
+
+**`class`, `attributes`, `functions`, `instances` and `memory` cannot name an attribute or a function of a class**
+(D246, decided by Claude under D205, from the Theseus data conversion; the list proposed by Claude, unconfirmed).
+Neither can a `get_` or `set_` function whose member would be one of them (`get_attributes`). Each is a member
+reflection gives every object -- `value.class`, `value.attributes`, `value.functions`, `value.memory`, and
+`Monster.instances` on the class -- and a class member of the same name was read in its place, silently: a class
+with `var attributes = Table.Attributes()` made every `JsonReader` of it read each key as one the class does not
+have, because the generated reader writes `value.attributes[attribute]`. The error is
+
+`the attribute 'attributes' has a name reflection gives every object: 'value.attributes' lists its attributes, and
+JsonReader, JsonWriter and every attribute walk read through it, and one of its own would hide it.
+Name it something else, like 'table_attributes'`
+
+with the suggestion made from the class's own name, and for an accessor `the function 'get_attributes' is read as
+'attributes', a name reflection gives every object: ...` (`diagnostics/reflection_names`). The classes of the
+`Spite` namespace are exempt: they are reflection, and `Spite.Class.get_attributes()` is how `.attributes` is
+answered. Locals and parameters may use the names. A class of the standard library never
+declared one (the standard library's allocator attribute is `heap`).
 
 **What `.functions` contains** (proposed by Claude, unconfirmed): the functions a class declares, plus the
 Symbol-codegen instances that were actually generated for it -- because those are functions of the class in the

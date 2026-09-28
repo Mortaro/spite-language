@@ -14,7 +14,9 @@ func watch_file(path: String): Boolean {
 
 func add_folder(path: String, report_files: Boolean): Boolean {
     var added = add_entry(path, true)
-    assert added
+    if not added {
+        return false
+    }
     var directory = Directory(path)
     var names = directory.files()
     var file_index = 0
@@ -42,9 +44,13 @@ func add_entry(path: String, is_folder: Boolean): Boolean {
     if queue == -1 {
         queue = library.kqueue()
     }
-    assert queue != -1 and not paths.contains(path)
+    if queue == -1 or paths.contains(path) {
+        return false
+    }
     var opened = library.open(path, 32768)
-    assert opened != -1
+    if opened == -1 {
+        return false
+    }
     var change = heap.allocate(32)
     change.write_long(0, opened)
     change.write_short(8, -4)
@@ -81,7 +87,7 @@ func note_event(descriptor: Long, flags: Integer) {
     var index = 0
     var found = -1
     while index < descriptors.count() {
-        if descriptors.get_at(index) == descriptor {
+        if descriptor == descriptors.get_at(index) {
             found = index
         }
         index = index + 1

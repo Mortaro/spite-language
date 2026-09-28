@@ -1,0 +1,9 @@
+generic $system_type
+
+var wanted = "move"
+
+func ask(): Boolean {
+    var beyond = $system_type.function_writes_parameter("move", 2)
+    var named = $system_type.function_writes_parameter(wanted, 0)
+    return beyond or named
+}

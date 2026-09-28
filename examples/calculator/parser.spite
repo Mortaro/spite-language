@@ -72,6 +72,7 @@ func parse_factor(): Expression {
     }
     if is_kind('number') {
         var value = current().text.to_float()
+        crash value
         advance()
         return NumberExpression(value)
     }

@@ -1,0 +1,15 @@
+generic $component_type
+
+var column = Column<$component_type>()
+
+func of(entity: Integer): $component_type? {
+    var row = column.row_of(entity)
+    assert row >= 0
+    return column.values[row]
+}
+
+func order_of(entity: Integer): Integer {
+    var found = of(entity)
+    crash found
+    return found.order
+}

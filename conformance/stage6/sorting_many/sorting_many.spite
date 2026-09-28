@@ -1,0 +1,87 @@
+var console = Console()
+
+func SortingMany() {
+    var numbers = List<Integer>()
+    var index = 0
+    while index < 5000 {
+        var scrambled = index * 7919 % 5000
+        numbers.append(scrambled)
+        index = index + 1
+    }
+    var sorted = numbers.sort_by(tens_of)
+    var sorted_count = sorted.count()
+    var ascending = ascends(sorted)
+    console.print("sorted", sorted_count, "numbers, ascending by tens:", ascending)
+    var stable = keeps_ties(sorted)
+    console.print("ties keep their order:", stable)
+    var folder = Directory(".spite-cache/sorting_many")
+    folder.create()
+    index = 0
+    while index < 300 {
+        var scrambled = index * 37 % 300
+        var file = File("{folder.path}/file_{scrambled}.txt")
+        file.write("")
+        index = index + 1
+    }
+    var names = folder.files()
+    var name_count = names.count()
+    var ordered = in_order(names)
+    console.print("listed", name_count, "files, in order:", ordered)
+}
+
+func tens_of(number: Integer): Integer {
+    return number / 10
+}
+
+func ascends(numbers: List<Integer>): Boolean {
+    var index = 1
+    while index < numbers.count() {
+        crash numbers[index - 1]
+        var before = numbers[index - 1] / 10
+        var here = numbers[index] / 10
+        if before > here {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func keeps_ties(numbers: List<Integer>): Boolean {
+    var index = 1
+    while index < numbers.count() {
+        crash numbers[index - 1]
+        var before = numbers[index - 1]
+        var here = numbers[index]
+        if before / 10 == here / 10 and first_position(before) >= first_position(here) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func first_position(number: Integer): Integer {
+    var index = 0
+    while index < 5000 {
+        if index * 7919 % 5000 == number {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func in_order(names: List<String>): Boolean {
+    var index = 1
+    while index < names.count() {
+        crash names[index - 1]
+        var before = names[index - 1]
+        var here = names[index]
+        if before >= here {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}

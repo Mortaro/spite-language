@@ -1,0 +1,4 @@
+latest reading 12
+heaviest 2.5
+last count doubled 18
+after clearing, present false

@@ -1,0 +1,60 @@
+type Device {
+    mouse: Mouse
+    keyboard: Keyboard
+}
+
+var console = Console()
+var mice = Vector<Mouse>()
+var keyboards = Vector<Keyboard>()
+var input = Input()
+
+func LentToCalls() {
+    var index = 0
+    while index < 2 {
+        var mouse = Mouse(index)
+        mice.append(mouse)
+        var keyboard = Keyboard(index)
+        keyboards.append(keyboard)
+        index = index + 1
+    }
+    input.queue('pointer_moved', 12, 3)
+    input.queue('button_pressed', 1, 0)
+    input.queue('key_pressed', 0, 65)
+    input.queue('key_pressed', 0, 66)
+    input.queue('wheel_turned', 2, 0)
+    var row_index = 0
+    while row_index < mice.count() {
+        var device: Device = {mouse: mice[row_index], keyboard: keyboards[row_index]}
+        input.after_input_each(device)
+        row_index = row_index + 1
+    }
+    var first = mice[0]
+    input.nudge(first, 5)
+    input.nudge(mice[1], 7)
+    var shown = 0
+    while shown < mice.count() {
+        var shown_mouse = mice[shown]
+        var shown_keyboard = keyboards[shown]
+        console.print(
+            "device",
+            shown_mouse.device,
+            "at",
+            shown_mouse.left,
+            shown_mouse.top,
+            "pressed",
+            shown_mouse.pressed,
+            "down",
+            shown_mouse.down,
+            "wheel",
+            shown_mouse.wheel,
+            "keyboard",
+            shown_keyboard.device,
+            "last key",
+            shown_keyboard.last_key,
+            "strokes",
+            shown_keyboard.strokes,
+        )
+        shown = shown + 1
+    }
+    console.print("applied", input.applied)
+}

@@ -30,7 +30,11 @@ func parse(cursor: JsonCursor): $value_type {
         return cursor.read_boolean()
     } else if $value_type == Integer or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInteger or $value_type == UnsignedLong {
         var number_text = cursor.read_number()
-        var number: $value_type = number_text
+        var number: $value_type? = number_text
+        if not number {
+            cursor.fail("a number that fits")
+            return 0
+        }
         return number
     } else if $value_type == Symbol {
         return read_symbol(cursor)
@@ -39,7 +43,7 @@ func parse(cursor: JsonCursor): $value_type {
         var inner = JsonReader<$value_type.value_type>("")
         return inner.parse(cursor)
     } else if $value_type == List {
-        var list: $value_type = null
+        var list = $value_type()
         var element_json = JsonReader<$value_type.element_type>("")
         cursor.expect("[")
         var more = not cursor.consume("]")
@@ -53,12 +57,17 @@ func parse(cursor: JsonCursor): $value_type {
         }
         return list
     } else if $value_type == Dictionary {
-        var dictionary: $value_type = null
+        var dictionary = $value_type()
         var entry_json = JsonReader<$value_type.value_type>("")
         cursor.expect("\{")
         var more = not cursor.consume("}")
         while more and not cursor.failed() {
-            var key: $value_type.key_type = cursor.read_text()
+            var key_text = cursor.read_text()
+            var key: $value_type.key_type? = key_text
+            if not key {
+                cursor.fail("a key that fits the dictionary")
+                return dictionary
+            }
             cursor.expect(":")
             var entry = entry_json.parse(cursor)
             dictionary.set(key, entry)
@@ -77,6 +86,9 @@ func parse(cursor: JsonCursor): $value_type {
             cursor.expect(":")
             cursor.matched = false
             read_attributes(created, key, cursor)
+            if not cursor.matched {
+                read_camel_attributes(created, key, cursor)
+            }
             if not cursor.matched {
                 cursor.skip_value()
             }
@@ -99,16 +111,27 @@ func read_symbol(cursor: JsonCursor): $value_type {
         return symbol
     }
     var found = Symbol(name)
-    if found {
-        return found
+    if not found {
+        cursor.fail("a name the program already uses as a Symbol")
+        return cursor.class.name
     }
-    cursor.fail("a name the program already uses as a Symbol")
+    return found
 }
 
 func read_attribute(attribute: Symbol<$value_type>, created: $value_type, key: String, cursor: JsonCursor) {
     if key == attribute.name {
-        var attribute_json = JsonReader<attribute.class>("")
-        created.attributes[attribute] = attribute_json.parse(cursor)
-        cursor.matched = true
+        store_value(attribute, created, cursor)
     }
+}
+
+func read_camel_attribute(attribute: Symbol<$value_type>, created: $value_type, key: String, cursor: JsonCursor) {
+    if key == attribute.camel_case_name or key == attribute.pascal_case_name {
+        store_value(attribute, created, cursor)
+    }
+}
+
+func store_value(attribute: Symbol<$value_type>, created: $value_type, cursor: JsonCursor) {
+    var attribute_json = JsonReader<attribute.class>("")
+    created.attributes[attribute] = attribute_json.parse(cursor)
+    cursor.matched = true
 }

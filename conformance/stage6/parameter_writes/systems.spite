@@ -1,0 +1,123 @@
+var console = Console()
+var kept = List<Counter>()
+
+func direct(checked: Row, quitting: Row) {
+    var seen = checked.health
+    quitting.health = seen + 1
+}
+
+func nested(row: Row) {
+    row.counter.count = 3
+}
+
+func element(row: Row) {
+    row.flags[0] = 2
+}
+
+func appends(row: Row) {
+    row.flags.append(1)
+}
+
+func method(row: Row) {
+    row.counter.bump()
+}
+
+func aliases(row: Row) {
+    var list = row.flags
+    var index = 0
+    while index < 2 {
+        list.append(index)
+        index = index + 1
+    }
+}
+
+func shrinks(row: Row) {
+    row.flags.clear()
+}
+
+func text_reads(row: Row) {
+    var loud = row.label.upper_case()
+    var size = row.label.length()
+    var first = row.flags.first()
+    assert first
+    console.print(loud, size, first)
+}
+
+func through_calls(checked: Row, quitting: Row) {
+    var total = checked.counter.total()
+    mark(quitting, total)
+}
+
+func mark(row: Row, amount: Integer) {
+    var held = row.counter
+    deeper(held, amount)
+}
+
+func deeper(counter: Counter, amount: Integer) {
+    counter.count = counter.count + amount
+}
+
+func recursive(row: Row, steps: Integer) {
+    if steps > 0 {
+        recursive(row, steps - 1)
+    } else {
+        row.health = 0
+    }
+}
+
+func ping(row: Row, steps: Integer) {
+    if steps > 0 {
+        pong(row, steps - 1)
+    }
+}
+
+func pong(row: Row, steps: Integer) {
+    if steps > 0 {
+        ping(row, steps - 1)
+    } else {
+        row.label = "ponged"
+    }
+}
+
+func lent(row: Row) {
+    var request = row.requests[0]
+    stamp(request)
+}
+
+func stamp(request: Request) {
+    request.stamped = true
+}
+
+func reads(checked: Row, quitting: Row) {
+    var total = checked.counter.total() + checked.health + quitting.flags.count()
+    var request = quitting.requests[0]
+    var tries = request.tries
+    var stamped = request.stamped
+    var three = quitting.flags.contains(3)
+    console.print(checked.label, total, tries, stamped, three)
+    show(quitting)
+}
+
+func show(row: Row) {
+    console.print(row.label, row.health)
+}
+
+func renames(row: Row) {
+    var health = row.health
+    health = health + 1
+    row = Row()
+    row.health = health
+}
+
+func stores(row: Row) {
+    kept.append(row.counter)
+}
+
+func calls_value(row: Row) {
+    var shout = announce
+    shout(row.label)
+}
+
+func announce(text: String) {
+    console.print(text)
+}

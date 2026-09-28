@@ -1,0 +1,14 @@
+var console = Console()
+var clock = Clock()
+
+func ClockReads() {
+    var first = clock.elapsed_nanoseconds()
+    var reads = 0
+    while reads < 1000 {
+        var reading = clock.elapsed_nanoseconds()
+        crash reading >= first
+        reads = reads + 1
+    }
+    var milliseconds = clock.elapsed_milliseconds()
+    console.print(reads, milliseconds >= first / 1000000)
+}

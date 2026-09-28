@@ -1,0 +1,5 @@
+var side = 1
+
+func area(): Integer {
+    return side * side
+}

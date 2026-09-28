@@ -1,0 +1,20 @@
+type Eyed {
+    entity: Integer
+    eye: Server.Component.Eye
+}
+
+var console = Console()
+var watched = List<Eyed>()
+
+func UnknownTypeInShape() {
+    var eye = Component.Eye()
+    var seen = {entity: 1, eye: eye}
+    watched.append(seen)
+    var first = chosen()
+    console.print(first.entity)
+}
+
+func chosen(): Eyed {
+    crash watched[0]
+    return watched[0]
+}

@@ -1,0 +1,4 @@
+20 1111 2222 tail 116 true true
+empty: 0 true
+a missing file maps to nothing: true
+unmapped, so removed: true true

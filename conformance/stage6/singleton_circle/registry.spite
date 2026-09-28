@@ -1,0 +1,8 @@
+singleton
+
+var entries = List<Entry>()
+
+func Registry() {
+    var first = Entry()
+    entries.append(first)
+}

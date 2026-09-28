@@ -5,7 +5,7 @@ enum Phase {
     'render'
 }
 
-var system: $system_type = null
+var system = $system_type()
 
 func run() {
     run_updat_all()

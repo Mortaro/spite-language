@@ -1,0 +1,11 @@
+var console = Console()
+var fixture = DynamicLibrary("conformance/stage6/native_fault_illegal/fixture.dll", 'identity', "")
+
+func NativeFaultIllegal() {
+    console.print("before the fault")
+    halt()
+}
+
+func halt() {
+    fixture.stop_here()
+}

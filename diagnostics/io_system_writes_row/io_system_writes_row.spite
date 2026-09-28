@@ -1,0 +1,9 @@
+var console = Console()
+
+func IoSystemWritesRow() {
+    var runner = Runner<Quitter>()
+    var checked = Checked()
+    var quitting = Quitting()
+    runner.run(checked, quitting)
+    console.print("quit requested:", quitting.quit.requested)
+}

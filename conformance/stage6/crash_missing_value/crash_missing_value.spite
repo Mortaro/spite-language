@@ -1,0 +1,12 @@
+var console = Console()
+
+func CrashMissingValue() {
+    var missing: Integer? = null
+    show(0)
+    show(missing)
+}
+
+func show(width: Integer?) {
+    crash width
+    console.print("width", width)
+}

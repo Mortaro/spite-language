@@ -1,0 +1,89 @@
+var reasons = Dictionary<String>()
+var settled = Dictionary<Boolean>()
+var studied = Dictionary<Boolean>()
+var studying = Dictionary<Boolean>()
+var round_keys = List<String>()
+var grew = false
+
+func answer(generator: Generator, owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, slot: String): Boolean {
+    grew = true
+    while grew {
+        grew = false
+        studied = Dictionary<Boolean>()
+        round_keys.clear()
+        summarize(generator, owner, function)
+    }
+    var index = 0
+    while index < round_keys.count() {
+        settled.set(round_keys[index], true)
+        index = index + 1
+    }
+    return writes(function.c_name, slot)
+}
+
+func summarize(generator: Generator, owner: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    var key = function.c_name
+    assert not settled.has(key) and not studied.has(key) and not studying.has(key)
+    studying.set(key, true)
+    round_keys.append(key)
+    if function.has_body {
+        var study = ParameterWriteStudy(generator, this, owner, function)
+        study.run()
+    } else {
+        summarize_supplied(function)
+    }
+    studying.remove(key)
+    studied.set(key, true)
+}
+
+func summarize_supplied(function: Analysis.FunctionInfo) {
+    var writing = [
+        "resize"
+        "free"
+        "copy_to"
+        "exchange_long"
+        "write_long_atomically"
+        "add_long_atomically"
+        "compare_and_swap_long"
+        "write_value"
+        "release_value"
+        "write_item"
+        "copy_item"
+        "release_item"
+        "release_work"
+        "step_frame"
+        "_start_frame"
+        "_release_box"
+        "assign"
+        "call_function"
+        "call_with_text"
+        "install"
+        "close_library"
+    ]
+    assert writing.contains(function.name) or function.name.starts_with("write_")
+    var reason = "'{function.name}' writes the memory it is handed"
+    record(function.c_name, "this", reason)
+    var index = 0
+    while index < function.parameters.count() {
+        var slot: String = index
+        record(function.c_name, slot, reason)
+        index = index + 1
+    }
+}
+
+func record(key: String, slot: String, reason: String) {
+    var slot_key = "{key}#{slot}"
+    assert not reasons.has(slot_key)
+    reasons.set(slot_key, reason)
+    grew = true
+}
+
+func writes(key: String, slot: String): Boolean {
+    return reasons.has("{key}#{slot}")
+}
+
+func reason_of(key: String, slot: String): String {
+    var found = reasons.get("{key}#{slot}")
+    crash found
+    return found
+}

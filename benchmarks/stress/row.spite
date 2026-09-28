@@ -2,7 +2,7 @@ singleton
 
 generic $row_type
 
-var current: $row_type = null
+var current = $row_type()
 var matched = true
 
 func fill(entity: Integer): Boolean {

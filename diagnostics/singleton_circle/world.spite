@@ -1,0 +1,7 @@
+singleton
+
+var parents = Column<Entity>()
+
+func parent_count(): Integer {
+    return parents.values.count()
+}

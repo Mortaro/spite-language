@@ -1,0 +1,438 @@
+func places_table(
+    c_text: String,
+    owners: Dictionary<String>,
+    names: Dictionary<String>,
+    lines_of: Dictionary<Integer>,
+): String {
+    var shaker = TreeShaker()
+    shaker.split_pieces(c_text)
+    var lines = List<String>()
+    lines.append(
+        "typedef struct SpiteFunctionPlace \{ const void* start; const char* owner; const char* name; int32_t line; } SpiteFunctionPlace;",
+    )
+    lines.append("int main(int argument_count, char** argument_values);")
+    lines.append("static const SpiteFunctionPlace spite_function_places[] = \{")
+    var conditional_depth = 0
+    var index = 0
+    while index < shaker.pieces.count() {
+        var piece = shaker.pieces.get_at(index)
+        var name = shaker.piece_names.get_at(index)
+        if piece.starts_with("#if") {
+            conditional_depth = conditional_depth + 1
+        } else if piece.starts_with("#endif") {
+            conditional_depth = conditional_depth - 1
+        } else if conditional_depth == 0 and is_function_definition(piece, name) {
+            var entry = place_entry(name, owners, names, lines_of)
+            lines.append(entry)
+        }
+        index = index + 1
+    }
+    lines.append("\{(const void*)&main, \"-\\t-\", \"main\", 0},")
+    lines.append("\{0, 0, 0, 0}")
+    lines.append("};")
+    return lines.join("\n")
+}
+
+func is_function_definition(piece: String, name: String): Boolean {
+    if name.is_empty() {
+        return false
+    }
+    var first_line_end = piece.index_of("\n")
+    if first_line_end <= 0 {
+        return false
+    }
+    var first_line = piece.slice(0, first_line_end)
+    if first_line.contains("=") {
+        return false
+    }
+    var keywords = [
+        "void"
+        "int"
+        "char"
+        "long"
+        "short"
+        "signed"
+        "unsigned"
+        "float"
+        "double"
+        "const"
+        "static"
+        "struct"
+        "union"
+        "enum"
+        "return"
+        "if"
+        "while"
+        "for"
+        "switch"
+        "sizeof"
+    ]
+    return not keywords.contains(name)
+}
+
+func place_entry(
+    c_name: String,
+    owners: Dictionary<String>,
+    names: Dictionary<String>,
+    lines_of: Dictionary<Integer>,
+): String {
+    var owner = owners[c_name]
+    var name = names[c_name]
+    var line = lines_of[c_name]
+    if owner and name and line {
+        return "\{(const void*)&{c_name}, \"{escaped(owner)}\", \"{escaped(name)}\", {line}},"
+    }
+    return "\{(const void*)&{c_name}, \"-\\t-\", \"{c_name}\", 0},"
+}
+
+func escaped(text: String): String {
+    var backslashes = text.replace("\\", "\\\\")
+    var quotes = backslashes.replace("\"", "\\\"")
+    return quotes.replace("\t", "\\t")
+}
+
+func defines(records_foreign: Boolean, traces_asserts: Boolean): String {
+    var lines = List<String>()
+    if records_foreign {
+        lines.append("#define SPITE_FAULT_FOREIGN 1")
+    }
+    if traces_asserts {
+        lines.append("#define SPITE_FAULT_TRACE 1")
+    }
+    return lines.join("\n")
+}
+
+func handler(): String {
+    var lines = [
+        "/* ---- native faults (D244): a fault the program cannot survive is reported, never silent (docs/failure.md) ---- */"
+        "typedef struct SpiteFaultLine \{ char bytes[1024]; int length; } SpiteFaultLine;"
+        "typedef struct SpiteFaultFrames \{ const SpiteFunctionPlace* last; uint64_t repeated; int shown; int more; } SpiteFaultFrames;"
+        "static volatile int32_t spite_fault_busy = 0;"
+        "static void spite_fault_add(SpiteFaultLine* line, const char* text) \{"
+        "while (text != 0 && *text != 0 && line->length < (int)sizeof(line->bytes) - 1) \{ line->bytes[line->length] = *text; line->length = line->length + 1; text = text + 1; }"
+        "}"
+        "static void spite_fault_add_number(SpiteFaultLine* line, uint64_t value, uint64_t base) \{"
+        "char digits[24];"
+        "int count = 0;"
+        "if (base == 16) spite_fault_add(line, \"0x\");"
+        "do \{ digits[count] = \"0123456789abcdef\"[value % base]; count = count + 1; value = value / base; } while (value != 0);"
+        "while (count > 0 && line->length < (int)sizeof(line->bytes) - 1) \{ count = count - 1; line->bytes[line->length] = digits[count]; line->length = line->length + 1; }"
+        "}"
+        "static void spite_fault_write(SpiteFaultLine* line) \{"
+        "line->bytes[line->length] = '\\n';"
+        "#ifdef _WIN32"
+        "DWORD written = 0;"
+        "WriteFile(GetStdHandle(STD_ERROR_HANDLE), line->bytes, (DWORD)(line->length + 1), &written, 0);"
+        "#else"
+        "ssize_t written = write(2, line->bytes, (size_t)(line->length + 1));"
+        "(void)written;"
+        "#endif"
+        "line->length = 0;"
+        "}"
+        "static const SpiteFunctionPlace* spite_fault_place_starting(uintptr_t start) \{"
+        "for (const SpiteFunctionPlace* place = spite_function_places; place->start != 0; place = place + 1) if ((uintptr_t)place->start == start) return place;"
+        "return 0;"
+        "}"
+        "static const SpiteFunctionPlace* spite_fault_place_nearest(uintptr_t address) \{"
+        "const SpiteFunctionPlace* found = 0;"
+        "for (const SpiteFunctionPlace* place = spite_function_places; place->start != 0; place = place + 1) \{"
+        "if ((uintptr_t)place->start <= address && (found == 0 || (uintptr_t)place->start > (uintptr_t)found->start)) found = place;"
+        "}"
+        "return found;"
+        "}"
+        "static void spite_fault_add_place(SpiteFaultLine* line, const SpiteFunctionPlace* place) \{"
+        "if (place == 0) \{ spite_fault_add(line, \"-\\t-\\t-\"); return; }"
+        "const char* owner = place->owner;"
+        "while (*owner != 0 && *owner != '\\t' && line->length < (int)sizeof(line->bytes) - 1) \{ line->bytes[line->length] = *owner; line->length = line->length + 1; owner = owner + 1; }"
+        "if (place->line > 0) \{ spite_fault_add(line, \":\"); spite_fault_add_number(line, (uint64_t)place->line, 10); }"
+        "spite_fault_add(line, owner);"
+        "spite_fault_add(line, \"\\t\");"
+        "spite_fault_add(line, place->name);"
+        "}"
+        "static void spite_fault_frame_flush(SpiteFaultFrames* frames) \{"
+        "if (frames->last == 0) return;"
+        "if (frames->shown >= 16) \{ frames->more = 1; return; }"
+        "SpiteFaultLine line;"
+        "line.length = 0;"
+        "spite_fault_add(&line, \"spite.frame\\t\");"
+        "spite_fault_add_place(&line, frames->last);"
+        "if (frames->repeated > 1) \{ spite_fault_add(&line, \"\\trepeated=\"); spite_fault_add_number(&line, frames->repeated, 10); }"
+        "spite_fault_write(&line);"
+        "frames->shown = frames->shown + 1;"
+        "}"
+        "static void spite_fault_frame(SpiteFaultFrames* frames, const SpiteFunctionPlace* place) \{"
+        "if (place == 0) return;"
+        "if (place == frames->last) \{ frames->repeated = frames->repeated + 1; return; }"
+        "spite_fault_frame_flush(frames);"
+        "frames->last = place;"
+        "frames->repeated = 1;"
+        "}"
+        "static void spite_fault_frames_end(SpiteFaultFrames* frames, int walked_all) \{"
+        "spite_fault_frame_flush(frames);"
+        "if (frames->more == 0 && walked_all != 0) return;"
+        "SpiteFaultLine line;"
+        "line.length = 0;"
+        "spite_fault_add(&line, \"spite.frame\\tmore\");"
+        "spite_fault_write(&line);"
+        "}"
+        "static void spite_fault_report_start(SpiteFaultLine* line, const char* kind, const SpiteFunctionPlace* place) \{"
+        "spite_fault_add(line, \"spite.fault\\t\");"
+        "spite_fault_add(line, kind);"
+        "spite_fault_add(line, \"\\t\");"
+        "spite_fault_add_place(line, place);"
+        "}"
+        "static void spite_fault_report_end(SpiteFaultLine* line) \{"
+        "#ifdef SPITE_FAULT_FOREIGN"
+        "if (spite_last_foreign_call != 0) \{ spite_fault_add(line, \"\\tforeign=\"); spite_fault_add(line, spite_last_foreign_call); }"
+        "#endif"
+        "spite_fault_write(line);"
+        "#ifdef SPITE_FAULT_TRACE"
+        "int64_t kept = spite_assert_total < 32 ? spite_assert_total : 32;"
+        "for (int64_t index = spite_assert_total - kept; index < spite_assert_total; index = index + 1) \{"
+        "spite_fault_add(line, spite_assert_trace[index % 32]);"
+        "if (line->length > 0 && line->bytes[line->length - 1] == '\\n') line->length = line->length - 1;"
+        "spite_fault_write(line);"
+        "}"
+        "if (spite_assert_total > 32) \{ spite_fault_add(line, \"spite.assert\\tearlier=\"); spite_fault_add_number(line, (uint64_t)(spite_assert_total - 32), 10); spite_fault_write(line); }"
+        "#endif"
+        "}"
+        "#ifdef _WIN32"
+        "static DWORD spite_fault_owner = 0;"
+        "static DWORD spite_fault_code = 0;"
+        "static const char* spite_fault_kind(DWORD code, ULONG_PTR access) \{"
+        "switch (code) \{"
+        "case EXCEPTION_ACCESS_VIOLATION: return access == 8 ? \"execute-violation\" : access == 1 ? \"write-violation\" : \"read-violation\";"
+        "case EXCEPTION_IN_PAGE_ERROR: return \"in-page-error\";"
+        "case EXCEPTION_STACK_OVERFLOW: return \"stack-overflow\";"
+        "case EXCEPTION_ILLEGAL_INSTRUCTION: return \"illegal-instruction\";"
+        "case EXCEPTION_PRIV_INSTRUCTION: return \"privileged-instruction\";"
+        "case EXCEPTION_INT_DIVIDE_BY_ZERO: return \"integer-division-by-zero\";"
+        "case EXCEPTION_INT_OVERFLOW: return \"integer-overflow\";"
+        "case EXCEPTION_DATATYPE_MISALIGNMENT: return \"misaligned-access\";"
+        "case EXCEPTION_BREAKPOINT: return \"breakpoint\";"
+        "case 0xC0000374: return \"heap-corruption\";"
+        "case EXCEPTION_FLT_DIVIDE_BY_ZERO: case EXCEPTION_FLT_INVALID_OPERATION: case EXCEPTION_FLT_OVERFLOW: case EXCEPTION_FLT_UNDERFLOW:"
+        "case EXCEPTION_FLT_INEXACT_RESULT: case EXCEPTION_FLT_DENORMAL_OPERAND: case EXCEPTION_FLT_STACK_CHECK: return \"floating-point-exception\";"
+        "default: return \"exception\";"
+        "}"
+        "}"
+        "static HMODULE spite_fault_module(uintptr_t address) \{"
+        "HMODULE module = 0;"
+        "if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)address, &module)) return 0;"
+        "return module;"
+        "}"
+        "static void spite_fault_add_module(SpiteFaultLine* line, uintptr_t address) \{"
+        "HMODULE module = spite_fault_module(address);"
+        "char path[MAX_PATH];"
+        "if (module == 0 || GetModuleFileNameA(module, path, MAX_PATH) == 0) \{ spite_fault_add_number(line, address, 16); return; }"
+        "const char* name = path;"
+        "for (const char* scan = path; *scan != 0; scan = scan + 1) if (*scan == '\\\\' || *scan == '/') name = scan + 1;"
+        "spite_fault_add(line, name);"
+        "spite_fault_add(line, \"+\");"
+        "spite_fault_add_number(line, address - (uintptr_t)module, 16);"
+        "}"
+        "#if defined(_WIN64)"
+        "#if defined(_M_ARM64) || defined(__aarch64__)"
+        "#define SPITE_FAULT_PC(frame) ((frame).Pc)"
+        "#else"
+        "#define SPITE_FAULT_PC(frame) ((frame).Rip)"
+        "#endif"
+        "static const SpiteFunctionPlace* spite_fault_place_of(uintptr_t address) \{"
+        "DWORD64 image = 0;"
+        "PRUNTIME_FUNCTION entry = RtlLookupFunctionEntry((DWORD64)address, &image, 0);"
+        "if (entry != 0) return spite_fault_place_starting((uintptr_t)(image + entry->BeginAddress));"
+        "if (spite_fault_module(address) != GetModuleHandleA(0)) return 0;"
+        "return spite_fault_place_nearest(address);"
+        "}"
+        "static int spite_fault_walk(const CONTEXT* start, SpiteFaultFrames* frames) \{"
+        "CONTEXT frame = *start;"
+        "for (int depth = 0; depth < 256; depth = depth + 1) \{"
+        "DWORD64 pc = SPITE_FAULT_PC(frame);"
+        "if (pc == 0) return 1;"
+        "DWORD64 image = 0;"
+        "PRUNTIME_FUNCTION entry = RtlLookupFunctionEntry(pc, &image, 0);"
+        "spite_fault_frame(frames, depth == 0 ? spite_fault_place_of((uintptr_t)pc) : entry != 0 ? spite_fault_place_starting((uintptr_t)(image + entry->BeginAddress)) : 0);"
+        "if (entry == 0) \{"
+        "#if defined(_M_ARM64) || defined(__aarch64__)"
+        "if (depth != 0 || frame.Lr == pc) return 1;"
+        "frame.Pc = frame.Lr;"
+        "#else"
+        "frame.Rip = *(DWORD64*)frame.Rsp;"
+        "frame.Rsp = frame.Rsp + 8;"
+        "#endif"
+        "} else \{"
+        "void* handler_data = 0;"
+        "DWORD64 establisher = 0;"
+        "RtlVirtualUnwind(UNW_FLAG_NHANDLER, image, pc, entry, &frame, &handler_data, &establisher, 0);"
+        "}"
+        "}"
+        "return 0;"
+        "}"
+        "#else"
+        "static const SpiteFunctionPlace* spite_fault_place_of(uintptr_t address) \{"
+        "if (spite_fault_module(address) != GetModuleHandleA(0)) return 0;"
+        "return spite_fault_place_nearest(address);"
+        "}"
+        "#endif"
+        "static LONG WINAPI spite_fault_filter(EXCEPTION_POINTERS* information) \{"
+        "EXCEPTION_RECORD* record = information->ExceptionRecord;"
+        "if (__atomic_exchange_n(&spite_fault_busy, 1, __ATOMIC_ACQ_REL) != 0) \{"
+        "if (spite_fault_owner == GetCurrentThreadId()) TerminateProcess(GetCurrentProcess(), spite_fault_code);"
+        "for (;;) Sleep(1000);"
+        "}"
+        "spite_fault_owner = GetCurrentThreadId();"
+        "spite_fault_code = record->ExceptionCode;"
+        "uintptr_t at = (uintptr_t)record->ExceptionAddress;"
+        "SpiteFaultLine line;"
+        "line.length = 0;"
+        "spite_fault_report_start(&line, spite_fault_kind(record->ExceptionCode, record->NumberParameters > 0 ? record->ExceptionInformation[0] : 0), spite_fault_place_of(at));"
+        "if (record->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && record->NumberParameters > 1) \{ spite_fault_add(&line, \"\\taddress=\"); spite_fault_add_number(&line, (uint64_t)record->ExceptionInformation[1], 16); }"
+        "spite_fault_add(&line, \"\\tcode=\");"
+        "spite_fault_add_number(&line, (uint64_t)record->ExceptionCode, 16);"
+        "spite_fault_add(&line, \"\\tat=\");"
+        "spite_fault_add_module(&line, at);"
+        "spite_fault_report_end(&line);"
+        "SpiteFaultFrames frames = \{ 0, 0, 0, 0 };"
+        "#if defined(_WIN64)"
+        "int walked_all = spite_fault_walk(information->ContextRecord, &frames);"
+        "#else"
+        "int walked_all = 1;"
+        "spite_fault_frame(&frames, spite_fault_place_of(at));"
+        "#endif"
+        "spite_fault_frames_end(&frames, walked_all);"
+        "fflush(stdout);"
+        "TerminateProcess(GetCurrentProcess(), record->ExceptionCode);"
+        "return EXCEPTION_CONTINUE_SEARCH;"
+        "}"
+        "static LONG CALLBACK spite_fault_vectored(EXCEPTION_POINTERS* information) \{"
+        "if (information->ExceptionRecord->ExceptionCode != 0xC0000374) return EXCEPTION_CONTINUE_SEARCH;"
+        "return spite_fault_filter(information);"
+        "}"
+        "static void spite_fault_thread(void) \{"
+        "ULONG reserve = 16384;"
+        "SetThreadStackGuarantee(&reserve);"
+        "}"
+        "static void spite_fault_install(void) \{"
+        "SetUnhandledExceptionFilter(spite_fault_filter);"
+        "AddVectoredExceptionHandler(0, spite_fault_vectored);"
+        "spite_fault_thread();"
+        "}"
+        "#else"
+        "static uintptr_t spite_fault_own_base = 0;"
+        "static SPITE_THREAD_LOCAL char spite_fault_stack[65536];"
+        "static uintptr_t spite_fault_base_of(uintptr_t address, const char** file) \{"
+        "Dl_info found;"
+        "if (dladdr((void*)address, &found) == 0) return 0;"
+        "if (file != 0) *file = found.dli_fname;"
+        "return (uintptr_t)found.dli_fbase;"
+        "}"
+        "static const SpiteFunctionPlace* spite_fault_place_of(uintptr_t address) \{"
+        "if (spite_fault_own_base == 0 || spite_fault_base_of(address, 0) != spite_fault_own_base) return 0;"
+        "return spite_fault_place_nearest(address);"
+        "}"
+        "static void spite_fault_add_module(SpiteFaultLine* line, uintptr_t address) \{"
+        "const char* file = 0;"
+        "uintptr_t base = spite_fault_base_of(address, &file);"
+        "if (base == 0 || file == 0) \{ spite_fault_add_number(line, address, 16); return; }"
+        "const char* name = file;"
+        "for (const char* scan = file; *scan != 0; scan = scan + 1) if (*scan == '/') name = scan + 1;"
+        "spite_fault_add(line, name);"
+        "spite_fault_add(line, \"+\");"
+        "spite_fault_add_number(line, address - base, 16);"
+        "}"
+        "static void spite_fault_registers(void* context, uintptr_t* pc, uintptr_t* frame, uintptr_t* stack) \{"
+        "ucontext_t* registers = (ucontext_t*)context;"
+        "#if defined(__APPLE__) && defined(__aarch64__)"
+        "*pc = (uintptr_t)__darwin_arm_thread_state64_get_pc(registers->uc_mcontext->__ss);"
+        "*frame = (uintptr_t)__darwin_arm_thread_state64_get_fp(registers->uc_mcontext->__ss);"
+        "*stack = (uintptr_t)__darwin_arm_thread_state64_get_sp(registers->uc_mcontext->__ss);"
+        "#elif defined(__APPLE__) && defined(__x86_64__)"
+        "*pc = (uintptr_t)registers->uc_mcontext->__ss.__rip;"
+        "*frame = (uintptr_t)registers->uc_mcontext->__ss.__rbp;"
+        "*stack = (uintptr_t)registers->uc_mcontext->__ss.__rsp;"
+        "#elif defined(__linux__) && defined(__x86_64__)"
+        "*pc = (uintptr_t)registers->uc_mcontext.gregs[16];"
+        "*frame = (uintptr_t)registers->uc_mcontext.gregs[10];"
+        "*stack = (uintptr_t)registers->uc_mcontext.gregs[15];"
+        "#elif defined(__linux__) && defined(__aarch64__)"
+        "*pc = (uintptr_t)registers->uc_mcontext.pc;"
+        "*frame = (uintptr_t)registers->uc_mcontext.regs[29];"
+        "*stack = (uintptr_t)registers->uc_mcontext.sp;"
+        "#else"
+        "(void)registers;"
+        "*pc = 0;"
+        "*frame = 0;"
+        "*stack = 0;"
+        "#endif"
+        "}"
+        "static const char* spite_fault_kind(int number, int code, uintptr_t address, uintptr_t stack) \{"
+        "uintptr_t distance = address > stack ? address - stack : stack - address;"
+        "if (number == SIGSEGV && stack != 0 && distance < 65536) return \"stack-overflow\";"
+        "if (number == SIGSEGV) return \"access-violation\";"
+        "if (number == SIGBUS) return \"bus-error\";"
+        "if (number == SIGILL) return \"illegal-instruction\";"
+        "if (number == SIGTRAP) return \"breakpoint\";"
+        "if (number == SIGFPE && code == FPE_INTDIV) return \"integer-division-by-zero\";"
+        "if (number == SIGFPE && code == FPE_INTOVF) return \"integer-overflow\";"
+        "return \"floating-point-exception\";"
+        "}"
+        "static void spite_fault_signal(int number, siginfo_t* information, void* context) \{"
+        "if (__atomic_exchange_n(&spite_fault_busy, 1, __ATOMIC_ACQ_REL) != 0) \{ for (;;) pause(); }"
+        "uintptr_t pc = 0;"
+        "uintptr_t frame = 0;"
+        "uintptr_t stack = 0;"
+        "spite_fault_registers(context, &pc, &frame, &stack);"
+        "uintptr_t address = (uintptr_t)information->si_addr;"
+        "SpiteFaultLine line;"
+        "line.length = 0;"
+        "spite_fault_report_start(&line, spite_fault_kind(number, information->si_code, address, stack), spite_fault_place_of(pc));"
+        "if (number == SIGSEGV || number == SIGBUS) \{ spite_fault_add(&line, \"\\taddress=\"); spite_fault_add_number(&line, (uint64_t)address, 16); }"
+        "spite_fault_add(&line, \"\\tsignal=\");"
+        "spite_fault_add_number(&line, (uint64_t)number, 10);"
+        "spite_fault_add(&line, \"\\tat=\");"
+        "spite_fault_add_module(&line, pc);"
+        "spite_fault_report_end(&line);"
+        "SpiteFaultFrames frames = \{ 0, 0, 0, 0 };"
+        "spite_fault_frame(&frames, spite_fault_place_of(pc));"
+        "int walked_all = 1;"
+        "#if !defined(__OPTIMIZE__) || defined(SPITE_FRAME_POINTERS)"
+        "walked_all = 0;"
+        "for (int depth = 0; depth < 256; depth = depth + 1) \{"
+        "if (frame == 0 || (frame & (sizeof(uintptr_t) - 1)) != 0) \{ walked_all = 1; break; }"
+        "uintptr_t next = ((uintptr_t*)frame)[0];"
+        "uintptr_t returned = ((uintptr_t*)frame)[1];"
+        "if (returned == 0) \{ walked_all = 1; break; }"
+        "spite_fault_frame(&frames, spite_fault_place_of(returned - 1));"
+        "if (next <= frame || next - frame > 16777216) \{ walked_all = 1; break; }"
+        "frame = next;"
+        "}"
+        "#else"
+        "(void)frame;"
+        "#endif"
+        "spite_fault_frames_end(&frames, walked_all);"
+        "signal(number, SIG_DFL);"
+        "raise(number);"
+        "}"
+        "static void spite_fault_thread(void) \{"
+        "stack_t alternate;"
+        "alternate.ss_sp = spite_fault_stack;"
+        "alternate.ss_size = sizeof(spite_fault_stack);"
+        "alternate.ss_flags = 0;"
+        "sigaltstack(&alternate, 0);"
+        "}"
+        "static void spite_fault_install(void) \{"
+        "spite_fault_thread();"
+        "spite_fault_own_base = spite_fault_base_of((uintptr_t)(void*)&spite_fault_install, 0);"
+        "struct sigaction action;"
+        "memset(&action, 0, sizeof(action));"
+        "action.sa_sigaction = spite_fault_signal;"
+        "action.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_RESETHAND;"
+        "sigemptyset(&action.sa_mask);"
+        "int numbers[5] = \{ SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGTRAP };"
+        "for (int index = 0; index < 5; index = index + 1) sigaddset(&action.sa_mask, numbers[index]);"
+        "for (int index = 0; index < 5; index = index + 1) sigaction(numbers[index], &action, 0);"
+        "}"
+        "#endif"
+    ]
+    return lines.join("\n")
+}

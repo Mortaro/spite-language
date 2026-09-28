@@ -1,8 +1,0 @@
-var console = Console()
-
-func FoldedCrash() {
-    var names = Slot<List<String>>()
-    console.print("before the crash")
-    names.fits()
-    console.print("never printed")
-}

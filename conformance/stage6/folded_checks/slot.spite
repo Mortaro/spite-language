@@ -3,7 +3,9 @@ generic $slot_type
 var console = Console()
 
 func entity_only(): String {
-    assert $slot_type == Entity
+    if $slot_type != Entity {
+        return ""
+    }
     return "an entity"
 }
 
@@ -13,7 +15,9 @@ func fits(): Boolean {
 }
 
 func one_row(): Integer {
-    assert $slot_type.has_function("update_each") and $slot_type.argument_count("update_each") == 1
+    if not $slot_type.has_function("update_each") or $slot_type.argument_count("update_each") != 1 {
+        return 0
+    }
     return 1
 }
 
@@ -23,6 +27,8 @@ func report() {
 }
 
 func identity(value: $slot_type): Integer {
-    assert $slot_type == Entity
+    if $slot_type != Entity {
+        return 0
+    }
     return value.id
 }

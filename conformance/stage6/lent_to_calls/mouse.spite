@@ -1,0 +1,10 @@
+var device = 0
+var left = 0
+var top = 0
+var pressed = false
+var down = false
+var wheel = 0
+
+func Mouse(new_device: Integer) {
+    device = new_device
+}

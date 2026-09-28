@@ -10,7 +10,9 @@ func DivisionByZero() {
 }
 
 func halves(whole: Integer, pieces: Integer): Integer {
-    assert pieces != 0
+    if pieces == 0 {
+        return 0
+    }
     return whole / pieces
 }
 

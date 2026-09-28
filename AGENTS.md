@@ -11,6 +11,13 @@ not use a feature must carry none of it, and nothing may need a shipped schedule
 compile-time work instead (Mortaro, 2026-09-25; D147, D176). Debug and REPL features may cost something only in
 those builds (D143). Say how a proposal tree-shakes and what it costs at run time.
 
+**Anything that can go wrong silently is a bug** (Mortaro, 2026-09-27; D244). Every failure is loud: a compile
+error, or a crash that names its cause -- never a wrong value, a lost write, a skipped step, a leak or a hang.
+Judge everything you build, and every open item, against it: a compiler rule that lets one of those through, a
+library function that answers a default a caller cannot tell from a real answer, a report that prints a value where
+something is missing -- each is a bug to fix, not a style to document. When you find one you cannot fix now, write
+it into the "still open" list of [docs/failure.md](docs/failure.md#nothing-fails-silently--the-rule).
+
 Read [`SPITE.md`](SPITE.md) first. It lists what Mortaro hates and what to do instead, and it is the point of the
 project. Then the docs, in the [reading order](docs/README.md#reading-order). **The docs are normative** (D193):
 each page teaches its part of the language and ends with its rules in full, and when anything else disagrees with

@@ -1,0 +1,3 @@
+var running: Parallel<Socket?>? = null
+var counting: Parallel<Integer>? = null
+var waiting: Concurrent<Integer>? = null

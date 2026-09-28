@@ -1,0 +1,13 @@
+var console = Console()
+var world = World()
+var entities = Column<Entity>()
+var columns = Columns()
+var metronome = Metronome()
+
+func SingletonCircle() {
+    var parents = world.parent_count()
+    var counted = entities.column_count()
+    var through = columns.parents()
+    var ticks = metronome.first_beat()
+    console.print(parents, counted, through, ticks)
+}

@@ -5,6 +5,7 @@ var body = List<Statement>()
 var has_body = true
 var source_path = ""
 var line = 0
+var end_line = 0
 
 func FunctionDeclaration(
     function_name: String,

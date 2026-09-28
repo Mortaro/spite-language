@@ -1,7 +1,7 @@
 var type_reference: Syntax.Types.Type? = null
+var value: Syntax.Expressions.Expression? = null
 var body = List<Statement>()
 
-func SwitchCase(case_type: Syntax.Types.Type, case_body: List<Statement>) {
-    type_reference = case_type
+func SwitchCase(case_body: List<Statement>) {
     body = case_body
 }

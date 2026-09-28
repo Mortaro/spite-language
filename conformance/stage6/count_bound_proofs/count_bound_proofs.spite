@@ -1,0 +1,24 @@
+var console = Console()
+
+func CountBoundProofs() {
+    var line = "exporter,blender,mesh,hero"
+    var parts = line.split(",")
+    crash parts.count() >= 3
+    console.print(parts[0], parts[1], parts[2])
+    var more = line.split(",")
+    crash more.count() > 3
+    console.print(more[3])
+    var counted = line.split(",")
+    crash counted.count() != 0
+    console.print(counted[0])
+    var words = line.split(",")
+    crash not words.is_empty()
+    var first = words[0].upper_case()
+    console.print(first)
+    var empty = List<String>()
+    if not empty.is_empty() {
+        console.print(empty[0])
+    } else {
+        console.print("nothing to read")
+    }
+}

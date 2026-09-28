@@ -1,0 +1,2 @@
+var stamped = false
+var tries = 0

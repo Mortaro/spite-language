@@ -1,0 +1,11 @@
+var console = Console()
+var fixture = DynamicLibrary("conformance/stage6/native_fault_heap/fixture.dll", 'identity', "")
+
+func NativeFaultHeap() {
+    console.print("before the fault")
+    corrupt()
+}
+
+func corrupt() {
+    fixture.free_inside()
+}

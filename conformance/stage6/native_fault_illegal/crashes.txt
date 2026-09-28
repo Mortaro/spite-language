@@ -1,0 +1,1 @@
+This program is meant to fault: an illegal instruction inside a foreign library is reported with the last foreign call (D244)

@@ -271,7 +271,10 @@ func Engine() {
 ```
 
 This works in every file of the program's folder and of a loaded package, so a package can pick its own plugins.
-Each path is relative to the folder of the file it is written in. A condition the compiler cannot decide, such as
+Each path is relative to the folder of the file it is written in, unless it is absolute: `load
+"D:/Projects/slop_engine/slop"` or `load "/home/mortaro/slop_engine/slop"` loads a package that lives in another
+repository (D227). The program then builds only on a machine that has that folder, which the path in its source
+already says. A condition the compiler cannot decide, such as
 one that reads `Arguments()`, is an error rather than a folder that is quietly left out.
 
 Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
@@ -279,6 +282,21 @@ Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are
 
 A dependency will be a git URL pinned to a commit in the `load` line itself, with no package manager, registry
 or lockfile. That is decided and not built ([the rules in full](#packages-namespaces-and-loading--partial)).
+
+## Files beside a package's source
+
+A package does not know where the program that loads it lives, so a relative path it opens -- `File("shaders/
+sky.spv")` -- is read from the folder the program runs in, not from the package. A class asks for its own folder
+instead: `class.source_folder()` inside it, `Recipe.source_folder()` for a class by name, and `$item_type.source_folder()`
+for a generic's class (D228). The answer is the absolute folder of the file that declares the class, worked out
+while compiling and written into the program as text, so a plugin finds the files beside it wherever it is loaded
+from and whatever folder the program runs in.
+
+That folder is on the machine that **built** the program. It is the right answer while developing, and the wrong
+one for a program shipped to someone else, whose machine has no such folder: a shipped program copies or cooks the
+files it needs into its own output and opens them from there. Asking a `Spite.Class` held in a variable
+(`kind.source_folder()`, with `var kind: Spite.Class = Recipe`) answers the same folder when the program runs, and
+only a program that asks that way carries the folders of its class objects.
 
 ## Final classes
 
@@ -342,6 +360,13 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   A class's own namespace holds the classes named under it, so for a folder's entry file it is that folder:
   `click_test/click_test.spite` (`ClickTest`) reaches `click_test/system/verify.spite` as `System.Verify()`
   (proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/folder_class_namespace`).
+  A name the walk does not find is `unknown type 'Server.Component.Eye'` at the line that writes it, in every
+  position above, a `type`'s attribute included; when dropping its leading parts names a class, or a plain name
+  is the last part of exactly one class, the error says which: `unknown type 'Server.Component.Eye': did you mean
+  'Component.Eye'?` -- the usual slip being an environment's folder written into the name, when the folder joins
+  the program's own namespaces (fixed 2026-09-26: a `type` attribute of an unknown type crashed the compiler
+  when the shape needed a default; proposed by Claude, unconfirmed; `diagnostics/unknown_type_in_shape`,
+  `diagnostics/unknown_type_suggestion`).
   A `type`, `union` or `enum` sits in the walk at the level of the class that declares it, so the nearest
   declaration wins: one in the using class before any class, one in a folder's entry file before a class further
   out, so `type Healing` in `system/regenerate.spite` is what `Healing` means there even when the program's entry
@@ -367,7 +392,10 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   (D180, [Types](values_and_types.md#types)). Load order stays the rule even where a package would rather be
   configured by the program it is loaded into: such a package calls a function the program declares (a
   `build.base_folder()` in the program's `build.spite`), which is an error when missing unless the package
-  supplies a default behind `has_function` (D155). The standard library (`library/`) is discovered
+  supplies a default behind `has_function` (D155). **`Build` is the one exception** (D227): a field the program's
+  own `build.spite` declares is not replaced by a loaded package's declaration of it, so the program decides its
+  build and a package's field is only a default ([programs.md](programs.md#build-settings-build--implemented),
+  `conformance/stage6/build_precedence`). The standard library (`library/`) is discovered
   before the program, so a program's own file reopens `Console`, `String`, `File` and the rest the same way.
   `Environment` is made to be reopened: a program's own `environment.spite` adds its settings to it (D76, [Program settings: `Environment`](programs.md#program-settings-environment--implemented)).
   Your foot to shoot. That includes `Spite.Class` (D7, [Functions of `Spite.Class`](reflection.md#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)): reopening it changes what every class object answers, for the whole program.
@@ -406,7 +434,11 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   nothing (D177).
 - `load` takes a literal string, so the compiler always knows every bundle; anything else (a variable, an
   expression) is "a program's 'load' names its folder with text, like 'load "engine"': the compiler reads every
-  loaded folder before it compiles, so the folder cannot be computed". The compiler finds every `load` reachable from the entry file's own constructor at compile time (a `load` inside
+  loaded folder before it compiles, so the folder cannot be computed". The text is a path relative to the folder
+  of the file it is written in, or an absolute one (D227; proposed by Claude, unconfirmed): one starting with `/`,
+  or with a drive letter, `D:/` or `D:\`. An absolute root is never also a namespace of the folder that loads it,
+  and only its own folder's name is held to snake_case (`check.sh` builds a program that loads a folder by its
+  absolute path). The compiler finds every `load` reachable from the entry file's own constructor at compile time (a `load` inside
   already-loaded code counts too), and records each root as a bundle (its name and whether the `load` that introduced it sits
   inside an `if`) in the program model, for dynamic libraries/lazy loading to build on later.
 - **A `load` under an `if` is decided when compiling** (proposed by Claude, unconfirmed, 2026-09-25). The compiler
@@ -423,6 +455,16 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
 - `load` marks a **bundle boundary**, like an async import in webpack: each loaded root can become a separate dynamic library,
   tree shaking is computed per bundle, and a `load` inside an `if` is loaded lazily when that line runs.  **[planned: every
   bundle is linked statically into the one executable for now, and the `load` line itself compiles to nothing]**
+- **A class can ask for its own source folder** (D228; the name `source_folder` provisional, the readings below
+  proposed by Claude, unconfirmed): `class.source_folder()` in a class's function, `Name.source_folder()` for a
+  class named statically, `$item_type.source_folder()` for a codegen type and `value.class.source_folder()` for a
+  value whose class is known while compiling are folded to text: the absolute folder, with `/` separators, of the
+  file that declares the class (the first file merged into it, so a mod's reopening does not move it). A program
+  file's path is joined to the folder the compiler runs in, a library file's to the language's folder, and `.`
+  and `..` are resolved. A `Spite.Class` the compiler cannot name answers the same text at run time from its class
+  object, which holds it only in a program that asks that way (`conformance/stage6/source_folder`). It is the build
+  machine's folder: a shipped program copies or cooks the files it needs instead. A class that declares its own
+  `source_folder` function is called as usual.
 - **A dependency is a git URL pinned to a commit in the `load` line itself** (D38): `load
   "github.com/mortaro/engine@a3f2c91"`, fetched by the ordinary compile, with no package manager, registry or
   lockfile.  **[planned]**

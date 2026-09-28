@@ -1,0 +1,20 @@
+var console = Console()
+
+func SourceFolder() {
+    load "kitchen"
+    var recipe = Recipe()
+    var notes = recipe.notes()
+    console.print(notes)
+    var sauce = Sauces.Sauce()
+    var sauce_notes = sauce.notes()
+    console.print(sauce_notes)
+    var shelf = Shelf<Sauces.Sauce>()
+    var labelled = shelf.label()
+    console.print(labelled)
+    var kind: Spite.Class = Recipe
+    var asked = kind.source_folder()
+    var folded = Recipe.source_folder()
+    console.print("asked at run time, the same folder:", asked == folded)
+    var ends = folded.ends_with("/source_folder/kitchen")
+    console.print("the folder of the package:", ends)
+}

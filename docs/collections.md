@@ -29,7 +29,7 @@ var empty = List<String>()
 | `insert(index, value)` | | an index out of range is clamped to the nearest end |
 | `list[index]` | `T?` | may not be there, so it is narrowed ([failure.md](failure.md#reading-with--answers-t)) |
 | `list[index] = value` | | the explicit form is `set_at(index, value)`; nothing happens out of range |
-| `get_at(index)` | `T` | the default when out of range |
+| `get_at(index)` | `T` | halts when out of range, naming the index and the count ([D244](decisions.md)) |
 | `remove_at(index)` | | nothing happens out of range |
 | `remove_where(test)` / `remove_where_<member>()` | | removes every element the test is true for, in one pass, keeping the rest in order ([below](#removing-many-at-once)) |
 | `truncate(count)` | | keeps the first `count` elements and releases the rest; nothing happens when `count` is out of range |
@@ -429,7 +429,7 @@ names a program calls.
 | `any_<member>()` / `all_<member>()` | `Boolean` | take nothing, return `Boolean` |
 | `sum_<member>()` | the member's number type | take nothing, return a number |
 | `find_by_<member>(value)` | `T?`, the first element whose member equals `value` | return something comparable to `value` |
-| `sort_by_<member>()` | `List<T>`, sorted ascending | return a number or a `String` |
+| `sort_by_<member>()` | `List<T>`, sorted ascending, stable, in `n log n` time | return a number or a `String` |
 | `map_<member>()` | `List<U>`, one value per element | return a value |
 | `each_<member>()` | nothing: calls it on every element | be a function that takes nothing; what it returns is discarded |
 | `remove_where_<member>()` | nothing: removes the elements where it is true, keeping the rest in order | take nothing, return `Boolean` |
@@ -594,7 +594,9 @@ A template sees only the element and the list: `names.each_say_hello()` looks fo
 name, never for a function of the class the call is written in. A function of yours is passed as a value
 instead: `names.each(say_hello)` calls `say_hello` once for every name, in order, and there is no
 `say_hello_to_everyone` to write. The function is bound to whoever owns it ([functions_and_operators.md](functions_and_operators.md#functions-are-values)):
-`say_hello` alone is this instance's, and `people.each(greeter.greet)` calls `greet` on `greeter`.
+`say_hello` alone is this instance's, and `people.each(greeter.greet)` calls `greet` on `greeter`. The library's
+classes are no different: `keys.filter(counts.has)` asks the dictionary `counts`, and
+`words.filter(greeting.contains)` asks the text `greeting`.
 
 `each`, `map`, `filter`, `any`, `all`, `count`, `find`, `sort_by` and `sum` each take such a function, which takes
 the element as its only argument: `filter`, `any`, `all`, `count` and `find` want one returning `Boolean` (`find`
@@ -817,7 +819,7 @@ A program reopens `List` by putting a `list.spite` in its own folder, and a func
 library's:
 
 ```gdscript title=list_average/list.spite
-func average_member(member: Symbol<$element_type>): Float {
+func average_member(member: Symbol<$element_type>): Float? {
     assert item_count != 0
     var total = 0.0
     var index = 0
@@ -846,6 +848,7 @@ func ListAverage() {
     var four = Score(4)
     scores.append(four)
     var average = scores.average_points()
+    crash average
     console.print(average)
 }
 ```
@@ -909,7 +912,9 @@ of them name a fix: `count()` is only ever a collection's own size, so `count_<m
 `but 'count_' needs it to return Boolean (to add up a numeric member use 'sum_stars')`; and `each_<member>()` on an
 attribute says `'each_size': the member 'size' of 'Thing' is an Integer, but 'each_' needs it to be a function:
 reading an attribute and discarding it does nothing`. `sort_by_` is stable (equal keys keep their order) and
-sorts by insertion, so it suits short lists: its time grows with the square of the length.
+is a merge sort, so its time grows as `n log n`: it reads each key once, then merges runs of an index list, and
+makes the key list, two index lists and the result (`sort_by(f)` is the same template, and `Directory`'s
+`files()` and `folders()` sort through it; `conformance/stage6/sorting_many`).
 
 **How the templates are written** (D91, decided by Mortaro; the binding rule is proposed by Claude,
 unconfirmed). They are Symbol codegen templates in `library/list.spite`, each a `while` over the list's
@@ -951,7 +956,7 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 
 - **The forms.** `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and
   `sum(f)` on a `List` or a `Dictionary` (through its values), for an element of any type, and all but `find` and
-  `sort_by` on a `Vector` or an `Items` of plain values (D221, below); `remove_where(f)` (D227) on a `List` and
+  `sort_by` on a `Vector` or an `Items` of plain values (D221, below); `remove_where(f)` (D263) on a `List` and
   on a `Vector` or `Items` of plain values, never on a `Dictionary`. `f` takes the element
   as its only argument, with exactly the element's type; D15's table applies to what it returns (`filter`, `any`,
   `all`, `count` and `find` want `Boolean`, `sum` a number, `sort_by` a number or a `String`, `map` a value, `each`
@@ -960,7 +965,15 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 - **The owner.** `say_hello` alone is bound to this instance; `greeter.greet` to `greeter`; a variable holding a
   `Spite.Function<T, R>` is called through the value. `people.map(greeter.label).filter(is_short)` mixes owners.
   A list's own function is bound to the list the same way (`numbers.each(found.append)`, proposed by Claude,
-  unconfirmed); a chain that passes one is not fused, and runs step by step.
+  unconfirmed); a chain that passes one is not fused, and runs step by step. So is every library class's
+  (proposed by Claude, unconfirmed): a `Dictionary`'s (`keys.filter(counts.has)`, `keys.map(counts.get)`), and a
+  `String`'s or a number's (`words.filter(greeting.contains)`). A `List`'s or a `Dictionary`'s function may also
+  be held as a value, `var lookup = counts.get`, bound to that dictionary; a `String`'s or a number's may only be
+  passed to a form, since a value of text is no object a function value can keep: `var check =
+  greeting.contains` is "'contains' of a String is passed straight to a form, like 'names.filter(text.contains)',
+  and cannot be held as a value yet ...". What the function answers is what the form sees, so `counts.get`
+  answers `Integer?` (D225), and `keys.sort_by(counts.get)` is an error naming the fix: a function of your own
+  that narrows it (`conformance/stage6/library_functions_passed`, `diagnostics/library_function_mistakes`).
 - **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
   Symbol<$element_type>)`) is instantiated once per function and owner class, with a last hidden parameter holding
   the owner (the function's instance, passed at the call site), and `item.attributes[member]` reads as
@@ -986,7 +999,7 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 ### List<T> additions  **[implemented]**
 
 A list's members, their results and their edge cases are [the table under `List<T>`](#listt), which is normative:
-out of range, `get_at` answers the element type's default; `first`, `last`, `remove_first` and `remove_last` answer
+out of range, `get_at` halts (D244: before, it answered the element type's default, which read as a real element); `first`, `last`, `remove_first` and `remove_last` answer
 `null` on an empty list (D211, like `[]`),
 `insert` clamps to the nearest end, and `set_at` and `remove_at` do nothing; `list[index]` answers `T?`. There is
 no `for`: a list is walked with a template, a passed function ([above](#standard-library-metaprogramming--partial)),
@@ -1023,6 +1036,25 @@ it: `Dictionary<T>` stays the one spelling.
   place: `this dictionary is given a whole-number key here and a text key at <file>:<line> (in <class>.<function>):
   a dictionary is keyed by text or by whole numbers, never both -- give every key of it the same kind`
   (`diagnostics/mixed_dictionary_keys`).
+- **Only the program's own flows decide it** (proposed by Claude, unconfirmed; a SlopEngine bug). The descriptions
+  the compiler writes for `to_debug()` -- `Spite.Debug<T>` and `Spite.DebugInstance<T>`, one of each per type for
+  the whole program -- take a dictionary as the kind it already has and never tie it to another. Before, every
+  `Dictionary<String>` attribute of every class described passed through the one `Spite.Debug<Dictionary<String>>`
+  and was tied to all the others, so a number key given to one changed the kind of an unrelated one, and removing
+  code that made some class be described changed what compiled (`conformance/stage6/debug_dictionary_keys`).
+- **Two kinds that meet are named.** Where a dictionary of one kind is given where one of the other kind is
+  wanted, the error says which is which and what decided each, rather than naming two `Dictionary<String>`s:
+  `a Dictionary<String> keyed by whole numbers (Long), from the key at slop/columns.spite:47 (in
+  Columns.name_of_header) cannot be used where a Dictionary<String> keyed by text, from the key at
+  slop/recipes/cache_reader.spite:25 (in Recipes.CacheReader.fingerprint_of) is needed: a dictionary is keyed by
+  text or by whole numbers, decided while compiling by the keys it is given, and these two were decided apart --
+  give both the same kind of key, or copy the entries across one by one`. A kind nothing decided reads `text,
+  since nothing gives it a whole-number key`.
+- **The kinds always settle, or it is an error.** They are found by compiling again with what the last pass
+  learned, at most eight times; a program whose kinds are still changing then is a compile error at a dictionary
+  that keeps changing, `the dictionary made here never settles on text or whole-number keys: each pass of the
+  compiler decides it the other way (last as whole numbers, from the key at ...), since what decides it flows
+  back into it -- give it a key the program itself writes, of one kind`, never whatever the last pass compiled.
 - A number-keyed dictionary's key type is the widest whole-number type any of its keys has (`Integer` keys and one
   `Long` key make a `Long`-keyed dictionary); a narrower key is widened as an argument is. `keys()` answers a
   `List` of that type, and `copy()` and `deep_copy()` are keyed the same way.
@@ -1173,7 +1205,7 @@ below, and the names `Items` and `remove_swapping`, are proposed by Claude, unco
 
 ### Removing many at once  **[implemented; the names provisional]**
 
-D227 (decided by Claude under D205 and D214): `List`, `Vector` and `Items` remove many elements in one pass. The
+D263 (decided by Claude under D205 and D214): `List`, `Vector` and `Items` remove many elements in one pass. The
 names `remove_where`, `truncate` and `swap`, and the readings below, are proposed by Claude, unconfirmed:
 
 - **`remove_where(test)` and `remove_where_<member>()`.** One template, `remove_where_member(member:

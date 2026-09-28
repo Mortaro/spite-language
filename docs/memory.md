@@ -455,7 +455,7 @@ enum Phase {
     'update'
 }
 
-var system: $system_type = null
+var system = $system_type()
 var found = Items<Integer>()
 
 func run(index: Integer) {
@@ -495,11 +495,112 @@ func LentArgumentsDoc() {
 
 For `Runner<Mover>` the call is written out as `system.update_each(Column<Position>().values[found[0]],
 Column<Velocity>().values[found[1]])`: `update_each` writes the columns' own items, and nothing is copied, counted
-or allocated. Every rule for a borrowed item holds for the call: `update_each` may not keep `position`, return it
-or pass it on, and nothing it reaches may append to or remove from a column it borrows from. `made_position`
+or allocated. Every rule for a borrowed item holds for the call: `update_each` may not keep `position` or return
+it, it may lend it on to a call of its own ([below](#an-item-lent-to-a-call)), and nothing it reaches may append
+to or remove from a column it borrows from. `made_position`
 called anywhere else is an ordinary function, and returning a borrowed item from it is the error for returning one.
 The template may also fill a whole walked row for an argument that is a `type`
 ([the rules](#borrowed-items-of-a-vectort--implemented)).
+
+### An item lent to the caller
+
+A singleton lives until the program ends, so an item of its `Items` or `Vector` can be handed to a caller: a
+function that returns `column.values[row]`, read straight from a singleton's storage, **lends** the stored item,
+and the caller writes it in place ([D230](decisions.md)):
+
+```gdscript title=lent_result_doc/column.spite
+singleton
+
+generic $component_type
+
+var values = Items<$component_type>()
+```
+```gdscript title=lent_result_doc/lookup.spite
+generic $component_type
+
+var column = Column<$component_type>()
+
+func of(row: Integer): $component_type? {
+    assert row < column.values.count()
+    return column.values[row]
+}
+```
+```gdscript title=lent_result_doc/layout.spite
+var order = 0
+```
+```gdscript title=lent_result_doc/lent_result_doc.spite entry
+var console = Console()
+var layouts = Column<Layout>()
+var lookup = Lookup<Layout>()
+
+func LentResultDoc() {
+    var made = Layout()
+    layouts.values.append(made)
+    var layout = lookup.of(0)
+    crash layout
+    layout.order = 3
+    console.print(layouts.values[0].order)
+}
+```
+```output
+3
+```
+
+Nothing is copied or counted, so `layout.order = 3` is never a write to a copy that is then thrown away. The
+borrow now belongs to the caller, and every rule for a borrowed item holds there: `layout` is not kept, put in a
+list, returned further or given a second name, and it is not read past a line that may append to or remove from
+`Column<Layout>().values`. It may be lent on to a call, as the next section shows, and `if layout { ... }`
+narrows it without ending the borrow. A function that lends gives back only such items, or `null`, and it is
+called by name: it is never made a function value or called through a `type`, whose caller could not know the
+item is not its own. In a generic class the choice is made per instance, with the conditions on its generic
+parameters folded first, so one `of` may lend a fitting class's item and hand back an owned value for the rest.
+
+### An item lent to a call
+
+A borrowed item -- a name read from a `Vector` or `Items`, `velocities[index]` itself, a row's attribute, an item
+lent to the caller -- may be passed as an ordinary argument. It is **lent for the call**: the function reads and
+writes the caller's own item and may lend it on to the functions it calls, and when the call returns the borrow is
+the caller's again ([D257](decisions.md)):
+
+```gdscript title=lent_call_doc/mouse.spite
+var left = 0
+var pressed = false
+```
+```gdscript title=lent_call_doc/input.spite
+func apply(step: Integer, mouse: Mouse) {
+    mouse.left = mouse.left + step
+    press(mouse)
+}
+
+func press(mouse: Mouse) {
+    mouse.pressed = true
+}
+```
+```gdscript title=lent_call_doc/lent_call_doc.spite entry
+var console = Console()
+var mice = Vector<Mouse>()
+var input = Input()
+
+func LentCallDoc() {
+    var made = Mouse()
+    mice.append(made)
+    var mouse = mice[0]
+    input.apply(3, mouse)
+    input.apply(4, mice[0])
+    console.print(mice[0].left, mice[0].pressed)
+}
+```
+```output
+7 true
+```
+
+`apply` and `press` write the vector's item: nothing is copied, counted or allocated, so no write can land on a
+copy and vanish. What the function may not do is keep the item past the call -- store it in an attribute or a
+list, return it, or make a function value of it -- and each of those is an error in the function, naming the call
+that lent it: `'mouse' is lent to 'keep' for one call (D257), by the call on line 9 of 'LentToCalls': it is the
+caller's item, read and written in place, so 'keep' does not keep it in the attribute 'last': keep the values it
+needs, ...`. Nothing the call reaches may append to or remove from the collection the item is borrowed from,
+since that could move it while the function holds it.
 
 ## `drop()` runs once, right before the object is freed
 
@@ -936,6 +1037,8 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
   parameters and returns nothing; the compiler calls it automatically, never by name.
 - **Identity vs equality.** `==` on two class instances calls `equals` if the class defines one ([Operators](functions_and_operators.md#operators--implemented));
   otherwise it compares **identity** -- are these two references the same object.
+  A union compares identity the same way. A comparison releases whatever operand it produced itself -- an item
+  read with `[]`, a call's result -- so `kept[index] == shape` holds nothing afterwards ([D258](decisions.md)).
   `String` always compares by content, never by identity (sharing a `String`'s buffer is unobservable, since it is
   immutable, and so is its absence: text of up to 15 bytes has no buffer to share, each holder keeping it in its
   own sixteen bytes, [D203](decisions.md)).
@@ -1005,7 +1108,8 @@ counter and each free subtracts one, which is what it answers
 #### Where a value lives: `.memory`
 
 Every named value has a read-only `.memory`, a `Spite.Memory` (`library/spite/memory.spite`): `address`, `bytes`,
-and `section`, one of `'heap'`, `'stack'` or `'constant'`. A class instance or a list answers with its object, a
+and `section`, one of `'heap'`, `'stack'` or `'constant'`. A class instance or a list answers with its object
+(`'stack'` for an object the compiler placed in the frame, [Placement](#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)), a
 `String` with its characters (`'constant'` for a literal, whose characters are part of the program; for text made
 while the program runs, `'heap'` when it is longer than 15 bytes and lives in a block, and otherwise wherever the
 value itself is, since the characters are in it: `'stack'` in a local, `'heap'` in an attribute, [D203](decisions.md)),
@@ -1023,8 +1127,10 @@ same object is where an allocator is set ([below](#allocators-memoryallocator--i
   `text(length)` and `terminated_text()` are open to every program.
 - **Reading and writing** (D178): `read_byte`, `read_short`, `read_unsigned_short`, `read_integer`,
   `read_unsigned_integer`, `read_long`, `read_float` and `read_double`, each `(offset)`, the matching
-  `write_*(offset, value)`, and `exchange_long`, `read_long_atomically` and `write_long_atomically` for memory
-  threads share. Each is a primitive of the language, like `+`: the compiler writes it where it is called as one
+  `write_*(offset, value)`, and `exchange_long`, `read_long_atomically`, `write_long_atomically`,
+  `add_long_atomically` (answering the sum) and `compare_and_swap_long(offset, expected, desired)` (answering
+  whether it swapped) for memory threads share; a program uses them through `Atomic<T>`
+  ([concurrency.md](concurrency.md#a-number-every-thread-shares-atomict)). Each is a primitive of the language, like `+`: the compiler writes it where it is called as one
   load, store or atomic instruction, with no call and no check, so reading a field costs what it costs in C
   ([optimizations.md](optimizations.md#reading-an-address-is-one-machine-operation)). **Only `library/` may call
   them**: a function of a class the standard library declares, including one a program reopens (so
@@ -1074,7 +1180,10 @@ is the same whichever it makes:
   it to a `TypedMemory`'s `read_value`, `write_value` or `release_value`, or lends it to a function of the same
   class, called by its bare name, whose `Memory.Address` parameter is proven to keep nothing (D211: the same rules,
   applied to the parameter in that function's body, and to the functions it lends it on to; a recursive lend and a
-  `--hot-reload` build, whose functions can be swapped, prove nothing) -- it is never stored, returned,
+  `--hot-reload` build, whose functions can be swapped, prove nothing), or, in a file of `library/` only, lends it
+  to a function of a `DynamicLibrary` attribute of the same class (`kernel.QueryPerformanceCounter(counter)`: the
+  standard library's own operating-system calls, which fill the memory and keep nothing; a program's foreign
+  library could keep the address, so its calls still move it to the heap; proposed by Claude, unconfirmed) -- it is never stored, returned,
   assigned, resized or passed to anything else, and neither `name` nor `heap` is declared or assigned again
   after it. The compiler gives it a slot of 256 bytes
   in the function's frame (exactly the size, for a literal size up to 256), uses the heap when a run-time size
@@ -1084,6 +1193,15 @@ is the same whichever it makes:
 - **In the value:** text of up to 15 bytes is kept in the sixteen bytes of the `String` itself ([D203](decisions.md),
   [optimizations.md](optimizations.md#short-text-lives-inside-the-string)).
 - **Constant:** a `String` literal's characters are part of the program (its `.memory.section` is `'constant'`).
+- **Frame, for objects** (proposed by Claude, unconfirmed; decided under D205/D214): an instance of a class of only
+  numbers, `Boolean`s, enum values and singletons -- no `drop()`, not a singleton, a constructor that keeps nothing, no
+  `.instances` read of its class -- that never leaves the function that made it lives in that function's frame,
+  and so does the fresh answer a function writes into its caller's slot and a temporary inside an expression. Never
+  leaving means: read and written only through its attributes, handed only to functions proven to keep nothing
+  (the same proof as D211's, run on each parameter and on the object a function is called on), compared, asked for
+  its `.memory`, given a new fresh object, and returned only from a function that answers its class (copied to
+  the heap there). Its `.memory.section` is `'stack'`. Not in the inspectable builds, nor in a function that waits
+  ([optimizations.md](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)).
 - **Heap:** everything else.
 
 There is no way to ask for the stack by name (D98's `allocate_stack_bytes` is gone): it would be a second way to
@@ -1171,9 +1289,7 @@ kept past its use. What is built (the error texts and the readings marked are pr
     an independent object`;
   - made into a function value: `'stored.integrate' would keep 'stored', which is borrowed from 'velocities', in a
     function value: make it from a copy, 'var kept = stored.copy()' and then 'kept.integrate'`;
-  - passed as an argument, since a parameter is a reference the callee may keep: `'passed' is borrowed from
-    'velocities' and cannot be passed as an argument: pass 'passed.copy()', an independent object, or the
-    attributes the function needs`;
+  - passing it as an argument is **not** among them: the item is lent to the call (D257, below);
   - given a second name (`var alias = stored`): `'stored' is borrowed from 'velocities', and a borrowed item has
     one name: use 'stored' itself instead of 'alias', or keep 'stored.copy()', an independent object`;
   - assigned again (`first = velocities[1]`): `'first' is borrowed from 'velocities' and is not assigned again:
@@ -1181,7 +1297,7 @@ kept past its use. What is built (the error texts and the readings marked are pr
 - **Not past a change of size.** Growing a vector may move its block, and removing an item moves the ones after
   it, so a borrowed name is not read after a statement that may change its vector's size or move its block:
   `append`, `prepend`, `insert`, `reserve`, `remove_at`, `remove_first`, `remove_last`, `remove_swapping`,
-  `remove_where`/`remove_where_<member>`, `truncate`, `swap` (D227: it changes which item an index names) or
+  `remove_where`/`remove_where_<member>`, `truncate`, `swap` (D263: it changes which item an index names) or
   `clear` on it, assigning the vector or anything on its path, or a call that may do one of those. `reserve` adds no
   item but may move the block as surely as `append` does, so it counts as growing (proposed by Claude,
   unconfirmed; `diagnostics/vector_reserve_borrows`), and so do the library's own `make_room`, `_make_room` and
@@ -1322,8 +1438,8 @@ kept past its use. What is built (the error texts and the readings marked are pr
     argument's class -- `return Column<argument.class>().values[rows[argument.index]]`. It is a local of the call;
     a borrowed item from a `Vector`, or from an `Items` whose class fits one, is a borrowed name, and the function
     is called through its `___lent_<positions>` copy, in which that parameter is a borrowed name for the call: it
-    is not retained or released, and every rule above holds for it (it is not kept, returned, passed on, given a
-    second name or assigned). Any other value (`Entity(entity)`, a reference from an `Items` that does not fit) is
+    is not retained or released, and every rule above holds for it (it is not kept, returned, given a second name
+    or assigned; it may be lent on to a call, D257). Any other value (`Entity(entity)`, a reference from an `Items` that does not fit) is
     an ordinary local, counted for the call and let go after it.
   - **a walked row declared, filled and returned** -- `var row: $row_type = null`, `fill_attributes(row, rows)`,
     `return row` (or `var row: argument.class = null`) -- which is written out as the walked row it is, under
@@ -1345,9 +1461,106 @@ kept past its use. What is built (the error texts and the readings marked are pr
   compiled for that call. `benchmarks/lent_arguments`: 6.9 ms a tick against 34.3 ms copying each argument out and
   back ([optimizations.md](optimizations.md#a-row-of-borrowed-items-lives-in-the-frame);
   `conformance/stage6/lent_arguments`).
+- **An item lent to the caller** (D230, decided by Claude under D205; the error texts and the readings below
+  proposed by Claude, unconfirmed). A function one of whose `return`s reads an item straight from a singleton's
+  storage -- `return column.values[row]` or `return values[index]` (`get_at` too), where the path is attributes
+  of the function's class, the object holding the last attribute is a singleton, and that attribute is a `Vector`
+  or an `Items` whose class fits one -- **lends its result**: the item is returned uncounted and its caller never
+  lets it go. It is decided per class the function is compiled for, so `Lookup<Label>.of` over an `Items` of
+  references returns a counted reference as before. **The returns are read per instance with compile-time
+  conditions folded** (D259): an `if` whose condition is made only of `$T.fits_vector()`,
+  `$T.has_function("name")` with a plain literal name, and a generic parameter compared with a class (`$component_type != Entity`), joined with
+  `and`, `or` and `not`, keeps only its taken branch (`function_waits` is left unfolded here, since answering it
+  this early would decide it before the functions that ask it are compiled, D209), and a statement after an `if` folded true whose branch returns is dead,
+  so it does not count either. `Lookup.of` written as `if $component_type.fits_vector() and $component_type !=
+  Entity { return column.values[row] }` followed by `return column.value_at(row)` lends for every instance whose
+  class fits and returns an owned value for `Entity` and every class that does not fit, and each caller treats
+  the result as its instance does (`conformance/stage6/folded_lends`). At every caller:
+  - the result is a borrowed item of `<Singleton>().<attribute>` -- `'layout' is borrowed from
+    'Column<Layout>().values'` -- and every rule above applies to it: `var layout = lookup.of(entity)` names it,
+    `layout.order = 3` and `lookup.of(entity).order = 3` write the stored item, and it is not kept in an
+    attribute, put in a list, given a second name, assigned again, captured in a function value or read past a line whose call effects may append to or remove from that storage, whose error ends
+    `... so 'grown' is not read after it: ask for the item again after that line, or keep 'grown.copy()', an
+    independent object`;
+  - **it is not returned further**: only the read from the singleton's storage lends, so `return lookup.of(0)`, or
+    returning a name that holds it, is the error for returning a borrowed item, ending `-- a function lends its
+    caller an item only by reading it from a singleton's Items or Vector itself, never one that was lent to it
+    (D230)`;
+  - a name already used in the block is not reused for it: `'tally' already names a value earlier in this block,
+    and an item borrowed from 'Column<Tally>().values' is given a name of its own: call it something new, such as
+    'var tally_item = ...'` (this applies to every borrowed item);
+  - **narrowing keeps it borrowed** (D259, a bug fix under D244): `if layout { ... }`, `if layout and
+    layout.order > 0 { ... }` make it a plain `Layout` inside the block that is still the borrowed item, so passing it to a call lends it (D257) and keeping, listing or returning it is the
+    error above. Before, the narrowed name was an ordinary local: a call retained and released the stored item,
+    which is a double free under `--debug-memory` and heap corruption in production
+    (`conformance/stage6/narrowed_lends`, `diagnostics/lent_escapes`);
+  - **it is called by name only** (D259): a lending function is never made a function value (`var find =
+    lookup.of`, `entities.map(lookup.of)`), whose caller would let go of an item it does not own -- `'of' lends its
+    caller an item of 'Column<Justify>().values' (D230), which only a call written by name can borrow: a function
+    value's caller would let go of an item it does not own, so 'of' is not made a function value -- call 'of(...)'
+    by name where the item is wanted` -- and its class does not fit a `type` requiring that function: `'Lookup'
+    does not fit type 'Finder': its 'of' lends its caller an item of 'Column<Justify>().values' (D230), which only
+    a call written by name can borrow: a call through the type would let go of an item it does not own`.
+  A function that lends returns only such items or `null`: any other value would be an object the caller never
+  lets go, so it is `'at_or_made' lends its caller an item of 'Scores().values', which the caller writes in place
+  and never lets go, so each of its returns is an item of 'Scores().values' or null: 'made' is neither -- return
+  null for 'none', with a '?' result, or make it a function of its own`. A storage path through a local, a
+  parameter or an object that is not a singleton keeps D204's refusal, since that storage may not outlive the
+  call. **Cost**: none -- the return is the item's address, with no retain, and the caller releases nothing
+  (`conformance/stage6/lent_results`, `diagnostics/lent_results`, `conformance/stage6/folded_lends`,
+  `conformance/stage6/narrowed_lends`, `diagnostics/lent_escapes`).
+- **An item lent to a call** (D257, decided by Claude under D205 and D244, the argument-side twin of D220 and
+  D230; the error texts and the readings below proposed by Claude, unconfirmed). A borrowed item passed as an
+  argument -- a borrowed name (`mouse`, including one lent to the function itself), an item read with `[ ]`
+  (`mice[0]`) or a row's attribute (`device.mouse`) -- at a place whose parameter is not a union or a variadic
+  list, to a function of the program called by name, is **lent** to that call. The compiler writes a second copy
+  of the function, `<name>___lent_<positions>` (the D206 mechanism, shared with rows and with D220's arguments), in
+  which that parameter is a borrowed name for the call: it is never retained or released, reading and writing it
+  reads and writes the caller's item, and passing it on to another call lends it again, to that function's own
+  `___lent_` copy. Every caller that passes a class instance keeps the ordinary function.
+  - **The function keeps nothing.** Every rule above holds for the lent parameter inside the copy, so each way of
+    keeping it is an error in that function naming the parameter and the call that lent it (`'mouse' is lent to
+    'keep' for one call (D257), by the call on line 9 of 'LentToCalls': it is the caller's item, read and written
+    in place,` followed by the site):
+    - kept in an attribute: `... so 'keep' does not keep it in the attribute 'last': keep the values it needs, or
+      have the caller pass something 'keep' may keep`;
+    - put in a list: `... so 'list' does not put it in a list, which would keep it: keep the values it needs`;
+    - returned: `... so 'hand_back' does not return it: return the values the caller needs`;
+    - made into a function value: `'mouse.move' would keep 'mouse' in a function value, and 'mouse' is lent to
+      'capture' for one call (D257), so 'capture' does not keep it: call 'mouse.move()' directly, or keep the
+      values it needs`;
+    - given a second name: `... and a lent item has one name: use 'mouse' itself instead of 'alias'`.
+    These are the facts escape analysis proves per parameter ([optimizations.md](optimizations.md)) -- the function
+    keeps nothing its parameter reaches -- checked here by compiling the function under the borrow rules, which
+    names the very line that would keep it.
+  - **The call may not resize what the item is borrowed from.** A statement that lends an item is checked with
+    the call effects: a call whose `grow:` or `shrink:` facts reach the collection the item is borrowed from (for
+    a row's attribute, each collection the row borrows from) is `'mouse' is borrowed from 'mice' and lent to
+    'grow' for its call, and 'input.grow()' on line 19 may move the items of 'mice': a function lent a borrowed
+    item may not append to or remove from the collection it is borrowed from, directly or through what it calls
+    -- change the size of 'mice' before or after the call (D257)`. An item lent on from inside a lent function is
+    covered by the check at the call that first lent it, whose call effects include everything the function
+    reaches. D220's plural calls keep their own error.
+  - **Where it is not lent, the error says why, and never offers a copy the function would write** (D244: a write
+    to a copy vanishes silently). Passing to a library function: `'first' is borrowed from 'other', and 'append'
+    is a library function, which is never lent an item: pass the attributes it needs, or 'first.copy()' where a
+    snapshot is what it wants`; to a union parameter: `... and 'f' takes it as a union, which holds its own values
+    and is never lent an item: pass the attributes it needs, or give 'f' a parameter of the item's own class`;
+    any other expression (such as a call that lends its result, written inside the argument): `... only a named
+    item, an item read with '[ ]' or a row's attribute is lent to a call (D257): name it first, 'var item =
+    ...', and pass 'item'`.
+  - **Cost.** None: the argument is the item's address, the parameter is never counted, and nothing is copied.
+    The `___lent_` copy is compiled only for the positions a program lends, and a program that lends nothing
+    carries none (tree-shaken like any function). `conformance/stage6/lent_to_calls` (an input system handing a
+    walked row's mouse and keyboard to `apply(event, mouse, keyboard)`, which writes them and passes them on,
+    with balanced memory and the writes read back from the vectors), `diagnostics/lent_to_calls`.
+- **A walked line names the attribute's class wherever it was declared** (proposed by Claude, unconfirmed; a bug
+  fix found making every fitting component inline in SlopEngine). `Column<attribute.class>()` in a walked row or
+  a plural's argument is written out with the class's full name, so a row type declared in another namespace
+  (`mouse: Component.Mouse` in `Input`) names the same class from the runner's file.
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/vector_rows`, `conformance/stage6/vector_items`,
 `conformance/stage6/vector_rows`, `conformance/stage6/walked_rows`, `diagnostics/walked_rows`,
 `conformance/stage6/sparse_rows`, `diagnostics/sparse_rows`, `conformance/stage6/items_columns`,
 `diagnostics/items_borrows`, `conformance/stage6/lent_arguments`, `conformance/stage6/streamed_rows`,
-`diagnostics/lent_arguments`.
+`diagnostics/lent_arguments`, `conformance/stage6/lent_to_calls`, `diagnostics/lent_to_calls`.

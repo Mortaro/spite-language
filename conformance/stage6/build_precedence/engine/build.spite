@@ -1,0 +1,3 @@
+var plugins_folder = "../../plugins"
+var engine_name = "slop"
+var frames_per_second = 60

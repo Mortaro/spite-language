@@ -165,10 +165,11 @@ func read_symbol(input: BinaryInput): $value_type {
     }
     var name = input.read_text()
     var found = Symbol(name)
-    if found {
-        return found
+    if not found {
+        input.fail()
+        return input.class.name
     }
-    input.fail()
+    return found
 }
 
 func count_value(value: Symbol<$value_type>, input: BinaryInput) {
@@ -183,7 +184,7 @@ func name_value(value: Symbol<$value_type>, input: BinaryInput) {
 }
 
 func read_list(input: BinaryInput): $value_type {
-    var list: $value_type = null
+    var list = $value_type()
     var count = input.read_count()
     var element = BinaryFormat<$value_type.element_type>()
     var index = 0
@@ -196,7 +197,7 @@ func read_list(input: BinaryInput): $value_type {
 }
 
 func read_dictionary(input: BinaryInput): $value_type {
-    var dictionary: $value_type = null
+    var dictionary = $value_type()
     var count = input.read_count()
     var entry = BinaryFormat<$value_type.value_type>()
     var key_format = BinaryFormat<$value_type.key_type>()

@@ -1,0 +1,65 @@
+var console = Console()
+var names = ["ada", "bo"]
+var prices = Dictionary<Integer>()
+var handle = -1
+
+func LeavingIf() {
+    prices.set("apple", 3)
+    var found = length_of("abc")
+    var missing = length_of("")
+    var second = name_at(1)
+    var outside = name_at(5)
+    var both = joined_length("a", "bc")
+    var one_missing = joined_length("a", "")
+    var too_long = joined_length("a", "abcdefg")
+    var apple = price_of("apple")
+    var pear = price_of("pear")
+    var closed = is_open()
+    handle = 4
+    var opened = is_open()
+    console.print(found, missing, second, outside)
+    console.print(both, one_missing, too_long, apple, pear, closed, opened)
+}
+
+func find_text(text: String): String? {
+    assert not text.is_empty()
+    return text
+}
+
+func length_of(text: String): Integer {
+    var found = find_text(text)
+    if not found {
+        return -1
+    }
+    return found.length()
+}
+
+func name_at(index: Integer): String {
+    if index >= names.count() {
+        return "none"
+    }
+    return names[index]
+}
+
+func joined_length(first: String, second: String): Integer {
+    var left = find_text(first)
+    var right = find_text(second)
+    if not left or not right or right.length() > 5 {
+        return 0
+    }
+    return left.length() + right.length()
+}
+
+func price_of(name: String): Integer {
+    if not prices[name] {
+        return 0
+    }
+    return prices[name] * 100
+}
+
+func is_open(): Boolean {
+    if handle == -1 {
+        return false
+    }
+    return true
+}

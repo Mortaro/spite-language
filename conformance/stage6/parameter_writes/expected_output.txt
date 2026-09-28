@@ -1,0 +1,8 @@
+direct: true checked: false
+nested: true element: true appends: true method: true
+aliases: true shrinks: true text reads: false
+calls: true checked: false recursive: true ping: true
+lent: true reads: false false renames: false
+stores: true calls a value: true missing: false
+a system that only reads can run on a snapshot
+the check holds, so nothing is left at run time

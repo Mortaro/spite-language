@@ -1,0 +1,801 @@
+var shape = Analysis.AstShape()
+var type_shape = Analysis.TypeShape()
+var printer = Syntax.SourcePrinter()
+var generator: Generator? = null
+var table: ParameterWrites? = null
+var owner: Analysis.ClassInfo? = null
+var function: Analysis.FunctionInfo? = null
+var roots = Dictionary<String>()
+var types = Dictionary<Analysis.SpiteType>()
+var line = 0
+var path = ""
+var called_owner: Analysis.ClassInfo? = null
+var called_function: Analysis.FunctionInfo? = null
+var called_made: Analysis.ClassInfo? = null
+var called_kind = ""
+var called_receiver = ""
+
+func ParameterWriteStudy(
+    studying_generator: Generator,
+    writes_table: ParameterWrites,
+    studied_owner: Analysis.ClassInfo,
+    studied_function: Analysis.FunctionInfo,
+) {
+    generator = studying_generator
+    table = writes_table
+    owner = studied_owner
+    function = studied_function
+}
+
+func run() {
+    var studied = the_function()
+    path = studied.source_path
+    if path.is_empty() {
+        var studied_owner = the_owner()
+        path = studied_owner.source_path
+    }
+    var index = 0
+    while index < studied.parameters.count() {
+        var parameter = studied.parameters[index]
+        roots.set(parameter.name, "|{index}|")
+        if parameter.spite_type {
+            types.set(parameter.name, parameter.spite_type)
+        }
+        index = index + 1
+    }
+    walk_block(studied.body)
+}
+
+func tools(): Generator {
+    crash generator
+    return generator
+}
+
+func writes(): ParameterWrites {
+    crash table
+    return table
+}
+
+func the_owner(): Analysis.ClassInfo {
+    crash owner
+    return owner
+}
+
+func the_function(): Analysis.FunctionInfo {
+    crash function
+    return function
+}
+
+func walk_block(statements: List<Syntax.Statements.Statement>) {
+    statements.each(walk_statement)
+}
+
+func walk_statement(statement: Syntax.Statements.Statement) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            line = statement.line
+            declare(statement)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            line = statement.line
+            assign(statement)
+        }
+        Syntax.Statements.IfStatement: {
+            line = statement.line
+            visit_optional(statement.condition)
+            branches(statement.then_branch, statement.else_branch)
+        }
+        Syntax.Statements.WhileStatement: {
+            line = statement.line
+            repeat_loop(statement)
+        }
+        Syntax.Statements.SwitchStatement: {
+            line = statement.line
+            visit_optional(statement.subject)
+            walk_cases(statement)
+        }
+        Syntax.Statements.AssertStatement: {
+            line = statement.line
+            visit_optional(statement.value)
+        }
+        Syntax.Statements.ReturnStatement: {
+            line = statement.line
+            visit_optional(statement.value)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            line = statement.line
+            visit_optional(statement.value)
+        }
+        _: return
+    }
+}
+
+func declare(declaration: Syntax.Statements.VariableDeclaration) {
+    crash declaration.value
+    var value = declaration.value
+    visit(value)
+    var value_roots = roots_of(value)
+    roots.set(declaration.name, value_roots)
+    var value_type = type_of(value)
+    if declaration.type_reference {
+        var written_type = declared_type(declaration.type_reference)
+        if written_type {
+            value_type = written_type
+        }
+    }
+    if value_type {
+        types.set(declaration.name, value_type)
+    } else {
+        types.remove(declaration.name)
+    }
+}
+
+func declared_type(type_reference: Syntax.Types.Type): Analysis.SpiteType? {
+    var studied = the_owner()
+    var named_class = tools().class_of_type_reference(type_reference, studied.qualified_dotted)
+    assert named_class
+    return type_for_class(named_class)
+}
+
+func type_for_class(information: Analysis.ClassInfo): Analysis.SpiteType {
+    return tools().instance_type_of(information)
+}
+
+func assign(assignment: Syntax.Statements.AssignmentStatement) {
+    crash assignment.target
+    crash assignment.value
+    var target = assignment.target
+    var value = assignment.value
+    visit(value)
+    var reason = "at {path}:{line}: '{printed(target)} = {printed(value)}'"
+    var named = shape.as_identifier(target)
+    if named {
+        if roots.has(named.name) {
+            var renamed_roots = roots_of(value)
+            roots.set(named.name, renamed_roots)
+            var renamed_type = type_of(value)
+            if renamed_type {
+                types.set(named.name, renamed_type)
+            }
+            return
+        }
+        record_all("|this|", reason)
+        var stored_roots = roots_of(value)
+        record_all(stored_roots, reason)
+        return
+    }
+    visit_target(target)
+    var written = target_roots(target)
+    record_all(written, reason)
+    var kept_roots = roots_of(value)
+    record_all(kept_roots, reason)
+}
+
+func visit_target(target: Syntax.Expressions.Expression) {
+    var member = shape.as_member(target)
+    if member {
+        visit_optional(member.object)
+        return
+    }
+    var indexed = shape.as_index(target)
+    if indexed {
+        visit_optional(indexed.object)
+        visit_optional(indexed.index)
+        return
+    }
+    visit(target)
+}
+
+func target_roots(target: Syntax.Expressions.Expression): String {
+    var member = shape.as_member(target)
+    if member {
+        crash member.object
+        return raw_roots(member.object)
+    }
+    var indexed = shape.as_index(target)
+    if indexed {
+        crash indexed.object
+        return raw_roots(indexed.object)
+    }
+    return raw_roots(target)
+}
+
+func branches(then_branch: List<Syntax.Statements.Statement>, else_branch: List<Syntax.Statements.Statement>) {
+    var before = roots.copy()
+    walk_block(then_branch)
+    var after_then = roots
+    roots = before
+    walk_block(else_branch)
+    join(after_then)
+}
+
+func repeat_loop(loop: Syntax.Statements.WhileStatement) {
+    var before = described_roots()
+    var steady = false
+    while not steady {
+        visit_optional(loop.condition)
+        var entering = roots.copy()
+        walk_block(loop.body)
+        join(entering)
+        var after = described_roots()
+        steady = after == before
+        before = after
+    }
+}
+
+func walk_cases(switched: Syntax.Statements.SwitchStatement) {
+    var before = roots.copy()
+    var joined = roots.copy()
+    var index = 0
+    while index < switched.cases.count() {
+        var switch_case = switched.cases[index]
+        roots = before.copy()
+        narrow_case(switched, switch_case)
+        walk_block(switch_case.body)
+        var after = roots
+        roots = joined
+        join(after)
+        joined = roots
+        index = index + 1
+    }
+    roots = joined
+}
+
+func narrow_case(switched: Syntax.Statements.SwitchStatement, switch_case: Syntax.Statements.SwitchCase) {
+    crash switched.subject
+    var subject = shape.as_identifier(switched.subject)
+    assert subject and switch_case.type_reference
+    var narrowed = declared_type(switch_case.type_reference)
+    assert narrowed
+    types.set(subject.name, narrowed)
+}
+
+func join(other: Dictionary<String>) {
+    var names = other.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var theirs = other.get(name)
+        crash theirs
+        var ours = roots.get(name)
+        if ours {
+            var both = united(ours, theirs)
+            roots.set(name, both)
+        } else {
+            roots.set(name, theirs)
+        }
+        index = index + 1
+    }
+}
+
+func described_roots(): String {
+    var pieces = List<String>()
+    var names = roots.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var held = roots.get(name)
+        crash held
+        pieces.append("{name}={held}")
+        index = index + 1
+    }
+    return pieces.join(";")
+}
+
+func visit_optional(expression: Syntax.Expressions.Expression?) {
+    assert expression
+    visit(expression)
+}
+
+func visit(expression: Syntax.Expressions.Expression) {
+    switch expression {
+        Syntax.Expressions.CallExpression: visit_call(expression)
+        Syntax.Expressions.GenericCallExpression: {
+            expression.arguments.each(visit)
+            var made_roots = argument_roots(expression.arguments)
+            record_all(
+                made_roots,
+                "at {path}:{line}: '{printed(expression)}' hands it to a class the question does not follow",
+            )
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            visit(expression.left)
+            visit(expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: visit_optional(expression.operand)
+        Syntax.Expressions.MemberExpression: visit_optional(expression.object)
+        Syntax.Expressions.IndexExpression: {
+            visit_optional(expression.object)
+            visit_optional(expression.index)
+            visit_attribute_read(expression)
+        }
+        Syntax.Expressions.ListLiteralExpression: expression.elements.each(visit_element)
+        Syntax.Expressions.ObjectLiteralExpression: expression.fields.each(visit_field)
+        _: return
+    }
+}
+
+func visit_element(element: Syntax.Expressions.ListElement) {
+    visit_optional(element.value)
+}
+
+func visit_field(field: Syntax.Expressions.ObjectField) {
+    visit_optional(field.value)
+}
+
+func visit_attribute_read(indexed: Syntax.Expressions.IndexExpression) {
+    crash indexed.object
+    var attributes = shape.as_member(indexed.object)
+    assert attributes
+    assert attributes.name == "attributes"
+    crash attributes.object
+    var walked_roots = raw_roots(attributes.object)
+    record_all(
+        walked_roots,
+        "at {path}:{line}: '{printed(indexed)}' may call a function of the value it walks, which the question does not follow",
+    )
+}
+
+func visit_call(call: Syntax.Expressions.CallExpression) {
+    crash call.callee
+    call.arguments.each(visit)
+    var member = shape.as_member(call.callee)
+    if member {
+        visit_optional(member.object)
+    }
+    resolve_call(call)
+    var kind = called_kind
+    var receiver = called_receiver
+    if kind == "function" {
+        crash called_owner
+        crash called_function
+        apply(call, receiver, called_owner, called_function)
+        return
+    }
+    if kind == "value" {
+        undecided(call)
+        return
+    }
+    assert kind != "fresh"
+    var unfollowed = "at {path}:{line}: '{printed(call)}' hands it to a function the question does not follow"
+    record_all(receiver, unfollowed)
+    var handed = argument_roots(call.arguments)
+    record_all(handed, unfollowed)
+}
+
+func apply(
+    call: Syntax.Expressions.CallExpression,
+    receiver: String,
+    callee_owner: Analysis.ClassInfo,
+    callee: Analysis.FunctionInfo,
+) {
+    var table_now = writes()
+    var studying_generator = tools()
+    table_now.summarize(studying_generator, callee_owner, callee)
+    var key = callee.c_name
+    var shown = "'{callee_owner.simple_name}.{callee.name}'"
+    if table_now.writes(key, "this") {
+        record_all(
+            receiver,
+            "at {path}:{line}: '{printed(call)}' calls {shown}, which writes the object it is called on",
+        )
+    }
+    var last_position = callee.parameters.count() - 1
+    var index = 0
+    while index < call.arguments.count() {
+        var position = index
+        if position > last_position {
+            position = last_position
+        }
+        var slot: String = position
+        if position >= 0 and table_now.writes(key, slot) {
+            var argument = call.arguments[index]
+            var passed_roots = roots_of(argument)
+            record_all(
+                passed_roots,
+                "at {path}:{line}: '{printed(call)}' passes '{printed(argument)}' to {shown}, which writes that parameter",
+            )
+        }
+        index = index + 1
+    }
+}
+
+func undecided(call: Syntax.Expressions.CallExpression) {
+    var studied = the_function()
+    var reason = "at {path}:{line}: '{printed(call)}' calls a function value, which may write anything it reaches, so the question cannot be decided"
+    record_all("|this|", reason)
+    var index = 0
+    while index < studied.parameters.count() {
+        record_all("|{index}|", reason)
+        index = index + 1
+    }
+}
+
+func resolve_call(call: Syntax.Expressions.CallExpression) {
+    called_owner = null
+    called_function = null
+    called_made = null
+    called_kind = "unknown"
+    called_receiver = ""
+    crash call.callee
+    var callee = call.callee
+    var named = shape.as_identifier(callee)
+    if named {
+        resolve_named_call(named.name, callee)
+        return
+    }
+    var member = shape.as_member(callee)
+    if member {
+        resolve_method_call(member, callee)
+        return
+    }
+    called_kind = "value"
+    called_receiver = raw_roots(callee)
+}
+
+func resolve_named_call(name: String, callee: Syntax.Expressions.Expression) {
+    var studied = the_owner()
+    if roots.has(name) {
+        called_kind = "value"
+        var held = roots.get(name)
+        crash held
+        called_receiver = held
+        return
+    }
+    var own = studied.find_function(name)
+    if own {
+        called_owner = studied
+        called_function = own
+        called_kind = "function"
+        called_receiver = "|this|"
+        return
+    }
+    if studied.find_field(name) {
+        called_kind = "value"
+        called_receiver = "|this|"
+        return
+    }
+    assert names_a_class(name)
+    var made = tools().try_resolve_static_path(callee, studied.qualified_dotted)
+    assert made
+    resolve_construction(made)
+}
+
+func resolve_construction(made: Analysis.ClassInfo) {
+    called_made = made
+    called_kind = "fresh"
+    assert made.constructor
+    called_owner = made
+    called_function = made.constructor
+    called_kind = "function"
+}
+
+func resolve_method_call(member: Syntax.Expressions.MemberExpression, callee: Syntax.Expressions.Expression) {
+    crash member.object
+    var studied = the_owner()
+    var object = member.object
+    if is_static_path(callee) and names_a_class(member.name) {
+        var made = tools().try_resolve_static_path(callee, studied.qualified_dotted)
+        if made {
+            resolve_construction(made)
+            return
+        }
+    }
+    if is_static_path(object) {
+        var named_class = tools().try_resolve_static_path(object, studied.qualified_dotted)
+        if named_class {
+            var named_function = named_class.find_function(member.name)
+            if named_function {
+                called_owner = named_class
+                called_function = named_function
+                called_kind = "function"
+            }
+            return
+        }
+    }
+    called_receiver = raw_roots(object)
+    var receiver_type = type_of(object)
+    assert receiver_type
+    var receiver_class = class_of(receiver_type)
+    assert receiver_class
+    var method = receiver_class.find_function(member.name)
+    if method {
+        called_owner = receiver_class
+        called_function = method
+        called_kind = "function"
+        return
+    }
+    var field = receiver_class.find_field(member.name)
+    assert field
+    called_kind = "value"
+}
+
+func is_static_path(expression: Syntax.Expressions.Expression): Boolean {
+    var named = shape.as_identifier(expression)
+    if named {
+        if not names_a_class(named.name) or roots.has(named.name) {
+            return false
+        }
+        var studied = the_owner()
+        var field = studied.find_field(named.name)
+        return not field
+    }
+    var member = shape.as_member(expression)
+    if member {
+        crash member.object
+        return is_static_path(member.object)
+    }
+    return false
+}
+
+func names_a_class(name: String): Boolean {
+    if name.is_empty() {
+        return false
+    }
+    var first_code = name.code_at(0)
+    return first_code >= 65 and first_code <= 90
+}
+
+func class_of(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.get_inner()
+        return class_of(inner)
+    }
+    assert not type_shape.as_union(spite_type)
+    return tools().class_of_type(spite_type)
+}
+
+func type_of(expression: Syntax.Expressions.Expression): Analysis.SpiteType? {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return named_type(expression.name)
+        Syntax.Expressions.MemberExpression: return member_type(expression)
+        Syntax.Expressions.CallExpression: return call_type(expression)
+        Syntax.Expressions.IndexExpression: return element_type(expression)
+        Syntax.Expressions.IntegerLiteral: return tools().integer_type()
+        Syntax.Expressions.FloatLiteral: return tools().float_type()
+        Syntax.Expressions.StringLiteralExpression: return tools().string_type()
+        Syntax.Expressions.TrueLiteral: return tools().boolean_type()
+        Syntax.Expressions.FalseLiteral: return tools().boolean_type()
+        Syntax.Expressions.BinaryExpression: return binary_type(expression)
+        Syntax.Expressions.UnaryExpression: {
+            if expression.operator == 'logical_not' {
+                return tools().boolean_type()
+            }
+            crash expression.operand
+            return type_of(expression.operand)
+        }
+        _: return null
+    }
+}
+
+func binary_type(binary: Syntax.Expressions.BinaryExpression): Analysis.SpiteType? {
+    var operator = binary.operator
+    var arithmetic = operator == 'add' or operator == 'subtract' or operator == 'multiply' or operator == 'divide' or operator == 'modulo'
+    if not arithmetic {
+        return tools().boolean_type()
+    }
+    crash binary.left
+    return type_of(binary.left)
+}
+
+func named_type(name: String): Analysis.SpiteType? {
+    var local = types.get(name)
+    if local {
+        return local
+    }
+    assert not roots.has(name)
+    var studied = the_owner()
+    if name == "this" {
+        return type_for_class(studied)
+    }
+    var field = studied.find_field(name)
+    assert field
+    return field.spite_type
+}
+
+func member_type(member: Syntax.Expressions.MemberExpression): Analysis.SpiteType? {
+    crash member.object
+    var object_type = type_of(member.object)
+    assert object_type
+    var object_class = class_of(object_type)
+    assert object_class
+    var field = object_class.find_field(member.name)
+    assert field
+    return field.spite_type
+}
+
+func call_type(call: Syntax.Expressions.CallExpression): Analysis.SpiteType? {
+    resolve_call(call)
+    if called_made {
+        return type_for_class(called_made)
+    }
+    assert called_function
+    return called_function.return_type
+}
+
+func element_type(indexed: Syntax.Expressions.IndexExpression): Analysis.SpiteType? {
+    crash indexed.object
+    var object_type = type_of(indexed.object)
+    assert object_type
+    var listed = type_shape.as_list(object_type)
+    if listed {
+        return listed.get_element()
+    }
+    var keyed = type_shape.as_dictionary(object_type)
+    if keyed {
+        return keyed.get_element()
+    }
+    var container = class_of(object_type)
+    assert container
+    return container.codegen_types.first()
+}
+
+func plain_value(expression: Syntax.Expressions.Expression): Boolean {
+    if shape.as_integer_literal(expression) or shape.as_float_literal(expression) or shape.as_string_literal(expression) {
+        return true
+    }
+    if shape.as_enum_literal(expression) {
+        return true
+    }
+    if shape.is_true_literal(expression) or shape.is_false_literal(expression) or shape.is_null_literal(expression) {
+        return true
+    }
+    var found = type_of(expression)
+    if found {
+        return plain_type(found)
+    }
+    return false
+}
+
+func plain_type(spite_type: Analysis.SpiteType): Boolean {
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.get_inner()
+        return plain_type(inner)
+    }
+    var scalar = type_shape.as_scalar(spite_type)
+    if scalar {
+        return scalar.kind != 'address_kind'
+    }
+    if type_shape.as_enum(spite_type) {
+        return true
+    }
+    return type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type)
+}
+
+func roots_of(expression: Syntax.Expressions.Expression): String {
+    if plain_value(expression) {
+        return ""
+    }
+    return raw_roots(expression)
+}
+
+func raw_roots(expression: Syntax.Expressions.Expression): String {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return named_roots(expression.name)
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            if is_static_path(expression) {
+                return ""
+            }
+            return raw_roots(expression.object)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            return raw_roots(expression.object)
+        }
+        Syntax.Expressions.CallExpression: return call_roots(expression)
+        Syntax.Expressions.GenericCallExpression: return argument_roots(expression.arguments)
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            var left_roots = raw_roots(expression.left)
+            var right_roots = raw_roots(expression.right)
+            return united(left_roots, right_roots)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return raw_roots(expression.operand)
+        }
+        Syntax.Expressions.ListLiteralExpression: return element_roots(expression.elements)
+        Syntax.Expressions.ObjectLiteralExpression: return field_roots(expression.fields)
+        _: return ""
+    }
+}
+
+func named_roots(name: String): String {
+    var held = roots.get(name)
+    if held {
+        return held
+    }
+    if name == "this" {
+        return "|this|"
+    }
+    var studied = the_owner()
+    if studied.find_field(name) {
+        return "|this|"
+    }
+    return ""
+}
+
+func call_roots(call: Syntax.Expressions.CallExpression): String {
+    resolve_call(call)
+    var receiver = called_receiver
+    var handed = argument_roots(call.arguments)
+    return united(receiver, handed)
+}
+
+func argument_roots(arguments: List<Syntax.Expressions.Expression>): String {
+    var gathered = ""
+    var index = 0
+    while index < arguments.count() {
+        var argument_roots_found = roots_of(arguments[index])
+        gathered = united(gathered, argument_roots_found)
+        index = index + 1
+    }
+    return gathered
+}
+
+func element_roots(elements: List<Syntax.Expressions.ListElement>): String {
+    var gathered = ""
+    var index = 0
+    while index < elements.count() {
+        var element = elements[index]
+        crash element.value
+        var found = roots_of(element.value)
+        gathered = united(gathered, found)
+        index = index + 1
+    }
+    return gathered
+}
+
+func field_roots(fields: List<Syntax.Expressions.ObjectField>): String {
+    var gathered = ""
+    var index = 0
+    while index < fields.count() {
+        var field = fields[index]
+        crash field.value
+        var found = roots_of(field.value)
+        gathered = united(gathered, found)
+        index = index + 1
+    }
+    return gathered
+}
+
+func united(first: String, second: String): String {
+    if first.is_empty() {
+        return second
+    }
+    var result = first
+    var pieces = second.split("|")
+    var index = 0
+    while index < pieces.count() {
+        var piece = pieces[index]
+        if not piece.is_empty() and not result.contains("|{piece}|") {
+            result = "{result}{piece}|"
+        }
+        index = index + 1
+    }
+    return result
+}
+
+func record_all(slots: String, reason: String) {
+    var studied = the_function()
+    var table_now = writes()
+    var pieces = slots.split("|")
+    var index = 0
+    while index < pieces.count() {
+        var slot = pieces[index]
+        if not slot.is_empty() and not table_now.writes(studied.c_name, slot) {
+            table_now.record(studied.c_name, slot, reason)
+        }
+        index = index + 1
+    }
+}
+
+func printed(expression: Syntax.Expressions.Expression): String {
+    return printer.source_expression(expression)
+}

@@ -150,7 +150,9 @@ func all_member(member: Symbol<$element_type>): Boolean {
     var index = 0
     while index < item_count {
         var item = values.item_at(items, index)
-        assert item.attributes[member]
+        if not item.attributes[member] {
+            return false
+        }
         index = index + 1
     }
     return true

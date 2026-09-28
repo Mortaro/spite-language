@@ -1,0 +1,15 @@
+var attributes = List<String>()
+var class = "armour"
+var memory = 0
+
+func functions(): Integer {
+    return 2
+}
+
+func instances(): Integer {
+    return 3
+}
+
+func get_attributes(): Integer {
+    return 1
+}

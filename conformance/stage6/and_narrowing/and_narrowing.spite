@@ -28,6 +28,8 @@ func shown_if_both(names: List<String>, ages: List<Integer>, position: Integer):
 }
 
 func long_nickname(): String {
-    assert nickname and nickname.length() > 3
+    if not nickname or nickname.length() <= 3 {
+        return ""
+    }
     return nickname
 }

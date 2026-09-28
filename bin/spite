@@ -37,8 +37,24 @@ if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
     mkdir -p "$here/.spite-cache"
     maths_library="-lm"   # the compiler folds maths with the C library's own, which Linux and macOS keep in libm
     case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) maths_library="" ;; esac
-    $CC -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$binary" $maths_library || exit 1
+    # Another build may be running the old compiler, or building its own copy, at this moment: each build writes
+    # its own file and swaps it in, so none of them fails on a file in use. Windows refuses to overwrite a running
+    # executable but lets it be renamed, so the old one is moved aside first.
+    fresh="$binary.$$.exe"
+    $CC -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$fresh" $maths_library || { rm -f "$fresh"; exit 1; }
+    if ! mv -f "$fresh" "$binary" 2>/dev/null; then
+        mv -f "$binary" "$binary.$$.old" 2>/dev/null
+        mv -f "$fresh" "$binary" 2>/dev/null
+    fi
+    rm -f "$fresh" "$here/.spite-cache/"spite.exe.*.old 2>/dev/null   # an old one still running stays until it ends
+    [ -x "$binary" ] || { echo "spite: the compiler was built but could not be put in place at $binary" >&2; exit 1; }
 fi
+
+# Git for Windows' bash rewrites every argument that looks like a POSIX path when it starts a Windows program, so
+# `-- --prefixes=/Game/` would reach the program as `C:/Program Files/Git/Game/`. The launcher writes its own paths
+# as Windows paths and turns the rewriting off, so everything after `--` arrives exactly as it was typed.
+windows_paths=false
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) windows_paths=true; export MSYS2_ARG_CONV_EXCL="*" ;; esac
 
 # `spite connect <port> [--command="..."]` talks to a program running with --repl-port; nothing in it is a path.
 if [ "$1" == "connect" ]; then
@@ -50,10 +66,14 @@ fi
 # Folder arguments and flags that name a path are made absolute, so messages name them the same way everywhere.
 absolute() {
     case "$1" in
-        /*)         echo "$1" ;;
-        [A-Za-z]:*) cygpath -u "$1" 2>/dev/null || echo "$1" ;;
-        *)          echo "$(pwd)/$1" ;;
+        /*|[A-Za-z]:*) native "$1" ;;
+        *)             native "$(pwd)/$1" ;;
     esac
+}
+
+# A path the way the compiler reads it: `C:/...` on Windows, where it is a Windows program, and unchanged elsewhere.
+native() {
+    if $windows_paths; then cygpath -m "$1" 2>/dev/null || echo "$1"; else echo "$1"; fi
 }
 
 # `spite format [--check] <file-or-folder> ...` formats every .spite file it names or finds, without compiling;
@@ -78,6 +98,7 @@ for argument in "$@"; do
         --final-classes=*)    arguments+=("--final-classes=$(absolute "${argument#*=}")") ;;
         --executable-path=*)  arguments+=("--executable-path=$(absolute "${argument#*=}")") ;;
         --c-path=*)           arguments+=("--c-path=$(absolute "${argument#*=}")") ;;
+        -*=/*)                arguments+=("${argument%%=*}=$(native "${argument#*=}")") ;;
         -*)                   arguments+=("$argument") ;;
         *)                    arguments+=("$(absolute "$argument")") ;;
     esac

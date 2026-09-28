@@ -1,0 +1,9 @@
+var console = Console()
+
+func FoldedCrashUncalled() {
+    var names = Slot<List<String>>()
+    var counts = Slot<Integer>()
+    counts.fits()
+    var label = names.label()
+    console.print("only the Integer slot checks that it fits;", label, "never calls fits")
+}

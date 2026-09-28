@@ -107,16 +107,12 @@ func scan_one(): Boolean {
     if is_identifier_start(code) {
         return scan_identifier()
     }
-    if code == 34 {
-        return scan_quoted(34, 'string_literal')
+    switch code {
+        34: return scan_quoted(34, 'string_literal')
+        39: return scan_quoted(39, 'enum_literal')
+        36: return scan_generic_identifier()
+        _: return scan_operator()
     }
-    if code == 39 {
-        return scan_quoted(39, 'enum_literal')
-    }
-    if code == 36 {
-        return scan_generic_identifier()
-    }
-    return scan_operator()
 }
 
 func last_kind(): TokenKind {
@@ -208,70 +204,30 @@ func scan_identifier(): Boolean {
 }
 
 func keyword_kind(text: String): TokenKind {
-    if text == "var" {
-        return 'variable_keyword'
+    switch text {
+        "var": return 'variable_keyword'
+        "func": return 'function_keyword'
+        "return": return 'keyword_return'
+        "if": return 'keyword_if'
+        "else": return 'keyword_else'
+        "while": return 'keyword_while'
+        "switch": return 'keyword_switch'
+        "type": return 'keyword_type'
+        "enum": return 'keyword_enum'
+        "union": return 'keyword_union'
+        "generics": return 'keyword_generics'
+        "generic": return 'keyword_generic'
+        "assert": return 'keyword_assert'
+        "crash": return 'keyword_crash'
+        "and": return 'keyword_and'
+        "or": return 'keyword_or'
+        "not": return 'keyword_not'
+        "null": return 'keyword_null'
+        "true": return 'keyword_true'
+        "false": return 'keyword_false'
+        "this": return 'keyword_this'
+        _: return 'identifier'
     }
-    if text == "func" {
-        return 'function_keyword'
-    }
-    if text == "return" {
-        return 'keyword_return'
-    }
-    if text == "if" {
-        return 'keyword_if'
-    }
-    if text == "else" {
-        return 'keyword_else'
-    }
-    if text == "while" {
-        return 'keyword_while'
-    }
-    if text == "switch" {
-        return 'keyword_switch'
-    }
-    if text == "type" {
-        return 'keyword_type'
-    }
-    if text == "enum" {
-        return 'keyword_enum'
-    }
-    if text == "union" {
-        return 'keyword_union'
-    }
-    if text == "generics" {
-        return 'keyword_generics'
-    }
-    if text == "generic" {
-        return 'keyword_generic'
-    }
-    if text == "assert" {
-        return 'keyword_assert'
-    }
-    if text == "crash" {
-        return 'keyword_crash'
-    }
-    if text == "and" {
-        return 'keyword_and'
-    }
-    if text == "or" {
-        return 'keyword_or'
-    }
-    if text == "not" {
-        return 'keyword_not'
-    }
-    if text == "null" {
-        return 'keyword_null'
-    }
-    if text == "true" {
-        return 'keyword_true'
-    }
-    if text == "false" {
-        return 'keyword_false'
-    }
-    if text == "this" {
-        return 'keyword_this'
-    }
-    return 'identifier'
 }
 
 func scan_generic_identifier(): Boolean {
@@ -298,28 +254,16 @@ func scan_generic_identifier(): Boolean {
 }
 
 func decode_escape(escaped_character: String): String {
-    if escaped_character == "n" {
-        return "\n"
+    switch escaped_character {
+        "n": return "\n"
+        "t": return "\t"
+        "r": return "\r"
+        "\\": return "\\"
+        "\"": return "\""
+        "'": return "'"
+        "\{": return "\{"
+        _: return escaped_character
     }
-    if escaped_character == "t" {
-        return "\t"
-    }
-    if escaped_character == "r" {
-        return "\r"
-    }
-    if escaped_character == "\\" {
-        return "\\"
-    }
-    if escaped_character == "\"" {
-        return "\""
-    }
-    if escaped_character == "'" {
-        return "'"
-    }
-    if escaped_character == "\{" {
-        return "\{"
-    }
-    return escaped_character
 }
 
 func scan_quoted(quote_code: Integer, kind: TokenKind): Boolean {
@@ -348,21 +292,8 @@ func scan_quoted(quote_code: Integer, kind: TokenKind): Boolean {
         } else if code == 123 and kind == 'string_literal' {
             advance_character()
             var hole_start = index
-            var depth = 1
-            while not at_end() and depth > 0 {
-                var inner = current_code()
-                if inner == 123 {
-                    depth = depth + 1
-                } else if inner == 125 {
-                    depth = depth - 1
-                } else if inner == 34 or inner == 39 {
-                    skip_quoted_run(inner)
-                }
-                if depth > 0 {
-                    advance_character()
-                }
-            }
-            if depth > 0 {
+            var closed = skip_hole()
+            if not closed {
                 var lexeme = source.slice(start_index, index)
                 push_token('invalid', lexeme, "", token_line, token_column)
                 fail_lex(
@@ -413,32 +344,55 @@ func lone_operator_lesson(code: Integer, doubled: Boolean): String {
     if code == 38 and names_a_type_next() {
         return "Spite has no '&Type': every class, list and text is passed by reference already, so write the type alone"
     }
-    if code == 38 {
-        return "Spite has no '&' operator: bits are functions on the whole numbers, write 'value.bits_and(mask)' (and 'and' for a condition)"
+    switch code {
+        38: return "Spite has no '&' operator: bits are functions on the whole numbers, write 'value.bits_and(mask)' (and 'and' for a condition)"
+        124: return "Spite has no '|' operator: bits are functions on the whole numbers, write 'value.bits_or(mask)' (and 'or' for a condition)"
+        94: return "Spite has no '^' operator: bits are functions on the whole numbers, write 'value.bits_exclusive_or(mask)'"
+        _: return "Spite has no '~' operator: bits are functions on the whole numbers, write 'value.bits_inverted()'"
     }
-    if code == 124 {
-        return "Spite has no '|' operator: bits are functions on the whole numbers, write 'value.bits_or(mask)' (and 'or' for a condition)"
-    }
-    if code == 94 {
-        return "Spite has no '^' operator: bits are functions on the whole numbers, write 'value.bits_exclusive_or(mask)'"
-    }
-    return "Spite has no '~' operator: bits are functions on the whole numbers, write 'value.bits_inverted()'"
 }
 
 func names_a_type_next(): Boolean {
-    assert current_code() >= 65 and current_code() <= 90
-    assert not tokens.is_empty()
+    if current_code() < 65 or current_code() > 90 {
+        return false
+    }
+    if tokens.is_empty() {
+        return false
+    }
     var before = last_kind()
     return before == 'colon' or before == 'less' or before == 'left_paren' or before == 'comma'
+}
+
+func skip_hole(): Boolean {
+    var depth = 1
+    while not at_end() and depth > 0 {
+        var inner = current_code()
+        if inner == 123 {
+            depth = depth + 1
+        } else if inner == 125 {
+            depth = depth - 1
+        } else if inner == 34 or inner == 39 {
+            skip_quoted_run(inner)
+        }
+        if depth > 0 and not at_end() {
+            advance_character()
+        }
+    }
+    return depth == 0
 }
 
 func skip_quoted_run(quote_code: Integer) {
     advance_character()
     while not at_end() and current_code() != quote_code {
-        if current_code() == 92 {
+        var code = advance_character()
+        if code == 92 and not at_end() {
             advance_character()
+        } else if code == 123 and quote_code == 34 {
+            var closed = skip_hole()
+            if closed {
+                advance_character()
+            }
         }
-        advance_character()
     }
 }
 

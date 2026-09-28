@@ -1,0 +1,9 @@
+generic $slot_type
+
+func fits() {
+    crash $slot_type.fits_vector()
+}
+
+func label(): String {
+    return "the text slot"
+}

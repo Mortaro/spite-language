@@ -14,12 +14,14 @@ var entry_qualified = ""
 var entry_file_path = ""
 var loaded_folders = List<String>()
 var program_paths = List<String>()
+var program_texts = Dictionary<String>()
 var pending_files = List<Syntax.SourceFile>()
 var following_loads = false
 var walking_program = false
 var program_files = List<Syntax.SourceFile>()
 var program_load_names = List<String>()
 var loaded_inside = List<String>()
+var program_build_fields = List<String>()
 var printer = Syntax.SourcePrinter()
 var program_environment = Environment()
 
@@ -56,6 +58,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     discovered.launcher_mangled_name = "Launcher"
     discovered.loaded_folders = loaded_folders
     discovered.program_paths = program_paths
+    discovered.program_texts = program_texts
     return discovered
 }
 
@@ -135,7 +138,6 @@ func load_folder(call: Syntax.Expressions.CallExpression, entry_path: String, en
         error_message = "{launcher_path()}: error: the launcher loads folders known when compiling: text, and Build fields given to the compiler, like 'load \"library/\{build.target_operating_system}\"' beside 'var build = Build()'"
         return
     }
-    crash path
     if path == supplied_settings["program"] {
         discover_program(entry_path, entry_source)
         return
@@ -248,6 +250,7 @@ func mark_program_load() {
 
 func discover_program(entry_path: String, entry_source: String) {
     program_paths.append(entry_path)
+    program_texts[entry_path] = entry_source
     var lexer = Syntax.Lexer(entry_source)
     if lexer.has_error {
         has_error = true
@@ -301,13 +304,19 @@ func check_folder_name(folder: String, named_by: String) {
 }
 
 func is_snake_case(name: String): Boolean {
-    assert not name.is_empty()
+    if name.is_empty() {
+        return false
+    }
     var first = name.code_at(0)
-    assert first >= 97 and first <= 122
+    if first < 97 or first > 122 {
+        return false
+    }
     var index = 1
     while index < name.length() {
         var code = name.code_at(index)
-        assert code >= 97 and code <= 122 or code >= 48 and code <= 57 or code == 95
+        if (code < 97 or code > 122) and (code < 48 or code > 57) and code != 95 {
+            return false
+        }
         index = index + 1
     }
     return not name.ends_with("_") and not name.contains("__")
@@ -336,7 +345,9 @@ func snake_case_of(name: String): String {
 
 func holds_spite_files(folder: String): Boolean {
     var directory = Directory(folder)
-    assert directory.exists()
+    if not directory.exists() {
+        return false
+    }
     var files = directory.files()
     if files.any(is_spite_file) {
         return true
@@ -363,6 +374,9 @@ func load_root(entry_path: String, entry_directory: String, root_name: String) {
         return
     }
     var root_folder = "{entry_directory}/{root_name}"
+    if is_absolute_path(root_name) {
+        root_folder = root_name.replace("\\", "/")
+    }
     assert not loaded_folders.contains("{root_folder}/")
     var root_directory = Directory(root_folder)
     if not root_directory.exists() {
@@ -378,6 +392,18 @@ func load_root(entry_path: String, entry_directory: String, root_name: String) {
     var no_skip: String? = null
     var no_exclusions = List<String>()
     walk_directory(root_folder, empty_segments, no_skip, no_exclusions)
+}
+
+func is_absolute_path(path: String): Boolean {
+    if path.starts_with("/") {
+        return true
+    }
+    if path.length() < 3 {
+        return false
+    }
+    var letter = path.code_at(0)
+    var is_letter = letter >= 65 and letter <= 90 or letter >= 97 and letter <= 122
+    return is_letter and path.slice(1, 2) == ":" and (path.slice(2, 3) == "/" or path.slice(2, 3) == "\\")
 }
 
 func lex_failure(path: String, lexer: Syntax.Lexer): String {
@@ -435,7 +461,9 @@ func check_entry_constructor(path: String, file: Syntax.SourceFile, class_name: 
 }
 
 func order_rank(statement: Syntax.Statements.Statement, class_name: String): Integer {
-    assert not shape.as_singleton_declaration(statement)
+    if shape.as_singleton_declaration(statement) {
+        return 0
+    }
     if shape.as_generic_declaration(statement) {
         return 1
     }
@@ -531,10 +559,8 @@ func comment_problem(text: String, depth: Integer): String {
     if not content {
         return "this comment links to '{markdown_path}', which does not exist (the path is relative to the entry file's folder, like load)"
     }
-    if content {
-        if not markdown_anchors(content).contains(anchor) {
-            return "this comment links to '{markdown_path}#{anchor}', but that file has no heading with that anchor"
-        }
+    if not markdown_anchors(content).contains(anchor) {
+        return "this comment links to '{markdown_path}#{anchor}', but that file has no heading with that anchor"
     }
     return ""
 }
@@ -595,10 +621,14 @@ func is_program_path(path: String): Boolean {
 }
 
 func overrides_platform(variable: Syntax.Statements.VariableDeclaration): Boolean {
-    assert is_platform_setting(variable.name) and is_program_path(variable.source_path)
+    if not is_platform_setting(variable.name) or not is_program_path(variable.source_path) {
+        return false
+    }
     crash variable.value
     var reader = literal_reader(variable.value)
-    assert not reader.is_empty()
+    if reader.is_empty() {
+        return false
+    }
     var declared = literal_text(variable.value)
     return not declared.is_empty() and declared != supplied_settings[variable.name]
 }
@@ -727,7 +757,7 @@ func note_loaded_names(folder: String, names: List<String>) {
     var index = 0
     while index < names.count() {
         var inside = "{folder}/{names[index]}"
-        if not names[index].starts_with("../") and not loaded_inside.contains(inside) {
+        if not names[index].starts_with("../") and not is_absolute_path(names[index]) and not loaded_inside.contains(inside) {
             loaded_inside.append(inside)
         }
         index = index + 1
@@ -752,6 +782,9 @@ func read_and_add_file(path: String, segments: List<String>) {
     var content = program_file.read()
     if not walking_library {
         program_paths.append(path)
+        if content {
+            program_texts[path] = content
+        }
     }
     if content {
         var lexer = Syntax.Lexer(content)
@@ -812,7 +845,14 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
             return
         }
         var class_file_file = existing.get_file()
-        reopen_class(class_file_file, parsed_file)
+        if qualified_dotted == "Build" and walking_program {
+            note_program_build_fields(parsed_file)
+        }
+        var kept_names = List<String>()
+        if qualified_dotted == "Build" and following_loads {
+            kept_names = program_build_fields
+        }
+        reopen_class(class_file_file, parsed_file, kept_names)
         return
     }
     if not walking_library and qualified_dotted.starts_with("Spite.") {
@@ -877,13 +917,27 @@ func stamp_source_path(statement: Syntax.Statements.Statement, path: String) {
     variable.source_path = path
 }
 
-func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile) {
+func note_program_build_fields(build: Syntax.SourceFile) {
+    var index = 0
+    while index < build.statements.count() {
+        var variable = shape.as_variable_declaration(build.statements[index])
+        if variable {
+            program_build_fields.append("var {variable.name}")
+        }
+        index = index + 1
+    }
+}
+
+func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile, kept_names: List<String>) {
     var index = 0
     while index < reopening.statements.count() {
         var statement = reopening.statements[index]
         stamp_source_path(statement, reopening.path)
         var name = declared_name(statement)
-        var replaced = false
+        var replaced = kept_names.contains(name)
+        if replaced {
+            name = ""
+        }
         var reopened_enum = shape.as_enum_declaration(statement)
         if reopened_enum {
             replaced = extend_enum(original, reopened_enum)
@@ -935,8 +989,10 @@ func append_enum_values(existing: Syntax.Statements.EnumDeclaration, reopened: S
 func read_settings() {
     var build = class_file_named("Build")
     crash build
-    var build_names = hardcode_build(build)
+    hardcode_build(build)
     load_pending_roots()
+    assert not has_error
+    var build_names = hardcode_build(build)
     assert not has_error
     var environment = class_file_named("Environment")
     crash environment
@@ -1127,10 +1183,12 @@ func integer_literal(text: String): Syntax.Expressions.Expression? {
         var text_length = text.length()
         var magnitude_text = text.slice(1, text_length)
         var magnitude = magnitude_text.to_long()
+        assert magnitude
         var operand = Syntax.Expressions.IntegerLiteral(magnitude)
         return Syntax.Expressions.UnaryExpression('negate', operand)
     }
     var value = text.to_long()
+    assert value
     return Syntax.Expressions.IntegerLiteral(value)
 }
 
@@ -1287,7 +1345,9 @@ func nested_contains_load(statement: Syntax.Statements.Statement): Boolean {
         return contains_load(while_statement.body)
     }
     var switch_statement = shape.as_switch_statement(statement)
-    assert switch_statement
+    if not switch_statement {
+        return false
+    }
     var index = 0
     while index < switch_statement.cases.count() {
         if contains_load(switch_statement.cases[index].body) {
@@ -1497,7 +1557,9 @@ func pascal_join(segments: List<String>): String {
 }
 
 func compute_namespace(segments: List<String>, stem: String): String {
-    assert not segments.is_empty()
+    if segments.is_empty() {
+        return ""
+    }
     var last_segment = segments[segments.count() - 1]
     if last_segment == stem {
         var leading_segments = all_but_last(segments)

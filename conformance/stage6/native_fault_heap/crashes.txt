@@ -1,0 +1,1 @@
+This program is meant to fault: a heap the C runtime finds corrupted is reported with the last foreign call instead of ended silently by the system (D244)

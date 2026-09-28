@@ -88,7 +88,9 @@ for folder in conformance/*/*/ examples/*/; do   # the examples are held to the 
   allocations=${balance% *}; frees=${balance#* }
   if [ -f "$folder/crashes.txt" ]; then
     # a program that is meant to crash: its whole output (stdout and the crash line) must match, and there is no
-    # balance line because a crash halts before the program would have released anything
+    # balance line because a crash halts before the program would have released anything. A native fault names where
+    # it stopped as module+offset (D244), and the offset is the C compiler's, so it is compared without it.
+    actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g')
     if [ "$actual" == "$expected" ]; then passed=$((passed+1)); else failed=$((failed+1)); echo "FAILED: $name"; echo "$actual" | head -8; fi
     continue
   fi
@@ -117,6 +119,17 @@ rm -f "$beside.crashes" "$beside.exe"
 [ -f "$beside" ] && rm -f "$beside"
 echo "working directory: a program opens relative paths in the folder spite was run from, and is built beside itself"
 
+# D227: 'load' also takes an absolute path, for a package that lives in another repository. The path is written
+# into a program in the work folder, since no committed program can know where this run's folder is.
+absolute_root=$(pwd -W 2>/dev/null || pwd)
+mkdir -p "$work/absolute/far_engine" "$work/absolute/absolute_load"
+printf 'func name(): String {\n    return "far engine"\n}\n' > "$work/absolute/far_engine/engine.spite"
+printf 'var console = Console()\n\nfunc AbsoluteLoad() {\n    load "%s"\n    var engine = Engine()\n    var named = engine.name()\n    console.print(named)\n}\n' \
+  "$absolute_root/$work/absolute/far_engine" > "$work/absolute/absolute_load/absolute_load.spite"
+absolute=$("$work/generation_two.exe" "$work/absolute/absolute_load" --executable-path="$work/absolute_load.exe" < /dev/null 2>&1 | tr -d '\r')
+if [ "$absolute" != "far engine" ]; then echo "FAILED: a program could not load a folder by its absolute path"; echo "$absolute" | head -5; exit 1; fi
+echo "absolute load: a program loads a folder named by its absolute path"
+
 # Every program above is built with --debug-memory, whose allocations go through a locked table. The thread pool is
 # also run the way a user runs it -- `spite <program>`, compile and run, no flags -- with runners started from a
 # stage, a singleton reached from the pool, a ThreadLocal and a Lock.
@@ -126,6 +139,30 @@ if [ "$plain" != "$(tr -d '\r' < "$stages/expected_output.txt")" ]; then
   echo "FAILED: run mode without --debug-memory: parallel_stages"; echo "$plain" | head -5; exit 1
 fi
 echo "run mode: the thread pool runs without --debug-memory"
+# The corpus is small enough to be built from one C file each; an executable is built from several translation units
+# compiled in parallel, each object cached by the hash of what it was compiled from (docs/compiler.md). The same
+# program built from four units must run the same, and built again it compiles no unit: only the link runs.
+split="$work/parallel_stages_split.exe"
+units_output=$("$work/generation_two.exe" "$stages" --translation-units=4 --debug-memory --executable-path="$split" < /dev/null 2>&1 | tr -d '\r')
+if [ "$(echo "$units_output" | grep -v '^allocations: ')" != "$(tr -d '\r' < "$stages/expected_output.txt")" ] \
+   || ! echo "$units_output" | grep -qE '^allocations: ([0-9]+) frees: \1$'; then
+  echo "FAILED: parallel_stages built from four translation units"; echo "$units_output" | head -5; exit 1
+fi
+objects_before=$(ls .spite-cache/objects | grep -c '\.o$')
+"$work/generation_two.exe" "$stages" --translation-units=4 --debug-memory --executable --run=false --executable-path="$split" > /dev/null 2>&1 || {
+  echo "FAILED: parallel_stages could not be built again from its cached units"; exit 1; }
+if [ "$(ls .spite-cache/objects | grep -c '\.o$')" != "$objects_before" ]; then
+  echo "FAILED: building parallel_stages again compiled a unit whose object was cached"; exit 1
+fi
+echo "translation units: a program built from four units runs the same, and building it again only links"
+# The fault handler and its function table are written after every function (D255), and must still report when the
+# C is split into units and linked with link-time optimisation: an --optimized native_fault_foreign from four units.
+faulted=$("$work/generation_two.exe" conformance/stage6/native_fault_foreign --optimized --translation-units=4 --executable-path="$work/native_fault_units.exe" < /dev/null 2>&1 | tr -d '\r')
+if ! echo "$faulted" | grep -qE "^spite.fault	[a-z]+-violation	-	-	-	address=0x0	.*	at=fixture.dll\+0x[0-9a-f]+	foreign=read_integer_at	library=conformance/stage6/native_fault_foreign/fixture.dll	from=conformance/stage6/native_fault_foreign/native_fault_foreign.spite:13$" \
+   || ! echo "$faulted" | grep -q "^spite.frame	" || ! echo "$faulted" | grep -q "^before the fault 5$"; then
+  echo "FAILED: native_fault_foreign built --optimized from four translation units"; echo "$faulted" | head -8; exit 1
+fi
+echo "native faults: an --optimized program built from four units reports its fault, its last foreign call and its frames"
 # A class or namespace object is made once, on whichever thread asks first: threaded_class_objects has eight pool
 # threads ask for the same class objects at once, and a race shows up as a leak or a double free, so the build the
 # corpus made is run a few more times.
@@ -145,13 +182,17 @@ echo "threads: eight threads asking for the same class objects make each once, f
 # Parallel reaches -- so no lock at all.
 "$work/generation_two.exe" examples/hello --run=false --c-source --c-path="$work/hello_shaken.c" > /dev/null 2>&1 || {
   echo "FAILED: examples/hello does not write its C"; exit 1; }
-if grep -qE "struct (Watcher|Socket|Process|HotReload|ThreadPool|Scheduler) \{|(Watcher|Socket|ThreadPool|Scheduler)___allocate|spite_singleton_(ThreadPool|Scheduler)_cache" "$work/hello_shaken.c"; then
+if grep -qE "struct (Watcher|Socket|Process|HotReload|ThreadPool|Scheduler|ForeignCallback) \{|(Watcher|Socket|ThreadPool|Scheduler)___allocate|spite_singleton_(ThreadPool|Scheduler)_cache|spite_callback_" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C still carries library classes it never uses"; exit 1
 fi
 # --debug-memory's table and the allocation counter are only in builds that read them (D177): hello allocates with
 # the C library's malloc, realloc and free and nothing beside them.
 if grep -qE "AllocationTable|spite_debug_|spite_live_allocation|SPITE_DEBUG_MEMORY" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C carries --debug-memory's table or an allocation counter"; exit 1
+fi
+# Signed arithmetic is checked for overflow only in a --debug-memory or inspectable build: production is the plain operator.
+if grep -qE "__builtin_(add|sub|mul)_overflow|spite_overflowed" "$work/hello_shaken.c"; then
+  echo "FAILED: examples/hello's C checks arithmetic for overflow in a production build"; exit 1
 fi
 # The maths functions are the C library's, and <math.h> is included only when one survives tree shaking (D177).
 if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then
@@ -178,7 +219,7 @@ stateless="$work/singleton_stateless_calls.c"
 if ! grep -q "^int32_t Workshop_build___unguarded(Workshop\* self) {" "$stateless" || grep -q "Workshop_make_piece___unguarded" "$stateless"; then
   echo "FAILED: singleton_stateless_calls should lock Workshop.build and not Workshop.make_piece"; exit 1
 fi
-# D229: a counted loop calling one locked singleton takes its lock once around the loop and calls the unlocked body;
+# D265: a counted loop calling one locked singleton takes its lock once around the loop and calls the unlocked body;
 # a loop polling another singleton for what a Parallel posts keeps a lock per call, or it would never see the post.
 coarse="$work/coarse_locks.c"
 "$work/generation_two.exe" conformance/stage6/coarse_locks --run=false --c-source --c-path="$coarse" > /dev/null 2>&1 || {
@@ -188,7 +229,7 @@ if ! grep -q "^#define spite_coarse_0_enter() spite_guard_enter(&Tally___guard)$
    || grep -q "Mailbox_put___unguarded(self->mailbox_" "$coarse"; then
   echo "FAILED: coarse_locks should lock Tally once around count_up's loop and Mailbox on every call"; exit 1
 fi
-# D230: a locked singleton's function that only reads takes the readers' side of its lock, a count on the reading
+# D266: a locked singleton's function that only reads takes the readers' side of its lock, a count on the reading
 # thread's own cache line, and a function that writes waits for the readers to leave.
 reads="$work/singleton_reads.c"
 "$work/generation_two.exe" conformance/stage6/singleton_reads --run=false --c-source --c-path="$reads" > /dev/null 2>&1 || {
@@ -197,7 +238,7 @@ if ! grep -q "^int64_t\* spite_reading = spite_read_enter(&Column__Transform___g
    || ! grep -q "^spite_guard_enter_writing(&Column__Transform___guard, Column__Transform___readers);$" "$reads"; then
   echo "FAILED: singleton_reads should read Column<Transform>.at on the readers' side and write insert on the writer's"; exit 1
 fi
-# D231: while no task is in flight a locked function runs unlocked, and a task it starts takes the lock it skipped.
+# D267: while no task is in flight a locked function runs unlocked, and a task it starts takes the lock it skipped.
 unshared="$work/unshared_locks.c"
 "$work/generation_two.exe" conformance/stage6/unshared_locks --run=false --c-source --c-path="$unshared" > /dev/null 2>&1 || {
   echo "FAILED: unshared_locks does not write its C"; exit 1; }
@@ -215,6 +256,14 @@ if grep -q "whole / pieces" "$work/division.c" || ! grep -q "total / parts" "$wo
   echo "FAILED: division_by_zero should check 'total / parts' and not the proven 'whole / pieces'"; exit 1
 fi
 echo "division: a proven divisor carries no zero check"
+# Every '.class' a program compares is known once generics are resolved: walked_class_fold tests 'attribute.class'
+# in an attribute walk and 'given == known.class' on an Anything, and its C makes no Spite.Class object at all.
+"$work/generation_two.exe" conformance/stage6/walked_class_fold --run=false --c-source --c-path="$work/walked_class.c" > /dev/null 2>&1 || {
+  echo "FAILED: walked_class_fold does not write its C"; exit 1; }
+if grep -q "spite_class_object_" "$work/walked_class.c"; then
+  echo "FAILED: walked_class_fold should compare classes without making a Spite.Class object"; exit 1
+fi
+echo "class comparisons: a class known while compiling is compared by its id, with no class object made"
 # A loop over a list of plain values that cannot change its size reads the count once and its items without a range
 # check (docs/optimizations.md): counted_loops' scale_in_place is a plain C loop the C compiler can vectorise, and
 # scale_into checks the list it writes once, before the loop; add_from, whose counter starts at a parameter, is not.
@@ -248,8 +297,14 @@ echo "maths: a maths function of constants is a literal in the C"
 
 # The benchmarks (benchmarks/README.md) are timed by hand with benchmarks/run.sh; here they only have to compile.
 benchmarked=0
-for folder in benchmarks/*/; do
+for folder in benchmarks/*/ benchmarks/versus_c/*/; do
   name=$(basename "$folder")
+  [ "$name" == "versus_c" ] && continue   # a suite of programs, each checked on its own
+  # a program measured against C (benchmarks/versus_c/run.sh) brings its C twin, which has to compile too
+  if [ -f "$folder/twin.c" ]; then
+    "$CC_BIN" -fsyntax-only -w "$folder/twin.c" 2> "$work/c_errors.txt" || {
+      echo "FAILED: the C twin of benchmark $name does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  fi
   "$work/generation_two.exe" "$folder" --run=false --c-source --c-path="$work/benchmark_$name.c" > "$work/c_errors.txt" 2>&1 || {
     echo "FAILED: benchmark $name does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
   "$CC_BIN" -fsyntax-only -w "$work/benchmark_$name.c" 2> "$work/c_errors.txt" || {
@@ -455,6 +510,13 @@ for operating_system in windows linux mac; do
     echo "FAILED: Watcher does not compile with library/$operating_system"; exit 1; }
   "$CC_BIN" -fsyntax-only -w "$work/watching_$operating_system.c" 2> "$work/c_errors.txt" || {
     echo "FAILED: the Watcher C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  # Clock readings and mapped files ask each kernel their own way.
+  for system_program in clock_reads mapped_files; do
+    "$work/generation_two.exe" conformance/stage6/$system_program --run=false --c-source --c-path="$work/${system_program}_$operating_system.c" --target-operating-system=$operating_system || {
+      echo "FAILED: $system_program does not compile with library/$operating_system"; exit 1; }
+    "$CC_BIN" -fsyntax-only -w "$work/${system_program}_$operating_system.c" 2> "$work/c_errors.txt" || {
+      echo "FAILED: the C of $system_program written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  done
   # The compiler only talks lines on 127.0.0.1, so programs that resolve names and move bytes, waiting and not, are too.
   for socket_program in socket_bytes socket_waits; do
     "$work/generation_two.exe" conformance/stage6/$socket_program --run=false --c-source --c-path="$work/${socket_program}_$operating_system.c" --target-operating-system=$operating_system || {
@@ -463,7 +525,15 @@ for operating_system in windows linux mac; do
       echo "FAILED: the C of $socket_program written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
   done
 done
-echo "operating systems: the compiler, a time zone program, a file watching program and a socket program compile with the windows, linux and mac library folders"
+echo "operating systems: the compiler, a time zone program, a file watching program, a clock program, a mapped file program and a socket program compile with the windows, linux and mac library folders"
+
+# bin/spite passes a program's own arguments through untouched: Git for Windows' bash would rewrite ones that look
+# like POSIX paths (`/Game/Legacy/` into `C:/Program Files/Git/Game/Legacy/`) on their way to a Windows program.
+launched=$(bin/spite conformance/stage6/launcher_arguments --executable-path="$work/launched.exe" -- --prefixes=/Game/Legacy/ /usr/share "a b" < /dev/null 2>&1 | tr -d '\r' | grep -v '^spite: building the compiler')
+if [ "$launched" != "$(printf '[--prefixes=/Game/Legacy/]\n[/usr/share]\n[a b]')" ]; then
+  echo "FAILED: bin/spite changed the program's arguments after --"; echo "$launched" | head -5; exit 1
+fi
+echo "launcher: bin/spite passes the program's arguments after -- as they were typed"
 
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would

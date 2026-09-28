@@ -1,0 +1,5 @@
+read from beside kitchen/recipe.spite
+read from beside kitchen/sauces/sauce.spite
+the shelf's item: read from beside kitchen/sauces/sauce.spite
+asked at run time, the same folder: true
+the folder of the package: true

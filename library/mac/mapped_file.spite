@@ -1,0 +1,5 @@
+var library = DynamicLibrary("libSystem.dylib", 'identity', "")
+
+func _unmap() {
+    library.munmap(_address, _size)
+}

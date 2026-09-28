@@ -1,0 +1,13 @@
+generic $system_type
+
+var system = $system_type()
+var console = Console()
+
+func run(checked: Checked, quitting: Quitting) {
+    if $system_type.function_waits("last_each") {
+        crash not $system_type.function_writes_parameter("last_each", 1)
+        console.print("runs between frames on a snapshot of its row")
+    } else {
+        system.last_each(checked, quitting)
+    }
+}

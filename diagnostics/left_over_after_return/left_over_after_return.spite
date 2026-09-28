@@ -1,0 +1,13 @@
+var console = Console()
+
+func LeftOverAfterReturn() {
+    var mark = mark_of(true)
+    console.print(mark)
+}
+
+func mark_of(ready: Boolean): Integer {
+    if not ready {
+        return every attribute at its default
+    }
+    return 1
+}

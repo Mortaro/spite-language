@@ -1,0 +1,5 @@
+exporter blender mesh
+hero
+exporter
+EXPORTER
+nothing to read

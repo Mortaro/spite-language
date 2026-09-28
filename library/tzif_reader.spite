@@ -27,10 +27,10 @@ func read_rules(): ZoneRules? {
     var first_offset = _signed_at(types, 4)
     var rules = ZoneRules(first_offset)
     var index = 0
-    while index < time_count {
+    while time_count > index {
         var time = _signed_at(times + index * time_bytes, time_bytes)
         var type_index = _data.code_at(indices + index)
-        assert type_index < type_count
+        assert type_count > type_index
         var offset = _signed_at(types + type_index * 6, 4)
         rules.append_transition(time, offset)
         index = index + 1

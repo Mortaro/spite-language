@@ -29,16 +29,110 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `items_storage` | 200 000 `Velocity` items (they fit a `Vector`) in a `Vector` and an `Items`, and 200 000 `Trail` objects (they hold a `List`) in a `List` and an `Items` sharing the same objects: filling, 100 ticks of `each_integrate()` and a fused `filter_moving().sum_across()`, and 100 ticks of 200 000 `[]` reads and writes at scattered places; three rounds, each printing microseconds per tick of all four |
 | `matched_rows` | SlopEngine's walked-row shape: 200 000 entities in sparse sets over `Vector` columns, `Move` and `Regenerate` taking a walked row per entity for 20 ticks, each entity's places found by a `Matcher<$row_type>` object into its own `Vector<Integer>`: once passing `matcher.rows` straight to the walk (D221), once copying the places into the runner's vector first, as a runner had to before; three rounds, each printing microseconds per tick of both |
 | `lent_arguments` | 200 000 entities in sparse sets over `Items` columns, systems taking their components as arguments (`Move(position, velocity)`, `Regenerate(health, regeneration)`, `Drift(velocity)`), 20 ticks: once with `system.phase_each(made_arguments(found))` passing borrowed items (D220), once copying each argument out of its column, passing it and storing it back; three rounds, each printing microseconds per tick of both. Measured 6.9 ms against 34.3 ms a tick (best of five, `clang -O2`) |
-| `bulk_removal` | 200 000 `Velocity` items in an `Items` with a `List<Integer>` of their entities beside them, half and then nine in ten of them removed four ways, best of nine each: a `remove_swapping` per removed row walking the rows, one per entity of a despawn list (SlopEngine's shape), `remove_where` on both columns, and a pass of `swap` and `truncate` by a mask (D227); prints the microseconds of each |
-| `singleton_locks` | SlopEngine's per-column shape: eight `Parallel` workers each making 100 000 calls in a counted loop, once to a generic singleton `Column<T>` of its own and once to one `Shared` singleton for all, and the same 800 000 calls on one thread; best of seven, in microseconds. Measures D183's per-call lock and D229's one lock per counted loop (2.3 ms against 0.35 ms per column, 51 ms against 0.6 ms shared) |
-| `singleton_reads` | SlopEngine's reference-column shape: eight `Parallel` systems each reading all 15 000 rows of one generic singleton `Column<Transform>` through `at(row)` per row, 20 ticks with a write between them; prints the best tick and the nanoseconds per row read. Measures D230's readers' side (202 ns to 6 ns a row) |
-| `singleton_unshared` | 10 000 000 calls to a locked singleton's function on the program's own thread after the program's one `Parallel` has been read, best of five; prints nanoseconds per call. Measures D231: 19 ns with the lock, 9 ns with no task in flight (4 ns with no lock at all, by hand) |
+| `bulk_removal` | 200 000 `Velocity` items in an `Items` with a `List<Integer>` of their entities beside them, half and then nine in ten of them removed four ways, best of nine each: a `remove_swapping` per removed row walking the rows, one per entity of a despawn list (SlopEngine's shape), `remove_where` on both columns, and a pass of `swap` and `truncate` by a mask (D263); prints the microseconds of each |
+| `singleton_locks` | SlopEngine's per-column shape: eight `Parallel` workers each making 100 000 calls in a counted loop, once to a generic singleton `Column<T>` of its own and once to one `Shared` singleton for all, and the same 800 000 calls on one thread; best of seven, in microseconds. Measures D183's per-call lock and D265's one lock per counted loop (2.3 ms against 0.35 ms per column, 51 ms against 0.6 ms shared) |
+| `singleton_reads` | SlopEngine's reference-column shape: eight `Parallel` systems each reading all 15 000 rows of one generic singleton `Column<Transform>` through `at(row)` per row, 20 ticks with a write between them; prints the best tick and the nanoseconds per row read. Measures D266's readers' side (202 ns to 6 ns a row) |
+| `singleton_unshared` | 10 000 000 calls to a locked singleton's function on the program's own thread after the program's one `Parallel` has been read, best of five; prints nanoseconds per call. Measures D267: 19 ns with the lock, 9 ns with no task in flight (4 ns with no lock at all, by hand) |
 | `stress` | SlopEngine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
 | `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../docs/standard_library.md#system-classes--implemented)) |
-| `game_maths` | a million `position + velocity.scaled(delta)` steps on `Vector3`, 200 000 `Matrix4` products and a million `transform_point`s; each answer is a new object, so the allocation count is the point |
+| `game_maths` | a million `position + velocity.scaled(delta)` steps on `Vector3`, 200 000 `Matrix4` products and a million `transform_point`s, printing microseconds; each answer is a new object, so the allocation count is the point. `game_maths.c` beside it is the same program in C with plain structs, built and run by hand (`clang -O2 benchmarks/game_maths/game_maths.c`), the number "as fast as C" is measured against |
 | `half_precision` | ten million `Float.to_half_precision()` and `half_precision_to_float()` round trips, over the bit views `Float.bits()` and `UnsignedInteger.bits_as_float()` (D215); prints the milliseconds. Before the bit views were C unions: 482 ms at `-O0`, 13 ms from `-O1`; after: 416 ms and 13 ms; 15 allocations either way, none per conversion |
 | `maths_stopgaps` | two million passes of sine, cosine, arc tangent, square root, floor and a power of two on a `Float`, first through the pure-Spite stopgaps SlopEngine wrote while Spite had no maths (`slop/math/scalar.spite`, copied in as `stopgap_scalar.spite`), then through the number classes' own maths functions; prints the milliseconds of each and the largest error of the stopgap `sine` over one turn |
 | `plain_loops` | a million `Float`s and `Integer`s: `into[index] = from.get_at(index) * 1.5 + 0.25` over two `List<Float>`, the same in place over a `Vector<Float>`, a `Float` sum and an `Integer` sum, each a plain `while` over `count()`; three rounds, each printing microseconds per pass of all four. The loops the C compiler vectorises once the count is read once and the items unchecked ([optimizations.md](../docs/optimizations.md#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked)) |
+
+## Spite against C
+
+`versus_c/` holds five programs, each beside a C twin (`twin.c`) that does the same work the way a C programmer
+writes it: `Vector3` maths with the vectors held by value, an array of particle structs stepped in place, an
+open-addressing hash table keyed by integers, text built in a growable buffer, and the same quicksort on an `int32`
+array. Each program times its own work with the same clock and prints the microseconds on its error output, so
+starting the process -- slow and noisy on Windows -- is not counted, and both must print the same answer.
+
+```
+bash benchmarks/versus_c/run.sh [compiler] [program ...]
+SPITE_FLAGS=--tune-for-this-machine C_FLAGS=-march=native bash benchmarks/versus_c/run.sh
+```
+
+The Spite side is built with `--optimized`, the C side with `-O3`; the ratio is Spite's time over C's, so 1.00 is
+as fast as C. Best of seven interleaved runs, clang 19.1.5 on Mortaro's Windows machine (32 logical processors)
+while other sessions were compiling on it:
+
+| program | Spite µs | C µs | Spite/C | tuned Spite/C |
+|---|---|---|---|---|
+| `vector_maths`: 5 million steps of `scaled`, `+`, `cross`, `normalized` and `dot` on `Vector3` | 83 298 | 66 526 | 1.25 | not re-measured |
+| `particles`: 100 000 particles in a `Vector<Particle>`, 300 ticks of `each_step()` | 59 873 | 56 381 | 1.06 | 1.05 |
+| `number_dictionary`: 500 000 integer keys, 5 million lookups | 69 531 | 35 419 | 1.96 | 2.17 |
+| `text_building`: 3 million appends, a million words joined | 157 732 | 97 193 | 1.62 | 1.70 |
+| `sorting`: quicksort of 2 million `Integer`s in a `List<Integer>` | 164 259 | 126 411 | 1.30 | 1.36 |
+
+"tuned" is both sides with `-march=native` (`--tune-for-this-machine`), which sped both sides up by about the same
+(particles 10-15%, the rest within the noise), so the ratios hardly move. What the ratios say: a plain loop over a
+`Vector` of items is C (1.06). `Vector3` is a class, so every `scaled`, `+`, `cross` and `normalized` allocated its
+answer, and that was four times C (290 598 µs, 4.33); since escape analysis puts an answer that never leaves its
+function in the frame ([optimizations.md](../docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)),
+it is 83 298 µs against C's 66 526, 1.25 (1.26 on a second run; measured 2026-09-27 after the merge, the other rows
+are from before it). Where the dictionary, the text and
+the sort lose their 30-100% has not been studied yet: these numbers are the baseline to beat.
+
+### Release builds
+
+The Spite programs' own C (`--c-source`), built at each optimisation level, best of five, microseconds:
+
+| program | `-O0` (default build) | `-O2` (the old `--optimized`) | `-O3` (`--optimized`) | `-O3 -march=native` |
+|---|---|---|---|---|
+| `vector_maths` | 1 081 065 | 312 885 | 323 404 | 298 152 |
+| `particles` | 199 393 | 60 972 | 61 007 | 51 148 |
+| `number_dictionary` | 725 624 | 109 304 | 90 113 | 92 474 |
+| `text_building` | 496 976 | 178 327 | 155 558 | 160 818 |
+| `sorting` | 496 780 | 164 525 | 167 291 | 165 973 |
+
+The compiler compiling itself (`spite bootstrap --run=false`), best of five, in CPU milliseconds (the process's own
+time, since starting a process took up to two seconds on the loaded machine):
+
+| the compiler built | CPU ms |
+|---|---|
+| one file, `-O0` (the default build) | 5 875 |
+| one file, `-O1` (what `check.sh` builds) | 1 938 |
+| one file, `-O2` (the old `--optimized`) | 1 656 |
+| one file, `-O3` | 1 766 |
+| eight translation units, `-O3 -flto=thin` (`--optimized`) | 1 766 |
+
+The default build is three to seven times slower than `-O2` on every program here; `-O3` against `-O2` is a wash
+(the dictionary and text 10-18% faster, the compiler 6% slower, the rest equal); and the split `--optimized` build
+runs exactly as fast as one file at `-O3`, so ThinLTO gets back the inlining across units.
+
+## Compile time at scale
+
+`build_times.sh` times building an executable -- the whole `spite` command, the Spite compile to C included -- from
+one C file and from [translation units](../docs/compiler.md#translation-units-the-c-compiled-in-parallel-and-cached):
+cold (the object cache emptied), warm (built again, nothing changed) and after editing one function's body.
+
+```
+bash benchmarks/build_times.sh [compiler] [program ...]
+```
+
+Wall-clock milliseconds on Mortaro's machine (32 logical processors, clang 19.1.5, other sessions compiling at
+the same time), the compiler itself built `--optimized`. `kal_character` is SlopEngine's biggest example (14 MB of
+C), built from a copy, with its edit in `slop/column.spite`; the synthetic program is 209 206 lines in 401 files
+(400 classes of 30 small functions), written by the script:
+
+| program | C | build | one file | cold | warm | one edit |
+|---|---|---|---|---|---|---|
+| the compiler (`bootstrap`) | 7.2 MB | default (`-O0`) | 11 295 | 10 382 | 6 713 | 5 507 |
+| the compiler (`bootstrap`) | 7.2 MB | `--optimized` | 37 673 | 14 495 | 11 392 | 13 348 |
+| `kal_character` | 14.1 MB | default (`-O0`) | 26 071 | 23 546 | 23 971 | 27 202 |
+| `kal_character` | 14.1 MB | `--optimized` | 80 127 | 45 670 | 30 696 | 67 173 |
+| synthetic, 209 206 lines | 20.5 MB | default (`-O0`) | 16 512 | 15 534 | 14 983 | 14 556 |
+| synthetic, 209 206 lines | 20.5 MB | `--optimized` | 181 193 | 49 965 | 34 260 | 37 330 |
+
+A default build is one file whatever the size (its "cold", "warm" and "edit" are the same build again, and their
+spread is the machine's noise): splitting the compiler's C at `-O0` made a cold build slower, since every unit
+reads the whole 1 MB header and `-O0` spends its time reading -- forced to 4, 8, 16 and 32 units it took 6.4-11.5,
+9.8-10.2, 9.7-14.7 and 15.9-29.9 s against 6.1-6.3 s from one file. An `--optimized` build is split: the compiler
+cold in 14.5 s instead of 37.7 (forced to 4, 8, 16 and 32 units: 23-26, 13-22, 23-26 and 27-32 s, so eight is the
+size rule's choice for it), and a warm or one-edit build is then the Spite compile plus ThinLTO's link, which
+optimises the whole program again every time. `kal_character`'s edit is slower than its warm build because
+`column.spite` is a generic class, and every instantiation of it changed.
 
 ## Results
 
@@ -337,6 +431,29 @@ allocations, which is one per answer -- two per vector step, one per matrix prod
 | a million `position + velocity.scaled(delta)` on `Vector3` | 26 |
 | 200 000 `Matrix4` products | 6 |
 | a million `Matrix4.transform_point` | 0 (clang removes the allocation and the loop, since only a sum survives) |
+
+After objects that never leave their function went into the frame
+([optimizations.md](../docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)), the
+program prints microseconds. Best of five interleaved runs, `clang -O2`, on a machine other sessions were loading;
+the C column is `game_maths.c`, the same passes with `Vector3` and `Matrix4` as structs passed by value:
+
+| pass | before µs | after µs | C µs |
+|---|---|---|---|
+| a million `position + velocity.scaled(delta)` | 34 748 | 656 | 660 |
+| 200 000 `Matrix4` products | 8 049 | 1 502 | 935 |
+| a million `Matrix4.transform_point` | 709 | 665 | 667 |
+| allocations, whole program | 3 200 046 | 37 | -- |
+
+The whole of `run.sh`, the compiler before and after, prints the same answers and the same allocation counts for
+every benchmark but two: `game_maths` (3 200 046 → 37) and `small_allocations` (9 004 007 → 3 004 007: each pass's
+`step` and `scaled_step` are in the frame, while `moved`, which is kept in a list and becomes `sum`, stays on the
+heap). The machine was running several other compilers' checks at the time, so `run.sh`'s milliseconds moved by up
+to three times between runs of the same binary and are not reported; the table above comes from interleaved runs.
+
+Every answer prints the same. The vector steps and the transforms are the C program's speed. The products are
+about 1.6 times the C: each product is written into a slot and then copied into `accumulated` (64 bytes), where
+the C compiler keeps the struct in registers across the loop, and `step_matrix` is still counted up and down
+around each call.
 
 ### Dictionaries keyed by numbers (D224)
 

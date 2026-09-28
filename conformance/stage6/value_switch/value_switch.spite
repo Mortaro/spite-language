@@ -1,0 +1,73 @@
+enum Light {
+    'red'
+    'amber'
+    'green'
+}
+
+var console = Console()
+var current: Light = 'amber'
+var names = ["ada", "bo", "cy"]
+
+func ValueSwitch() {
+    show_lights()
+    show_numbers()
+    show_words()
+}
+
+func show_lights() {
+    var red = seconds_for('red')
+    var amber = seconds_for(current)
+    var green = seconds_for('green')
+    var next = following(current)
+    console.print(red, amber, green, next)
+}
+
+func show_numbers() {
+    var below = sign_of(-4)
+    var zero = sign_of(0)
+    var above = sign_of(9)
+    console.print(below, zero, above)
+}
+
+func show_words() {
+    var first = greeting(0)
+    var second = greeting(1)
+    var third = greeting(2)
+    console.print(first, second, third)
+}
+
+func seconds_for(light: Light): Integer {
+    switch light {
+        'red': return 30
+        'amber': return 5
+        'green': return 20
+    }
+}
+
+func following(light: Light): Light {
+    switch light {
+        'green': return 'amber'
+        'amber': return 'red'
+        _: return 'green'
+    }
+}
+
+func sign_of(number: Integer): String {
+    switch number {
+        -4: return "minus four"
+        0: return "zero"
+        _: {
+            var doubled = number * 2
+            return "other {doubled}"
+        }
+    }
+}
+
+func greeting(index: Integer): String {
+    crash names[index]
+    switch names[index].upper_case() {
+        "ADA": return "hello ada"
+        "BO": return "hi bo"
+        _: return "hey {names[index]}"
+    }
+}

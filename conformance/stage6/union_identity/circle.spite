@@ -1,0 +1,5 @@
+var radius = 1
+
+func area(): Integer {
+    return radius * radius * 3
+}

@@ -1,0 +1,15 @@
+var known = Dictionary<String>()
+
+func read(text: String) {
+    var json = JsonReader<Dictionary<String>>(text)
+    var parsed = json.read()
+    assert parsed
+    known = parsed
+}
+
+func of(id: String): String {
+    if known[id] {
+        return known[id]
+    }
+    return ""
+}

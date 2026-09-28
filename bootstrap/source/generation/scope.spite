@@ -62,8 +62,12 @@ func row_source(name: String): String {
         }
         index = index - 1
     }
-    assert not entry_names.contains(name)
-    assert parent
+    if entry_names.contains(name) {
+        return ""
+    }
+    if not parent {
+        return ""
+    }
     return parent.row_source(name)
 }
 
@@ -81,7 +85,9 @@ func counted_items_of(key: String): String {
         }
         index = index - 1
     }
-    assert parent
+    if not parent {
+        return ""
+    }
     return parent.counted_items_of(key)
 }
 
@@ -148,8 +154,12 @@ func borrow_source(name: String): String {
         }
         index = index - 1
     }
-    assert not entry_names.contains(name)
-    assert parent
+    if entry_names.contains(name) and not override_names.contains(name) {
+        return ""
+    }
+    if not parent {
+        return ""
+    }
     return parent.borrow_source(name)
 }
 
@@ -157,6 +167,25 @@ func declare_owned(name: String, spite_type: Analysis.SpiteType) {
     declare(name, spite_type)
     var owned_local = OwnedLocal(name, spite_type)
     owned.append(owned_local)
+}
+
+func framed_object(name: String): Boolean {
+    if entry_names.contains(name) {
+        var index = owned.count() - 1
+        while index >= 0 {
+            var owned_local = owned[index]
+            crash owned_local
+            if owned_local.name == name {
+                return owned_local.framed_object
+            }
+            index = index - 1
+        }
+        return false
+    }
+    if not parent {
+        return false
+    }
+    return parent.framed_object(name)
 }
 
 func set_override(name: String, code: String) {
@@ -243,7 +272,9 @@ func proof_of(path: String): String {
         }
         index = index - 1
     }
-    assert parent
+    if not parent {
+        return ""
+    }
     return parent.proof_of(path)
 }
 
@@ -334,7 +365,9 @@ func holds_proofs(): Boolean {
     if not narrowed_paths.is_empty() or not override_names.is_empty() {
         return true
     }
-    assert parent
+    if not parent {
+        return false
+    }
     return parent.holds_proofs()
 }
 
@@ -414,7 +447,9 @@ func key_end(path: String, open_position: Integer): Integer {
 
 func key_mentions(narrowed: String, path: String): Boolean {
     var first_key = narrowed.index_of("[")
-    assert first_key >= 0
+    if first_key < 0 {
+        return false
+    }
     var path_length = path.length()
     var narrowed_length = narrowed.length()
     var position = first_key + 1
