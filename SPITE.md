@@ -58,6 +58,13 @@ someone remembering to call something is a rule that fails.
 is forced by the type system rather than by advice (D27).
 
 **More than one way to do a thing.** The compiler is the formatter and the linter; style is not a matter of taste.
+This one is personal: two ways of doing one thing pisses Mortaro off, and he will spend hours deciding which one is
+best rather than live with both. Every pair is a decision somebody has to make again at every call site -- "who
+owns a conversion, `Float.from_integer` or `to_float`?" was never clear, so only `to_<type>()` on the value being
+converted survives (D275).
+*Instead:* before adding anything, look for the way that already exists and use it. When two ways exist, pick one
+and remove the other, and when you cannot pick, ask him -- never leave both "for flexibility". Where he keeps both
+for now, it is on the list to hard-limit later, and new code uses the preferred one.
 
 **Warnings.** The compiler either reformats your code or errors. Nothing is left to the user's judgement.
 
