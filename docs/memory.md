@@ -1224,7 +1224,7 @@ built (2026-09-25; the readings marked are proposed by Claude, unconfirmed):
   hands out 16-byte-aligned memory from blocks of that size, chaining a new block when one is full, never frees
   one piece at a time, and frees every block when the arena itself is dropped (proposed by Claude, unconfirmed:
   no `reset()` yet, because resetting under live objects is the undecided safety rule of
-  `mortaros_allocators_proposal.md` question 3).
+  `mortaros_missing_decisions.md` item 173).
 - **Where it may be set** (proposed by Claude, unconfirmed): only as the statement directly after `var name =
   ...` whose value is a constructor call, `List<T>()`/`Dictionary<T>()` or `.copy()` of a class whose copy the
   compiler writes, and only to a name or a path of names (so evaluating it earlier than written changes nothing).
