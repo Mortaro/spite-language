@@ -25,6 +25,7 @@ func VectorRows() {
         console.print("entity", position.entity, "left", position.left, "top", position.top)
         index = index + 1
     }
+    crash velocities[2]
     console.print("moved", mover.moved, "rows; the last velocity is", velocities[2].name, velocities[2].across)
 }
 
@@ -39,6 +40,7 @@ func move_all() {
         } else if velocity_entity < position_entity {
             velocity_index = velocity_index + 1
         } else {
+            crash positions[position_index] and velocities[velocity_index]
             var row: Moving = {position: positions[position_index], velocity: velocities[velocity_index]}
             mover.update_each(row)
             position_index = position_index + 1

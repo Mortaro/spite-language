@@ -71,6 +71,27 @@ func shake_program(types: String, prototypes: String, main_function: String, bod
     return kept_text(type_piece_count, body_piece_end)
 }
 
+func shake_declarations(types: String, prototypes: String, roots: String) {
+    names_types = true
+    reserve_slots("{types}\n{prototypes}")
+    split_pieces(types)
+    type_piece_count = pieces.count()
+    add_undefined_prototypes(prototypes)
+    keep_named_in(roots)
+    var index = 0
+    while index < type_piece_count {
+        var name = piece_names[index]
+        crash name
+        if name.is_empty() {
+            crash pieces[index]
+            var piece = pieces[index]
+            keep_named_in(piece)
+        }
+        index = index + 1
+    }
+    keep_waiting()
+}
+
 func keep_waiting() {
     while not waiting.is_empty() {
         var next = waiting.last()
@@ -91,10 +112,11 @@ func keep_guarded() {
         settled = true
         var index = 0
         while index < guard_names.count() {
-            var guard = guard_names.get_at(index)
-            if applied.get_at(index) == false and is_kept_name(guard) {
+            var guard = guard_names[index]
+            if applied[index] == false and is_kept_name(guard) {
                 applied.set_at(index, true)
-                var line = guard_lines.get_at(index)
+                crash guard_lines[index]
+                var line = guard_lines[index]
                 keep_named_in(line)
                 keep_waiting()
                 settled = false
@@ -147,7 +169,7 @@ func watch_names() {
     first_watched = pieces.count()
     var index = 0
     while index < watched_names.count() {
-        var name = watched_names.get_at(index)
+        var name = watched_names[index]
         var name_length = name.length()
         if find_function(name, 0, name_length) < 0 {
             var pieces_count = pieces.count()
@@ -164,7 +186,7 @@ func kept_watched_names(): List<String> {
     var result = List<String>()
     var index = 0
     while index < watched_names.count() {
-        var name = watched_names.get_at(index)
+        var name = watched_names[index]
         if is_kept_name(name) {
             result.append(name)
         }
@@ -245,8 +267,8 @@ func add_piece(lines: List<String>) {
     if same >= 0 and not names_types {
         name = ""
     } else if same >= 0 {
-        while next_same.get_at(same) >= 0 {
-            same = next_same.get_at(same)
+        while same < next_same.count() and next_same[same] >= 0 {
+            same = next_same[same]
         }
         next_same.set_at(same, pieces_count)
     } else if not name.is_empty() {
@@ -475,7 +497,7 @@ func keep_function(position: Integer) {
         kept[position] = true
         waiting.append(position)
         if position < next_same.count() {
-            var same = next_same.get_at(position)
+            var same = next_same[position]
             if same >= 0 {
                 keep_function(same)
             }

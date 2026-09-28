@@ -9,7 +9,7 @@ func Runner(row_count: Integer) {
 
 func run(): Integer {
     var system = $system_type()
-    var found = Vector<Integer>()
+    var found = List<Integer>()
     found.append(0)
     found.append(0)
     var row = 0
@@ -24,10 +24,13 @@ func run(): Integer {
     return rows
 }
 
-func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, places: Vector<Integer>) {
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, places: List<Integer>) {
     if attribute.class.fits_vector() {
+        crash places[attribute.index]
+        crash Column<attribute.class>().values[places[attribute.index]]
         row.attributes[attribute] = Column<attribute.class>().values[places[attribute.index]]
     } else {
+        crash places[attribute.index]
         row.attributes[attribute] = Column<attribute.class>().at(places[attribute.index])
     }
 }

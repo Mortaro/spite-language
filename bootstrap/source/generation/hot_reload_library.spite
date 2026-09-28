@@ -2,8 +2,23 @@ var host_names = List<String>()
 var host_prototypes = Dictionary<String>()
 var host_slots = Dictionary<String>()
 var host_classes = List<String>()
+var host_class_identities = List<String>()
 var host_layouts = Dictionary<String>()
 var host_key_sites = Dictionary<Analysis.SpiteType>()
+var host_facts = ProgramFacts()
+var host_variants = List<String>()
+var host_instances = List<String>()
+var host_literals = List<String>()
+var host_waiting = List<String>()
+var host_slot_owners = Dictionary<String>()
+var split_done = false
+var host_members = Dictionary<String>()
+var host_declared = Dictionary<String>()
+var library_bodies = List<String>()
+var library_body_names = List<String>()
+var host_hashes = Dictionary<String>()
+var stale_pieces = List<String>()
+var host_snapshot = Dictionary<String>()
 var program_shaker = TreeShaker()
 var program_prototypes = Dictionary<String>()
 var program_prototype_text = ""
@@ -13,9 +28,19 @@ var installed = List<String>()
 var added = List<String>()
 var removed = List<String>()
 
-func record_host(prototype_text: String, bodies: String) {
+func record_host(prototype_text: String, bodies: String, constants: Dictionary<String>) {
     var shaker = TreeShaker()
     shaker.split_pieces(bodies)
+    var piece_index = 0
+    while piece_index < shaker.pieces.count() {
+        crash shaker.piece_names[piece_index]
+        var piece_name = shaker.piece_names[piece_index]
+        if not piece_name.is_empty() {
+            var piece = shaker.pieces[piece_index]
+            host_hashes[piece_name] = piece_hash(piece, constants)
+        }
+        piece_index = piece_index + 1
+    }
     var lines = prototype_text.split("\n")
     var index = 0
     while index < lines.count() {
@@ -59,6 +84,7 @@ func host_manifest(
     slot_names: List<String>,
     slot_displays: List<String>,
     class_names: List<String>,
+    class_identities: List<String>,
     typedefs: List<String>,
 ): String {
     var lines = List<String>()
@@ -75,8 +101,16 @@ func host_manifest(
         index = index + 1
     }
     index = 0
-    while index < class_names.count() {
-        lines.append("class {class_names[index]}")
+    while index < class_names.count() and index < class_identities.count() {
+        lines.append("class {class_names[index]}\t{class_identities[index]}")
+        index = index + 1
+    }
+    var hashed = host_hashes.keys()
+    index = 0
+    while index < hashed.count() {
+        var hashed_name = hashed[index]
+        crash host_hashes[hashed_name]
+        lines.append("hash {hashed_name} {host_hashes[hashed_name]}")
         index = index + 1
     }
     index = 0
@@ -101,8 +135,8 @@ func layout_name(text: String): String {
         return ""
     }
     var text_lines = text.split("\n")
-    var line_count = text_lines.count()
-    var last_line = text_lines.get_at(line_count - 1)
+    var last_line = text_lines.last()
+    crash last_line
     return last_line.replace("}", "").replace(";", "").trim()
 }
 
@@ -126,7 +160,12 @@ func read_host_line(kind: String, rest: String) {
     var space = rest.index_of(" ")
     var rest_length = rest.length()
     if kind == "class" {
-        host_classes.append(rest)
+        var class_tab = rest.index_of("\t")
+        crash class_tab > 0
+        var class_name = rest.slice(0, class_tab)
+        var identity = rest.slice(class_tab + 1, rest_length)
+        host_classes.append(class_name)
+        host_class_identities.append(identity)
     } else if kind == "slot" and space > 0 {
         var name = rest.slice(0, space)
         host_slots[name] = rest.slice(space + 1, rest_length)
@@ -137,6 +176,34 @@ func read_host_line(kind: String, rest: String) {
     } else if kind == "layout" and space > 0 {
         var name = rest.slice(0, space)
         host_layouts[name] = rest.slice(space + 1, rest_length)
+    } else if kind == "hash" and space > 0 {
+        var hashed_name = rest.slice(0, space)
+        host_hashes[hashed_name] = rest.slice(space + 1, rest_length)
+    } else if kind == "owner" and space > 0 {
+        var owned_slot = rest.slice(0, space)
+        host_slot_owners[owned_slot] = rest.slice(space + 1, rest_length)
+    } else if kind == "declared" {
+        var declared_tab = rest.index_of("\t")
+        crash declared_tab > 0
+        host_declared[rest.slice(0, declared_tab)] = rest.slice(declared_tab + 1, rest_length)
+    } else if kind == "members" {
+        var member_tab = rest.index_of("\t")
+        crash member_tab > 0
+        host_members[rest.slice(0, member_tab)] = rest.slice(member_tab + 1, rest_length)
+    } else if kind == "waits" {
+        host_waiting.append(rest)
+    } else if kind == "literal" {
+        host_literals.append(rest)
+    } else if kind == "instance" {
+        host_instances.append(rest)
+    } else if kind == "variant" {
+        host_variants.append(rest)
+    } else if kind == "fact" {
+        host_facts.read_line(rest)
+    } else if kind == "snapshot" {
+        var tab = rest.index_of("\t")
+        crash tab > 0
+        host_snapshot[rest.slice(tab + 1, rest_length)] = rest.slice(0, tab)
     } else if kind == "key" and space > 0 {
         var label = rest.slice(0, space)
         var key_type = number_key_type(label)
@@ -242,12 +309,26 @@ func new_prototypes(prototype_text: String, shaker: TreeShaker): Dictionary<Stri
     while index < lines.count() {
         var line = lines[index].trim()
         var name = function_name(line, shaker)
+        if name.is_empty() {
+            name = running_declared_name(line, shaker)
+        }
         if not name.is_empty() and not prototypes.has(name) {
             prototypes[name] = line
         }
         index = index + 1
     }
     return prototypes
+}
+
+func running_declared_name(line: String, shaker: TreeShaker): String {
+    if not line.ends_with(");") or line.starts_with("#") or line.starts_with("typedef") or line.starts_with("static") {
+        return ""
+    }
+    var name = shaker.declared_name(line)
+    if name.is_empty() or host_prototypes[name] != line {
+        return ""
+    }
+    return name
 }
 
 func is_bound(name: String, prototypes: Dictionary<String>, local_names: Dictionary<String>): Boolean {
@@ -260,9 +341,156 @@ func is_bound(name: String, prototypes: Dictionary<String>, local_names: Diction
 }
 
 func split_program(prototype_text: String, bodies: String) {
+    split_done = true
+    program_shaker = TreeShaker()
     program_shaker.split_pieces(bodies)
     program_prototypes = new_prototypes(prototype_text, program_shaker)
     program_prototype_text = prototype_text
+}
+
+func piece_hash(piece: String, constants: Dictionary<String>): String {
+    var renamed = Dictionary<String>()
+    var hash: UnsignedLong = 1469598103934665603
+    var piece_length = piece.length()
+    var index = 0
+    while index < piece_length {
+        var code = piece.code_at(index)
+        if is_name_code(code) {
+            var start = index
+            var name_code = code
+            while index < piece_length and is_name_code(name_code) {
+                index = index + 1
+                name_code = piece.code_at(index)
+            }
+            hash = mixed_name(hash, piece, start, index, constants, renamed)
+        } else {
+            hash = hash.bits_exclusive_or(code) * 1099511628211
+            index = index + 1
+        }
+    }
+    return hash.to_string()
+}
+
+func mixed_name(
+    hash: UnsignedLong,
+    piece: String,
+    start: Integer,
+    end: Integer,
+    constants: Dictionary<String>,
+    renamed: Dictionary<String>,
+): UnsignedLong {
+    var generated = piece.code_at(start) == 115 and end - start > 7 and piece.matches_at("spite_", start)
+    if generated and holds_digit(piece, start + 6, end) {
+        var token = piece.slice(start, end)
+        var stable = stable_name(token, constants, renamed)
+        return mixed_text(hash, stable)
+    }
+    var mixed = hash
+    var position = start
+    while position < end {
+        var name_code = piece.code_at(position)
+        mixed = mixed.bits_exclusive_or(name_code) * 1099511628211
+        position = position + 1
+    }
+    return mixed
+}
+
+func holds_digit(piece: String, start: Integer, end: Integer): Boolean {
+    var position = start
+    while position < end {
+        var code = piece.code_at(position)
+        if is_digit_code(code) {
+            return true
+        }
+        position = position + 1
+    }
+    return false
+}
+
+func stable_name(token: String, constants: Dictionary<String>, renamed: Dictionary<String>): String {
+    if constants[token] {
+        return "\"{constants[token]}\""
+    }
+    if not renamed.has(token) {
+        renamed[token] = "spite_#{renamed.count()}"
+    }
+    crash renamed[token]
+    return renamed[token]
+}
+
+func mixed_text(hash: UnsignedLong, text: String): UnsignedLong {
+    var mixed = hash
+    var text_length = text.length()
+    var index = 0
+    while index < text_length {
+        var code = text.code_at(index)
+        mixed = mixed.bits_exclusive_or(code) * 1099511628211
+        index = index + 1
+    }
+    return mixed
+}
+
+func is_name_code(code: Integer): Boolean {
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
+
+func is_digit_code(code: Integer): Boolean {
+    return code >= 48 and code <= 57
+}
+
+func changed_bodies(constants: Dictionary<String>): List<String> {
+    var changed = List<String>()
+    var index = 0
+    while index < program_shaker.pieces.count() {
+        crash program_shaker.piece_names[index]
+        var name = program_shaker.piece_names[index]
+        if not name.is_empty() and host_hashes.has(name) {
+            var piece = program_shaker.pieces[index]
+            if host_hashes[name] != piece_hash(piece, constants) {
+                changed.append(name)
+            }
+        }
+        index = index + 1
+    }
+    return changed
+}
+
+func library_hashes(constants: Dictionary<String>): Dictionary<String> {
+    var hashes = Dictionary<String>()
+    var index = 0
+    while index < library_bodies.count() {
+        crash library_body_names[index]
+        var name = library_body_names[index]
+        var body = library_bodies[index]
+        var hash = piece_hash(body, constants)
+        var name_length = name.length()
+        if name.starts_with("spite_") and holds_digit(name, 6, name_length) {
+            var occurrence = 0
+            while hashes.has("numbered {hash} {occurrence}") {
+                occurrence = occurrence + 1
+            }
+            hashes["numbered {hash} {occurrence}"] = hash
+        } else {
+            hashes[name] = hash
+        }
+        index = index + 1
+    }
+    return hashes
+}
+
+func local_program_text(): String {
+    var local = List<String>()
+    var index = 0
+    while index < program_shaker.pieces.count() {
+        var name = program_shaker.piece_names[index]
+        crash name
+        var bound = not name.is_empty() and host_prototypes.has(name) and host_prototypes[name] == program_prototypes[name]
+        if not name.is_empty() and not bound {
+            local.append(program_shaker.pieces[index])
+        }
+        index = index + 1
+    }
+    return local.join("\n")
 }
 
 func changed_signatures(slot_names: List<String>, slot_owners: List<String>, rebuilt: List<String>): List<String> {
@@ -340,13 +568,15 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
     index = 0
     while index < running_slots.count() {
         var running_slot = running_slots[index]
-        if not slot_names.contains(running_slot) {
+        var owner_rebuilt = owner_is_rebuilt(running_slot, rebuilt)
+        if owner_rebuilt and not slot_names.contains(running_slot) {
             crash host_slots[running_slot]
             removed.append(host_slots[running_slot])
         }
         index = index + 1
     }
     var bound = List<Boolean>()
+    add_host_pieces(shaker, prototypes)
     index = 0
     while index < shaker.pieces.count() {
         crash shaker.piece_names[index]
@@ -379,30 +609,21 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
             }
         }
     }
-    var parts = List<String>()
-    parts.append("#define SPITE_RELOADED")
-    if builder.threads {
-        parts.append("#define SPITE_THREADS")
-    }
-    var joined_typedefs = builder.typedefs.join("\n")
-    var typedef_shaker = TreeShaker()
-    var typedef_text = builder.guarded_types(joined_typedefs, typedef_shaker, true)
-    parts.append(typedef_text)
-    parts.append(prototype_text)
+    var roots = List<String>()
     index = 0
     while index < builder.slot_lines.count() and index < builder.slot_names.count() {
         var name = builder.slot_names[index]
         var name_length = name.length()
         var position = shaker.find_function(name, 0, name_length)
         if position >= 0 and shaker.kept[position] == true and bound[position] == false {
-            parts.append(builder.slot_lines[index])
+            roots.append(builder.slot_lines[index])
         }
         index = index + 1
     }
     index = 0
     while index < redirected.count() {
         var name = redirected[index]
-        parts.append("static __typeof__({name})* spite_host_{name} = 0;\n#define {name} (*spite_host_{name})")
+        roots.append("static __typeof__({name})* spite_host_{name} = 0;\n#define {name} (*spite_host_{name})")
         index = index + 1
     }
     index = 0
@@ -411,13 +632,56 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
         var name = shaker.piece_names[index]
         var local = not name.is_empty() and not counts_memory(name)
         if local and shaker.kept[index] == true and bound[index] == false {
-            parts.append(shaker.pieces[index])
+            roots.append(shaker.pieces[index])
+            library_bodies.append(shaker.pieces[index])
+            library_body_names.append(name)
         }
         index = index + 1
     }
     var bind_code = bind_function(redirected)
-    parts.append(bind_code)
+    roots.append(bind_code)
+    var root_text = roots.join("\n")
+    var joined_typedefs = builder.typedefs.join("\n")
+    var typedef_shaker = TreeShaker()
+    var typedef_text = builder.guarded_types(joined_typedefs, typedef_shaker, true)
+    var declaration_shaker = TreeShaker()
+    declaration_shaker.shaken_macros = builder.shaken_macros
+    declaration_shaker.shake_declarations(typedef_text, prototype_text, root_text)
+    var parts = List<String>()
+    parts.append("#define SPITE_RELOADED")
+    if builder.threads {
+        parts.append("#define SPITE_THREADS")
+    }
+    var kept_types = declaration_shaker.kept_types()
+    parts.append(kept_types)
+    var kept_prototypes = declaration_shaker.kept_prototypes(prototype_text)
+    parts.append(kept_prototypes)
+    parts.append(root_text)
     return "{parts.join("\n")}\n"
+}
+
+func add_host_pieces(shaker: TreeShaker, prototypes: Dictionary<String>) {
+    var index = 0
+    while index < host_names.count() {
+        var name = host_names[index]
+        var name_length = name.length()
+        if prototypes[name] and host_prototypes[name] == prototypes[name] and shaker.find_function(name, 0, name_length) < 0 {
+            var position = shaker.pieces.count()
+            shaker.add_function(name, position)
+            shaker.pieces.append("")
+            shaker.piece_names.append(name)
+            shaker.next_same.append(-1)
+            shaker.kept.append(false)
+        }
+        index = index + 1
+    }
+}
+
+func owner_is_rebuilt(slot: String, rebuilt: List<String>): Boolean {
+    if not host_slot_owners[slot] {
+        return true
+    }
+    return rebuilt.contains(host_slot_owners[slot])
 }
 
 func counts_memory(name: String): Boolean {

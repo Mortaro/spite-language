@@ -564,6 +564,54 @@ kill -0 $served 2>/dev/null && hot_fail "the program kept running after exit"
 wait $served || hot_fail "the program ended with exit code $?"
 echo "live reload: an edited class was swapped in by reload and another by the watcher, keeping the program's state, and a new function answers at the prompt"
 
+# A reload compiles only the classes of the changed files (docs/repl.md#how-it-works), from what the running
+# program's manifest says about the rest. SPITE_RELOAD_CHECK makes a reload of the file it names compile both
+# ways and compare what they write; a fast reload that differs from a whole compile is a bug. Every file of these
+# programs is checked, and two edits must fall back to a whole compile: a changed parameter list, and a change
+# that makes a function write another class's attribute (the call effects its callers were compiled with change).
+checked_port=$((port + 1))
+fast_checked=0
+# Each copy sits as deep below the repository as a conformance program, so its comments' links resolve.
+fast_root="${work}_fast_reload"
+trap 'rm -rf "$work" "$fast_root"' EXIT
+mkdir -p "$work/fast_reload" "$fast_root"
+for program in .spite-cache/docs/hot_counter conformance/stage6/kept_templates conformance/stage6/items_columns \
+               conformance/stage6/class_argument conformance/stage6/json_symbols conformance/stage6/attribute_object \
+               conformance/stage6/foreign_callbacks conformance/stage6/waiting_systems conformance/stage6/allocator_choice \
+               examples/dungeon; do
+  name=$(basename "$program"); copy="$fast_root/$name"
+  cp -r "$program" "$copy"
+  flags=""; [ -f "$copy/flags.txt" ] && flags=$(tr -d '\r\n' < "$copy/flags.txt")
+  "$work/generation_two.exe" "$copy" --executable --run=false --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/$name.exe" $flags > "$work/c_errors.txt" 2>&1 || {
+    echo "FAILED fast reload: $name does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+  for file in "$copy"/*.spite; do
+    case "$(basename "$file")" in environment.spite|build.spite) continue ;; esac
+    answer=$(SPITE_RELOAD_CHECK="$file" "$work/generation_two.exe" reload "$copy" --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/$name.exe" $flags 2>&1 | tr -d '\r')
+    case "$answer" in
+      "reload check: the fast reload matches a whole compile"*) fast_checked=$((fast_checked + 1)) ;;
+      *) echo "FAILED fast reload: $name/$(basename "$file"): $answer" | head -c 600; echo; exit 1 ;;
+    esac
+  done
+done
+hot_copy="$fast_root/hot_counter"
+fall_back() {
+  local answer
+  answer=$(SPITE_RELOAD_CHECK=1 "$work/generation_two.exe" reload "$hot_copy" --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/hot_counter.exe" 2>&1 | tr -d '\r')
+  case "$answer" in
+    "reload check: whole $1"*) ;;
+    *) echo "FAILED fast reload: after $2 a reload answered: $answer" | head -c 600; echo; exit 1 ;;
+  esac
+}
+cp "$hot_copy/monster.spite" "$work/fast_reload/monster.spite"
+sed -i 's/^func roar(): String {$/func roar(_loudness: Integer): String {/' "$hot_copy/monster.spite"
+sed -i 's/monster\.roar()/monster.roar(2)/' "$hot_copy/hot_counter.spite"
+fall_back "a function of a changed class has another parameter list or return type" "a new parameter"
+cp "$work/fast_reload/monster.spite" "$hot_copy/monster.spite"
+sed -i 's/monster\.roar(2)/monster.roar()/' "$hot_copy/hot_counter.spite"
+sed -i 's/^func greeting(): String {$/func greeting(): String {\n    monster.name = "Orc"/' "$hot_copy/hot_counter.spite"
+fall_back "" "a function that writes another class's attribute"
+echo "fast reload: $fast_checked files reloaded by compiling only their classes match a whole compile, and a changed signature or call effect compiles the whole program"
+
 # --final-classes writes the program back out as Spite source. What it writes has to be a program:
 # printing a corpus program and running what came out must print the same thing. symbol_codegen proves the
 # functions Spite made from a template are printed as real functions (D61).

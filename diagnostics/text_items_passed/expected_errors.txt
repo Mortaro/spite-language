@@ -1,0 +1,2 @@
+diagnostics/text_items_passed/text_items_passed.spite:7: error: 'each' passes each item to a function, which a Vector never does: keep the values in a 'List<String>' to pass them on (in TextItemsPassed.TextItemsPassed)
+diagnostics/text_items_passed/text_items_passed.spite:9: error: 'each' passes each item to a function, which an Items never does: keep the values in a 'List<String>' to pass them on (in TextItemsPassed.TextItemsPassed)

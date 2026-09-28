@@ -42,7 +42,7 @@ func settle(call_callers: List<String>, call_callees: List<String>, seeds: List<
     var pending = List<String>()
     var index = 0
     while index < seeds.count() {
-        var seed = seeds.get_at(index)
+        var seed = seeds[index]
         if not waits.has(seed) {
             waits.set(seed, true)
             pending.append(seed)
@@ -61,7 +61,7 @@ func wake_callers(callers: List<String>?, pending: List<String>) {
     assert callers
     var index = 0
     while index < callers.count() {
-        var caller = callers.get_at(index)
+        var caller = callers[index]
         if not waits.has(caller) {
             waits.set(caller, true)
             pending.append(caller)
@@ -78,12 +78,13 @@ func add_reverse_edges(
 ): Integer {
     var index = first
     while index < callers.count() {
-        var callee = callees.get_at(index)
+        crash callees[index]
+        var callee = callees[index]
         if not reverse.has(callee) {
             var fresh = List<String>()
             reverse[callee] = fresh
         }
-        var caller = callers.get_at(index)
+        var caller = callers[index]
         var listed = reverse[callee]
         crash listed
         listed.append(caller)
@@ -114,7 +115,7 @@ func answer(name: String, text: String, path: String, line: Integer, owner: Stri
 func first_changed_answer(): Integer {
     var index = 0
     while index < asked_names.count() {
-        var name = asked_names.get_at(index)
+        var name = asked_names[index]
         if answers.get(name) == true != waits.has(name) {
             return index
         }

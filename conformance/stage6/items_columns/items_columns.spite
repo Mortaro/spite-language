@@ -22,6 +22,8 @@ func ItemsColumns() {
     var counts = "{positions.values.count()} positions, {velocities.values.count()} velocities, {trails.values.count()} trails"
     console.print(counts, "moved", mover.moved)
     var third = positions.dense_index(3)
+    crash positions.values[third]
+    crash trails.values[third]
     var position = positions.values[third]
     position.left = position.left + 100.0
     var trail = trails.values[third]
@@ -44,6 +46,8 @@ func spawn(entity: Integer) {
 func report(entity: Integer) {
     var dense = positions.dense_index(entity)
     var trail_dense = trails.dense_index(entity)
+    crash trails.values[trail_dense]
+    crash positions.values[dense]
     var trail = trails.values[trail_dense]
     var lefts = trail.lefts.join(" ")
     var steps = "[{lefts}]"

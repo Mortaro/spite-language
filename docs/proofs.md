@@ -41,11 +41,11 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 - **A call between your check and your read**: the proof survives unless the call may assign what it reads or
   shrink a list it reads. After a call through a function value, prove it again.
   [A call keeps a proof](#a-call-keeps-a-proof-it-cannot-change).
-- **Reading `list[index]`**: a bound (`index < list.count()`), a count (`list.count() >= 3`) or `not
-  list.is_empty()` proves the read. A `Dictionary` read is proven only by checking that key.
+- **Reading `list[index]`**: a bound (`index < list.count()`, or `at + 2 < list.count()` for `list[at]` to
+  `list[at + 2]`), a count (`list.count() >= 3`), a count kept in a `var`, or `not list.is_empty()` proves the read. A `Dictionary` read is proven only by checking that key.
   [Proven reads](#a-proven-count-or-bound-proves-a-read).
 - **A tight loop over numbers**: write `while index < values.count()` with `index = index + 1` last, over a local
-  `List` or `Vector` of plain values, and call nothing but the list's reading functions and maths.
+  `List` of plain values, and call nothing but the list's reading functions and maths.
   [Counted loops](#a-counted-loop-reads-its-items-unchecked).
 - **Dividing whole numbers**: prove the divisor with `!= 0` or `> 0` against a written `0`, or divide by a
   constant. [Proven divisor](#a-proven-divisor-is-not-checked).
@@ -80,7 +80,8 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 | [Every path ends in a `return`](#every-path-ends-in-a-return) | built | refuses a made-up answer | -- |
 | [A guard `assert` answers only "nothing"](#a-guard-assert-answers-only-nothing) | built | refuses a silent default | write the answer, a `T?` or `crash` |
 | [A switch covers every case](#a-switch-covers-every-case) | built | refuses a forgotten case | add the case or `_:` |
-| [A proven count or bound proves a read](#a-proven-count-or-bound-proves-a-read) | built (partial for D225) | `list[i]` read without narrowing | refused until proven; the bounds check stays |
+| [A proven count or bound proves a read](#a-proven-count-or-bound-proves-a-read) | built | `list[i]` read without narrowing | refused until proven, naming how |
+| [A proven read halts outside its list](#a-proven-read-halts-outside-its-list) | built | a stray counter stops the program | -- |
 | [A counted loop reads its items unchecked](#a-counted-loop-reads-its-items-unchecked) | built | no range checks, vectorisable | the ordinary checked loop |
 | [A proven divisor is not checked](#a-proven-divisor-is-not-checked) | built | no zero check | the zero check |
 | [A divisor written as zero is an error](#a-divisor-written-as-zero-is-an-error) | built | refuses a certain halt | -- |
@@ -96,6 +97,7 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 | [Whether a class keeps state](#whether-a-class-keeps-state) | built | engines refuse stateful systems | `true` where unsure |
 | [A `crash` that folds false is an error](#a-crash-that-folds-false-is-a-compile-error) | built | a certain halt becomes a build error | a run-time check |
 | [Tree shaking](#tree-shaking-what-main-can-reach) | built | smaller program | an inspectable build keeps all |
+| [A reload compiles only the changed classes](#a-reload-compiles-only-the-changed-classes) | built | a reload in seconds | the whole program is compiled |
 | [Buffers in the frame](#a-buffer-freed-in-its-block-lives-in-the-frame) | built | no allocation | the heap |
 | [Frame objects](#objects-that-never-leave-their-function-live-in-the-frame) | built | no allocation | the heap |
 | [Local and variadic lists in the frame](#local-and-variadic-lists-in-the-frame) | built | no allocation | the heap |
@@ -225,6 +227,9 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   already proven by the loop condition 'index < codes.count()', so this 'crash' proves nothing: remove it`. On a
   class-typed value that cannot be null: `this value cannot be null here (it is a Tracker), so 'assert' on it proves
   nothing: remove the check`.
+  Inside a `while`, only a proof made inside that loop makes a check of a `[]` read redundant: one made before the
+  loop does not, since an assignment in the loop would leave the next pass unproven (D277), so `crash
+  names[index - 1]` may be written inside a loop that lowers `index`.
 - **Buys.** No dead check survives, so a reader never wonders what it guards.
 - **Falls back.** Delete the line.
 - **See.** D43, D256; [failure.md: Narrowing a path](failure.md#narrowing-a-path);
@@ -317,36 +322,52 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 
 ### A proven count or bound proves a read
 
-- **Status.** Built for `List` and `Dictionary`; partial against D225 (below).
-- **Proves.** A `list[index]` read is in range, so it is a plain `T`, not a `T?`.
+- **Status.** Built for `List`, `Vector`, `Items` and `Dictionary` (D225, D226).
+- **Proves.** A `list[index]` read is in range from above, so it is a plain `T`, not a `T?`.
 - **Rule.** In an `assert`, `crash`, `if` block, `while` body, the right side of an `and`, or after [an `if` that
   leaves](#an-if-that-leaves-proves-the-rest): `index < list.count()` (also `- k` for a literal `k`, and
-  `list.count() > index`) proves `list[index]`; `list.count() == k` or `>= k` proves `list[0]` to `list[k-1]`,
-  `> k` to `list[k]`, and `!= 0` or `not list.is_empty()` proves `list[0]` (at most 64 indices). The list and the
-  index are paths with no call in them; any call-free index is its own path, compared as printed
-  (`crash glyphs[code - 32]`). A count proves no `Dictionary` key.
-- **Buys.** The read needs no written narrowing, and is read with `get_at` instead of `find_at`.
-- **Falls back.** Unproven, the read is a `T?` that must be narrowed. **A proven read still checks its bounds at
-  run time** and halts out of range naming the index and count: the proof removes a line of source, not the check
-  (only [a counted loop](#a-counted-loop-reads-its-items-unchecked) removes it). A proven `Dictionary` read still
-  hashes. Assigning the list, the index or any name the index reads, or shrinking the list, undoes the proof; so
-  does a call that may (above).
-- **See.** D64, D169, D225, D226; [failure.md: Reading with `[]` answers `T?`](failure.md#reading-with--answers-t);
-  `conformance/stage6/count_bound_proofs`, `conformance/stage6/structural_index`, `diagnostics/index_reads`,
-  `diagnostics/count_proves_no_key`, `diagnostics/structural_index_undone`.
-- **Compiler today.** D225 (Mortaro) says every `[]` -- `List`, `Vector`, `Items` and `Dictionary` alike -- answers
-  `T?`, that a proven read "costs nothing", and that `Vector<Integer>`/`Items<Integer>` become errors; D226 makes a
-  `get_at` answering a plain `T` an error. None of that is built: `Vector` and `Items` still answer a plain `T` and
-  halt out of range ([collections.md](collections.md#vectort-items-inline) still teaches that), and a proven `List`
-  read keeps its bounds check. No page records D225/D226 as planned.
+  `list.count() > index`) proves `list[index]`; `base + k < list.count()`, `k` a literal from 1 to 63, proves
+  `list[base]` to `list[base + k]` (D277); `index < count` proves `list[index]` when `var count = list.count()` (or
+  `- k`) was declared and neither `list` shrank nor `count` was assigned since (D277); `list.count() == k` or
+  `>= k` proves `list[0]` to `list[k-1]`, `> k` to `list[k]`, and `!= 0` or `not list.is_empty()` proves `list[0]`
+  (at most 64 indices); a list literal proves its own indices (`var sizes = [3, 5, 8]`). The list and the index are
+  paths with no call in them; any call-free index is its own path, compared as printed (`crash glyphs[code - 32]`).
+  A count proves no `Dictionary` key, and nothing proves a read through a program's own `get_at` but a written
+  narrowing.
+- **Buys.** The read needs no written narrowing, and costs no presence test ([below](#a-proven-read-halts-outside-its-list)).
+- **Falls back.** Unproven, the read is a `T?` that must be narrowed, and the error names the read, its three
+  narrowing lines and the count or bound that would prove it. Assigning the list, the index or any name the index
+  reads, or shrinking the list, undoes the proof; so does a call that may (above); inside a loop, undoing a proof
+  the loop read is an error. Not traced, so still to be narrowed by hand: an index that is a parameter (a handle
+  into lists the caller keeps in step), an index read from another list, a count kept in an attribute or worked out
+  (`count() / 8`, `width * height`), lists that only grow together, a counter walking down from `count() - 1`, and a
+  read after `append` at `count() - 1`. Two bounds joined by `and` prove two lists but stop at the shorter one
+  without a word: when the lists must match, bound one and `crash` the other's read.
+- **See.** D64, D169, D225, D226, D277; [failure.md: Reading with `[]` answers `T?`](failure.md#reading-with--answers-t);
+  `conformance/stage6/count_bound_proofs`, `conformance/stage6/bound_proofs`, `conformance/stage6/structural_index`,
+  `diagnostics/index_reads`, `diagnostics/bound_proofs_undone`, `diagnostics/count_proves_no_key`,
+  `diagnostics/structural_index_undone`.
+
+### A proven read halts outside its list
+
+- **Status.** Built (D225, D244; proposed by Claude, unconfirmed).
+- **Proves.** Nothing new: it is what a proven read does when its proof covered only the top of the index.
+- **Rule.** A read a bound or count proves is taken from `get_at` directly, with one branch the C compiler is told
+  is never taken; if the answer is missing the program halts with `spite: 'names[index]' is outside its list ...,
+  at file:line`. A read narrowed by `crash`, `assert` or `if` is taken with no test, since that line tested it; a
+  read in [a counted loop](#a-counted-loop-reads-its-items-unchecked) has both ends proven and no test at all.
+- **Buys.** A counter gone below zero stops the program where it happened instead of reading a default.
+- **Falls back.** --
+- **See.** D225, D244; [optimizations.md: A proven read tests only its bounds](optimizations.md#a-proven-read-tests-only-its-bounds);
+  `conformance/stage6/proven_read_outside`.
 
 ### A counted loop reads its items unchecked
 
 - **Status.** Built.
 - **Proves.** Inside `while index < values.count()`, the counter is at least 0 and below the count, and the list's
   size cannot change.
-- **Rule.** The condition is exactly `index < values.count()` over a local or parameter holding a `List` or `Vector`
-  of numbers or `Boolean`s; `index` is a local `Integer` whose every assignment in the function is a literal of 0 or
+- **Rule.** The condition is exactly `index < values.count()` over a local or parameter holding a `List`
+  of numbers or `Boolean`s (the only list that holds them since D225); `index` is a local `Integer` whose every assignment in the function is a literal of 0 or
   more, or `index = index + 1` as the last statement of a loop bounded by `index < ...count()` or a literal; the body
   only declares and assigns plain locals, reads and writes items of plain-value lists, and calls those lists' reading
   functions and maths. A second list indexed by the counter is checked once, before the loop.
@@ -569,6 +590,23 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   C](optimizations.md#tree-shaking-the-generated-c), [metaprogramming.md: Tree
   shaking](metaprogramming.md#tree-shaking); `conformance/stage6/development_internals`.
 
+### A reload compiles only the changed classes
+
+- **Status.** Built.
+- **Proves.** Compiling the changed classes against what the running program was compiled with writes the same code
+  a whole compile would.
+- **Rule.** A `--hot-reload` build records in its manifest every fact compiling one class took from another: the
+  functions that wait, the call effects and writes of every function, which classes fit each shape, the attributes
+  and words read, the key kinds, the template instances and the functions made on demand, with a hash of every
+  piece of C. A reload replays them, compiles the changed files' classes, and compares: a recorded fact that now
+  differs, a function of another class whose C would change, or a changed signature of a changed class sends the
+  reload to the whole compile, which says why on the error output.
+- **Buys.** A changed system of SlopTheseus's server swaps in about 6 seconds instead of 20 to 30.
+- **Falls back.** The whole compile. `SPITE_RELOAD_CHECK` compiles both ways and compares them, and `check.sh` runs
+  it on every file of several programs; a fact the generator starts consulting across classes must be recorded too.
+- **See.** D111, D211, D244; [repl.md: How it works](repl.md#how-it-works), [optimizations.md: A reload compiles
+  only the classes that changed](optimizations.md#a-reload-compiles-only-the-classes-that-changed).
+
 ## Memory
 
 ### A buffer freed in its block lives in the frame
@@ -633,9 +671,8 @@ have moved.
 - **Status.** Built.
 - **Proves.** An item read from a `Vector`, or an `Items` whose class [fits a `Vector`](#whether-a-class-fits-a-vector),
   is used only while it is borrowed.
-- **Rule.** `vector[index]`, `get_at(index)` and the item a template visits are borrowed. A borrowed name is not kept
-  in an attribute or a list, returned, made into a function value, given a second name or assigned again. An item of
-  plain values is copied, not borrowed (D221). Only `library/`'s own `Vector`, `Items` and `InlineMemory` are
+- **Rule.** `vector[index]`, once narrowed, and the item a template visits are borrowed. A borrowed name is not kept
+  in an attribute or a list, returned, made into a function value, given a second name or assigned again. Plain values are never items of a `Vector` or `Items` (D225 folded them into `List`). Only `library/`'s own `Vector`, `Items` and `InlineMemory` are
   trusted; a program reopening them is checked.
 - **Buys.** No count and no copy: `layout.order = 3` writes the stored item.
 - **Falls back.** Each way of keeping one is an error naming `copy()`, an independent object.
@@ -713,8 +750,8 @@ have moved.
 
 - **Status.** Built.
 - **Proves.** An element of a singleton's `List` read into a row cannot be let go while the row's block runs.
-- **Rule.** The row's line calls a singleton function whose body is only `return <list>.get_at(<index>)` (or `[]`,
-  optionally after `crash` of that read), the list an attribute nothing assigns after the singleton is made, the
+- **Rule.** The row's line calls a singleton function whose body is only `crash <list>[<index>]` then
+  `return <list>[<index>]` (D225), the list an attribute nothing assigns after the singleton is made, the
   index a whole-number parameter or literal; the rest of the block names every call it makes, none of which lets go
   of an object, removes from a list, assigns an attribute holding an object or calls a function value; and no class
   whose objects may be let go meanwhile has a `drop()` reaching that singleton or list. With threads, the block takes
@@ -946,8 +983,6 @@ into a narrower name, which wraps; and two threads writing one number attribute 
   Claude, unconfirmed): a C enum result becomes a Spite enum that must be switched over. Not built: today a call
   answers an `Integer` and `crash result == 0` compiles
   ([foreign_libraries.md](foreign_libraries.md#foreign-libraries--partial)).
-- **Every `[]` answers `T?`** (D225, D226, decided by Mortaro): `Vector` and `Items` reads narrowed like a `List`'s,
-  a proven read with no check, `get_at` answering a plain `T` refused. Not built ([above](#a-proven-count-or-bound-proves-a-read)).
 - **An overflow check left out where a proof bounds the operands**
   ([optimizations.md](optimizations.md#signed-arithmetic-is-checked-only-while-developing)).
 - **A write to a copy that dies unread is an error** (proposed by Claude, unconfirmed): escape analysis already

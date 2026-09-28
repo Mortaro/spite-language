@@ -1,0 +1,5 @@
+first raised 4
+second 8
+seventh is two false
+total 11
+tallest 8

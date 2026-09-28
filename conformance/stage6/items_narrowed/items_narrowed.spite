@@ -12,7 +12,7 @@ func ItemsNarrowed() {
     trails.append(trail)
     crash trails[0]
     console.print(trails[0].steps)
-    var numbers = Items<Integer?>()
+    var numbers = List<Integer?>()
     numbers.append(4)
     numbers.append(null)
     var index = 0

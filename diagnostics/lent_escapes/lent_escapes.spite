@@ -15,6 +15,7 @@ func LentEscapes() {
         kept = justify
         held.append(justify)
     }
+    crash justifications.values[0]
     justifications.values[0].value = 1
 }
 

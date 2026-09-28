@@ -1,8 +1,8 @@
-var bytes: Vector<Byte>? = null
+var bytes: List<Byte>? = null
 var walked = 0
 var found = 0
 
-func BinaryOutput(target: Vector<Byte>) {
+func BinaryOutput(target: List<Byte>) {
     bytes = target
 }
 

@@ -1,0 +1,1 @@
+diagnostics/indexable_unproven/indexable_unproven.spite:8: error: 'ruler[index]' may be missing, since every '[ ]' answers a 'T?' (this one is an Integer?), but an Integer is needed: narrow it first with 'crash ruler[index]', 'assert ruler[index]' or 'if ruler[index] { }' (in IndexableUnproven.IndexableUnproven)

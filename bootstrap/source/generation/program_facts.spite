@@ -1,0 +1,119 @@
+var owners = Dictionary<List<String>>()
+var keys = List<String>()
+
+func note(key: String, owner: String) {
+    if not owners.has(key) {
+        var fresh = List<String>()
+        owners[key] = fresh
+        keys.append(key)
+    }
+    var listed = owners[key]
+    crash listed
+    if not listed.contains(owner) {
+        listed.append(owner)
+    }
+}
+
+func has(key: String): Boolean {
+    return owners.has(key)
+}
+
+func owned_by(owner: String): List<String> {
+    var owned = List<String>()
+    var index = 0
+    while index < keys.count() {
+        var key = keys[index]
+        crash owners[key]
+        if owners[key].contains(owner) {
+            owned.append(key)
+        }
+        index = index + 1
+    }
+    return owned
+}
+
+func kept_without(key: String, rebuilt: List<String>): Boolean {
+    var listed = owners[key]
+    if not listed {
+        return false
+    }
+    var index = 0
+    while index < listed.count() {
+        if not rebuilt.contains(listed[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func manifest_lines(): List<String> {
+    var lines = List<String>()
+    var index = 0
+    while index < keys.count() {
+        var key = keys[index]
+        crash owners[key]
+        lines.append("fact {owners[key].join(",")}\t{key}")
+        index = index + 1
+    }
+    return lines
+}
+
+func text_hash(text: String): UnsignedLong {
+    var hash: UnsignedLong = 1469598103934665603
+    var text_length = text.length()
+    var index = 0
+    while index < text_length {
+        var code = text.code_at(index)
+        hash = hash.bits_exclusive_or(code) * 1099511628211
+        index = index + 1
+    }
+    return hash
+}
+
+func distinct_digest(items: List<String>): String {
+    var total = items.sum(text_hash)
+    return "{items.count()}:{total}"
+}
+
+func set_digest(items: List<String>): String {
+    var seen = Dictionary<Boolean>()
+    var total: UnsignedLong = 0
+    var index = 0
+    while index < items.count() {
+        var item = items[index]
+        if not seen.has(item) {
+            seen.set(item, true)
+            total = total + text_hash(item)
+        }
+        index = index + 1
+    }
+    return "{seen.count()}:{total}"
+}
+
+func pairs_digest(pairs: Dictionary<String>): String {
+    var entries = List<String>()
+    var names = pairs.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        crash pairs[name]
+        entries.append("{name}={pairs[name]}")
+        index = index + 1
+    }
+    return set_digest(entries)
+}
+
+func read_line(rest: String) {
+    var tab = rest.index_of("\t")
+    crash tab >= 0
+    var rest_length = rest.length()
+    var key = rest.slice(tab + 1, rest_length)
+    var owner_text = rest.slice(0, tab)
+    var listed = owner_text.split(",")
+    var index = 0
+    while index < listed.count() {
+        note(key, listed[index])
+        index = index + 1
+    }
+}

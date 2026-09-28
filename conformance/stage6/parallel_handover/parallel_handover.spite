@@ -14,7 +14,7 @@ func ParallelHandover() {
     }
     var index = 0
     while index < crafting.count() {
-        var result: Integer = crafting.get_at(index)
+        var result: Integer = crafting[index]
         console.print("crafter", index, "made", result / 1000, "recipes adding up to", result % 1000)
         index = index + 1
     }

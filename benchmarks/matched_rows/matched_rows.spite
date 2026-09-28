@@ -29,6 +29,8 @@ func MatchedRows() {
         round = round + 1
     }
     var last = positions.values.count() - 2
+    crash positions.values[last]
+    crash healths.values[0]
     var left: Integer = positions.values[last].left
     var amount = healths.values[0].amount
     console.print("left", left, "health", amount)

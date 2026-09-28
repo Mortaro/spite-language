@@ -16,7 +16,7 @@ func ThreadPoolReuse() {
         }
         index = 0
         while index < parallels.count() {
-            var worker: Integer = parallels.get_at(index)
+            var worker: Integer = parallels[index]
             if not seen.contains(worker) {
                 seen.append(worker)
             }

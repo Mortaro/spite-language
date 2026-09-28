@@ -4,7 +4,7 @@ var clock = Clock()
 func PlainLoops() {
     var from = List<Float>()
     var into = List<Float>()
-    var numbers = Vector<Float>()
+    var numbers = List<Float>()
     var whole = List<Integer>()
     var index = 0
     while index < 1000000 {
@@ -26,7 +26,7 @@ func PlainLoops() {
         var scaled = clock.elapsed_nanoseconds()
         pass = 0
         while pass < 20 {
-            scale_vector(numbers)
+            scale_in_place(numbers)
             pass = pass + 1
         }
         var vector_scaled = clock.elapsed_nanoseconds()
@@ -51,15 +51,16 @@ func PlainLoops() {
         console.print(
             "microseconds per pass: List scale",
             list_scale,
-            "Vector scale",
+            "in place",
             vector_scale,
             "Float sum",
             float_sum,
             "Integer sum",
             integer_sum,
         )
-        var last_scaled = into.get_at(999999)
-        var third_scaled = numbers.get_at(3)
+        crash into[999999] and numbers[3]
+        var last_scaled = into[999999]
+        var third_scaled = numbers[3]
         console.print("checks", last_scaled, third_scaled, total, whole_total)
         round = round + 1
     }
@@ -68,12 +69,12 @@ func PlainLoops() {
 func scale_list(from: List<Float>, into: List<Float>) {
     var index = 0
     while index < from.count() {
-        into[index] = from.get_at(index) * 1.5 + 0.25
+        into[index] = from[index] * 1.5 + 0.25
         index = index + 1
     }
 }
 
-func scale_vector(numbers: Vector<Float>) {
+func scale_in_place(numbers: List<Float>) {
     var index = 0
     while index < numbers.count() {
         numbers[index] = numbers[index] * 1.5 + 0.25
@@ -85,7 +86,7 @@ func add_up_floats(values: List<Float>): Float {
     var total = 0.0
     var index = 0
     while index < values.count() {
-        total = total + values.get_at(index)
+        total = total + values[index]
         index = index + 1
     }
     return total
@@ -95,7 +96,7 @@ func add_up_integers(values: List<Integer>): Long {
     var total: Long = 0
     var index = 0
     while index < values.count() {
-        total = total + values.get_at(index)
+        total = total + values[index]
         index = index + 1
     }
     return total

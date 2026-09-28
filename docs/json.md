@@ -80,8 +80,8 @@ Ada "the" first shipped tea 2
 
 ## Write and read bytes
 
-`BinaryWriter` and `BinaryReader` have the same shape. The bytes are a `Vector<Byte>`, held inline in one block
-([collections.md](collections.md#vectort-items-inline)):
+`BinaryWriter` and `BinaryReader` have the same shape. The bytes are a `List<Byte>`, the bytes themselves in one
+block ([collections.md](collections.md#listt)):
 
 ```gdscript title=binary_basics/order.spite
 enum Status {
@@ -137,17 +137,17 @@ The same `Order` is 23 bytes here and 104 as JSON: `id` and `total` (a `Float`) 
 `"Ada"` a length byte and three, the empty `note` one, and there are no keys, quotes or commas at all. [The binary format](#the-binary-format)
 says exactly what each type becomes.
 
-- `write(): Vector<Byte>` answers a new vector holding the value. `append_to(bytes)` writes it at the end of a
-  vector the program already has instead, so many values -- a network frame's worth of messages, a file's records
+- `write(): List<Byte>` answers a new list holding the value. `append_to(bytes)` writes it at the end of a
+  list the program already has instead, so many values -- a network frame's worth of messages, a file's records
   -- go into one buffer with no copying.
-- `BinaryReader<T>(bytes)` reads from a `Vector<Byte>`. Each `read(): T?` reads the next value from `position`
+- `BinaryReader<T>(bytes)` reads from a `List<Byte>`. Each `read(): T?` reads the next value from `position`
   (an attribute, starting at `0`) and moves past it, so values written one after another are read one after
   another; `remaining()` is how many bytes are left. It answers `null` when there is nothing left, when the bytes
   run out in the middle of a value, and when they are not a `T` (a `Boolean` byte that is neither 0 nor 1, an enum
   index the enum does not have, a count larger than the bytes left). A failed read leaves `position` where it
   was.
 - `read_memory(address, count): T?` reads one value from `count` bytes at a `Memory.Address` -- a buffer a
-  `Socket` filled, say -- without copying them into a vector first; the reader is made with `null` for its bytes.
+  `Socket` filled, say -- without copying them into a list first; the reader is made with `null` for its bytes.
   Afterwards `position` is how many of the bytes the value took.
 
 ```gdscript
@@ -164,7 +164,7 @@ Infinity and not-a-number are ordinary bytes: only JSON cannot hold them (D208),
 var console = Console()
 
 func BinaryStream() {
-    var bytes = Vector<Byte>()
+    var bytes = List<Byte>()
     var names = ["ada", "bo", "cy"]
     var name_writer = BinaryWriter(names)
     name_writer.append_to(bytes)
@@ -449,7 +449,7 @@ func JsonValues() {
 
 `benchmarks/serialisation` writes 100 000 small objects -- an `Integer` id, a short name, two `Float`s, a `Short`,
 a `Boolean` and an enum -- and reads them back, as JSON (one text each) and as binary (all appended to one
-`Vector<Byte>`). `clang -O2`, on Mortaro's Windows machine, with the allocations `--debug-memory` counts for the
+`List<Byte>`). `clang -O2`, on Mortaro's Windows machine, with the allocations `--debug-memory` counts for the
 100 000 writes and reads:
 
 | | size | write | read | allocations |
@@ -543,8 +543,8 @@ var read = reader.read()                # Order?: null on text that is not an Or
 var order = reader.read_or_crash()      # Order: halts, naming the position and what was expected
 
 var packer = BinaryWriter(order)        # BinaryWriter<Order>
-var bytes = packer.write()              # Vector<Byte>: never fails
-packer.append_to(frame)                 # the same bytes, at the end of a Vector<Byte> the program has
+var bytes = packer.write()              # List<Byte>: never fails
+packer.append_to(frame)                 # the same bytes, at the end of a List<Byte> the program has
 var unpacker = BinaryReader<Order>(bytes)
 var next = unpacker.read()              # Order?: the next value from 'position', null on bad or missing bytes
 var from_socket = unpacker.read_memory(buffer, received)
@@ -564,7 +564,7 @@ makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'` (`diagn
   and `BinaryWriter` writes nothing for it (a `T?` inside a value has its presence byte; at the top the caller
   knows whether it wrote anything). `JsonWriter<Order>(null)` names the class when there is no value.
 - **A reader names its class and takes its input in its constructor**: `JsonReader<T>(text: String)`,
-  `BinaryReader<T>(bytes: Vector<Byte>?)`. `JsonReader.read()` reads the whole text as one value, every time it is
+  `BinaryReader<T>(bytes: List<Byte>?)`. `JsonReader.read()` reads the whole text as one value, every time it is
   called; `BinaryReader.read()` reads the next value from `position`, so a buffer of many values is read by
   calling it again.
 - **What it is written with** is [Symbol codegen](metaprogramming.md#symbol-codegen--implemented) and
@@ -601,10 +601,12 @@ What follows is Claude's reading where D22, D95 and D208 are not specific (propo
   other type by its name. It is a bodiless declaration the compiler supplies (D82), a C macro that is the constant,
   so it costs nothing at run time and a program that never asks carries none of it. A writer and a reader of the
   same `T` answer the same value (`conformance/stage6/binary_schema`).
-- **The bytes are a `Vector<Byte>`** (D204's inline, uncounted items; D208 preferred it): one block, no count per
-  byte, and a reader over it borrows nothing, since it keeps the vector itself and reads its block afresh at every
-  `read()`. `read_memory` covers memory the program did not put in a vector. `Vector<T>` has `reserve(count)` for
-  this, making room for `count` items without making any (proposed by Claude, unconfirmed).
+- **The bytes are a `List<Byte>`** (a `Vector<Byte>` until D225 folded a vector of numbers into `List`; the storage
+  is the same): one block, no count per byte, and a reader over it borrows nothing, since it keeps the list itself
+  and reads its block afresh at every `read()`. `read_memory` covers memory the program did not put in a list.
+  `List<T>` has `reserve(count)` for this, making room for `count` items without making any (proposed by Claude,
+  unconfirmed); the library's binary classes grow the list and write into its block directly, which only
+  `library/` may do.
 - **`BinaryReader` answers `null` for every bad input** (D199: bad input is a normal condition, never a crash):
   bytes that end inside a value, a `Boolean` byte other than 0 or 1, a presence byte other than 0 or 1, an enum
   index past the enum's last value, a plain `Symbol` name the program does not use, and a count past the bytes

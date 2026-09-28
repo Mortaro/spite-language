@@ -1,0 +1,4 @@
+records 12
+counted 33
+guarded BO none
+backwards 9 9 1 4 2

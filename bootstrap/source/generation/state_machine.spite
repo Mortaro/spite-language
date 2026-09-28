@@ -16,11 +16,11 @@ func rewrite(lines: List<String>): List<String> {
     var result = List<String>()
     var index = 0
     while index < lines.count() {
-        var line = lines.get_at(index)
+        var line = lines[index]
         var pieces = line.split("\n")
         var piece_index = 0
         while piece_index < pieces.count() {
-            var piece = pieces.get_at(piece_index)
+            var piece = pieces[piece_index]
             var rewritten = rewrite_line(piece)
             if not rewritten.is_empty() {
                 result.append(rewritten)
@@ -36,9 +36,11 @@ func frame_fields(): String {
     var declarations = List<String>()
     var index = 0
     while index < field_names.count() {
-        var c_type = field_types.get_at(index)
-        var name = field_names.get_at(index)
-        var suffix = field_suffixes.get_at(index)
+        crash field_types[index]
+        crash field_suffixes[index]
+        var c_type = field_types[index]
+        var name = field_names[index]
+        var suffix = field_suffixes[index]
         declarations.append("{c_type} {name}{suffix};")
         index = index + 1
     }
@@ -49,7 +51,7 @@ func resume_switch(): String {
     var cases = List<String>()
     var index = 0
     while index < resume_points.count() {
-        var point = resume_points.get_at(index)
+        var point = resume_points[index]
         cases.append("case {point}: goto spite_resume_{point};")
         index = index + 1
     }
@@ -326,8 +328,9 @@ func nesting_change(code: Integer): Integer {
 func bound_field(name: String): String {
     var index = bound_names.count() - 1
     while index >= 0 {
-        if bound_names.get_at(index) == name {
-            return bound_fields.get_at(index)
+        if bound_names[index] == name {
+            crash bound_fields[index]
+            return bound_fields[index]
         }
         index = index - 1
     }
@@ -341,8 +344,9 @@ func bind(name: String, field: String) {
 }
 
 func deepest_binding(): Integer {
-    var binding_count = bound_depths.count()
-    return bound_depths.get_at(binding_count - 1)
+    var deepest = bound_depths.last()
+    crash deepest
+    return deepest
 }
 
 func forget_deeper_bindings() {
@@ -374,8 +378,8 @@ func field_conflicts(candidate: String, c_type: String, suffix: String): Boolean
     }
     var index = 0
     while index < field_names.count() {
-        if field_names.get_at(index) == candidate {
-            return field_types.get_at(index) != c_type or field_suffixes.get_at(index) != suffix
+        if field_names[index] == candidate {
+            return field_types[index] != c_type or field_suffixes[index] != suffix
         }
         index = index + 1
     }

@@ -164,7 +164,6 @@ func passed_classes(call: EffectCall, callee: FunctionEffects, classes: Dispatch
     var index = 0
     while index < argument_count {
         var argument = call.arguments[index]
-        crash argument
         var spread = callee.variadic_position >= 0 and index >= callee.variadic_position
         if argument.starts_with("parameter:") and not spread {
             var argument_length = argument.length()

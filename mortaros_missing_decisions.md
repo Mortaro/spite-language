@@ -527,6 +527,19 @@ Behaviour that does not match the manual. The language was not changed; each is 
      is in flight (D267, 19 ns -> 9 ns). None adds syntax; the names `remove_where`, `truncate` and `swap` are
      provisional (D214). Keep them, or rename?
 
+## From building D225 and D226 (every `[]` answers `T?`)
+
+220. **Is a `Dictionary`'s `[]` its `get_at`?** D226 says `a[x]` calls `get_at(x)`. A `Dictionary` keeps `get(key)`
+     and `set(key, value)`, which already answer `T?` and are what its `[]` calls, so nothing a program sees
+     changed. Rename them to `get_at`/`set_at` so every `[]` is the same function (one name, and a program's own
+     keyed class looks like the library's), or keep `get`/`set` because a key is not a position?
+221. **How a walked row states its reads.** A walked row's attribute is an item, never a `T?`, and the walk cannot
+     prove that each place it read is inside its column. Built (proposed by Claude, unconfirmed): the template
+     leads with a `crash` line per read (`crash rows[attribute.index]`, `crash
+     Column<attribute.class>().values[rows[attribute.index]]`), walked per attribute and written before the row,
+     at no cost beyond D218's (the checked read is the row's read). The other reading is that a walked read halts
+     on its own, as D218's `Items[]` did, with no line written. Which?
+
 ## Foreign status results (D272)
 
 222. **May a switch over a foreign status enum end with `_:`?** D272 makes a `VkResult`-style result a Spite enum

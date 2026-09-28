@@ -7,13 +7,13 @@ func BinaryWriter(new_value: $value_type?) {
     value = new_value
 }
 
-func write(): Vector<Byte> {
-    var bytes = Vector<Byte>()
+func write(): List<Byte> {
+    var bytes = List<Byte>()
     append_to(bytes)
     return bytes
 }
 
-func append_to(bytes: Vector<Byte>) {
+func append_to(bytes: List<Byte>) {
     assert value
     var output = BinaryOutput(bytes)
     format.write(value, output)

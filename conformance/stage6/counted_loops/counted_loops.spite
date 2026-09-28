@@ -9,11 +9,12 @@ func CountedLoops() {
     var longer_text = longer.join(" ")
     var shorter_text = shorter.join(" ")
     console.print("longer", longer_text, "shorter", shorter_text)
-    var numbers = Vector<Float>()
+    var numbers = List<Float>()
     numbers.append(0.5)
     numbers.append(1.5)
     numbers.append(2.5)
     scale_in_place(numbers)
+    crash numbers.count() == 3
     var first = numbers[0]
     var last = numbers[2]
     console.print("in place", first, last)
@@ -42,12 +43,12 @@ func CountedLoops() {
 func scale_into(from: List<Float>, into: List<Float>) {
     var index = 0
     while index < from.count() {
-        into[index] = from.get_at(index) * 1.5 + 0.25
+        into[index] = from[index] * 1.5 + 0.25
         index = index + 1
     }
 }
 
-func scale_in_place(numbers: Vector<Float>) {
+func scale_in_place(numbers: List<Float>) {
     var index = 0
     while index < numbers.count() {
         numbers[index] = numbers[index] * 2.0
@@ -59,7 +60,7 @@ func add_up(values: List<Float>): Float {
     var total = 0.0
     var index = 0
     while index < values.count() {
-        total = total + values.get_at(index)
+        total = total + values[index]
         index = index + 1
     }
     return total
@@ -69,7 +70,7 @@ func add_up_whole(values: List<Integer>): Long {
     var total: Long = 0
     var index = 0
     while index < values.count() {
-        total = total + values.get_at(index)
+        total = total + values[index]
         index = index + 1
     }
     return total
@@ -81,7 +82,7 @@ func count_pairs(values: List<Integer>): Integer {
     while outer < values.count() {
         var inner = 0
         while inner < values.count() {
-            var sum = values.get_at(outer) + values.get_at(inner)
+            var sum = values[outer] + values[inner]
             if sum < 5 {
                 pairs = pairs + 1
             }
@@ -95,7 +96,7 @@ func count_pairs(values: List<Integer>): Integer {
 func first_above(values: List<Integer>, limit: Integer): Integer {
     var index = 0
     while index < values.count() {
-        if values.get_at(index) > limit {
+        if values[index] > limit {
             return index
         }
         index = index + 1
@@ -107,7 +108,7 @@ func add_from(values: List<Integer>, start: Integer): Integer {
     var total = 0
     var index = start
     while index < values.count() {
-        total = total + values.get_at(index)
+        total = total + values[index]
         index = index + 1
     }
     return total
@@ -116,7 +117,7 @@ func add_from(values: List<Integer>, start: Integer): Integer {
 func double_up(values: List<Integer>) {
     var index = 0
     while index < values.count() {
-        var doubled = values.get_at(index) * 2
+        var doubled = values[index] * 2
         if doubled < 10 {
             values.append(doubled)
         }
@@ -127,7 +128,7 @@ func double_up(values: List<Integer>) {
 func clamp_into(from: List<Integer>, into: List<Integer>) {
     var index = 0
     while index < from.count() {
-        var value = from.get_at(index)
+        var value = from[index]
         if value < 0 {
             value = 0
         }

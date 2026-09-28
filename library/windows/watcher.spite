@@ -61,16 +61,21 @@ func open_watch(folder: String, root: String, file_name: String): Boolean {
 }
 
 func request(watching: Integer): Boolean {
-    var event = events.get_at(watching)
+    crash events[watching]
+    crash file_names[watching]
+    crash handles[watching]
+    crash buffers[watching]
+    crash overlaps[watching]
+    var event = events[watching]
     kernel.ResetEvent(event)
     var subtree = 0
-    var file_name = file_names.get_at(watching)
+    var file_name = file_names[watching]
     if file_name.is_empty() {
         subtree = 1
     }
-    var handle = handles.get_at(watching)
-    var buffer = buffers.get_at(watching)
-    var overlap = overlaps.get_at(watching)
+    var handle = handles[watching]
+    var buffer = buffers[watching]
+    var overlap = overlaps[watching]
     var no_value: Long = 0
     var requested = kernel.ReadDirectoryChangesW(handle, buffer, 65536, subtree, 27, no_value, overlap, no_value)
     return requested != 0
@@ -87,11 +92,14 @@ func collect() {
 }
 
 func collect_from(watching: Integer, transferred: Memory.Address) {
-    var handle = handles.get_at(watching)
+    crash handles[watching]
+    crash overlaps[watching]
+    crash roots[watching]
+    var handle = handles[watching]
     assert handle != -1
     transferred.write_long(0, 0)
-    var overlap = overlaps.get_at(watching)
-    var root = roots.get_at(watching)
+    var overlap = overlaps[watching]
+    var root = roots[watching]
     if kernel.GetOverlappedResult(handle, overlap, transferred, 0) == 0 {
         if kernel.GetLastError() != 996 {
             note(root)
@@ -111,7 +119,8 @@ func collect_from(watching: Integer, transferred: Memory.Address) {
 }
 
 func read_notices(watching: Integer) {
-    var buffer = buffers.get_at(watching)
+    crash buffers[watching]
+    var buffer = buffers[watching]
     var text = heap.allocate(1024)
     var offset: Long = 0
     var more = true
@@ -133,8 +142,10 @@ func read_notices(watching: Integer) {
 }
 
 func note_notice(watching: Integer, name: String, action: Integer) {
-    var root = roots.get_at(watching)
-    var file_name = file_names.get_at(watching)
+    crash roots[watching]
+    crash file_names[watching]
+    var root = roots[watching]
+    var file_name = file_names[watching]
     if not file_name.is_empty() {
         var lower_name = name.lower_case()
         if lower_name == file_name {
@@ -156,8 +167,9 @@ func wait_for_event(milliseconds: Long) {
     var count = 0
     var index = 0
     while index < watch_count {
-        if handles.get_at(index) != -1 {
-            var event = events.get_at(index)
+        if handles[index] != -1 {
+            crash events[index]
+            var event = events[index]
             waiting.write_long(count * 8, event)
             count = count + 1
         }
@@ -172,10 +184,13 @@ func wait_for_event(milliseconds: Long) {
 }
 
 func close_watch(watching: Integer) {
-    var handle = handles.get_at(watching)
+    crash handles[watching]
+    crash overlaps[watching]
+    crash events[watching]
+    var handle = handles[watching]
     assert handle != -1
-    var overlap = overlaps.get_at(watching)
-    var event = events.get_at(watching)
+    var overlap = overlaps[watching]
+    var event = events[watching]
     kernel.CancelIoEx(handle, overlap)
     var transferred = heap.allocate(8)
     kernel.GetOverlappedResult(handle, overlap, transferred, 1)
@@ -189,8 +204,10 @@ func drop() {
     var index = 0
     while index < handles.count() {
         close_watch(index)
-        var overlap = overlaps.get_at(index)
-        var buffer = buffers.get_at(index)
+        crash overlaps[index]
+        crash buffers[index]
+        var overlap = overlaps[index]
+        var buffer = buffers[index]
         heap.free(overlap)
         heap.free(buffer)
         index = index + 1

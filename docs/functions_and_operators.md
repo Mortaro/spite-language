@@ -172,6 +172,11 @@ Every operator is a shortcut for a function a class can define to support it:
 | `a / b` | `divide(b)` | | unary `-a` | `negate()` |
 | `a % b` | `remainder(b)` | | `a[x]` / `a[x] = v` | `get_at(x)` / `set_at(x, v)` |
 
+`a[x]` is `get_at(x)`, so any class that declares `get_at` can be indexed, and since every `[]` answers a value
+that may be absent ([D225](decisions.md)), `get_at` answers a `T?`: `func get_at(index: Integer): Integer?`,
+`null` when nothing is at the index, and the reader narrows it (`crash shelf[0]`, then `shelf[0] + 1`). A `get_at`
+that answers a plain `Integer` is an error naming `Integer?` ([D226](decisions.md)).
+
 `not`/`and`/`or` stay built-in keywords, never functions. On numbers, `Boolean`, enums, `String`, `List<T>` and
 `Dictionary<T>` the operators are built in (on numbers, the machine's own arithmetic); number arithmetic is done in the left side's
 type, so a wider right side is an error that says to write the wider operand first
@@ -595,7 +600,7 @@ Every operator is a shortcut for a function, which a class can define to support
 | unary `-a` | `negate()` | |
 | `not a` | -- | stays a built-in keyword, never a function |
 | `a and b` / `a or b` | -- | stay built-in, short-circuiting |
-| `a[x]` | `get_at(x)` | |
+| `a[x]` | `get_at(x)` | answers a `T?` (D225, D226) |
 | `a[x] = v` | `set_at(x, v)` | |
 
 For `Integer`/`Float`/`Boolean`/enum/`String`/`List<T>`/`Dictionary<T>` these are intrinsic (they compile to exactly
@@ -608,7 +613,19 @@ the function with the same signature). Missing the function is an error naming i
 needs it to define 'sum(other)'", "'-' on a 'Money' needs it to define 'negate()'", "indexing a 'Money' needs it
 to define 'get_at(index)'", "assigning through an index on a 'Money' needs it to define 'set_at(index,
 value)'". The right side of a binary operator still casts toward the parameter type, exactly like an ordinary
-function call argument. On numbers, arithmetic is done in the left operand's type, and a right operand wider
+function call argument.
+
+**`[]` is `get_at`, and `get_at` answers `T?`** (D226, decided by Mortaro, refining D225: "keep in mind [] is just a
+shortcut for a function so users can also implement []able classes"). Every `get_at` -- the library's `List`,
+`Vector` and `Items`, and a program's own -- is declared to answer a `T?`, `null` when nothing is at the index; one
+that answers a plain `T` is an error when it is declared: `'get_at' answers 'Integer', but it is what '[ ]'
+calls, and every '[ ]' answers a 'T?' that is narrowed before use: declare it to answer 'Integer?', and answer null
+when nothing is at the index` (`diagnostics/plain_get_at`). A read is narrowed like any `T?` path
+([failure.md](failure.md#reading-with--answers-t)); the compiler's own proofs (loop bounds, counts, counted loops)
+cover the library's collections, and a program's own indexable class is narrowed by what the program writes
+(`conformance/stage6/indexable_class`, `diagnostics/indexable_unproven`). A `Dictionary`'s `[]` is its `get(key)`,
+which already answers `T?` (whether it should also be spelled `get_at` is `mortaros_missing_decisions.md`'s
+question). `set_at` is unchanged: it answers nothing. On numbers, arithmetic is done in the left operand's type, and a right operand wider
 than the left is an error (D162,
 [Wider arithmetic goes wider operand first](values_and_types.md#wider-arithmetic-goes-wider-operand-first)); a
 comparison is not arithmetic and still casts its right side toward the left.

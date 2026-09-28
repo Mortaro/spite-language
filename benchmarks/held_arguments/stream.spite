@@ -6,18 +6,19 @@ func Stream(new_entity_count: Integer) {
 
 func run(): Integer {
     var matcher = Matcher(3)
-    var found = Vector<Integer>()
+    var found = List<Integer>()
     found.append(0)
     found.append(0)
     found.append(0)
     return run_positions(matcher, found)
 }
 
-func run_positions(matcher: Matcher, rows: Vector<Integer>): Integer {
+func run_positions(matcher: Matcher, rows: List<Integer>): Integer {
     var total = 0
     var entity = 0
     while entity < entity_count {
         if matcher.match_into(entity, rows) {
+            crash rows[2]
             total = total + rows[2]
         }
         entity = entity + 1

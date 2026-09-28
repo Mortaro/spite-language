@@ -25,7 +25,6 @@ func run_stage(stage: List<Runner>) {
     var last = stage.count() - 1
     var index = 0
     while index < last {
-        crash stage[index]
         start_threaded(stage[index], running)
         index = index + 1
     }

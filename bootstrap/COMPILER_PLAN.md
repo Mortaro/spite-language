@@ -514,3 +514,36 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   `SpiteString`, a shape passed to a foreign library) and every `->member`. The hand-written C that names a
   Spite member or parameter says so (`->_bytes_`, `->item_count_`, `address_`, `count_` in `Prelude`, the
   `TypedMemory` and `HotReload` bodies). `reserved_names` and its diagnostic are gone.
+- 2026-09-26 (D225, D226): `generate_index_read` reads a `List`'s `[]` through the list class's `get_at` and types
+  it from the element (`T?`), and `proven_read` unwraps it when a proof holds -- a range proof unwraps an element
+  that is not itself a `T?`, a presence proof (`crash`/`assert`/`if`) unwraps either. `Vector` and `Items` reads take
+  the same path (`is_library_collection`); a program's own `get_at` is unwrapped only by a presence proof.
+  `report_plain_get_at` (in `resolve_function`) refuses a `get_at` whose return type is not nullable, and
+  `check_plain_items` (on instantiation) refuses a `Vector` or `Items` of a number, `Boolean`, enum or
+  `Memory.Address`. `narrow_literal_indices` proves a list literal's indices after its `var`. `operand_text` prints
+  a no-argument generic singleton call as a path root (`is_generic_singleton_call`), so `crash
+  Column<Position>().values[found[1]]` narrows that read. A walked row's template (`walked_assignment`,
+  `walk_checks`, `emit_walked_checks`) and a lent argument's (`walk_lent_checks`) may lead with `crash` lines,
+  walked per attribute and written before the row or the call; `emit_cached_check` reads each such
+  line's item once into a temporary, and `generate_index_read` answers the same path from that temporary
+  (`cached_walked_read`) until the row or call is written (`forget_walked_reads`), so the check costs no second read. `library_list_field` lets `library/` code read and
+  write a `List`'s own attributes (`items`, `item_count`), which the binary classes use on a `List<Byte>`. The
+  counted loop is `List`-only (`counted_element_type`), and an explicit `get_at` call there is an ordinary call.
+  Landed in two seeds: the first read `[]` through whichever reader the library had (`find_at` or `get_at`), so
+  the library could then drop `find_at`.
+- 2026-09-27 (D225, after merging master's D227-D268): a read a range proof narrows is `bounded_item`: the
+  `get_at` answer in a temporary, taken directly, with one never-taken branch to `spite_outside_list` (written
+  once per program, `index_check_written`) that halts naming the read -- a bound proves only the top of an index,
+  and master's halting `List.get_at` is gone. `noted_read` remembers the last unproven read's code and path, and
+  `null_opening`/`null_advice` turn a may-be-null error about that code into one naming the read, its three
+  narrowing lines and the count or bound that proves it (`report_mismatch` takes the code for this). Bootstrapped
+  from master's seed with a transitional `library/` (a halting `get_at` beside `find_at`, master's binary classes),
+  then two generations on the real library.
+  `library_list_field` also admits `BinaryOutput` and `BinaryReader` by name (`reaches_list_storage`), since
+  `--final-classes` prints them into the program's folder, where the `library/` path test no longer holds.
+- 2026-09-28 (D277): `narrow_counted_element` also proves `base + k < list.count()` (`narrow_stride`, `stride_reach`)
+  and a bound on a count kept in a `var` (`note_count_alias` records `list[< count]` in the scope, so shrinking the
+  list or assigning the name forgets it like any proof; `counted_alias` finds it). `recheck_in_loop` marks a `[]`
+  path an `assert`/`crash` re-proves inside a loop (`Scope.rechecked_paths`, `proven_inside_loop`), so a proof from
+  before the loop neither makes the check "proves nothing" nor answers reads in that loop. Two-list `and` bounds this
+  branch wrote in `library/` and here became one bound and a `crash`.

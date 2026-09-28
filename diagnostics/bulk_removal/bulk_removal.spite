@@ -30,18 +30,21 @@ func is_slow(velocity: Velocity): Boolean {
 }
 
 func keep_past_truncate(velocities: Vector<Velocity>) {
+    crash velocities[0]
     var first = velocities[0]
     velocities.truncate(1)
     console.print(first.across)
 }
 
 func keep_past_swap(velocities: Vector<Velocity>) {
+    crash velocities[0]
     var first = velocities[0]
     velocities.swap(0, 1)
     console.print(first.across)
 }
 
 func keep_past_removal(velocities: Vector<Velocity>) {
+    crash velocities[0]
     var first = velocities[0]
     velocities.remove_where_stopped()
     console.print(first.across)

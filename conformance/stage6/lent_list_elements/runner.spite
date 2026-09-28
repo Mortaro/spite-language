@@ -2,7 +2,7 @@ generic $system_type
 generic $row_type
 
 var system = $system_type()
-var found = Vector<Integer>()
+var found = List<Integer>()
 
 func run(first: Integer, end: Integer) {
     var entity = first
@@ -17,10 +17,13 @@ func run(first: Integer, end: Integer) {
     }
 }
 
-func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Vector<Integer>) {
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Integer>) {
     if attribute.class.fits_vector() {
+        crash rows[attribute.index]
+        crash Column<attribute.class>().values[rows[attribute.index]]
         row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
     } else {
+        crash rows[attribute.index]
         row.attributes[attribute] = Column<attribute.class>().at(rows[attribute.index])
     }
 }

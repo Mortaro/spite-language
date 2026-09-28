@@ -1,7 +1,7 @@
 entities 2
 spite> console: Console = Console {...}
 world: World = World {...}
-spite> program is an InteractiveSingletons, which has no function the prompt can call: 'classes' lists the singletons, whose functions the prompt can call, such as World().entity_count()
+spite> to_debug(): String
 spite> Memory.Heap()
 Build()
 Console()
@@ -35,9 +35,10 @@ spite> Position { across: 3, along: 4 }
 spite> spawn(across: Integer, along: Integer): Nothing
 entity_count(): Integer
 position_of(entity: Integer): Position?
+to_debug(): String
 spite> step: Integer = 2
 step_milliseconds: Integer = 50
-spite> Tick is a Tick, which has no function the prompt can call
+spite> to_debug(): String
 spite> 'Position' is a class, not a singleton: the prompt never makes an object, it reads the ones the program holds, and 'classes' lists the singletons
 spite> no singleton 'Wrld' in the program: 'classes' lists them
 spite> 'World' is a singleton, so it takes no arguments: there is one instance, and the prompt reads it

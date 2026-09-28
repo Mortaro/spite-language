@@ -42,7 +42,7 @@ func _written(shown: $value_type): String {
         var elements = List<String>()
         var index = 0
         while index < shown.count() {
-            element_json.value = shown.get_at(index)
+            element_json.value = shown[index]
             element_json.path = "{path}[{index}]"
             var element_text = element_json.write()
             elements.append(element_text)
@@ -58,9 +58,9 @@ func _written(shown: $value_type): String {
         var entries = List<String>()
         var index = 0
         while index < keys.count() {
-            key_json.value = keys.get_at(index)
+            key_json.value = keys[index]
             var quoted_key = key_json.key_text()
-            entry_json.value = values.get_at(index)
+            entry_json.value = values[index]
             entry_json.path = "{path}[{quoted_key}]"
             var entry_text = entry_json.write()
             entries.append("{quoted_key}:{entry_text}")

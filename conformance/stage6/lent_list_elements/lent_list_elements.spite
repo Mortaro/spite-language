@@ -17,6 +17,7 @@ func LentListElements() {
     moving.run(0, 3)
     var last = trails.at(2)
     var lefts = last.lefts.count()
+    crash positions.values[2]
     console.print("moved", positions.values[2].left, lefts, moving.system.steps)
     removing.run(2, 3)
     var left = trails.references.count()

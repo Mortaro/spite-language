@@ -1,0 +1,1 @@
+this program is meant to crash: a read a loop bound proved halts when its index is below 0, naming the read and the line (D225, D244)

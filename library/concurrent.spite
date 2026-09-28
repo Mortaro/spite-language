@@ -57,7 +57,8 @@ func _collect() {
 
 func _result(): $result_type {
     _join()
-    return _results.get_at(0)
+    crash _results.count() > 0
+    return _results[0]
 }
 
 func _join() {

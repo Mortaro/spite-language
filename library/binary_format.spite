@@ -69,8 +69,8 @@ func write_list(value: $value_type, output: BinaryOutput) {
     output.write_count(count)
     var element = BinaryFormat<$value_type.element_type>()
     var index = 0
-    while index < count {
-        var item = value.get_at(index)
+    while index < value.count() {
+        var item = value[index]
         element.write(item, output)
         index = index + 1
     }
@@ -84,10 +84,11 @@ func write_dictionary(value: $value_type, output: BinaryOutput) {
     var entry = BinaryFormat<$value_type.value_type>()
     var key_format = BinaryFormat<$value_type.key_type>()
     var index = 0
-    while index < count {
-        var key = keys.get_at(index)
+    while index < keys.count() {
+        crash entries[index]
+        var key = keys[index]
         key_format.write(key, output)
-        var item = entries.get_at(index)
+        var item = entries[index]
         entry.write(item, output)
         index = index + 1
     }

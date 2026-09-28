@@ -12,7 +12,7 @@ func walk(directory: Directory, indent: String) {
     var entries = directory.entries()
     var index = 0
     while index < entries.count() {
-        var entry = entries.get_at(index)
+        var entry = entries[index]
         switch entry {
             Directory: {
                 console.print("{indent}folder {entry.path}")
@@ -34,7 +34,7 @@ func count_files(directory: Directory): Integer {
     var entries = directory.entries()
     var index = 0
     while index < entries.count() {
-        var entry = entries.get_at(index)
+        var entry = entries[index]
         switch entry {
             Directory: total = total + count_files(entry)
             File: total = total + 1
