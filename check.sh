@@ -527,12 +527,14 @@ echo "live reload: an edited class was swapped in by reload and another by the w
 checked_port=$((port + 1))
 fast_checked=0
 # Each copy sits as deep below the repository as a conformance program, so its comments' links resolve.
-mkdir -p "$work/fast_reload"
+fast_root="${work}_fast_reload"
+trap 'rm -rf "$work" "$fast_root"' EXIT
+mkdir -p "$work/fast_reload" "$fast_root"
 for program in .spite-cache/docs/hot_counter conformance/stage6/kept_templates conformance/stage6/items_columns \
                conformance/stage6/class_argument conformance/stage6/json_symbols conformance/stage6/attribute_object \
                conformance/stage6/foreign_callbacks conformance/stage6/waiting_systems conformance/stage6/allocator_choice \
                examples/dungeon; do
-  name=$(basename "$program"); copy="$work/$name"
+  name=$(basename "$program"); copy="$fast_root/$name"
   cp -r "$program" "$copy"
   flags=""; [ -f "$copy/flags.txt" ] && flags=$(tr -d '\r\n' < "$copy/flags.txt")
   "$work/generation_two.exe" "$copy" --executable --run=false --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/$name.exe" $flags > "$work/c_errors.txt" 2>&1 || {
@@ -546,7 +548,7 @@ for program in .spite-cache/docs/hot_counter conformance/stage6/kept_templates c
     esac
   done
 done
-hot_copy="$work/hot_counter"
+hot_copy="$fast_root/hot_counter"
 fall_back() {
   local answer
   answer=$(SPITE_RELOAD_CHECK=1 "$work/generation_two.exe" reload "$hot_copy" --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/hot_counter.exe" 2>&1 | tr -d '\r')
@@ -573,8 +575,10 @@ for printed_program in conformance/stage3/interpolation conformance/stage6/symbo
   printed="$work/final/$printed_name"   # a program is a folder named like its entry file (D89)
   "$work/generation_two.exe" "$printed_program" --run=false --final-classes="$printed" > /dev/null 2>&1 || {
     echo "FAILED: --final-classes could not write $printed_program out"; exit 1; }
-  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '' | grep -v '^allocations: ')
-  if [ "$printed_output" != "$(tr -d '' < "$printed_program/expected_output.txt")" ]; then
+  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '
+' | grep -v '^allocations: ')
+  if [ "$printed_output" != "$(tr -d '
+' < "$printed_program/expected_output.txt")" ]; then
     echo "FAILED: the printed $printed_name does not run like the one it was printed from"; echo "$printed_output" | head -6; exit 1
   fi
 done
