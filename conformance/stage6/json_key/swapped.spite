@@ -1,0 +1,10 @@
+var left = 0
+var right = 0
+
+func json_key_left(): String {
+    return "right"
+}
+
+func json_key_right(): String {
+    return "left"
+}

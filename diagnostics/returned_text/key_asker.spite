@@ -1,0 +1,13 @@
+generic $value_type
+
+func key_of_level(): String {
+    return $value_type.returned_text("json_key_level")
+}
+
+func key_of_name(): String {
+    return $value_type.returned_text("title")
+}
+
+func key_wanted(wanted: String): String {
+    return $value_type.returned_text(wanted)
+}
