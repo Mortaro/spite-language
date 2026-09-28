@@ -42,6 +42,21 @@ var parallel_site_places = List<String>()
 var guarded_classes = List<Analysis.ClassInfo>()
 var guarded_functions = List<Analysis.FunctionInfo>()
 var guarded_positions = List<Integer>()
+var wrapped_function_names = Dictionary<Boolean>()
+var read_guarded_names = List<String>()
+var reading_function_names = Dictionary<Boolean>()
+var pure_operators_known = false
+var pure_operators = false
+var coarse_holder = ""
+var coarse_owner = ""
+var coarse_called = List<String>()
+var coarse_keys = List<String>()
+var coarse_locals = List<String>()
+var coarse_site_owners = List<String>()
+var coarse_site_calls = List<String>()
+var coarse_site_keys = List<String>()
+var coarse_site_starts = List<Integer>()
+var coarse_site_ends = List<Integer>()
 var atomic_fields = List<String>()
 var atomic_owner = ""
 var atomic_classes = List<Analysis.ClassInfo>()
@@ -596,6 +611,12 @@ func generate(
     emit_hot_reload_support()
     if parallel_used {
         finish_singleton_guards()
+    }
+    if builder.threads {
+        finish_skipped_guards()
+    }
+    if not coarse_site_owners.is_empty() {
+        finish_coarse_loops()
     }
     if parallel_used and not weak_classes.is_empty() {
         report_weak_across_threads()
@@ -5184,6 +5205,12 @@ func note_maths_macro(function: Analysis.FunctionInfo) {
 func task_body(information: Analysis.ClassInfo, name: String): String {
     if name == "address" {
         return "return (int64_t)(intptr_t)self;"
+    }
+    if name == "_task_begun" {
+        return "#ifdef SPITE_THREADS\nfor (int32_t spite_index = 0; spite_index < spite_skipped_depth; spite_index++) \{ if (!spite_skipped_taken[spite_index]) \{ spite_enter_skipped(spite_skipped[spite_index]); spite_skipped_taken[spite_index] = 1; } }\n__atomic_fetch_add(&spite_tasks_in_flight, 1, __ATOMIC_SEQ_CST);\n#endif"
+    }
+    if name == "_task_ended" {
+        return "#ifdef SPITE_THREADS\n__atomic_fetch_sub(&spite_tasks_in_flight, 1, __ATOMIC_RELEASE);\n#endif"
     }
     if name == "_start_frame" {
         builder.add_prototype("static void* spite_frame_start(Spite_Function* spite_work);")
@@ -22663,6 +22690,390 @@ func generate_while_statement(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ) {
+    var coarse = coarse_singleton(while_statement, scope, class_information)
+    if coarse.is_empty() {
+        generate_while_loop(while_statement, scope, class_information, function_information)
+        return
+    }
+    var site = coarse_site_owners.count()
+    coarse_site_owners.append(coarse)
+    var called = coarse_called.join(" ")
+    coarse_site_calls.append(called)
+    var keys = coarse_keys.join(" ")
+    coarse_site_keys.append(keys)
+    builder.add_user("spite_coarse_{site}_enter();")
+    var start = builder.user_count()
+    coarse_site_starts.append(start)
+    generate_while_loop(while_statement, scope, class_information, function_information)
+    var end = builder.user_count()
+    coarse_site_ends.append(end)
+    builder.add_user("spite_coarse_{site}_leave();")
+}
+
+func coarse_singleton(
+    while_statement: Syntax.Statements.WhileStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    assert not hot_reload and remote_loop_port == 0 and not read_evaluate_print_loop and not resumable_mode
+    assert not is_hot_class(class_information) and not can_leave(while_statement.body)
+    coarse_holder = ""
+    coarse_owner = ""
+    coarse_called = List<String>()
+    coarse_keys = List<String>()
+    coarse_locals = List<String>()
+    assert coarse_counts(while_statement, scope, class_information)
+    crash while_statement.condition
+    assert coarse_expression(while_statement.condition, true, scope, class_information)
+    assert coarse_block(while_statement.body, scope, class_information)
+    assert not coarse_called.is_empty()
+    return coarse_owner
+}
+
+func coarse_block(
+    statements: List<Syntax.Statements.Statement>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < statements.count() {
+        assert coarse_statement(statements[index], scope, class_information)
+        index = index + 1
+    }
+    return true
+}
+
+func coarse_statement(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            crash statement.value
+            assert coarse_expression(statement.value, true, scope, class_information)
+            coarse_locals.append(statement.name)
+            return true
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            assert coarse_target(statement.target, scope, class_information)
+            return coarse_expression(statement.value, true, scope, class_information)
+        }
+        Syntax.Statements.IfStatement: {
+            crash statement.condition
+            assert coarse_expression(statement.condition, true, scope, class_information)
+            assert coarse_block(statement.then_branch, scope, class_information)
+            return coarse_block(statement.else_branch, scope, class_information)
+        }
+        Syntax.Statements.WhileStatement: {
+            assert coarse_counts(statement, scope, class_information)
+            crash statement.condition
+            assert coarse_expression(statement.condition, true, scope, class_information)
+            return coarse_block(statement.body, scope, class_information)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            return coarse_expression(statement.value, false, scope, class_information)
+        }
+        _: return false
+    }
+}
+
+func coarse_counts(
+    loop: Syntax.Statements.WhileStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash loop.condition
+    var binary = shape.as_binary(loop.condition)
+    assert binary
+    crash binary.left
+    crash binary.right
+    assert binary.operator == 'less'
+    var counter = shape.as_identifier(binary.left)
+    assert counter
+    assert scope.written_type(counter.name) or coarse_locals.contains(counter.name)
+    assert steps_counter_last(counter.name, loop.body) and not assigns_before_last(counter.name, loop.body)
+    if shape.as_integer_literal(binary.right) {
+        return true
+    }
+    var bound = shape.as_identifier(binary.right)
+    if bound {
+        return not block_assigns(bound.name, loop.body)
+    }
+    var listed = counted_receiver(binary.right)
+    assert not listed.is_empty()
+    return plain_list_named(listed, scope, class_information)
+}
+
+func coarse_target(
+    target: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var identifier = shape.as_identifier(target)
+    if identifier {
+        return coarse_name(identifier.name, true, scope, class_information)
+    }
+    return coarse_expression(target, true, scope, class_information)
+}
+
+func coarse_expression(
+    expression: Syntax.Expressions.Expression,
+    plain: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch expression {
+        Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.FloatLiteral: return true
+        Syntax.Expressions.TrueLiteral: return true
+        Syntax.Expressions.FalseLiteral: return true
+        Syntax.Expressions.EnumLiteralExpression: return true
+        Syntax.Expressions.StringLiteralExpression: return expression.value.index_of("\{") < 0
+        Syntax.Expressions.IdentifierExpression: return coarse_name(expression.name, plain, scope, class_information)
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            assert coarse_expression(expression.left, true, scope, class_information)
+            return coarse_expression(expression.right, true, scope, class_information)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return coarse_expression(expression.operand, true, scope, class_information)
+        }
+        Syntax.Expressions.IndexExpression: return coarse_index(expression, scope, class_information)
+        Syntax.Expressions.MemberExpression: return coarse_attribute(expression, class_information)
+        Syntax.Expressions.CallExpression: return coarse_call(expression, scope, class_information)
+        _: return false
+    }
+}
+
+func coarse_name(name: String, plain: Boolean, scope: Scope, class_information: Analysis.ClassInfo): Boolean {
+    if coarse_locals.contains(name) {
+        return true
+    }
+    var held = coarse_type_of(name, scope, class_information)
+    assert held
+    if plain_value_type(held) {
+        return true
+    }
+    assert not plain
+    var behind = class_behind(held)
+    assert behind
+    var handle = behind.qualified_dotted == "Parallel" or behind.qualified_dotted == "Concurrent"
+    assert not handle
+    return not behind.find_function("to_string")
+}
+
+func coarse_type_of(name: String, scope: Scope, class_information: Analysis.ClassInfo): Analysis.SpiteType? {
+    var written = scope.written_type(name)
+    if written {
+        return written
+    }
+    var field = class_information.find_field(name)
+    assert field
+    return field.get_type()
+}
+
+func plain_value_type(spite_type: Analysis.SpiteType): Boolean {
+    if type_shape.as_scalar(spite_type) or type_shape.as_string(spite_type) {
+        return true
+    }
+    if type_shape.as_enum(spite_type) {
+        return true
+    }
+    return false
+}
+
+func coarse_index(
+    indexed: Syntax.Expressions.IndexExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash indexed.object
+    crash indexed.index
+    var listed = shape.as_identifier(indexed.object)
+    assert listed
+    assert plain_list_named(listed.name, scope, class_information)
+    return coarse_expression(indexed.index, true, scope, class_information)
+}
+
+func plain_list_named(name: String, scope: Scope, class_information: Analysis.ClassInfo): Boolean {
+    assert not coarse_locals.contains(name)
+    var held = coarse_type_of(name, scope, class_information)
+    assert held
+    var listed = type_shape.as_list(held)
+    assert listed
+    var element = listed.get_element()
+    return plain_value_type(element)
+}
+
+func coarse_attribute(member: Syntax.Expressions.MemberExpression, class_information: Analysis.ClassInfo): Boolean {
+    crash member.object
+    var holder = shape.as_identifier(member.object)
+    assert holder
+    var owner = coarse_holder_class(holder.name, class_information)
+    assert owner
+    var field = owner.find_field(member.name)
+    assert field
+    var field_type = field.get_type()
+    return plain_value_type(field_type)
+}
+
+func coarse_holder_class(name: String, class_information: Analysis.ClassInfo): Analysis.ClassInfo? {
+    assert not coarse_locals.contains(name)
+    var field = class_information.find_field(name)
+    assert field
+    var field_type = field.get_type()
+    var held = class_behind(field_type)
+    assert held
+    assert held.is_singleton and not held.is_stateless_singleton and not is_library_class(held)
+    assert not is_hot_class(held) and held.c_name != class_information.c_name
+    assert coarse_holder.is_empty() or coarse_holder == name
+    coarse_holder = name
+    coarse_owner = held.c_name
+    return held
+}
+
+func coarse_call(
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var receiver = shape.as_identifier(member.object)
+    assert receiver
+    var list_calls = ["count", "get_at", "is_empty", "set_at", "append", "contains"]
+    if list_calls.contains(member.name) and plain_list_named(receiver.name, scope, class_information) {
+        return coarse_arguments(call.arguments, true, scope, class_information)
+    }
+    var owner = coarse_holder_class(receiver.name, class_information)
+    assert owner
+    var function = owner.find_function(member.name)
+    assert function
+    assert not function.is_constructor and function.parameters.count() == call.arguments.count()
+    var returned = function.get_return_type()
+    assert type_shape.is_void(returned) or plain_value_type(returned)
+    assert coarse_arguments(call.arguments, false, scope, class_information)
+    coarse_called.append(function.c_name)
+    coarse_keys.append("{owner.simple_name}#{function.name}")
+    return true
+}
+
+func coarse_arguments(
+    arguments: List<Syntax.Expressions.Expression>,
+    plain: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < arguments.count() {
+        assert coarse_expression(arguments[index], plain, scope, class_information)
+        index = index + 1
+    }
+    return true
+}
+
+func finish_coarse_loops() {
+    settle_wait_facts()
+    var index = 0
+    while index < coarse_site_owners.count() {
+        var owner = coarse_site_owners.get_at(index)
+        var called_text = coarse_site_calls.get_at(index)
+        var called = called_text.split(" ")
+        var keys_text = coarse_site_keys.get_at(index)
+        var keys = keys_text.split(" ")
+        var holds = coarse_holds(owner, called, keys)
+        var reading = read_guarded_names.contains(owner) and all_reading(called)
+        if holds and reading {
+            builder.add_typedef(
+                "#define spite_coarse_{index}_enter() int64_t* spite_coarse_reading_{index} = spite_read_enter(&{owner}___guard, {owner}___readers)",
+            )
+            builder.add_typedef("#define spite_coarse_{index}_leave() spite_read_leave(spite_coarse_reading_{index})")
+            call_unguarded_between(index, called)
+        } else if holds and read_guarded_names.contains(owner) {
+            builder.add_typedef(
+                "#define spite_coarse_{index}_enter() spite_guard_enter_writing(&{owner}___guard, {owner}___readers)",
+            )
+            builder.add_typedef("#define spite_coarse_{index}_leave() spite_guard_leave(&{owner}___guard)")
+            call_unguarded_between(index, called)
+        } else if holds {
+            builder.add_typedef("#define spite_coarse_{index}_enter() spite_guard_enter(&{owner}___guard)")
+            builder.add_typedef("#define spite_coarse_{index}_leave() spite_guard_leave(&{owner}___guard)")
+            call_unguarded_between(index, called)
+        } else {
+            builder.add_typedef("#define spite_coarse_{index}_enter() ((void)0)")
+            builder.add_typedef("#define spite_coarse_{index}_leave() ((void)0)")
+        }
+        index = index + 1
+    }
+}
+
+func all_reading(called: List<String>): Boolean {
+    var index = 0
+    while index < called.count() {
+        assert reading_function_names.has(called[index])
+        index = index + 1
+    }
+    return true
+}
+
+func coarse_holds(owner: String, called: List<String>, keys: List<String>): Boolean {
+    assert parallel_used and emitted_guards.contains(owner)
+    var locked = false
+    var index = 0
+    while index < called.count() {
+        var name = called[index]
+        assert not wait_facts.may_wait(name)
+        if wrapped_function_names.has(name) {
+            locked = true
+        }
+        index = index + 1
+    }
+    assert locked
+    var reached = call_effects.reached_classes(keys)
+    var blocking = ["Parallel", "Concurrent", "ThreadPool", "Scheduler", "Lock", "Program", "Console", "File", "Socket"]
+    index = 0
+    while index < blocking.count() {
+        assert not reached.has(blocking[index])
+        index = index + 1
+    }
+    return true
+}
+
+func call_unguarded_between(site: Integer, called: List<String>) {
+    var line_index = coarse_site_starts.get_at(site)
+    var end = coarse_site_ends.get_at(site)
+    while line_index < end {
+        var line = builder.user_at(line_index)
+        var changed = line
+        var index = 0
+        while index < called.count() {
+            var name = called[index]
+            if wrapped_function_names.has(name) {
+                changed = replace_call(changed, "{name}(", "{name}___unguarded(")
+            }
+            index = index + 1
+        }
+        if changed != line {
+            builder.replace_user(line_index, changed)
+        }
+        line_index = line_index + 1
+    }
+}
+
+func generate_while_loop(
+    while_statement: Syntax.Statements.WhileStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
     assert while_statement.condition
     var guard = try_nullable_guard(while_statement.condition, scope, class_information)
     if guard {
@@ -25064,26 +25475,384 @@ func finish_singleton_guards() {
     while index < guarded_functions.count() {
         var information = guarded_classes.get_at(index)
         var function = guarded_functions[index]
-        var position = guarded_positions.get_at(index)
         var threaded = reached.has(information.simple_name) or called_implicitly(information)
         if threaded and touching.has(function.c_name) {
-            if not guarded_names.contains(information.c_name) {
-                guarded_names.append(information.c_name)
-                builder.add_support("static SpiteGuard {information.c_name}___guard = \{ 0, 0 };")
-            }
-            var unguarded_name = "{function.c_name}___unguarded"
-            var unguarded_signature = named_signature(information, function, unguarded_name)
-            builder.replace_user(position, "{unguarded_signature} \{")
-            builder.add_prototype("{unguarded_signature};")
-            emit_guard_wrapper(information, function, unguarded_name)
-            report_endless_locked_loop(information, function)
             wrapped.append(index)
         }
+        index = index + 1
+    }
+    find_reading_functions(wrapped)
+    index = 0
+    while index < wrapped.count() {
+        var position = wrapped[index]
+        var information = guarded_classes.get_at(position)
+        var function = guarded_functions.get_at(position)
+        if not guarded_names.contains(information.c_name) {
+            guarded_names.append(information.c_name)
+            builder.add_support("static SpiteGuard {information.c_name}___guard = \{ 0, 0 };")
+            if read_guarded_names.contains(information.c_name) {
+                builder.add_support("static SpiteReaders {information.c_name}___readers[SPITE_READER_SLOTS];")
+            }
+        }
+        var unguarded_name = "{function.c_name}___unguarded"
+        var unguarded_signature = named_signature(information, function, unguarded_name)
+        var guarded_at = guarded_positions.get_at(position)
+        builder.replace_user(guarded_at, "{unguarded_signature} \{")
+        builder.add_prototype("{unguarded_signature};")
+        emit_guard_wrapper(information, function, unguarded_name)
+        report_endless_locked_loop(information, function)
         index = index + 1
     }
     emitted_guards = guarded_names
     call_unguarded_inside(wrapped)
     report_locked_waits(wrapped)
+}
+
+func find_reading_functions(wrapped: List<Integer>) {
+    var reached = call_effects.thread_reached_functions()
+    var written_on_threads = List<String>()
+    var readers = List<String>()
+    var index = 0
+    while index < wrapped.count() {
+        var position = wrapped[index]
+        var information = guarded_classes.get_at(position)
+        var function = guarded_functions.get_at(position)
+        var visiting = List<String>()
+        if reads_only(information, function, visiting) {
+            if not readers.contains(information.c_name) {
+                readers.append(information.c_name)
+            }
+        } else if thread_reaches(information, function.name, reached) {
+            written_on_threads.append(information.c_name)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < wrapped.count() {
+        var position = wrapped[index]
+        var information = guarded_classes.get_at(position)
+        var function = guarded_functions.get_at(position)
+        var name = information.c_name
+        var shared = readers.contains(name) and not written_on_threads.contains(name)
+        if shared and not call_effects.writes_from_reached(information.simple_name, reached) {
+            var visiting = List<String>()
+            if reads_only(information, function, visiting) {
+                reading_function_names.set(function.c_name, true)
+            }
+            if not read_guarded_names.contains(name) {
+                read_guarded_names.append(name)
+            }
+        }
+        index = index + 1
+    }
+    assert not read_guarded_names.is_empty()
+    builder.add_typedef("#define SPITE_READER_SLOTS 32")
+    builder.add_typedef("typedef struct SpiteReaders \{ _Alignas(64) int64_t count; } SpiteReaders;")
+    builder.add_prototype("static int64_t* spite_read_enter(SpiteGuard* guard, SpiteReaders* readers);")
+    builder.add_prototype("static void spite_read_leave(int64_t* slot);")
+    builder.add_prototype("static void spite_guard_enter_writing(SpiteGuard* guard, SpiteReaders* readers);")
+    builder.add_support(
+        "static SPITE_THREAD_LOCAL int32_t spite_reader_index = -1;\nstatic int32_t spite_reader_next = 0;\nstatic int64_t* spite_read_enter(SpiteGuard* guard, SpiteReaders* readers) \{\nint64_t spite_me = (int64_t)(intptr_t)&spite_guard_thread;\nif (__atomic_load_n(&guard->owner, __ATOMIC_ACQUIRE) == spite_me) return 0;\nif (spite_reader_index < 0) spite_reader_index = __atomic_fetch_add(&spite_reader_next, 1, __ATOMIC_RELAXED) % SPITE_READER_SLOTS;\nint64_t* spite_slot = &readers[spite_reader_index].count;\nfor (;;) \{\n__atomic_fetch_add(spite_slot, 1, __ATOMIC_SEQ_CST);\nif (__atomic_load_n(&guard->owner, __ATOMIC_SEQ_CST) == 0) return spite_slot;\n__atomic_fetch_sub(spite_slot, 1, __ATOMIC_SEQ_CST);\nwhile (__atomic_load_n(&guard->owner, __ATOMIC_RELAXED) != 0) \{ }\n}\n}\nstatic void spite_read_leave(int64_t* slot) \{\nif (slot != 0) __atomic_fetch_sub(slot, 1, __ATOMIC_RELEASE);\n}\nstatic void spite_guard_enter_writing(SpiteGuard* guard, SpiteReaders* readers) \{\nspite_guard_enter(guard);\nif (guard->depth != 1) return;\n__atomic_thread_fence(__ATOMIC_SEQ_CST);\nfor (int32_t spite_index = 0; spite_index < SPITE_READER_SLOTS; spite_index++) \{\nwhile (__atomic_load_n(&readers[spite_index].count, __ATOMIC_SEQ_CST) != 0) \{ }\n}\n}",
+    )
+}
+
+func thread_reaches(information: Analysis.ClassInfo, name: String, reached: Dictionary<Boolean>): Boolean {
+    return reached.has("{information.simple_name}#{name}") or reached.has("*#{name}")
+}
+
+func reads_only(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, visiting: List<String>): Boolean {
+    var key = "{information.c_name}.{function.name}"
+    if visiting.contains(key) {
+        return true
+    }
+    visiting.append(key)
+    assert not function.is_constructor and function.name != "drop"
+    var locals = List<String>()
+    return block_reads_only(function.body, information, function, locals, visiting)
+}
+
+func block_reads_only(
+    statements: List<Syntax.Statements.Statement>,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    locals: List<String>,
+    visiting: List<String>,
+): Boolean {
+    var index = 0
+    while index < statements.count() {
+        assert statement_reads_only(statements[index], information, function, locals, visiting)
+        index = index + 1
+    }
+    return true
+}
+
+func statement_reads_only(
+    statement: Syntax.Statements.Statement,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    locals: List<String>,
+    visiting: List<String>,
+): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            crash statement.value
+            assert not statement.type_reference
+            if plain_operand(statement.value, information, function, locals) {
+                locals.append("={statement.name}")
+            }
+            locals.append(statement.name)
+            return expression_reads_only(statement.value, information, function, locals, visiting)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            var target = shape.as_identifier(statement.target)
+            assert target
+            assert locals.contains(target.name)
+            var stays_plain = plain_operand(statement.value, information, function, locals)
+            assert stays_plain or not locals.contains("={target.name}")
+            return expression_reads_only(statement.value, information, function, locals, visiting)
+        }
+        Syntax.Statements.IfStatement: {
+            assert optional_reads_only(statement.condition, information, function, locals, visiting)
+            assert block_reads_only(statement.then_branch, information, function, locals, visiting)
+            return block_reads_only(statement.else_branch, information, function, locals, visiting)
+        }
+        Syntax.Statements.WhileStatement: {
+            assert optional_reads_only(statement.condition, information, function, locals, visiting)
+            return block_reads_only(statement.body, information, function, locals, visiting)
+        }
+        Syntax.Statements.ReturnStatement: {
+            assert statement.value
+            return optional_reads_only(statement.value, information, function, locals, visiting)
+        }
+        Syntax.Statements.AssertStatement: return optional_reads_only(statement.value, information, function, locals, visiting)
+        Syntax.Statements.ExpressionStatement: return optional_reads_only(statement.value, information, function, locals, visiting)
+        _: return false
+    }
+}
+
+func optional_reads_only(
+    expression: Syntax.Expressions.Expression?,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    locals: List<String>,
+    visiting: List<String>,
+): Boolean {
+    assert expression
+    return expression_reads_only(expression, information, function, locals, visiting)
+}
+
+func expression_reads_only(
+    expression: Syntax.Expressions.Expression,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    locals: List<String>,
+    visiting: List<String>,
+): Boolean {
+    switch expression {
+        Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.FloatLiteral: return true
+        Syntax.Expressions.TrueLiteral: return true
+        Syntax.Expressions.FalseLiteral: return true
+        Syntax.Expressions.NullLiteral: return true
+        Syntax.Expressions.EnumLiteralExpression: return true
+        Syntax.Expressions.StringLiteralExpression: return expression.value.index_of("\{") < 0
+        Syntax.Expressions.IdentifierExpression: return true
+        Syntax.Expressions.BinaryExpression: {
+            if not operators_are_pure() {
+                assert plain_operand(expression, information, function, locals)
+            }
+            assert optional_reads_only(expression.left, information, function, locals, visiting)
+            return optional_reads_only(expression.right, information, function, locals, visiting)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            if not operators_are_pure() {
+                assert plain_operand(expression, information, function, locals)
+            }
+            return optional_reads_only(expression.operand, information, function, locals, visiting)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            var listed = shape.as_identifier(expression.object)
+            assert listed
+            var listed_type = reading_type_of(listed.name, information, function, locals)
+            assert listed_type
+            assert type_shape.as_list(listed_type) or type_shape.as_dictionary(listed_type)
+            return optional_reads_only(expression.index, information, function, locals, visiting)
+        }
+        Syntax.Expressions.MemberExpression: return member_reads_only(expression, information, function, locals)
+        Syntax.Expressions.CallExpression: return call_reads_only(expression, information, function, locals, visiting)
+        _: return false
+    }
+}
+
+func reading_type_of(
+    name: String,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    locals: List<String>,
+): Analysis.SpiteType? {
+    assert not locals.contains(name)
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        if parameter.name == name {
+            return parameter.get_type()
+        }
+        index = index + 1
+    }
+    var field = information.find_field(name)
+    assert field
+    return field.get_type()
+}
+
+func member_reads_only(
+    member: Syntax.Expressions.MemberExpression,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    locals: List<String>,
+): Boolean {
+    crash member.object
+    var holder = shape.as_identifier(member.object)
+    assert holder
+    var holder_type = reading_type_of(holder.name, information, function, locals)
+    assert holder_type
+    var held = class_behind(holder_type)
+    assert held
+    assert held.find_field(member.name) and not held.find_function("get_{member.name}")
+    return true
+}
+
+func call_reads_only(
+    call: Syntax.Expressions.CallExpression,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    locals: List<String>,
+    visiting: List<String>,
+): Boolean {
+    var index = 0
+    while index < call.arguments.count() {
+        assert expression_reads_only(call.arguments[index], information, function, locals, visiting)
+        index = index + 1
+    }
+    crash call.callee
+    var own = shape.as_identifier(call.callee)
+    if own {
+        var called = information.find_function(own.name)
+        assert called
+        return reads_only(information, called, visiting)
+    }
+    var member = shape.as_member(call.callee)
+    assert member
+    assert not member.name.starts_with("write_") and member.name != "copy_to" and member.name != "exchange_long"
+    crash member.object
+    var receiver = shape.as_identifier(member.object)
+    assert receiver
+    var receiver_type = reading_type_of(receiver.name, information, function, locals)
+    assert receiver_type
+    if type_shape.as_scalar(receiver_type) or type_shape.as_string(receiver_type) {
+        return true
+    }
+    if type_shape.as_list(receiver_type) or type_shape.as_dictionary(receiver_type) {
+        var reading = [
+            "count"
+            "get_at"
+            "find_at"
+            "get"
+            "has"
+            "is_empty"
+            "first"
+            "last"
+            "contains"
+            "keys"
+            "values"
+            "join"
+            "copy"
+        ]
+        return reading.contains(member.name)
+    }
+    var held = class_behind(receiver_type)
+    assert held
+    var memory = held.qualified_dotted == "TypedMemory" or held.qualified_dotted == "InlineMemory"
+    if memory {
+        var reading = ["read_value", "value_bytes", "item_at", "item_bytes", "item_start"]
+        return reading.contains(member.name)
+    }
+    assert held.is_singleton and held.is_stateless_singleton and not is_library_class(held)
+    var called = held.find_function(member.name)
+    assert called
+    return reads_only(held, called, visiting)
+}
+
+func plain_operand(
+    expression: Syntax.Expressions.Expression,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    locals: List<String>,
+): Boolean {
+    switch expression {
+        Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.FloatLiteral: return true
+        Syntax.Expressions.TrueLiteral: return true
+        Syntax.Expressions.FalseLiteral: return true
+        Syntax.Expressions.IdentifierExpression: {
+            if locals.contains(expression.name) {
+                return locals.contains("={expression.name}")
+            }
+            var named_type = reading_type_of(expression.name, information, function, locals)
+            assert named_type
+            var scalar = type_shape.as_scalar(named_type)
+            assert scalar
+            return true
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            assert plain_operand(expression.left, information, function, locals)
+            return plain_operand(expression.right, information, function, locals)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return plain_operand(expression.operand, information, function, locals)
+        }
+        _: return false
+    }
+}
+
+func operators_are_pure(): Boolean {
+    if not pure_operators_known {
+        pure_operators_known = true
+        pure_operators = no_operator_functions()
+    }
+    return pure_operators
+}
+
+func no_operator_functions(): Boolean {
+    var operators = [
+        "sum"
+        "subtract"
+        "multiply"
+        "divide"
+        "remainder"
+        "equals"
+        "less_than"
+        "greater_than"
+        "negate"
+    ]
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if not is_library_class(information) and not information.is_value_class {
+            var operator_index = 0
+            while operator_index < operators.count() {
+                assert not information.find_function(operators[operator_index])
+                operator_index = operator_index + 1
+            }
+        }
+        index = index + 1
+    }
+    return true
 }
 
 func state_touching_functions(): Dictionary<Boolean> {
@@ -25281,6 +26050,7 @@ func report_locked_waits(wrapped: List<Integer>) {
         var position = wrapped[index]
         var information = guarded_classes.get_at(position)
         var function = guarded_functions.get_at(position)
+        wrapped_function_names.set(function.c_name, true)
         if not is_instantiated_class(information) {
             locked_keys.set("{information.simple_name}#{function.name}", information.simple_name)
         }
@@ -25985,9 +26755,9 @@ func guarded_outside_read(
         if type_needs_drop(field_type) {
             read_code = retain_call(field_type, place)
         }
-        lines.append("{owner}___outside_enter();")
+        lines.append("{owner}___outside_read_enter();")
         lines.append("{c_type_name(field_type)} {field_temporary} = {read_code};")
-        lines.append("{owner}___outside_leave();")
+        lines.append("{owner}___outside_read_leave();")
     }
     if owns(object_result, object_ast) {
         lines.append("{release_call(object_type, object_temporary)};")
@@ -26114,12 +26884,25 @@ func finish_outside_writes() {
             emitted_guards.append(name)
             builder.add_support("static SpiteGuard {name}___guard = \{ 0, 0 };")
         }
-        if threaded {
+        if threaded and read_guarded_names.contains(name) {
+            builder.add_typedef(
+                "#define {name}___outside_enter() spite_guard_enter_writing(&{name}___guard, {name}___readers)",
+            )
+            builder.add_typedef("#define {name}___outside_leave() spite_guard_leave(&{name}___guard)")
+            builder.add_typedef(
+                "#define {name}___outside_read_enter() int64_t* spite_reading = spite_read_enter(&{name}___guard, {name}___readers)",
+            )
+            builder.add_typedef("#define {name}___outside_read_leave() spite_read_leave(spite_reading)")
+        } else if threaded {
             builder.add_typedef("#define {name}___outside_enter() spite_guard_enter(&{name}___guard)")
             builder.add_typedef("#define {name}___outside_leave() spite_guard_leave(&{name}___guard)")
+            builder.add_typedef("#define {name}___outside_read_enter() spite_guard_enter(&{name}___guard)")
+            builder.add_typedef("#define {name}___outside_read_leave() spite_guard_leave(&{name}___guard)")
         } else {
             builder.add_typedef("#define {name}___outside_enter() ((void)0)")
             builder.add_typedef("#define {name}___outside_leave() ((void)0)")
+            builder.add_typedef("#define {name}___outside_read_enter() ((void)0)")
+            builder.add_typedef("#define {name}___outside_read_leave() ((void)0)")
         }
         index = index + 1
     }
@@ -26156,18 +26939,54 @@ func emit_guard_wrapper(information: Analysis.ClassInfo, function: Analysis.Func
     var return_type = function.get_return_type()
     var lines = List<String>()
     lines.append("{function_signature(information, function)} \{")
-    lines.append("spite_guard_enter({guard});")
+    append_unshared_path(lines, called, guard, return_type)
+    var leave = "spite_guard_leave({guard});"
+    if reading_function_names.has(function.c_name) {
+        lines.append("int64_t* spite_reading = spite_read_enter({guard}, {information.c_name}___readers);")
+        leave = "spite_read_leave(spite_reading);"
+    } else if read_guarded_names.contains(information.c_name) {
+        lines.append("spite_guard_enter_writing({guard}, {information.c_name}___readers);")
+    } else {
+        lines.append("spite_guard_enter({guard});")
+    }
     if type_shape.is_void(return_type) {
         lines.append("{called};")
-        lines.append("spite_guard_leave({guard});")
+        lines.append(leave)
     } else {
         lines.append("{c_type_name(return_type)} spite_guarded = {called};")
-        lines.append("spite_guard_leave({guard});")
+        lines.append(leave)
         lines.append("return spite_guarded;")
     }
     lines.append("}")
     var joined_lines = lines.join("\n")
     builder.add_user(joined_lines)
+}
+
+func append_unshared_path(lines: List<String>, called: String, guard: String, return_type: Analysis.SpiteType) {
+    lines.append("if (spite_skipped_depth < 16 && __atomic_load_n(&spite_tasks_in_flight, __ATOMIC_ACQUIRE) == 0) \{")
+    lines.append("int32_t spite_skip = spite_skipped_depth;")
+    lines.append("spite_skipped[spite_skip] = (void*){guard};")
+    lines.append("spite_skipped_taken[spite_skip] = 0;")
+    lines.append("spite_skipped_depth = spite_skip + 1;")
+    var done = "return;"
+    if type_shape.is_void(return_type) {
+        lines.append("{called};")
+    } else {
+        lines.append("{c_type_name(return_type)} spite_unshared = {called};")
+        done = "return spite_unshared;"
+    }
+    lines.append("spite_skipped_depth = spite_skip;")
+    lines.append("if (spite_skipped_taken[spite_skip]) spite_guard_leave({guard});")
+    lines.append(done)
+    lines.append("}")
+}
+
+func finish_skipped_guards() {
+    if parallel_used {
+        builder.add_support("static void spite_enter_skipped(void* guard) \{ spite_guard_enter((SpiteGuard*)guard); }")
+        return
+    }
+    builder.add_support("static void spite_enter_skipped(void* guard) \{ (void)guard; }")
 }
 
 func finish_waiting_points() {

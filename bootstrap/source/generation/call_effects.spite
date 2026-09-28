@@ -335,6 +335,52 @@ func thread_reached_classes(): Dictionary<Boolean> {
     return reached_classes(entries)
 }
 
+func thread_reached_functions(): Dictionary<Boolean> {
+    var entries = List<String>()
+    var index = 0
+    while index < function_keys.count() {
+        var effects = by_function.get(function_keys[index])
+        crash effects
+        add_taken_entries(effects, entries)
+        add_parallel_each_entries(effects, entries)
+        index = index + 1
+    }
+    var seen = Dictionary<Boolean>()
+    var waiting = entries.copy()
+    while not waiting.is_empty() {
+        var key = waiting.remove_last()
+        crash key
+        if not seen.has(key) {
+            seen.set(key, true)
+            var effects = by_function.get(key)
+            if effects {
+                add_callees(effects, waiting)
+            }
+        }
+    }
+    return seen
+}
+
+func writes_from_reached(class_name: String, reached: Dictionary<Boolean>): Boolean {
+    var index = 0
+    while index < function_keys.count() {
+        var key = function_keys[index]
+        var hash = key.index_of("#")
+        var writer_class = key.slice(0, hash)
+        var effects = by_function.get(key)
+        crash effects
+        if writer_class != class_name and reached.has(key) {
+            var names = List<String>()
+            add_outside_writes(effects, class_name, names)
+            if not names.is_empty() {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func add_taken_entries(effects: FunctionEffects, entries: List<String>) {
     var index = 0
     while index < effects.taken.count() {

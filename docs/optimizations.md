@@ -824,6 +824,105 @@ counter's attribute is read with one atomic load, and a singleton that never cha
 = counter.hits + 1` from outside is still a read and a write, two steps. **Built** (2026-09-25; proposed by
 Claude, unconfirmed: which forms, their order, and the one-touch rule; the reads 2026-09-26).
 
+### While no task runs, a singleton's lock is skipped
+
+**What it does.** Every function a singleton's lock wraps first asks whether any work is on the thread pool: the pool
+counts every task from the moment it is handed out until it has run (`spite_tasks_in_flight`, one add and one
+subtract per task), and when the count is zero -- before the first `Parallel`, after the last one has been read,
+between an engine's stages -- only the program's own thread runs the program, so the function runs without the
+lock ([D231](decisions.md); proposed by Claude, unconfirmed). It notes on a small stack of its thread's that it
+skipped this singleton's lock, and if it starts a task itself before it returns, the pool takes every lock the
+thread skipped before the task is counted, and the function lets it go when it returns: so the task finds the
+singleton locked exactly as it would have, and nothing it can see differs.
+
+**When.** In every wrapper D183's lock gives a function, writing and reading ones alike, in a program that makes a
+`Parallel` or a `parallel_each_` pass; sixteen skipped singletons deep at most, beyond which the lock is taken as
+before. Writes and reads of attributes from other classes and counted loops (D229) keep their lock.
+
+**What you notice.** Speed where the program's own thread calls a locked singleton while nothing runs on the pool
+-- an engine applying queued inserts between stages: `benchmarks/singleton_unshared`, ten million calls on the
+program's thread with no task in flight, 19 ns a call with the lock, 9 ns now, against 4 ns with no lock at all
+written by hand. In a spawn-shaped program doing real work per call (`Column<T>` inserts: growing a list, appending
+to an `Items`, reading a row) the lock was about 1 ns of 14 ns a call, so there it measures 13 ns. Each call reads
+one counter no thread writes while it is zero, and each task costs two atomic additions. **Built** (2026-09-27).
+
+A `copy()` or `deep_copy()` of a class that holds nothing counted as one `memcpy` of its attributes, which
+SlopEngine asked for at the same time, was measured and not built: 200 000 copies of a two-`Float` class took
+31-32 ns each before and 36-38 ns after, the allocation being nearly all of it.
+
+### A singleton's reading functions do not exclude each other
+
+**What it does.** A locked singleton's function that only reads its state -- an engine column's `at(row)`, a lookup --
+no longer takes the lock itself. It takes the readers' side: it adds one to a count of its own thread's (one of 32
+counts, each on a cache line of its own), checks that no function that writes holds the lock, reads, and takes the
+one away. A function that writes takes the lock as before and then waits until every count is zero, so it never
+runs beside a reader, and readers never run beside it ([D230](decisions.md); proposed by Claude, unconfirmed). Readers
+on different threads touch no line in common, so eight systems reading one column per row no longer hand a cache
+line from core to core on every call.
+
+**When.** For each function the lock would wrap (D183's fourth form), in a program that makes a `Parallel`, when the
+compiler proves from its source that it changes nothing: its statements declare and assign only its own locals,
+branch, loop, `return`, `assert` or `crash`; it calls only reading functions of its own class, the reading members
+of a `List` or `Dictionary` it holds or is passed (`count`, `get_at`, `[]`, `get`, `has`, `is_empty`, `first`,
+`last`, `contains`, `keys`, `values`, `join`, `copy`), anything on text and numbers but a `write_` or `copy_to`,
+`read_value`-like reads of `TypedMemory` and `InlineMemory`, and reading functions of a singleton that holds no
+state (SlopEngine's `Raw.read_long`); it reads attributes that have no getter; its text has no holes (a hole could
+call `to_string`); and its operators are on numbers, or the program declares no operator function at all. Anything
+else is a writing function. And it is only for a singleton that the work of a `Parallel` only reads: none of its
+writing functions, and no function that writes its attributes from another class, is reachable from what a
+`Parallel` or a `parallel_each_` pass runs -- SlopEngine's columns, written between stages and read by the systems
+of a stage. A singleton that is also written from the pool keeps the plain lock: a write there would scan the counts
+on every call (measured: `Row.advance()` per entity took SlopEngine's `stress` tick from 8 ms to 25 ms). A
+singleton with reading functions that qualifies gets the counts; its writing functions,
+writes and reads of its attributes from other classes, and counted loops of calls (below) use the matching side, and
+a counted loop that calls only reading functions takes the readers' side once for the whole loop. The thread that
+holds the writers' side reads without counting, so a writing function calling out to code that reads back is not
+held up by itself.
+
+**What you notice.** Speed where several threads read one singleton: `benchmarks/singleton_reads`, eight `Parallel`
+systems each reading 15 000 rows of one column through `at(row)`, went from 202 ns to 6 ns per row read (24 ms to
+0.75 ms a tick). A reading call on one thread costs about the same as before (a locked add on a line only that thread
+writes, instead of a compare-and-swap on a shared one). A write now also looks at the 32 counts once per outermost
+call: about 32 loads that stay in the writing core's cache while nothing reads. Each singleton with reading
+functions carries 2 KiB of counts. What a program computes is unchanged: a reading function still sees the
+singleton's state whole, never half-way through a write. **Built** (2026-09-26).
+
+### A counted loop of calls to one singleton takes its lock once
+
+**What it does.** A `while` that calls functions of one locked singleton many times -- a worker removing rows through
+`columns.remove_row(entity)`, a system adding to a tally -- takes that singleton's lock once around the whole loop
+and calls the functions' unlocked bodies inside it, instead of taking and letting go of the lock on every call
+([D229](decisions.md); proposed by Claude, unconfirmed). One of those per call is two atomic operations when no
+other thread wants the lock, and when other threads do, every call hands the lock's cache line from core to core.
+
+**When.** In a program that makes a `Parallel`, for a `while` in any class but the singleton itself when all of this
+holds, so that the lock held longer can neither deadlock nor wait on anything:
+
+- **It ends on its own.** It is counted: `index < bound`, `index` a local stepped by `index = index + 1` as the
+  body's last line and assigned nowhere else in it, and `bound` a whole number, a name the body never assigns, or
+  `.count()` of a list of plain values. So it never waits for another thread to change the singleton (a poll such
+  as `while got == 0 { got = mailbox.take() }` keeps a lock per call), and every `while` inside it is counted too.
+- **It locks nothing else.** Its calls are functions of that one singleton, reached through the attribute that binds
+  it, and the reads and writes of a list of plain values (`count`, `get_at`, `set_at`, `append`, `contains`,
+  `is_empty`, `[]`); what it computes is numbers, `Boolean`, text without holes and enum values, so no operator,
+  getter or `to_string` of a class of the program's can run in it. A lock it takes nothing else under adds no new
+  order between two locks: whatever the singleton's functions lock, they lock under its lock already.
+- **It waits for nothing.** No `Parallel` or `Concurrent` is read in it (none is even named), it cannot `return`,
+  and the singleton's functions it calls can reach no wait (the facts `function_waits` uses) and no `Parallel`,
+  `Concurrent`, `ThreadPool`, `Scheduler`, `Lock`, `Program`, `Console`, `File` or `Socket`.
+- **The lock is real.** At least one of the functions it calls takes the lock (D183's fourth form); a loop calling
+  only functions that touch no changing state, or a singleton that takes no lock, is left as it was.
+
+Not in a `--hot-reload`, `--repl` or `--repl-port` build, nor in the resumable copy of a function a `Concurrent`
+runs. **What you notice.** Speed: `benchmarks/singleton_locks`, 800 000 calls from eight workers, went from 2.3 ms to
+0.35 ms with a singleton per worker and from 51 ms to 0.6 ms with one singleton for all of them (the lock handed
+between cores on every call); one thread, 1.7 ms to 0.4 ms. Nothing a program prints changes: the loop's calls run
+exactly as before, and other threads' calls on the singleton wait until the loop is over instead of slipping in
+between two of its calls, which is one of the orders they could already run in. A long counted loop keeps other
+threads that want the singleton waiting for all of it. In the C, the loop is between `spite_coarse_<n>_enter()` and
+`spite_coarse_<n>_leave()` and calls `<function>___unguarded`; `conformance/stage6/coarse_locks` holds that in
+`check.sh`. **Built** (2026-09-26).
+
 ### Smaller ones
 
 All **built**, and none of them needs anything from you:

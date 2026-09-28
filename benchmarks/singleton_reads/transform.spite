@@ -1,0 +1,5 @@
+var across = 0.0
+
+func Transform(new_across: Float) {
+    across = new_across
+}

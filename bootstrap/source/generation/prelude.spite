@@ -39,6 +39,11 @@ func header(): String {
         "#define SPITE_SINGLETON_PUBLISH(cache, made) __atomic_store_n(&(cache), (made), __ATOMIC_RELEASE)"
         "#define SPITE_LOCK(lock) while (__atomic_exchange_n(&(lock), 1, __ATOMIC_ACQUIRE) != 0) \{}"
         "#define SPITE_UNLOCK(lock) __atomic_store_n(&(lock), 0, __ATOMIC_RELEASE)"
+        "static int64_t spite_tasks_in_flight = 0;"
+        "static SPITE_THREAD_LOCAL void* spite_skipped[16];"
+        "static SPITE_THREAD_LOCAL int32_t spite_skipped_taken[16];"
+        "static SPITE_THREAD_LOCAL int32_t spite_skipped_depth = 0;"
+        "static void spite_enter_skipped(void* guard);"
         "#else"
         "#define SPITE_COUNT_UP(count) ((count) = (count) + 1)"
         "#define SPITE_COUNT_DOWN(count) ((count) = (count) - 1)"
@@ -468,6 +473,10 @@ func task_members(): List<String> {
         "written by the generator: the address of the thread entry that runs this class"
         "func address(): Long"
         "written by the generator: the address of the object itself"
+        "func _task_begun()"
+        "written by the generator: takes the singleton locks this thread skipped while no task ran, and counts a task in flight"
+        "func _task_ended()"
+        "written by the generator: counts a task out of flight"
     ]
 }
 

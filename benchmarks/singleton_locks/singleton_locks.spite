@@ -1,0 +1,83 @@
+var console = Console()
+var clock = Clock()
+var rounds = 100000
+
+func SingletonLocks() {
+    var attempt = 0
+    var best_own_threads: Long = 0
+    var best_own_alone: Long = 0
+    var best_shared_threads: Long = 0
+    var best_shared_alone: Long = 0
+    var total: Long = 0
+    while attempt < 7 {
+        var start = clock.elapsed_nanoseconds()
+        total = total + on_threads(false)
+        var own_threads = clock.elapsed_nanoseconds() - start
+        start = clock.elapsed_nanoseconds()
+        total = total + on_one_thread(false)
+        var own_alone = clock.elapsed_nanoseconds() - start
+        start = clock.elapsed_nanoseconds()
+        total = total + on_threads(true)
+        var shared_threads = clock.elapsed_nanoseconds() - start
+        start = clock.elapsed_nanoseconds()
+        total = total + on_one_thread(true)
+        var shared_alone = clock.elapsed_nanoseconds() - start
+        if attempt == 0 or own_threads < best_own_threads {
+            best_own_threads = own_threads
+        }
+        if attempt == 0 or own_alone < best_own_alone {
+            best_own_alone = own_alone
+        }
+        if attempt == 0 or shared_threads < best_shared_threads {
+            best_shared_threads = shared_threads
+        }
+        if attempt == 0 or shared_alone < best_shared_alone {
+            best_shared_alone = shared_alone
+        }
+        attempt = attempt + 1
+    }
+    var own_threads_microseconds = best_own_threads / 1000
+    var own_alone_microseconds = best_own_alone / 1000
+    var shared_threads_microseconds = best_shared_threads / 1000
+    var shared_alone_microseconds = best_shared_alone / 1000
+    console.print(
+        "800000 calls, best of 7: a singleton per worker {own_threads_microseconds} us on 8 Parallels, {own_alone_microseconds} us on one thread; one singleton for all {shared_threads_microseconds} us on 8 Parallels, {shared_alone_microseconds} us on one thread",
+    )
+    console.print("calls", total)
+}
+
+func on_threads(calls_shared: Boolean): Long {
+    var position_worker = Worker<Position>(rounds, calls_shared)
+    var position_run = Parallel(position_worker.run)
+    var velocity_worker = Worker<Velocity>(rounds, calls_shared)
+    var velocity_run = Parallel(velocity_worker.run)
+    var health_worker = Worker<Health>(rounds, calls_shared)
+    var health_run = Parallel(health_worker.run)
+    var mana_worker = Worker<Mana>(rounds, calls_shared)
+    var mana_run = Parallel(mana_worker.run)
+    var armor_worker = Worker<Armor>(rounds, calls_shared)
+    var armor_run = Parallel(armor_worker.run)
+    var speed_worker = Worker<Speed>(rounds, calls_shared)
+    var speed_run = Parallel(speed_worker.run)
+    var energy_worker = Worker<Energy>(rounds, calls_shared)
+    var energy_run = Parallel(energy_worker.run)
+    var shield_worker = Worker<Shield>(rounds, calls_shared)
+    var shield_run = Parallel(shield_worker.run)
+    var first: Long = position_run + velocity_run + health_run + mana_run
+    var second: Long = armor_run + speed_run + energy_run + shield_run
+    return first + second
+}
+
+func on_one_thread(calls_shared: Boolean): Long {
+    var position_worker = Worker<Position>(rounds, calls_shared)
+    var velocity_worker = Worker<Velocity>(rounds, calls_shared)
+    var health_worker = Worker<Health>(rounds, calls_shared)
+    var mana_worker = Worker<Mana>(rounds, calls_shared)
+    var armor_worker = Worker<Armor>(rounds, calls_shared)
+    var speed_worker = Worker<Speed>(rounds, calls_shared)
+    var energy_worker = Worker<Energy>(rounds, calls_shared)
+    var shield_worker = Worker<Shield>(rounds, calls_shared)
+    var total = position_worker.run() + velocity_worker.run() + health_worker.run() + mana_worker.run()
+    total = total + armor_worker.run() + speed_worker.run() + energy_worker.run() + shield_worker.run()
+    return total
+}

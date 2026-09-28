@@ -1,0 +1,10 @@
+var console = Console()
+var ledger = Ledger()
+
+func UnsharedLocks() {
+    var before = ledger.total()
+    var posting = ledger.start_posting(20000)
+    var posted: Integer = posting
+    var after = ledger.total()
+    console.print("before", before, "posted", posted, "after", after)
+}

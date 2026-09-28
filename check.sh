@@ -167,7 +167,7 @@ locks="$work/singleton_lock_calls.c"
   echo "FAILED: singleton_lock_calls does not write its C"; exit 1; }
 if ! grep -q "_Alignas(64) int64_t owner" "$locks" || ! grep -q "^Registry_count_one___unguarded(self);" "$locks" \
    || ! grep -q "^#define Registry___outside_enter() spite_guard_enter(&Registry___guard)" "$locks" || grep -q "Rules___guard" "$locks" \
-   || [ "$(grep -c "Registry___outside_enter();" "$locks")" -lt 2 ]; then
+   || [ "$(grep -cE "Registry___outside_(read_)?enter\(\);" "$locks")" -lt 2 ]; then
   echo "FAILED: singleton_lock_calls should pad its lock, call itself unlocked, lock a write and a read from outside and not lock Rules"; exit 1
 fi
 # A locked singleton's function that touches none of its changing state takes no lock, so pool work calling it
@@ -178,7 +178,35 @@ stateless="$work/singleton_stateless_calls.c"
 if ! grep -q "^int32_t Workshop_build___unguarded(Workshop\* self) {" "$stateless" || grep -q "Workshop_make_piece___unguarded" "$stateless"; then
   echo "FAILED: singleton_stateless_calls should lock Workshop.build and not Workshop.make_piece"; exit 1
 fi
-echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock"
+# D229: a counted loop calling one locked singleton takes its lock once around the loop and calls the unlocked body;
+# a loop polling another singleton for what a Parallel posts keeps a lock per call, or it would never see the post.
+coarse="$work/coarse_locks.c"
+"$work/generation_two.exe" conformance/stage6/coarse_locks --run=false --c-source --c-path="$coarse" > /dev/null 2>&1 || {
+  echo "FAILED: coarse_locks does not write its C"; exit 1; }
+if ! grep -q "^#define spite_coarse_0_enter() spite_guard_enter(&Tally___guard)$" "$coarse" \
+   || ! grep -q "^Tally_add___unguarded(self->tally_, 1);$" "$coarse" || grep -q "Mailbox_take___unguarded(self->mailbox_" "$coarse" \
+   || grep -q "Mailbox_put___unguarded(self->mailbox_" "$coarse"; then
+  echo "FAILED: coarse_locks should lock Tally once around count_up's loop and Mailbox on every call"; exit 1
+fi
+# D230: a locked singleton's function that only reads takes the readers' side of its lock, a count on the reading
+# thread's own cache line, and a function that writes waits for the readers to leave.
+reads="$work/singleton_reads.c"
+"$work/generation_two.exe" conformance/stage6/singleton_reads --run=false --c-source --c-path="$reads" > /dev/null 2>&1 || {
+  echo "FAILED: singleton_reads does not write its C"; exit 1; }
+if ! grep -q "^int64_t\* spite_reading = spite_read_enter(&Column__Transform___guard, Column__Transform___readers);$" "$reads" \
+   || ! grep -q "^spite_guard_enter_writing(&Column__Transform___guard, Column__Transform___readers);$" "$reads"; then
+  echo "FAILED: singleton_reads should read Column<Transform>.at on the readers' side and write insert on the writer's"; exit 1
+fi
+# D231: while no task is in flight a locked function runs unlocked, and a task it starts takes the lock it skipped.
+unshared="$work/unshared_locks.c"
+"$work/generation_two.exe" conformance/stage6/unshared_locks --run=false --c-source --c-path="$unshared" > /dev/null 2>&1 || {
+  echo "FAILED: unshared_locks does not write its C"; exit 1; }
+if ! grep -A1 "^Parallel__Integer\* Ledger_start_posting(Ledger\* self, int32_t count_) {$" "$unshared" \
+     | grep -q "^if (spite_skipped_depth < 16 && __atomic_load_n(&spite_tasks_in_flight, __ATOMIC_ACQUIRE) == 0) {$" \
+   || ! grep -q "spite_enter_skipped(spite_skipped\[spite_index\])" "$unshared"; then
+  echo "FAILED: unshared_locks should skip Ledger's lock while no task runs and take it when one starts"; exit 1
+fi
+echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock"
 # D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
 # division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no check for it.
 "$work/generation_two.exe" conformance/stage6/division_by_zero --run=false --c-source --c-path="$work/division.c" > /dev/null 2>&1 || {

@@ -38,6 +38,7 @@ func submit(job: Spite.Function<Integer, Integer, Nothing>, first: Integer, end:
     queued.first = first
     queued.end = end
     queued.state = state
+    _task_begun()
     lock_queue()
     jobs.append(queued)
     signal_one(work_ready)
@@ -145,6 +146,7 @@ func run_queued(position: Integer) {
     unlock_queue()
     crash job.work
     job.work.call_function(job.first, job.end)
+    _task_ended()
     lock_queue()
     job.state.write_long_atomically(0, 2)
     signal_all(work_done)

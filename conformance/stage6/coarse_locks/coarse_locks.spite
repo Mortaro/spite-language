@@ -1,0 +1,21 @@
+var console = Console()
+var tally = Tally()
+var mailbox = Mailbox()
+
+func CoarseLocks() {
+    var first = Counter(20000)
+    var first_run = Parallel(first.count_up)
+    var second = Counter(20000)
+    var second_run = Parallel(second.count_up)
+    var third = Counter(20000)
+    var third_run = Parallel(third.count_up)
+    var poster = Counter(500)
+    var posting = Parallel(poster.count_and_post)
+    var got = 0
+    while got < 500 {
+        got = mailbox.take()
+    }
+    var counted: Integer = first_run + second_run + third_run + posting
+    var total = tally.sum()
+    console.print("counted", counted, "tally", total, "last post", got)
+}
