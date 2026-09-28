@@ -732,6 +732,27 @@ for.
 **What you notice.** Nothing in an ordinary build: its C is byte for byte the same with or without the check
 points. **Built.**
 
+### A reload compiles only the classes that changed
+
+**What it does.** `spite reload` (the running program's `reload`, and its file watcher) compiles the functions of
+the classes the changed files declare and nothing else of the program: every class is still read and checked,
+but every function the running program already has with the same prototype is left out, and the library reaches
+it in the running program. What compiling one class depends on in the others -- the generic instances and
+functions the compiler made, which classes fit a shape, which functions can wait, which attributes are read, the
+call effects, the key kinds -- comes from the manifest the build wrote beside the executable
+([repl.md](repl.md#how-it-works)). The library's C carries only the types and declarations its functions use.
+
+**When.** In every reload of a `--hot-reload` build, unless the changed code changes one of those facts (then the
+reload compiles the whole program, as before, and says why on the error output). **Built.**
+
+**What you notice.** A changed system of SlopTheseus's server swaps in about 6 seconds after the save, where a whole compile
+took 20 to 30. Nothing else: what swaps in is what a whole compile writes, which `check.sh` compares file by
+file (`SPITE_RELOAD_CHECK`). The `--hot-reload` build writes a larger manifest (about 40 MB for SlopTheseus's
+server) and spends about a second more writing it, and each class's `functions` list is written once more at the
+end of compiling when the class gained a function late ([reflection.md](reflection.md)). A fact a future change
+to the generator starts consulting across classes must be recorded in the manifest too, or checked by
+`SPITE_RELOAD_CHECK` -- a fast reload that misses one would swap in code compiled against a stale fact.
+
 ### The thread pool only where a `Parallel` is made
 
 **What it does.** `ThreadPool` is a singleton made the first time a `Parallel` (or a `parallel_each_` pass) needs

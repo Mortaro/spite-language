@@ -35,6 +35,7 @@ spite> turn is an Integer, which has no attributes
 spite> weakest(): Monster
 add(left: Integer, right: Integer): Integer
 greet(name: String): String
+to_debug(): String
 spite> 5
 spite> hello you, too
 spite> 17

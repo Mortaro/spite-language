@@ -488,7 +488,11 @@ REPL (D92). The members only the compiler can write -- `value_attributes()`, `va
 `assign(text)` on `Spite.Attribute`, `call_function()` and `call_with_text(arguments)` on `Spite.Function` -- are
 the compiler's reopening of those classes (D82, [Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)), printed by `--final-classes` like any member. A class
 of the standard library describes its members too: `Memory.Heap.functions` lists every function `Memory.Heap`
-has, supplied ones included.
+has, supplied ones included. **The list holds every function the class has once compiling ends**, in the order
+they were made (proposed by Claude, unconfirmed): its C is written again at the end whenever the class gained a
+function after it was first written. Before, a function the compiler made for the class after its list was
+written -- a template instance another class asked for, the automatic `to_debug` -- was missing from it, and
+whether it was depended on the order the classes were compiled in, which a reload cannot reproduce.
 
 **A name starting with `_` is private** (D137, decided by Mortaro: everywhere but on a parameter, where `_`
 means unused on purpose; the reach below proposed by Claude, unconfirmed, [Lexical structure](classes_and_files.md#lexical-structure--implemented)):

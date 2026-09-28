@@ -18,6 +18,7 @@ var threads = false
 var hot_reload = false
 var debug_memory = false
 var host = HotReloadLibrary()
+var constant_texts = Dictionary<String>()
 var faults = NativeFaults()
 var function_owners = Dictionary<String>()
 var function_names = Dictionary<String>()
@@ -85,6 +86,9 @@ func typedef_count(): Integer {
 
 func replace_typedef(position: Integer, line: String) {
     typedefs.set_at(position, line)
+    if position < scanned_typedefs {
+        scan_names(line)
+    }
 }
 
 func add_prototype(line: String) {
@@ -116,6 +120,9 @@ func support_at(position: Integer): String {
 
 func replace_support(position: Integer, line: String) {
     support_bodies.set_at(position, line)
+    if position < scanned_support {
+        scan_names(line)
+    }
 }
 
 func add_user(line: String) {
@@ -309,7 +316,7 @@ func render(): String {
     var slot_text = ""
     if hot_reload {
         slot_text = "{slot_lines.join("\n")}\n"
-        host.record_host(prototype_lines, bodies)
+        host.record_host(prototype_lines, bodies, constant_texts)
         var symbol_table = host.symbol_table()
         bodies = "{bodies}\n{symbol_table}"
     }

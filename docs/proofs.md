@@ -96,6 +96,7 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 | [Whether a function writes a parameter](#whether-a-function-writes-a-parameter) | built | engines refuse lost writes | `true` where unsure |
 | [A `crash` that folds false is an error](#a-crash-that-folds-false-is-a-compile-error) | built | a certain halt becomes a build error | a run-time check |
 | [Tree shaking](#tree-shaking-what-main-can-reach) | built | smaller program | an inspectable build keeps all |
+| [A reload compiles only the changed classes](#a-reload-compiles-only-the-changed-classes) | built | a reload in seconds | the whole program is compiled |
 | [Buffers in the frame](#a-buffer-freed-in-its-block-lives-in-the-frame) | built | no allocation | the heap |
 | [Frame objects](#objects-that-never-leave-their-function-live-in-the-frame) | built | no allocation | the heap |
 | [Local and variadic lists in the frame](#local-and-variadic-lists-in-the-frame) | built | no allocation | the heap |
@@ -570,6 +571,23 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 - **See.** D140, D143, D177; [optimizations.md: Tree shaking the generated
   C](optimizations.md#tree-shaking-the-generated-c), [metaprogramming.md: Tree
   shaking](metaprogramming.md#tree-shaking); `conformance/stage6/development_internals`.
+
+### A reload compiles only the changed classes
+
+- **Status.** Built.
+- **Proves.** Compiling the changed classes against what the running program was compiled with writes the same code
+  a whole compile would.
+- **Rule.** A `--hot-reload` build records in its manifest every fact compiling one class took from another: the
+  functions that wait, the call effects and writes of every function, which classes fit each shape, the attributes
+  and words read, the key kinds, the template instances and the functions made on demand, with a hash of every
+  piece of C. A reload replays them, compiles the changed files' classes, and compares: a recorded fact that now
+  differs, a function of another class whose C would change, or a changed signature of a changed class sends the
+  reload to the whole compile, which says why on the error output.
+- **Buys.** A changed system of SlopTheseus's server swaps in about 6 seconds instead of 20 to 30.
+- **Falls back.** The whole compile. `SPITE_RELOAD_CHECK` compiles both ways and compares them, and `check.sh` runs
+  it on every file of several programs; a fact the generator starts consulting across classes must be recorded too.
+- **See.** D111, D211, D244; [repl.md: How it works](repl.md#how-it-works), [optimizations.md: A reload compiles
+  only the classes that changed](optimizations.md#a-reload-compiles-only-the-classes-that-changed).
 
 ## Memory
 

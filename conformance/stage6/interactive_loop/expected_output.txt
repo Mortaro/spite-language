@@ -5,6 +5,7 @@ label: String = counter
 spite> spite> spite> 3
 spite> increment(): Nothing
 doubled(): Integer
+to_debug(): String
 spite> 6
 spite> no attribute 'missing' in program: console, count, label
 spite> 

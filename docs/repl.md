@@ -291,17 +291,32 @@ next save reloads.
   costs about a nanosecond per call, one indirect call the C compiler cannot inline
   ([measured](#live-reload-and-6b--implemented-on-windows-the-mechanism-and-the-rules-below-proposed-by-claude-unconfirmed)),
   and only in a `--hot-reload` build.
-- **Only what changed is compiled again.** The build writes two files beside the executable: `game.reload_host`
-  (every function the program has, its classes and their layouts) and `game.reload_files` (a hash of each of the
-  program's files). A reload runs the compiler that built the program with the same options, as `spite reload`.
-  The compiler reads the program's files and compares their hashes first, so a save that changed nothing answers
-  at once. Otherwise it compiles the whole program again, starting from the dictionary key kinds the build
-  settled on, but writes C only for the classes whose files changed and whatever those need that the program does
-  not already have, and compiles that into `game_reload_1.dll` (`.so` on Linux, `.dylib` on macOS). Everything
-  else the new code calls, it reaches in the running program. What that costs grows with the program: for
-  SlopTheseus's server (about 460 files and 880,000 lines of C) a save that changed nothing answers in under a
-  second and a changed system is swapped in about 20 seconds after the save, most of it compiling the whole
-  program again.
+- **Only what changed is compiled again.** The build writes two files beside the executable: `game.reload_host`,
+  what the running program holds -- every function with its C prototype, its classes and their layouts, and the
+  facts its code was compiled against (below) -- and `game.reload_files`, a hash of each of the program's files. A
+  reload runs the compiler that built the program with the same options, as `spite reload`. It reads the
+  program's files and compares their hashes first, so a save that changed nothing answers at once. Otherwise it
+  compiles **only the classes of the changed files**: every class is read and checked, as the changed code needs,
+  but no other class's functions are compiled -- the new code reaches them in the running program. The C it writes
+  is only the changed classes' functions and whatever those need that the running program lacks, with the types
+  and declarations they use, and it compiles that into `game_reload_1.dll` (`.so` on Linux, `.dylib` on macOS).
+  For SlopTheseus's server (about 460 files; 880,000 lines of C for the whole program) a changed system is swapped
+  in about 6 seconds after the save (5 of them the compiler, 1 the C compiler and starting up), where compiling the
+  whole program took 20 to 30 seconds, and a save that changed
+  nothing answers in under a second.
+- **A reload is compiled against what the running program was compiled with, and compiles the whole program when
+  that changes.** Compiling one class depends on the rest: which functions can wait, which classes fit a shape,
+  which attributes something reads, the call effects that decide whether a borrowed value must be counted, how a
+  dictionary is keyed, which functions the program made for a class (a setter, a template instance, a `to_debug`).
+  The build records these in the manifest and a reload starts from them. When the changed code changes one of
+  them -- or a parameter list, or the layout of a class -- code in other classes compiled against the old one would
+  be stale, so the reload compiles the whole program instead, and says why on the compiler's error output
+  (`spite: compiling the whole program, since outside HotCounter changed`). A whole compile compares every function
+  it writes with the running program's: another program class whose C changed is rebuilt too, and a changed
+  function the program cannot swap -- the standard library's, a helper the compiler writes -- refuses the reload
+  with `the change reaches '<name>', which the running program cannot swap: restart the program to take the
+  change, or undo it`. Either way what swaps in is what compiling the whole program writes; `check.sh` holds it by
+  compiling a reload of every file of ten programs both ways and comparing them (`SPITE_RELOAD_CHECK=<file>`).
 - **The swap happens where the program waits** ([D37](decisions.md)), or at the end of a pass of one of its
   loops: the program loads the library
   with the operating system's loader, the one `DynamicLibrary` uses, hands it the addresses of the program's
@@ -501,10 +516,17 @@ session against a copy of the program it edits.
   indirect call that the C compiler cannot inline, about a nanosecond: 200 million calls to a one-line function
   took about 0.62 s instead of 0.44 s at `-O0` and 0.40 s instead of 0.18 s with `--optimized` (Windows, clang).
 - **What the build records.** Beside the executable, `<program>.reload_host` lists every function the executable
-  defines with its C prototype, its slots, its class ids in order, the C layout of every class and enum, and every
-  dictionary the build keyed by whole numbers (`key Long Columns@slop/columns.spite:11:43`, D224);
-  `<program>.reload_files` holds a generation number and a hash of each of the program's files -- every file it
-  compiled from outside `library/`, not only those declaring its classes. The executable
+  defines with its C prototype and a hash of its C, its slots and the class each belongs to, its class ids in
+  order with each class's identity (its C name), the C layout of every class and enum, every dictionary the build
+  keyed by whole numbers (`key Long Columns@slop/columns.spite:11:43`, D224), and what a reload needs to compile
+  one class against the rest (proposed by Claude, unconfirmed): the generic instances, object-literal classes and
+  lent variants it made, in order; the functions each program class declares; the classes that fit each shape; the
+  functions that can wait; a digest of each function's call effects and of the other whole-program studies; and
+  the facts compiling each class produced, each with the classes that produced it (`fact <classes>\t<fact>`: an
+  attribute read, a class admitted to a shape, a flag such as `threads`, a symbol, an allocator set on a class).
+  `<program>.reload_files` holds a generation number, a hash of each of the program's files -- every file it
+  compiled from outside `library/`, not only those declaring its classes -- and the build's output settings, so a
+  reload compiles with the same `Build` values the running program has. The executable
   holds a table of its functions' addresses by name, the path of the compiler that built it and that compiler's
   options, so it must run from the directory it was built from.
 - **Rebuilding: `spite reload <folder> <options> --executable-path=<program>`** (a command since D128, when
@@ -512,10 +534,26 @@ session against a copy of the program it edits.
   outputs, and prints its errors to standard output, where the running program reads them.
   It reads the program's files and compares their hashes before compiling anything: nothing changed answers
   `unchanged` (under a second for SlopTheseus; before, it compiled the whole program twice to say so, 90 seconds).
-  Otherwise it compiles the whole program again, with the class ids seeded from the manifest so every class keeps
-  the id its instances carry and the dictionary key kinds seeded from it too, so a program whose kinds did not
-  change is compiled once rather than twice (proposed by Claude, unconfirmed). It writes no C for the whole
-  program, only the library's. **A changed file that declares none of the program's classes is refused** (proposed
+  Otherwise it **compiles only the changed classes** (proposed by Claude, unconfirmed): it resolves every class,
+  makes again the generic instances, object-literal classes, lent variants and made functions the manifest lists,
+  takes the facts of every unchanged class from the manifest, and compiles the functions of the classes the
+  changed files declare, and any function the running program lacks, skipping every other function the running
+  program has with the same prototype. The class ids are seeded from the manifest by identity, so every class
+  keeps the id its instances carry (before, ids were seeded by display name, and the box of an enum named like a
+  class -- `JsonSymbols.Color` beside the library's `Color` -- took that class's id), and the dictionary key kinds
+  are seeded too, so a program whose kinds did not change is compiled once. **It compiles the whole program
+  instead** when the changed code changes what other classes were compiled against: a parameter list or return
+  type; a function the running program made for a changed class that is not made again; a fact whose set of
+  classes changes, other than attribute reads and parameter-write answers (which decide only errors and the
+  changed code); the digest of any function's call effects, the other whole-program studies, the functions that
+  can wait, or the way a function takes its arguments; a dictionary's key kind; or the classes that fit a shape the
+  changed code's C names. A whole compile compares the hash of every function's C with the manifest's, numbered
+  names (`spite_temp_3`) and text constants compared by what they hold: a function of another program class that
+  changed is rebuilt with the changed ones, and any other changed function refuses the reload. It writes no C for
+  the whole program, only the library's, whose types and prototypes are shaken to what its functions use. With
+  `SPITE_RELOAD_CHECK=<file>` set, `spite reload` treats that file as changed, compiles the reload both ways, and
+  prints whether the fast one writes what the whole one does; it is how `check.sh` holds the fast reload.
+  **A changed file that declares none of the program's classes is refused** (proposed
   by Claude, unconfirmed; D244): a file reopening a class of the standard library, as `environment.spite` reopens
   `Environment`, or `build.spite`, holds nothing a slot can swap, and before, its change was answered `unchanged`
   and silently not applied. Now the reload answers `'<file>' changed, and a reload swaps only the functions of the

@@ -1,0 +1,268 @@
+var type_shape = Analysis.TypeShape()
+var tokens = List<String>()
+var position = 0
+
+func encoded(spite_type: Analysis.SpiteType): String {
+    var written = List<String>()
+    write_type(spite_type, written)
+    return written.join("|")
+}
+
+func write_type(spite_type: Analysis.SpiteType, written: List<String>) {
+    switch spite_type {
+        Analysis.Types.ScalarType: {
+            written.append("S")
+            var kind = kind_text(spite_type.kind)
+            written.append(kind)
+        }
+        Analysis.Types.StringType: written.append("T")
+        Analysis.Types.SymbolType: written.append("Y")
+        Analysis.Types.VoidType: written.append("V")
+        Analysis.Types.ArgumentsType: written.append("A")
+        Analysis.Types.UnionType: {
+            written.append("U")
+            written.append(spite_type.c_name)
+        }
+        Analysis.Types.EnumType: write_enum(spite_type, written)
+        Analysis.Types.NullableType: {
+            written.append("N")
+            var inner = spite_type.get_inner()
+            write_type(inner, written)
+        }
+        Analysis.Types.ListType: {
+            written.append("L")
+            var variadic = spite_type.is_variadic.to_string()
+            written.append(variadic)
+            var element = spite_type.get_element()
+            write_type(element, written)
+        }
+        Analysis.Types.DictionaryType: write_dictionary(spite_type, written)
+        Analysis.Types.ClassRefType: write_class_ref(spite_type, written)
+    }
+}
+
+func write_enum(written_enum: Analysis.Types.EnumType, written: List<String>) {
+    written.append("E")
+    written.append(written_enum.c_name)
+    var count = written_enum.values.count().to_string()
+    written.append(count)
+    var index = 0
+    while index < written_enum.values.count() {
+        var value = written_enum.values.get_at(index)
+        written.append(value)
+        index = index + 1
+    }
+}
+
+func write_dictionary(dictionary: Analysis.Types.DictionaryType, written: List<String>) {
+    written.append("D")
+    var site = escaped(dictionary.site)
+    written.append(site)
+    var element = dictionary.get_element()
+    write_type(element, written)
+    var key = dictionary.get_key()
+    write_type(key, written)
+}
+
+func write_class_ref(class_ref: Analysis.Types.ClassRefType, written: List<String>) {
+    written.append("C")
+    written.append(class_ref.c_name)
+    var signature = class_ref.has_signature.to_string()
+    written.append(signature)
+    var foreign = class_ref.foreign_library.to_string()
+    written.append(foreign)
+    var count = class_ref.arguments.count().to_string()
+    written.append(count)
+    var index = 0
+    while index < class_ref.arguments.count() {
+        write_type(class_ref.arguments[index], written)
+        index = index + 1
+    }
+    if class_ref.returns {
+        written.append("R")
+        write_type(class_ref.returns, written)
+    } else {
+        written.append("-")
+    }
+}
+
+func decoded(text: String): Analysis.SpiteType? {
+    tokens = text.split("|")
+    position = 0
+    return read_type()
+}
+
+func next_token(): String {
+    crash position < tokens.count()
+    var token = tokens.get_at(position)
+    position = position + 1
+    return token
+}
+
+func read_type(): Analysis.SpiteType? {
+    var kind = next_token()
+    switch kind {
+        "S": return read_scalar()
+        "T": {
+            var text_type: Analysis.SpiteType = Analysis.Types.StringType()
+            return text_type
+        }
+        "Y": {
+            var symbol_type: Analysis.SpiteType = Analysis.Types.SymbolType()
+            return symbol_type
+        }
+        "V": {
+            var void_type: Analysis.SpiteType = Analysis.Types.VoidType()
+            return void_type
+        }
+        "A": {
+            var arguments_type: Analysis.SpiteType = Analysis.Types.ArgumentsType()
+            return arguments_type
+        }
+        "U": {
+            var union_name = next_token()
+            var union_type: Analysis.SpiteType = Analysis.Types.UnionType(union_name)
+            return union_type
+        }
+        "E": return read_enum()
+        "N": return read_nullable()
+        "L": return read_list()
+        "D": return read_dictionary()
+        "C": return read_class_ref()
+        _: return null
+    }
+}
+
+func read_scalar(): Analysis.SpiteType? {
+    var written = next_token()
+    var kinds: List<Analysis.Types.NumericKind> = [
+        'integer_kind'
+        'long_kind'
+        'float_kind'
+        'double_kind'
+        'boolean_kind'
+        'tiny_kind'
+        'short_kind'
+        'byte_kind'
+        'unsigned_short_kind'
+        'unsigned_integer_kind'
+        'unsigned_long_kind'
+        'address_kind'
+    ]
+    var index = 0
+    while index < kinds.count() {
+        var kind = kinds.get_at(index)
+        if kind_text(kind) == written {
+            var scalar_type: Analysis.SpiteType = Analysis.Types.ScalarType(kind)
+            return scalar_type
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func kind_text(kind: Analysis.Types.NumericKind): String {
+    return kind.to_string()
+}
+
+func read_enum(): Analysis.SpiteType {
+    var enum_name = next_token()
+    var count_text = next_token()
+    var count = count_text.to_integer()
+    crash count
+    var values = List<String>()
+    var index = 0
+    while index < count {
+        var value = next_token()
+        values.append(value)
+        index = index + 1
+    }
+    var enum_type: Analysis.SpiteType = Analysis.Types.EnumType(enum_name, values)
+    return enum_type
+}
+
+func read_nullable(): Analysis.SpiteType? {
+    var inner = read_type()
+    assert inner
+    var nullable_type: Analysis.SpiteType = Analysis.Types.NullableType(inner)
+    return nullable_type
+}
+
+func read_list(): Analysis.SpiteType? {
+    var variadic = next_token() == "true"
+    var element = read_type()
+    assert element
+    var list_type = Analysis.Types.ListType(element)
+    list_type.is_variadic = variadic
+    var listed: Analysis.SpiteType = list_type
+    return listed
+}
+
+func read_dictionary(): Analysis.SpiteType? {
+    var site_text = next_token()
+    var site = unescaped(site_text)
+    var element = read_type()
+    assert element
+    var key = read_type()
+    assert key
+    var dictionary_type: Analysis.SpiteType = Analysis.Types.DictionaryType(element, key, site)
+    return dictionary_type
+}
+
+func read_class_ref(): Analysis.SpiteType? {
+    var class_name = next_token()
+    var class_ref = Analysis.Types.ClassRefType(class_name)
+    class_ref.has_signature = next_token() == "true"
+    var foreign_text = next_token()
+    var foreign = foreign_text.to_integer()
+    crash foreign
+    class_ref.foreign_library = foreign
+    var count_text = next_token()
+    var count = count_text.to_integer()
+    crash count
+    var index = 0
+    while index < count {
+        var argument = read_type()
+        assert argument
+        class_ref.arguments.append(argument)
+        index = index + 1
+    }
+    if next_token() == "R" {
+        class_ref.returns = read_type()
+    }
+    var referenced: Analysis.SpiteType = class_ref
+    return referenced
+}
+
+func escaped(text: String): String {
+    return text.replace("\\", "\\\\").replace("|", "\\p").replace("\t", "\\t").replace("\n", "\\n")
+}
+
+func unescaped(text: String): String {
+    var pieces = List<String>()
+    var index = 0
+    var text_length = text.length()
+    while index < text_length {
+        var code = text.code_at(index)
+        if code == 92 and index + 1 < text_length {
+            var next_code = text.code_at(index + 1)
+            var character = unescaped_character(next_code)
+            pieces.append(character)
+            index = index + 2
+        } else {
+            var character = text.slice(index, index + 1)
+            pieces.append(character)
+            index = index + 1
+        }
+    }
+    return pieces.join("")
+}
+
+func unescaped_character(code: Integer): String {
+    switch code {
+        112: return "|"
+        116: return "\t"
+        110: return "\n"
+        _: return "\\"
+    }
+}
