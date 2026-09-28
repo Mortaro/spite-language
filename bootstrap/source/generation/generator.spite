@@ -213,6 +213,7 @@ var bound_function_name = ""
 var bound_display_name = ""
 var bound_range = ""
 var bound_enum_c_name = ""
+var unliteral_reported = List<String>()
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
@@ -1392,9 +1393,9 @@ func symbol_function_question(
 
 func written_name(arguments: List<Syntax.Expressions.Expression>): String? {
     assert arguments.count() == 1
-    var string_literal = shape.as_string_literal(arguments[0])
-    if string_literal {
-        return string_literal.value
+    var folded_name = folded_name_text(arguments[0])
+    if folded_name {
+        return folded_name
     }
     var enum_literal = shape.as_enum_literal(arguments[0])
     assert enum_literal
@@ -1402,6 +1403,266 @@ func written_name(arguments: List<Syntax.Expressions.Expression>): String? {
         "'{enum_literal.value}' in single quotes is a symbol, and 'has_function' takes the name as text: text is always written in double quotes, so write \"{enum_literal.value}\"",
     )
     return enum_literal.value
+}
+
+func folded_name_text(expression: Syntax.Expressions.Expression): String? {
+    var string_literal = shape.as_string_literal(expression)
+    if string_literal {
+        return string_literal.value
+    }
+    var joined = shape.as_binary(expression)
+    if joined {
+        assert joined.is_text_join
+        crash joined.left
+        crash joined.right
+        var left = folded_name_text(joined.left)
+        assert left
+        var right = folded_name_text(joined.right)
+        assert right
+        return left + right
+    }
+    var member = shape.as_member(expression)
+    assert member and not bound_symbol_name.is_empty()
+    assert member.name == "name"
+    crash member.object
+    assert is_identifier_named(member.object, bound_symbol_name)
+    if not bound_display_name.is_empty() {
+        return bound_display_name
+    }
+    return bound_field_name
+}
+
+func folded_returned_text(
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    crash member
+    crash member.object
+    var asked = operand_text(member.object)
+    var asked_generic = shape.as_generic_identifier(member.object)
+    if asked_generic {
+        asked = "${without_dollar(asked_generic.name)}"
+    }
+    var mentioned = List<String>()
+    collect_each_mentioned_name(call.arguments, mentioned)
+    mark_each_used(mentioned, scope)
+    var owner = asked_function_owner(member.object, class_information)
+    if not owner {
+        report(
+            "'{asked}.returned_text(...)' is decided while compiling, so it is asked of a generic's type or of the class a walk visits, like '$value_type.returned_text(\"json_key_\{attribute.name}\")'",
+        )
+        return void_result()
+    }
+    var name: String? = null
+    if call.arguments.count() == 1 {
+        name = folded_name_text(call.arguments[0])
+    }
+    if not name {
+        report(
+            "'{asked}.returned_text(...)' is decided while compiling, so the name it asks for is written as a literal: '{asked}.returned_text(\"json_key_level\")', or with a walked symbol's name in it, '\"json_key_\{attribute.name}\"'",
+        )
+        return void_result()
+    }
+    var function = owner.find_function(name)
+    if not function {
+        report(
+            "'{asked}.returned_text(\"{name}\")' reads the text a function of '{owner.qualified_dotted}' returns, and it has no function '{name}': ask '{asked}.has_function(\"{name}\")' first, and read the text only in the branch where it is true",
+        )
+        return void_result()
+    }
+    var literal = returned_literal(function)
+    if not literal {
+        report_unliteral_body(owner, function, "'{asked}.returned_text(\"{name}\")' reads it while compiling")
+        return void_result()
+    }
+    var rendered = render_string_literal(literal)
+    var text_type = string_type()
+    var text = ExpressionResult(rendered, text_type)
+    text.constant_text = "s:{literal}"
+    return text
+}
+
+func asked_function_owner(
+    subject: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var generic_identifier = shape.as_generic_identifier(subject)
+    if generic_identifier {
+        var bare_name = without_dollar(generic_identifier.name)
+        var bound = codegen_index(class_information, bare_name)
+        assert bound >= 0
+        crash class_information.codegen_codes[bound]
+        assert class_information.codegen_codes[bound].is_empty()
+        crash class_information.codegen_types[bound]
+        var bound_class_ref = type_shape.as_class_ref(class_information.codegen_types[bound])
+        assert bound_class_ref
+        assert not bound_class_ref.has_signature
+        return find_class_by_c_name(bound_class_ref.c_name)
+    }
+    assert is_symbol_class_read(subject)
+    crash bound_field_type
+    var walked_class_ref = type_shape.as_class_ref(bound_field_type)
+    assert walked_class_ref
+    assert not walked_class_ref.has_signature
+    return find_class_by_c_name(walked_class_ref.c_name)
+}
+
+func returned_literal(function: Analysis.FunctionInfo): String? {
+    assert function.has_body and function.parameters.is_empty() and function.body.count() == 1
+    var returned = shape.as_return_statement(function.body[0])
+    assert returned
+    crash returned.value
+    var literal = shape.as_string_literal(returned.value)
+    assert literal
+    return literal.value
+}
+
+func report_unliteral_body(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, reason: String) {
+    assert not unliteral_reported.contains(function.c_name)
+    unliteral_reported.append(function.c_name)
+    var saved_line = current_line
+    var saved_path = current_path
+    var saved_function = current_function
+    var saved_owner = current_owner
+    current_owner = owner.qualified_dotted
+    current_function = function.name
+    current_line = function.line
+    current_path = owner.source_path
+    if not function.source_path.is_empty() {
+        current_path = function.source_path
+    }
+    report(
+        "'{owner.qualified_dotted}.{function.name}' must be written 'func {function.name}(): String \{ return \"...\" }', taking nothing and returning a literal text with no '\{...}' in it, since {reason}",
+    )
+    current_line = saved_line
+    current_path = saved_path
+    current_function = saved_function
+    current_owner = saved_owner
+}
+
+func check_json_keys(information: Analysis.ClassInfo) {
+    var keys = List<String>()
+    var owners = List<String>()
+    var givers = List<String>()
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        if not field.name.starts_with("_") {
+            keys.append(field.name)
+            owners.append(field.name)
+            givers.append("")
+        }
+        index = index + 1
+    }
+    var saved_line = current_line
+    var saved_path = current_path
+    var saved_function = current_function
+    var function_index = 0
+    while function_index < information.declared_functions.count() {
+        var function = information.declared_functions[function_index]
+        if function.name.starts_with("json_key_") and function.has_body {
+            current_function = function.name
+            current_line = function.line
+            current_path = saved_path
+            if not function.source_path.is_empty() {
+                current_path = function.source_path
+            }
+            var given = given_json_key(information, function, owners)
+            if given {
+                var name_length = function.name.length()
+                var attribute_name = function.name.slice(9, name_length)
+                var place = text_place(owners, attribute_name)
+                keys[place] = given
+                givers[place] = function.name
+            }
+        }
+        function_index = function_index + 1
+    }
+    var first = 0
+    while first < keys.count() {
+        var second = first + 1
+        while second < keys.count() {
+            if keys[first] == keys[second] {
+                var giver = givers.get_at(second)
+                var taker = owners.get_at(second)
+                var other = owners.get_at(first)
+                if giver.is_empty() {
+                    giver = givers.get_at(first)
+                    taker = owners.get_at(first)
+                    other = owners.get_at(second)
+                }
+                var giving = information.find_function(giver)
+                crash giving
+                current_function = giver
+                current_line = giving.line
+                current_path = saved_path
+                if not giving.source_path.is_empty() {
+                    current_path = giving.source_path
+                }
+                report(
+                    "'{information.simple_name}.{giver}' gives '{taker}' the JSON key \"{keys[first]}\", which is already the key of '{other}', so JsonReader could not tell which attribute a value belongs to: give each attribute a key of its own",
+                )
+            }
+            second = second + 1
+        }
+        first = first + 1
+    }
+    current_line = saved_line
+    current_path = saved_path
+    current_function = saved_function
+}
+
+func given_json_key(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, owners: List<String>): String? {
+    var name_length = function.name.length()
+    var attribute_name = function.name.slice(9, name_length)
+    if text_place(owners, attribute_name) < 0 {
+        var listed = owners.join("', '")
+        report(
+            "'{information.simple_name}.{function.name}' names the JSON key of the attribute '{attribute_name}', and '{information.simple_name}' has no attribute '{attribute_name}': it has '{listed}'. A function whose name starts with 'json_key_' is read by JsonReader and JsonWriter, so the rest of its name is an attribute's",
+        )
+        return null
+    }
+    var literal = returned_literal(function)
+    if not literal {
+        report_unliteral_body(information, function, "JsonReader and JsonWriter read the key while compiling")
+        return null
+    }
+    if written_key_problem(literal) {
+        report(
+            "'{information.simple_name}.{function.name}' returns \"{literal}\", and a JSON key given this way is written as it is, so it cannot be empty or hold a quote, a backslash or a control character",
+        )
+        return null
+    }
+    return literal
+}
+
+func text_place(texts: List<String>, wanted: String): Integer {
+    var index = 0
+    while index < texts.count() {
+        if texts[index] == wanted {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func written_key_problem(key: String): Boolean {
+    if key.is_empty() {
+        return true
+    }
+    var index = 0
+    while index < key.length() {
+        var code = key.code_at(index)
+        if code < 32 or code == 34 or code == 92 {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func class_has_function(owner: Analysis.ClassInfo, pattern: String, asking: Analysis.ClassInfo): Boolean {
@@ -4093,6 +4354,9 @@ func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.
             }
         }
         statement_index = statement_index + 1
+    }
+    if not functions_pass {
+        check_json_keys(information)
     }
 }
 
@@ -11494,6 +11758,10 @@ func report_not_a_number_constant(information: Analysis.ClassInfo, name: String,
         constants = "pi(), tau(), euler_number(), infinity(), not_a_number(), largest() and smallest()"
     }
     var class_name = information.qualified_dotted
+    if name.starts_with("from_") and function {
+        report_cast_by_name(information, name)
+        return
+    }
     if function {
         report(
             "'{class_name}.{name}()' calls a function of a value on the class: the class {class_name} answers only its constants, {constants}, so call '{name}' on a {class_name}, like 'value.{name}()'",
@@ -11501,6 +11769,27 @@ func report_not_a_number_constant(information: Analysis.ClassInfo, name: String,
         return
     }
     report("the class {class_name} answers only its constants, {constants}, and '{name}' is not one of them")
+}
+
+func report_cast_by_name(information: Analysis.ClassInfo, name: String) {
+    var class_name = information.qualified_dotted
+    var name_length = name.length()
+    var source_words = name.slice(5, name_length)
+    var source_name = joined_case_spelling(source_words, true)
+    var target_words = snake_words(information.simple_name)
+    var assignment = "'var converted: {class_name} = value'"
+    var source = find_class_by_qualified(source_name)
+    if source {
+        if source.find_function("to_{target_words}") {
+            report(
+                "'{class_name}.{name}()' is not a function a program calls: a conversion belongs to the value converted (D275), so write 'value.to_{target_words}()', or cast by assignment: {assignment}",
+            )
+            return
+        }
+    }
+    report(
+        "'{class_name}.{name}()' is not a function a program calls: a conversion belongs to the value converted (D275), and {with_article(source_name)} has no 'to_{target_words}()' yet, so cast by assignment: {assignment}, or pass the value where {with_article(class_name)} is expected",
+    )
 }
 
 func forget_indices_if_shrinking(name: String, object_ast: Syntax.Expressions.Expression, scope: Scope) {
@@ -17830,6 +18119,9 @@ func generate_call(
                 }
                 return ExpressionResult("false", answer_type)
             }
+        }
+        if member.name == "returned_text" {
+            return folded_returned_text(call, scope, class_information)
         }
         if member.name == "source_folder" and call.arguments.is_empty() {
             var folded_folder = folded_source_folder(member, scope, class_information)

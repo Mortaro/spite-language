@@ -1,0 +1,8 @@
+var console = Console()
+
+func CastByName() {
+    var count = 3
+    var half = Float.from_integer(count)
+    var wide = Long.from_short(count)
+    console.print(count, half, wide)
+}

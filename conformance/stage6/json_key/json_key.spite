@@ -1,0 +1,36 @@
+var console = Console()
+
+func JsonKey() {
+    var reader = JsonReader<MeshRecord>(
+        "\{\"name\": \"rock\", \"min_lod\": 2, \"maxDrawDistance\": 90.5, \"instances\": 4}",
+    )
+    var mesh = reader.read()
+    crash mesh
+    console.print(mesh.name, mesh.minimum_level_of_detail, mesh.maximum_draw_distance, mesh.instance_count)
+    var writer = JsonWriter(mesh)
+    var text = writer.write()
+    console.print(text)
+    var round_reader = JsonReader<MeshRecord>(text)
+    var round = round_reader.read()
+    crash round
+    console.print(round.minimum_level_of_detail, round.maximum_draw_distance, round.instance_count)
+    var own_names_reader = JsonReader<MeshRecord>(
+        "\{\"minimum_level_of_detail\": 7, \"minimumLevelOfDetail\": 8, \"instance_count\": 9, \"InstanceCount\": 10}",
+    )
+    var own_names = own_names_reader.read()
+    crash own_names
+    console.print(own_names.minimum_level_of_detail, own_names.instance_count)
+    var list_reader = JsonReader<List<MeshRecord>>("[\{\"min_lod\": 1}, \{\"min_lod\": 3}]")
+    var meshes = list_reader.read()
+    crash meshes
+    var levels = meshes.map_minimum_level_of_detail()
+    var joined = levels.join(" ")
+    console.print(joined)
+    var swapped_reader = JsonReader<Swapped>("\{\"left\": 1, \"right\": 2}")
+    var swapped = swapped_reader.read()
+    crash swapped
+    console.print(swapped.left, swapped.right)
+    var swapped_writer = JsonWriter(swapped)
+    var swapped_text = swapped_writer.write()
+    console.print(swapped_text)
+}

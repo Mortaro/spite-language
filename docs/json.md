@@ -298,6 +298,8 @@ lenient about what it does not need:
 - **An attribute the text does not mention keeps its default**, the value the class declares for it.
 - **A key in camelCase or PascalCase** (`buyPrice`, `BuyPrice`) reads into the attribute it spells, `buy_price`
   ([below](#a-camelcase-or-pascalcase-key)).
+- **A key that cannot be an attribute's name** -- `min_lod`, `instances` -- is named by the class, with a
+  `json_key_<attribute>()` function ([below](#a-key-that-is-not-an-attributes-name)).
 - **A value of the wrong kind makes the whole read `null`**: text where a number belongs, `null` for an
   attribute that is not a `T?`, an enum name the enum does not have.
 
@@ -368,6 +370,51 @@ potion 30 7.5
 {"name":"potion","buy_price":30,"sell_price_each":7.5}
 ```
 
+### A key that is not an attribute's name
+
+Some keys cannot be attribute names: `min_lod` is an abbreviation the naming rules refuse, and `instances` is a
+name reflection gives every class ([reflection.md](reflection.md)). The class names the key itself, with a function
+`json_key_<attribute>()` that returns it as a literal text. `JsonReader` then reads that key into the attribute and
+`JsonWriter` writes the attribute under it, so the text round-trips:
+
+```gdscript title=json_key/mesh_record.spite
+var name = ""
+var minimum_level_of_detail = 0
+var instance_count = 0
+
+func json_key_minimum_level_of_detail(): String {
+    return "min_lod"
+}
+
+func json_key_instance_count(): String {
+    return "instances"
+}
+```
+```gdscript title=json_key/json_key.spite entry
+var console = Console()
+
+func JsonKey() {
+    var reader = JsonReader<MeshRecord>("\{\"name\": \"rock\", \"min_lod\": 2, \"instances\": 4}")
+    var mesh = reader.read()
+    crash mesh
+    console.print(mesh.name, mesh.minimum_level_of_detail, mesh.instance_count)
+    var writer = JsonWriter(mesh)
+    var text = writer.write()
+    console.print(text)
+}
+```
+```output
+rock 2 4
+{"name":"rock","min_lod":2,"instances":4}
+```
+
+The key is the one way to write that attribute: `minimum_level_of_detail` and `minimumLevelOfDetail` are then
+unknown keys, skipped like any other. The compiler reads the key while compiling, so it costs what an attribute's
+own name costs, and a class without such functions compiles exactly as before. A mistake is an error at the
+function: a name that is not an attribute's (`json_key_minimum_level_of_detial`), a body that is anything but
+`return` of a literal text, and a key two attributes would share
+([the rules](#json-is-reflection-not-a-library--implemented), `diagnostics/json_key`).
+
 Bytes have no keys to skip, so `BinaryReader` is strict throughout: the bytes are exactly the class, or the read
 is `null`.
 
@@ -435,7 +482,9 @@ func write_attribute(attribute: Symbol<$value_type>, shown: $value_type, members
 ```
 
 `write_attributes(shown, members)` calls it once per attribute; `read_attributes` in `JsonReader` does the same
-with the key it just read, and the attribute whose name matches takes the value. `--final-classes` does not print
+with the key it just read, and the attribute whose name matches takes the value. Both first ask
+`$value_type.has_function("json_key_{attribute.name}")`, decided for each attribute while compiling, and use the
+key the class gives there instead of the name ([A key that is not an attribute's name](#a-key-that-is-not-an-attributes-name)). `--final-classes` does not print
 these instances (a generic class's file is shared by all of its instances), but they are ordinary typed
 functions in the C the program compiles to.
 
@@ -588,6 +637,36 @@ What follows is Claude's reading where D22, D95 and D208 are not specific (propo
   walk did not match: snake_case input runs the same comparisons it did before (`benchmarks/serialisation`, JSON
   read, best of eight alternating runs on a loaded machine: 269 ms before, 267 ms after), and a program that reads
   no JSON carries none of it (`conformance/stage6/json_camel_case`).
+- **A class names an attribute's JSON key with `func json_key_<attribute>(): String`** (D273, decided by Claude
+  under D205, asked by the Theseus port for Unreal's `min_lod`, `max_*`, `*_info_*` and `instances`; the name
+  provisional under D214).  **[implemented]** No syntax: an ordinary member function whose name is `json_key_`
+  followed by an attribute's name, and whose body is `return` of a literal text. `JsonReader` reads that key into
+  the attribute and `JsonWriter` writes the attribute under it, so the text round-trips. **The key replaces the
+  attribute's name**: with one, neither the name (`minimum_level_of_detail`) nor its camelCase and PascalCase
+  spellings (D247) read into the attribute any more, so each attribute has exactly one key, and those keys are
+  skipped as unknown. Attributes without one keep D247's reading. Built in the library, with no JSON in the
+  compiler's code generation: `read_attribute`, `read_camel_attribute` and `write_attribute` ask
+  `$value_type.has_function("json_key_{attribute.name}")`, which folds for each attribute walked, and in the branch
+  where it is true read the key with `$value_type.returned_text(...)`, a text constant
+  ([metaprogramming.md](metaprogramming.md#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)).
+  So a key is compared exactly as an attribute's name is, and a class with no `json_key_` function compiles to
+  the same C as before. Every class the program declares is checked while compiling, whether or not it is ever
+  read or written as JSON, and each mistake is an error at the function (D244; `diagnostics/json_key`):
+  - a name that is not `json_key_` and one of the class's attributes: "'MeshRecord.json_key_minimum_level_of_detial'
+    names the JSON key of the attribute 'minimum_level_of_detial', and 'MeshRecord' has no attribute
+    'minimum_level_of_detial': it has 'name', ... A function whose name starts with 'json_key_' is read by
+    JsonReader and JsonWriter, so the rest of its name is an attribute's";
+  - a function that takes something, or whose body is anything but one `return` of a literal text with no
+    `{...}` in it: "'MeshRecord.json_key_maximum_distance' must be written 'func json_key_maximum_distance(): String
+    { return "..." }', taking nothing and returning a literal text with no '{...}' in it, since JsonReader and
+    JsonWriter read the key while compiling";
+  - a key that is empty or holds a quote, a backslash or a control character, which the writer would have to
+    escape: the key is written as it is;
+  - a key another attribute already has, its own name or a key given to it: "... gives 'instance_count' the JSON
+    key "level", which is already the key of 'level', so JsonReader could not tell which attribute a value
+    belongs to: give each attribute a key of its own". Two attributes may trade names (`left` keyed `"right"`
+    and `right` keyed `"left"`), since then no key is shared.
+  Each instance of a generic class is checked the same way. `conformance/stage6/json_key`.
 - **A number reads into whatever number type the attribute has** through the ordinary text-to-number cast, so
   `3.7` read into an `Integer` is `3`; JSON has one number type and the class already says which one it wants.
 - **Infinity and not-a-number crash `JsonWriter`** (D198, decided by Mortaro; D208 keeps it JSON's alone): JSON

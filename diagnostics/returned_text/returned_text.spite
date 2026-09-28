@@ -1,0 +1,9 @@
+var console = Console()
+
+func ReturnedText() {
+    var asker = KeyAsker<Label>()
+    var level_key = asker.key_of_level()
+    var name_key = asker.key_of_name()
+    var wanted_key = asker.key_wanted("json_key_name")
+    console.print(level_key, name_key, wanted_key)
+}
