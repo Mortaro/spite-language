@@ -1,0 +1,10 @@
+generic $row_type
+
+var console = Console()
+
+func report() {
+    var skipping_entity = $row_type.any_attribute_fits_vector(Entity)
+    var skipping_both = $row_type.any_attribute_fits_vector(Entity, Position)
+    var any = $row_type.any_attribute_fits_vector()
+    console.print($row_type.name, skipping_entity, skipping_both, any)
+}

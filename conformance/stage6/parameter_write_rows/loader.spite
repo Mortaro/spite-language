@@ -1,0 +1,9 @@
+func load_map(library: Library): Navigation {
+    var navigation = Navigation()
+    navigation.steps = library.slots.count()
+    return navigation
+}
+
+func pick(library: Library): Library {
+    return library
+}

@@ -1,0 +1,16 @@
+var console = Console()
+
+func ParameterWriteRows() {
+    var pair = Pair()
+    console.print(pair.label, pair.position.left, pair.entity.id)
+    var moving = Runner<Mover>()
+    moving.report()
+    var streaming = Runner<Streamer>()
+    streaming.report()
+    var refusing = Refuser<Streamer>()
+    refusing.refuse()
+    var pairs = Rows<Pair>()
+    pairs.report()
+    var loaded = Rows<Loaded>()
+    loaded.report()
+}

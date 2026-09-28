@@ -818,6 +818,18 @@ The error goes on to name the line of the system that writes, `-- 'Saver.last_ea
 'quitting' at .../saver.spite:5: 'quitting.requested = true'`. A `crash` carries no message of its own
 ([failure.md](failure.md#crash)): its condition is its message, so the engine's rule reads as what it asks.
 
+An engine that walks a phase function's arguments asks the same of each one, with `argument.index` as the number,
+and pairs it with `argument.class.any_attribute_fits_vector(Entity)`, which is `true` when the row holds a
+component stored inline, one whose class fits a `Vector` (the classes it is given are skipped). A write to a
+component stored by reference still arrives, only later, so only a row holding an inline one needs refusing
+([the rules](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)):
+
+```gdscript
+func refuse_snapshot_argument(argument: Symbol<$system_type.phase_each>) {
+    crash not $system_type.function_writes_parameter("<phase>_each", argument.index) or not argument.class.any_attribute_fits_vector(Entity)
+}
+```
+
 ### Asking how many arguments a function takes
 
 A runner that treats a one-row system differently from a system of several rows asks how many arguments the
@@ -1384,9 +1396,14 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
 - **`$system_type.function_writes_parameter("last_each", 1)` is whether a function changes what its parameter
   is given, as a constant** (D261, decided by Claude under D205, requested by SlopEngine, an instance of D244; the
   name provisional under D214).  **[implemented]** The first argument is the function's name as a literal, or a
-  pattern read as `has_function` reads it; the second is the parameter's number, counted from 0, as a literal.
+  pattern read as `has_function` reads it; the second is the parameter's number, counted from 0, as a literal or
+  as a walked argument's `argument.index` (D268), which folds for each argument walked as `argument.class` does:
+  in a template over the arguments of the functions a pattern matches (`argument: Symbol<$system_type.phase_each>`),
+  `$system_type.function_writes_parameter("<phase>_each", argument.index)` asks only the function whose arguments
+  are walked, so another phase function with fewer arguments is not asked about a number it lacks.
   Anything else is the error "'$system_type.function_writes_parameter(...)' is decided while compiling, so it
-  takes the function's name as text and the parameter's number, counted from 0, as literals", and a number the
+  takes the function's name as text and the parameter's number, counted from 0, as a literal or as a walked
+  argument's '.index'", and a number the
   function does not have is "'Mover.move' takes 2 arguments, so it has no parameter 2 to ask about"
   (`diagnostics/parameter_write_question`). It folds wherever it is written, as `function_waits` does, for a
   codegen type and for the class a `Symbol<...>` walk visits (`system.class.function_writes_parameter(...)`); it
@@ -1404,6 +1421,16 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
     neither is giving the parameter's name, or such a local, a new object (`p = Row()` and writes to that new
     object after it), and neither is copying a number, a `Boolean`, text or an enum out of it. Recursion, direct
     or mutual, is followed to a fixed point.
+  - **A call's result is what the callee returns** (D268). A call made by name to a function the compiler follows
+    stands for only the objects that function can return: a function that returns an object it made
+    (`var navigation = Navigation() ... return navigation`, or a constructor) gives a result that carries none of
+    its arguments, so `var navigation = loader.load_map(rows[0])` followed by `navigation.steps = 2` or
+    `owner.add_component(navigation)` does not write `rows`; one that returns its parameter, or something reached
+    through it or through the object it is called on, gives a result that is them, and a write to it is a write
+    to them. A call the compiler cannot follow, and a function whose body the compiler supplies, are taken to
+    return anything they are handed. An attribute read through a `type` (`loaded.library` with `type Loaded
+    { library: Library }`) has the attribute's class, so `library.slots.count()` is followed to `Vector.count`,
+    which only reads (`conformance/stage6/parameter_write_rows`).
   - **Where it cannot decide, the answer is `true`** (D244: never a silent `false`). A call through a function
     value counts as writing every parameter of the function that makes it, since the value may be anything; so
     does a call the compiler cannot follow to one function (a union's dispatch, a `type`, a template a class
@@ -1418,6 +1445,20 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
   - **Cost.** Nothing at run time: the question is answered from the functions' source while compiling, each
     function studied once and remembered, and folds to a constant, so a program that does not ask carries none
     of it (`conformance/stage6/parameter_writes`).
+- **`$row_type.any_attribute_fits_vector(Entity)` is whether a row holds a component stored inline, as a
+  constant** (D268, decided by Claude under D205, requested by SlopEngine; the name provisional under D214).
+  **[implemented]** It is `true` when some attribute of the class or `type` asked about has a class -- not a
+  number, text or other value, and not a `T?` -- that fits a `Vector` (`fits_vector()`), other than the classes
+  it is given, which are written as class names and skipped; with none given it skips nothing. It folds wherever
+  it is written, for a codegen type and for a walked symbol's class (`argument.class.any_attribute_fits_vector(Entity)`),
+  and anything but a class name as an argument is the error "'wanted' is not a class: 'any_attribute_fits_vector(...)'
+  is decided while compiling, and what it is given are the classes whose attributes it skips"
+  (`diagnostics/parameter_write_question`). An engine that stores fitting components inline and every other one by
+  reference refuses a snapshot's write only where it would be lost, to a row holding an inline component:
+  `crash not $system_type.function_writes_parameter("<phase>_each", argument.index) or not
+  argument.class.any_attribute_fits_vector(Entity)` in `refuse_snapshot_argument(argument:
+  Symbol<$system_type.phase_each>)` (`conformance/stage6/parameter_write_rows`, `diagnostics/snapshot_argument_writes`).
+  Nothing is left at run time.
 - **`phase.argument_count()` and `$system_type.argument_count("update_each")` are the number of arguments a
   function takes, as a constant** (D219, decided by Claude under D205; the name provisional under D214, the readings
   below proposed by Claude, unconfirmed).  **[implemented]** Inside a template over the functions a pattern matches

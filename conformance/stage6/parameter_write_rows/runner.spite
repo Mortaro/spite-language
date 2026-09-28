@@ -1,0 +1,23 @@
+generic $system_type
+
+enum Phase {
+    'update'
+    'keep'
+}
+
+var console = Console()
+
+func report() {
+    report_phases_each()
+}
+
+func report_phase_each(phase: Symbol<$system_type.phase_each>) {
+    console.print($system_type.name, phase.name)
+    check_arguments()
+}
+
+func check_argument(argument: Symbol<$system_type.phase_each>) {
+    var writes = $system_type.function_writes_parameter("<phase>_each", argument.index)
+    var inline = argument.class.any_attribute_fits_vector(Entity)
+    console.print(argument.name, "writes:", writes, "holds an inline component:", inline)
+}

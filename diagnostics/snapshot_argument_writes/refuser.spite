@@ -1,0 +1,21 @@
+generic $system_type
+
+enum Phase {
+    'update'
+    'keep'
+}
+
+var console = Console()
+
+func refuse() {
+    refuse_phases_each()
+}
+
+func refuse_phase_each(phase: Symbol<$system_type.phase_each>) {
+    refuse_snapshot_arguments()
+}
+
+func refuse_snapshot_argument(argument: Symbol<$system_type.phase_each>) {
+    crash not $system_type.function_writes_parameter("<phase>_each", argument.index) or not argument.class.any_attribute_fits_vector(Entity)
+    console.print(argument.name, "may run on a snapshot")
+}

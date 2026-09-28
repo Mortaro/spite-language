@@ -1,0 +1,8 @@
+type Moving {
+    position: Position
+    entity: Entity
+}
+
+func update_each(moving: Moving) {
+    moving.position.left = moving.position.left + moving.entity.id
+}
