@@ -1588,7 +1588,8 @@ for Mortaro and is not done (`mortaros_missing_decisions.md`, item 210). **Built
 ### A proven read tests only its bounds
 
 **What it does.** Every `[]` answers a `T?` ([D225](decisions.md)), and a read the compiler proves -- a loop bound
-`index < list.count()`, a proven count, a list literal's indices, D169's call effects -- needs nothing written. It
+`index < list.count()`, a proven count, a list literal's indices, D169's call effects, a bound past the index
+(`at + 2 < list.count()`) or a count kept in a `var` ([D277](decisions.md)) -- needs nothing written. It
 also costs no presence test of the `T?`: the compiler reads the element through the collection's `get_at` and takes
 the value directly, with one branch the C compiler is told is never taken, which halts naming the read if the index
 was outside the list after all (a bound proves only the top of an index, so a counter that went negative is

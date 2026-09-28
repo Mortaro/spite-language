@@ -23,7 +23,8 @@ func LentToCalls() {
     input.queue('key_pressed', 0, 66)
     input.queue('wheel_turned', 2, 0)
     var row_index = 0
-    while row_index < mice.count() and row_index < keyboards.count() {
+    while row_index < mice.count() {
+        crash keyboards[row_index]
         var device: Device = {mouse: mice[row_index], keyboard: keyboards[row_index]}
         input.after_input_each(device)
         row_index = row_index + 1
@@ -33,7 +34,8 @@ func LentToCalls() {
     input.nudge(first, 5)
     input.nudge(mice[1], 7)
     var shown = 0
-    while shown < mice.count() and shown < keyboards.count() {
+    while shown < mice.count() {
+        crash keyboards[shown]
         var shown_mouse = mice[shown]
         var shown_keyboard = keyboards[shown]
         console.print(

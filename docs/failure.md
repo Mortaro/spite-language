@@ -333,6 +333,21 @@ compiler also understands the usual proofs for the library's collections, so mos
   the list or its name changes. A `Dictionary`'s count proves no key, since its keys need not be `0`, `1`, `2`.
 - **A bound proves its index**: `while index < names.count()` proves `names[index]` in the loop body, and
   `while index < lines.count() and lines[index] != "end"` needs nothing more.
+- **A bound past the index proves the reads below it**: `while at + 2 < spans.count()` proves `spans[at]`,
+  `spans[at + 1]` and `spans[at + 2]`, so a loop over records of three reads them with nothing written. The bound
+  is the loop's own condition: `while at < spans.count()` proves only `spans[at]`. Mind what the stronger bound
+  changes: a last record that is not whole is now skipped without a word, where `crash spans[at + 2]` would have
+  halted on it. When the list must hold whole records, say so first: `crash spans.count() % 3 == 0` (D244).
+- **Two lists read by one counter**: `while index < names.count() and index < ages.count()` proves both reads, but
+  it stops at the shorter list without a word. When the two must be as long as each other, keep the one bound and
+  write `crash ages[index]` in the body, which halts on the first missing age instead (D244).
+- **A count kept in a name proves too**: after `var count = values.count()`, `while index < count` proves
+  `values[index]`, until `values` shrinks or `count` is assigned (a shrink inside the loop is then an error, as
+  for any proof the loop reads). A count worked out some other way (`count() / 8`, a width times a height) proves
+  nothing.
+- **Inside a loop, a read may be proven again**: `crash names[index - 1]` inside a loop is accepted even when a
+  line before the loop already proved that read, since the loop changes what the index means from one pass to the
+  next.
 - **The index may be any expression without a call**: `crash glyphs[code - 32]` proves `glyphs[code - 32]`
   on the next line. An index with a call in it, `glyphs[offset()]`, is not a path: name it first.
 - **Changing the list or the index undoes it**: after `index = index + 1` or `names.clear()` -- or a call that
@@ -1217,6 +1232,20 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   what the condition guards, so `while not found and index < names.count()` proves `names[index]` in the body.
   A list in a local, a parameter and an attribute are proven alike, and `assert`/`crash` on a read already
   proven is an error that says so (proposed by Claude, unconfirmed; `diagnostics/proven_index_check`).
+- **A bound past the index proves the reads below it** ([D277](decisions.md), proposed by Claude, unconfirmed).
+  `base + k < names.count()`, `k` a whole-number literal from 1 to 63, proves `names[base]`, `names[base + 1]`
+  ... `names[base + k]`, each compared as printed; `base` is any call-free index. It is proven wherever
+  `index < names.count()` would be (the forms above), and undone the same way. A bound on `base` alone proves
+  only `names[base]`.
+- **A count kept in a name proves as the count does** (D277, proposed by Claude, unconfirmed). `var count =
+  names.count()` (also `names.count() - k`) records that `count` is at most the count; `index < count` then proves
+  `names[index]` as `index < names.count()` would. Shrinking `names` or assigning `count` undoes it, and a loop
+  that proves a read from it and then shrinks `names` is the error for a proof undone inside a loop. Only a
+  `var` whose value is exactly the count (or the count less a literal) counts; nothing else is traced.
+- **A read proven before a loop may be proven again inside it** (D277, proposed by Claude, unconfirmed). An
+  `assert`/`crash` of a `[]` read inside a `while` is refused as proving nothing only when a proof made inside
+  that same loop already covers it; a proof from before the loop does not, since an assignment in the loop would
+  make the next pass read it unproven.
 - **Assigning the list or the index undoes it**, as for any path ([narrowing](#narrowing), D43): `index = index + 1`
   un-proves `names[index]`, and so do `names.clear()`, `remove_at`, `remove_first` and `remove_last`. Inside a
   loop, undoing a proof made before the loop that the loop has read is an error.

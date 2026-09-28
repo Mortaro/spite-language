@@ -541,3 +541,9 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   then two generations on the real library.
   `library_list_field` also admits `BinaryOutput` and `BinaryReader` by name (`reaches_list_storage`), since
   `--final-classes` prints them into the program's folder, where the `library/` path test no longer holds.
+- 2026-09-28 (D277): `narrow_counted_element` also proves `base + k < list.count()` (`narrow_stride`, `stride_reach`)
+  and a bound on a count kept in a `var` (`note_count_alias` records `list[< count]` in the scope, so shrinking the
+  list or assigning the name forgets it like any proof; `counted_alias` finds it). `recheck_in_loop` marks a `[]`
+  path an `assert`/`crash` re-proves inside a loop (`Scope.rechecked_paths`, `proven_inside_loop`), so a proof from
+  before the loop neither makes the check "proves nothing" nor answers reads in that loop. Two-list `and` bounds this
+  branch wrote in `library/` and here became one bound and a `crash`.

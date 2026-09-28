@@ -21111,7 +21111,8 @@ func cached_walked_read(path: String): ExpressionResult? {
 
 func forget_walked_reads() {
     var index = 0
-    while index < walked_read_results.count() and index < walked_read_owned.count() {
+    while index < walked_read_results.count() {
+        crash index < walked_read_owned.count()
         if walked_read_owned[index] == true {
             var unused = walked_read_results[index]
             var unused_type = unused.get_type()
@@ -28155,6 +28156,9 @@ func earlier_proof(value: Syntax.Expressions.Expression, condition: ExpressionRe
     if path.is_empty() {
         return ""
     }
+    if not scope.proven_inside_loop(path) {
+        return ""
+    }
     var proof = scope.proof_of(path)
     if proof.is_empty() {
         return "an earlier check"
@@ -28272,12 +28276,89 @@ func narrow_counted_element(condition: Syntax.Expressions.Expression, scope: Sco
     crash binary.left
     crash binary.right
     assert binary.operator == 'less'
-    var counter = operand_text(binary.left)
     var counted = counted_list_text(binary.right)
-    assert not counter.is_empty()
+    if counted.is_empty() {
+        counted = counted_alias(binary.right, scope)
+    }
     assert not counted.is_empty()
     var condition_text = Syntax.SourcePrinter().source_expression(condition)
+    var stride = shape.as_binary(binary.left)
+    if stride {
+        var reach = stride_reach(stride)
+        if reach >= 0 {
+            crash stride.left
+            narrow_stride(counted, stride.left, reach, condition_text, scope)
+            return
+        }
+    }
+    var counter = index_key_text(binary.left)
+    assert not counter.is_empty()
     scope.narrow_bound_path("{counted}[{counter}]", condition_text)
+}
+
+func stride_reach(stride: Syntax.Expressions.BinaryExpression): Integer {
+    if stride.operator != 'add' or not stride.left or not stride.right {
+        return -1
+    }
+    var reach = shape.as_integer_literal(stride.right)
+    if not reach {
+        return -1
+    }
+    if reach.value < 1 or reach.value > 63 {
+        return -1
+    }
+    var reach_value: Integer = reach.value
+    return reach_value
+}
+
+func narrow_stride(
+    counted: String,
+    base: Syntax.Expressions.Expression,
+    reach: Integer,
+    condition_text: String,
+    scope: Scope,
+) {
+    var base_text = index_key_text(base)
+    assert not base_text.is_empty()
+    scope.narrow_bound_path("{counted}[{base_text}]", condition_text)
+    var offset = 1
+    while offset <= reach {
+        var step: Syntax.Expressions.Expression = Syntax.Expressions.IntegerLiteral(offset)
+        var stepped: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression('add', base, step)
+        var key = index_key_text(stepped)
+        if not key.is_empty() {
+            scope.narrow_bound_path("{counted}[{key}]", condition_text)
+        }
+        offset = offset + 1
+    }
+}
+
+func counted_alias(bound: Syntax.Expressions.Expression, scope: Scope): String {
+    var named = shape.as_identifier(bound)
+    if not named {
+        return ""
+    }
+    var suffix = "[< {named.name}]"
+    var paths = scope.visible_narrowed_paths()
+    var index = 0
+    while index < paths.count() {
+        var path = paths[index]
+        if path.ends_with(suffix) {
+            var kept = path.length() - suffix.length()
+            return path.slice(0, kept)
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func note_count_alias(declaration: Syntax.Statements.VariableDeclaration, scope: Scope) {
+    assert declaration.value
+    var counted = counted_list_text(declaration.value)
+    assert not counted.is_empty()
+    var printer = Syntax.SourcePrinter()
+    var written = "var {declaration.name} = {printer.source_expression(declaration.value)}"
+    scope.narrow_bound_path("{counted}[< {declaration.name}]", written)
 }
 
 func counted_list_text(expression: Syntax.Expressions.Expression): String {
@@ -30231,6 +30312,14 @@ func and_side_test(
     return "({owned_truth(side_result, side)})"
 }
 
+func recheck_in_loop(value: Syntax.Expressions.Expression, scope: Scope) {
+    assert shape.as_index(value)
+    var path = operand_text(value)
+    if not path.is_empty() and not scope.proven_inside_loop(path) {
+        scope.recheck_path(path)
+    }
+}
+
 func generate_assert_statement(
     assert_statement: Syntax.Statements.AssertStatement,
     scope: Scope,
@@ -30261,6 +30350,7 @@ func generate_assert_statement(
         }
         return false
     }
+    recheck_in_loop(assert_statement.value, scope)
     var decided = folded_check(assert_statement.value, scope, class_information)
     if decided == true or decided == false {
         emit_folded_check(assert_statement, decided == true, scope, class_information, function_information)
@@ -30806,6 +30896,7 @@ func generate_statement_kind(
     if variable_declaration {
         generate_variable_declaration(variable_declaration, scope, class_information)
         narrow_literal_indices(variable_declaration, scope)
+        note_count_alias(variable_declaration, scope)
         return false
     }
     var assignment = shape.as_assignment_statement(statement)
@@ -34606,8 +34697,6 @@ func emit_machine_begin(name: String, parts: List<String>) {
     parameters.append("{parts[0]} self")
     var index = 1
     while index + 1 < parts.count() {
-        crash parts[index]
-        crash parts[index + 1]
         var c_type = parts[index]
         var parameter = parts[index + 1]
         parameters.append("{c_type} {parameter}")
@@ -34663,8 +34752,6 @@ func emit_primitive_machine(information: Analysis.ClassInfo, function: Analysis.
     fields.append("{parts[0]} self;")
     var index = 1
     while index + 1 < parts.count() {
-        crash parts[index]
-        crash parts[index + 1]
         fields.append("{parts[index]} {parts[index + 1]};")
         index = index + 2
     }

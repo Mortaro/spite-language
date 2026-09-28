@@ -16,7 +16,7 @@ func KeptTemplates() {
     var total = 0
     var index = 0
     while index < runs.count() {
-        var result: Integer = runs.get_at(index)
+        var result: Integer = runs[index]
         total = total + result
         index = index + 1
     }

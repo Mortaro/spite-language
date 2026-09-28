@@ -60,7 +60,8 @@ func values(): List<$value_type> {
 func copy(): Dictionary<$value_type> {
     var copied = Dictionary<$value_type>()
     var index = 0
-    while index < entry_keys.count() and index < entry_values.count() {
+    while index < entry_keys.count() {
+        crash entry_values[index]
         var key = entry_keys[index]
         var value = entry_values[index]
         copied.set(key, value)

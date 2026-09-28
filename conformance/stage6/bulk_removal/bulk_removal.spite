@@ -26,8 +26,9 @@ func remove_creatures() {
     var names = ["ant", "bee", "cat", "dog", "eel", "fox"]
     var healths = [3, 0, 5, -1, 0, 2]
     var index = 0
-    while index < names.count() and index < healths.count() {
+    while index < names.count() {
         var name = names[index]
+        crash healths[index]
         var health = healths[index]
         var creature = Creature(name, health)
         creatures.append(creature)
