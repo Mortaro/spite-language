@@ -1408,7 +1408,9 @@ kept past its use. What is built (the error texts and the readings marked are pr
   unconfirmed). A local declared as a `type` with `= null` (`var row: $row_type = null`) and filled on the very next
   line by a plural walk of its own class (`fill_attributes(row, index)`, whose template ranges over that `type`
   with `attribute: Symbol<$row_type>`) is a row when the walk writes out to one: the template's body is the
-  statement `row.attributes[attribute] = <value>`, after any number of `crash` lines, the value built from `<object>.attributes[attribute]` (read as
+  statement `row.attributes[attribute] = <value>`, after any number of `crash` lines and `var` lines naming a
+  value (`var stored_row = rows[attribute.index]`, each written out where its name is read, so D285's hoisted
+  `values[stored_row]` walks exactly as `values[rows[attribute.index]]` does), the value built from `<object>.attributes[attribute]` (read as
   `<object>.<the attribute's name>`), member reads, `[ ]`, the template's other parameters and whole numbers, and
   the call's arguments are the row and names, attribute paths (`matcher.rows`, D221) or number or `Boolean`
   literals. The compiler then writes, in place of the two lines, each attribute's `crash` lines walked as the
@@ -1460,7 +1462,7 @@ kept past its use. What is built (the error texts and the readings marked are pr
     + 1' before the walk and pass it in`.
   - **A choice per attribute.** The template's statement may be an `if` whose conditions are decided while
     compiling for each attribute -- `attribute.class == Entity`, `attribute.class.fits_vector()`,
-    `attribute.class.has_function(...)` -- each branch holding one such line and its `crash` lines; the branch
+    `attribute.class.has_function(...)` -- each branch holding one such line and its `crash` and `var` lines; the branch
     taken for an attribute is what is written out for it.
   - **Mixed attributes.** Beside borrowed items, an attribute of a walked row may hold any other value. A
     construction of a class that could be a `Vector` item and holds nothing counted (`Entity(entity)`) is made in

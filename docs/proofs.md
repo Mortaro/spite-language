@@ -690,7 +690,8 @@ have moved.
   `___lent_<positions>` copy that never counts it; it is never kept, returned, listed, aliased or assigned; the call
   may not resize what it borrows from. A walked row (D212) may take each attribute from a generic singleton per
   attribute class and mix borrowed items with other values (D217); a plural's arguments may carry borrowed items into
-  the one call it fills (D220).
+  the one call it fills (D220). The template's branch may name a value with `var` (`var stored_row =
+  rows[attribute.index]`); the name is walked as the value it names.
 - **Buys.** The row is a struct in the frame and its reads are uncounted: `benchmarks/sparse_rows` 7.4 ms a tick
   against 24.0 ms.
 - **Falls back.** Refused as above; a walk of any other shape leaves an ordinary `type` value, and a counted value

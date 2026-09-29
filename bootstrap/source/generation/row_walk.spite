@@ -2,6 +2,8 @@ var symbol_parameter = ""
 var row_parameter = ""
 var parameters = List<String>()
 var arguments = List<Syntax.Expressions.Expression>()
+var local_names = List<String>()
+var local_values = List<Syntax.Expressions.Expression>()
 
 func RowWalk(
     walked_symbol: String,
@@ -17,6 +19,13 @@ func RowWalk(
 
 func argument_for(identifier: Syntax.Expressions.IdentifierExpression): Syntax.Expressions.Expression? {
     assert identifier.name != symbol_parameter and identifier.name != row_parameter
+    var local = local_names.count() - 1
+    while local >= 0 {
+        if local_names[local] == identifier.name {
+            return local_values[local]
+        }
+        local = local - 1
+    }
     var position = 0
     while position < parameters.count() and parameters[position] != identifier.name {
         position = position + 1
@@ -26,4 +35,14 @@ func argument_for(identifier: Syntax.Expressions.IdentifierExpression): Syntax.E
     }
     var unchanged: Syntax.Expressions.Expression = identifier
     return unchanged
+}
+
+func bind_local(name: String, value: Syntax.Expressions.Expression) {
+    local_names.append(name)
+    local_values.append(value)
+}
+
+func clear_locals() {
+    local_names.clear()
+    local_values.clear()
 }
