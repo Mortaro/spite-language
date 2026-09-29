@@ -327,6 +327,7 @@ var shape_flow_targets = List<Analysis.UnionInfo>()
 var read_attributes = Dictionary<Boolean>()
 var folded_words = Dictionary<Boolean>()
 var loaded_folders = List<String>()
+var checkout_folders = List<String>()
 var classes_resolved = false
 var pending_constraint_instances = List<Analysis.ClassInfo>()
 var pending_constraint_paths = List<String>()
@@ -637,6 +638,7 @@ func generate(
 ): String {
     entry_class_c_name = discovery.entry_mangled_name
     loaded_folders = discovery.loaded_folders
+    checkout_folders = discovery.checkout_folders
     var allocator = allocator_text()
     var header_text = runtime_header_text.replace("/*spite_allocator*/", allocator)
     builder.add_typedef(header_text)
@@ -25881,6 +25883,17 @@ func report_unused_attributes() {
     }
 }
 
+func is_in_checkout(path: String): Boolean {
+    var index = 0
+    while index < checkout_folders.count() {
+        if path.starts_with(checkout_folders[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func is_in_loaded_folder(path: String): Boolean {
     var index = 0
     while index < loaded_folders.count() {
@@ -34716,7 +34729,9 @@ func hot_reload_body(name: String): String {
                     var folder = loaded_folders[index]
                     var folder_length = folder.length()
                     var without_slash = folder.slice(0, folder_length - 1)
-                    folders.append(without_slash)
+                    if not is_in_checkout(folder) {
+                        folders.append(without_slash)
+                    }
                     index = index + 1
                 }
                 var joined = folders.join("\n")

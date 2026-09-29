@@ -8,12 +8,13 @@ and every folder it `load`s -- and only then decides what to produce, from the p
 (a `Boolean` option may be given bare, `--optimized`). A flag is written in kebab-case and sets the `snake_case` field
 of the same name: `--repl-port=4000` sets `Build.repl_port`, and a field a program declares in its own
 `build.spite`, `worker_stack_size`, is given as `--worker-stack-size=256` ([D188](#flags-and-settings)). By default
-the compiler builds the executable beside the program and runs it.
+the compiler builds the executable into `.spite/` in the folder you run it from, and runs it: nothing is written
+beside the program's source unless a path says so ([D283](#where-the-outputs-go)).
 
 ```
-spite game                          build game/game.exe beside the program, and run it
+spite game                          build .spite/build/game/game.exe, and run it
 spite game --debug-memory           the same, counting allocations and frees
-spite game --c-source               also write game/game.c
+spite game --c-source               also write .spite/build/game/game.c
 spite game --run=false              only check that it compiles
 spite game --repl-port=4000         serve a REPL on 127.0.0.1:4000 while it runs
 spite game -- --name=production     run it with a setting its Environment declares
@@ -26,7 +27,7 @@ freely -- a production build may keep the REPL -- and the outputs combine: one c
 write its C and write its final classes.
 
 `bin/spite` (and `bin/spite.cmd`, which runs it from a Windows prompt) is the command itself: it builds the
-compiler from `bootstrap/seed/spite_compiler.c` into `.spite-cache/spite.exe` the first time, and again whenever the
+compiler from `bootstrap/seed/spite_compiler.c` into `.spite/spite.exe` the first time, and again whenever the
 seed is newer, finds a C compiler, makes the folder and path arguments absolute, and passes everything else
 through. What follows `--` reaches the program exactly as it was typed, from bash or from PowerShell or `cmd`
 through `spite.cmd`: `spite tool -- --prefixes=/Game/Legacy/` gives the program `--prefixes=/Game/Legacy/`, not
@@ -74,18 +75,18 @@ output off (`--run=false`), the compiler still reads and compiles the whole prog
 writes nothing but the formatting, which is not an output: every compile does it first ([below](#formatting)):
 
 ```bash
-spite game                                      # build game/game.exe and run it
-spite game --c-source                           # the same, and write game/game.c to read
-spite game --executable --c-source --run=false  # build game/game.exe and write game/game.c, run nothing
+spite game                                      # build .spite/build/game/game.exe and run it
+spite game --c-source                           # the same, and write .spite/build/game/game.c to read
+spite game --executable --c-source --run=false  # build the executable and write the C, run nothing
 spite game --run=false                          # only check that it compiles
 ```
 
-Checking writes no executable, so one an earlier build left beside the program is still there and still runs the
+Checking writes no executable, so one an earlier build left in `.spite/build/` is still there and still runs the
 old code: to build without running, turn `executable` on, `spite game --executable --run=false`. Whether
 `--run=false` alone should build instead is waiting on Mortaro (`mortaros_missing_decisions.md` item 212).
 
 Whole-program steps -- tree shaking, the constants `Build` folds, which templates are made -- run on the complete
-program before any output is written, so the C written beside an executable is the C that executable was built
+program before any output is written, so the C written with an executable is the C that executable was built
 from.
 
 In that C, every local, parameter and attribute has a `_` after its Spite name (`var near = 3` is
@@ -96,32 +97,48 @@ header (Windows defines `near`, `far` and `pascal`): C reserves nothing in Spite
 
 ## Where the outputs go
 
-Each output has its own path option, and without one it is written **beside the program**, in its own folder:
+**Nothing is written beside the program's source unless a path says so** (D283). Each output has its own path
+option, and without one it goes into `.spite/`, a folder inside the folder you ran `spite` from -- the folder a
+relative path the program opens is read from ([above](#where-it-runs)). `.spite/` holds only what the compiler
+writes, and can be deleted whenever you like:
 
 | Output | Path option | Default |
 |---|---|---|
-| the executable | `executable_path` | `game/game.exe` (`game/game` on Linux and macOS) |
-| the C | `c_path` | `game/game.c` |
+| the executable | `executable_path` | `.spite/build/game/game.exe` (no `.exe` on Linux and macOS) |
+| the C | `c_path` | `.spite/build/game/game.c` |
+
+The folder under `.spite/build/` is the program folder's own path from the folder you ran `spite` in, so
+`spite examples/hello` builds `.spite/build/examples/hello/hello.exe`, and two programs named alike never share an
+executable. A program outside that folder (`spite ../other/game`, or an absolute path somewhere else) is built into
+`.spite/elsewhere/game_<number>/game.exe`, the number worked out from the program folder's whole path the way the
+C's is below. `spite game` builds and runs it from there, so where it lands matters only when you want to keep it:
 
 ```bash
 spite game --executable --run=false --executable-path=build/game.exe
 spite game --c-source --run=false --c-path=build/game.c
 ```
 
+`.spite/git/` holds the checkouts of the repositories a program's `load`s pin to a commit
+([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)). In the language's own repository, `.spite/`
+also holds the compiler `bin/spite` builds, the intermediate C and objects below, and `check.sh`'s work folders. No
+`.spite/` folder is ever read as part of a program, and neither is `.spite-cache/`, its name before D283, which can
+be deleted.
+
 A folder the path names is created. A path option given for an output that is off is an error saying which flag
 is missing (`--c-path` without `--c-source`, [the texts](#outputs)), so a path never passes silently. Every `Build`
 field is a constant in the built program, the paths included.
 
-What a build writes **beside its executable**, wherever that is: `game.crashes`, the map from a crash report's
+What a build writes **beside its executable**, wherever that is (`.spite/build/game/` unless `--executable-path`
+moves it): `game.crashes`, the map from a crash report's
 site ids to their lines ([failure.md](failure.md)), and, for a `--hot-reload` build, `game.reload_host`,
 `game.reload_files` and each reload's `game_reload_1.dll` with its C ([repl.md](repl.md#live-reload---hot-reload)).
 The one intermediate that is not an output is the C the C compiler reads when `--c-source` is off: it goes to the
-language repository's `.spite-cache/game_<number>.c`, the number worked out from the executable's whole path, so
+language repository's `.spite/game_<number>.c`, the number worked out from the executable's whole path, so
 two builds of programs named alike in different folders at once never compile each other's C; it is overwritten
 by the next build of the same executable (D260). A C compiler that reports success without writing the
 executable is an error, `the C compiler reported success but '<path>' is not there: nothing was built, so nothing
 runs`, never a build that ends with nothing to run. A program built from [translation units](#translation-units-the-c-compiled-in-parallel-and-cached) writes its units,
-their header and their objects to `.spite-cache/objects` instead, each named by the hash of its content.
+their header and their objects to `.spite/objects` instead, each named by the hash of its content.
 
 `spite reload <folder> ... --executable-path=<running executable>` is what a `--hot-reload` program runs to
 rebuild itself: given the options it was built with, it compiles only the classes whose files changed into a
@@ -136,9 +153,9 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 |---|---|---|
 | `run` | `true` | builds the executable and runs it |
 | `executable` | `false` | builds the executable |
-| `executable_path` | `""` | where the executable goes; `""` is beside the program |
+| `executable_path` | `""` | where the executable goes; `""` is `.spite/build/<program>/` in the working folder ([above](#where-the-outputs-go)) |
 | `c_source` | `false` | writes the generated C |
-| `c_path` | `""` | where the C goes; `""` is beside the program |
+| `c_path` | `""` | where the C goes; `""` is `.spite/build/<program>/` in the working folder |
 | `final_classes` | `""` | writes the merged classes to this folder |
 | `optimized` | `false` | a release build: `-O3` instead of `-O0`, and link-time optimisation across the [translation units](#translation-units-the-c-compiled-in-parallel-and-cached) |
 | `tune_for_this_machine` | `false` | lets the C compiler use every instruction this machine has (`-march=native`, or `-mcpu=native` on ARM); the executable may not run on an older processor ([below](#release-builds)) |
@@ -213,7 +230,7 @@ its name picks, so editing a function leaves every other function where it was; 
 first unit; the small `static inline` helpers stay in the header, a copy for each unit. The C compiler compiles as
 many units at once as the machine has processors, and the objects are linked.
 
-Each unit's object is kept in the language repository's `.spite-cache/objects`, named by a hash of everything it
+Each unit's object is kept in the language repository's `.spite/objects`, named by a hash of everything it
 was compiled from: the C compiler's command and flags, the header and the unit. A build finds the objects it
 already has and compiles only the rest, so building a program again after changing nothing only links it, and
 after changing one function's body compiles one unit. What the cache cannot save: an edit that adds or removes a
@@ -399,7 +416,7 @@ The folder has no default: anything inside the program's own folder would be rea
 so the folder is always named. Like every output, it combines with the others; `--run=false` writes only it:
 
 ```bash
-spite game --final-classes=.spite-cache/final --run=false
+spite game --final-classes=.spite/final --run=false
 ```
 
 ## Errors and usage
@@ -423,11 +440,11 @@ Every command and flag the compiler has, as built. `program` is a folder; every 
 is a field of `Build` ([Build options](#build-options), [programs.md](programs.md#build-settings-build--implemented)).
 
 ```
-spite program                           build program/program.exe beside the program and run it
+spite program                           build .spite/build/program/program.exe and run it
 spite program --run=false               compile the whole program and write nothing but its formatting
 spite program --executable --run=false  build the executable without running it
 spite program --executable-path=path    put the executable at path (with --executable, or with run on)
-spite program --c-source                also write program/program.c
+spite program --c-source                also write .spite/build/program/program.c
 spite program --c-path=path             put the C at path (with --c-source)
 spite program --final-classes=folder    also write the final classes into folder (inspect merged classes)
 spite program --optimized               a release build: -O3, and link-time optimisation across translation units
@@ -482,28 +499,38 @@ off), since any folder inside the program would be read back as part of it. With
 still compiles the whole program and reports its errors. Tree shaking and every other whole-program step run
 before any output is written.
 
-- **Where outputs go** (D129): `executable_path` and `c_path`, each `""` by default, which means beside the
-  program: `game/game.exe` (`game/game` when the target is Linux or macOS) and `game/game.c`. A folder a path names
-  is created. A path option given on the command line for an output that is off is an error naming the missing
+- **Where outputs go** (D129, D283): `executable_path` and `c_path`, each `""` by default, which means the
+  working folder's `.spite/`, never beside the program's source (D283, decided by Mortaro: "the compiler shouldn't
+  write intermediate files beside the source"). The layout is proposed by Claude, unconfirmed: a program folder
+  inside the working folder is built into `.spite/build/<its path from the working folder>/`, so `spite game` writes
+  `.spite/build/game/game.exe` (`game` when the target is Linux or macOS) and `.spite/build/game/game.c`, and the
+  program folder that is the working folder itself is `.spite/build/<name>/`; any other is built into
+  `.spite/elsewhere/<name>_<number>/`, the number `(n * 31 + code) mod 1 000 000 007` over the codes of the program
+  folder's absolute path from 7. The default paths are relative to the working folder, which is where the program
+  runs. A folder a path names is created. A path option given on the command line for an output that is off is an error naming the missing
   flag: `error: '--c-path' says where the C goes, and this build writes no C: give --c-source too`, and
   `error: '--executable-path' says where the executable goes, and this build makes none: give --executable too`
   (an executable is made when `executable` or `run` is on). What describes an executable stays beside it wherever
   it goes: the `.crashes` map ([Failure: three outcomes and no others](failure.md#failure-three-outcomes-and-no-others--partial))
   and a `--hot-reload` build's `.reload_host`, `.reload_files` and `_reload_<n>` libraries. The one intermediate
   is the C the C compiler reads when `c_source` is off, written to the language repository's
-  `.spite-cache/<executable name>_<number>.c`, the number `(n * 31 + code) mod 1 000 000 007` over the codes of
+  `.spite/<executable name>_<number>.c`, the number `(n * 31 + code) mod 1 000 000 007` over the codes of
   the executable's whole path from 7 (D260, decided by Claude under D244: two sessions building programs named
   alike at once used to share `<name>.c`, so one could compile the other's program), or, for a build from several
-  translation units, its units, header and objects, written to `.spite-cache/objects` under the hash of their
+  translation units, its units, header and objects, written to `.spite/objects` under the hash of their
   content (the rules below).
 - **A build that ends with no executable is an error** (D260): when the C compiler (or the link of the units)
   reports success and the executable is not at its path, the build stops with `error: the C compiler reported
   success but '<path>' is not there: nothing was built, so nothing runs (another build writing the same
   executable, or a virus scanner, may have removed it)` and exit status 1, instead of a status of 0 with nothing to
   run.
-- **The compiler's own C goes to its default path**, `bootstrap/bootstrap.c`: every `Build` field is a constant in
-  what is built, so a `--c-path` naming a different file each run would be written into the C and the fixpoint
-  would never hold ([self_hosting.md](self_hosting.md)).
+- **The compiler's own C goes to its default path**, `.spite/build/bootstrap/bootstrap.c` from the language's
+  repository: every `Build` field is a constant in what is built, so a `--c-path` naming a different file each run
+  would be written into the C and the fixpoint would never hold ([self_hosting.md](self_hosting.md)).
+- **`.spite/` is never part of a program** (D283; proposed by Claude, unconfirmed): walking a program's folder or a
+  loaded root, the compiler skips every folder named `.spite`, `.spite-cache` (the name before D283) or `.git`, so
+  running `spite .` inside a program, whose outputs and checkouts land in its own `.spite/`, reads none of them
+  back, and `spite format` skips `.spite/` and `.spite-cache/` the same way.
 - **Final classes** are described in full [above](#inspect-merged-classes): a program, not a report.
 - **The executable is built from translation units** (proposed by Claude, unconfirmed: the behaviour, the name
   `translation_units` and its rule). The number is `translation_units` when it is above `0`; at `0` it is 1 unless
@@ -584,9 +611,10 @@ optimisation applies in (`conformance/stage6/development_internals`).
 (Proposed by Claude, unconfirmed.) In the folder `spite` was run from. The compiler finds `launcher/` and
 `library/` from its own executable -- the first folder above it that holds `launcher/launcher.spite` -- and never
 from the working directory, so a relative path a program opens (`File`, `Directory`, a cache folder) is the
-caller's. The launcher's `load` paths are relative to that folder, and the executable is built beside the program
-(D129), so running a program leaves nothing in the caller's folder (`check.sh` runs
-`conformance/stage6/working_directory` from another folder). A program built with `--repl`, `--repl-port` or
+caller's. The launcher's `load` paths are relative to that folder. The outputs with no path go into that folder's
+`.spite/` (D283), so running a program adds `.spite/` to the caller's folder and nothing else, and nothing beside
+the program's source (`check.sh` runs `conformance/stage6/working_directory` from another folder, and a copy of it
+from inside that folder). A program built with `--repl`, `--repl-port` or
 `--hot-reload` runs attached to the terminal; any other run's output is printed when it ends, and the compiler
 exits with the program's exit code.
 
@@ -621,7 +649,8 @@ changes. `check.sh` runs `conformance/stage6/launcher_arguments` through `bin/sp
   A test input kept unformatted on purpose, like `diagnostics/`, is compiled from a copy by `check.sh`, so the
   formatting lands on the copy.
 - **`spite format <file-or-folder> ...`** runs the same formatter without compiling: a file formats just itself, a
-  folder every `.spite` file under it except in `.spite-cache/` folders, with no regard for what a program loads.
+  folder every `.spite` file under it except in `.spite/` and `.spite-cache/` folders, with no regard for what a
+  program loads.
   Each file rewritten prints `formatted <path>` to the error output; a file the formatter refuses is
   `<path>: not formatted: <reason>`, and the command exits 1 after trying the rest. `--check` rewrites nothing,
   prints each file that would change on standard output, and exits 1 if there is one (0 when everything is

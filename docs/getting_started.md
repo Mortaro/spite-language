@@ -9,7 +9,7 @@ clang that ships with Visual Studio is found on its own. From the repository roo
 bin/spite examples/hello
 ```
 
-`bin/spite` builds the compiler from `bootstrap/seed/spite_compiler.c` into `.spite-cache/` the first time it
+`bin/spite` builds the compiler from `bootstrap/seed/spite_compiler.c` into `.spite/` the first time it
 runs (and again whenever that file is newer), then compiles and runs the program. The seed is the C the Spite
 compiler emits for its own sources, so building it by hand is one command too:
 
@@ -47,8 +47,8 @@ spite hello_world
 A file is a class, named by its file name: `hello_world.spite` is the class `HelloWorld`. There is no `main`: the
 program runs by constructing the entry class, so its constructor -- the function named like the class -- is the
 whole program. Building and running are the same command; there is no separate compile step to remember. The
-executable is built beside the program, `hello_world/hello_world.exe` (no `.exe` on Linux and macOS), so it can be
-run again without the compiler ([compiler.md](compiler.md#choose-the-outputs) has the other outputs). It carries
+executable is built into `.spite/` in the folder you ran `spite` from, `.spite/build/hello_world/hello_world.exe` (no
+`.exe` on Linux and macOS), never beside the source, so it can be run again without the compiler ([compiler.md](compiler.md#choose-the-outputs) has the other outputs). It carries
 only what the program uses: the standard library classes hello world never reaches are not in it, and there is
 no runtime beneath it ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)).
 

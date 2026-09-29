@@ -10,12 +10,12 @@ func ProcessSettings() {
     greeting.run()
     var greeting_line = greeting.output().trim()
     console.print(greeting_line)
-    var folder = Directory(".spite-cache/process_settings")
+    var folder = Directory(".spite/process_settings")
     folder.create()
-    var marker = File(".spite-cache/process_settings/marker.txt")
+    var marker = File(".spite/process_settings/marker.txt")
     marker.write("found beside the child")
     var reading = Process("cmd", ["/c", "type", "marker.txt"])
-    reading.working_directory = ".spite-cache/process_settings"
+    reading.working_directory = ".spite/process_settings"
     var code = reading.run()
     var read_line = reading.output().trim()
     console.print(code, read_line)

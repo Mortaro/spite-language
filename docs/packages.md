@@ -20,7 +20,7 @@ func Game() {
   standard library and then yours ([programs.md](programs.md#how-a-program-is-loaded)): its `load` may also use
   the `Build` fields the compiler already knows, like `build.target_operating_system` after `var build = Build()`.
 - Folder names are always lowercase `snake_case`, package roots included: `slop_window_plugin`, never
-  `slop-window-plugin` (D181). The compiler does not check this yet
+  `slop-window-plugin` (D181), and a folder that is not is an error before anything compiles
   ([the rules in full](#packages-namespaces-and-loading--partial)).
 - Resolving a bare `Name` from inside a class tries, in order: that class's own namespace, its folder, each
   parent folder, then the whole program. A dotted `Component.Requested` is looked up the same way, and so is
@@ -280,8 +280,75 @@ one that reads `Arguments()`, is an error rather than a folder that is quietly l
 Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
 ([the rules in full](#packages-namespaces-and-loading--partial)).
 
-A dependency will be a git URL pinned to a commit in the `load` line itself, with no package manager, registry
-or lockfile. That is decided and not built ([the rules in full](#packages-namespaces-and-loading--partial)).
+## Loading a repository pinned to a commit
+
+A dependency is a repository and a commit, written in the `load` line itself (D38, D283). There is no package
+manager, no registry, no lockfile and no fetch step: the ordinary compile fetches what a `load` names, and the pin
+lives in the source, which is already versioned.
+
+```
+func Game() {
+    load "github.com/mortaro/slop_engine@6c7dca9/slop"
+    load "../slop_audio@b41e0d2/plugins/slop_ogg_plugin"
+    load "D:/Projects/spite_truetype@41c09e2/truetype"
+}
+```
+
+The text is `<repository>@<commit>`, optionally followed by `/<folder inside it>`, which is loaded as a root
+exactly as a folder on disk would be; with no folder, the repository's own top folder is the root. The repository
+is either a URL -- `github.com/mortaro/slop_engine` (fetched over `https://`), or one written with its scheme,
+`https://`, `ssh://`, `git://` or `file://` -- or a repository on this machine, named by a path that starts with
+`./`, `../`, `/` or a drive letter, relative to the folder of the file the `load` is written in like any `load`.
+Nothing else is a repository, so `load "slop_engine@6c7dca9"` is an error that shows both forms, and a folder
+without an `@` is an ordinary folder, as before.
+
+The commit is required, and it is a commit: 7 to 40 lowercase hexadecimal digits. A branch or a tag moves, and a
+pin must not, so `@main` is an error, and so is a URL without an `@`. A pinned commit never changes silently: the
+compiler checks the commit out once, then compiles from that copy.
+
+**Where the copy lives.** The first compile that meets a pin checks the commit's files out into `.spite/git/` in the
+folder `spite` was run from ([compiler.md](compiler.md#where-the-outputs-go)), as
+`.spite/git/<repository name>_<number>/<commit>/`, the number worked out from the repository's whole path or URL,
+and prints `fetched <repository>@<commit> into <folder>`. Every later compile finds it there and runs no git at all.
+The copy is plain files, with no `.git` in it, kept out of the program's folders, so nothing mistakes it for source
+to edit. From a repository on this machine the files are written straight from its objects: its working files, its
+index, its branches and its worktrees are left exactly as they were, so the repository you are working in can be
+the one you pin. From a URL the repository is cloned once, bare, into `.spite/git/<repository name>_<number>/repository`,
+and fetched again only when a pin names a commit it does not hold yet. The compiler runs the `git` on the `PATH`.
+
+**The copy is read-only.** Fetching records every file of the commit beside the copy, and each compile checks the
+copy against that record before reading it: a file changed or removed there, or a `.spite` file added, is an error
+naming it, never code that quietly differs from the commit. To change a package, change its repository, commit, and pin the
+new commit; to fetch a copy again, delete its folder. A copy is never formatted, and live reload never watches it
+([repl.md](repl.md#live-reload---hot-reload)): what it holds cannot change while the program runs.
+
+**Pins inside a package.** A fetched package may pin repositories of its own. A relative repository path in it is
+read from where the file sits in *its* repository, not in the copy, so an engine at `D:/Projects/slop_engine` that
+loads `../../../../spite_truetype@41c09e2/truetype` from `plugins/slop_ui_plugin/ui/` reaches
+`D:/Projects/spite_truetype` both when you build the engine itself and when a game loads the engine at a pin. A
+package fetched from a URL names the repositories it loads by URL, since a path on its author's machine means
+nothing on yours. An ordinary `load` in a fetched package stays inside that package's repository: one that leaves
+it is an error, since the copy holds only its own commit's files. **Two pins of one repository** at different
+commits are an error naming both lines: the two versions would reopen each other's classes, the worst possible
+merge, so the human picks one.
+
+This program loads a folder of the language's own repository as it was at a commit. The documentation's programs
+are written out into `.spite/docs/<name>/` of that repository and compiled from there, so `../../..` is the
+repository itself:
+
+```gdscript title=pinned_widgets/pinned_widgets.spite entry
+var console = Console()
+
+func PinnedWidgets() {
+    load "../../..@6cb29ccf/conformance/stage2/namespaces_load/package"
+    var widget = Widgets.Widget("gadget", 3)
+    var description = widget.describe()
+    console.print(description)
+}
+```
+```output
+gadget x3
+```
 
 ## Files beside a package's source
 
@@ -343,7 +410,8 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   package is loaded, so a package's `build.spite` cannot add a field that decides a `load`.
 - **Folder names are always lowercase snake_case, package roots included** (D181): `slop_window_plugin`, never
   `slop-window-plugin`, for every folder that actually contains a `.spite` file anywhere inside it (an unrelated
-  folder with none, such as `.git` or a build output directory, is never descended for classes). A folder that
+  folder with none, such as a build output directory, is never descended for classes, and `.git`, `.spite` and
+  `.spite-cache` are never walked at all, D283). A folder that
   is not is an error before anything compiles, naming the snake_case to rename it to: "the folder 'BadFolder' is
   not named in snake_case: every folder of a program, a package's own folder included, is lowercase words joined
   by '_', so rename it 'bad_folder'" (`diagnostics/folder_name`, and `diagnostics/load_folder_name` for `load
@@ -465,9 +533,68 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   object, which holds it only in a program that asks that way (`conformance/stage6/source_folder`). It is the build
   machine's folder: a shipped program copies or cooks the files it needs instead. A class that declares its own
   `source_folder` function is called as usual.
-- **A dependency is a git URL pinned to a commit in the `load` line itself** (D38): `load
-  "github.com/mortaro/engine@a3f2c91"`, fetched by the ordinary compile, with no package manager, registry or
-  lockfile.  **[planned]**
+- **A dependency is a repository pinned to a commit in the `load` line itself** (D38, D283; built): `load
+  "github.com/mortaro/engine@a3f2c91"`, fetched by the ordinary compile, with no package manager, registry,
+  lockfile or fetch step. The spelling and the readings below are proposed by Claude, unconfirmed, under D205:
+  - A `load` whose text holds an `@` is a git load: the text before the last `@` is the repository, then the
+    commit, then optionally `/` and a folder inside the repository, which is the root loaded (the repository's top
+    folder when there is none). The folder may not start with `..` or be absolute: "'load "<text>"' names the
+    folder '<folder>', which is not inside the repository".
+  - The repository is local when it starts with `./`, `../`, `/`, `\` or a drive letter, and is then resolved
+    like any `load` path, from the folder of the file the `load` is written in; it is a URL when it starts with
+    `https://`, `http://`, `ssh://`, `git://` or `file://`, or when its first segment holds a `.` (a host,
+    `github.com/...`, which is fetched as `https://github.com/...`). Anything else is "'load "<text>"' names no
+    repository: '<repository>' is neither a URL nor a path starting with ./, ../, / or a drive letter", followed
+    by both forms. A local repository must be the repository's own top folder: a folder inside one is "... which
+    is the folder '<folder>' inside a repository: name the repository's own folder, and the folder inside it after
+    the commit".
+  - The commit is 7 to 40 lowercase hexadecimal digits, or "'load "<text>"' pins '<commit>', which is not a commit:
+    a branch or a tag moves, and a pin must not". A load with no `@` whose text is a URL, or starts with a host
+    and names no folder that exists, is "'load "<text>"' names a repository without its commit, and a load from a
+    repository is pinned: write its commit after the repository". A load with no `@` of a local folder stays the
+    ordinary folder load (D227). The pin is resolved with `git rev-parse --verify <commit>^{commit}`, and a name
+    that resolves to a commit not starting with it (a branch or tag spelled in hexadecimal) is an error too.
+  - **Fetching is the ordinary compile** (D283): the commit's files are written into the working folder's
+    `.spite/git/<label>_<number>/<commit>/`, the label the repository's last path segment in snake_case (without
+    `.git`), the number `(n * 31 + code) mod 1 000 000 007` from 7 over the codes of the repository's absolute path
+    (lowercased when it has a drive letter) or its URL. From a local repository the compiler runs
+    `git -C <repository> read-tree <commit>` and `git -C <repository> --work-tree=<copy> checkout-index --all
+    --force` with `GIT_INDEX_FILE` pointing at a file of its own in `.spite/git/`, so the repository's working
+    files, index, `HEAD`, branches and worktrees are untouched. From a URL it keeps a bare clone in
+    `.spite/git/<label>_<number>/repository`, cloned at the first pin (`git clone --bare`) and fetched again
+    (`+refs/heads/*` and `+refs/tags/*`) only when it lacks a pinned commit, and writes the files from it the same
+    way. Last it writes `<commit>.files` beside the copy: the full commit, then every file of the copy, a `.spite`
+    file with its length and two hashes of its text, any other with its size and modification time. A copy counts as fetched only once that file exists, so an interrupted fetch is
+    redone; a compile that finds both runs no git. The compiler prints `fetched <repository>@<commit> into <folder>`
+    to the error output when it fetches, as it prints `formatted <path>`.
+  - **Every failure names the `load` line** (D244): `<file>:<line>: error: ...` for no `git` on the `PATH`
+    ("'load "<text>"' fetches <repository> with git, and there is no 'git' on the PATH"), a local repository that
+    does not exist or is not a repository, a URL git cannot clone (git's own first line quoted), a commit the
+    repository does not hold after fetching ("<repository> has no commit <commit>"), a folder after the commit that
+    the commit lacks, and a copy that git could not write.
+  - **A pinned commit never changes silently**: each compile checks the copy against `<commit>.files` again, once
+    per copy, and a file of the commit that is changed or removed, or a `.spite` file that was added, is "'<file>'
+    is not what the commit <commit> of <repository> holds: a checkout is read-only, so a pinned commit never
+    changes. Delete the folder '<copy>' to fetch it again". A file other than `.spite` that appears in the copy
+    later (a cache a plugin writes beside its source at run time) is not the commit's and is left alone; the
+    compiler reads only `.spite` files. Other files are compared by size and modification time rather than read,
+    so a package's assets cost a directory listing per compile, not a read (proposed by Claude, unconfirmed).
+  - **A copy is read-only in the compile too**: its files are never formatted ([compiler.md](compiler.md#formatting-before-compiling-and-spite-format)),
+    its root is not held to snake_case (the folder is named by the commit; a folder after the commit is), and a
+    `--hot-reload` build does not watch it ([repl.md](repl.md#live-reload---hot-reload)).
+  - **Pins inside a fetched package**: a relative repository path in a file of a copy is resolved from the
+    folder that file has in the repository the copy came from, so sibling repositories stay siblings; in a copy
+    fetched from a URL it is "... fetched from a URL, and names a repository by a path on this machine". An
+    ordinary `load` in a copy whose folder leaves the copy is "'load "<text>"' is written in
+    <repository>@<commit> and leaves that repository".
+  - **Two pins of one repository** (the same absolute path, or the same URL) that resolve to different commits are
+    an error at the second: "'load "<text>"' pins <repository> at <commit>, and <file>:<line> ('load "..."') pins
+    it at another commit: two commits of one repository would reopen each other's classes, so pin the same commit
+    in both" (D38's version mismatch). Two spellings of one commit share nothing but agree.
+  - Compile time only (D177): a git load costs what a folder load costs at run time, nothing
+    (`check.sh` builds a program from a local repository pinned to a commit that is no longer its `HEAD`, from a
+    second compile with no git work, with `--hot-reload`, and fails it on an unknown commit, without git on the
+    `PATH` and after editing the copy).
 - Because patching is dangerous to read, the toolchain writes a **final class** folder: every class after all codegen, with the
   winning function of every replacement, each preceded by a `#` comment naming the root it came from (and which roots it
   replaced) -- see `--final-classes` in [Command line](compiler.md#command-line). The language server reads it too.

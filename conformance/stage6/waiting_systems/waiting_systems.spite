@@ -1,7 +1,7 @@
 var console = Console()
 
 func WaitingSystems() {
-    var level = File(".spite-cache/waiting_systems_level.txt")
+    var level = File(".spite/waiting_systems_level.txt")
     level.write("forest")
     run_systems()
     var loader_waits = System.FileLoader.function_waits("update_each")

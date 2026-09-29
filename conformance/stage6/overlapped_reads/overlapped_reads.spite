@@ -1,9 +1,9 @@
 var console = Console()
 
 func OverlappedReads() {
-    var first_file = File(".spite-cache/overlapped_first.txt")
-    var second_file = File(".spite-cache/overlapped_second.txt")
-    var third_file = File(".spite-cache/overlapped_third.txt")
+    var first_file = File(".spite/overlapped_first.txt")
+    var second_file = File(".spite/overlapped_second.txt")
+    var third_file = File(".spite/overlapped_third.txt")
     first_file.write("first")
     second_file.write("second")
     third_file.write("third")
@@ -18,7 +18,7 @@ func OverlappedReads() {
     var again = first_file.read()
     crash again
     console.print(again)
-    var missing = File(".spite-cache/overlapped_missing.txt")
+    var missing = File(".spite/overlapped_missing.txt")
     var absent = missing.read()
     var present = second_file.read()
     crash present
