@@ -13,6 +13,7 @@ var scheduler = Scheduler()
 var running_program = Program()
 var build = Build()
 var hot_reload = HotReload()
+var inspector = Memory.Inspector()
 var thread: Long = 0
 var handover: Memory.Address = 0
 var pending_command = ""
@@ -200,7 +201,7 @@ func failure(text: String): Answer {
 func answer(command: String, program: Spite.Attribute): Answer {
     if command == "help" {
         return success(
-            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), reload, last_reload, help, exit",
+            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), bytes of a path or 'bytes 0x1f2a40 64', reload, last_reload, help, exit",
             "",
         )
     }
@@ -210,6 +211,9 @@ func answer(command: String, program: Spite.Attribute): Answer {
     if command == "classes" {
         var class_listing = listed_classes()
         return success(class_listing, "")
+    }
+    if command == "bytes" or command.starts_with("bytes ") {
+        return bytes_of(command, program)
     }
     if command == "attributes" or command.starts_with("attributes ") {
         return attributes_of(command, program)
@@ -942,4 +946,148 @@ func described(class_name: String): String {
         return "an {class_name}"
     }
     return "a {class_name}"
+}
+
+func bytes_of(command: String, program: Spite.Attribute): Answer {
+    var command_length = command.length()
+    var target = command.slice(6, command_length).trim()
+    if target.starts_with("0x") {
+        return range_bytes(target)
+    }
+    var found = found_at(target, program)
+    if not found {
+        return failure(unresolved)
+    }
+    var held = found.held_memory()
+    if held {
+        return object_bytes(found, held)
+    }
+    var stored = found.stored_memory()
+    if stored {
+        return stored_bytes(target, found, stored)
+    }
+    return failure(
+        "{target} is {described(found.class.name)} the loop reached through a call, so it is stored nowhere the loop can name: 'bytes' the attribute or element that holds it",
+    )
+}
+
+func object_bytes(found: Spite.Attribute, held: Spite.Memory): Answer {
+    var shown_count: Integer = held.bytes
+    if shown_count > inspector.most_bytes() {
+        shown_count = inspector.most_bytes()
+    }
+    var hex = inspector.hex_at(held.address, shown_count)
+    var parts = List<String>()
+    parts.append("\"class\":\"{json_text(found.class.name)}\"")
+    parts.append("\"address\":\"{inspector.address_text(held.address)}\"")
+    parts.append("\"bytes\":{held.bytes}")
+    if hex {
+        parts.append("\"hex\":\"{hex}\"")
+    } else {
+        parts.append("\"unreadable\":true")
+    }
+    if kind_of(found) == "instance" {
+        var fields = field_entries(found, held.address)
+        parts.append("\"fields\":[{fields}]")
+    }
+    var buffer = found.buffer_memory()
+    if buffer {
+        var buffer_entry = buffer_bytes(buffer)
+        parts.append("\"buffer\":{buffer_entry}")
+    }
+    return success("\{{parts.join(",")}}", "")
+}
+
+func field_entries(found: Spite.Attribute, start: Long): String {
+    var entries = List<String>()
+    var children = found.value_attributes()
+    var index = 0
+    while index < children.count() {
+        var child = children[index]
+        var stored = child.stored_memory()
+        if stored {
+            var entry = field_entry(child, stored, start)
+            entries.append(entry)
+        }
+        index = index + 1
+    }
+    return entries.join(",")
+}
+
+func field_entry(child: Spite.Attribute, stored: Spite.Memory, start: Long): String {
+    var offset = stored.address - start
+    var shown_value = shown(child, true)
+    var name_text = json_text(child.name)
+    var class_text = json_text(child.class.name)
+    var value_text = json_text(shown_value)
+    return "\{\"name\":\"{name_text}\",\"class\":\"{class_text}\",\"offset\":{offset},\"bytes\":{stored.bytes},\"value\":\"{value_text}\"}"
+}
+
+func buffer_bytes(buffer: Spite.Memory): String {
+    var shown_count: Integer = buffer.bytes
+    if shown_count > inspector.most_bytes() {
+        shown_count = inspector.most_bytes()
+    }
+    var address_text = inspector.address_text(buffer.address)
+    var hex = inspector.hex_at(buffer.address, shown_count)
+    if not hex {
+        return "\{\"address\":\"{address_text}\",\"bytes\":{buffer.bytes},\"unreadable\":true}"
+    }
+    return "\{\"address\":\"{address_text}\",\"bytes\":{buffer.bytes},\"shown\":{shown_count},\"hex\":\"{hex}\"}"
+}
+
+func stored_bytes(target: String, found: Spite.Attribute, stored: Spite.Memory): Answer {
+    var byte_count: Integer = stored.bytes
+    var address_text = inspector.address_text(stored.address)
+    var hex = inspector.hex_at(stored.address, byte_count)
+    if not hex {
+        return failure("unreadable: {address_text} for {byte_count} bytes, which {target} names")
+    }
+    var shown_value = shown(found, true)
+    var class_text = json_text(found.class.name)
+    var value_text = json_text(shown_value)
+    return success(
+        "\{\"class\":\"{class_text}\",\"address\":\"{address_text}\",\"bytes\":{byte_count},\"hex\":\"{hex}\",\"value\":\"{value_text}\"}",
+        "",
+    )
+}
+
+func range_bytes(target: String): Answer {
+    var words = target.split(" ")
+    var usage = "'bytes' reads an address as 'bytes 0x1f2a40 64': an address in hexadecimal and a number of bytes"
+    if words.count() != 2 {
+        return failure(usage)
+    }
+    var address_word = words[0]
+    var count_word = words[1]
+    var address = hex_number(address_word)
+    var byte_count = count_word.to_integer()
+    if not address or not byte_count {
+        return failure(usage)
+    }
+    if byte_count < 1 or byte_count > inspector.most_bytes() {
+        return failure("'bytes' reads from 1 to {inspector.most_bytes()} bytes at a time, and {byte_count} is not in that range")
+    }
+    var address_text = inspector.address_text(address)
+    var hex = inspector.hex_at(address, byte_count)
+    if not hex {
+        return failure("unreadable: {address_text} for {byte_count} bytes")
+    }
+    return success("\{\"address\":\"{address_text}\",\"bytes\":{byte_count},\"hex\":\"{hex}\"}", "")
+}
+
+func hex_number(text: String): Long? {
+    var digits = "0123456789abcdef"
+    var text_length = text.length()
+    assert text_length >= 3 and text_length <= 18
+    var value: Long = 0
+    var index = 2
+    while index < text_length {
+        var character = text.character_at(index)
+        var digit = digits.index_of(character)
+        assert digit >= 0
+        value = value * 16 + digit
+        index = index + 1
+    }
+    return value
 }

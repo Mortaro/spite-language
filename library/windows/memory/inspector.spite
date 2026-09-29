@@ -1,0 +1,10 @@
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+
+func copy_readable(address: Long, target: Memory.Address, byte_count: Integer): Boolean {
+    var copied = heap.allocate(8)
+    var current_process: Long = -1
+    var read = kernel.ReadProcessMemory(current_process, address, target, byte_count, copied)
+    var copied_count = copied.read_long(0)
+    heap.free(copied)
+    return read != 0 and copied_count == byte_count
+}

@@ -1,0 +1,19 @@
+var console = Console()
+var inspector = Memory.Inspector()
+var level = 258
+
+func MemoryInspector() {
+    var level_memory = level.memory
+    var level_bytes: Integer = level_memory.bytes
+    var hex = inspector.hex_at(level_memory.address, level_bytes)
+    if hex {
+        console.print("level", hex)
+    }
+    var nowhere = inspector.hex_at(16, 8)
+    if not nowhere {
+        console.print("address 16 is unreadable")
+    }
+    var zero = inspector.address_text(0)
+    var two_hundred = inspector.address_text(512)
+    console.print(zero, two_hundred)
+}

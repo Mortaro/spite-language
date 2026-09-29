@@ -1,0 +1,56 @@
+singleton
+
+var heap = Memory.Heap()
+
+func most_bytes(): Integer {
+    return 4096
+}
+
+func hex_at(address: Long, byte_count: Integer): String? {
+    crash byte_count >= 0 and byte_count <= most_bytes()
+    if byte_count == 0 {
+        return ""
+    }
+    var buffer = heap.allocate(byte_count)
+    var readable = copy_readable(address, buffer, byte_count)
+    var text: String? = null
+    if readable {
+        text = hex_of(buffer, byte_count)
+    }
+    heap.free(buffer)
+    return text
+}
+
+func hex_of(buffer: Memory.Address, byte_count: Integer): String {
+    var pieces = List<String>()
+    var index = 0
+    while index < byte_count {
+        var value: Integer = buffer.read_byte(index)
+        var high = digit_of(value / 16)
+        pieces.append(high)
+        var low = digit_of(value % 16)
+        pieces.append(low)
+        index = index + 1
+    }
+    return pieces.join("")
+}
+
+func digit_of(value: Integer): String {
+    var digits = "0123456789abcdef"
+    return digits.character_at(value)
+}
+
+func address_text(address: Long): String {
+    var pieces = List<String>()
+    var rest = address
+    while rest > 0 {
+        var remainder: Integer = rest % 16
+        var digit = digit_of(remainder)
+        pieces.prepend(digit)
+        rest = rest / 16
+    }
+    if pieces.is_empty() {
+        return "0x0"
+    }
+    return "0x{pieces.join("")}"
+}

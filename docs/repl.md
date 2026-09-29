@@ -11,6 +11,7 @@
 > and `spite connect` is its client. `--hot-reload` swaps the classes whose files changed into the running
 > program, keeping its state, when a file is saved or when the REPL is sent `reload`
 > ([Live reload](#live-reload---hot-reload)); Windows runs it, and Linux and macOS are held to compiling.
+> `bytes <path>` answers a value's address, size, bytes and layout as JSON ([Native memory](#native-memory-bytes)).
 > **Not built yet:** the meta commands `describe`, `enums` and `memory`, a few paths and assignments,
 > and reloading a change to a class's attributes -- [the list](#repl-and-live-reload--partial).
 >
@@ -278,9 +279,7 @@ $ spite connect 4000 --command="Tick().step_milliseconds = 50"
 {"ok":true,"value":"50","type":"Integer"}
 
 $ spite connect 4000 --command="functions World()"
-{"ok":true,"value":"spawn(across: Integer, along: Integer): Nothing
-entity_count(): Integer
-position_of(entity: Integer): Position?\nstep_length(): Integer\nto_debug(): String","type":""}
+{"ok":true,"value":"spawn(across: Integer, along: Integer): Nothing\nentity_count(): Integer\nposition_of(entity: Integer): Position?\nstep_length(): Integer\nto_debug(): String","type":""}
 
 $ spite connect 4000 --command="Position()"
 {"ok":false,"error":"'Position' is a class, not a singleton: the prompt never makes an object, it reads the ones the program holds, and 'classes' lists the singletons"}
@@ -288,6 +287,30 @@ $ spite connect 4000 --command="Position()"
 $ spite connect 4000 --command="exit"
 {"ok":true,"value":"","type":""}
 ```
+
+## Native memory: `bytes`
+
+`bytes <path>` answers where a value lives and what its bytes are, as one JSON object an agent can diff between two
+processes -- a client's player against the server's, while it rubber-bands. For an instance it gives the class,
+the address, the size, the bytes in hexadecimal, and each attribute's offset, size and value; for a list, the list
+object and its buffer of items; for a number or text held by an attribute or a list, its own slot:
+
+```text
+spite> bytes World().positions[1]
+{"class":"Position","address":"0x1e8647ec050","bytes":16,"hex":"04000000580000000700000001000000","fields":[{"name":"across","class":"Integer","offset":8,"bytes":4,"value":"7"},{"name":"along","class":"Integer","offset":12,"bytes":4,"value":"1"}]}
+spite> bytes World().positions
+{"class":"List<Position>","address":"0x1e8647f6100","bytes":40,"hex":"0300...","buffer":{"address":"0x1e8647f5f50","bytes":16,"shown":16,"hex":"f0bf7e64e801000050c07e64e8010000"}}
+spite> bytes Tick().step_milliseconds
+{"class":"Integer","address":"0x1e8647ebf1c","bytes":4,"hex":"10000000","value":"16"}
+spite> bytes 0x1e8647ebf10 16
+{"address":"0x1e8647ebf10","bytes":16,"hex":"02000000590000000200000010000000"}
+spite> bytes 0x10 8
+unreadable: 0x10 for 8 bytes
+```
+
+The first eight bytes of every object are its header, the reference count and the class's number. A read only
+reads, and it never crashes the program it inspects: the bytes are copied through the operating system's checked
+read, and an address that is not readable answers `unreadable`. At most 4096 bytes are shown at a time.
 
 ## Live reload: `--hot-reload`
 
@@ -526,6 +549,29 @@ the entry class's own Spite name). Built:
   the program's own classes that are not singletons. The standard library's generic singletons (`TypedMemory<T>`,
   `InlineMemory<T>`) are left out. Any other build writes them as an empty list and empty text, and nothing calls
   them, so they are shaken out with the rest of the loop: a normal build carries none of it (D143, D177).
+- **`bytes`: native memory** (D289, decided by Claude under D205, implementing D281 and D282; the command's name
+  provisional under D214).  **[implemented]** `bytes <path>` answers one JSON object: for a value the path holds
+  an object of (an instance, a list, a dictionary, a singleton), `class`, `address` (hexadecimal text), `bytes`
+  (the object's size), `hex` (its bytes, at most 4096 shown) or `"unreadable":true`, then for an instance `fields`,
+  each with `name`, `class`, `offset` from the object's start, `bytes` and `value` (printed as the loop prints a
+  nested value), and for a list `buffer` with the item buffer's `address`, `bytes`, `shown` and `hex`; for a
+  number, `Boolean`, enum or text held by an attribute or an element, `class`, `address`, `bytes`, `hex` and
+  `value` of its own slot. A value reached only through what a call answers, with no slot of its own, is refused
+  naming what to ask instead. `bytes 0x1f2a40 64` reads a range: an address in hexadecimal and 1 to 4096 bytes,
+  anything else refused with the form. **A read never crashes the inspected program** (D244): the bytes are
+  copied by `Memory.Inspector.hex_at`, which asks the operating system -- `ReadProcessMemory` on the program's
+  own process on Windows, a write into a pipe on Linux and macOS, which fails with `EFAULT` rather than
+  faulting -- and a range it cannot copy whole answers `unreadable: 0x10 for 8 bytes`. Reads only.
+- **What `bytes` is built from** (D282: inspection is library Spite, and the REPL one caller). Three members of
+  `Spite.Attribute`, supplied by the compiler (proposed by Claude, unconfirmed): `held_memory()`, the object a
+  reflected value links to (its address and `sizeof` its C struct); `stored_memory()`, the slot an attribute or
+  element is stored in, from which an attribute's offset is its address less its owner's; and `buffer_memory()`,
+  a list's item buffer. Each answers `null` where there is none, and they answer only for a `Spite.Attribute`
+  linked to a live value, which is a REPL build's (outside one every `Spite.Attribute` answers `null`). The
+  copying is `Memory.Inspector` (`library/memory/inspector.spite`, with each system's `copy_readable` in its
+  folder), a singleton any program can call on `value.memory`'s address (`conformance/stage6/memory_inspector`).
+  A program that never inspects carries none of it; the attribute's five hidden numbers are set only where a
+  REPL build links it.
 - **Generic functions beyond the instances the program holds** (the plan, proposed by Claude, unconfirmed; not
   built). The prompt calls what the build compiled: a generic class's functions on an instance some path reaches,
   or on a generic singleton (`Column<Position>().values[0]`). An expression the build never compiled --

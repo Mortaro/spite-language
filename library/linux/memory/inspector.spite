@@ -1,0 +1,21 @@
+var library = DynamicLibrary("libc.so.6", 'identity', "")
+
+func copy_readable(address: Long, target: Memory.Address, byte_count: Integer): Boolean {
+    var ends = heap.allocate(8)
+    var opened = library.pipe(ends)
+    if opened != 0 {
+        heap.free(ends)
+        return false
+    }
+    var reading_end: Integer = ends.read_integer(0)
+    var writing_end: Integer = ends.read_integer(4)
+    heap.free(ends)
+    var written = library.write_as_long(writing_end, address, byte_count)
+    var read: Long = 0
+    if written == byte_count {
+        read = library.read_as_long(reading_end, target, byte_count)
+    }
+    library.close(reading_end)
+    library.close(writing_end)
+    return written == byte_count and read == byte_count
+}

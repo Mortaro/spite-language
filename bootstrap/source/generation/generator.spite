@@ -15490,7 +15490,7 @@ func emit_functions_function_bodies() {
 }
 
 func hidden_attribute_links_cleared(target: String): String {
-    return "{target}->spite_owner = 0; {target}->spite_release_owner = 0; {target}->spite_assign = 0; {target}->spite_held = 0; {target}->spite_release_held = 0; {target}->spite_held_attributes = 0; {target}->spite_held_functions = 0;"
+    return "{target}->spite_owner = 0; {target}->spite_release_owner = 0; {target}->spite_assign = 0; {target}->spite_held = 0; {target}->spite_release_held = 0; {target}->spite_held_attributes = 0; {target}->spite_held_functions = 0; {target}->spite_held_bytes = 0; {target}->spite_stored_address = 0; {target}->spite_stored_bytes = 0; {target}->spite_buffer_address = 0; {target}->spite_buffer_bytes = 0;"
 }
 
 func append_live_attributes(information: Analysis.ClassInfo, list_name: String, lines: List<String>) {
@@ -15502,6 +15502,9 @@ func append_live_attributes(information: Analysis.ClassInfo, list_name: String, 
         lines.append("\{")
         lines.append(
             "Spite_Attribute* spite_field = {reflect}({ensure_symbol(field.name)}, self->{c_value_name(field.name)});",
+        )
+        lines.append(
+            "spite_field->spite_stored_address = (int64_t)(intptr_t)&self->{c_value_name(field.name)}; spite_field->spite_stored_bytes = (int64_t)sizeof(self->{c_value_name(field.name)});",
         )
         var assign = ensure_assign_function(information, field)
         if not assign.is_empty() {
@@ -15556,6 +15559,7 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
         lines.append("reflected->spite_release_held = (void (*)(void*)){walked.c_name}___release;")
         lines.append("reflected->spite_held_attributes = (void* (*)(void*)){ensure_attributes_function(walked)};")
         lines.append("reflected->spite_held_functions = (void* (*)(void*)){ensure_functions_function(walked)};")
+        lines.append("reflected->spite_held_bytes = (int64_t)sizeof({walked.c_name});")
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
@@ -15563,6 +15567,10 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
         var list_name = ensure_list(list_type_element)
         lines.append("reflected->spite_held = {list_name}___retain(value);")
         lines.append("reflected->spite_release_held = (void (*)(void*)){list_name}___release;")
+        lines.append("reflected->spite_held_bytes = (int64_t)sizeof({list_name});")
+        lines.append(
+            "if (value != 0) \{ reflected->spite_buffer_address = (int64_t)(intptr_t)value->items_; reflected->spite_buffer_bytes = (int64_t)value->item_count_ * (int64_t)sizeof({c_type_name(list_type_element)}); }",
+        )
         lines.append(
             "reflected->spite_held_attributes = (void* (*)(void*)){ensure_list_attributes_function(list_type_element)};",
         )
@@ -15602,7 +15610,7 @@ func ensure_list_attributes_function(element: Analysis.SpiteType): String {
     builder.add_prototype("{signature};")
     var reflect = ensure_reflect_function(element)
     builder.add_support(
-        "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->item_count_; spite_index = spite_index + 1) {attributes_list}_append(result, {reflect}({long_text("spite_index")}, {list_item_code(element, "self", "spite_index")}));\nreturn result;\n}",
+        "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->item_count_; spite_index = spite_index + 1) \{ Spite_Attribute* spite_item = {reflect}({long_text("spite_index")}, {list_item_code(element, "self", "spite_index")}); spite_item->spite_stored_address = (int64_t)(intptr_t)&{list_item_code(element, "self", "spite_index")}; spite_item->spite_stored_bytes = (int64_t)sizeof({c_type_name(element)}); {attributes_list}_append(result, spite_item); }\nreturn result;\n}",
     )
     return function_c_name
 }
@@ -32231,6 +32239,11 @@ func emit_class(information: Analysis.ClassInfo) {
         struct_lines.append("void (*spite_release_held)(void*);")
         struct_lines.append("void* (*spite_held_attributes)(void*);")
         struct_lines.append("void* (*spite_held_functions)(void*);")
+        struct_lines.append("int64_t spite_held_bytes;")
+        struct_lines.append("int64_t spite_stored_address;")
+        struct_lines.append("int64_t spite_stored_bytes;")
+        struct_lines.append("int64_t spite_buffer_address;")
+        struct_lines.append("int64_t spite_buffer_bytes;")
     }
     struct_lines.append("};")
     var joined_struct_lines = struct_lines.join("\n")

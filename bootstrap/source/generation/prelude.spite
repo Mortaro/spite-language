@@ -602,6 +602,12 @@ func attribute_members(): List<String> {
         "if (self->spite_held != 0 && self->spite_held_functions != 0) return self->spite_held_functions(self->spite_held);\nreturn List_Spite_Function___make();"
         "func assign(text: String): Boolean"
         "bool assigned = false;\nif (self->spite_owner != 0 && self->spite_assign != 0) assigned = self->spite_assign(self->spite_owner, text_);\nSpiteString___release(text_);\nreturn assigned;"
+        "func held_memory(): Spite.Memory?"
+        "if (self->spite_held == 0 || self->spite_held_bytes <= 0) return 0;\nreturn Spite_Memory___make((int64_t)(intptr_t)self->spite_held, self->spite_held_bytes, Spite_Memory_Section_heap);"
+        "func stored_memory(): Spite.Memory?"
+        "if (self->spite_stored_address == 0) return 0;\nreturn Spite_Memory___make(self->spite_stored_address, self->spite_stored_bytes, Spite_Memory_Section_heap);"
+        "func buffer_memory(): Spite.Memory?"
+        "if (self->spite_buffer_address == 0) return 0;\nreturn Spite_Memory___make(self->spite_buffer_address, self->spite_buffer_bytes, Spite_Memory_Section_heap);"
     ]
 }
 

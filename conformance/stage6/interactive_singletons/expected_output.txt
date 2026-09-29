@@ -10,6 +10,7 @@ Program()
 Scheduler()
 TimeZones() not made yet
 HotReload()
+Memory.Inspector()
 Clock() not made yet
 World()
 Tick()
@@ -45,5 +46,8 @@ spite> 'World' is a singleton, so it takes no arguments: there is one instance, 
 spite> no function 'nope' in World: 'functions' lists them
 spite> World().spawn() ran, and it answers nothing, so nothing can follow it
 spite> 'drop' runs when World is released, and the prompt never runs it
+spite> unreadable: 0x10 for 8 bytes
+spite> 'bytes' reads from 1 to 4096 bytes at a time, and 99999 is not in that range
+spite> across is an Integer, which has no attributes
 spite> 3
 spite> 
