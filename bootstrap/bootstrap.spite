@@ -23,6 +23,8 @@ var partial_paths = List<String>()
 var reload_code = ""
 var reload_rebuilt = List<String>()
 var reload_generator: Generation.Generator? = null
+var reload_baseline = ""
+var reload_host_text = ""
 
 func Bootstrap() {
     load "source"
@@ -954,6 +956,8 @@ func write_companions(output_path: String) {
     if is_on("hot_reload") {
         File("{base}.reload_host").write(last_hot_manifest)
         File("{base}.reload_files").write(last_hot_state)
+        File("{base}.reload_start").write(last_hot_state)
+        File("{base}.reload_baseline").write("")
     }
 }
 
@@ -1007,6 +1011,15 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
     var base = without_executable_extension(program_file)
     var host_text = File("{base}.reload_host").read()
     var state_text = File("{base}.reload_files").read()
+    var baseline_text = File("{base}.reload_baseline").read()
+    if host_text and baseline_text {
+        if not baseline_text.is_empty() {
+            host_text = baseline_text
+        }
+    }
+    if host_text {
+        reload_host_text = host_text
+    }
     if not host_text or not state_text or not is_on("hot_reload") {
         console.print(
             "error: 'spite reload' rebuilds what changed in a program built with --hot-reload, and '{program_file}' was not: build it with --hot-reload --executable --executable-path={program_file}",
@@ -1049,6 +1062,7 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
         state = "{state}\n{moved_lines}"
     }
     var library_base = "{base}_reload_{next_generation}"
+    File("{library_base}.baseline").write(reload_baseline)
     var library_path = "{library_base}.{library_extension()}"
     if not build_library(reload_code, "{library_base}.c", library_path) {
         program.exit(1)
@@ -1126,6 +1140,10 @@ func compile_reload(
     reload_code = code
     reload_rebuilt = rebuilt
     reload_generator = generator
+    reload_baseline = ""
+    if not partial {
+        reload_baseline = generator.baseline_manifest(reload_host_text, reload)
+    }
     return ""
 }
 

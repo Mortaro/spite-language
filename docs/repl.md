@@ -380,8 +380,8 @@ object has the old name, so it can be deleted after the reload, or kept.
 
 What it costs: a change to a class's attributes compiles the whole program, since every class that reads them is
 compiled again -- about 40 seconds for SlopTheseus's server, against a few for a change to function bodies alone.
-A reload is compared with what the program was built with, so while a class's attributes differ from the build's,
-the reloads after it compile the whole program too. Not built yet ([D280](decisions.md)): an enum whose
+The saves after it are fast again: a reload that compiled the whole program becomes what the next one is compared
+with ([How it works](#how-it-works)). Not built yet ([D280](decisions.md)): an enum whose
 values change, and a class that starts or stops fitting in an `Items`' own memory -- both are refused, naming the
 class.
 
@@ -453,6 +453,13 @@ worked out while compiling, so the check folds away with the branch it guards.
   with `the change reaches '<name>', which the running program cannot swap: restart the program to take the
   change, or undo it`. Either way what swaps in is what compiling the whole program writes; `check.sh` holds it by
   compiling a reload of every file of ten programs both ways and comparing them (`SPITE_RELOAD_CHECK=<file>`).
+- **A reload that compiled the whole program is the next one's baseline.** After it, every function the program
+  runs is what that compile wrote, so the facts, the hashes and the class ids it compiled with describe the
+  running program better than the build's do. It writes them beside its library (`game_reload_2.baseline`); when
+  the program swaps the library in, it keeps them as `game.reload_baseline`, and the next reload compares with them
+  instead of the build's manifest -- the functions and slots the executable holds stay the build's. A save after a
+  change that compiled everything is fast again. Starting the program again starts from the build
+  (`game.reload_start`), since a new process runs the build's code.
 - **Every object of a program class can move.** In a `--hot-reload` build each object of the program's own classes
   carries two hidden words after its header: where its attributes live when they have moved, and its place in a
   list of the class's live objects, which each allocation adds to and each release takes from. Code reads an
@@ -520,9 +527,8 @@ is a gap to close, not a rule. The plan (proposed by Claude, unconfirmed), in th
    - An attribute of a new type is a new attribute: it holds its default. The reload names every class it moved,
      and for each what is new, gone, renamed or retyped (`moved every Hero to its new attributes: health is new and
      holds its default`), in its answer and on the error output.
-   - Once a class has moved, its code reads through the function for as long as the program runs. A later reload
-     is compared with the build, so while the running program's facts differ from the build's it compiles the
-     whole program. Refused, not built: a class that starts or stops fitting an `Items`' own
+   - Once a class has moved, its code reads through the function for as long as the program runs. Refused, not
+     built: a class that starts or stops fitting an `Items`' own
      memory, an enum whose values change, and a change to a value class (`String` and the numbers).
 2. **Dependents are rebuilt**: a change whose dependents cannot be swapped alone compiles the whole program into
    the reload library and re-points every slot, keeping the heap, instead of refusing.

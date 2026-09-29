@@ -127,6 +127,50 @@ func host_manifest(
     return lines.join("\n")
 }
 
+func baseline_lines(
+    host_text: String,
+    typedefs: List<String>,
+    class_names: List<String>,
+    class_identities: List<String>,
+    constants: Dictionary<String>,
+): List<String> {
+    var lines = List<String>()
+    var host_lines = host_text.split("\n")
+    var index = 0
+    while index < host_lines.count() {
+        var line = host_lines[index]
+        if line.starts_with("function ") or line.starts_with("slot ") {
+            lines.append(line)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < class_names.count() and index < class_identities.count() {
+        lines.append("class {class_names[index]}\t{class_identities[index]}")
+        index = index + 1
+    }
+    index = 0
+    while index < program_shaker.pieces.count() {
+        var name = program_shaker.piece_names[index]
+        crash name
+        if not name.is_empty() {
+            var hash = piece_hash(program_shaker.pieces[index], constants)
+            lines.append("hash {name} {hash}")
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < typedefs.count() {
+        var written_typedef = typedefs[index]
+        var name = layout_name(written_typedef)
+        if not name.is_empty() {
+            lines.append("layout {name} {written_typedef.replace("\n", " ")}")
+        }
+        index = index + 1
+    }
+    return lines
+}
+
 func layout_name(text: String): String {
     if text.starts_with("struct ") {
         var words = text.split(" ")

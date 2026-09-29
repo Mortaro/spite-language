@@ -35595,6 +35595,25 @@ func hot_manifest(): String {
         class_identities,
         builder.typedefs,
     )
+    var key_lines = analysis_manifest_lines()
+    if key_lines.is_empty() {
+        return manifest
+    }
+    return "{manifest}\n{key_lines.join("\n")}"
+}
+
+func baseline_manifest(host_text: String, reload: HotReloadLibrary): String {
+    var lines = reload.baseline_lines(host_text, builder.typedefs, class_names_by_id, class_identities, constant_texts)
+    var analysis = analysis_manifest_lines()
+    var index = 0
+    while index < analysis.count() {
+        lines.append(analysis[index])
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func analysis_manifest_lines(): List<String> {
     var key_lines = List<String>()
     var sites = number_key_sites.keys()
     var index = 0
@@ -35663,10 +35682,7 @@ func hot_manifest(): String {
         key_lines.append(fact_lines[fact_index])
         fact_index = fact_index + 1
     }
-    if key_lines.is_empty() {
-        return manifest
-    }
-    return "{manifest}\n{key_lines.join("\n")}"
+    return key_lines
 }
 
 func program_source_paths(): List<String> {

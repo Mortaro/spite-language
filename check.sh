@@ -666,7 +666,17 @@ party_expect 'exit' '{"ok":true,"value":"","type":""}'
 for attempt in $(seq 1 50); do kill -0 $party 2>/dev/null || break; sleep 0.2; done
 kill -0 $party 2>/dev/null && party_fail "the program kept running after exit"
 wait $party || party_fail "the program ended with exit code $?"
-echo "moving objects: a reload moved live objects and an Items' own memory to new attributes, keeping, renaming and releasing them, and swapped a body in after"
+# A whole reload's manifest is the running program's baseline, so the body edit after the moves compiled only its
+# class, and a fast reload against that baseline still matches a whole compile.
+wholes=$(grep -c "compiling the whole program" "$work/live_party/output.txt")
+[ "$wholes" == "3" ] || party_fail "the three attribute changes and the body edit compiled the whole program $wholes times, not 3"
+sed -i 's/ranked {rank}"/ranked {rank} again"/' "$party_folder/hero.spite"
+answer=$(SPITE_RELOAD_CHECK="$party_folder/hero.spite" "$work/generation_two.exe" reload "$party_folder" --hot-reload --repl-port=$party_port --executable-path="$work/live_party/live_party.exe" 2>&1 | tr -d '\r')
+case "$answer" in
+  "reload check: the fast reload matches a whole compile"*) ;;
+  *) echo "FAILED moving objects: a fast reload against the baseline answered: $answer" | head -c 600; echo; exit 1 ;;
+esac
+echo "moving objects: a reload moved live objects and an Items' own memory to new attributes, keeping, renaming and releasing them, and a body edit after compiled only its class, matching a whole compile"
 
 # A reload compiles only the classes of the changed files (docs/repl.md#how-it-works), from what the running
 # program's manifest says about the rest. SPITE_RELOAD_CHECK makes a reload of the file it names compile both

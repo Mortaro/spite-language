@@ -743,7 +743,9 @@ call effects, the key kinds -- comes from the manifest the build wrote beside th
 ([repl.md](repl.md#how-it-works)). The library's C carries only the types and declarations its functions use.
 
 **When.** In every reload of a `--hot-reload` build, unless the changed code changes one of those facts (then the
-reload compiles the whole program, as before, and says why on the error output). **Built.**
+reload compiles the whole program, as before, and says why on the error output). A reload that compiled the whole
+program becomes the baseline the next one compares with, so the save after a change to a class's attributes is
+fast again ([repl.md](repl.md#how-it-works)). **Built.**
 
 **What you notice.** A changed system of SlopTheseus's server swaps in about 6 seconds after the save, where a whole compile
 took 20 to 30. Nothing else: what swaps in is what a whole compile writes, which `check.sh` compares file by
