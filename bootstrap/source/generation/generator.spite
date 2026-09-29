@@ -21446,11 +21446,13 @@ func walked_field(
     var filled: Syntax.Expressions.Expression? = null
     var folded = folded_template_body(filling, scope, class_information)
     if folded {
-        var assigned = walked_assignment(folded)
+        var steps = walked_steps(folded, attribute, walk)
+        var assigned = walked_assignment(steps)
         if assigned {
             filled = walked_assigned_value(assigned, attribute, walk)
-            walk_checks(folded, attribute, walk)
+            walk_checks(steps, attribute, walk)
         }
+        walk.clear_locals()
     }
     if not walk_refused.is_empty() and walk_refused_attribute.is_empty() {
         walk_refused_attribute = attribute.name
@@ -21460,6 +21462,32 @@ func walked_field(
     bound_field_index = saved_field_index
     bound_field_type = saved_field_type
     return filled
+}
+
+func walked_steps(
+    folded: List<Syntax.Statements.Statement>,
+    attribute: Syntax.Statements.FieldDeclaration,
+    walk: RowWalk,
+): List<Syntax.Statements.Statement> {
+    var steps = List<Syntax.Statements.Statement>()
+    var index = 0
+    while index < folded.count() {
+        var statement = folded[index]
+        var local = shape.as_variable_declaration(statement)
+        var bound: Syntax.Expressions.Expression? = null
+        if local {
+            if local.value {
+                bound = walked_value(local.value, attribute, walk)
+            }
+        }
+        if local and bound {
+            walk.bind_local(local.name, bound)
+        } else {
+            steps.append(statement)
+        }
+        index = index + 1
+    }
+    return steps
 }
 
 func walked_assignment(folded: List<Syntax.Statements.Statement>): Syntax.Statements.AssignmentStatement? {

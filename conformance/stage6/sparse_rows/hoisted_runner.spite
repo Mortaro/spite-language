@@ -45,8 +45,9 @@ func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Int
         row.attributes[attribute] = Entity(entity)
     } else if attribute.class.fits_vector() and attribute.class != Entity {
         crash rows[attribute.index]
-        crash Column<attribute.class>().values[rows[attribute.index]]
-        row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+        var stored_row = rows[attribute.index]
+        crash Column<attribute.class>().values[stored_row]
+        row.attributes[attribute] = Column<attribute.class>().values[stored_row]
     } else {
         crash rows[attribute.index]
         var stored_row = rows[attribute.index]
