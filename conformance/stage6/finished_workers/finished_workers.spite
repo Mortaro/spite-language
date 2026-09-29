@@ -4,7 +4,7 @@ var scheduler = Scheduler()
 
 func FinishedWorkers() {
     scheduler.resume_only_when_asked()
-    var note = File(".spite-cache/finished_workers.txt")
+    var note = File(".spite/finished_workers.txt")
     note.write("frame")
     var pool = WorkerPool()
     pool.start(3)

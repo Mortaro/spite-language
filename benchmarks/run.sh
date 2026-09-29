@@ -2,11 +2,11 @@
 # Times every benchmark: the compiler writes its C, clang -O2 builds it, and the best of seven runs is reported.
 # Not part of check.sh, which only compiles them. Run from anywhere:
 #   bash benchmarks/run.sh [compiler] [benchmark ...]
-# The compiler defaults to .spite-cache/spite_development.exe, the one check.sh last built.
+# The compiler defaults to .spite/spite_development.exe, the one check.sh last built.
 cd "$(dirname "$0")/.." || exit 1
-compiler=${1:-.spite-cache/spite_development.exe}
+compiler=${1:-.spite/spite_development.exe}
 shift
-work=.spite-cache/benchmarks
+work=.spite/benchmarks
 mkdir -p "$work"
 if [ -z "$CC" ]; then
     for candidate in clang cc gcc; do

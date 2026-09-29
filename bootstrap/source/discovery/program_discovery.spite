@@ -24,8 +24,12 @@ var loaded_inside = List<String>()
 var program_build_fields = List<String>()
 var printer = Syntax.SourcePrinter()
 var program_environment = Environment()
+var working_folder = "."
+var loads_from_repositories = GitLoad()
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
+    loads_from_repositories.working_folder = working_folder
+    loads_from_repositories.cache_folder = "{working_folder}/.spite"
     choose_target_operating_system()
     choose_program(entry_path)
     if has_error {
@@ -59,6 +63,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     discovered.loaded_folders = loaded_folders
     discovered.program_paths = program_paths
     discovered.program_texts = program_texts
+    discovered.checkout_folders = loads_from_repositories.checkout_folders
     return discovered
 }
 
@@ -367,24 +372,45 @@ func is_spite_file(name: String): Boolean {
     return name.ends_with(".spite")
 }
 
-func load_root(entry_path: String, entry_directory: String, root_name: String) {
+func load_root(entry_path: String, entry_directory: String, root_name: String, line: Integer) {
     if root_name == "spite" {
         has_error = true
         error_message = "{entry_path}: error: 'spite' is reserved for the built-in Spite namespace: name the folder something else"
         return
     }
+    var from_repository = loads_from_repositories.is_git_load(root_name)
     var root_folder = "{entry_directory}/{root_name}"
-    if is_absolute_path(root_name) {
+    if from_repository {
+        var fetched = loads_from_repositories.folder_of(root_name, entry_directory, "{entry_path}:{line}")
+        if not fetched {
+            has_error = true
+            error_message = "{entry_path}:{line}: error: {loads_from_repositories.problem}"
+            return
+        }
+        root_folder = fetched
+    } else if is_absolute_path(root_name) {
         root_folder = root_name.replace("\\", "/")
     }
     assert not loaded_folders.contains("{root_folder}/")
+    if not from_repository and loads_from_repositories.escapes_checkout(entry_directory, root_folder, root_name) {
+        has_error = true
+        error_message = "{entry_path}:{line}: error: {loads_from_repositories.problem}"
+        return
+    }
     var root_directory = Directory(root_folder)
+    if not root_directory.exists() and loads_from_repositories.misses_commit(root_name) {
+        has_error = true
+        error_message = "{entry_path}:{line}: error: 'load \"{root_name}\"' names a repository without its commit, and a load from a repository is pinned: write its commit after the repository. {loads_from_repositories.form()}"
+        return
+    }
     if not root_directory.exists() {
         has_error = true
         error_message = "could not find the folder '{root_name}' loaded by {entry_path}"
         return
     }
-    check_folder_name(root_folder, entry_path)
+    if not from_repository or not loads_from_repositories.is_checkout_root(root_folder) {
+        check_folder_name(root_folder, entry_path)
+    }
     assert not has_error
     loaded_folders.append("{root_folder}/")
     note_loads_inside(root_folder)
@@ -695,7 +721,7 @@ func walk_directory(
     var folder_index = 0
     while folder_index < folders.count() {
         var folder_name = folders[folder_index]
-        var excluded = loaded_inside.contains("{folder_on_disk}/{folder_name}")
+        var excluded = loaded_inside.contains("{folder_on_disk}/{folder_name}") or is_tool_folder(folder_name)
         if segments.is_empty() and not excluded {
             excluded = excluded_top_level.contains(folder_name)
             if walking_library and is_platform_folder(folder_name) {
@@ -714,6 +740,10 @@ func walk_directory(
     }
 }
 
+func is_tool_folder(name: String): Boolean {
+    return name == ".spite" or name == ".spite-cache" or name == ".git"
+}
+
 func note_loads_inside(root_folder: String) {
     var directory = Directory(root_folder)
     assert directory.exists()
@@ -729,7 +759,9 @@ func note_loads_inside(root_folder: String) {
     var folders = directory.folders()
     index = 0
     while index < folders.count() {
-        note_loads_inside("{root_folder}/{folders[index]}")
+        if not is_tool_folder(folders[index]) {
+            note_loads_inside("{root_folder}/{folders[index]}")
+        }
         index = index + 1
     }
 }
@@ -758,7 +790,8 @@ func note_loaded_names(folder: String, names: List<String>) {
     var index = 0
     while index < names.count() {
         var inside = "{folder}/{names[index]}"
-        if not names[index].starts_with("../") and not is_absolute_path(names[index]) and not loaded_inside.contains(inside) {
+        var outside = names[index].starts_with("../") or is_absolute_path(names[index]) or names[index].contains("@")
+        if not outside and not loaded_inside.contains(inside) {
             loaded_inside.append(inside)
         }
         index = index + 1
@@ -1415,7 +1448,7 @@ func load_named_root(folder: Syntax.Expressions.Expression, file: Syntax.SourceF
     var literal = shape.as_string_literal(folder)
     if literal {
         var directory = directory_of(file.path)
-        load_root(file.path, directory, literal.value)
+        load_root(file.path, directory, literal.value, line)
         return
     }
     has_error = true

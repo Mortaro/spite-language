@@ -2,7 +2,7 @@ var console = Console()
 var program = Program()
 
 func PooledLoadsWait() {
-    var level = File(".spite-cache/pooled_loads_wait.txt")
+    var level = File(".spite/pooled_loads_wait.txt")
     level.write("forest")
     var blobs = Blobs()
     var text = ""

@@ -61,7 +61,7 @@ func ConcurrentTour() {
     var fast = Concurrent(fast_sleeper.nap)
     log.append("both are asleep")
     log.append("{slow} and {fast} are back")
-    var notes = File(".spite-cache/concurrency_notes.txt")
+    var notes = File(".spite/concurrency_notes.txt")
     notes.write("written before the read")
     var reading = Concurrent(notes.read)
     if reading {
@@ -108,8 +108,8 @@ file written by the next statement is written after the reads.
 var console = Console()
 
 func ReadsInARow() {
-    var settings_file = File(".spite-cache/documentation_settings.txt")
-    var scores_file = File(".spite-cache/documentation_scores.txt")
+    var settings_file = File(".spite/documentation_settings.txt")
+    var scores_file = File(".spite/documentation_scores.txt")
     settings_file.write("volume=7")
     scores_file.write("ada=12")
     var settings = settings_file.read()
@@ -267,7 +267,7 @@ runs on its helper thread, and the state machine continues on the program's thre
 
 ```gdscript title=frame_io/save_game.spite
 var console = Console()
-var save = File(".spite-cache/documentation_save.txt")
+var save = File(".spite/documentation_save.txt")
 
 func update_each() {
     var loads = 0
@@ -286,7 +286,7 @@ var scheduler = Scheduler()
 
 func FrameIo() {
     scheduler.resume_only_when_asked()
-    var save_file = File(".spite-cache/documentation_save.txt")
+    var save_file = File(".spite/documentation_save.txt")
     save_file.write("level 3")
     var game = SaveGame()
     var loading = Concurrent(game.update_each)

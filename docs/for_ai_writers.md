@@ -14,13 +14,13 @@ one of them is Spite, not GDScript -- write `.spite` files.
 ## Run it
 
 ```
-spite program                           build program/program.exe beside it and run it
+spite program                           build .spite/build/program/program.exe and run it
 spite program --optimized               optimized build (a Build field)
 spite program --debug-memory            print the allocation balance at the end
 spite program --repl-port=4000          serve the REPL; spite connect 4000 --command="..." asks it
-spite program --c-source --run=false    write program/program.c instead (--c-path= puts it elsewhere)
+spite program --c-source --run=false    write .spite/build/program/program.c instead (--c-path= puts it elsewhere)
 spite program --run=false               only compile: the errors, if any (writes no executable)
-spite program --executable --run=false  build program/program.exe without running it
+spite program --executable --run=false  build .spite/build/program/program.exe without running it
 spite program -- --serve=true           the program's own arguments, read by Environment (snake_case after --)
 spite format game                       format files without compiling them (every compile formats first anyway)
 bash check.sh                           the compiler still compiles itself, and every corpus passes

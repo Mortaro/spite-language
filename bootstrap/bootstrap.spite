@@ -70,10 +70,10 @@ func first_argument(arguments: Arguments): String {
 func print_usage() {
     console.error("usage: spite program_folder [--optimized] [--debug-memory] [-- program arguments ...]")
     console.error(
-        "       spite program_folder --c-source                also write the C, beside the program or at --c-path=path",
+        "       spite program_folder --c-source                also write the C, into .spite/build/ or at --c-path=path",
     )
     console.error(
-        "       spite program_folder --executable --run=false  build without running, beside the program or at --executable-path=path",
+        "       spite program_folder --executable --run=false  build without running, into .spite/build/ or at --executable-path=path",
     )
     console.error("       spite format [--check] file_or_folder ...       format files without compiling them")
     console.error(
@@ -181,6 +181,7 @@ func discovered_program(entry_path: String): Discovery.DiscoveryResult? {
     }
     var discoverer = Discovery.ProgramDiscovery()
     discoverer.language_folder = language_folder
+    discoverer.working_folder = working_folder()
     discoverer.supplied_settings = supplied_settings.copy()
     discoverer.bare_settings = bare_settings
     var discovery = discoverer.discover(entry_path, content)
@@ -196,13 +197,27 @@ func formatted_program_files(discovery: Discovery.DiscoveryResult): Formatting {
     var outcome = 'unchanged'
     var index = 0
     while index < discovery.program_paths.count() {
-        var file_outcome = formatted_program_file(discovery, discovery.program_paths[index])
-        if file_outcome == 'refused' or outcome == 'unchanged' {
-            outcome = file_outcome
+        var path = discovery.program_paths[index]
+        if not in_checkout(discovery, path) {
+            var file_outcome = formatted_program_file(discovery, path)
+            if file_outcome == 'refused' or outcome == 'unchanged' {
+                outcome = file_outcome
+            }
         }
         index = index + 1
     }
     return outcome
+}
+
+func in_checkout(discovery: Discovery.DiscoveryResult, path: String): Boolean {
+    var index = 0
+    while index < discovery.checkout_folders.count() {
+        if path.starts_with(discovery.checkout_folders[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func formatted_program_file(discovery: Discovery.DiscoveryResult, path: String): Formatting {
@@ -556,7 +571,7 @@ func executable_path(): String {
     if not chosen.is_empty() {
         return chosen
     }
-    var base = beside_program()
+    var base = default_output_base()
     if option("target_operating_system") == "windows" {
         return "{base}.exe"
     }
@@ -568,14 +583,31 @@ func c_path(): String {
     if not chosen.is_empty() {
         return chosen
     }
-    var base = beside_program()
+    var base = default_output_base()
     return "{base}.c"
 }
 
-func beside_program(): String {
+func default_output_base(): String {
     var folder = option("program")
     var name = last_segment(folder)
-    return "{folder}/{name}"
+    var paths = Discovery.Paths()
+    var working = working_folder()
+    var absolute_folder = paths.absolute(folder, working)
+    var same = absolute_folder.lower_case() == working.lower_case()
+    var inside = paths.inside(absolute_folder, working)
+    if same {
+        return ".spite/build/{name}/{name}"
+    }
+    if inside {
+        return ".spite/build/{inside}/{name}"
+    }
+    return ".spite/elsewhere/{name}_{paths.fingerprint(absolute_folder)}/{name}"
+}
+
+func working_folder(): String {
+    var paths = Discovery.Paths()
+    var working = program.working_directory()
+    return paths.normalized(working)
 }
 
 func wrote_c_source(): Boolean {
@@ -809,7 +841,7 @@ func processor_count(): Integer {
 }
 
 func built_from_units(splitter: Translation.UnitSplitter, c_compiler: String, output_path: String): Boolean {
-    var cache_folder = "{language_folder}/.spite-cache/objects"
+    var cache_folder = "{language_folder}/.spite/objects"
     create_folder(cache_folder)
     var build = Translation.UnitBuild(c_compiler, cache_folder)
     build.running_limit = processor_count()
@@ -889,7 +921,7 @@ func c_to_compile(output_path: String): String {
     if is_on("c_source") {
         return c_path()
     }
-    var cache_folder = "{language_folder}/.spite-cache"
+    var cache_folder = "{language_folder}/.spite"
     Directory(cache_folder).create()
     var base = without_executable_extension(output_path)
     var name = last_segment(base)
@@ -1301,7 +1333,7 @@ func collect_spite_files(named: String, files: List<String>) {
     var folders = folder.folders()
     var folder_index = 0
     while folder_index < folders.count() {
-        if folders[folder_index] != ".spite-cache" {
+        if folders[folder_index] != ".spite" and folders[folder_index] != ".spite-cache" {
             collect_spite_files("{path}/{folders[folder_index]}", files)
         }
         folder_index = folder_index + 1

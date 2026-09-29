@@ -14,7 +14,7 @@ func SortingMany() {
     console.print("sorted", sorted_count, "numbers, ascending by tens:", ascending)
     var stable = keeps_ties(sorted)
     console.print("ties keep their order:", stable)
-    var folder = Directory(".spite-cache/sorting_many")
+    var folder = Directory(".spite/sorting_many")
     folder.create()
     index = 0
     while index < 300 {
