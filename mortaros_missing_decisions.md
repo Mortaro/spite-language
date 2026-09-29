@@ -253,12 +253,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
      given: `spite game --c-source --run=false` for the C alone. The alternatives: a program that names any output
      on the command line gets only the outputs it named (shorter, but a flag then changes another flag's default),
      or one list field, `--outputs=executable,c_source`. Keep the `Bool`s?
-136. **Where a run's executable goes.** With no flag it is built beside the program (`game/game.exe`, and
-     `game.crashes`), which D129's "build to the same folder" reads as, so every run leaves those two files in the
-     program's folder (`.gitignore` now ignores `*.crashes`). The one intermediate, the C compiled when `--c-source`
-     is off, goes to the language repository's `.spite-cache/<name>.c`. Should a plain run (no `--executable`)
-     build into the cache instead and leave the program's folder untouched? A `--hot-reload` build beside its program
-     also puts its reload libraries in the folder the watcher watches, so each reload wakes it once more.
 138. **Two ways to format?** A compile formats the program's files (`format`, an output), and `spite format <path>`
      formats files that need not be a program -- `library/`, which no program's compile formats. Keep both, or
      make formatting the library the job of compiling `bootstrap` (which loads it)?
@@ -461,12 +455,12 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 212. **Should `--run=false` alone build the executable?** Today every output off is "only check that it
      compiles" ([compiler.md](docs/compiler.md#choose-the-outputs), Claude's reading of D128, unconfirmed): nothing
-     is written, so an executable an earlier build left beside the program stays there, and running it runs the
+     is written, so an executable an earlier build left in `.spite/build/` stays there, and running it runs the
      old code. The Theseus exporter was caught by this. D128 and D129 do not say what "no output" means. Three
      readings: (a) keep it, as the checking mode `check.sh` compiles every diagnostic with, and teach
      `--executable --run=false` for "build, don't run" (what the docs now say); (b) `--run=false` alone builds the
      executable, and checking only becomes its own flag or command (`spite check game`); (c) checking only also
-     deletes the executable beside the program, so nothing stale is left to run. (a) is what is built.
+     deletes the executable in `.spite/build/`, so nothing stale is left to run. (a) is what is built.
 
 
 ## Release builds and compile time (from the Theseus port; numbers in benchmarks/README.md)
@@ -490,10 +484,10 @@ Behaviour that does not match the manual. The language was not changed; each is 
      `--optimized` one).** Both proposed by Claude, unconfirmed. Also: splitting a default build was measured and
      made it slower (every unit reads the whole header again, and `-O0` spends its time reading), so `0` does not
      split it -- agree?
-216. **The object cache (`.spite-cache/objects`) is never cleaned.** Each unit's object is kept under the hash of
+216. **The object cache (`.spite/objects`) is never cleaned.** Each unit's object is kept under the hash of
      what it was compiled from; nothing deletes old ones, so it grows with every changed build of a big program
      (tens of MB per `--optimized` build of the compiler). Delete the oldest past a size, delete everything older
-     than some days, or leave it to the user (`rm -rf .spite-cache/objects`)?
+     than some days, or leave it to the user (`rm -rf .spite/objects`)?
 
 
 ## From the Theseus MMO port (D249 onward)

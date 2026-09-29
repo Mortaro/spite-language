@@ -21,7 +21,7 @@ progress log before it ends. `docs/` is the language (D193); this file is the co
 - `bash check.sh` is the green bar: builds the seed with whatever `CC` names (else the first of `cc`, `clang`,
   `gcc`), proves the fixpoint, then runs every program under `conformance/` and `examples/` (exact output and
   balanced `allocations == frees`), `tests/`, every program under `diagnostics/` (exact compile errors) and every
-  titled code block in `docs/`. It leaves the freshly built compiler at `.spite-cache/spite_development.exe`.
+  titled code block in `docs/`. It leaves the freshly built compiler at `.spite/spite_development.exe`.
 - `bash check.sh --update-seed` refreshes the committed seed after an intended compiler change.
 - One feature = one conformance (or diagnostics) program = one commit. Run `check.sh` per feature, not per file.
 - `conformance/<stage>/<name>/<name>.spite` plus `expected_output.txt`; `diagnostics/<name>/<name>.spite` plus
@@ -183,7 +183,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   State: 55 conformance + examples, tests, 23 diagnostics, 44 documentation programs, fixpoint holds, seed
   current. Found on the way, not fixed: a program run with `--mode=run` receives no command line arguments at
   all (`Arguments.count()` is 0), so there is no way yet to pass anything to the program being run -- which is
-  why `scripts/docs_corpus.spite` writes to a fixed `.spite-cache/docs`. Its output is deterministic, so two
+  why `scripts/docs_corpus.spite` writes to a fixed `.spite/docs`. Its output is deterministic, so two
   `check.sh` runs at once write the same bytes.
 - 2026-09-20 (late morning, hardening by writing the programs an AI would write): the test package grew from 21
   to 54 tests over ten more classes -- numbers and the casting rule, `T?` narrowing every way, `copy`/`deep_copy`

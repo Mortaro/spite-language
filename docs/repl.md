@@ -8,9 +8,10 @@
 > each, answered where the program waits or at the end of a loop's pass ([concurrency.md](concurrency.md#the-repl-answers-at-the-waits)),
 > and `spite connect` is its client. `--hot-reload` swaps the classes whose files changed into the running
 > program, keeping its state, when a file is saved or when the REPL is sent `reload`
-> ([Live reload](#live-reload---hot-reload)); Windows runs it, and Linux and macOS are held to compiling.
+> ([Live reload](#live-reload---hot-reload)), moving live objects to their class's new attributes when those
+> change; Windows runs it, and Linux and macOS are held to compiling.
 > **Not built yet:** the meta commands (`classes`, `describe`, `enums`, `memory`), a few paths and assignments,
-> and reloading a change to a class's attributes -- [the list](#repl-and-live-reload--partial).
+> and reloading a change to an enum's values -- [the list](#repl-and-live-reload--partial).
 >
 > ```text
 > spite> monsters[0]
@@ -389,7 +390,7 @@ class.
 A program that makes things from its own code -- an engine that cooks assets with recipes written in Spite -- needs
 to know when that code changed, so it can make them again with the new code. Watching the files cannot tell it:
 the watcher sees the save before the new code is swapped in. The standard library's `Reload` singleton answers from
-the swaps themselves ([D286](decisions.md)): `generation()` is how many reloads the program has swapped in, and
+the swaps themselves ([D290](decisions.md)): `generation()` is how many reloads the program has swapped in, and
 `rebuilt_since(generation)` the qualified names of the classes rebuilt after that one, as `$type.name` gives them.
 
 ```gdscript title=recooking/recooking.spite entry
@@ -474,9 +475,12 @@ worked out while compiling, so the check folds away with the branch it guards.
   program can use, started on a thread of its own: `ReadDirectoryChangesW` on Windows, `inotify` on Linux and
   `kqueue` on macOS, with no polling. The thread sits in `wait_for_changes()`, which the operating system wakes;
   a burst of changes is waited out until 100 ms pass without one, so a save that writes a file in pieces reloads
-  once. The program's own folder is watched with every folder below it, and so is every folder it `load`s. A build beside its program (the default) writes each reload's library into that
-  folder too, which wakes the watcher once more for a check that finds nothing changed; `--executable-path=`
-  elsewhere avoids it.
+  once. The program's own folder is watched with every folder below it, and so is every folder it `load`s, except
+  a repository's checkout under `.spite/git/` ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)),
+  which is read-only: a pinned commit never changes, so there is nothing to reload there, and a change to that
+  package is a new commit and a restart (D283). Each reload's library is written beside the executable, into
+  `.spite/build/` by default (D283); only when that lies inside a watched folder -- `spite .` run from inside the
+  program's own folder -- does it wake the watcher once more, for a check that finds nothing changed.
 - The compiler, its options and the executable are recorded in the build, so the program must run from the folder
   it was built from, as `spite game --hot-reload` does.
 
@@ -537,7 +541,8 @@ assignment of a literal, calls with literal arguments, `attributes`, `functions`
 live reload on Windows, with the Linux and macOS folders held to compiling. **Not built:** the meta commands
 `classes`, `describe`, `enums` and `memory`; a key in brackets (`settings["volume"]`) and walking into a union;
 assigning a `T?`, a list or dictionary element or a whole instance; chaining after a call; compiling new Spite
-code typed at the prompt; and reloading a change to a class's attributes.
+code typed at the prompt; and reloading a change to an enum's values or to whether a class fits an `Items`' own
+memory.
 
 #### Reflection in a REPL build  **[implemented]**
 

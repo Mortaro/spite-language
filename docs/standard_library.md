@@ -115,7 +115,7 @@ ADA 3 -1 da []
 var console = Console()
 
 func FileTasks() {
-    var log_file = File(".spite-cache/documentation_demo_log.txt")
+    var log_file = File(".spite/documentation_demo_log.txt")
     log_file.write("first line")
     log_file.append(", second line")
     var log_exists = log_file.exists()
@@ -152,7 +152,7 @@ var heap = Memory.Heap()
 var longs = TypedMemory<Long>()
 
 func ByteRecords() {
-    var store = File(".spite-cache/documentation_byte_records.bin")
+    var store = File(".spite/documentation_byte_records.bin")
     var record = heap.allocate(8)
     longs.write_value(record, 0, 1111)
     store.write_bytes(record, 8)
@@ -190,7 +190,7 @@ var heap = Memory.Heap()
 var longs = TypedMemory<Long>()
 
 func MappedRecords() {
-    var store = File(".spite-cache/documentation_mapped_records.bin")
+    var store = File(".spite/documentation_mapped_records.bin")
     var record = heap.allocate(16)
     longs.write_value(record, 0, 1111)
     longs.write_value(record, 1, 2222)
@@ -249,7 +249,7 @@ way ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-
 var console = Console()
 
 func DirectoryTasks() {
-    var target = Directory(".spite-cache/documentation_demo_dir")
+    var target = Directory(".spite/documentation_demo_dir")
     target.create()
     var target_exists = target.exists()
     console.print("exists", target_exists)
@@ -275,7 +275,7 @@ so a `switch` tells them apart and a folder is walked by calling the same functi
 var console = Console()
 
 func DirectoryWalk() {
-    var root = Directory(".spite-cache/documentation_walk")
+    var root = Directory(".spite/documentation_walk")
     var inner = Directory("{root.path}/inner")
     root.create()
     inner.create()
@@ -301,9 +301,9 @@ func walk(folder: Directory) {
 }
 ```
 ```output
-folder .spite-cache/documentation_walk/inner
-file .spite-cache/documentation_walk/inner/deep.txt
-file .spite-cache/documentation_walk/top.txt
+folder .spite/documentation_walk/inner
+file .spite/documentation_walk/inner/deep.txt
+file .spite/documentation_walk/top.txt
 ```
 
 Folders come first, then files, each sorted by name, and `.` and `..` are never listed.
@@ -332,7 +332,7 @@ var console = Console()
 var program = Program()
 
 func WatchFolder() {
-    var folder = Directory(".spite-cache/documentation_watch")
+    var folder = Directory(".spite/documentation_watch")
     folder.create()
     var watcher = Watcher()
     watcher.watch(folder.path)
@@ -352,7 +352,7 @@ func WatchFolder() {
 }
 ```
 ```output
-changed: .spite-cache/documentation_watch/level.txt
+changed: .spite/documentation_watch/level.txt
 changed since: 0
 ```
 

@@ -854,7 +854,7 @@ value the call was made on is the operand: text, a number or an enum is written 
 has a `to_string()` as that text, so a missing `File` names its path:
 
 ```
-spite.crash	00b7d810	crash_receiver/crash_receiver.spite:6	CrashReceiver	CrashReceiver	settings.exists()	settings=.spite-cache/crash_receiver/missing_settings.txt
+spite.crash	00b7d810	crash_receiver/crash_receiver.spite:6	CrashReceiver	CrashReceiver	settings.exists()	settings=.spite/crash_receiver/missing_settings.txt
 ```
 
 A condition of any shape -- `or`, `not`, comparisons, arithmetic, calls inside it -- reports every part it read,

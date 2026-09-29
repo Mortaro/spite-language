@@ -77,7 +77,7 @@ nothing at run time because they emit nothing.
 | [A proven read tests only its bounds](#a-proven-read-tests-only-its-bounds) | built | every | nothing but speed; a read outside its list halts |
 | [A walked `crash` line's read is the row's read](#a-walked-crash-lines-read-is-the-rows-read) | built | every | nothing but speed |
 | [Objects that never leave their function live in the frame](#objects-that-never-leave-their-function-live-in-the-frame) | built | every but the inspectable ones | fewer allocations; `.memory.section` answers `'stack'` |
-| [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | built | `--optimized` (any build given `--translation-units`), but not `--hot-reload` | nothing but build time; `.spite-cache/objects` grows |
+| [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | built | `--optimized` (any build given `--translation-units`), but not `--hot-reload` | nothing but build time; `.spite/objects` grows |
 | [A release build is `-O3` with link-time optimisation](#a-release-build-is--o3-with-link-time-optimisation) | built | `--optimized` | nothing but speed, and a slower link |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
@@ -1750,7 +1750,7 @@ where the rules are). It changes nothing a program does: the same functions and 
 another unit can call them. What you could notice: in a build without link-time optimisation a call from one unit
 into another is not inlined by the C compiler -- which the default `-O0` build never does anyway, and which
 `--optimized` recovers ([below](#a-release-build-is--o3-with-link-time-optimisation)); and the object cache in
-`.spite-cache/objects` grows until it is deleted. `--translation-units=1` builds from one file as before.
+`.spite/objects` grows until it is deleted. `--translation-units=1` builds from one file as before.
 
 ### A release build is `-O3` with link-time optimisation
 
@@ -1805,7 +1805,7 @@ callee never assigns the parameter, D270.)
 - **Short symbols inline** ([D70](decisions.md)): a short symbol held as a small inline string rather
   than a pointer into the symbol table.
 - **Crash text out of the binary** ([D32](decisions.md)): a `crash` or `assert` site's source text
-  lives only in the `<output>.crashes` map written beside the program, and an optimised build carries just the id.
+  lives only in the `<output>.crashes` map written beside the executable, and an optimised build carries just the id.
   The map is written today, but the binary still carries the text.
 - **A build report of what could not be optimised** ([D36](decisions.md)): not "400 copies elided"
   but "3 copies could not be elided, and the callee that writes the field", so every line is actionable.

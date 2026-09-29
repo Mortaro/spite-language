@@ -1,7 +1,7 @@
 var console = Console()
 
 func CrashReceiver() {
-    var settings = File(".spite-cache/crash_receiver/missing_settings.txt")
+    var settings = File(".spite/crash_receiver/missing_settings.txt")
     console.print("looking for the settings")
     crash settings.exists()
     console.print("never printed")

@@ -5,7 +5,7 @@
 # is used.  Run from anywhere:   bash check.sh
 # Update the committed seed after an intended compiler change:   bash check.sh --update-seed
 cd "$(dirname "$0")" || exit 1
-work=.spite-cache/check_$$   # one folder per run: two sessions may run this at the same time
+work=.spite/check_$$   # one folder per run: two sessions may run this at the same time
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work"
 if [ -z "$CC" ]; then
@@ -31,17 +31,21 @@ maths_library="-lm"
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) maths_library="" ;; esac
 compile_c() { "$CC_BIN" -O1 -Wno-parentheses-equality -Wno-deprecated-declarations "$1" -o "$2" $maths_library 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }; }
 
-# Each generation writes its C to the default place beside the program, bootstrap/bootstrap.c, and it is moved into
-# the work folder at once: every Build field is a constant in the built compiler, so a --c-path naming this run's
-# folder would be written into the C and no two generations (or seeds) would ever be equal.
+# Each generation writes its C to the default place, .spite/build/bootstrap/bootstrap.c (D283; a seed from before
+# D283 writes bootstrap/bootstrap.c beside the program), and it is moved into the work folder at once: every Build
+# field is a constant in the built compiler, so a --c-path naming this run's folder would be written into the C and
+# no two generations (or seeds) would ever be equal.
 compile_compiler() {
+  rm -f .spite/build/bootstrap/bootstrap.c bootstrap/bootstrap.c
   "$1" bootstrap --run=false --c-source || return 1
-  cp bootstrap/bootstrap.c "$2" || return 1   # a copy: Windows may still hold the file, refusing a rename
+  produced=.spite/build/bootstrap/bootstrap.c
+  [ -f "$produced" ] || produced=bootstrap/bootstrap.c
+  cp "$produced" "$2" || return 1   # a copy: Windows may still hold the file, refusing a rename
   for attempt in 1 2 3 4 5 6 7 8 9 10; do   # and a virus scanner may hold it a moment longer, refusing the delete
-    rm -f bootstrap/bootstrap.c 2>/dev/null && return 0
+    rm -f "$produced" 2>/dev/null && return 0
     sleep 1
   done
-  rm -f bootstrap/bootstrap.c
+  rm -f "$produced"
 }
 
 echo "1/4 building the seed compiler"
@@ -62,7 +66,7 @@ if ! cmp -s "$work/generation_two.c" "$work/generation_three.c"; then
   cp "$work/generation_three.c" "$work/generation_two.c"; cp "$work/generation_three.exe" "$work/generation_two.exe"
 fi
 
-cp "$work/generation_two.exe" .spite-cache/spite_development.exe   # the freshly built compiler, handy for trying things by hand
+cp "$work/generation_two.exe" .spite/spite_development.exe   # the freshly built compiler, handy for trying things by hand
 echo "4/4 conformance corpus and examples with generation 2"
 # A program that calls a foreign library brings the library's C as fixture.c; it is built next to it here, as
 # fixture.dll on every platform, so the program can name one real file (D71) -- dlopen does not mind the name.
@@ -105,19 +109,28 @@ echo "conformance and examples: $passed passed, $failed failed"
 
 # A program runs in the folder spite was run from, not the language's: the compiler finds library/ and launcher/
 # from its own executable, so a relative path the program opens is the caller's. With no --executable-path its
-# executable is built beside the program (D129), so nothing is written into the caller's folder either.
+# executable goes into that folder's .spite/ (D283): a program outside the folder into .spite/elsewhere/, one inside
+# it into .spite/build/<its path>/, and nothing is ever written beside the program's source.
 repository=$(pwd)
-mkdir -p "$work/elsewhere"
+mkdir -p "$work/elsewhere/inside"
 echo "hello" > "$work/elsewhere/greeting.txt"
 beside="$repository/conformance/stage6/working_directory/working_directory"
 elsewhere=$(cd "$work/elsewhere" && "$repository/$work/generation_two.exe" "$repository/conformance/stage6/working_directory" 2>&1 | tr -d '\r')
-if [ "$elsewhere" != "read hello from the folder spite was run in" ] || [ "$(ls -A "$work/elsewhere")" != "greeting.txt" ]; then
-  echo "FAILED: a program run from another folder does not open its relative paths there"; echo "$elsewhere" | head -5; exit 1
+if [ "$elsewhere" != "read hello from the folder spite was run in" ] || [ "$(ls -A "$work/elsewhere" | tr '\n' ' ')" != ".spite greeting.txt inside " ]; then
+  echo "FAILED: a program run from another folder does not open its relative paths there"; echo "$elsewhere" | head -5; ls -A "$work/elsewhere"; exit 1
 fi
-[ -f "$beside.crashes" ] || { echo "FAILED: the executable was not built beside the program"; exit 1; }
-rm -f "$beside.crashes" "$beside.exe"
-[ -f "$beside" ] && rm -f "$beside"
-echo "working directory: a program opens relative paths in the folder spite was run from, and is built beside itself"
+if [ -f "$beside.crashes" ] || [ -f "$beside.exe" ] || [ -f "$beside" ]; then echo "FAILED: a build wrote beside the program's source"; exit 1; fi
+ls "$work/elsewhere/.spite/elsewhere/"working_directory_*/working_directory.crashes > /dev/null 2>&1 || {
+  echo "FAILED: the executable of a program outside the working folder was not built into .spite/elsewhere/"; exit 1; }
+mkdir -p "$work/elsewhere/inside/working_directory"
+cp conformance/stage6/working_directory/working_directory.spite "$work/elsewhere/inside/working_directory/"
+inside=$(cd "$work/elsewhere" && "$repository/$work/generation_two.exe" inside/working_directory --c-source 2>&1 | tr -d '\r')
+if [ "$inside" != "read hello from the folder spite was run in" ] || [ "$(ls -A "$work/elsewhere/inside/working_directory")" != "working_directory.spite" ] \
+   || [ ! -f "$work/elsewhere/.spite/build/inside/working_directory/working_directory.c" ] \
+   || [ ! -f "$work/elsewhere/.spite/build/inside/working_directory/working_directory.crashes" ]; then
+  echo "FAILED: a program inside the working folder was not built into .spite/build/<its path>/"; echo "$inside" | head -5; exit 1
+fi
+echo "working directory: a program opens relative paths in the folder spite was run from, and its outputs go into that folder's .spite/"
 
 # D227: 'load' also takes an absolute path, for a package that lives in another repository. The path is written
 # into a program in the work folder, since no committed program can know where this run's folder is.
@@ -129,6 +142,48 @@ printf 'var console = Console()\n\nfunc AbsoluteLoad() {\n    load "%s"\n    var
 absolute=$("$work/generation_two.exe" "$work/absolute/absolute_load" --executable-path="$work/absolute_load.exe" < /dev/null 2>&1 | tr -d '\r')
 if [ "$absolute" != "far engine" ]; then echo "FAILED: a program could not load a folder by its absolute path"; echo "$absolute" | head -5; exit 1; fi
 echo "absolute load: a program loads a folder named by its absolute path"
+
+# D38, D283: a load names a repository and a commit, 'load "../engine_repo@<commit>/slop"', and the ordinary compile
+# checks that commit's files out into the working folder's .spite/git/. The repository is a local one made here, so
+# no network is needed; its HEAD moves on after the pin, and the program must keep the pinned commit's code.
+if command -v git > /dev/null 2>&1; then
+  pinned_work="$work/git_load"
+  engine_repository="$pinned_work/engine_repo"
+  mkdir -p "$engine_repository/slop" "$pinned_work/git_load" "$pinned_work/unknown_commit"
+  commit_in() { git -C "$engine_repository" -c user.email=check@spite.invalid -c user.name=check -c commit.gpgsign=false commit -q "$@"; }
+  git -C "$engine_repository" init -q
+  printf 'func greeting(): String {\n    return "hello from the pinned commit"\n}\n' > "$engine_repository/slop/greeter.spite"
+  git -C "$engine_repository" add slop/greeter.spite && commit_in -m pinned
+  pinned=$(git -C "$engine_repository" rev-parse --short=7 HEAD)
+  printf 'func greeting(): String {\n    return "hello from a later commit"\n}\n' > "$engine_repository/slop/greeter.spite"
+  commit_in -am later
+  printf 'var console = Console()\n\nfunc GitLoad() {\n    load "../engine_repo@%s/slop"\n    var greeter = Greeter()\n    var said = greeter.greeting()\n    console.print(said)\n}\n' "$pinned" > "$pinned_work/git_load/git_load.spite"
+  first_build=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" git_load < /dev/null 2>&1 | tr -d '\r')
+  second_build=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" git_load < /dev/null 2>&1 | tr -d '\r')
+  checkout=$(ls -d "$pinned_work/.spite/git/engine_repo_"*/"$pinned" 2>/dev/null)
+  if [ "$(echo "$first_build" | tail -1)" != "hello from the pinned commit" ] || ! echo "$first_build" | grep -q "^fetched .*engine_repo@$pinned into " \
+     || [ "$second_build" != "hello from the pinned commit" ] || [ ! -f "$checkout/slop/greeter.spite" ] \
+     || [ -n "$(git -C "$engine_repository" status --porcelain)" ]; then
+    echo "FAILED: a git load did not build the pinned commit, once fetched and then from .spite/git/ with no git work"
+    echo "$first_build" | head -5; echo "$second_build" | head -5; exit 1
+  fi
+  hot=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" git_load --hot-reload --executable --run=false --executable-path="$repository/$work/git_load_hot.exe" 2>&1 | tr -d '\r')
+  [ -z "$hot" ] || { echo "FAILED: a --hot-reload build of a program with a git load"; echo "$hot" | head -5; exit 1; }
+  printf 'var console = Console()\n\nfunc UnknownCommit() {\n    load "../engine_repo@0000000/slop"\n}\n' > "$pinned_work/unknown_commit/unknown_commit.spite"
+  unknown=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" unknown_commit --run=false 2>&1 | tr -d '\r')
+  echo "$unknown" | grep -q "^unknown_commit/unknown_commit.spite:4: error: 'load \"../engine_repo@0000000/slop\"': .*engine_repo has no commit 0000000" || {
+    echo "FAILED: a git load of a commit the repository does not hold is not an error at its line"; echo "$unknown" | head -5; exit 1; }
+  missing_git=$(cd "$pinned_work" && PATH=/nothing "$repository/$work/generation_two.exe" unknown_commit --run=false 2>&1 | tr -d '\r')
+  echo "$missing_git" | grep -q "with git, and there is no 'git' on the PATH" || {
+    echo "FAILED: a git load without git on the PATH is not an error naming it"; echo "$missing_git" | head -5; exit 1; }
+  echo "// changed" >> "$checkout/slop/greeter.spite"
+  edited=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" git_load --run=false 2>&1 | tr -d '\r')
+  echo "$edited" | grep -q "is not what the commit $pinned of .*engine_repo holds: a checkout is read-only" || {
+    echo "FAILED: a changed checkout is not an error"; echo "$edited" | head -5; exit 1; }
+  echo "git load: a load pinned to a commit of a local repository is checked out into .spite/git/ once, and stays that commit"
+else
+  echo "git load: SKIPPED, there is no git on the PATH to make a repository with"
+fi
 
 # Every program above is built with --debug-memory, whose allocations go through a locked table. The thread pool is
 # also run the way a user runs it -- `spite <program>`, compile and run, no flags -- with runners started from a
@@ -148,10 +203,10 @@ if [ "$(echo "$units_output" | grep -v '^allocations: ')" != "$(tr -d '\r' < "$s
    || ! echo "$units_output" | grep -qE '^allocations: ([0-9]+) frees: \1$'; then
   echo "FAILED: parallel_stages built from four translation units"; echo "$units_output" | head -5; exit 1
 fi
-objects_before=$(ls .spite-cache/objects | grep -c '\.o$')
+objects_before=$(ls .spite/objects | grep -c '\.o$')
 "$work/generation_two.exe" "$stages" --translation-units=4 --debug-memory --executable --run=false --executable-path="$split" > /dev/null 2>&1 || {
   echo "FAILED: parallel_stages could not be built again from its cached units"; exit 1; }
-if [ "$(ls .spite-cache/objects | grep -c '\.o$')" != "$objects_before" ]; then
+if [ "$(ls .spite/objects | grep -c '\.o$')" != "$objects_before" ]; then
   echo "FAILED: building parallel_stages again compiled a unit whose object was cached"; exit 1
 fi
 echo "translation units: a program built from four units runs the same, and building it again only links"
@@ -434,11 +489,11 @@ echo "format: compiling deletes an empty line inside a function"
 # Every program written in docs/ and README.md is a program: scripts/docs_corpus (itself Spite) writes each titled
 # code block out, and each one has to compile, run, print its ```output block and free everything it took.
 # A block marked `error` must fail to compile with its ```diagnostic text somewhere in the message.
-rm -rf .spite-cache/docs   # so a program deleted from docs/ stops being checked
+rm -rf .spite/docs   # so a program deleted from docs/ stops being checked
 "$work/generation_two.exe" scripts/docs_corpus --executable-path="$work/docs_corpus.exe" > /dev/null || {
   echo "FAILED: could not extract the documentation's programs"; exit 1; }
 documented=0; undocumented=0
-for folder in .spite-cache/docs/*/; do
+for folder in .spite/docs/*/; do
   name=$(basename "$folder")
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")
   if [ -f "$folder/must_fail.txt" ]; then
@@ -448,7 +503,8 @@ for folder in .spite-cache/docs/*/; do
     else undocumented=$((undocumented+1)); echo "FAILED docs: $name wanted an error saying '$expected'"; echo "$actual" | head -4; fi
     continue
   fi
-  actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$work/docs_$name.exe" $flags < /dev/null 2>&1 | tr -d '\r')
+  # a program that loads a repository pinned to a commit (docs/packages.md) says so the first time it fetches it
+  actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$work/docs_$name.exe" $flags < /dev/null 2>&1 | tr -d '\r' | grep -v '^fetched .* into ')
   expected=$(tr -d '\r' < "$folder/expected_output.txt")
   body=$(echo "$actual" | grep -v '^allocations: ')
   balance=$(echo "$actual" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
@@ -462,7 +518,7 @@ echo "documentation: $documented passed, $undocumented failed"
 # `$ spite connect <port> --command="..."` line is sent with the compiler's own client, and each answer must be
 # the JSON line written under it. The port comes from this run's process id, so two runs do not share one.
 sessions=0
-for wire in .spite-cache/docs/*/wire.txt; do
+for wire in .spite/docs/*/wire.txt; do
   [ -f "$wire" ] || continue
   folder=$(dirname "$wire"); name=$(basename "$folder")
   port=$((20000 + $$ % 20000))
@@ -502,8 +558,8 @@ echo "remote REPL: $sessions documented sessions answered exactly"
 # it, and an edit nobody reports must be picked up by the file watcher, rebuilding only its class. Every wait has a
 # timeout, and the program is killed if it outlives the session.
 hot_folder="$work/hot_reload/hot_counter"
-[ -d .spite-cache/docs/hot_counter ] || { echo "FAILED live reload: docs/repl.md has no hot_counter program"; exit 1; }
-mkdir -p "$work/hot_reload"; cp -r .spite-cache/docs/hot_counter "$hot_folder"
+[ -d .spite/docs/hot_counter ] || { echo "FAILED live reload: docs/repl.md has no hot_counter program"; exit 1; }
+mkdir -p "$work/hot_reload"; cp -r .spite/docs/hot_counter "$hot_folder"
 port=$((20000 + $$ % 20000))
 "$work/generation_two.exe" "$hot_folder" --executable --run=false --hot-reload --repl-port=$port --executable-path="$work/hot_reload/hot_counter.exe" > "$work/c_errors.txt" 2>&1 || {
   echo "FAILED live reload: hot_counter does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
@@ -569,8 +625,8 @@ echo "live reload: an edited class was swapped in by reload and another by the w
 # default, a renamed one keeps its value, a removed one is released -- in objects and in an Items' own memory -- and
 # a reload after a move still swaps in a change to a body. Every wait has a timeout.
 party_folder="$work/live_party/live_party"
-[ -d .spite-cache/docs/live_party ] || { echo "FAILED moving objects: docs/repl.md has no live_party program"; exit 1; }
-mkdir -p "$work/live_party"; cp -r .spite-cache/docs/live_party "$party_folder"
+[ -d .spite/docs/live_party ] || { echo "FAILED moving objects: docs/repl.md has no live_party program"; exit 1; }
+mkdir -p "$work/live_party"; cp -r .spite/docs/live_party "$party_folder"
 party_port=$((port + 2))
 "$work/generation_two.exe" "$party_folder" --executable --run=false --hot-reload --repl-port=$party_port --executable-path="$work/live_party/live_party.exe" > "$work/c_errors.txt" 2>&1 || {
   echo "FAILED moving objects: live_party does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
@@ -623,7 +679,7 @@ fast_checked=0
 fast_root="${work}_fast_reload"
 trap 'rm -rf "$work" "$fast_root"' EXIT
 mkdir -p "$work/fast_reload" "$fast_root"
-for program in .spite-cache/docs/hot_counter conformance/stage6/kept_templates conformance/stage6/items_columns \
+for program in .spite/docs/hot_counter conformance/stage6/kept_templates conformance/stage6/items_columns \
                conformance/stage6/class_argument conformance/stage6/json_symbols conformance/stage6/attribute_object \
                conformance/stage6/foreign_callbacks conformance/stage6/waiting_systems conformance/stage6/allocator_choice \
                examples/dungeon; do
@@ -721,7 +777,7 @@ echo "launcher: bin/spite passes the program's arguments after -- as they were t
 # already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would
 # change and fails; a docs/ program that must fail may be wrong on purpose, formatting included.
 formatted_folders=(bootstrap launcher library tests conformance examples scripts benchmarks)
-for folder in .spite-cache/docs/*/; do
+for folder in .spite/docs/*/; do
   [ -f "$folder/must_fail.txt" ] || formatted_folders+=("$folder")
 done
 unformatted=$("$work/generation_two.exe" format --check "${formatted_folders[@]}" 2>&1 | tr -d '\r')

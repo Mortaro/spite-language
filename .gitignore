@@ -1,4 +1,6 @@
-# Build caches and outputs. Nothing here is source; all of it regenerates.
+# Build caches and outputs. Nothing here is source; all of it regenerates (D283).
+.spite/
+# The folder's name before D283, ignored so an old cache stays harmless until it is deleted.
 .spite-cache/
 
 # Compiled programs and debug symbols, wherever they land.
@@ -9,7 +11,7 @@
 *.lib
 *.ilk
 
-# What a build writes beside its executable, which by default sits beside the program (D129).
+# What a build writes beside its executable, wherever an --executable-path puts it (by default in .spite/, D283).
 *.crashes
 *.reload_host
 *.reload_files

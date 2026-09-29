@@ -9,7 +9,7 @@ bash benchmarks/run.sh [compiler] [benchmark ...]
 
 `run.sh` has the compiler write each program's C, builds it with `clang -O2`, prints the best of seven runs, and
 builds the program once more with `--debug-memory` to print how many allocations it makes. The compiler
-defaults to `.spite-cache/spite_development.exe`, the one `check.sh` last built. Times are wall-clock milliseconds
+defaults to `.spite/spite_development.exe`, the one `check.sh` last built. Times are wall-clock milliseconds
 on Mortaro's Windows machine and move by 10-20% from run to run; the allocation counts are exact.
 
 | Benchmark | What it leans on |

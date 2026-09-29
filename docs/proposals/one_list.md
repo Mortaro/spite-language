@@ -36,7 +36,7 @@ until the compiler can prove ownership at `append` and report every refusal ([be
   nothing. Its limits are [at the end](#what-the-study-script-gets-wrong).
 - **Corpora:** the compiler (`bootstrap/`, 925 list sites), `library/` (82), the 200 conformance programs (173),
   the 20 benchmarks (29), and a read-only copy of SlopEngine (`slop/`, `plugins/`, `examples/`, 417 files, 298
-  sites) in `.spite-cache`.
+  sites) in `.spite`.
 - **Speed:** SlopEngine's `examples/stress` compiled by this tree's compiler (`--optimized`, `clang -O2`, 200 000
   entities, 20 ticks, parallel stage); `benchmarks/one_list/layouts.c`, the layouts written by hand in C so each
   costs only what the layout costs; `benchmarks/one_list` (Spite), `each_` against `parallel_each_` on 200 000
@@ -299,7 +299,7 @@ The automatic layout is exactly as fast as the hand-picked one when the proof ho
 | `Integer` sum, each read a function call | | | 1 360-1 460 |
 
 "Emitted plainly" is today's C with the count read once, the range checks left out (proven by the loop's
-condition), `Float` kept `float`, and the two lists marked `restrict`, patched by hand (`.spite-cache` only): clang
+condition), `Float` kept `float`, and the two lists marked `restrict`, patched by hand (`.spite` only): clang
 then vectorises both loops. The gain is 8.5x on `List` and 42x on `Vector`, and none of it needs a layout choice.
 
 **`each` against `parallel_each_`** (`benchmarks/one_list`, 200 000 `Particle`s, µs a pass, three rounds):
@@ -422,7 +422,7 @@ python benchmarks/one_list/list_sites.py conformance --each conformance/stage1 c
 python benchmarks/one_list/list_sites.py benchmarks --each benchmarks
 python benchmarks/one_list/list_sites.py slop_engine <copy>/slop <copy>/plugins <copy>/examples
 clang -O2 benchmarks/one_list/layouts.c -o layouts.exe && ./layouts.exe
-bash benchmarks/run.sh .spite-cache/spite_development.exe one_list
+bash benchmarks/run.sh .spite/spite_development.exe one_list
 ```
 
 `--sites` prints every site with its verdict and the reasons it was refused; `--loops` every loop over a list. The

@@ -9,7 +9,8 @@ spite game
 ```
 
 The folder is the only way to name a program: `spite game/game.spite` is an error that says `spite game`. By
-default the build writes the executable beside the program, `game/game.exe`, and runs it
+default the build writes the executable into `.spite/` in the folder you ran `spite` from,
+`.spite/build/game/game.exe`, and runs it; nothing is written beside the program's source
 ([compiler.md](compiler.md#where-the-outputs-go)).
 
 Every other `.spite` file in the folder is another class of the program, and every folder inside it is a
@@ -190,7 +191,7 @@ func UnknownFlagError() {
 - A program's own `build.spite` may give a compiler option a different default: `var optimized = true` builds it
   optimized unless `--optimized=false` is given. The compiler reads the whole program before it decides
   anything, so what it produces is a default like the rest -- `var c_source = true` writes the program's C
-  beside it on every build, `var run = false` only builds it ([compiler.md](compiler.md#choose-the-outputs)).
+  on every build, `var run = false` only builds it ([compiler.md](compiler.md#choose-the-outputs)).
   Formatting is not an option: every compile formats first, and `format` is not a field a program may declare.
   `target_operating_system` is the one field only a flag sets ([below](#build-settings-build--implemented)).
 - A loaded package may declare `Build` fields too, and the program decides (D227): a field the program's own

@@ -1,0 +1,125 @@
+func is_absolute(path: String): Boolean {
+    if path.starts_with("/") or path.starts_with("\\") {
+        return true
+    }
+    if path.length() < 3 {
+        return false
+    }
+    var letter = path.code_at(0)
+    var is_letter = letter >= 65 and letter <= 90 or letter >= 97 and letter <= 122
+    return is_letter and path.slice(1, 2) == ":" and (path.slice(2, 3) == "/" or path.slice(2, 3) == "\\")
+}
+
+func normalized(path: String): String {
+    var forward = path.replace("\\", "/")
+    var segments = forward.split("/")
+    var kept = List<String>()
+    var index = 0
+    while index < segments.count() {
+        var segment = segments[index]
+        var is_first = index == 0
+        if segment == ".." and can_climb(kept) {
+            kept.remove_last()
+        } else if segment != "." and (not segment.is_empty() or is_first) {
+            kept.append(segment)
+        }
+        index = index + 1
+    }
+    if kept.is_empty() {
+        return "."
+    }
+    if kept.count() == 1 and kept[0].is_empty() {
+        return "/"
+    }
+    return kept.join("/")
+}
+
+func can_climb(kept: List<String>): Boolean {
+    if kept.is_empty() {
+        return false
+    }
+    var last = kept.last()
+    crash last
+    if last == ".." or last.ends_with(":") {
+        return false
+    }
+    return not (kept.count() == 1 and last.is_empty())
+}
+
+func absolute(path: String, working_folder: String): String {
+    if is_absolute(path) {
+        return normalized(path)
+    }
+    return normalized("{working_folder}/{path}")
+}
+
+func inside(path: String, folder: String): String? {
+    var normal_path = normalized(path)
+    var normal_folder = normalized(folder)
+    var prefix = "{normal_folder}/"
+    var prefix_length = prefix.length()
+    var path_length = normal_path.length()
+    assert path_length > prefix_length
+    var lowered_path = normal_path.lower_case()
+    var lowered_prefix = prefix.lower_case()
+    assert lowered_path.starts_with(lowered_prefix)
+    return normal_path.slice(prefix_length, path_length)
+}
+
+func fingerprint(text: String): Long {
+    var value: Long = 7
+    var index = 0
+    while index < text.length() {
+        var code: Long = text.code_at(index)
+        value = (value * 31 + code) % 1000000007
+        index = index + 1
+    }
+    return value
+}
+
+func content_hash(text: String): String {
+    var first: Long = 7
+    var second: Long = 11
+    var index = 0
+    var text_length = text.length()
+    while index < text_length {
+        var code: Long = text.code_at(index)
+        first = (first * 31 + code) % 4294967291
+        second = (second * 131 + code) % 1000000007
+        index = index + 1
+    }
+    return "{text_length}-{first}-{second}"
+}
+
+func label_of(text: String): String {
+    var trimmed = text.replace("\\", "/")
+    while trimmed.ends_with("/") {
+        var trimmed_length = trimmed.length()
+        trimmed = trimmed.slice(0, trimmed_length - 1)
+    }
+    var last = trimmed.split("/").last()
+    crash last
+    var name = last
+    if name.ends_with(".git") {
+        var name_length = name.length()
+        name = name.slice(0, name_length - 4)
+    }
+    var lowered = name.lower_case()
+    var label = ""
+    var index = 0
+    while index < lowered.length() {
+        var code = lowered.code_at(index)
+        var is_letter = code >= 97 and code <= 122
+        var is_digit = code >= 48 and code <= 57
+        if is_letter or is_digit {
+            label = label + lowered.character_at(index)
+        } else if not label.is_empty() and not label.ends_with("_") {
+            label = "{label}_"
+        }
+        index = index + 1
+    }
+    if label.is_empty() {
+        return "repository"
+    }
+    return label
+}

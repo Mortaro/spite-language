@@ -5,7 +5,7 @@ var longs = TypedMemory<Long>()
 var clock = Clock()
 
 func BinaryFiles() {
-    var store = File(".spite-cache/binary_files.bin")
+    var store = File(".spite/binary_files.bin")
     var header = heap.allocate(12)
     ints.write_value(header, 0, 7)
     longs.write_value(header + 4, 0, 1234567890123)
@@ -36,7 +36,7 @@ func BinaryFiles() {
     var minute = Duration(60, 'seconds')
     var skew = Duration(-5, 'seconds')
     console.print("modified within the last minute:", age < minute and age > skew)
-    var missing = File(".spite-cache/binary_files_missing.bin")
+    var missing = File(".spite/binary_files_missing.bin")
     var nothing = missing.read_bytes(0, 8, read_back)
     var no_size = missing.size()
     var never = missing.modified()
