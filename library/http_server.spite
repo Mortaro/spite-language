@@ -1,0 +1,126 @@
+var heap = Memory.Heap()
+var largest_body = 1048576
+var _listener = Socket()
+
+func listen_locally(port: Integer): Boolean {
+    return _listener.listen_locally(port)
+}
+
+func listen_everywhere(port: Integer): Boolean {
+    return _listener.listen_everywhere(port)
+}
+
+func next_request(): HttpRequest? {
+    while true {
+        var client = _listener.accept_client()
+        assert client
+        var request = _read_request(client)
+        if request {
+            return request
+        }
+        var refused = HttpResponse()
+        refused.status = 400
+        _write_response(client, refused)
+    }
+}
+
+func respond(request: HttpRequest, response: HttpResponse) {
+    _write_response(request.connection, response)
+}
+
+func close() {
+    _listener.close()
+}
+
+func _read_request(client: Socket): HttpRequest? {
+    var first_line = client.read_line()
+    assert first_line
+    var parts = first_line.split(" ")
+    assert parts.count() == 3
+    assert parts[2] == "HTTP/1.1" or parts[2] == "HTTP/1.0"
+    var request = HttpRequest()
+    request.connection = client
+    request.method = parts[0]
+    request.path = parts[1]
+    assert not request.method.is_empty() and request.path.starts_with("/")
+    var headers_read = _read_headers(client, request.headers)
+    assert headers_read
+    var declared = request.header("content-length")
+    if declared {
+        var length = declared.to_integer()
+        assert length
+        assert length >= 0 and length <= largest_body
+        var body = _read_exactly(client, length)
+        assert body
+        request.body = body
+    } else {
+        var encoding = request.header("transfer-encoding")
+        assert not encoding
+    }
+    return request
+}
+
+func _read_headers(client: Socket, headers: Dictionary<String>): Boolean {
+    var count = 0
+    while count < 200 {
+        var line = client.read_line()
+        if not line {
+            return false
+        }
+        if line.is_empty() {
+            return true
+        }
+        var colon = line.index_of(":")
+        if colon <= 0 {
+            return false
+        }
+        var name = line.slice(0, colon)
+        var line_length = line.length()
+        var value = line.slice(colon + 1, line_length)
+        var lowered = name.lower_case()
+        var trimmed = value.trim()
+        headers.set(lowered, trimmed)
+        count = count + 1
+    }
+    return false
+}
+
+func _read_exactly(client: Socket, count: Integer): String? {
+    var buffer = heap.allocate(count + 1)
+    var filled = 0
+    while filled < count {
+        var at = buffer + filled
+        var received = client.read_bytes(at, count - filled)
+        if received <= 0 {
+            heap.free(buffer)
+            return null
+        }
+        filled = filled + received
+    }
+    var text = buffer.text(count)
+    heap.free(buffer)
+    return text
+}
+
+func _write_response(client: Socket, response: HttpResponse) {
+    var reason = response.reason()
+    var body_length = response.body.length()
+    var head = "HTTP/1.1 {response.status} {reason}\r\n"
+    var names = response.headers.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var value = response.headers.get(name)
+        crash value
+        if name != "content-length" and name != "connection" {
+            head = "{head}{name}: {value}\r\n"
+        }
+        index = index + 1
+    }
+    head = "{head}content-length: {body_length}\r\nconnection: close\r\n\r\n"
+    var whole = head + response.body
+    var bytes = whole.to_bytes()
+    var counted = bytes.count()
+    client.write_bytes(bytes.items, counted)
+    client.close()
+}

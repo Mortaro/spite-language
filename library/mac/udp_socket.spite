@@ -1,0 +1,36 @@
+var _library = DynamicLibrary("libSystem.dylib", 'identity', "")
+
+func _open_handle(): Long {
+    return _library.socket(2, 2, 17)
+}
+
+func _bind(address: Memory.Address): Boolean {
+    return _library.bind(handle, address, 16) == 0
+}
+
+func _send(address: Memory.Address, buffer: Memory.Address, count: Integer): Integer {
+    var wanted: Long = count
+    return _library.sendto_as_long(handle, buffer, wanted, 0, address, 16)
+}
+
+func _receive_from(buffer: Memory.Address, count: Integer, sender: Memory.Address): Integer {
+    var length_slot = sender + 16
+    var wanted: Long = count
+    return _library.recvfrom_as_long(handle, buffer, wanted, 0, sender, length_slot)
+}
+
+func _ready_now(): Boolean {
+    var watched = heap.allocate(8)
+    var descriptor: Integer = handle
+    watched.write_integer(0, descriptor)
+    watched.write_short(4, 1)
+    watched.write_short(6, 0)
+    var count: Long = 1
+    var ready = _library.poll(watched, count, 0)
+    heap.free(watched)
+    return ready > 0
+}
+
+func _close_handle() {
+    _library.close(handle)
+}

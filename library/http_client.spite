@@ -1,0 +1,180 @@
+var heap = Memory.Heap()
+var largest_body = 16777216
+
+func send(host: String, port: Integer, request: HttpRequest): HttpResponse? {
+    var connection = Socket()
+    var connected = connection.connect(host, port)
+    assert connected
+    var body_length = request.body.length()
+    var head = "{request.method} {request.path} HTTP/1.1\r\nhost: {host}\r\n"
+    var names = request.headers.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var value = request.headers.get(name)
+        crash value
+        if name != "host" and name != "content-length" and name != "connection" {
+            head = "{head}{name}: {value}\r\n"
+        }
+        index = index + 1
+    }
+    head = "{head}content-length: {body_length}\r\nconnection: close\r\n\r\n"
+    var whole = head + request.body
+    var bytes = whole.to_bytes()
+    var counted = bytes.count()
+    var written = connection.write_bytes(bytes.items, counted)
+    var response = _read_response(connection)
+    connection.close()
+    assert written
+    return response
+}
+
+func _read_response(connection: Socket): HttpResponse? {
+    var first_line = connection.read_line()
+    assert first_line
+    assert first_line.starts_with("HTTP/1.")
+    var line_length = first_line.length()
+    assert line_length >= 12
+    var status_text = first_line.slice(9, 12)
+    var status = status_text.to_integer()
+    assert status
+    var response = HttpResponse()
+    response.status = status
+    var headers_read = _read_headers(connection, response.headers)
+    assert headers_read
+    var declared = response.header("content-length")
+    var encoding = response.header("transfer-encoding")
+    if declared {
+        var length = declared.to_integer()
+        assert length
+        assert length >= 0 and length <= largest_body
+        var body = _read_exactly(connection, length)
+        assert body
+        response.body = body
+    } else if encoding {
+        assert encoding.lower_case() == "chunked"
+        var chunked = _read_chunks(connection)
+        assert chunked
+        response.body = chunked
+    } else {
+        var rest = _read_until_closed(connection)
+        assert rest
+        response.body = rest
+    }
+    return response
+}
+
+func _read_headers(connection: Socket, headers: Dictionary<String>): Boolean {
+    var count = 0
+    while count < 200 {
+        var line = connection.read_line()
+        if not line {
+            return false
+        }
+        if line.is_empty() {
+            return true
+        }
+        var colon = line.index_of(":")
+        if colon <= 0 {
+            return false
+        }
+        var name = line.slice(0, colon)
+        var line_length = line.length()
+        var value = line.slice(colon + 1, line_length)
+        var lowered = name.lower_case()
+        var trimmed = value.trim()
+        headers.set(lowered, trimmed)
+        count = count + 1
+    }
+    return false
+}
+
+func _read_chunks(connection: Socket): String? {
+    var body = ""
+    while true {
+        var size_line = connection.read_line()
+        assert size_line
+        var size = _hex_value(size_line)
+        assert size >= 0
+        assert body.length() + size <= largest_body
+        if size == 0 {
+            var trailers = Dictionary<String>()
+            var trailer_read = _read_headers(connection, trailers)
+            assert trailer_read
+            return body
+        }
+        var chunk = _read_exactly(connection, size)
+        assert chunk
+        body = body + chunk
+        var ending = connection.read_line()
+        assert ending
+        assert ending.is_empty()
+    }
+}
+
+func _hex_value(line: String): Integer {
+    var end = line.index_of(";")
+    if end < 0 {
+        end = line.length()
+    }
+    var digits = line.slice(0, end)
+    var trimmed = digits.trim()
+    var trimmed_length = trimmed.length()
+    if trimmed_length == 0 or trimmed_length > 7 {
+        return -1
+    }
+    var value = 0
+    var index = 0
+    while index < trimmed_length {
+        var code = trimmed.code_at(index)
+        var digit = -1
+        if code >= 48 and code <= 57 {
+            digit = code - 48
+        } else if code >= 97 and code <= 102 {
+            digit = code - 87
+        } else if code >= 65 and code <= 70 {
+            digit = code - 55
+        }
+        if digit < 0 {
+            return -1
+        }
+        value = value * 16 + digit
+        index = index + 1
+    }
+    return value
+}
+
+func _read_exactly(connection: Socket, count: Integer): String? {
+    var buffer = heap.allocate(count + 1)
+    var filled = 0
+    while filled < count {
+        var at = buffer + filled
+        var received = connection.read_bytes(at, count - filled)
+        if received <= 0 {
+            heap.free(buffer)
+            return null
+        }
+        filled = filled + received
+    }
+    var text = buffer.text(count)
+    heap.free(buffer)
+    return text
+}
+
+func _read_until_closed(connection: Socket): String? {
+    var buffer = heap.allocate(4096)
+    var body = ""
+    while not connection.closed {
+        var received = connection.read_bytes(buffer, 4096)
+        if received > 0 {
+            var piece = buffer.text(received)
+            body = body + piece
+        }
+        if body.length() > largest_body {
+            heap.free(buffer)
+            return null
+        }
+    }
+    heap.free(buffer)
+    return body
+}

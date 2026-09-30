@@ -1,0 +1,8 @@
+server open: true, client open: true
+nothing has arrived yet
+sent: true
+server got 112,105,110,103 from 127.0.0.1
+replied: true, client got 5 bytes
+an empty datagram arrives as 0 bytes
+a second socket on the same port: false
+a closed socket receives nothing

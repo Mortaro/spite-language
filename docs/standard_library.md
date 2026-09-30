@@ -43,6 +43,10 @@ REPL can look at any of it ([D143](decisions.md)).
 | `ThreadLocal<T>`, `Lock`, `ThreadSlot` | a value per thread, and a lock | [concurrency.md](concurrency.md#a-value-per-thread-and-a-lock) |
 | `Atomic<T>` | a whole number or `Boolean` threads share without a lock | [concurrency.md](concurrency.md#a-number-every-thread-shares-atomict) |
 | `Socket` | TCP over IPv4: listen, connect, lines and bytes, waiting or not | [below](#socket) |
+| `UdpSocket` | UDP datagrams over IPv4 | [below](#udpsocket) |
+| `HttpServer`, `HttpClient`, `HttpRequest`, `HttpResponse` | HTTP/1.1, one exchange per connection | [below](#http) |
+| `Base64`, `Deflate`, `Zlib`, `Gzip` | bytes as base64 and base64url text; bytes compressed as raw DEFLATE, zlib and gzip | [below](#bytes-base64-compression-hashes-and-passwords) |
+| `Sha256`, `SecureRandom`, `Argon2` | SHA-256 and HMAC-SHA256; bytes from the operating system's secure random source; password hashes as PHC strings | [below](#bytes-base64-compression-hashes-and-passwords) |
 | `Memory.Address`, `Memory.Heap`, `Memory.Arena`, `TypedMemory<T>` | a place in memory, the allocators that own it, and values of any type there: the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
 | `DynamicLibrary` | call a native library | [foreign_libraries.md](foreign_libraries.md) |
 | `Spite.Class`, `Spite.Function`, ... | reflection | [reflection.md](reflection.md) |
@@ -63,8 +67,9 @@ to, and a program loads it pinned to a commit like any other repository
 ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)). `library/windows/`, `library/linux/` and
 `library/mac/` are not brand packages: they are how a standard class is written for one system.
 
-Decided, not built yet: HTTP, WebSocket and UDP over `Socket`, TLS, SHA-256 and HMAC, Argon2id, secure random
-bytes, base64 and base64url, and gzip.
+Built: UDP and HTTP/1.1 ([below](#udpsocket)), SHA-256 and HMAC, Argon2id, secure random bytes, base64 and
+base64url, and DEFLATE, zlib and gzip ([below](#bytes-base64-compression-hashes-and-passwords)). Decided, not
+built yet: WebSocket, TLS and IPv6.
 
 ## `String`
 
@@ -658,7 +663,66 @@ func poll(connection: Socket) {
 A write to a closed connection sends nothing, answers `false` or `0`, and sets `closed` too; nothing crashes.
 Addresses are `Memory.Address`es, so a buffer is `heap.allocate(bytes)` and its bytes are written with
 `TypedMemory<Byte>` or a class of the program's own over the heap ([memory.md](memory.md)). IPv6 is not built.
-HTTP, WebSocket and UDP are to grow from this class; none of them is built yet.
+`UdpSocket` and HTTP are [below](#udpsocket); WebSocket is to grow from this class and is not built yet.
+
+## `UdpSocket`
+
+`UdpSocket()` sends and receives UDP datagrams over IPv4, the same on Windows, Linux and macOS (D126; the names
+are proposed by Claude, unconfirmed). A datagram is a `List<Byte>`, and one call is one datagram.
+
+| Member | Does |
+|---|---|
+| `open()`, `open_locally(port)`, `open_everywhere(port)` | opens on a port the system picks (a client), or on `port` of `127.0.0.1` or of every interface; `false` when the port is taken |
+| `send_to(host, port, bytes): Boolean` | sends one datagram to a host name or IPv4 address; `false` when the name does not resolve or the system refuses it |
+| `receive(): List<Byte>?` | waits for the next datagram; `null` when the socket is closed |
+| `receive_now(): List<Byte>?` | the next datagram if one has arrived, otherwise `null` at once |
+| `sender_host(): String`, `sender_port(): Integer` | who sent the datagram received last, to answer with `send_to` |
+| `close()` | closes it |
+
+A datagram can arrive empty, which is a list of no bytes, not `null`. UDP itself neither orders nor repeats lost
+datagrams; reliable channels are the program's.
+
+## HTTP
+
+`HttpServer` and `HttpClient` speak HTTP/1.1 over `Socket` (D126; the names are proposed by Claude, unconfirmed).
+A message is an `HttpRequest` (`method`, `path`, `headers`, `body`) or an `HttpResponse` (`status`, `headers`,
+`body`); `header(name)` reads a header whatever its case and `set_header(name, value)` writes one, and
+`reason()` is the response's reason phrase. Bodies are text.
+
+| Member | Does |
+|---|---|
+| `HttpServer.listen_locally(port)`, `listen_everywhere(port)` | listens, like `Socket` |
+| `HttpServer.next_request(): HttpRequest?` | waits for the next well-formed request; a malformed one is answered `400 Bad Request` and skipped, and a body over `largest_body` (1 MiB) counts as malformed; `null` when the listener fails |
+| `HttpServer.respond(request, response)` | writes the response with its `content-length` and closes the connection |
+| `HttpClient.send(host, port, request): HttpResponse?` | connects, sends the request with `host` and `content-length`, and reads the response, whether its body is sized, chunked or ends when the connection closes; `null` when nobody answers or the response is malformed |
+
+Each exchange is one connection (`connection: close`): no keep-alive, no pipelining, and a server's requests
+with a chunked body are refused. Inside a `Concurrent`, `next_request` and `send` wait the way `Socket` does,
+so a server serves while its program runs ([concurrency.md](concurrency.md#what-the-compiler-does-at-a-wait)).
+Not built: TLS (HTTPS), WebSocket and IPv6.
+
+## Bytes: base64, compression, hashes and passwords
+
+These classes work on `List<Byte>`, and `text.to_bytes()` gives a text's bytes. Each is written in Spite in
+`library/`, so a program that uses none of them carries none of them (D294; the class and function names are
+proposed by Claude, unconfirmed).
+
+| Class | Member | Does |
+|---|---|---|
+| `Base64` | `encode(bytes): String`, `encode_url(bytes): String` | RFC 4648 base64 with `=` padding; base64url (`-` and `_`) without it, as JWTs write it |
+| | `decode(text): List<Byte>?`, `decode_url(text): List<Byte>?` | the bytes back; `null` for a character outside the alphabet, a length no encoding has, missing padding in `decode`, or set bits after the last byte |
+| `Deflate`, `Zlib`, `Gzip` | `compress(bytes): List<Byte>` | raw DEFLATE (RFC 1951), zlib (RFC 1950, Adler-32) or gzip (RFC 1952, CRC-32 and size) |
+| | `decompress(bytes): List<Byte>?` | the bytes back, with no length given in advance; `null` for a truncated or malformed stream, a checksum or size that does not match, or bytes after the end |
+| `Sha256` | `hash(bytes): List<Byte>` | the 32-byte SHA-256 digest (FIPS 180-4) |
+| | `hmac(key, message): List<Byte>` | HMAC-SHA256 (RFC 2104), a key longer than 64 bytes hashed first |
+| `SecureRandom` | `bytes(count): List<Byte>` | bytes from the operating system's secure source: `BCryptGenRandom` on Windows, `getrandom` on Linux, `getentropy` on macOS; a failure of the source crashes |
+| `Argon2` | `hash(password): String` | a new Argon2id (RFC 9106) hash as a PHC string, `$argon2id$v=19$m=65536,t=3,p=1$<salt>$<tag>`: 64 MiB, 3 passes, 1 lane, a 16-byte random salt and a 32-byte tag, the defaults of the C# library Theseus stored its accounts with |
+| | `verify(password, stored): Boolean?` | whether the password is the one `stored` was made from, for `argon2id`, `argon2i` and `argon2d` PHC strings of version 19 with any cost; `null` when `stored` is not such a string, so a damaged record is not taken for a wrong password; the tags are compared in constant time |
+| | `derive(password, salt, time_cost, memory_cost, lanes, tag_length): List<Byte>` | the raw Argon2id tag, `memory_cost` in KiB |
+
+A hash takes about 150 ms in an ordinary build and a few seconds in a `--debug-memory` one, whose arithmetic is
+checked; it waits in place, so a server runs it on the thread pool. The `Argon2` hash tree-shakes to Blake2b and
+the fill of its memory, both private to the class.
 
 ## Rules in full
 
@@ -680,8 +744,9 @@ to cover it when a program needs it (HTTP, TLS, SHA-256/HMAC, Argon2, secure ran
 the same for games' maths). A client for a branded product (a database such as MongoDB or Postgres, a vendor's
 API or service) is never added to `library/`: it is a package, maintained by Mortaro or someone he delegates to,
 loaded pinned to a commit (D38). An operating system's folder is how a standard class is written for that system
-(D80), not a brand package. Nothing in `library/` breaks the rule today. **[the networking, hashing, password,
-random, base64 and compression classes are not built]**
+(D80), not a brand package. Nothing in `library/` breaks the rule today. **[the hashing, password, random,
+base64, compression, UDP and HTTP/1.1 classes are built (proposed names, unconfirmed); WebSocket, TLS and IPv6
+are not]**
 
 D14 and D177: every class here is Spite in `library/`, compiled with the program, and tree-shaken like the
 program's own code, so a program carries only what it reaches ([Pure Spite](#pure-spite-dissolving-the-runtime--partial)
@@ -734,6 +799,7 @@ allocation counts.
 | `to_float()` / `to_double()` | `Float?` / `Double?` | digits with an optional sign, `.` and exponent (`-1.5e2`, `.5`), spaces around them allowed; `null` for anything else (`"1e"`, `"nan"`) |
 | `sum(other)` / `equals(other)` / `less_than(other)` / `greater_than(other)` | `String` / `Boolean` | the explicit call form of `+`/`==`/`<`/`>` |
 | `to_string()` / `to_debug()` | `String` | the text itself / the text quoted, with `"`, `\` and a line feed escaped ([`Console.debug`](#console)) |
+| `to_bytes()` | `List<Byte>` | the text's bytes, one per byte of its UTF-8, for [hashing, encoding and compressing](#bytes-base64-compression-hashes-and-passwords) (proposed by Claude, unconfirmed) |
 
 #### Maths  **[implemented]**
 

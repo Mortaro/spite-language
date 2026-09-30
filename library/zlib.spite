@@ -1,0 +1,78 @@
+singleton
+
+func compress(bytes: List<Byte>): List<Byte> {
+    var deflate = Deflate()
+    var body = deflate.compress(bytes)
+    var body_count = body.item_count
+    var output = List<Byte>()
+    output.reserve(body_count + 6)
+    output.append(120)
+    output.append(156)
+    body.items.copy_to(output.items + 2, body_count)
+    output.item_count = body_count + 2
+    var checksum = _adler32(bytes)
+    _append_big_endian(output, checksum)
+    return output
+}
+
+func decompress(bytes: List<Byte>): List<Byte>? {
+    var total = bytes.item_count
+    assert total >= 6
+    var method: Integer = bytes.items.read_byte(0)
+    var flags: Integer = bytes.items.read_byte(1)
+    assert method.bits_and(15) == 8
+    assert method.shifted_right(4) <= 7
+    assert (method * 256 + flags) % 31 == 0
+    assert flags.bits_and(32) == 0
+    var body = List<Byte>()
+    body.reserve(total - 6)
+    (bytes.items + 2).copy_to(body.items, total - 6)
+    body.item_count = total - 6
+    var deflate = Deflate()
+    var output = deflate.decompress(body)
+    assert output
+    var expected = _read_big_endian(bytes, total - 4)
+    var computed = _adler32(output)
+    assert expected == computed
+    return output
+}
+
+func _adler32(bytes: List<Byte>): UnsignedInteger {
+    var low: UnsignedInteger = 1
+    var high: UnsignedInteger = 0
+    var total = bytes.item_count
+    var items = bytes.items
+    var index = 0
+    while index < total {
+        var chunk_end = (index + 5552).minimum(total)
+        while index < chunk_end {
+            var value: UnsignedInteger = items.read_byte(index)
+            low = low + value
+            high = high + low
+            index = index + 1
+        }
+        low = low % 65521
+        high = high % 65521
+    }
+    return high.shifted_left(16).bits_or(low)
+}
+
+func _read_big_endian(bytes: List<Byte>, at: Integer): UnsignedInteger {
+    var value: UnsignedInteger = 0
+    var index = 0
+    while index < 4 {
+        var part: UnsignedInteger = bytes.items.read_byte(at + index)
+        value = value.shifted_left(8).bits_or(part)
+        index = index + 1
+    }
+    return value
+}
+
+func _append_big_endian(output: List<Byte>, value: UnsignedInteger) {
+    var shift = 24
+    while shift >= 0 {
+        var part: Byte = value.shifted_right(shift).bits_and(255)
+        output.append(part)
+        shift = shift - 8
+    }
+}

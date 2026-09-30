@@ -1,0 +1,286 @@
+singleton
+
+var heap = Memory.Heap()
+var _round_constants: List<UnsignedInteger> = [
+    1116352408
+    1899447441
+    3049323471
+    3921009573
+    961987163
+    1508970993
+    2453635748
+    2870763221
+    3624381080
+    310598401
+    607225278
+    1426881987
+    1925078388
+    2162078206
+    2614888103
+    3248222580
+    3835390401
+    4022224774
+    264347078
+    604807628
+    770255983
+    1249150122
+    1555081692
+    1996064986
+    2554220882
+    2821834349
+    2952996808
+    3210313671
+    3336571891
+    3584528711
+    113926993
+    338241895
+    666307205
+    773529912
+    1294757372
+    1396182291
+    1695183700
+    1986661051
+    2177026350
+    2456956037
+    2730485921
+    2820302411
+    3259730800
+    3345764771
+    3516065817
+    3600352804
+    4094571909
+    275423344
+    430227734
+    506948616
+    659060556
+    883997877
+    958139571
+    1322822218
+    1537002063
+    1747873779
+    1955562222
+    2024104815
+    2227730452
+    2361852424
+    2428436474
+    2756734187
+    3204031479
+    3329325298
+]
+var _initial_state: List<UnsignedInteger> = [
+    1779033703
+    3144134277
+    1013904242
+    2773480762
+    1359893119
+    2600822924
+    528734635
+    1541459225
+]
+
+func hash(bytes: List<Byte>): List<Byte> {
+    var counted: Long = bytes.count()
+    return _digest(bytes.items, counted)
+}
+
+func hmac(key: List<Byte>, message: List<Byte>): List<Byte> {
+    var block = heap.allocate(64)
+    var key_count: Long = key.count()
+    var index: Long = 0
+    while index < 64 {
+        block.write_byte(index, 0)
+        index = index + 1
+    }
+    if key_count > 64 {
+        var hashed_key = _digest(key.items, key_count)
+        hashed_key.items.copy_to(block, 32)
+    } else {
+        key.items.copy_to(block, key_count)
+    }
+    var message_count: Long = message.count()
+    var inner_input = heap.allocate(message_count + 64)
+    var outer_input = heap.allocate(96)
+    index = 0
+    while index < 64 {
+        var key_byte: Integer = block.read_byte(index)
+        var inner_byte = key_byte.bits_exclusive_or(54)
+        var outer_byte = key_byte.bits_exclusive_or(92)
+        inner_input.write_byte(index, inner_byte)
+        outer_input.write_byte(index, outer_byte)
+        index = index + 1
+    }
+    var message_start = inner_input + 64
+    message.items.copy_to(message_start, message_count)
+    var inner = _digest(inner_input, message_count + 64)
+    var inner_start = outer_input + 64
+    inner.items.copy_to(inner_start, 32)
+    var outer = _digest(outer_input, 96)
+    heap.free(block)
+    heap.free(inner_input)
+    heap.free(outer_input)
+    return outer
+}
+
+func _digest(source: Memory.Address, source_length: Long): List<Byte> {
+    var state = heap.allocate(32)
+    var schedule = heap.allocate(256)
+    var tail = heap.allocate(128)
+    var index = 0
+    while index < 8 {
+        crash _initial_state[index]
+        var initial = _initial_state[index]
+        state.write_unsigned_integer(index * 4, initial)
+        index = index + 1
+    }
+    var offset: Long = 0
+    while offset + 64 <= source_length {
+        var block = source + offset
+        _compress(state, block, schedule)
+        offset = offset + 64
+    }
+    var rest = source_length - offset
+    var remaining = source + offset
+    remaining.copy_to(tail, rest)
+    tail.write_byte(rest, 128)
+    var tail_length: Long = 64
+    if rest >= 56 {
+        tail_length = 128
+    }
+    var cleared = rest + 1
+    while cleared < tail_length {
+        tail.write_byte(cleared, 0)
+        cleared = cleared + 1
+    }
+    var bits = source_length * 8
+    var shift = 0
+    while shift < 8 {
+        var length_byte = bits.shifted_right(56 - shift * 8).bits_and(255)
+        tail.write_byte(tail_length - 8 + shift, length_byte)
+        shift = shift + 1
+    }
+    _compress(state, tail, schedule)
+    if tail_length == 128 {
+        var second = tail + 64
+        _compress(state, second, schedule)
+    }
+    var digest = List<Byte>()
+    digest.reserve(32)
+    digest.item_count = 32
+    var word_index = 0
+    while word_index < 8 {
+        var word = state.read_unsigned_integer(word_index * 4)
+        _write_big_endian(digest.items, word_index * 4, word)
+        word_index = word_index + 1
+    }
+    heap.free(state)
+    heap.free(schedule)
+    heap.free(tail)
+    return digest
+}
+
+func _write_big_endian(target: Memory.Address, at: Integer, word: UnsignedInteger) {
+    var first = word.shifted_right(24)
+    var second = word.shifted_right(16).bits_and(255)
+    var third = word.shifted_right(8).bits_and(255)
+    var fourth = word.bits_and(255)
+    target.write_byte(at, first)
+    target.write_byte(at + 1, second)
+    target.write_byte(at + 2, third)
+    target.write_byte(at + 3, fourth)
+}
+
+func _compress(state: Memory.Address, block: Memory.Address, schedule: Memory.Address) {
+    var index = 0
+    while index < 16 {
+        var first: UnsignedInteger = block.read_byte(index * 4)
+        var second: UnsignedInteger = block.read_byte(index * 4 + 1)
+        var third: UnsignedInteger = block.read_byte(index * 4 + 2)
+        var fourth: UnsignedInteger = block.read_byte(index * 4 + 3)
+        var high = first.shifted_left(24)
+        var upper = second.shifted_left(16)
+        var lower = third.shifted_left(8)
+        var word = high.bits_or(upper).bits_or(lower).bits_or(fourth)
+        schedule.write_unsigned_integer(index * 4, word)
+        index = index + 1
+    }
+    while index < 64 {
+        var early = schedule.read_unsigned_integer(index * 4 - 60)
+        var late = schedule.read_unsigned_integer(index * 4 - 8)
+        var small_early = _small_sigma(early, 7, 18, 3)
+        var small_late = _small_sigma(late, 17, 19, 10)
+        var sixteen_back = schedule.read_unsigned_integer(index * 4 - 64)
+        var seven_back = schedule.read_unsigned_integer(index * 4 - 28)
+        var word = sixteen_back + small_early + seven_back + small_late
+        schedule.write_unsigned_integer(index * 4, word)
+        index = index + 1
+    }
+    var working_a = state.read_unsigned_integer(0)
+    var working_b = state.read_unsigned_integer(4)
+    var working_c = state.read_unsigned_integer(8)
+    var working_d = state.read_unsigned_integer(12)
+    var working_e = state.read_unsigned_integer(16)
+    var working_f = state.read_unsigned_integer(20)
+    var working_g = state.read_unsigned_integer(24)
+    var working_h = state.read_unsigned_integer(28)
+    var round = 0
+    while round < 64 {
+        var big_e = _big_sigma(working_e, 6, 11, 25)
+        var chosen = working_e.bits_and(working_f)
+        var inverted = working_e.bits_inverted()
+        var others = inverted.bits_and(working_g)
+        var choice = chosen.bits_exclusive_or(others)
+        crash _round_constants[round]
+        var constant = _round_constants[round]
+        var scheduled = schedule.read_unsigned_integer(round * 4)
+        var first_sum = working_h + big_e + choice + constant + scheduled
+        var big_a = _big_sigma(working_a, 2, 13, 22)
+        var both_ab = working_a.bits_and(working_b)
+        var both_ac = working_a.bits_and(working_c)
+        var both_bc = working_b.bits_and(working_c)
+        var majority = both_ab.bits_exclusive_or(both_ac).bits_exclusive_or(both_bc)
+        var second_sum = big_a + majority
+        working_h = working_g
+        working_g = working_f
+        working_f = working_e
+        working_e = working_d + first_sum
+        working_d = working_c
+        working_c = working_b
+        working_b = working_a
+        working_a = first_sum + second_sum
+        round = round + 1
+    }
+    _add_to(state, 0, working_a)
+    _add_to(state, 4, working_b)
+    _add_to(state, 8, working_c)
+    _add_to(state, 12, working_d)
+    _add_to(state, 16, working_e)
+    _add_to(state, 20, working_f)
+    _add_to(state, 24, working_g)
+    _add_to(state, 28, working_h)
+}
+
+func _small_sigma(value: UnsignedInteger, first: Integer, second: Integer, shift: Integer): UnsignedInteger {
+    var one = _rotated(value, first)
+    var two = _rotated(value, second)
+    var three = value.shifted_right(shift)
+    return one.bits_exclusive_or(two).bits_exclusive_or(three)
+}
+
+func _big_sigma(value: UnsignedInteger, first: Integer, second: Integer, third: Integer): UnsignedInteger {
+    var one = _rotated(value, first)
+    var two = _rotated(value, second)
+    var three = _rotated(value, third)
+    return one.bits_exclusive_or(two).bits_exclusive_or(three)
+}
+
+func _add_to(state: Memory.Address, at: Integer, value: UnsignedInteger) {
+    var held = state.read_unsigned_integer(at)
+    var sum = held + value
+    state.write_unsigned_integer(at, sum)
+}
+
+func _rotated(value: UnsignedInteger, count: Integer): UnsignedInteger {
+    var right = value.shifted_right(count)
+    var left = value.shifted_left(32 - count)
+    return right.bits_or(left)
+}
