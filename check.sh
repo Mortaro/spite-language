@@ -730,8 +730,11 @@ sed -i 's/^var distance = 0.0$/var pace = 2.0\nvar distance = 0.0/' "$party_fold
 party_reload "moved every Step to its new attributes: pace is new and holds its default"
 party_expect 'describe()' '{"ok":true,"value":"Ann at level 7 with 100, walked 4","type":"String"}'
 sed -i 's/^var level = 1$/var rank = 1/; s/at level {level} with {health}"/at rank {rank} with {health}"/' "$party_folder/hero.spite"
-printf '\nfunc renamed_from_rank(): String {\n    return "level"\n}\n' >> "$party_folder/hero.spite"
-party_reload "moved every Hero to its new attributes: level is now rank"
+held=$(party_ask wait_reload)   # a rename would lose level's values, so the watcher holds the reload and says so
+case "$held" in *'"ok":false'*"the reload of Hero is held"*"reload {Hero.attributes['level']: "*) ;; *) party_fail "a rename was not held: $held" ;; esac
+party_expect 'describe()' '{"ok":true,"value":"Ann at level 7 with 100, walked 4","type":"String"}'
+answer=$(party_ask "reload {Hero.attributes['level']: \"rank\"}")
+case "$answer" in *'"ok":true'*"moved every Hero to its new attributes: level is now rank"*) ;; *) party_fail "the reload with a map answered $answer" ;; esac
 party_expect 'describe()' '{"ok":true,"value":"Ann at rank 7 with 100, walked 4","type":"String"}'
 sed -i '/^var health = 100$/d; s/at rank {rank} with {health}"/at rank {rank}"/' "$party_folder/hero.spite"
 party_reload "health is gone, and what it held was released"

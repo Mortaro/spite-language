@@ -146,6 +146,9 @@ var hot_slot_names = List<String>()
 var hot_slot_owners = List<String>()
 var hot_owner_index = Dictionary<String>()
 var hot_owner_indexed = -1
+var reload_renames = Dictionary<String>()
+var reload_renames_given = false
+var used_renames = List<String>()
 var hot_slot_displays = List<String>()
 var layout_host: HotReloadLibrary? = null
 var breakpoint_sites = List<String>()
@@ -36301,6 +36304,7 @@ func note_layout_change(information: Analysis.ClassInfo, running: String, now: S
     var fields = signature_types(now)
     var notes = List<String>()
     var taken = List<String>()
+    var appeared = List<String>()
     var held = "holds its default"
     if information.qualified_dotted == "Environment" {
         held = "is read like every setting, from the command line, the environment or its default"
@@ -36312,10 +36316,14 @@ func note_layout_change(information: Analysis.ClassInfo, running: String, now: S
         crash fields[field.name]
         var type_now = fields[field.name]
         var renamed = not old_name.is_empty() and was.has(old_name) and was[old_name] == type_now
+        if not old_name.is_empty() and not renamed {
+            report_unusable_rename(information, old_name, field.name)
+        }
         if renamed {
             taken.append(old_name)
             notes.append("{old_name} is now {field.name}")
         } else if not was.has(field.name) {
+            appeared.append(field.name)
             notes.append("{field.name} is new and {held}")
         } else if was[field.name] != type_now {
             taken.append(field.name)
@@ -36326,13 +36334,18 @@ func note_layout_change(information: Analysis.ClassInfo, running: String, now: S
         index = index + 1
     }
     var old_names = was.keys()
+    var gone = List<String>()
     index = 0
     while index < old_names.count() {
         var old_name = old_names[index]
         if old_name != "fits" and not taken.contains(old_name) {
+            gone.append(old_name)
             notes.append("{old_name} is gone, and what it held was released")
         }
         index = index + 1
+    }
+    if not gone.is_empty() and not appeared.is_empty() and not reload_renames_given {
+        report_held_rename(information, gone, appeared)
     }
     if was["fits"] != fields["fits"] {
         report(
@@ -36343,6 +36356,22 @@ func note_layout_change(information: Analysis.ClassInfo, running: String, now: S
         notes.append("its attributes were reordered")
     }
     migration_notes.append("moved every {information.qualified_dotted} to its new attributes: {notes.join("; ")}")
+}
+
+func report_held_rename(information: Analysis.ClassInfo, gone: List<String>, appeared: List<String>) {
+    var class_name = information.qualified_dotted
+    var first_gone = gone.first()
+    var first_new = appeared.first()
+    crash first_gone and first_new
+    report(
+        "the reload of {class_name} is held, since it would lose data: {gone.join(", ")} is gone and {appeared.join(", ")} is new, and a reload never guesses whether one is the other. Nothing was swapped in. To move the values of the running objects into the new attribute, give the map at the prompt: reload \{{class_name}.attributes['{first_gone}']: \"{first_new}\"}; to let what {gone.join(", ")} holds be released: reload \{}",
+    )
+}
+
+func report_unusable_rename(information: Analysis.ClassInfo, old_name: String, new_name: String) {
+    report(
+        "the reload map moves {information.qualified_dotted}.attributes['{old_name}'] into \"{new_name}\", but the running {information.qualified_dotted} has no attribute '{old_name}' of the type '{new_name}' has now: name an attribute the running class has, of the same type",
+    )
 }
 
 func signature_types(signature: String): Dictionary<String> {
@@ -36798,38 +36827,50 @@ func live_holders_of(item: Analysis.ClassInfo): List<Analysis.ClassInfo> {
     return holders
 }
 
-func renamed_from(information: Analysis.ClassInfo, attribute: String): String {
-    var function = information.find_function("renamed_from_{attribute}")
-    if not function {
-        return ""
+func read_reload_renames(text: String) {
+    reload_renames = Dictionary<String>()
+    reload_renames_given = text.starts_with("given")
+    var lines = text.split("\n")
+    var index = 1
+    while index < lines.count() {
+        var words = lines[index].trim().split(" ")
+        if words.count() == 3 {
+            var key = "{words[0]}|{words[2]}"
+            reload_renames[key] = words[1]
+        }
+        index = index + 1
     }
-    var returned = returned_literal_text(function)
-    if returned.is_empty() {
-        report(
-            "'renamed_from_{attribute}()' names the attribute '{attribute}' had before, so it returns one text literal: 'return \"old_name\"'",
-        )
-    }
-    return returned
 }
 
-func returned_literal_text(function: Analysis.FunctionInfo): String {
-    if function.body.count() != 1 {
-        return ""
+func renamed_from(information: Analysis.ClassInfo, attribute: String): String {
+    var key = "{information.qualified_dotted}|{attribute}"
+    if reload_renames[key] {
+        if not used_renames.contains(key) {
+            used_renames.append(key)
+        }
+        return reload_renames[key]
     }
-    var only = function.body[0]
-    var returned = shape.as_return_statement(only)
-    if not returned {
-        return ""
+    return ""
+}
+
+func unused_renames(): List<String> {
+    var unused = List<String>()
+    var keys = reload_renames.keys()
+    var index = 0
+    while index < keys.count() {
+        var key = keys[index]
+        if not used_renames.contains(key) {
+            crash reload_renames[key]
+            var old_name = reload_renames[key]
+            var parts = key.split("|")
+            crash parts[0] and parts[1]
+            var class_name = parts[0]
+            var new_name = parts[1]
+            unused.append("{class_name}.attributes['{old_name}']: \"{new_name}\"")
+        }
+        index = index + 1
     }
-    var value = returned.value
-    if not value {
-        return ""
-    }
-    var literal = shape.as_string_literal(value)
-    if not literal {
-        return ""
-    }
-    return literal.value
+    return unused
 }
 
 func note_support_slot(information: Analysis.ClassInfo, what: String) {

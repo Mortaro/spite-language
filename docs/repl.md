@@ -563,19 +563,23 @@ $ spite connect 4000 --command="describe()"
 {"ok":true,"value":"Ann at level 7 with 100, walked 4","type":"String"}
 ```
 
-**A renamed attribute keeps its value** when the class says what it was called, with a function beside it in the same form as a JSON key's: `renamed_from_<attribute>()` returns the old name. Without one, a
-rename is a removed attribute and a new one, and the value is released.
+**A renamed attribute keeps its value** through a map given at the prompt, never in the program's code. A save
+where, in one class, an attribute is gone while another is new could be a rename or a removal and an addition,
+and a reload never guesses: it holds the change, swaps in nothing, and says what it holds. Rename `level` to
+`rank` in `hero.spite` and save:
 
-```gdscript
-var rank = 1
+```text
+$ spite connect 4000 --command="wait_reload"
+{"ok":false,"error":"...the reload of Hero is held, since it would lose data: level is gone and rank is new, ... reload {Hero.attributes['level']: \"rank\"}; to let what level holds be released: reload {}"}
 
-func renamed_from_rank(): String {
-    return "level"
-}
+$ spite connect 4000 --command="reload {Hero.attributes['level']: \"rank\"}"
+{"ok":true,"value":"rebuilt Hero, ...\nmoved every Hero to its new attributes: level is now rank","type":""}
 ```
 
-The reload answers `level is now rank`, and `rank` holds the 7 `level` held. The function does nothing once no
-object has the old name, so it can be deleted after the reload, or kept.
+The map pairs an attribute of the running class with the name of the new one, the same shape as a serializer's
+map of names ([json.md](json.md#a-key-that-is-not-an-attributes-name)), and applies to that one reload. `rank`
+holds the 7 `level` held. `reload {}` lets the old values go instead. An attribute of the map that the running
+class lacks, of another type than the new one, or one that the reload does not rename is refused by name.
 
 What it costs: a change to a class's attributes compiles the whole program, since every class that reads them is
 compiled again: about 40 seconds for a large game's server, against a few for a change to function bodies alone.
@@ -701,9 +705,8 @@ No change to a program's code needs a restart. Every refusal in [What a reload c
 is a gap to close, not a rule. The steps, in the order a game meets them:
 1. **A class's attributes change**, [Changing a class's attributes](#changing-a-classs-attributes): the reload moves
    every live object to the new layout, copying kept attributes by name, giving new ones their defaults and
-   releasing removed ones; an `Items`' own memory moves the same way. A rename is written as a function beside the
-   attribute, `func renamed_from_<attribute>(): String { return "old_name" }`, the same form as
-   `json_key_<attribute>`, and may be deleted once the program has reloaded. The rules:
+   releasing removed ones; an `Items`' own memory moves the same way. A rename is given at the prompt, never in the
+   program's code: `reload {Hero.attributes['level']: "rank"}`. The rules:
    - A `--hot-reload` build gives each object of a program class two hidden words after its header, `spite_moved`
      (its attributes' block once they moved, else 0) and `spite_live` (its place in the class's list of live
      objects), reads every attribute through `<Class>___fields(object)`, and describes each class's layout --
@@ -715,13 +718,18 @@ is a gap to close, not a rule. The steps, in the order a game meets them:
      not swap is refused by name (`the change reaches ...`), and the program keeps all of its code.
    - The library installs every slot it replaces or none, then moves the objects: each live object of a changed
      class gets a new block, made with the new defaults, into which each attribute of the same name and type is
-     moved, or of the name `renamed_from_<attribute>()` gives, first. Every attribute of the old layout nothing
+     moved, or the attribute the reload's map pairs with it, first. Every attribute of the old layout nothing
      took is released after every object of every changed class has moved, so a release that reaches another
      moved object finds it moved. Objects made while moving (a new attribute's default) are made in the new layout
      and not moved again.
    - An attribute of a new type is a new attribute: it holds its default. The reload names every class it moved,
-     and for each what is new, gone, renamed or retyped (`moved every Hero to its new attributes: health is new and
-     holds its default`), in its answer and on the error output.
+     and for each what is new, gone, renamed or retyped. When, in one class, an attribute is gone while another is
+     new and the reload was given no map, the reload is held: nothing is swapped in, and the answer names both and
+     the map that would keep the values. `reload` with a map (`{}` included) compiles again with it; the map
+     applies to that compile only, and one naming an attribute the running class lacks, of another type, or one
+     the reload does not rename is refused.
+     The moves are named in the answer and on the error output (`moved every Hero to its new attributes: health is
+     new and holds its default`).
    - Once a class has moved, its code reads through the function for as long as the program runs. A class that
      starts or stops fitting an `Items`' own memory is refused.
 2. **Dependents are rebuilt**: every function of a `--hot-reload` build has a slot, the standard library's, a
