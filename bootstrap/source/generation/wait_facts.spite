@@ -99,7 +99,7 @@ func may_wait(name: String): Boolean {
 
 func answer(name: String, text: String, path: String, line: Integer, owner: String, function: String): Boolean {
     if answers.has(name) {
-        return answers.get(name) == true
+        return answers[name] == true
     }
     var answered = waits.has(name)
     answers.set(name, answered)
@@ -116,7 +116,7 @@ func first_changed_answer(): Integer {
     var index = 0
     while index < asked_names.count() {
         var name = asked_names[index]
-        if answers.get(name) == true != waits.has(name) {
+        if answers[name] == true != waits.has(name) {
             return index
         }
         index = index + 1

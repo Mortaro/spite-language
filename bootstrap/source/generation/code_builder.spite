@@ -85,7 +85,7 @@ func typedef_count(): Integer {
 }
 
 func replace_typedef(position: Integer, line: String) {
-    typedefs.set_at(position, line)
+    typedefs[position] = line
     if position < scanned_typedefs {
         scan_names(line)
     }
@@ -119,7 +119,7 @@ func support_at(position: Integer): String {
 }
 
 func replace_support(position: Integer, line: String) {
-    support_bodies.set_at(position, line)
+    support_bodies[position] = line
     if position < scanned_support {
         scan_names(line)
     }
@@ -139,7 +139,7 @@ func user_at(position: Integer): String {
 }
 
 func replace_user(position: Integer, line: String) {
-    user_bodies.set_at(position, line)
+    user_bodies[position] = line
 }
 
 func insert_user(position: Integer, line: String) {
@@ -259,7 +259,7 @@ func include_maths_library(macro_name: String) {
     if maths_guard >= 0 {
         crash guard_names[maths_guard]
         var names = guard_names[maths_guard]
-        guard_names.set_at(maths_guard, "{names} {macro_name}")
+        guard_names[maths_guard] = "{names} {macro_name}"
         return
     }
     maths_guard = guard_names.count()
