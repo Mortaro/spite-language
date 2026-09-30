@@ -1,4 +1,4 @@
-// D222 feasibility (docs/proposals/one_list.md): the layouts one automatic List could pick, written by hand in C
+// D222 feasibility (design/proposals/one_list.md): the layouts one automatic List could pick, written by hand in C
 // so each costs only what the layout costs. Not Spite and not run by check.sh; build and run it by hand:
 //   clang -O2 benchmarks/one_list/layouts.c -o layouts.exe && ./layouts.exe
 //   clang -O2 -ffast-math ...   to see what reassociating a float sum would buy
@@ -44,7 +44,7 @@ static PositionObject *position_objects[ENTITIES];
 static VelocityObject *velocity_objects[ENTITIES];
 static uint32_t position_generations[ENTITIES], velocity_generations[ENTITIES];
 static uint32_t kept_position_generations[ENTITIES], kept_velocity_generations[ENTITIES];
-// a sparse set per column, as SlopEngine keeps them: the entity of each row, and the row of each entity
+// a sparse set per column, as an ECS engine keeps them: the entity of each row, and the row of each entity
 static int32_t entity_of_position_row[ENTITIES];
 static int32_t velocity_row_of_entity[ENTITIES];
 static uint8_t position_alive[ENTITIES];

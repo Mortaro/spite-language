@@ -86,7 +86,7 @@ func header(): String {
         " * Every non-scalar value (class instance, List<T>, Dictionary<T>, String,"
         " * an object literal) is a heap object whose first field is a `SpiteHeader`;"
         " * variables/attributes/elements/parameters hold pointers to these objects."
-        " * Passing, assigning, storing and returning share the same object -- a copy"
+        " * Passing, assigning, storing and returning share the same object: a copy"
         " * is only ever made by an explicit `copy()`/`deep_copy()` call"
         " * (docs/memory.md)."
         " *"

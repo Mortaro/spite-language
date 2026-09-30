@@ -9,7 +9,7 @@ With no path it rewrites the whole repository and renames the files. It is idemp
 says Int can be migrated by running it again after merging. Read the diff afterwards: it rewrites words, not
 meaning. C's own `int` and `bool`, and `Interface`, `print`, `IntegerLiteral`, are left alone.
 
-Never touched: docs/decisions.md (the log is history, and so is a leftover manual.md), Mortaro's own files, the
+Never touched: design/decisions.md (the log is history, and so is a leftover manual.md), Mortaro's own files, the
 seed, the progress log of bootstrap/COMPILER_PLAN.md, the compiler's table of old spellings with the diagnostic
 that proves it, and a line that names the old spelling on purpose (KEPT_LINE).
 """
@@ -21,7 +21,7 @@ import sys
 SKIPPED_FOLDERS = {".git", ".spite", ".claude", "seed", "node_modules"}
 SKIPPED_PATHS = {
     "manual.md",
-    "docs/decisions.md",
+    "design/decisions.md",
     "scripts/rename_integer_boolean_date.py",
     "bootstrap/source/generation/old_spellings.spite",
     "diagnostics/old_type_spellings",

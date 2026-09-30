@@ -1074,7 +1074,7 @@ func generate_codegen_value(name: String, class_information: Analysis.ClassInfo)
         return bound_value
     }
     report(
-        "'{class_information.simple_name}' has no 'generic ${name}' line, and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it through 'var environment = Environment()' as 'environment.{name}'",
+        "'{class_information.simple_name}' has no 'generic ${name}' line, and '$' is for generics only: a program's settings are fields of Environment, so reopen it in environment.spite with 'var {name} = ...' and read it through 'var environment = Environment()' as 'environment.{name}'",
     )
     return void_result()
 }
@@ -2281,7 +2281,7 @@ func finish_wait_questions() {
         var now_waits = wait_facts.may_wait(asked_name)
         var before = not now_waits
         report(
-            "whether '{asked}' can wait was answered {before} here, before the functions that ask 'function_waits' were compiled, and it is {now_waits} once they are: it reaches one of them, or a function value made in one, so its answer would decide itself (D209) -- ask from a function that '{asked}' does not reach",
+            "whether '{asked}' can wait was answered {before} here, before the functions that ask 'function_waits' were compiled, and it is {now_waits} once they are: it reaches one of them, or a function value made in one, so its answer would decide itself, so ask from a function that '{asked}' does not reach",
         )
         return
     }
@@ -2495,7 +2495,7 @@ func instantiate_generic(
 ): Analysis.ClassInfo? {
     if arguments.count() != template.codegen_names.count() {
         report(
-            "'{template.simple_name}' takes {template.codegen_names.count()} codegen value(s), in this order: ${template.codegen_names.join(", $")} -- but {arguments.count()} were given",
+            "'{template.simple_name}' takes {template.codegen_names.count()} codegen value(s), in this order: ${template.codegen_names.join(", $")}, but {arguments.count()} were given",
         )
         return null
     }
@@ -3358,7 +3358,7 @@ func required_function_problem(
     }
     var lent = lent_result_source(candidate, function)
     if not lent.is_empty() {
-        return "its '{wanted.name}' lends its caller an item of '{lent}' (D230), which only a call written by name can borrow: a call through the type would let go of an item it does not own"
+        return "its '{wanted.name}' lends its caller an item of '{lent}', which only a call written by name can borrow: a call through the type would let go of an item it does not own"
     }
     return ""
 }
@@ -5934,7 +5934,7 @@ func instantiate_every_attribute(
             var ranged_function = range.last()
             crash ranged_function
             report(
-                "'{template.prefix}{template.symbol_parameter}s{template.suffix}' makes one value for each argument of '{ranged_function}', so it can only be the whole argument list of a call to '{ranged_function}', as in '{ranged_function}({template.prefix}{template.symbol_parameter}s{template.suffix}())' -- or '{declaration.name}' has to return nothing",
+                "'{template.prefix}{template.symbol_parameter}s{template.suffix}' makes one value for each argument of '{ranged_function}', so it can only be the whole argument list of a call to '{ranged_function}', as in '{ranged_function}({template.prefix}{template.symbol_parameter}s{template.suffix}())', or else '{declaration.name}' has to return nothing",
             )
             return null
         }
@@ -6412,13 +6412,13 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     information.declared_functions.append(function)
 }
 
-# ../docs/values_and_types.md#numbers-are-classes-and-this--implemented
+# ../docs/values_and_types.md#numbers-are-classes-and-this
 func report_from_declaration(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo) {
     var saved_line = current_line
     current_line = declaration.line
     var target_words = snake_words(information.simple_name)
     report(
-        "'{information.simple_name}.{declaration.name}' makes a {information.simple_name} from another value, and a conversion belongs to the value converted (D293): declare 'to_{target_words}()' on the class it converts from, or take the value in the constructor",
+        "'{information.simple_name}.{declaration.name}' makes a {information.simple_name} from another value, and a conversion belongs to the value converted: declare 'to_{target_words}()' on the class it converts from, or take the value in the constructor",
     )
     current_line = saved_line
 }
@@ -7212,7 +7212,7 @@ func bound_type_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
         assert member_type or not segment.starts_with("argument_class(")
         if not member_type {
             report(
-                "{type_with_article(bound_type)} has no codegen value named '{segment}' -- List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
+                "{type_with_article(bound_type)} has no codegen value named '{segment}': List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
             )
             return null
         }
@@ -7262,7 +7262,7 @@ func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? 
         assert member_type or not segment.starts_with("argument_class(")
         if not member_type {
             report(
-                "{type_with_article(bound_type)} has no codegen value named '${segment}' -- List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
+                "{type_with_article(bound_type)} has no codegen value named '${segment}': List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
             )
             return null
         }
@@ -7915,7 +7915,7 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     }
     if type_shape.as_string(from) and type_shape.is_symbol(to) {
         report(
-            "text is not a Symbol: a Symbol is written 'name', and text becomes one with Symbol(text), which answers Symbol? -- null unless the program already uses that symbol",
+            "text is not a Symbol: a Symbol is written 'name', and text becomes one with Symbol(text), which answers Symbol? (null unless the program already uses that symbol)",
         )
         return code
     }
@@ -7994,7 +7994,7 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
             var target_label = type_label(to)
             var conversion_name = words_of(target_label).join("_")
             report(
-                "text is not {with_article(target_label)} until it is read as one, and text that is not a number has none to give: read it with 'to_{conversion_name}()', which answers '{target_label}?', null when the text is not a number that fits, and narrow it -- or declare the value '{target_label}?'",
+                "text is not {with_article(target_label)} until it is read as one, and text that is not a number has none to give: read it with 'to_{conversion_name}()', which answers '{target_label}?', null when the text is not a number that fits, and narrow it, or declare the value '{target_label}?'",
             )
             return code
         }
@@ -8127,7 +8127,7 @@ func reported_key_kinds(from: Analysis.SpiteType, to: Analysis.SpiteType): Boole
     }
     var shown = type_display_name(from)
     report(
-        "{with_article(shown)} keyed by {key_kind_text(found)} cannot be used where {with_article(shown)} keyed by {key_kind_text(wanted)} is needed: a dictionary is keyed by text or by whole numbers, decided while compiling by the keys it is given, and these two were decided apart -- give both the same kind of key, or copy the entries across one by one",
+        "{with_article(shown)} keyed by {key_kind_text(found)} cannot be used where {with_article(shown)} keyed by {key_kind_text(wanted)} is needed: a dictionary is keyed by text or by whole numbers, decided while compiling by the keys it is given, and these two were decided apart, so give both the same kind of key, or copy the entries across one by one",
     )
     return true
 }
@@ -8688,7 +8688,7 @@ func generate_identifier(
     var named_class = find_class(identifier.name, class_information.qualified_dotted)
     if named_class {
         report(
-            "'{identifier.name}' is a class, not a value: write '{identifier.name}()' to make one, and give it a name with 'var ... = ' -- or, for the class itself, pass it where a 'Spite.Class' is wanted",
+            "'{identifier.name}' is a class, not a value: write '{identifier.name}()' to make one, and give it a name with 'var ... = '; for the class itself, pass it where a 'Spite.Class' is wanted",
         )
     } else if identifier.name == "Math" or identifier.name == "Maths" {
         report(
@@ -9915,7 +9915,7 @@ func report_maybe_boolean(result: ExpressionResult, used_by: String) {
     var maybe_inner = maybe.get_inner()
     assert is_boolean_type(maybe_inner)
     report(
-        "this is a Boolean? used by {used_by}, which would only test that it is there, not that it is true: prove it is there first -- 'crash index < flags.count()' proves 'flags[index]' -- or switch over it",
+        "this is a Boolean? used by {used_by}, which would only test that it is there, not that it is true: prove it is there first ('crash index < flags.count()' proves 'flags[index]') or switch over it",
     )
 }
 
@@ -11214,7 +11214,7 @@ func generate_constructor_call(
             return generate_constructor_call(inferred_class, arguments_ast, scope, class_information)
         }
         report(
-            "'{target_class.simple_name}' takes {target_class.codegen_names.count()} codegen value(s), in this order: ${target_class.codegen_names.join(", $")} -- write them between < and > before the arguments",
+            "'{target_class.simple_name}' takes {target_class.codegen_names.count()} codegen value(s), in this order: ${target_class.codegen_names.join(", $")}. Write them between < and > before the arguments",
         )
         return void_result()
     }
@@ -11669,7 +11669,7 @@ func generate_own_function_call(
         var missed = range_miss(class_information, name)
         if name == "print" or name == "println" or name == "echo" or name == "printf" {
             report(
-                "this class has no function '{name}': printing goes through the console -- 'var console = Console()' beside the attributes, then 'console.print(value)'",
+                "this class has no function '{name}': printing goes through the console, so write 'var console = Console()' beside the attributes, then 'console.print(value)'",
             )
         } else if not missed.is_empty() {
             report(missed)
@@ -12448,7 +12448,7 @@ func report_cast_by_name(information: Analysis.ClassInfo, name: String) {
     var target_words = snake_words(information.simple_name)
     var assignment = "'var converted: {class_name} = value'"
     report(
-        "there is no '{class_name}.{name}()': a conversion belongs to the value converted (D293), so write 'value.to_{target_words}()' on {with_article(source_name)}, or cast by assignment: {assignment}",
+        "there is no '{class_name}.{name}()': a conversion belongs to the value converted, so write 'value.to_{target_words}()' on {with_article(source_name)}, or cast by assignment: {assignment}",
     )
 }
 
@@ -13065,7 +13065,7 @@ func reported_old_spelling(name: String): Boolean {
     }
     if name == "Json" {
         report(
-            "there is no 'Json': it is two classes (D208), 'JsonWriter(value)' whose 'write()' makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'",
+            "there is no 'Json': it is two classes, 'JsonWriter(value)' whose 'write()' makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'",
         )
         return true
     }
@@ -13606,7 +13606,7 @@ func generate_parallel_each(
         var stage_name = names[index]
         if not stage_name.starts_with("filter_") {
             report(
-                "'{last_name}' can follow only 'filter_' steps: '{stage_name}' reaches another object, which several elements may share, and a parallel pass may touch only each element's own attributes (D35)",
+                "'{last_name}' can follow only 'filter_' steps: '{stage_name}' reaches another object, which several elements may share, and a parallel pass may touch only each element's own attributes",
             )
             return null
         }
@@ -13729,13 +13729,13 @@ func check_parallel_name(
                 return
             }
             report(
-                "'{template_name}' runs '{function.name}' on another thread, so it may reach only the attributes of its own '{owner.simple_name}' that hold values, its locals and singletons (D179): '{name}' holds {type_with_article(field_type)}, which another thread may share. Give the work what it needs as numbers or text of its own, or make an object for the work alone that nothing else holds or touches after 'Parallel(...)' (D207)",
+                "'{template_name}' runs '{function.name}' on another thread, so it may reach only the attributes of its own '{owner.simple_name}' that hold values, its locals and singletons: '{name}' holds {type_with_article(field_type)}, which another thread may share. Give the work what it needs as numbers or text of its own, or make an object for the work alone that nothing else holds or touches after 'Parallel(...)'",
             )
             return
         }
         if reaches_shared(field_type) and template_name.starts_with("ForeignCallback(") {
             report(
-                "'{template_name}' may be called by C on a thread of its own, so '{function.name}' may reach only the attributes of its own '{owner.simple_name}' that hold values, its locals and singletons (D179): '{name}' holds {type_with_article(field_type)}, which another thread may share. Keep it in a singleton the callback calls, which is made safe for threads (D183), or give the callback numbers and text of its own",
+                "'{template_name}' may be called by C on a thread of its own, so '{function.name}' may reach only the attributes of its own '{owner.simple_name}' that hold values, its locals and singletons: '{name}' holds {type_with_article(field_type)}, which another thread may share. Keep it in a singleton the callback calls, which is made safe for threads, or give the callback numbers and text of its own",
             )
             return
         }
@@ -13743,7 +13743,7 @@ func check_parallel_name(
             var template_length = template_name.length()
             var one_thread = template_name.slice(9, template_length)
             report(
-                "'{template_name}' runs '{function.name}' on many elements at once, so it may reach only its own '{owner.simple_name}' attributes that hold values, and its locals (D35): '{name}' holds a '{type_display_name(field_type)}', which another element may share. Copy what the pass needs into a number or text attribute first, or write '{one_thread}' to run it on one thread",
+                "'{template_name}' runs '{function.name}' on many elements at once, so it may reach only its own '{owner.simple_name}' attributes that hold values, and its locals: '{name}' holds a '{type_display_name(field_type)}', which another element may share. Copy what the pass needs into a number or text attribute first, or write '{one_thread}' to run it on one thread",
             )
         }
         return
@@ -17687,7 +17687,7 @@ func report_unsettled_keys() {
                 decided = ", from the key at {learned_key_use_notes[site]}"
             }
             report(
-                "the dictionary made here never settles on text or whole-number keys: each pass of the compiler decides it the other way (last as {learned_kind}{decided}), since what decides it flows back into it -- give it a key the program itself writes, of one kind",
+                "the dictionary made here never settles on text or whole-number keys: each pass of the compiler decides it the other way (last as {learned_kind}{decided}), since what decides it flows back into it; give it a key the program itself writes, of one kind",
             )
             return
         }
@@ -17729,7 +17729,7 @@ func report_mixed_keys(root: String) {
         ties = key_ties_text(number_key_use_sites[root], text_key_use_sites[root])
     }
     report(
-        "this dictionary is given a whole-number key here and a text key at {text_use.path}:{text_use.line} (in {text_use.owner}.{text_use.function_name}){ties}: a dictionary is keyed by text or by whole numbers, never both -- give every key of it the same kind",
+        "this dictionary is given a whole-number key here and a text key at {text_use.path}:{text_use.line} (in {text_use.owner}.{text_use.function_name}){ties}: a dictionary is keyed by text or by whole numbers, never both, so give every key of it the same kind",
     )
 }
 
@@ -17753,7 +17753,7 @@ func generate_dictionary_method(
     var element = dictionary.get_element()
     if name.starts_with("remove_where") {
         report(
-            "Dictionary has no method '{name}': the templates read a dictionary's values from a copy, so removing from it would change nothing -- remove each key with 'remove(key)'",
+            "Dictionary has no method '{name}': the templates read a dictionary's values from a copy, so removing from it would change nothing; remove each key with 'remove(key)'",
         )
         return void_result()
     }
@@ -18221,7 +18221,7 @@ func generate_library_constructor(arguments_ast: List<Syntax.Expressions.Express
     crash file_leaf
     if not file_leaf.contains(".") {
         report(
-            "'{file.value}' has no extension: name the library file exactly as it is on disk, like \"user32.dll\" or \"libc.so.6\" -- a wrapper for another platform names that platform's file",
+            "'{file.value}' has no extension: name the library file exactly as it is on disk, like \"user32.dll\" or \"libc.so.6\" (a wrapper for another platform names that platform's file)",
         )
     }
     if naming.value != "identity" and naming.value != "windows" and naming.value != "camel_case" {
@@ -18729,7 +18729,7 @@ func ensure_callback_runtime() {
     lines.append("if (__atomic_exchange_n(slot, owner, __ATOMIC_ACQ_REL) != 0) \{")
     lines.append("fflush(stdout);")
     lines.append(
-        "fprintf(stderr, \"spite: %s was handed to C by a second ForeignCallback while the first is alive: C calls it with no context, so a function has one at a time -- keep the first and hand C its address\\n\", called);",
+        "fprintf(stderr, \"spite: %s was handed to C by a second ForeignCallback while the first is alive: C calls it with no context, so a function has one at a time; keep the first and hand C its address\\n\", called);",
     )
     lines.append("exit(1);")
     lines.append("}")
@@ -19043,7 +19043,7 @@ func report_singleton_circle(information: Analysis.ClassInfo, path: List<String>
     current_owner = information.qualified_dotted
     current_function = ""
     report(
-        "singleton '{singleton_display_name(information)}' {parts.join(", ")}: singletons initialise each other in a circle -- one of them has to reach the other some other way, such as by binding it in the class that uses both",
+        "singleton '{singleton_display_name(information)}' {parts.join(", ")}: singletons initialise each other in a circle, so one of them has to reach the other some other way, such as by binding it in the class that uses both",
     )
 }
 
@@ -22288,7 +22288,7 @@ func report_lent_call_resize(
         var resize = resize_in_statement(statement, path, scope, class_information)
         if not resize.is_empty() {
             report(
-                "{items_choice(path)}'{text}' is borrowed from '{path}' and lent to '{called_display_name(callee)}' for its call, and {resize} may move the items of '{path}': a function lent a borrowed item may not append to or remove from the collection it is borrowed from, directly or through what it calls -- change the size of '{path}' before or after the call (D257)",
+                "{items_choice(path)}'{text}' is borrowed from '{path}' and lent to '{called_display_name(callee)}' for its call, and {resize} may move the items of '{path}': a function lent a borrowed item may not append to or remove from the collection it is borrowed from, directly or through what it calls; change the size of '{path}' before or after the call",
             )
             return
         }
@@ -23414,15 +23414,15 @@ func unlent_argument_reason(text: String, callee: String, expression: Syntax.Exp
     var identifier = shape.as_identifier(expression)
     var indexed = shape.as_index(expression)
     if not identifier and not indexed {
-        return "only a named item, an item read with '[ ]' or a row's attribute is lent to a call (D257): name it first, 'var item = {text}', and pass 'item'"
+        return "only a named item, an item read with '[ ]' or a row's attribute is lent to a call: name it first, 'var item = {text}', and pass 'item'"
     }
     return "{name} is not lent it for the call: pass the attributes it needs"
 }
 
 func report_kept_lent(text: String, site: String) {
-    var lent = "'{text}' is lent to '{current_function}' for one call (D257), by {lent_parameter_caller}: it is the caller's item, read and written in place,"
+    var lent = "'{text}' is lent to '{current_function}' for one call, by {lent_parameter_caller}: it is the caller's item, read and written in place,"
     if lent_parameter_caller.is_empty() {
-        lent = "'{text}' is lent to '{current_function}' for one call (D257): it is the caller's item, read and written in place,"
+        lent = "'{text}' is lent to '{current_function}' for one call: it is the caller's item, read and written in place,"
     }
     var site_length = site.length()
     if site == "return" {
@@ -23464,7 +23464,7 @@ func handed_on_hint(source: String): String {
     if not lent_result_singletons.has(source) {
         return ""
     }
-    return " -- a function lends its caller an item only by reading it from a singleton's Items or Vector itself, never one that was lent to it (D230)"
+    return "; a function lends its caller an item only by reading it from a singleton's Items or Vector itself, never one that was lent to it"
 }
 
 func reread_hint(source: String): String {
@@ -23485,7 +23485,7 @@ func report_unlent_return(
     assert not lends_this_return(value, class_information)
     var written = Syntax.SourcePrinter().source_expression(value)
     report(
-        "'{function_information.name}' lends its caller an item of '{lent}', which the caller writes in place and never lets go, so each of its returns is an item of '{lent}' or null: '{written}' is neither -- return null for 'none', with a '?' result, or make it a function of its own",
+        "'{function_information.name}' lends its caller an item of '{lent}', which the caller writes in place and never lets go, so each of its returns is an item of '{lent}' or null: '{written}' is neither, so return null for 'none', with a '?' result, or make it a function of its own",
     )
 }
 
@@ -23494,7 +23494,7 @@ func report_lending_value(information: Analysis.ClassInfo, function: Analysis.Fu
     var lent = lent_result_source(information, function)
     assert not lent.is_empty()
     report(
-        "'{function.name}' lends its caller an item of '{lent}' (D230), which only a call written by name can borrow: a function value's caller would let go of an item it does not own, so '{function.name}' is not made a function value -- call '{function.name}(...)' by name where the item is wanted",
+        "'{function.name}' lends its caller an item of '{lent}', which only a call written by name can borrow: a function value's caller would let go of an item it does not own, so '{function.name}' is not made a function value; call '{function.name}(...)' by name where the item is wanted",
     )
 }
 
@@ -23520,7 +23520,7 @@ func lent_result_hint_of(information: Analysis.ClassInfo): String {
                 var range = range_path(template)
                 var ranged = range.last()
                 crash ranged
-                return " -- a template over the arguments of '{ranged}' may hand back a borrowed item only through its plural, as the whole argument list of the one call it fills: '{ranged}({template.prefix}{template.symbol_parameter}s{template.suffix}(...))' (D220)"
+                return "; a template over the arguments of '{ranged}' may hand back a borrowed item only through its plural, as the whole argument list of the one call it fills: '{ranged}({template.prefix}{template.symbol_parameter}s{template.suffix}(...))'"
             }
         }
         index = index + 1
@@ -23598,7 +23598,7 @@ func report_captured_borrow(
     var source = borrowed_source_of(member.object, object_result, scope)
     if object_result.borrowed_from.is_empty() and lent_parameter_names.contains(text) {
         report(
-            "'{text}.{member.name}' would keep '{text}' in a function value, and '{text}' is lent to '{current_function}' for one call (D257), so '{current_function}' does not keep it: call '{text}.{member.name}()' directly, or keep the values it needs",
+            "'{text}.{member.name}' would keep '{text}' in a function value, and '{text}' is lent to '{current_function}' for one call, so '{current_function}' does not keep it: call '{text}.{member.name}()' directly, or keep the values it needs",
         )
         return
     }
@@ -29427,7 +29427,7 @@ func generate_switch_statement(
             member_index = member_index + 1
         }
         report(
-            "this switch over '{information.simple_name}' has no case for {missing.join(", ")}: a switch over a union covers every member, so a member added later cannot be forgotten -- add the cases, or end with '_:' for the rest",
+            "this switch over '{information.simple_name}' has no case for {missing.join(", ")}: a switch over a union covers every member, so a member added later cannot be forgotten; add the cases, or end with '_:' for the rest",
         )
     }
     if owns(subject, switch_statement.subject) {
@@ -29735,7 +29735,7 @@ func report_value_coverage(
         report("every value of '{enum_name}' already has a case, so '_:' answers for nothing: remove it")
     } else if not missing.is_empty() and not answers_the_rest {
         report(
-            "this switch over '{subject_text}' has no case for {missing.join(", ")}: a switch over an enum covers every value, so a value added later cannot be forgotten -- add the cases, or end with '_:' for the rest",
+            "this switch over '{subject_text}' has no case for {missing.join(", ")}: a switch over an enum covers every value, so a value added later cannot be forgotten; add the cases, or end with '_:' for the rest",
         )
     }
 }
@@ -29764,7 +29764,7 @@ func value_case_test(
     }
     if not is_constant_case(switch_case.value) {
         report(
-            "a case of a switch is a value written out -- a whole number or a text -- never a name or a call, and '{label}' is not one",
+            "a case of a switch is a value written out (a whole number or a text), never a name or a call, and '{label}' is not one",
         )
         return "0"
     }
@@ -32599,7 +32599,7 @@ func note_always_crashing(
         message = "this 'crash' always halts{instance}, and this function is called: take the call out"
     }
     if not writes_reasons.is_empty() {
-        message = "{message} -- {writes_reasons.join("; ")}"
+        message = "{message}; {writes_reasons.join("; ")}"
     }
     always_crashing_functions.append(current_function_c_name)
     always_crashing_paths.append(current_path)
@@ -32832,7 +32832,7 @@ func report_dropped_construction(expression: Syntax.Expressions.Expression, clas
     var written = printer.source_expression(expression)
     var name = constructed.simple_name
     report(
-        "'{written}' makes a '{name}' and drops it: a constructed object must be kept and used, so a class whose construction is the whole point should be a function instead -- turn '{name}' into a function of the class that needs it, or keep the object in a variable that is read",
+        "'{written}' makes a '{name}' and drops it: a constructed object must be kept and used, so a class whose construction is the whole point should be a function instead; turn '{name}' into a function of the class that needs it, or keep the object in a variable that is read",
     )
 }
 
@@ -36355,7 +36355,7 @@ func note_layout_change(information: Analysis.ClassInfo, running: String, now: S
     }
     if was["fits"] != fields["fits"] {
         report(
-            "'{information.qualified_dotted}' changes whether its objects fit in an Items' own memory, and a reload does not yet move them between the two kinds of storage: restart the program to take this change, or undo it (docs/failure.md#still-open)",
+            "'{information.qualified_dotted}' changes whether its objects fit in an Items' own memory, and a reload does not yet move them between the two kinds of storage: restart the program to take this change, or undo it (design/status.md#nothing-fails-silently-still-open)",
         )
     }
     if notes.is_empty() {

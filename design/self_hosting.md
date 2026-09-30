@@ -6,7 +6,7 @@ Spite's compiler is written in Spite and compiles itself. There is no other impl
 
 `bootstrap/seed/spite_compiler.c` is the C that the compiler emits for its own sources. Compiling that file with
 any C compiler gives you a working Spite compiler, which can then compile the sources again and produce the same
-C -- a fixpoint.
+C: a fixpoint.
 
 ```
 cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite -lm
@@ -14,14 +14,14 @@ cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite -lm
 ```
 
 So the only thing needed to build Spite from nothing is a C compiler. `-lm` links the C library's maths, which
-the compiler calls to fold maths on constants ([optimizations.md](optimizations.md#maths-on-constants-is-worked-out-while-compiling));
+the compiler calls to fold maths on constants ([optimizations.md](../docs/optimizations.md#maths-on-constants-is-worked-out-while-compiling));
 Linux and macOS keep it apart, and Windows needs no flag. The compiler it gives finds `launcher/` and
 `library/` from its own executable, so the executable lives in the repository or a folder inside it. The seed is
 committed, and `check.sh` says when it has drifted from the sources (`bash check.sh --update-seed` refreshes it
 after an intended change). The compiler is a program like any other, named by its folder: `bootstrap/`, whose entry
 is `bootstrap/bootstrap.spite` (class `Bootstrap`). Its C goes to the default place,
 `.spite/build/bootstrap/bootstrap.c` (D283), because every `Build` field is a constant in what is built: a `--c-path` naming some other file would be written into the C, and the next
-generation would differ ([compiler.md](compiler.md#outputs)).
+generation would differ ([compiler.md](../docs/compiler.md#outputs)).
 
 ## What proves it
 
@@ -36,12 +36,12 @@ generation would differ ([compiler.md](compiler.md#outputs)).
    `.spite/` and never beside its source, builds a program that loads a local repository pinned to a commit, and
    runs the thread pool without `--debug-memory`;
 5. reads the C of production builds: `examples/hello` must carry no library class it never uses, and the
-   singletons a `Parallel` reaches must take their cheapest safe form ([optimizations.md](optimizations.md));
-6. runs the test package in `tests/` ([testing.md](testing.md)), which must print nothing and balance;
+   singletons a `Parallel` reaches must take their cheapest safe form ([optimizations.md](../docs/optimizations.md));
+6. runs the test package in `tests/` ([testing.md](../docs/testing.md)), which must print nothing and balance;
 7. requires the compiler to free everything it takes while compiling itself;
 8. compiles every program in `diagnostics/`, which must fail with exactly the errors written beside it;
 9. runs every titled program on these pages and in the README, replays every remote REPL session on them, and
-   runs [repl.md](repl.md)'s live-reload session, editing a copy of its program while it runs;
+   runs [repl.md](../docs/repl.md)'s live-reload session, editing a copy of its program while it runs;
 10. prints two programs back out with `--final-classes` and requires the printed programs to run the same;
 11. writes the compiler, a time-zone program and a file-watching program out for Windows, Linux and macOS,
     holding each operating system's library folder to compiling;
@@ -72,10 +72,10 @@ scripts/docs_corpus/             writes every titled program of docs/ and the RE
 
 What stays C is only what the compiler emits itself: the object header, retain and release, `main`, which
 constructs the launcher, and the members the compiler supplies to a few library classes as its own reopening,
-listed in `prelude.spite` -- `Console`, `Memory.Heap`, `Memory.Address` (its reads, writes and atomics, lowered
+listed in `prelude.spite`: `Console`, `Memory.Heap`, `Memory.Address` (its reads, writes and atomics, lowered
 where they are called, D178), `TypedMemory`, `DynamicLibrary`, `HotReload`, `Concurrent`, `ThreadPool`,
 `Scheduler`, the reflection members of `Spite.Attribute` and `Spite.Function`, and the numbers. `--final-classes`
-prints them as declarations without a body ([compiler.md](compiler.md#inspect-merged-classes)). Everything a
+prints them as declarations without a body ([compiler.md](../docs/compiler.md#inspect-merged-classes)). Everything a
 program can name is Spite in `library/`, and the supplied members are meant to shrink to the machine's own
 operations ([the rule](#self-hosting--partial)).
 

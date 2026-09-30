@@ -1,4 +1,4 @@
-"""Read-only study for D222 (docs/proposals/one_list.md): for every List site in a corpus of Spite programs, which
+"""Read-only study for D222 (design/proposals/one_list.md): for every List site in a corpus of Spite programs, which
 layout one automatic List could give it, and why the others were refused.
 
 It reads source text only, line by line, the way Spite is written (one statement per line, four-space blocks, a

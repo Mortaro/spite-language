@@ -2,8 +2,8 @@
 
 ## Build the compiler
 
-Spite compiles itself, so the only thing you need is a C compiler -- `cc`, `clang` or `gcc`; on Windows, the
-clang that ships with Visual Studio is found on its own. From the repository root:
+Spite compiles itself, so the only thing you need is a C compiler (`cc`, `clang` or `gcc`; on Windows, the
+clang that ships with Visual Studio is found on its own). From the repository root:
 
 ```bash
 bin/spite examples/hello
@@ -18,10 +18,8 @@ cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite -lm
 ```
 
 The compiler writes C and builds it with the command in the `CC` environment variable, or the first of `cc`,
-`clang` and `gcc` it finds. `bin/spite` picks that command itself -- `SPITE_CC` if it is set, else the first C
-compiler it finds, Visual Studio's clang included -- and hands it to the compiler as `CC`. `bash check.sh` proves
-the compiler still reproduces itself and still runs every program in `conformance/`, `examples/`, `tests/` and
-these pages ([self_hosting.md](self_hosting.md)).
+`clang` and `gcc` it finds. `bin/spite` picks that command itself: `SPITE_CC` if it is set, else the first C
+compiler it finds (Visual Studio's clang included), and hands it to the compiler as `CC`.
 
 ## Hello world
 
@@ -45,7 +43,7 @@ spite hello_world
 ```
 
 A file is a class, named by its file name: `hello_world.spite` is the class `HelloWorld`. There is no `main`: the
-program runs by constructing the entry class, so its constructor -- the function named like the class -- is the
+program runs by constructing the entry class, so its constructor, the function named like the class, is the
 whole program. Building and running are the same command; there is no separate compile step to remember. The
 executable is built into `.spite/` in the folder you ran `spite` from, `.spite/build/hello_world/hello_world.exe` (no
 `.exe` on Linux and macOS), never beside the source, so it can be run again without the compiler ([compiler.md](compiler.md#choose-the-outputs) has the other outputs). It carries
@@ -106,14 +104,17 @@ the compiler as plain loops where they are used, so they cost exactly what the l
 
 Every compile formats the program's own files first, and may rewrite them: the compiler is the formatter, there
 is one style, and nothing turns it off ([style.md](style.md)). `spite format` formats files without compiling
-them ([compiler.md](compiler.md#formatting)). The compiler will also refuse things other languages accept -- an
+them ([compiler.md](compiler.md#formatting)). The compiler will also refuse things other languages accept: an
 abbreviated name, a variable nobody reads, a blank line inside a function, a call passed straight into another
-call, an object constructed and thrown away -- each with an error that says exactly what to write instead. There
+call, an object constructed and thrown away. Each comes with an error that says exactly what to write instead. There
 are no warnings: read the error and do what it says; there is no flag to silence it.
 
 ## Where to go next
 
 Read [classes_and_files.md](classes_and_files.md), [programs.md](programs.md) and
 [values_and_types.md](values_and_types.md) next, then [failure.md](failure.md): together they are most of the
-language. Keep [for_ai_writers.md](for_ai_writers.md) at hand while writing -- it is the whole language on one
-page -- and [compiler.md](compiler.md) for every command-line option.
+language. Keep [compiler.md](compiler.md) at hand for every command-line option.
+
+---
+
+Next: [Classes and files](classes_and_files.md), what a file, a class and a folder are.

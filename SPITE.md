@@ -3,7 +3,7 @@
 Things that cause Mortaro spite. The language is named after them.
 
 This file exists so an agent does not have to rediscover them by proposing one and being told no. Every entry says
-what is hated, why, and what to do instead — a list of dislikes without alternatives just makes agents timid.
+what is hated, why, and what to do instead: a list of dislikes without alternatives just makes agents timid.
 
 When Mortaro rejects something new, add it here with its reason.
 
@@ -13,17 +13,17 @@ When Mortaro rejects something new, add it here with its reason.
 
 **Exceptions, error bubbling, and defensive code.** "Errors and exceptions tend to be useless because they tell us
 a message we have no action to take about them." Bubbling an error up for a developer to eventually log is
-"masturbatory" — it does not help, it just makes code defensive.
+"masturbatory": it does not help, it just makes code defensive.
 *Instead:* three outcomes and no others (D24). A compile error for anything the compiler can know, `assert` when
 the program should keep running, `crash` when it should halt. `T?` is the only runtime failure value and
-carries no reason. If a distinction is actionable it is data — an enum or a union — not an error. A crash carries
+carries no reason. If a distinction is actionable it is data (an enum or a union), not an error. A crash carries
 no message either (D297): its report points at the line of code and shows the memory there, which an AI reads
 instead of prose someone wrote about it.
 
 **`async`/`await` colouring.** The JS and C# pollution: the callee declares itself async, which infects every
 caller transitively and changes every return type.
 *Instead:* concurrency is a property of the call site, never of the function (D35). An ordinary function is made
-concurrent by its caller with `Task(...)`, and the handle joins on first use — no `await`, no wrapper type, no
+concurrent by its caller with `Task(...)`, and the handle joins on first use: no `await`, no wrapper type, no
 `.wait()` to remember.
 
 **Bring-your-own-runtime.** Rust's `Future`-without-an-executor split "truly pisses me off": it let multiple
@@ -33,7 +33,7 @@ Never define a trait that requires something else to drive it.
 
 **JSX, and configurable transpilation generally.** "JSX is too broad and you can configure what things do under
 the hood."
-*Instead:* markup is ordinary metaprogramming (D18) — tags from `missing_function`, children variadic, components
+*Instead:* markup is ordinary metaprogramming (D18): tags from `missing_function`, children variadic, components
 matched by shape, handlers as bound functions. No second grammar, nothing to configure.
 
 **JSON as a wire format.** "A web convention that creates inefficiency for human readability, but a human will
@@ -50,7 +50,7 @@ the class file.
 but we can be more permissive instead of all that rust noise."
 *Instead:* reference counting (D1), `Monster?`, and `assert`/`crash` narrowing.
 
-**Hidden costs — but hidden optimisations are welcome.** The rule is not symmetric (D36). Code that runs slower
+**Hidden costs, but hidden optimisations are welcome.** The rule is not symmetric (D36). Code that runs slower
 than a reader expects is the only real surprise; code that runs faster is a free win and needs no announcement.
 *Instead:* optimise freely and silently. Report only what could *not* be optimised, and why.
 
@@ -61,18 +61,18 @@ is forced by the type system rather than by advice (D27).
 
 **More than one way to do a thing.** The compiler is the formatter and the linter; style is not a matter of taste.
 This one is personal: two ways of doing one thing pisses Mortaro off, and he will spend hours deciding which one is
-best rather than live with both. Every pair is a decision somebody has to make again at every call site -- "who
+best rather than live with both. Every pair is a decision somebody has to make again at every call site. "Who
 owns a conversion, `Float.from_integer` or `to_float`?" was never clear, so only `to_<type>()` on the value being
 converted survives (D275).
 *Instead:* before adding anything, look for the way that already exists and use it. When two ways exist, pick one
-and remove the other, and when you cannot pick, ask him -- never leave both "for flexibility". Where he keeps both
+and remove the other, and when you cannot pick, ask him, and never leave both "for flexibility". Where he keeps both
 for now, it is on the list to hard-limit later, and new code uses the preferred one.
 
 **Warnings.** The compiler either reformats your code or errors. Nothing is left to the user's judgement.
 
 **Ceremony that sits outside the language's own patterns.** The `generics` header line was removed for exactly
 this reason: it "feels outside of our patterns" (D5, D9).
-*Instead:* before adding syntax, check whether an existing mechanism already expresses it — a class-level
+*Instead:* before adding syntax, check whether an existing mechanism already expresses it: a class-level
 function, a constructor signature, a naming convention, a template.
 
 **Project setup with a thousand ways to do it.** C++ is avoided largely for this: too many ways to configure a
@@ -89,8 +89,8 @@ bundler story in Ruby. Same spite as bring-your-own-runtime: it fragments what s
 ## Code style
 
 **Em dashes, anywhere.** "Absolutely no emdashes in the entire codebase. I really hate emdashes, my grandmother
-was killed by an emdash when I was a child, even though she is still alive." This covers the `—` character and the
-` -- ` stand-in written in prose, in code, comments, docs and commit messages, here and in every package Mortaro
+was killed by an emdash when I was a child, even though she is still alive." This covers the em dash character (U+2014) and
+the stand-in for it written in prose, two hyphens between spaces, in code, comments, docs and commit messages, here and in every package Mortaro
 maintains (command-line flags like `--optimized` are not dashes).
 *Instead:* end the sentence, or use a colon, a comma or parentheses.
 
@@ -117,7 +117,7 @@ disambiguate it.
 **Giant comments explaining obvious things.** The behaviour that started D34: eleven lines of prose above a
 two-line function, explaining the compiler rather than the code.
 *Instead:* a comment is one line and is nothing but a markdown link (D34). If a reader could derive it from the
-code, delete it. If it warns against a change, write a test or a compiler diagnostic — both push harder than
+code, delete it. If it warns against a change, write a test or a compiler diagnostic: both push harder than
 prose.
 
 **Destructuring and lambdas.** "Writing it is fun, but it's not a human who will write code in this language,
@@ -152,13 +152,13 @@ do not rename it, and do not suggest renaming it.
 **Clobbering shared files.** Two agents whole-file-writing the old `manual.md` and `PLAN.md` lost a day's decisions once
 already (a `robocopy /MIR` restore rolled them back an hour).
 *Instead:* targeted edits matching on surrounding text, never line numbers; re-read immediately before writing;
-the decision log, `docs/decisions.md`, is append-only and rows are never renumbered or reordered.
+the decision log, `design/decisions.md`, is append-only and rows are never renumbered or reordered.
 
 **Treating `mortaros_notes.md` as anything but an inbox.** It is where Mortaro drops notes; an agent moves them
 into the docs and clears it. Agent-owned state belongs in an agent-owned file.
 
 **Losing decisions.** The docs are normative (D193), and every language decision goes into the page that teaches
-that part of the language and into the decision log, `docs/decisions.md`, when it is made. A decision that exists only in a conversation is a decision that will be re-litigated.
+that part of the language and into the decision log, `design/decisions.md`, when it is made. A decision that exists only in a conversation is a decision that will be re-litigated.
 
 **Delegating work to budget subagents when it is slower.** If the round-trips and cold contexts cost more quota
 than doing the work inline, do it inline.

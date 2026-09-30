@@ -2,13 +2,13 @@
 
 Only questions Mortaro still has to answer. An agent adds one here with a link to where the docs argue it; when he
 answers (inline or in `mortaros_notes.md`), the answer goes into the page that teaches it and a row of
-`docs/decisions.md`, and the item is deleted. Item numbers never change; the list is ordered by what an answer
+`design/decisions.md`, and the item is deleted. Item numbers never change; the list is ordered by what an answer
 unblocks, most first. "D244" marks an item where something can go wrong silently today; "D205" marks one Claude
 could decide itself (no syntax, safe, no slower). Each item: the question, the options, a recommendation where
 one is clear, and what it blocks.
 
 Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection redesign (D316/D317,
-[proposal section 9](docs/proposals/reflection_objects.md#9-what-this-answers-in-mortaros_missing_decisionsmd)):
+[proposal section 9](design/proposals/reflection_objects.md#9-what-this-answers-in-mortaros_missing_decisionsmd)):
 25, 98, 99, 100, 108, 188, 206, 223; open question 8 (item 6) answered by D315. Rewritten for the new model: 6,
 10, 36, 89, 109, 220, 222. Added: 227-239. Earlier: 64, 71, 34, 21, 22, 5, 218 answered; 187 merged into 153; 46
 answered by D314.
@@ -18,29 +18,29 @@ D320, 231 by D321, 232 by D322, 89 by D326, 216 by D327. Rewritten: 227 (the rel
 
 ## Blocking now
 
-These hold up the D316/D317 migration, SlopEngine or the Theseus port.
+These hold up the D316/D317 migration, the game engine package or the game port.
 
 109. **Which attributes a function reads and writes** (D209/D229/D261/D268; the proposal gives them a home,
      `function.read_attributes` and `function.written_attributes`, get-only lists of `Spite.Attribute`). Options:
      (a) whole attributes only; (b) per piece (an attribute's own attributes); (c) (b) plus per parameter, which
      `argument.is_mutated` already covers. And the marker attributes `Resource.World`/`Resource.MainThread`: keep
      them as attributes the runner reads, or a class-level marker? D205, as D261 was. Recommend (a) now, (b) when
-     `Changed<T>` needs it. Blocks: SlopEngine's `Changed<T>` and field skipping, Theseus L6.
+     `Changed<T>` needs it. Blocks: the game engine's `Changed<T>` and field skipping, the game port's L6.
 227. **Renaming for a reload** (D280's `renamed_from_<attribute>`, the name-building twin of the `json_key_` that
      D320 replaced with a map): (a) the same kind of map, keyed by attribute objects, given to the reload (from
      `build.spite` or the class); (b) keep the name template (D316 allows a template that changes a function's
      name). Recommend (a), one way for every rename (D320). Blocks: D280's attribute migration.
 228. **Predicates in the plural rule** (proposal 12.2): `monsters.map_is_alive()` keeps the predicate's own name,
      or `map_` over a predicate is an error pointing at `filter_`/`count_`? Blocks: renaming `map_<member>` to the
-     plural across `library/`, conformance and SlopEngine.
+     plural across `library/`, conformance and the game engine package.
 213. **The default build's `-O` level**: `-O0` (fast to build, 3-7x slower to run), `-O1`, or units at `-O1`?
-     (`--hot-reload` is already `-O3` by D299.) Blocks: Theseus iteration speed.
+     (`--hot-reload` is already `-O3` by D299.) Blocks: the game port's iteration speed.
 212. **Should `--run=false` alone build the executable?** Today it only checks, leaving a stale executable to run
      (D244). Options: keep and teach `--executable --run=false`; make checking its own flag or command; delete the
      stale executable. Blocks: the ports' build scripts.
 222. **A foreign status enum** (D272, not built): a C function returning a C `enum` answers a Spite enum made from
      the header, must be used, and is read by a `switch`. May that switch have `_:`? Options: never; `_:` that may
-     not `crash`/`assert`; freely. Recommend never (each outcome a written line). Blocks: D272, SlopEngine's Vulkan
+     not `crash`/`assert`; freely. Recommend never (each outcome a written line). Blocks: D272, the game engine's Vulkan
      resize handling. Needs 233.
 233. **How the compiler reads a C header** (PLAN milestone 11c area; today it reads none, [foreign_libraries.md](docs/foreign_libraries.md)).
      Needed for D272's enums, a header's types as reflection, and trampoline width checks. Options: (a) a
@@ -53,7 +53,7 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
      outlives the frame (a compile error naming `copy()`, a debug generation check as backstop)? Is `Memory.Frame`
      an arena reset once a frame, or a ring of two? Until then, is an arena without `reset()` right?
 175. **A class reading its own allocator** (`memory.allocator` inside a class), so a list's buffer follows its arena.
-155. **A dedicated thread for work that blocks forever** (SlopEngine's window loop): `Thread(function)`, or a marker
+155. **A dedicated thread for work that blocks forever** (a game engine's window loop): `Thread(function)`, or a marker
      on `Parallel`?
 208. **How a list that falls back to references is reported** (8.1 against 35-40 ms a tick), with no warnings?
 209. **Should a `List` own its items, so a kept reference is weak (`T?`)**, or stay an explicit `Weak<T>`?
@@ -75,7 +75,7 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
      Close each gap, or accept them? D205 where measured no slower.
 211. **`ForeignCallback`'s names and two limits**: a call through a dropped context is not caught; a `'no_context'`
      callback must be a singleton's function.
-6. **Open questions 9-11** ([open_questions.md](docs/open_questions.md#open-questions)): `${` in text prints a stray
+6. **Open questions 9-11** ([open_questions.md](design/open_questions.md#open-questions)): `${` in text prints a stray
    `$` (D205 could make it an error); how `--final-classes` shows which root supplied a declaration; whether a
    `type`'s functions are written as function-valued attributes. (Question 8, `get_x()` taking over `.x`, is
    answered by D315: calling `get_x()` is an error naming `.x`.)
@@ -127,7 +127,7 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
 161. **Where an enum reopening's values go**: appended in merge order, so a program's own values come before a
      loaded engine's. Let a reopening say where, and should the program's come last?
 9. **The floor**: what stays C, and how `--final-classes` shows it
-   ([standard_library.md](docs/standard_library.md#pure-spite-dissolving-the-runtime--partial)).
+   ([standard_library.md](docs/standard_library.md#pure-spite-dissolving-the-runtime)).
 39. **The C left in `main`** (`argv`, `_setmode`, releasing singletons, the `--debug-memory` report): moving it into
     Spite needs a way to receive `argv` and to run code after the program ends.
 76. **Enums declaring more than `to_string()`/`to_debug()`**, the way a number's class does.
