@@ -14,7 +14,7 @@ Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection re
 answered by D314.
 
 Third pass, after D318-D325: 229 answered by D318 (on the reflection branch), 230 by D319, 227 by D320 and
-D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327. Rewritten: 238 (D324), 36 (D319).
+D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330. Rewritten: 238 (D324), 36 (D319).
 
 ## Blocking now
 
@@ -99,9 +99,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
      scope and the attributes of `this`, at most 12 values, text cut at 80 bytes, objects left out, and no condition
      text on the line (the `.crashes` map keeps it). Right set?
 219. **Confirm D263-D267** and the names `remove_where`, `truncate`, `swap`.
-224. **The shape D295 needs for `Directory.Entry`**: the union stays, and `Directory` and `File` answer
-     `kind: Directory.Kind` so `entries().filter_files()` reads. Values named in the plural (`'files'`,
-     `'folders'`), or `'file'`/`'folder'` with another filter spelling?
 225. **One package pinning two commits of one repository** (D296): both versions' classes share dotted names there.
      Keep it an error (proposed), or a way to name each (`load ... as Name`)? Recommend the error.
 234. **Identical code folding** (D296's second half; the duplicate C of two versions stays until it lands).
