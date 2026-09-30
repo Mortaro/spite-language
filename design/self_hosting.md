@@ -6,7 +6,7 @@ Spite's compiler is written in Spite and compiles itself. There is no other impl
 
 `bootstrap/seed/spite_compiler.c` is the C that the compiler emits for its own sources. Compiling that file with
 any C compiler gives you a working Spite compiler, which can then compile the sources again and produce the same
-C -- a fixpoint.
+C: a fixpoint.
 
 ```
 cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite -lm
@@ -72,7 +72,7 @@ scripts/docs_corpus/             writes every titled program of docs/ and the RE
 
 What stays C is only what the compiler emits itself: the object header, retain and release, `main`, which
 constructs the launcher, and the members the compiler supplies to a few library classes as its own reopening,
-listed in `prelude.spite` -- `Console`, `Memory.Heap`, `Memory.Address` (its reads, writes and atomics, lowered
+listed in `prelude.spite`: `Console`, `Memory.Heap`, `Memory.Address` (its reads, writes and atomics, lowered
 where they are called, D178), `TypedMemory`, `DynamicLibrary`, `HotReload`, `Concurrent`, `ThreadPool`,
 `Scheduler`, the reflection members of `Spite.Attribute` and `Spite.Function`, and the numbers. `--final-classes`
 prints them as declarations without a body ([compiler.md](../docs/compiler.md#inspect-merged-classes)). Everything a

@@ -94,25 +94,25 @@ line.
    object: the library declares `var singleton = false` and `func is_singleton(): Boolean { return singleton }`,
    and the compiler fills the *data* when it writes the class object, never the behaviour. That is the shape
    the rest of D6 follows. **`functions` (D57) and `attributes` are now declared the same way**, filled when
-   the class object is written -- a class-level `attributes` entry's `.value` is the field's declared default,
-   read off a `_default()` instance (proposed by Claude, unconfirmed) -- and `instances` needs no change (D57:
+   the class object is written (a class-level `attributes` entry's `.value` is the field's declared default,
+   read off a `_default()` instance; proposed by Claude, unconfirmed), and `instances` needs no change (D57:
    a live registry, tracked only when asked). Still to do: `Monster.attributes['name']`, D11's symbol-keyed
    mapping, whose shape still needs design (milestone 14).
 4. `deep_copy()` and the `Dictionary<T>` member templates.
 5. The formatter (the compiler rewrites sources to the one style), then `--final-classes`.
-6. Done 2026-09-23: arguments for the program being run -- everything after a bare `--` (the rule is proposed,
+6. Done 2026-09-23: arguments for the program being run: everything after a bare `--` (the rule is proposed,
    unconfirmed; `docs/compiler.md`).
 7. `--development`, the REPL, live reload.
 8. Fixed 2026-09-23: compiling the compiler itself leaked about 0.1% of its allocations. Two causes: a
    condition, `not` or `and`/`or` operand that owned what it tested never released it (`owned_truth`), and a
-   `T?` on the left of `>` in `crash_map` -- which D64 now rejects. `check.sh` builds generation 2 with
+   `T?` on the left of `>` in `crash_map` (which D64 now rejects). `check.sh` builds generation 2 with
    `-DSPITE_DEBUG_MEMORY` and requires the compiler to free everything while compiling itself; the debug
    allocator's live table became a hash set so that takes seconds, not minutes.
 
 ## Milestone 10b: the design pass
 
-PLAN.md says 10b needs a design pass before any code. This is it. The shape is already decided -- D12 names the
-objects and their members, D6 says they are ordinary members of `Spite.Class` -- so what was missing was the
+PLAN.md says 10b needs a design pass before any code. This is it. The shape is already decided: D12 names the
+objects and their members, and D6 says they are ordinary members of `Spite.Class`. What was missing was the
 mechanism and the order.
 
 **The acceptance test is `--final-classes`, so it comes first.** `design/open_questions.md` item 2 does not ask for
@@ -140,7 +140,7 @@ D45 and D47 were done.
 **Two things listed under 10b do not belong to it.** Calling a function by `Symbol` with arguments needs the
 typed `Spite.Function<Arguments..., Return>` of D39/D40, which is its own item above. Defining members from
 data, and hooks that run when a class is reopened, are the compile-time class generation PLAN.md already
-defers under "Later, deliberately deferred" -- 10b is enumeration, identity and visibility, and those two are
+defers under "Later, deliberately deferred". 10b is enumeration, identity and visibility, and those two are
 generation. A respond-to check needs nothing new once `.functions` is a real member: it is
 `class.functions.find_by_name('greet')` and a null test.
 
@@ -170,7 +170,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   migrate, then reject). `scripts/regenerate_type_shape.py` was several decisions out of date and wrote
   `Nullable<T>` and empty constructors back into the files it owns; it now writes the current language.
   **`check.sh` runs `docs/` as a corpus.** Every fenced block titled `folder/file.spite` becomes a program:
-  it must compile, run, print its ```output block and free everything it took, or -- marked `error` -- fail
+  it must compile, run, print its ```output block and free everything it took, or, if marked `error`, fail
   to compile with its ```diagnostic text in the message. The extractor is itself a Spite program
   (`scripts/docs_corpus.spite`, written in an evening and balanced on its first run), so `check.sh` still
   needs nothing but a C compiler. 17 of the 44 documentation programs failed the first time. Most were stale
@@ -178,15 +178,15 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   a statement at file scope was parsed and silently dropped, a return type without its colon said "expected
   '{' but found 'Int'", `load("spite")` collided with the reserved namespace, the terminal-`if` lint of
   `docs/failure.md` did not exist (and caught three places in the compiler's own sources on its first run),
-  and `.class` read through a `type`-shaped or union value answered the shape instead of the class -- it now
+  and `.class` read through a `type`-shaped or union value answered the shape instead of the class. It now
   reads the object's own tag at runtime, which closes `design/KNOWN_ISSUES.md` item 1.
   State: 55 conformance + examples, tests, 23 diagnostics, 44 documentation programs, fixpoint holds, seed
   current. Found on the way, not fixed: a program run with `--mode=run` receives no command line arguments at
-  all (`Arguments.count()` is 0), so there is no way yet to pass anything to the program being run -- which is
+  all (`Arguments.count()` is 0), so there is no way yet to pass anything to the program being run, which is
   why `scripts/docs_corpus.spite` writes to a fixed `.spite/docs`. Its output is deterministic, so two
   `check.sh` runs at once write the same bytes.
 - 2026-09-20 (late morning, hardening by writing the programs an AI would write): the test package grew from 21
-  to 54 tests over ten more classes -- numbers and the casting rule, `T?` narrowing every way, `copy`/`deep_copy`
+  to 54 tests over ten more classes: numbers and the casting rule, `T?` narrowing every way, `copy`/`deep_copy`
   and sharing, reflection, the String methods, operators through their named functions, `type` shapes, enums,
   unions, Symbol codegen interception and `drop()`. Writing them found three gaps, each now fixed with a
   `diagnostics/` program: `copy()` existed on a class but not on a `List<T>` or `Dictionary<T>`; a name reserved
@@ -202,7 +202,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   "the end of the line" instead of printing one). `design/for_ai_writers.md` ends with the table of all of them.
   State: 55 conformance + examples, 54 tests, 33 diagnostics, 44 documentation programs, fixpoint holds.
 - 2026-09-20 (milestone 10a, and 10b designed): `library/` is discovered before the program instead of after it,
-  which had the load order backwards -- a library class would have reopened a user class rather than the other
+  which had the load order backwards: a library class would have reopened a user class rather than the other
   way round. A `spite/` folder of your own now reopens `Spite.Class` and the rest (`conformance/stage6/reopen_library`
   adds `full_name()` and every class object in the program answers it); a file under `Spite` that reopens nothing
   is an error naming the fix (`diagnostics/new_spite_class`), so the namespace stays the standard library's
@@ -220,7 +220,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   first. Five sites needed a hand: a chain whose operand ran past a comparison, one split over two lines, and
   four holes that themselves contained a join. **D54, an `if` whose only statement is a bare `return` is a
   precondition**, an error naming `assert`, with the condition negated when the guard was not already negative
-  (parenthesised whenever it has an operator in it -- `not source.length() < 3` is not what the guard meant).
+  (parenthesised whenever it has an operator in it: `not source.length() < 3` is not what the guard meant).
   32 of them in the compiler's own sources. **D55, a function body holds no empty lines**, checked beside the
   comment rule from the gap between a newline token and the next token, so text spanning lines is not mistaken
   for one; 164 left the compiler and 25 left the documentation's samples.
@@ -231,19 +231,19 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   bug reported from a real run (`could not write 'build/final-classes/nothing.spite'`): `bin/spite` builds from
   the seed, and the seed predated the recursive directory creation. `bin/spite` then wrote the output to the
   repository root rather than the caller's folder, because it `cd`s to the root and only made *file* arguments
-  absolute -- `--final-classes=` and `--output=` now get the same treatment. And `if value and not condition`
+  absolute. `--final-classes=` and `--output=` now get the same treatment. And `if value and not condition`
   emitted `(value && ((Type)(!has_error)))`, casting a Bool to a pointer, because the "right side casts toward
   the left" rule was being applied to `and`/`or`; each side of a logical operator is now emitted as its own
   truth test, which is also what removes the last warning from compiling the seed.
   `check.sh` prints `conformance/stage6/reopen_library` and runs what came out, requiring the same output: the
   printed classes are a program, not a report, which is what makes milestone 10b's "visible, not compiler magic"
-  checkable. Provenance -- which root supplied each declaration -- is not shown and cannot be a comment (D34);
+  checkable. Provenance (which root supplied each declaration) is not shown and cannot be a comment (D34);
   it is open question 10 (`design/open_questions.md`).
   State: 57 conformance + examples, 54 tests, 37 diagnostics, 45 documentation programs, the printed program
   round trip, fixpoint holds.
 - 2026-09-20 (`--final-classes` shows the compiler's own classes too): Mortaro found that it printed only the
   classes that came from a file. It now also writes `built_in/`, one `type` declaration per class the compiler
-  provides -- `Console`, `File`, `Directory`, `Process`, `Program` -- read straight from the generator's own
+  provides (`Console`, `File`, `Directory`, `Process`, `Program`), read straight from the generator's own
   system class table, so the knowledge is not written down twice. A `type` is the language's existing way of
   naming members without bodies, so the view needed no new notation.
   **What is still missing is a gap in the compiler, not in the printer.** `Int`, `String`, `List<T>` and
@@ -251,7 +251,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   and friends, so there is no table to print and no honest way to invent one. Making `Int` printable means
   making it a class, which is milestone 15c. `Console.print`/`write`/`error` are variadic and have no signature
   the language can write yet (D39). And a generic prints as its template, because instantiations are created
-  during generation while `--final-classes` runs after discovery -- moving it after generation is the next step
+  during generation while `--final-classes` runs after discovery. Moving it after generation is the next step
   and would also let it show which classes survived tree shaking.
 - 2026-09-20 (`--final-classes` runs after generation): it discovered and printed, which meant it showed the
   merged *source* rather than the *final classes*. It now runs the generator and reads its class table
@@ -272,7 +272,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   which is harder than `singleton` only because the value is a generated list rather than a Bool.
   State: 57 conformance + examples, 54 tests, 37 diagnostics, 45 documentation programs, fixpoint holds.
 - 2026-09-21 (D56, from Mortaro's inbox after reading a printed `type` view): a shape names the types it
-  requires, not the names they are given -- `render(Int): String`. The parser was already discarding the name,
+  requires, not the names they are given: `render(Int): String`. The parser was already discarding the name,
   so this only made the syntax say what the language meant; writing a name is an error that shows the type to
   put in its place. A shape also no longer carries a constructor, because an entry whose name is capitalised
   would mean requiring a class to be constructible, which is forcing a class rather than describing a shape.
@@ -284,12 +284,12 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
 - 2026-09-21 (hardening by writing an ordinary program): a lending-library program using enums, a `T?` attribute,
   the member templates, a `Dictionary<Int>` tally and interpolation found one real bug in its first run:
   `join(separator)` was only generated for `List<String>`, so `counts.values().join(",")` emitted a call to
-  `List_Int_join`, which never existed -- C that does not compile, the worst outcome available. It now generates
+  `List_Int_join`, which never existed. That is C that does not compile, the worst outcome available. It now generates
   for every element that becomes text (a number, `Bool`, an enum value), reusing `string_conversion`, the same
   rule `+` and a text hole use. The program is `examples/library_card`, so it stays covered.
-- 2026-09-21 (more ordinary programs): a shop program over two namespaces -- a union of `Stock.Item` and
+- 2026-09-21 (more ordinary programs): a shop program over two namespaces (a union of `Stock.Item` and
   `Stock.Bundle`, a `type` both satisfy, duck-typed calls on the union, `.class.name` through it and a
-  `sum_price()` member template -- ran correctly and balanced on the first try. A form program over reflection
+  `sum_price()` member template) ran correctly and balanced on the first try. A form program over reflection
   and Symbol codegen found one regression from making `Console` a real class (D52): `Console().print(...)` on a
   temporary was rejected, because the printing interception asked `lookup_static_type`, which does not type a
   constructor call. It now also recognises a call whose callee resolves to `Console`, and
@@ -297,7 +297,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
 - 2026-09-21 (D57, and milestone 10b's second step continued): `Spite.Class.functions` is an ordinary attribute
   declared in `library/spite/class.spite`, filled when the class object is written, instead of a hidden C
   function pointer read by a special case in `generate_reflection_read`. Mortaro's rule settled the design
-  question that was blocking it: **tree-shake it, do not make it lazy** -- `class_level_functions_used` already
+  question that was blocking it: **tree-shake it, do not make it lazy.** `class_level_functions_used` already
   decided whether any of it is emitted, so a program that never asks has none of it (`--mode=c` on
   `conformance/stage1/hello` contains zero `spite_class_functions_`, `tests/tests.spite` contains 63).
   The one thing that had to be handled: a class object owning its functions is a cycle, because a
@@ -305,21 +305,21 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   releasing the class objects, which is "clear one side" from section 10 applied by the compiler rather than by
   the programmer. `instances` needs no change: it is tracked only when asked, and stays a live registry because
   which instances exist is not a compile-time fact.
-- 2026-09-22 (milestone 10b finished): the members moved into `library/spite/class.spite` -- `attributes`
-  beside `functions` (D57) and `is_singleton()` (D8) -- filled when the class object is written, with a
+- 2026-09-22 (milestone 10b finished): the members moved into `library/spite/class.spite`: `attributes`
+  beside `functions` (D57) and `is_singleton()` (D8), filled when the class object is written, with a
   class-level entry's `.value` being the field's declared default read off a `_default()` instance (proposed
   by Claude, unconfirmed; D11's symbol-keyed mapping stays milestone 14). `library/spite/namespace.spite`
   writes `Spite.Namespace`, and `Spite.Class.namespace` became `Spite.Namespace?` (D41): `namespace_read_used`
   gates the fill plus the parent chain and `namespace_tree_used` gates `.classes`/`.namespaces`, so
   `--mode=c` on `conformance/stage1/hello` still contains no namespace objects. Shutdown clears each class
   cache's `namespace` field and then every namespace cache's `classes`/`namespaces` lists before releasing
-  them -- the same "clear one side" as D57, with the cycle here being class <-> namespace through `.classes`.
+  them, the same "clear one side" as D57, with the cycle here being class <-> namespace through `.classes`.
   Five readers migrated in the same change (`every_class`, `reflection`, `console_class`,
   `tests/reflection_tests`, `reopen_library`, plus the `docs/packages.md` block), all with expected outputs
   unchanged; a static receiver (`Sticker.attributes`) now compiles through a shared `generate_member_object`
   substitution; and two conformance programs were added: `namespace_objects` and `class_attributes`.
-- 2026-09-22 (Mortaro's three follow-ups to 10b): bare `class` is the instance's class -- decided: not a
-  keyword, an inherited attribute of any instance -- wired into `generate_identifier` after local/attribute
+- 2026-09-22 (Mortaro's three follow-ups to 10b): bare `class` is the instance's class (decided: not a
+  keyword, an inherited attribute of any instance), wired into `generate_identifier` after local/attribute
   lookup and before `find_class`, returning with `owning_override` set so the retained class object is
   released by whoever reads it. The static-path substitution in `generate_member_object` lost its
   `functions`/`attributes`/`namespace` whitelist and now serves every member read and method receiver
@@ -331,7 +331,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   `diagnostics/namespace_nullable` for the reported shape verbatim. Suite green with `--update-seed`
   (fixpoint holds, 39 diagnostics 0 wrong), `bin/spite` rebuilt and smoke-tested: `Probe.name`, bare
   `class.name`, local narrowing and `Console.is_singleton()` all print with balanced memory.
-  **Found while writing it: D43's chain form has no implementation** -- `lookup_override` is consulted for bare
+  **Found while writing it: D43's chain form has no implementation.** `lookup_override` is consulted for bare
   identifiers only, so `assert Spite.Class.namespace` followed by `Spite.Class.namespace.name` still errors
   (`docs/failure.md`'s chain bullets over-promise; no corpus program asserts a chain). Flagged for Mortaro, not
   changed here.
@@ -340,7 +340,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   went in as one receiver-agnostic mechanism. `Scope` gained `narrowed_paths` with `narrow_path`/
   `is_path_narrowed` (equal to a recorded path or a prefix of one, walked up the scope chain like
   `lookup_override`), and `generate_member_read` went through a wrapper that answers a narrowed path with its
-  plain type -- exactly what an overridden name does -- so member reads, calls, stores and conditions all see
+  plain type (exactly what an overridden name does), so member reads, calls, stores and conditions all see
   an ordinary value and no site knows about paths. `try_nullable_guard` gained `try_path_guard`: a member-path
   condition generates in a throwaway scope with its strict prefixes recorded (the condition reads through
   them), tests the whole path (`!= 0` for references, `.has_value` otherwise) and, when the path owns what it
@@ -352,7 +352,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   with `crash`, and `diagnostics/path_narrow_else` pins the else-branch staying `T?`. Suite green with
   `--update-seed`: fixpoint holds at generation 3, 60 conformance/examples, tests, 40 diagnostics 0 wrong, 45
   docs, seed updated; `bin/spite` rebuilt and smoke-tested. **Open for Mortaro:** the manual's examples walk up
-  with `class.namespace.namespace`, but `Spite.Namespace` declares only `.parent` -- recorded in the decision
+  with `class.namespace.namespace`, but `Spite.Namespace` declares only `.parent`. This is recorded in the decision
   log's open point for 2026-09-23.
 - 2026-09-23 (afternoon, Claude Opus 5.5, Mortaro away): **review of cfd2694** (written by another model): its
   D43 guard tested only the last link of a path while the commit said it tested each, so `if outer.inner.inner`
@@ -367,7 +367,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   `symbol_codegen` too; D63 copy-to-narrow is an error (`collect_body_facts` scans the body first), which found a
   leaking check-on-a-non-null (now an error too); D64 `[]` answers `T?` (`List_at`), with proofs by count, by
   bound (`narrow_proven_indices`, also on the left of `and`) and by `crash`, a `Bool?` condition is an error,
-  and assigning through a `T?` -- previously dropped silently -- is an error; D65 `name_with_namespaces`; D66
+  and assigning through a `T?` (previously dropped silently) is an error; D65 `name_with_namespaces`; D66
   every test runs twice and must leave `Program().live_allocations()` where it was; D67 file order
   (`check_order` in discovery); D69 `T? == value` without narrowing (`generate_nullable_equality`), and a class's
   `equals` is skipped for a right side of its own class. D68 is recorded as conflicting with D10, with a
@@ -386,7 +386,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   differs from the original, `bin/spite format [--check]`, every compile formats the program's own files
   (`--no-format`; a file with an empty line in a function is left for D55 to reject), and `check.sh` keeps the
   tree and the documentation's programs formatted. **The compiler's own leak is gone**: a condition that owned
-  what it tested never released it (`owned_truth`), and `crash_map` compared a `T?` with `>` -- a hole in D64,
+  what it tested never released it (`owned_truth`), and `crash_map` compared a `T?` with `>`, a hole in D64 that is
   now an error for every operator but `==`/`!=`. `check.sh` builds generation 2 with `-DSPITE_DEBUG_MEMORY` and
   requires compiling itself to free everything; the debug allocator's live table became a hash set (2m28s to
   under 10s). **Program arguments**: everything after a bare `--` reaches the program (proposed, unconfirmed).
@@ -401,7 +401,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   **D70 symbols** (Mortaro's answer to D68 vs D10): `SymbolType` joined `SpiteType`; a symbol literal where a
   `Symbol` is expected is a static entry of a table written only for used symbols (`ensure_symbol`), a `Symbol`
   decays to `String` wherever text is expected (`as_text`), `Symbol(text)` searches the table
-  (`spite_symbol_find`), and every reflection name -- class, function, argument, attribute, namespace -- is a
+  (`spite_symbol_find`), and every reflection name (class, function, argument, attribute, namespace) is a
   symbol; `T? == value` also takes the `T?` on the right. **Milestone 11a/11b**: `DynamicLibrary` is a built-in
   class whose literal constructor arguments pick one library per file and naming rule; foreign calls bind
   through `spite_foreign_<library>_<symbol>` pointers resolved when the library opens; 'identity', 'camel_case'
@@ -418,7 +418,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   reopens, and discovery prepends one `name = boolean_setting("name", name)` (or `integer_setting`/`text_setting`)
   per declared field to its constructor. `Arguments()` answers `spite_program_arguments`, set first thing in
   `main`. Bootstrap note: the seed checks every library class, so `Arguments()` had to reach the seed before
-  `library/environment.spite` could use it -- the seed was refreshed with the file moved aside, then it went back.
+  `library/environment.spite` could use it: the seed was refreshed with the file moved aside, then it went back.
 - 2026-09-24: D73 containers. `List<T>` and `Dictionary<T>` are generic classes in `library/list.spite` and
   `library/dictionary.spite`; `ensure_list`/`ensure_dictionary` instantiate them under their old C names
   (`List_String`, `Dictionary_Int`) with `instantiated_container`, and `supply_list_functions` adds the four
@@ -515,7 +515,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   Spite member or parameter says so (`->_bytes_`, `->item_count_`, `address_`, `count_` in `Prelude`, the
   `TypedMemory` and `HotReload` bodies). `reserved_names` and its diagnostic are gone.
 - 2026-09-26 (D225, D226): `generate_index_read` reads a `List`'s `[]` through the list class's `get_at` and types
-  it from the element (`T?`), and `proven_read` unwraps it when a proof holds -- a range proof unwraps an element
+  it from the element (`T?`), and `proven_read` unwraps it when a proof holds: a range proof unwraps an element
   that is not itself a `T?`, a presence proof (`crash`/`assert`/`if`) unwraps either. `Vector` and `Items` reads take
   the same path (`is_library_collection`); a program's own `get_at` is unwrapped only by a presence proof.
   `report_plain_get_at` (in `resolve_function`) refuses a `get_at` whose return type is not nullable, and
@@ -533,7 +533,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   the library could then drop `find_at`.
 - 2026-09-27 (D225, after merging master's D227-D268): a read a range proof narrows is `bounded_item`: the
   `get_at` answer in a temporary, taken directly, with one never-taken branch to `spite_outside_list` (written
-  once per program, `index_check_written`) that halts naming the read -- a bound proves only the top of an index,
+  once per program, `index_check_written`) that halts naming the read; a bound proves only the top of an index,
   and master's halting `List.get_at` is gone. `noted_read` remembers the last unproven read's code and path, and
   `null_opening`/`null_advice` turn a may-be-null error about that code into one naming the read, its three
   narrowing lines and the count or bound that proves it (`report_mismatch` takes the code for this). Bootstrapped

@@ -15,18 +15,18 @@ answered by D314.
 
 ## Blocking now
 
-These hold up the D316/D317 migration, SlopEngine or the Theseus port.
+These hold up the D316/D317 migration, the game engine package or the game port.
 
 109. **Which attributes a function reads and writes** (D209/D229/D261/D268; the proposal gives them a home,
      `function.read_attributes` and `function.written_attributes`, get-only lists of `Spite.Attribute`). Options:
      (a) whole attributes only; (b) per piece (an attribute's own attributes); (c) (b) plus per parameter, which
      `argument.is_mutated` already covers. And the marker attributes `Resource.World`/`Resource.MainThread`: keep
      them as attributes the runner reads, or a class-level marker? D205, as D261 was. Recommend (a) now, (b) when
-     `Changed<T>` needs it. Blocks: SlopEngine's `Changed<T>` and field skipping, Theseus L6.
+     `Changed<T>` needs it. Blocks: the game engine's `Changed<T>` and field skipping, the game port's L6.
 229. **Reflection objects answering their name's text functions** (D317, proposal 12.3):
      `functions.filter_ends_with("_each")`, with member templates passing arguments on to the member. Or keep the
      element strict and write `filter_name_ends_with("_each")`? Recommend the first (D317's own example). Blocks:
-     SlopEngine's runner (systems placed by `_each`), the largest part of the migration.
+     the game engine's runner (systems placed by `_each`), the largest part of the migration.
 227. **Pairing a function with an attribute by name** (D273's `json_key_<attribute>`, proposal 12.1): names are never
      built (D317), so the writer must find the `json_key_` function for each attribute. Options: (a) select by
      suffix, `functions.filter_starts_with("json_key_").find_by_suffix(attribute.name)`; (b) move the override off
@@ -35,30 +35,30 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
      rename rule.
 228. **Predicates in the plural rule** (proposal 12.2): `monsters.map_is_alive()` keeps the predicate's own name,
      or `map_` over a predicate is an error pointing at `filter_`/`count_`? Blocks: renaming `map_<member>` to the
-     plural across `library/`, conformance and SlopEngine.
+     plural across `library/`, conformance and the game engine package.
 230. **Private attributes in serializers** (D278): a walk sees `_` attributes. Should `Json` and `BinaryFormat`
      write them? Options: (a) both write every attribute (a whole object round-trips); (b) `Json` writes only
      public ones (a public shape), binary writes all (a layout copy); (c) neither, unless the class says so.
      `to_debug()` leaves them out (D210 item 78). Recommend (b), read through a get-only `attribute.is_private`.
-     Blocks: the `JsonWriter` rewrite, Theseus saves and network payloads.
+     Blocks: the `JsonWriter` rewrite, the game port's saves and network payloads.
 231. **Bundles under D123 and D316**: `create_entity_from_bundle(bundle: Anything)` hands each attribute to
      `add_component(component: Anything)`. With `bundle.attributes.each(add)` the bundle's class is not a constant
      (it comes through `Anything`), so the walk is run-time and boxed. Options: (a) a function whose `Anything`
      parameter is reflected is specialised per the caller's static class (proposal rule 5 extended; D123 forbids
      written generics, not this); (b) keep the run-time walk for bundles; (c) bundles become a generic class the
-     engine walks at start-up. Recommend (a). Blocks: SlopEngine's bundle spawning without boxing.
+     engine walks at start-up. Recommend (a). Blocks: the game engine's bundle spawning without boxing.
 213. **The default build's `-O` level**: `-O0` (fast to build, 3-7x slower to run), `-O1`, or units at `-O1`?
-     (`--hot-reload` is already `-O3` by D299.) Blocks: Theseus iteration speed.
+     (`--hot-reload` is already `-O3` by D299.) Blocks: the game port's iteration speed.
 212. **Should `--run=false` alone build the executable?** Today it only checks, leaving a stale executable to run
      (D244). Options: keep and teach `--executable --run=false`; make checking its own flag or command; delete the
      stale executable. Blocks: the ports' build scripts.
 232. **D280 steps 2 and 4** (a change whose dependents cannot be swapped alone; a `Build` field change): (a) compile
      the whole program into the reload library and re-point every slot, keeping the heap (the plan, and what D302,
      D304 and D305 already do); (b) start the new executable and hand the state over; (c) refuse, naming the change.
-     Recommend (a). Blocks: "nothing needs a restart" for Theseus.
+     Recommend (a). Blocks: "nothing needs a restart" for the game port.
 222. **A foreign status enum** (D272, not built): a C function returning a C `enum` answers a Spite enum made from
      the header, must be used, and is read by a `switch`. May that switch have `_:`? Options: never; `_:` that may
-     not `crash`/`assert`; freely. Recommend never (each outcome a written line). Blocks: D272, SlopEngine's Vulkan
+     not `crash`/`assert`; freely. Recommend never (each outcome a written line). Blocks: D272, the game engine's Vulkan
      resize handling. Needs 233.
 233. **How the compiler reads a C header** (PLAN milestone 11c area; today it reads none, [foreign_libraries.md](docs/foreign_libraries.md)).
      Needed for D272's enums, a header's types as reflection, and trampoline width checks. Options: (a) a
@@ -71,7 +71,7 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
      outlives the frame (a compile error naming `copy()`, a debug generation check as backstop)? Is `Memory.Frame`
      an arena reset once a frame, or a ring of two? Until then, is an arena without `reset()` right?
 175. **A class reading its own allocator** (`memory.allocator` inside a class), so a list's buffer follows its arena.
-155. **A dedicated thread for work that blocks forever** (SlopEngine's window loop): `Thread(function)`, or a marker
+155. **A dedicated thread for work that blocks forever** (a game engine's window loop): `Thread(function)`, or a marker
      on `Parallel`?
 208. **How a list that falls back to references is reported** (8.1 against 35-40 ms a tick), with no warnings?
 209. **Should a `List` own its items, so a kept reference is weak (`T?`)**, or stay an explicit `Weak<T>`?
@@ -147,7 +147,7 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
 161. **Where an enum reopening's values go**: appended in merge order, so a program's own values come before a
      loaded engine's. Let a reopening say where, and should the program's come last?
 9. **The floor**: what stays C, and how `--final-classes` shows it
-   ([standard_library.md](docs/standard_library.md#pure-spite-dissolving-the-runtime--partial)).
+   ([standard_library.md](docs/standard_library.md#pure-spite-dissolving-the-runtime)).
 39. **The C left in `main`** (`argv`, `_setmode`, releasing singletons, the `--debug-memory` report): moving it into
     Spite needs a way to receive `argv` and to run code after the program ends.
 76. **Enums declaring more than `to_string()`/`to_debug()`**, the way a number's class does.
