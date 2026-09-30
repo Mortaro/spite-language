@@ -999,7 +999,7 @@ func looks_like_literal(literal: String): Boolean {
         return true
     }
     var code = literal.code_at(0)
-    return code == 34 or code == 39 or code == 45 or (code >= 48 and code <= 57)
+    return code == 34 or code == 39 or code == 45 or code >= 48 and code <= 57
 }
 
 func call_found(function: Spite.Function, literals: List<String>): Spite.Attribute? {
