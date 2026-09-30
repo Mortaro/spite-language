@@ -114,7 +114,7 @@ func keep_guarded() {
         while index < guard_names.count() {
             var guard = guard_names[index]
             if applied[index] == false and is_kept_name(guard) {
-                applied.set_at(index, true)
+                applied[index] = true
                 crash guard_lines[index]
                 var line = guard_lines[index]
                 keep_named_in(line)
@@ -270,7 +270,7 @@ func add_piece(lines: List<String>) {
         while same < next_same.count() and next_same[same] >= 0 {
             same = next_same[same]
         }
-        next_same.set_at(same, pieces_count)
+        next_same[same] = pieces_count
     } else if not name.is_empty() {
         add_function(name, pieces_count)
     }

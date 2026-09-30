@@ -32,18 +32,17 @@ func note_defined(qualified: String, identity: String) {
 }
 
 func pinned_by(library: String, identity: String): String? {
-    return library_pins.get("{library}|{identity}")
+    return library_pins["{library}|{identity}"]
 }
 
 func prefix_of(identity: String, full_commit: String): String {
     crash displays[identity]
     var label = paths.label_of(displays[identity])
-    var known = commits.get(identity)
-    crash known
+    crash commits[identity]
     var length = 7
     var index = 0
-    while index < known.count() {
-        var other = known[index]
+    while index < commits[identity].count() {
+        var other = commits[identity][index]
         while other != full_commit and other.slice(0, length) == full_commit.slice(0, length) {
             length = length + 1
         }

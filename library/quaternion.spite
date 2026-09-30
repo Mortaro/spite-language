@@ -226,7 +226,7 @@ func spherical_interpolate(target: Quaternion, amount: Float): Quaternion {
 
 func to_matrix(): Matrix4 {
     var matrix = Matrix4()
-    matrix.set_rotation(this)
+    matrix.rotation = this
     return matrix
 }
 

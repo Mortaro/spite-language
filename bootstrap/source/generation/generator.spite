@@ -570,7 +570,7 @@ func instantiated_function_source(information: Analysis.ClassInfo, function: Ana
         index = index + 1
     }
     var returns = ""
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     if not type_shape.is_void(function_return_type) {
         returns = ": {type_display_name(function_return_type)}"
     }
@@ -745,7 +745,7 @@ func built_in_signature(function: Analysis.FunctionInfo): String {
         index = index + 1
     }
     var signature = "{function.name}({parameters.join(", ")})"
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     if type_shape.is_void(function_return_type) {
         return signature
     }
@@ -968,7 +968,7 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         var registered = classes.last()
         crash registered
         note_pinned_versions(entry)
-        registered.source_path = entry.get_file().path
+        registered.source_path = entry.file.path
         registered.entry_index = index
         registered.codegen_names = declared_codegen_names(entry)
         registered.is_singleton = has_singleton_line(entry)
@@ -984,7 +984,7 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
 }
 
 func has_singleton_line(entry: Discovery.DiscoveredClass): Boolean {
-    var file = entry.get_file()
+    var file = entry.file
     var statement_index = 0
     while statement_index < file.statements.count() {
         if shape.as_singleton_declaration(file.statements[statement_index]) {
@@ -996,7 +996,7 @@ func has_singleton_line(entry: Discovery.DiscoveredClass): Boolean {
 }
 
 func holds_nothing(entry: Discovery.DiscoveredClass): Boolean {
-    var file = entry.get_file()
+    var file = entry.file
     var statement_index = 0
     while statement_index < file.statements.count() {
         var statement = file.statements[statement_index]
@@ -1022,7 +1022,7 @@ func is_stateless_singleton(information: Analysis.ClassInfo): Boolean {
 }
 
 func declared_codegen_names(entry: Discovery.DiscoveredClass): List<String> {
-    var file = entry.get_file()
+    var file = entry.file
     var declared = List<String>()
     var statement_index = 0
     while statement_index < file.statements.count() {
@@ -2409,17 +2409,17 @@ func type_test(
 func exact_type_label(spite_type: Analysis.SpiteType): String {
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var nullable_inner = nullable.get_inner()
+        var nullable_inner = nullable.inner
         return "Nullable_{exact_type_label(nullable_inner)}"
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
-        var list_element = list_type.get_element()
+        var list_element = list_type.element
         return "List_{exact_type_label(list_element)}"
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
-        var dictionary_element = dictionary_type.get_element()
+        var dictionary_element = dictionary_type.element
         return "Dictionary_{exact_type_label(dictionary_element)}{dictionary_key_suffix(dictionary_type)}"
     }
     var function_type = type_shape.as_class_ref(spite_type)
@@ -2582,21 +2582,21 @@ func instantiate_generic(
 func fixed_key_type(spite_type: Analysis.SpiteType): Analysis.SpiteType {
     var dictionary = type_shape.as_dictionary(spite_type)
     if dictionary {
-        var element = dictionary.get_element()
+        var element = dictionary.element
         var fixed_element = fixed_key_type(element)
-        var key = dictionary.get_key()
+        var key = dictionary.key
         var fixed: Analysis.SpiteType = Analysis.Types.DictionaryType(fixed_element, key, "")
         return fixed
     }
     var listed = type_shape.as_list(spite_type)
     if listed {
-        var listed_element = listed.get_element()
+        var listed_element = listed.element
         var fixed_listed = fixed_key_type(listed_element)
         return list_type_of(fixed_listed)
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var inner = nullable.get_inner()
+        var inner = nullable.inner
         var fixed_inner = fixed_key_type(inner)
         return nullable_type_of(fixed_inner)
     }
@@ -2693,7 +2693,7 @@ func check_plain_items(instance: Analysis.ClassInfo) {
     var plain_type = item_type
     var nullable = type_shape.as_nullable(item_type)
     if nullable {
-        plain_type = nullable.get_inner()
+        plain_type = nullable.inner
     }
     assert plain_item_type(plain_type) or is_address_type(plain_type)
     var label = type_display_name(item_type)
@@ -2746,17 +2746,17 @@ func refuse_unwritable(template: Analysis.ClassInfo, written: Analysis.SpiteType
 func unwritable_json(spite_type: Analysis.SpiteType, path: String, visited: List<String>, format: String): String {
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var inner = nullable.get_inner()
+        var inner = nullable.inner
         return unwritable_json(inner, path, visited, format)
     }
     var listed = type_shape.as_list(spite_type)
     if listed {
-        var element = listed.get_element()
+        var element = listed.element
         return unwritable_json(element, path, visited, format)
     }
     var mapped = type_shape.as_dictionary(spite_type)
     if mapped {
-        var entry = mapped.get_element()
+        var entry = mapped.element
         return unwritable_json(entry, path, visited, format)
     }
     var shown = type_display_name(spite_type)
@@ -2864,7 +2864,7 @@ func inline_value_type(spite_type: Analysis.SpiteType): Boolean {
     var plain = spite_type
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        plain = nullable.get_inner()
+        plain = nullable.inner
     }
     return type_shape.as_scalar(plain) or type_shape.as_string(plain) or type_shape.is_symbol(plain) or is_enum_type(plain)
 }
@@ -3027,7 +3027,7 @@ func resolve_generic_constraints() {
 
 func resolve_constraints_of(information: Analysis.ClassInfo) {
     crash discovered_classes[information.entry_index]
-    var file = discovered_classes[information.entry_index].get_file()
+    var file = discovered_classes[information.entry_index].file
     var statement_index = 0
     while statement_index < file.statements.count() {
         var generic_line = shape.as_generic_declaration(file.statements[statement_index])
@@ -3159,7 +3159,7 @@ func class_of_given(given: Analysis.SpiteType): Analysis.ClassInfo? {
 }
 
 func register_unions(entry: Discovery.DiscoveredClass) {
-    var file = entry.get_file()
+    var file = entry.file
     var statement_index = 0
     while statement_index < file.statements.count() {
         var declaration = shape.as_union_declaration(file.statements[statement_index])
@@ -3188,7 +3188,7 @@ func register_unions(entry: Discovery.DiscoveredClass) {
 }
 
 func register_shapes(entry: Discovery.DiscoveredClass) {
-    var file = entry.get_file()
+    var file = entry.file
     var statement_index = 0
     while statement_index < file.statements.count() {
         var declaration = shape.as_type_declaration(file.statements[statement_index])
@@ -3347,7 +3347,7 @@ func required_function_problem(
         index = index + 1
     }
     var wanted_return = required_return_type(information, wanted)
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     if not types_equal(function_return_type, wanted_return) {
         var names = type_display_names(function_return_type, wanted_return)
         var returned_name = names.first()
@@ -3695,10 +3695,9 @@ func refresh_union_releases() {
     var index = 0
     while index < unions.count() {
         var information = unions[index]
-        var position = union_release_positions.get(information.c_name)
-        if position {
+        if union_release_positions[information.c_name] {
             var release_text = union_release_text(information)
-            builder.replace_support(position, release_text)
+            builder.replace_support(union_release_positions[information.c_name], release_text)
         }
         index = index + 1
     }
@@ -4173,7 +4172,7 @@ func is_shape_type(spite_type: Analysis.SpiteType): Boolean {
 func container_class_of(from: Analysis.SpiteType): Analysis.ClassInfo? {
     var list_type = type_shape.as_list(from)
     if list_type {
-        var element = list_type.get_element()
+        var element = list_type.element
         return list_class_of(element)
     }
     var dictionary_type = type_shape.as_dictionary(from)
@@ -4315,13 +4314,12 @@ func boxed_text(code: String): String {
             "void spite_string_box_release(void* self) \{\nSpiteBox_SpiteString* box = (SpiteBox_SpiteString*)self;\nif (box->header.class_id < 0) return;\nif (SPITE_COUNT_DOWN(box->header.ref_count) > 0) return;\nSpiteString___release(box->value);\nSPITE_FREE(box);\n}",
         )
     }
-    var constant = constant_texts.get(code)
-    if constant {
+    if constant_texts[code] {
         var boxed_name = "{code}_box"
         if not constant_boxes.contains(boxed_name) {
             constant_boxes.append(boxed_name)
             builder.add_typedef(
-                "static SpiteBox_SpiteString {boxed_name} = \{ \{ 0, -1 }, SPITE_STATIC_STRING(\"{escape_c_string(constant)}\", {constant.length()}) };",
+                "static SpiteBox_SpiteString {boxed_name} = \{ \{ 0, -1 }, SPITE_STATIC_STRING(\"{escape_c_string(constant_texts[code])}\", {constant_texts[code].length()}) };",
             )
         }
         return "((void*)&{boxed_name})"
@@ -4373,7 +4371,7 @@ func emit_unions() {
 }
 
 func register_enums(entry: Discovery.DiscoveredClass) {
-    var file = entry.get_file()
+    var file = entry.file
     var statement_index = 0
     while statement_index < file.statements.count() {
         var declaration = shape.as_enum_declaration(file.statements[statement_index])
@@ -4569,15 +4567,15 @@ func removed_enum_values(information: Analysis.EnumInfo, numbers: Dictionary<Int
 
 func find_class_by_qualified(qualified: String): Analysis.ClassInfo? {
     index_new_classes()
-    var position = class_by_qualified.get(qualified)
-    assert position
+    assert class_by_qualified[qualified]
+    var position = class_by_qualified[qualified]
     return classes[position]
 }
 
 func find_class_by_c_name(c_name: String): Analysis.ClassInfo? {
     index_new_classes()
-    var position = class_by_c_name.get(c_name)
-    assert position
+    assert class_by_c_name[c_name]
+    var position = class_by_c_name[c_name]
     return classes[position]
 }
 
@@ -4651,9 +4649,9 @@ func find_class_in_versions(name: String, segments: List<String>): Analysis.Clas
         segments.remove_at(0)
     }
     var candidates = [own]
-    var pinned = pinned_versions_of.get(current_owner)
+    var pinned = pinned_versions_of[current_owner]
     if not own.is_empty() {
-        pinned = pinned_versions_in.get(own)
+        pinned = pinned_versions_in[own]
     }
     if pinned {
         var pinned_index = 0
@@ -4753,7 +4751,7 @@ func resolve_discovered(discovered: List<Discovery.DiscoveredClass>, functions_p
 }
 
 func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.ClassInfo, functions_pass: Boolean) {
-    var file = entry.get_file()
+    var file = entry.file
     current_owner = information.qualified_dotted
     current_class = information
     current_path = information.source_path
@@ -5320,7 +5318,7 @@ func check_hole_enum(information: Analysis.ClassInfo, template: Analysis.Templat
     assert template.range
     assert template_range_kind(information, template) == "pattern"
     assert not hole_enum(information, template.symbol_parameter)
-    var declaration = template.get_declaration()
+    var declaration = template.declaration
     var saved_function = current_function
     var saved_line = current_line
     current_function = declaration.name
@@ -5502,8 +5500,8 @@ func namespace_walk(template: Analysis.TemplateInfo): NamespaceWalk {
         var created = NamespaceWalk()
         namespace_walks.set(joined, created)
     }
-    var walk = namespace_walks.get(joined)
-    crash walk
+    crash namespace_walks[joined]
+    var walk = namespace_walks[joined]
     var grew = false
     while walk.scanned < classes.count() {
         var candidate = classes[walk.scanned]
@@ -5548,7 +5546,7 @@ func range_miss(information: Analysis.ClassInfo, name: String): String {
         if not member_name.is_empty() and template_range_owner(information, template) == "namespace" {
             var path = range_path(template)
             var range = path.join(".")
-            var declaration = template.get_declaration()
+            var declaration = template.declaration
             var found = namespace_classes(template)
             if found.is_empty() {
                 return "'{name}' is '{declaration.name}' for a class '{member_name}', but no folder is named for '{range}', so 'Symbol<{range}>' walks nothing here"
@@ -5582,7 +5580,7 @@ func value_range_miss(
     if not range_enum {
         return ""
     }
-    var declaration = template.get_declaration()
+    var declaration = template.declaration
     var shown_enum = enum_display_name(range_enum)
     if not range_enum.has_value(member_name) {
         return "'{name}' is '{declaration.name}' for '{member_name}', but '{member_name}' is not a value of '{shown_enum}', which has '{range_enum.values.join("', '")}'"
@@ -5596,9 +5594,8 @@ func value_range_miss(
 }
 
 func class_member_name(candidate: Analysis.ClassInfo): String {
-    var known = class_member_names.get(candidate.qualified_dotted)
-    if known {
-        return known
+    if class_member_names[candidate.qualified_dotted] {
+        return class_member_names[candidate.qualified_dotted]
     }
     var member_name = member_name_of(candidate.qualified_dotted)
     class_member_names.set(candidate.qualified_dotted, member_name)
@@ -5782,10 +5779,10 @@ func describe_range_binding(
     }
     if kind == "namespace" {
         var walk = namespace_walk(template)
-        var last = walk.last_positions.get(instance.symbol_field_name)
-        if last {
-            crash walk.classes[last]
-            var named = walk.classes[last]
+        if walk.last_positions[instance.symbol_field_name] {
+            var last_position = walk.last_positions[instance.symbol_field_name]
+            crash walk.classes[last_position]
+            var named = walk.classes[last_position]
             instance.symbol_display_name = named.qualified_dotted
         }
     }
@@ -5798,9 +5795,8 @@ func attribute_position(
 ): Integer {
     if template.range and template_range_owner(information, template) == "namespace" {
         var walk = namespace_walk(template)
-        var first = walk.first_positions.get(member_name)
-        if first {
-            return first
+        if walk.first_positions[member_name] {
+            return walk.first_positions[member_name]
         }
         return -1
     }
@@ -5862,10 +5858,10 @@ func template_member_type(
         }
         if kind == "namespace" {
             var walk = namespace_walk(template)
-            var first = walk.first_positions.get(member_name)
-            assert first
-            crash walk.classes[first]
-            var named = walk.classes[first]
+            assert walk.first_positions[member_name]
+            var first_position = walk.first_positions[member_name]
+            crash walk.classes[first_position]
+            var named = walk.classes[first_position]
             return class_type_of(named)
         }
         var range_class = template_range_class(information, template)
@@ -5897,7 +5893,7 @@ func report_template_clash(
     attribute_name: String,
     clashing: Analysis.FunctionInfo,
 ) {
-    var declaration = template.get_declaration()
+    var declaration = template.declaration
     var range_owner = information.simple_name
     var range_class = template_range_class(information, template)
     if range_class {
@@ -5925,7 +5921,7 @@ func instantiate_every_attribute(
     template: Analysis.TemplateInfo,
     call_name: String,
 ): Analysis.FunctionInfo? {
-    var declaration = template.get_declaration()
+    var declaration = template.declaration
     var kind = ""
     if template.range {
         kind = template_range_owner(information, template)
@@ -6022,7 +6018,7 @@ func instantiate_template(
     call_name: String,
     owner_type: Analysis.SpiteType?,
 ): Analysis.FunctionInfo {
-    var declaration = template.get_declaration()
+    var declaration = template.declaration
     var saved_symbol_name = bound_symbol_name
     var saved_field_name = bound_field_name
     var saved_field_type = bound_field_type
@@ -6319,7 +6315,7 @@ func received_type(parameter: Syntax.Statements.Parameter, resolved: Analysis.Sp
     }
     var listed = type_shape.as_list(resolved)
     if listed {
-        var element = listed.get_element()
+        var element = listed.element
         var spread = Analysis.Types.ListType(element)
         spread.is_variadic = true
         var typed: Analysis.SpiteType = spread
@@ -6595,7 +6591,7 @@ func address_body(function: Analysis.FunctionInfo): String {
         "add_long_atomically": return "#define {function.c_name}(self, offset, value) __atomic_add_fetch((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
         "compare_and_swap_long": return "#define {function.c_name}(self, offset, expected, desired) (\{ int64_t spite_expected = (int64_t)(expected); __atomic_compare_exchange_n((int64_t*){at}, &spite_expected, (int64_t)(desired), false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); })"
         _: {
-            var value_type = function.get_return_type()
+            var value_type = function.return_type
             if name.starts_with("write_") {
                 crash function.parameters[1]
                 value_type = function.parameters[1].get_type()
@@ -6639,21 +6635,21 @@ func long_literal(value: Long): String {
 func schema_text(spite_type: Analysis.SpiteType, visiting: List<String>): String {
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var inner = nullable.get_inner()
+        var inner = nullable.inner
         var inner_text = schema_text(inner, visiting)
         return "{inner_text}?"
     }
     var listed = type_shape.as_list(spite_type)
     if listed {
-        var element = listed.get_element()
+        var element = listed.element
         var element_text = schema_text(element, visiting)
         return "List<{element_text}>"
     }
     var mapped = type_shape.as_dictionary(spite_type)
     if mapped {
-        var entry = mapped.get_element()
+        var entry = mapped.element
         var entry_text = schema_text(entry, visiting)
-        var mapped_key = mapped.get_key()
+        var mapped_key = mapped.key
         if type_shape.as_string(mapped_key) {
             return "Dictionary<{entry_text}>"
         }
@@ -6700,7 +6696,7 @@ func schema_class(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
 func bit_view_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
     maths_macros[function.c_name] = false
     var from_type = value_class_type(information)
-    var to_type = function.get_return_type()
+    var to_type = function.return_type
     var from_c_type = c_type_name(from_type)
     var to_c_type = c_type_name(to_type)
     return maths.bit_view_body(function.c_name, from_c_type, to_c_type)
@@ -7281,20 +7277,20 @@ func codegen_member_type(owner: Analysis.SpiteType, name: String): Analysis.Spit
     var owner_list = type_shape.as_list(owner)
     if owner_list {
         assert name == "element_type"
-        return owner_list.get_element()
+        return owner_list.element
     }
     var owner_dictionary = type_shape.as_dictionary(owner)
     if owner_dictionary {
         if name == "key_type" {
-            return owner_dictionary.get_key()
+            return owner_dictionary.key
         }
         assert name == "value_type"
-        return owner_dictionary.get_element()
+        return owner_dictionary.element
     }
     var owner_nullable = type_shape.as_nullable(owner)
     if owner_nullable {
         assert name == "value_type"
-        return owner_nullable.get_inner()
+        return owner_nullable.inner
     }
     var owner_class_ref = type_shape.as_class_ref(owner)
     assert owner_class_ref
@@ -7478,7 +7474,7 @@ func type_is_reference(spite_type: Analysis.SpiteType): Boolean {
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var nullable_inner = nullable.get_inner()
+        var nullable_inner = nullable.inner
         return type_is_reference(nullable_inner)
     }
     return false
@@ -7524,10 +7520,10 @@ func types_equal(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType):
         var right_dictionary = type_shape.as_dictionary(right_type)
         if right_dictionary {
             join_key_sites(left_dictionary.site, right_dictionary.site)
-            var left_dictionary_element = left_dictionary.get_element()
-            var right_dictionary_element = right_dictionary.get_element()
-            var left_key = left_dictionary.get_key()
-            var right_key = right_dictionary.get_key()
+            var left_dictionary_element = left_dictionary.element
+            var right_dictionary_element = right_dictionary.element
+            var left_key = left_dictionary.key
+            var right_key = right_dictionary.key
             return types_equal(left_dictionary_element, right_dictionary_element) and types_equal(left_key, right_key)
         }
         return false
@@ -7536,8 +7532,8 @@ func types_equal(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType):
     if left_list {
         var right_list = type_shape.as_list(right_type)
         if right_list {
-            var left_list_element = left_list.get_element()
-            var right_list_element = right_list.get_element()
+            var left_list_element = left_list.element
+            var right_list_element = right_list.element
             return types_equal(left_list_element, right_list_element)
         }
         return false
@@ -7554,8 +7550,8 @@ func types_equal(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType):
     if left_nullable {
         var right_nullable = type_shape.as_nullable(right_type)
         if right_nullable {
-            var left_nullable_inner = left_nullable.get_inner()
-            var right_nullable_inner = right_nullable.get_inner()
+            var left_nullable_inner = left_nullable.inner
+            var right_nullable_inner = right_nullable.inner
             return types_equal(left_nullable_inner, right_nullable_inner)
         }
         return false
@@ -7620,12 +7616,12 @@ func type_label(spite_type: Analysis.SpiteType): String {
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
-        var list_type_element = list_type.get_element()
+        var list_type_element = list_type.element
         return "List_{type_label(list_type_element)}"
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
-        var dictionary_type_element = dictionary_type.get_element()
+        var dictionary_type_element = dictionary_type.element
         return "Dictionary_{type_label(dictionary_type_element)}{dictionary_key_suffix(dictionary_type)}"
     }
     var union_type = type_shape.as_union(spite_type)
@@ -7634,7 +7630,7 @@ func type_label(spite_type: Analysis.SpiteType): String {
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var nullable_inner = nullable.get_inner()
+        var nullable_inner = nullable.inner
         return "Nullable_{type_label(nullable_inner)}"
     }
     return "Value"
@@ -7680,7 +7676,7 @@ func c_type_name(spite_type: Analysis.SpiteType): String {
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var inner = nullable.get_inner()
+        var inner = nullable.inner
         if type_is_reference(inner) {
             return c_type_name(inner)
         }
@@ -7692,7 +7688,7 @@ func c_type_name(spite_type: Analysis.SpiteType): String {
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
-        var list_type_element = list_type.get_element()
+        var list_type_element = list_type.element
         return "{ensure_list(list_type_element)}*"
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
@@ -7737,7 +7733,7 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
-        var list_type_element = list_type.get_element()
+        var list_type_element = list_type.element
         return "{ensure_list(list_type_element)}___make()"
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
@@ -7758,7 +7754,7 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var inner = nullable.get_inner()
+        var inner = nullable.inner
         if type_is_reference(inner) {
             return null_code(inner)
         }
@@ -7940,7 +7936,7 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     }
     var to_nullable = type_shape.as_nullable(to)
     if to_nullable {
-        var inner = to_nullable.get_inner()
+        var inner = to_nullable.inner
         var parsed = parsed_number(code, from, inner)
         if not parsed.is_empty() {
             return parsed
@@ -8122,8 +8118,8 @@ func reported_key_kinds(from: Analysis.SpiteType, to: Analysis.SpiteType): Boole
     if not found or not wanted {
         return false
     }
-    var found_key = found.get_key()
-    var wanted_key = wanted.get_key()
+    var found_key = found.key
+    var wanted_key = wanted.key
     if type_label(found_key) == type_label(wanted_key) {
         return false
     }
@@ -8135,7 +8131,7 @@ func reported_key_kinds(from: Analysis.SpiteType, to: Analysis.SpiteType): Boole
 }
 
 func key_kind_text(dictionary: Analysis.Types.DictionaryType): String {
-    var key = dictionary.get_key()
+    var key = dictionary.key
     var numbered = not type_shape.as_string(key)
     var kind = "text"
     if numbered {
@@ -8254,7 +8250,7 @@ func retain_call(spite_type: Analysis.SpiteType, code: String): String {
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
-        var list_type_element = list_type.get_element()
+        var list_type_element = list_type.element
         return "{ensure_list(list_type_element)}___retain({code})"
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
@@ -8267,7 +8263,7 @@ func retain_call(spite_type: Analysis.SpiteType, code: String): String {
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var nullable_inner = nullable.get_inner()
+        var nullable_inner = nullable.inner
         return retain_call(nullable_inner, code)
     }
     return code
@@ -8283,7 +8279,7 @@ func release_call(spite_type: Analysis.SpiteType, code: String): String {
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
-        var list_type_element = list_type.get_element()
+        var list_type_element = list_type.element
         return "{ensure_list(list_type_element)}___release({code})"
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
@@ -8296,7 +8292,7 @@ func release_call(spite_type: Analysis.SpiteType, code: String): String {
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var nullable_inner = nullable.get_inner()
+        var nullable_inner = nullable.inner
         return release_call(nullable_inner, code)
     }
     return code
@@ -8358,7 +8354,7 @@ func coerce_for_store(
         var expected_inner_type = expected_type_without_nullable(expected_type)
         var expected_list = type_shape.as_list(expected_inner_type)
         if expected_list {
-            var expected_list_element = expected_list.get_element()
+            var expected_list_element = expected_list.element
             var literal_result = generate_list_literal(list_literal, expected_list_element, scope, class_information)
             return literal_result.code
         }
@@ -8513,7 +8509,7 @@ func generate_joined(
 func expected_type_without_nullable(expected_type: Analysis.SpiteType): Analysis.SpiteType {
     var nullable = type_shape.as_nullable(expected_type)
     if nullable {
-        return nullable.get_inner()
+        return nullable.inner
     }
     return expected_type
 }
@@ -8935,9 +8931,8 @@ func add_text_piece(join: TextJoin, code: String, owned: Boolean) {
         join.originals.append(code)
         return
     }
-    var constant = constant_texts.get(code)
-    if constant {
-        join.constant = "{join.constant}{constant}"
+    if constant_texts[code] {
+        join.constant = "{join.constant}{constant_texts[code]}"
         return
     }
     flush_constant_text(join)
@@ -9177,7 +9172,7 @@ func known_codegen_class_test(
     var is_nullable = false
     var nullable = type_shape.as_nullable(subject_type)
     if nullable {
-        subject_type = nullable.get_inner()
+        subject_type = nullable.inner
         is_nullable = true
     }
     var known = known_membership(subject_type, tested_class)
@@ -9321,7 +9316,7 @@ func generate_class_test(
     var is_nullable = false
     var nullable = type_shape.as_nullable(value_type)
     if nullable {
-        value_type = nullable.get_inner()
+        value_type = nullable.inner
         is_nullable = true
     }
     if is_class_object_type(value_type) and tested_class.c_name != "Spite_Class" {
@@ -9409,7 +9404,7 @@ func generate_binary(
     var left_nullable = type_shape.as_nullable(left_type)
     if left_nullable {
         if binary.operator == 'equal' or binary.operator == 'not_equal' {
-            var left_nullable_inner = left_nullable.get_inner()
+            var left_nullable_inner = left_nullable.inner
             return generate_nullable_equality(
                 binary,
                 left,
@@ -9914,7 +9909,7 @@ func report_maybe_boolean(result: ExpressionResult, used_by: String) {
     var result_type = result.get_type()
     var maybe = type_shape.as_nullable(result_type)
     assert maybe
-    var maybe_inner = maybe.get_inner()
+    var maybe_inner = maybe.inner
     assert is_boolean_type(maybe_inner)
     report(
         "this is a Boolean? used by {used_by}, which would only test that it is there, not that it is true: prove it is there first ('crash index < flags.count()' proves 'flags[index]') or switch over it",
@@ -9935,7 +9930,7 @@ func truth_of(result: ExpressionResult): String {
     var result_type = result.get_type()
     var maybe_null = type_shape.as_nullable(result_type)
     if maybe_null {
-        var maybe_null_inner = maybe_null.get_inner()
+        var maybe_null_inner = maybe_null.inner
         if type_is_reference(maybe_null_inner) {
             return present_code(result.code, maybe_null_inner)
         }
@@ -9986,7 +9981,7 @@ func generate_class_binary(
             var operator_arguments = List<Syntax.Expressions.Expression>()
             operator_arguments.append(right_ast)
             var parameter_types = parameter_types_of(function.parameters)
-            var function_return_type = function.get_return_type()
+            var function_return_type = function.return_type
             argument_lender_class = left_class
             argument_lender_function = function
             var called = generate_generic_call(
@@ -10051,7 +10046,7 @@ func compares_identity_instead(
     var right_type = probe.get_type()
     var right_nullable = type_shape.as_nullable(right_type)
     if right_nullable {
-        right_type = right_nullable.get_inner()
+        right_type = right_nullable.inner
     }
     var right_class_ref = type_shape.as_class_ref(right_type)
     if right_class_ref {
@@ -10085,7 +10080,7 @@ func generate_unary(
                 var negate = find_or_instantiate_function(operand_class, "negate")
                 if negate {
                     var empty_types = no_types()
-                    var negate_return_type = negate.get_return_type()
+                    var negate_return_type = negate.return_type
                     var no_arguments = List<Syntax.Expressions.Expression>()
                     var negated = generate_generic_call(
                         negate.c_name,
@@ -10526,7 +10521,7 @@ func framed_variadic(
 ): String {
     var gathered_list = type_shape.as_list(variadic)
     crash gathered_list
-    var element = gathered_list.get_element()
+    var element = gathered_list.element
     var list_name = ensure_list(element)
     ensure_framed_list_helper(list_name)
     framed_list_counter = framed_list_counter + 1
@@ -10597,7 +10592,7 @@ func frames_local_list(
     if not listed {
         return false
     }
-    var element = listed.get_element()
+    var element = listed.element
     var constant = false
     if literal {
         constant = appended == 0 and literal_is_constant(literal, element)
@@ -10934,9 +10929,8 @@ func rest_only_reads(
 }
 
 func use_class_read_lists(class_information: Analysis.ClassInfo) {
-    var known = class_read_lists.get(class_information.c_name)
-    if known {
-        placement.read_lists = known.split("\n")
+    if class_read_lists[class_information.c_name] {
+        placement.read_lists = class_read_lists[class_information.c_name].split("\n")
         return
     }
     var names = List<String>()
@@ -11038,7 +11032,7 @@ func whole_list_passed(
     assert elements.count() == 1
     var gathered_list = type_shape.as_list(variadic)
     crash gathered_list
-    var element_type = gathered_list.get_element()
+    var element_type = gathered_list.element
     assert not type_shape.as_list(element_type) and not is_shape_type(element_type)
     var only = elements.first()
     crash only
@@ -11316,12 +11310,12 @@ func inferred_instance(
     var label = "{template.c_name}_"
     index = 0
     while index < template.codegen_names.count() {
-        var found = inferred.get(template.codegen_names[index])
-        assert found
-        types.append(found)
+        var codegen_name = template.codegen_names[index]
+        assert inferred[codegen_name]
+        types.append(inferred[codegen_name])
         codes.append("")
         texts.append("")
-        label = "{label}_{type_label(found)}"
+        label = "{label}_{type_label(inferred[codegen_name])}"
         index = index + 1
     }
     var existing = find_class_by_c_name(label)
@@ -11333,7 +11327,7 @@ func inferred_instance(
 
 func template_constructor(template: Analysis.ClassInfo): Syntax.Statements.FunctionDeclaration? {
     crash discovered_classes[template.entry_index]
-    var file = discovered_classes[template.entry_index].get_file()
+    var file = discovered_classes[template.entry_index].file
     var statement_index = 0
     while statement_index < file.statements.count() {
         var declaration = shape.as_function_declaration(file.statements[statement_index])
@@ -11405,18 +11399,18 @@ func container_inner_type(named: Syntax.Types.NamedType, given: Analysis.SpiteTy
     if declared_path == "Nullable" {
         var given_nullable = type_shape.as_nullable(given)
         if given_nullable {
-            return given_nullable.get_inner()
+            return given_nullable.inner
         }
         return given
     }
     if declared_path == "List" {
         var given_list = type_shape.as_list(given)
         assert given_list
-        return given_list.get_element()
+        return given_list.element
     }
     var given_dictionary = type_shape.as_dictionary(given)
     assert given_dictionary
-    return given_dictionary.get_element()
+    return given_dictionary.element
 }
 
 func returned_type(function: Analysis.Types.ClassRefType): Analysis.SpiteType {
@@ -11482,11 +11476,11 @@ func signature_of(function: Analysis.FunctionInfo): Analysis.SpiteType {
         signature.arguments.append(parameter_type)
         index = index + 1
     }
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     if type_shape.is_void(function_return_type) {
         signature.returns = Analysis.Types.ClassRefType("Nothing")
     } else {
-        signature.returns = function.get_return_type()
+        signature.returns = function.return_type
     }
     var typed: Analysis.SpiteType = signature
     return typed
@@ -11543,7 +11537,7 @@ func function_value(
         add_lazy_arguments(maker, argument_lines, lines)
         lines.append("described->spite_owner = {information.c_name}___retain(owner);")
         lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
-        var function_return_type = function.get_return_type()
+        var function_return_type = function.return_type
         if function.parameters.count() == 0 and type_shape.is_void(function_return_type) {
             lines.append("described->spite_call = (void (*)(void*)){function.c_name};")
         }
@@ -11709,7 +11703,7 @@ func generate_own_function_call(
         into_claimed_slot = into_slot
         full_arguments.append(into_slot)
     }
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     record_call(called_c_name)
     var self_type = value_class_type(class_information)
     var self_result = ExpressionResult("self", self_type)
@@ -11815,7 +11809,7 @@ func generate_passed_symbol_call(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
-    var declaration = template.get_declaration()
+    var declaration = template.declaration
     var range = range_text(template)
     var symbol_position = -1
     var parameter_index = 0
@@ -11858,7 +11852,7 @@ func generate_passed_symbol_call(
     var argument_codes = generate_argument_list(remaining, parameter_types, scope, class_information)
     var full_arguments = argument_codes.copy()
     full_arguments.prepend("self")
-    var instance_return_type = instance.get_return_type()
+    var instance_return_type = instance.return_type
     record_call(instance.c_name)
     var self_type = value_class_type(class_information)
     var self_result = ExpressionResult("self", self_type)
@@ -11924,7 +11918,7 @@ func ensure_into_variant(owner: Analysis.ClassInfo, function: Analysis.FunctionI
     if function_by_c_name(owner, variant_c_name) {
         return variant_c_name
     }
-    var variant_return_type = function.get_return_type()
+    var variant_return_type = function.return_type
     var variant = Analysis.FunctionInfo(
         function.name,
         variant_c_name,
@@ -12138,7 +12132,7 @@ func add_lent_variant(
     positions: List<String>,
     sources: String,
 ) {
-    var original_return_type = original.get_return_type()
+    var original_return_type = original.return_type
     var variant = Analysis.FunctionInfo(
         original.name,
         variant_c_name,
@@ -12235,7 +12229,7 @@ func held_variant_name(
     if existing {
         return variant_c_name
     }
-    var original_return_type = original.get_return_type()
+    var original_return_type = original.return_type
     var variant = Analysis.FunctionInfo(
         original.name,
         variant_c_name,
@@ -12259,9 +12253,8 @@ func held_variant_name(
     variant.symbol_enum_c_name = original.symbol_enum_c_name
     variant.lent_sources = original.lent_sources
     variant.lent_parameters = original.lent_parameters.copy()
-    var lent_caller = lent_callers.get(function_c_name)
-    if lent_caller {
-        lent_callers.set(variant_c_name, lent_caller)
+    if lent_callers[function_c_name] {
+        lent_callers.set(variant_c_name, lent_callers[function_c_name])
     }
     var parameter_index = 0
     while parameter_index < original.parameters.count() {
@@ -12419,7 +12412,7 @@ func generate_number_constant(
         report("'{information.qualified_dotted}.{name}()' is a constant, and takes no arguments")
         return void_result()
     }
-    var constant_type = function.get_return_type()
+    var constant_type = function.return_type
     return ExpressionResult("{function.c_name}()", constant_type)
 }
 
@@ -12618,7 +12611,7 @@ func generate_method_call(
     }
     var object_list = type_shape.as_list(object_result_type)
     if object_list {
-        var object_list_element = object_list.get_element()
+        var object_list_element = object_list.element
         return generate_list_method(
             object_list_element,
             member.name,
@@ -12730,7 +12723,7 @@ func generate_method_call(
         package_folder_used = true
     }
     var parameter_types = parameter_types_of(function.parameters)
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     var spread = spread_template(arguments_ast, class_information)
     if spread {
         var passed = spread_into(arguments_ast, spread, target_class, function, class_information)
@@ -12890,7 +12883,7 @@ func generate_enum_method(
     var function = find_or_instantiate_function(enum_class, name)
     if function {
         if arguments_ast.is_empty() {
-            var function_return_type = function.get_return_type()
+            var function_return_type = function.return_type
             return ExpressionResult("{function.c_name}({object_result.code})", function_return_type)
         }
     }
@@ -12926,7 +12919,7 @@ func generate_value_method(
             var parameter_types = parameter_types_of(function.parameters)
             var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
             argument_codes.prepend(object_result.code)
-            var function_return_type = function.get_return_type()
+            var function_return_type = function.return_type
             return ExpressionResult("{function.c_name}({argument_codes.join(", ")})", function_return_type)
         }
         var spelling = maths.spelled(name)
@@ -13005,11 +12998,11 @@ func generate_written_string_call(
     full_arguments.prepend(receiver_code)
     var call = "{written.c_name}({full_arguments.join(", ")})"
     if release.is_empty() {
-        var written_return_type = written.get_return_type()
+        var written_return_type = written.return_type
         return ExpressionResult(call, written_return_type)
     }
     var result_temporary = next_temporary()
-    var written_return_type = written.get_return_type()
+    var written_return_type = written.return_type
     lines.append("{c_type_name(written_return_type)} {result_temporary} = {call};")
     lines.append(release)
     lines.append("{result_temporary};")
@@ -13146,7 +13139,7 @@ func generate_list_method(
         var function = list_class_of(element).find_function(name)
         if function {
             var parameter_types = parameter_types_of(function.parameters)
-            var function_return_type = function.get_return_type()
+            var function_return_type = function.return_type
             var called = generate_generic_call(
                 function.c_name,
                 object_result,
@@ -13173,7 +13166,7 @@ func generate_list_method(
             return ExpressionResult("0", void_spite_type)
         }
         var empty_types = no_types()
-        var nothing_returned = parallel.get_return_type()
+        var nothing_returned = parallel.return_type
         return generate_generic_call(
             parallel.c_name,
             object_result,
@@ -13195,7 +13188,7 @@ func generate_list_method(
         return void_result()
     }
     var parameter_types = parameter_types_of(function.parameters)
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     return generate_generic_call(
         function.c_name,
         object_result,
@@ -13222,7 +13215,7 @@ func member_type_of(element_class: Analysis.ClassInfo, member_name: String): Ana
     }
     var function = member_function(element_class, member_name)
     if function {
-        return function.get_return_type()
+        return function.return_type
     }
     return null
 }
@@ -13513,7 +13506,7 @@ func generate_fused_chain(
     }
     var owner_index = 0
     while owner_index < owners.count() {
-        var owner = owners[owner_index].get_owner()
+        var owner = owners[owner_index].owner
         passed.append(owner)
         owner_index = owner_index + 1
     }
@@ -13539,7 +13532,7 @@ func generate_fused_chain(
         receiver.owning_override = true
     }
     var parameter_types = parameter_types_of(function.parameters)
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     return generate_generic_call(
         function.c_name,
         receiver,
@@ -13678,7 +13671,7 @@ func parallel_filter_read(element_class: Analysis.ClassInfo, member_name: String
         )
         return ""
     }
-    var returned = function.get_return_type()
+    var returned = function.return_type
     if not is_boolean_type(returned) {
         report(
             "'{template_name}': the member '{member_name}' of '{element_class.simple_name}' {described_member(returned)}, but 'filter_' needs it to return Boolean",
@@ -13759,7 +13752,7 @@ func check_parallel_name(
 func reaches_shared(spite_type: Analysis.SpiteType): Boolean {
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var inner = nullable.get_inner()
+        var inner = nullable.inner
         return reaches_shared(inner)
     }
     var plain_value = type_shape.as_scalar(spite_type) or type_shape.as_string(spite_type) or is_enum_type(spite_type)
@@ -14118,19 +14111,19 @@ func kept_by_task_alone(
     var held = field_type
     var nullable = type_shape.as_nullable(field_type)
     if nullable {
-        held = nullable.get_inner()
+        held = nullable.inner
     }
     if not kept_inside(owner, name, held) {
         return false
     }
     var listed = type_shape.as_list(held)
     if listed {
-        var element = listed.get_element()
+        var element = listed.element
         return inline_value_type(element)
     }
     var keyed = type_shape.as_dictionary(held)
     if keyed {
-        var value_type = keyed.get_element()
+        var value_type = keyed.element
         return inline_value_type(value_type)
     }
     var held_class = class_behind(held)
@@ -14388,11 +14381,11 @@ func streams(name: String, arguments: List<Syntax.Expressions.Expression>): Bool
 func chained_element_of(receiver_type: Analysis.SpiteType): Analysis.SpiteType? {
     var listed = type_shape.as_list(receiver_type)
     if listed {
-        return listed.get_element()
+        return listed.element
     }
     var dictionary = type_shape.as_dictionary(receiver_type)
     if dictionary {
-        return dictionary.get_element()
+        return dictionary.element
     }
     var vector_class = vector_class_of(receiver_type)
     if vector_class {
@@ -14420,7 +14413,7 @@ func generate_vector_parallel_each(
     }
     var empty_types = no_types()
     var no_arguments = List<Syntax.Expressions.Expression>()
-    var nothing_returned = parallel.get_return_type()
+    var nothing_returned = parallel.return_type
     return generate_generic_call(
         parallel.c_name,
         object_result,
@@ -14511,10 +14504,10 @@ func fused_step(
         assert problem.is_empty()
         var owner_count = owners.count()
         var fused_owner = fused_owner_name(owner_count)
-        var owner_type = passed.get_owner_type()
+        var owner_type = passed.owner_type
         assert not fused_owner.is_empty() and not fused_type_spelling(owner_type).is_empty()
         owners.append(passed)
-        var passed_returned = passed.get_returned()
+        var passed_returned = passed.returned
         var step_prefix = form_prefix(name)
         var step = FusedStep(step_prefix, passed_returned, passed.function_name)
         step.owner_name = fused_owner
@@ -14637,7 +14630,7 @@ func fused_chain_source(
             closings.append("{indent}}")
             indent = "{indent}    "
         } else {
-            var mapped_type = step.get_member_type()
+            var mapped_type = step.member_type
             var next_name = fused_value_name(mapped_count)
             if next_name.is_empty() or fused_type_spelling(mapped_type).is_empty() {
                 return ""
@@ -14658,7 +14651,7 @@ func fused_chain_source(
     }
     var last_step_name = fused_step_name(last_call, owners, owner_count)
     step_names.append(last_step_name)
-    var last_member_type = last.get_member_type()
+    var last_member_type = last.member_type
     var element_spelling = fused_type_spelling(current_type)
     var member_spelling = fused_type_spelling(last_member_type)
     var read = last.read_of(current_name)
@@ -14727,7 +14720,7 @@ func fused_chain_source(
     }
     var owner_index = 0
     while owner_index < owners.count() {
-        var owner_type = owners[owner_index].get_owner_type()
+        var owner_type = owners[owner_index].owner_type
         parameters.append("{fused_owner_name(owner_index)}: {fused_type_spelling(owner_type)}")
         owner_index = owner_index + 1
     }
@@ -14824,7 +14817,7 @@ func bound_function_of(
     var probe_type = probe.get_type()
     var listed = type_shape.as_list(probe_type)
     if listed {
-        var listed_element = listed.get_element()
+        var listed_element = listed.element
         var list_class = list_class_of(listed_element)
         return passed_library_function(member.object, probe_type, list_class, member.name)
     }
@@ -14852,7 +14845,7 @@ func passed_member_function(
     assert not function.is_constructor
     report_lending_value(owner_class, function)
     var owner_type: Analysis.SpiteType = Analysis.Types.ClassRefType(owner_class.c_name)
-    var returned = function.get_return_type()
+    var returned = function.return_type
     var passed = PassedFunction(owner, owner_type, name, returned)
     passed.parameter_types = parameter_types_of(function.parameters)
     passed.label = "{name}_for_{owner_class.c_name.lower_case()}"
@@ -14869,7 +14862,7 @@ func passed_library_function(
     var function = find_or_instantiate_function(library_class, name)
     assert function
     assert not function.is_constructor
-    var returned = function.get_return_type()
+    var returned = function.return_type
     var passed = PassedFunction(owner, owner_type, name, returned)
     passed.parameter_types = parameter_types_of(function.parameters)
     passed.label = "{name}_for_{library_class.c_name.lower_case()}"
@@ -14906,7 +14899,7 @@ func passed_function_problem(
     if not types_equal(parameter_type, element) {
         return "'{name}' calls '{label}' with each '{element_label}', but '{label}' takes '{type_display_name(parameter_type)}'"
     }
-    var returned = passed.get_returned()
+    var returned = passed.returned
     var requirement = form_requirement(name, label, returned)
     if requirement.is_empty() {
         return ""
@@ -14972,7 +14965,7 @@ func function_form_instance(
         passed.instance = existing
         return passed
     }
-    var owner_type = passed.get_owner_type()
+    var owner_type = passed.owner_type
     var owner_c_name = "Spite_Function"
     var owner_ref = type_shape.as_class_ref(owner_type)
     if owner_ref {
@@ -14980,7 +14973,7 @@ func function_form_instance(
             owner_c_name = owner_ref.c_name
         }
     }
-    var passed_returned = passed.get_returned()
+    var passed_returned = passed.returned
     passed.instance = instantiate_template(
         list_class,
         template,
@@ -15019,12 +15012,12 @@ func generate_function_form(
     if not passed {
         return void_result()
     }
-    var function = passed.get_instance()
+    var function = passed.instance
     var passed_arguments = form_arguments(name)
-    var owner = passed.get_owner()
+    var owner = passed.owner
     passed_arguments.append(owner)
     var parameter_types = parameter_types_of(function.parameters)
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     return generate_generic_call(
         function.c_name,
         receiver,
@@ -15599,17 +15592,17 @@ func type_name_written(spite_type: Analysis.SpiteType, qualified: Boolean): Stri
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
-        var list_type_element = list_type.get_element()
+        var list_type_element = list_type.element
         return "List<{type_name_written(list_type_element, qualified)}>"
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
-        var dictionary_type_element = dictionary_type.get_element()
+        var dictionary_type_element = dictionary_type.element
         return "Dictionary<{type_name_written(dictionary_type_element, qualified)}>"
     }
     var nullable_type = type_shape.as_nullable(spite_type)
     if nullable_type {
-        var nullable_type_inner = nullable_type.get_inner()
+        var nullable_type_inner = nullable_type.inner
         return "{type_name_written(nullable_type_inner, qualified)}?"
     }
     var scalar = type_shape.as_scalar(spite_type)
@@ -15728,7 +15721,7 @@ func emit_attribute_object_bodies() {
 func attribute_object_code(spite_type: Analysis.SpiteType, code: String, shape_type: Analysis.SpiteType): String {
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var inner = nullable.get_inner()
+        var inner = nullable.inner
         if type_is_reference(inner) {
             return "({present_code(code, inner)} ? {attribute_object_code(inner, code, shape_type)} : 0)"
         }
@@ -15850,7 +15843,7 @@ func emit_union_attributes_bodies() {
 }
 
 func returned_class_object_call(function: Analysis.FunctionInfo): String {
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     if type_shape.is_void(function_return_type) {
         var nothing = find_class_by_c_name("Nothing")
         if nothing {
@@ -15919,7 +15912,7 @@ func refresh_functions_lists(): Boolean {
         var count = information.declared_functions.count()
         crash listed_function_counts[index]
         if count != listed_function_counts[index] {
-            listed_function_counts.set_at(index, count)
+            listed_function_counts[index] = count
             var function_class = find_class_by_c_name("Spite_Function")
             var argument_class = find_class_by_c_name("Spite_Argument")
             crash function_class and argument_class
@@ -15971,7 +15964,7 @@ func functions_list_text(information: Analysis.ClassInfo, list_name: String, arg
             }
             lines.append("described->spite_owner = {retained_self};")
             lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
-            var function_return_type = function.get_return_type()
+            var function_return_type = function.return_type
             var callable = not is_inline_supplied(function)
             if callable and function.parameters.count() == 0 and type_shape.is_void(function_return_type) {
                 lines.append("described->spite_call = (void (*)(void*)){function.c_name};")
@@ -16046,7 +16039,7 @@ func append_live_attributes(information: Analysis.ClassInfo, list_name: String, 
 func reflected_label(spite_type: Analysis.SpiteType): String {
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var nullable_inner = nullable.get_inner()
+        var nullable_inner = nullable.inner
         return "Nullable_{type_label(nullable_inner)}"
     }
     return type_label(spite_type)
@@ -16085,7 +16078,7 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
-        var list_type_element = list_type.get_element()
+        var list_type_element = list_type.element
         var list_name = ensure_list(list_type_element)
         lines.append("reflected->spite_held = {list_name}___retain(value);")
         lines.append("reflected->spite_release_held = (void (*)(void*)){list_name}___release;")
@@ -16185,7 +16178,7 @@ func element_hooks(element: Analysis.SpiteType, target: String, owner: String): 
 }
 
 func ensure_dictionary_attributes_function(dictionary: Analysis.Types.DictionaryType): String {
-    var element = dictionary.get_element()
+    var element = dictionary.element
     var dictionary_name = ensure_dictionary(dictionary)
     var function_c_name = "{dictionary_name}___attributes"
     if reflect_function_names.contains(function_c_name) {
@@ -16199,7 +16192,7 @@ func ensure_dictionary_attributes_function(dictionary: Analysis.Types.Dictionary
     var signature = "{attributes_list}* {function_c_name}({dictionary_name}* self)"
     builder.add_prototype("{signature};")
     var reflect = ensure_reflect_function(element)
-    var key_type = dictionary.get_key()
+    var key_type = dictionary.key
     var key = list_item_code(key_type, "self->entry_keys_", "spite_index")
     var key_text = "SpiteString___retain({key})"
     if not type_shape.as_string(key_type) {
@@ -16243,7 +16236,7 @@ func scalar_from_text_lines(scalar_type: Analysis.SpiteType, text: String, targe
         converted = "{target} = ({c_type_name(scalar_type)})spite_parsed.value;"
     }
     crash conversion
-    var parsed_type = conversion.get_return_type()
+    var parsed_type = conversion.return_type
     return "\{ {c_type_name(parsed_type)} spite_parsed = {conversion.c_name}({text}); if (!spite_parsed.has_value) {failure} {converted} }"
 }
 
@@ -16258,7 +16251,7 @@ func parsed_value_lines(spite_type: Analysis.SpiteType, text: String, target: St
     if not nullable {
         return ""
     }
-    var inner = nullable.get_inner()
+    var inner = nullable.inner
     var null_test = "SPITE_STRING_IS_NULL({text})"
     var c_type = c_type_name(spite_type)
     if c_type.starts_with("Nullable_") {
@@ -16450,7 +16443,7 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
     }
     reflect_function_names.append(function_c_name)
     var call = "{function.c_name}({call_arguments.join(", ")})"
-    var return_spite_type = function.get_return_type()
+    var return_spite_type = function.return_type
     var result_symbol = ensure_symbol("result")
     if type_shape.is_void(return_spite_type) {
         lines.append("{call};")
@@ -16750,7 +16743,7 @@ func deep_copy_code(spite_type: Analysis.SpiteType, code: String): String {
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
-        var list_type_element = list_type.get_element()
+        var list_type_element = list_type.element
         return "{ensure_list_deep_copy(list_type_element)}({code})"
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
@@ -16759,7 +16752,7 @@ func deep_copy_code(spite_type: Analysis.SpiteType, code: String): String {
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var nullable_inner = nullable.get_inner()
+        var nullable_inner = nullable.inner
         if type_is_reference(nullable_inner) {
             return deep_copy_code(nullable_inner, code)
         }
@@ -16824,7 +16817,7 @@ func ensure_list_deep_copy(element: Analysis.SpiteType): String {
 }
 
 func ensure_dictionary_deep_copy(dictionary: Analysis.Types.DictionaryType): String {
-    var element = dictionary.get_element()
+    var element = dictionary.element
     var dictionary_name = ensure_dictionary(dictionary)
     var function_c_name = "{dictionary_name}___deep_copy"
     if deep_copy_names.contains(function_c_name) {
@@ -16832,7 +16825,7 @@ func ensure_dictionary_deep_copy(dictionary: Analysis.Types.DictionaryType): Str
     }
     deep_copy_names.append(function_c_name)
     builder.add_prototype("{dictionary_name}* {function_c_name}({dictionary_name}* self);")
-    var key_type = dictionary.get_key()
+    var key_type = dictionary.key
     var item_code = list_item_code(element, "self->entry_values_", "spite_index")
     var key_code = list_item_code(key_type, "self->entry_keys_", "spite_index")
     var kept_key = retain_call(key_type, key_code)
@@ -17139,14 +17132,14 @@ func generate_index_read(
     var object_result_type = object_result.get_type()
     var object_list = type_shape.as_list(object_result_type)
     if object_list {
-        var element = object_list.get_element()
+        var element = object_list.element
         var list_class = list_class_of(element)
         var reader = list_class.find_function("get_at")
         crash reader
         var integer_spite_type = integer_type()
         var single_types = one_type(integer_spite_type)
         var reader_type = element
-        var declared_reader_type = reader.get_return_type()
+        var declared_reader_type = reader.return_type
         if type_shape.as_nullable(declared_reader_type) {
             reader_type = nullable_type_of(element)
         }
@@ -17170,7 +17163,7 @@ func generate_index_read(
             var get_at = find_or_instantiate_function(indexed_class, "get_at")
             if get_at {
                 var parameter_types = parameter_types_of(get_at.parameters)
-                var get_at_return_type = get_at.get_return_type()
+                var get_at_return_type = get_at.return_type
                 var got = generate_generic_call(
                     get_at.c_name,
                     object_result,
@@ -17197,7 +17190,7 @@ func generate_index_read(
     }
     var object_dictionary = type_shape.as_dictionary(object_result_type)
     if object_dictionary {
-        var value_type = object_dictionary.get_element()
+        var value_type = object_dictionary.element
         var key_parameter = dictionary_key_parameter(
             object_dictionary,
             index_expression.index,
@@ -17275,7 +17268,7 @@ func bounded_item(got: ExpressionResult, read_path: String): ExpressionResult {
     if not nullable {
         return got
     }
-    var inner = nullable.get_inner()
+    var inner = nullable.inner
     ensure_index_check()
     var temporary = next_temporary()
     var where = located(current_path, current_line, current_owner, current_function)
@@ -17300,7 +17293,7 @@ func library_list_field(
     assert current_path.starts_with("library/") or is_library_class(class_information)
     var listed = type_shape.as_list(list_type)
     assert listed
-    var element = listed.get_element()
+    var element = listed.element
     return list_class_of(element).find_field(name)
 }
 
@@ -17317,7 +17310,7 @@ func proven_item(got: ExpressionResult, proven: Boolean): ExpressionResult {
         return got
     }
     if nullable {
-        var inner = nullable.get_inner()
+        var inner = nullable.inner
         if type_is_reference(inner) {
             got.spite_type = inner
             return got
@@ -17420,8 +17413,8 @@ func use_scheduler() {
 }
 
 func ensure_dictionary(dictionary: Analysis.Types.DictionaryType): String {
-    var element = dictionary.get_element()
-    var key_type = dictionary.get_key()
+    var element = dictionary.element
+    var key_type = dictionary.key
     var dictionary_name = "Dictionary_{type_label(element)}{dictionary_key_suffix(dictionary)}"
     if dictionary_names.contains(dictionary_name) {
         return dictionary_name
@@ -17445,7 +17438,7 @@ func ensure_dictionary(dictionary: Analysis.Types.DictionaryType): String {
 }
 
 func dictionary_key_suffix(dictionary: Analysis.Types.DictionaryType): String {
-    var key_type = dictionary.get_key()
+    var key_type = dictionary.key
     var suffix = ""
     if not type_shape.as_string(key_type) {
         suffix = "_by_{type_label(key_type)}"
@@ -17569,7 +17562,7 @@ func dictionary_key_parameter(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Analysis.SpiteType {
-    var key_type = dictionary.get_key()
+    var key_type = dictionary.key
     if dictionary.site.is_empty() {
         return key_type
     }
@@ -17752,7 +17745,7 @@ func generate_dictionary_method(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
-    var element = dictionary.get_element()
+    var element = dictionary.element
     if name.starts_with("remove_where") {
         report(
             "Dictionary has no method '{name}': the templates read a dictionary's values from a copy, so removing from it would change nothing; remove each key with 'remove(key)'",
@@ -17899,7 +17892,7 @@ func generate_dictionary_method(
     }
     if name == "keys" {
         var empty_types = no_types()
-        var key_type = dictionary.get_key()
+        var key_type = dictionary.key
         var list_type = list_type_of(key_type)
         return generate_generic_call(
             "{dictionary_name}_keys",
@@ -17951,7 +17944,7 @@ func generate_dictionary_method(
     )
     values_call.owning_override = true
     var parameter_types = parameter_types_of(function.parameters)
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     return generate_generic_call(
         function.c_name,
         values_call,
@@ -17972,7 +17965,7 @@ func dictionary_key_parameter_of(
 ): Analysis.SpiteType {
     var key_ast = arguments_ast.first()
     if not key_ast {
-        return dictionary.get_key()
+        return dictionary.key
     }
     return dictionary_key_parameter(dictionary, key_ast, scope, class_information)
 }
@@ -18485,7 +18478,7 @@ func generate_foreign_callback(
     var call_text = "ForeignCallback({work_text}, '{position}')"
     var parameter_types = parameter_types_of(function.parameters)
     var parameter_names = function.parameters.map_name()
-    var returned = function.get_return_type()
+    var returned = function.return_type
     if not callback_types_cross(call_text, parameter_types, parameter_names, returned) {
         return refused_callback(target_class)
     }
@@ -18829,7 +18822,7 @@ func ensure_foreign_header(header: String) {
 func passes_as_array(spite_type: Analysis.SpiteType): Boolean {
     var listed = type_shape.as_list(spite_type)
     if listed {
-        var listed_element = listed.get_element()
+        var listed_element = listed.element
         if type_shape.as_scalar(listed_element) {
             return true
         }
@@ -19422,7 +19415,7 @@ func generate_member_read(
         if nullable {
             if scope.is_path_narrowed(path) {
                 var unwrapped_code = result.code
-                var nullable_inner = nullable.get_inner()
+                var nullable_inner = nullable.inner
                 if not type_is_reference(nullable_inner) {
                     unwrapped_code = "({result.code}).value"
                 }
@@ -19686,7 +19679,7 @@ func generate_member_read_raw(
     var getter = find_getter(target_class, member.name, class_information)
     if getter {
         var empty_types = no_types()
-        var getter_return_type = getter.get_return_type()
+        var getter_return_type = getter.return_type
         var getter_arguments = List<Syntax.Expressions.Expression>()
         var getter_call = generate_generic_call(
             getter.c_name,
@@ -19781,7 +19774,7 @@ func capture_crash_part(expression: Syntax.Expressions.Expression, result: Expre
     var index = 0
     while index < crash_parts.count() {
         var part = crash_parts[index]
-        var candidate = part.get_expression()
+        var candidate = part.expression
         if candidate == expression {
             capture_into(part, expression, result)
             return
@@ -20109,15 +20102,15 @@ func indexed_type_through(spite_type: Analysis.SpiteType?): Analysis.SpiteType? 
     var plain = spite_type
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        plain = nullable.get_inner()
+        plain = nullable.inner
     }
     var listed = type_shape.as_list(plain)
     if listed {
-        return listed.get_element()
+        return listed.element
     }
     var dictionary = type_shape.as_dictionary(plain)
     if dictionary {
-        return dictionary.get_element()
+        return dictionary.element
     }
     return returned_type_through(plain, "get_at")
 }
@@ -20138,7 +20131,7 @@ func call_result_type(
         assert not scope.written_type(identifier.name) and not class_information.find_field(identifier.name)
         var own = class_information.find_function(identifier.name)
         assert own
-        return own.get_return_type()
+        return own.return_type
     }
     var member = shape.as_member(call.callee)
     assert member
@@ -20152,14 +20145,14 @@ func returned_type_through(spite_type: Analysis.SpiteType?, name: String): Analy
     var plain = spite_type
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        plain = nullable.get_inner()
+        plain = nullable.inner
     }
     var listed = type_shape.as_list(plain)
     if listed {
-        var element = listed.get_element()
+        var element = listed.element
         var list_member = list_class_of(element).find_function(name)
         assert list_member
-        return list_member.get_return_type()
+        return list_member.return_type
     }
     var class_ref = type_shape.as_class_ref(plain)
     assert class_ref and not class_ref.has_signature
@@ -20167,7 +20160,7 @@ func returned_type_through(spite_type: Analysis.SpiteType?, name: String): Analy
     assert owner_class
     var function = owner_class.find_function(name)
     assert function
-    return function.get_return_type()
+    return function.return_type
 }
 
 func changing_effect(
@@ -20266,9 +20259,8 @@ func proof_dependencies(path: String, scope: Scope, class_information: Analysis.
     var constructed = constructed_root_of(path)
     var root_local = scope.unnarrowed_type(root)
     if not constructed.is_empty() {
-        var made_c_name = constructed_roots.get(constructed)
-        crash made_c_name
-        var made_type: Analysis.SpiteType = Analysis.Types.ClassRefType(made_c_name)
+        crash constructed_roots[constructed]
+        var made_type: Analysis.SpiteType = Analysis.Types.ClassRefType(constructed_roots[constructed])
         current = made_type
         position = constructed.length()
     } else if not root_local {
@@ -20318,7 +20310,7 @@ func collection_name(spite_type: Analysis.SpiteType?): String {
     var plain = spite_type
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        plain = nullable.get_inner()
+        plain = nullable.inner
     }
     if type_shape.as_list(plain) {
         return "List"
@@ -20337,7 +20329,7 @@ func class_behind(spite_type: Analysis.SpiteType?): Analysis.ClassInfo? {
     var plain = spite_type
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        plain = nullable.get_inner()
+        plain = nullable.inner
     }
     var class_ref = type_shape.as_class_ref(plain)
     assert class_ref
@@ -20355,11 +20347,11 @@ func element_type_through(spite_type: Analysis.SpiteType?): Analysis.SpiteType? 
     var plain = spite_type
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        plain = nullable.get_inner()
+        plain = nullable.inner
     }
     var listed = type_shape.as_list(plain)
     assert listed
-    return listed.get_element()
+    return listed.element
 }
 
 func collect_key_dependencies(
@@ -20409,7 +20401,7 @@ func narrow_by_guard(scope: Scope, guard: NullableGuard, check: String) {
         scope.narrow_path(guard.name)
     } else {
         scope.set_override(guard.name, guard.override_code)
-        var guard_inner = guard.get_inner()
+        var guard_inner = guard.inner
         scope.declare(guard.name, guard_inner)
     }
 }
@@ -20432,7 +20424,7 @@ func try_nullable_guard(
     var nullable = type_shape.as_nullable(static_type)
     assert nullable
     var base_result = generate_expression(condition_ast, scope, class_information)
-    var inner = nullable.get_inner()
+    var inner = nullable.inner
     report_maybe_boolean(base_result, "a condition")
     var guard_code = ""
     var override_code = ""
@@ -20463,7 +20455,7 @@ func joined_guard(
     var held = c_value_name(held_name)
     builder.add_user("{c_type_name(result_type)} {held} = {joined.code};")
     scope.declare_owned(held_name, result_type)
-    var inner = nullable.get_inner()
+    var inner = nullable.inner
     if type_is_reference(inner) {
         var held_present = present_code(held, inner)
         return NullableGuard(name, inner, held_present, held)
@@ -20498,7 +20490,7 @@ func try_path_guard(
         var link_nullable = type_shape.as_nullable(link_result_type)
         report_maybe_boolean(link_result, "a condition")
         if link_nullable {
-            var link_inner = link_nullable.get_inner()
+            var link_inner = link_nullable.inner
             inner = link_inner
             var link_condition = link_test(link_result, link, link_inner)
             tests.append(link_condition)
@@ -20674,10 +20666,10 @@ func items_choice(sources: String): String {
     var named = sources.split("' and '")
     var index = 0
     while index < named.count() {
-        var label = items_sources.get(named[index])
-        if label {
-            if not label.is_empty() {
-                return "'{label}' fits a Vector, so the items of '{named[index]}' are borrowed: "
+        var source_name = named[index]
+        if items_sources[source_name] {
+            if not items_sources[source_name].is_empty() {
+                return "'{items_sources[source_name]}' fits a Vector, so the items of '{named[index]}' are borrowed: "
             }
         }
         index = index + 1
@@ -20714,19 +20706,16 @@ func lend_result(result: ExpressionResult, target_class: Analysis.ClassInfo, fun
     result.borrowed_from = source
     var root_end = source.index_of("().")
     var root = source.slice(0, root_end + 2)
-    var singleton_c_name = lent_result_singletons.get(source)
-    crash singleton_c_name
-    constructed_roots.set(root, singleton_c_name)
-    var label = lent_result_labels.get(source)
-    crash label
-    items_sources.set(source, label)
+    crash lent_result_singletons[source]
+    constructed_roots.set(root, lent_result_singletons[source])
+    crash lent_result_labels[source]
+    items_sources.set(source, lent_result_labels[source])
 }
 
 func lent_result_source(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
     var key = "{information.c_name}.{function.name}"
-    var known = lent_results.get(key)
-    if known {
-        return known
+    if lent_results[key] {
+        return lent_results[key]
     }
     lent_results.set(key, "")
     var returns = List<Syntax.Expressions.Expression>()
@@ -21221,7 +21210,7 @@ func lends_row(
         if window_text {
             var lent_function = lent_element_function(field.value, mixing, scope, class_information)
             crash lent_function
-            var lent_type = lent_function.get_return_type()
+            var lent_type = lent_function.return_type
             names.append(field.name)
             types.append(lent_type)
             codes.append("")
@@ -21485,7 +21474,7 @@ func lent_element_field(owner: Analysis.ClassInfo, function: Analysis.FunctionIn
     if not listed {
         return ""
     }
-    var element = listed.get_element()
+    var element = listed.element
     var element_class = type_shape.as_class_ref(element)
     if not element_class {
         return ""
@@ -21493,11 +21482,11 @@ func lent_element_field(owner: Analysis.ClassInfo, function: Analysis.FunctionIn
     if element_class.has_signature {
         return ""
     }
-    var lent_return_type = function.get_return_type()
+    var lent_return_type = function.return_type
     var returned_plain = lent_return_type
     var nullable = type_shape.as_nullable(lent_return_type)
     if nullable {
-        returned_plain = nullable.get_inner()
+        returned_plain = nullable.inner
     }
     var returned_class = type_shape.as_class_ref(returned_plain)
     if not returned_class {
@@ -21629,7 +21618,7 @@ func lend_site(
     var parameter_type = function.parameters[0].get_type()
     var index_code = coerce_for_store(call.arguments[0], parameter_type, scope, class_information)
     var site = lend_site_owners.count()
-    var element_type = function.get_return_type()
+    var element_type = function.return_type
     var held_name = next_temporary()
     var held_code = c_value_name(held_name)
     builder.add_user("spite_lend_{site}_enter();")
@@ -21654,7 +21643,7 @@ func ensure_lent_element_variant(owner: Analysis.ClassInfo, function: Analysis.F
     if existing {
         return existing
     }
-    var original_return_type = function.get_return_type()
+    var original_return_type = function.return_type
     var variant = Analysis.FunctionInfo(
         function.name,
         variant_c_name,
@@ -21704,7 +21693,7 @@ func lent_element_read(information: Analysis.ClassInfo, function: Analysis.Funct
     var field_type = field.get_type()
     var listed = type_shape.as_list(field_type)
     crash listed
-    var element = listed.get_element()
+    var element = listed.element
     var returned = lent_element_return(function)
     crash returned
     var index_ast = lent_element_index_of(returned)
@@ -21921,7 +21910,7 @@ func write_lent_argument(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    var declaration = spread.get_declaration()
+    var declaration = spread.declaration
     var parameters = declaration.parameters.map_name()
     var symbol_position = name_position(parameters, spread.symbol_parameter)
     if symbol_position < parameters.count() {
@@ -22141,7 +22130,7 @@ func written_lent_row(
     }
     var name = lent_argument_name(attribute.name, mentioned, names, scope, class_information)
     var row_reference: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(name)
-    arguments.set_at(row_index, row_reference)
+    arguments[row_index] = row_reference
     var row_type = row.type_reference
     crash row_type
     if symbol_class_type(row_type, walk.symbol_parameter) {
@@ -22420,7 +22409,7 @@ func walked_row_literal(
     assert template
     var range_shape = template_range_shape(class_information, template)
     assert range_shape
-    var template_declaration = template.get_declaration()
+    var template_declaration = template.declaration
     var parameters = template_declaration.parameters.map_name()
     var symbol_position = name_position(parameters, template.symbol_parameter)
     assert symbol_position < parameters.count()
@@ -22881,7 +22870,7 @@ func emit_cached_check(
         return false
     }
     var owned = owns(read, checked)
-    var inner = nullable.get_inner()
+    var inner = nullable.inner
     var temporary = next_temporary()
     builder.add_user("{c_type_name(read_type)} {temporary} = {read.code};")
     var cached_code = temporary
@@ -23510,7 +23499,7 @@ func lent_result_hint_of(information: Analysis.ClassInfo): String {
     var index = 0
     while index < information.templates.count() {
         var template = information.templates[index]
-        var declaration = template.get_declaration()
+        var declaration = template.declaration
         var returns = false
         if declaration.return_type {
             returns = true
@@ -24032,7 +24021,7 @@ func argument_type_of(
     var plain = object_type
     var nullable = type_shape.as_nullable(object_type)
     if nullable {
-        plain = nullable.get_inner()
+        plain = nullable.inner
     }
     var united = type_shape.as_union(plain)
     if united {
@@ -24151,7 +24140,7 @@ func effect_resizes(
         if resized.starts_with("*#") {
             return true
         }
-        var resized_class = call_effects.field_classes.get(resized)
+        var resized_class = call_effects.field_classes[resized]
         if not resized_class {
             return false
         }
@@ -24170,12 +24159,12 @@ func element_may_be_source(resized: String, links: List<String>, local_root: Boo
     if local_root or holder.ends_with("[]") {
         return true
     }
-    var element_class = call_effects.element_classes.get(holder)
+    var element_class = call_effects.element_classes[holder]
     var vector_link = links.last()
     if not element_class or not vector_link {
         return true
     }
-    var source_class = call_effects.field_classes.get(vector_link)
+    var source_class = call_effects.field_classes[vector_link]
     if not source_class {
         return true
     }
@@ -24500,7 +24489,7 @@ func watch_strict_call(
     if key.is_empty() {
         return false
     }
-    var effects = call_effects.by_function.get(key)
+    var effects = call_effects.by_function[key]
     if not effects {
         return false
     }
@@ -24763,7 +24752,7 @@ func allocatable_class(declared_type: Analysis.SpiteType): Analysis.ClassInfo? {
     }
     var listed = type_shape.as_list(declared_type)
     if listed {
-        var listed_element = listed.get_element()
+        var listed_element = listed.element
         placed_c_name = ensure_list(listed_element)
     }
     var dictionary = type_shape.as_dictionary(declared_type)
@@ -25185,7 +25174,7 @@ func generate_assignment(
 func narrowed_value_holder(override: String, declared: Analysis.SpiteType): String {
     var nullable = type_shape.as_nullable(declared)
     if nullable {
-        var inner = nullable.get_inner()
+        var inner = nullable.inner
         if not type_is_reference(inner) and override.starts_with("(") and override.ends_with(").value") {
             var override_length = override.length()
             return override.slice(1, override_length - 7)
@@ -25354,7 +25343,7 @@ func generate_store(
                     set_at_arguments.append(index_target.index)
                     set_at_arguments.append(assignment.value)
                     var parameter_types = parameter_types_of(set_at.parameters)
-                    var set_at_return_type = set_at.get_return_type()
+                    var set_at_return_type = set_at.return_type
                     var set_at_call = generate_generic_call(
                         set_at.c_name,
                         indexed_result,
@@ -25385,7 +25374,7 @@ func generate_store(
                 scope,
                 class_information,
             )
-            var element = indexed_dictionary.get_element()
+            var element = indexed_dictionary.element
             var pair_types = two_types(key_parameter, element)
             var void_spite_type = void_type()
             var dictionary_set_call = generate_generic_call(
@@ -25406,10 +25395,10 @@ func generate_store(
             var set_arguments = List<Syntax.Expressions.Expression>()
             set_arguments.append(index_target.index)
             set_arguments.append(assignment.value)
-            var indexed_list_element = indexed_list.get_element()
+            var indexed_list_element = indexed_list.element
             var list_function_name = list_function(indexed_list_element, "set_at")
             var integer_spite_type = integer_type()
-            var element = indexed_list.get_element()
+            var element = indexed_list.element
             var pair_types = two_types(integer_spite_type, element)
             var void_spite_type = void_type()
             var set_call = generate_generic_call(
@@ -25488,7 +25477,7 @@ func generate_store(
             var setter_arguments = List<Syntax.Expressions.Expression>()
             setter_arguments.append(assignment.value)
             var parameter_types = parameter_types_of(setter.parameters)
-            var setter_return_type = setter.get_return_type()
+            var setter_return_type = setter.return_type
             var setter_call = generate_generic_call(
                 setter.c_name,
                 object_result,
@@ -25873,7 +25862,7 @@ func report_template_walk(
     var probe_type = probe.get_type()
     var listed = type_shape.as_list(probe_type)
     assert listed
-    var element = listed.get_element()
+    var element = listed.element
     assert walked_members_exist(element, walk.members)
     assert passed_functions_fit(walk, scope, class_information)
     var saved_line = current_line
@@ -26073,7 +26062,7 @@ func takes_one_argument(information: Analysis.ClassInfo, name: String, tests: Bo
     if function.parameters.count() != 1 or function.is_constructor {
         return false
     }
-    var returned = function.get_return_type()
+    var returned = function.return_type
     return not tests or is_boolean_type(returned)
 }
 
@@ -26819,7 +26808,7 @@ func report_shadowed_functions(discovered: List<Discovery.DiscoveredClass>) {
 }
 
 func report_shadows_in(entry: Discovery.DiscoveredClass) {
-    var file = entry.get_file()
+    var file = entry.file
     current_owner = entry.qualified_dotted
     current_function = ""
     var function_names = List<String>()
@@ -27237,7 +27226,7 @@ func is_in_loaded_folder(path: String): Boolean {
 
 func class_statements(information: Analysis.ClassInfo): List<Syntax.Statements.Statement> {
     crash discovered_classes[information.entry_index]
-    return discovered_classes[information.entry_index].get_file().statements
+    return discovered_classes[information.entry_index].file.statements
 }
 
 func attributes_are_checked(information: Analysis.ClassInfo): Boolean {
@@ -27258,7 +27247,7 @@ func keeps_callback(information: Analysis.ClassInfo, name: String): Boolean {
     var field_type = field.get_type()
     var nullable = type_shape.as_nullable(field_type)
     if nullable {
-        field_type = nullable.get_inner()
+        field_type = nullable.inner
     }
     var class_ref = type_shape.as_class_ref(field_type)
     if not class_ref {
@@ -27343,7 +27332,7 @@ func report_terminal_if(
 ) {
     assert not if_statement.has_else_branch
     assert terminal_if
-    var return_type = function_information.get_return_type()
+    var return_type = function_information.return_type
     if terminal_if == if_statement and not answers_nothing(return_type) {
         var type_name = type_display_name(return_type)
         report(
@@ -27451,7 +27440,7 @@ func report_default_assert(
     function_information: Analysis.FunctionInfo,
 ) {
     assert not assert_statement.is_crash and not function_information.is_constructor
-    var return_type = function_information.get_return_type()
+    var return_type = function_information.return_type
     assert not answers_nothing(return_type)
     crash assert_statement.value
     var printer = Syntax.SourcePrinter()
@@ -27540,7 +27529,7 @@ func current_class_is_generic(): Boolean {
 }
 
 func report_default_guard(if_statement: Syntax.Statements.IfStatement, function_information: Analysis.FunctionInfo) {
-    var return_type = function_information.get_return_type()
+    var return_type = function_information.return_type
     assert answers_nothing(return_type) or function_information.is_constructor
     var returned = returned_default(if_statement, return_type)
     assert returned
@@ -27814,7 +27803,7 @@ func generate_class_narrowing_if(
     var is_nullable = false
     var nullable = type_shape.as_nullable(subject_type)
     if nullable {
-        subject_type = nullable.get_inner()
+        subject_type = nullable.inner
         is_nullable = true
     }
     var subject_union = type_shape.as_union(subject_type)
@@ -27892,7 +27881,7 @@ func generate_nullable_switch(
             } else {
                 var case_type = resolve_type(switch_case.type_reference, class_information.qualified_dotted)
                 if case_type {
-                    var guard_inner = guard.get_inner()
+                    var guard_inner = guard.inner
                     if not types_equal(case_type, guard_inner) {
                         report(
                             "this value is {type_with_article(guard_inner)} or null, so its switch cases are '{type_display_name(guard_inner)}' and 'Null'",
@@ -27913,7 +27902,7 @@ func generate_nullable_switch(
         report("this switch does not cover 'Null'")
     }
     if not covered_value {
-        var guard_inner = guard.get_inner()
+        var guard_inner = guard.inner
         report("this switch does not cover '{type_display_name(guard_inner)}'")
     }
 }
@@ -29878,7 +29867,7 @@ func generate_union_dispatch(
             )
             return void_result()
         }
-        result_type = first_function.get_return_type()
+        result_type = first_function.return_type
         expected_types = parameter_types_of(first_function.parameters)
     } else {
         var first_field = first_member.find_field(member_name)
@@ -30577,7 +30566,7 @@ func plain_list_named(name: String, scope: Scope, class_information: Analysis.Cl
     if not listed {
         return false
     }
-    var element = listed.get_element()
+    var element = listed.element
     return plain_value_type(element)
 }
 
@@ -30644,7 +30633,7 @@ func coarse_call(
     if function.is_constructor or function.parameters.count() != call.arguments.count() {
         return false
     }
-    var returned = function.get_return_type()
+    var returned = function.return_type
     if not type_shape.is_void(returned) and not plain_value_type(returned) {
         return false
     }
@@ -30907,7 +30896,7 @@ func counted_receiver(expression: Syntax.Expressions.Expression): String {
 func counted_element_type(list_type: Analysis.SpiteType): Analysis.SpiteType? {
     var listed = type_shape.as_list(list_type)
     assert listed
-    var element = listed.get_element()
+    var element = listed.element
     assert type_shape.as_scalar(element)
     return element
 }
@@ -31278,7 +31267,7 @@ func is_plain_value_type(spite_type: Analysis.SpiteType): Boolean {
     if not nullable {
         return false
     }
-    var inner = nullable.get_inner()
+    var inner = nullable.inner
     if not type_shape.as_scalar(inner) {
         return false
     }
@@ -31811,7 +31800,7 @@ func is_scope_value_type(spite_type: Analysis.SpiteType): Boolean {
     var shown_type = spite_type
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        shown_type = nullable.get_inner()
+        shown_type = nullable.inner
     }
     return type_shape.as_string(shown_type) or type_shape.as_scalar(shown_type) or is_enum_type(shown_type)
 }
@@ -31876,7 +31865,7 @@ func emit_crash_part(part: CrashPart, scope: Scope, class_information: Analysis.
         builder.add_user("if ({conditions.join(" && ")}) \{")
         conditional_depth = conditional_depth + 1
     }
-    var expression = part.get_expression()
+    var expression = part.expression
     if part.is_call {
         crash part.captured_type
         emit_shown_value(part.label, part.value_name, part.captured_type, expression, scope, class_information)
@@ -31920,7 +31909,7 @@ func emit_shown_value(
         emit_code_operand(label, code, value_type, scope, class_information)
         return
     }
-    var inner = nullable.get_inner()
+    var inner = nullable.inner
     var presence = "({code}).has_value"
     var inner_code = "({code}).value"
     if type_is_reference(inner) {
@@ -32195,7 +32184,7 @@ func mapped_crash_parts(scope: Scope, class_information: Analysis.ClassInfo): St
         if part.is_call and part.captured_type {
             described.append("{part.label}:{type_display_name(part.captured_type)}")
         } else if not part.is_reach and not part.is_call and is_part_shown(part, scope, class_information) {
-            var part_expression = part.get_expression()
+            var part_expression = part.expression
             var description = operand_description(part_expression, scope, class_information)
             if not described.contains(description) {
                 described.append(description)
@@ -32673,7 +32662,7 @@ func emit_check_failure(
         record_in_assert_trace(function_information)
     }
     emit_scope_drops(scope, true)
-    var function_information_return_type = function_information.get_return_type()
+    var function_information_return_type = function_information.return_type
     if type_shape.is_void(function_information_return_type) {
         builder.add_user("return;")
     } else {
@@ -32815,7 +32804,7 @@ func generate_return_statement(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ) {
-    var return_type = function_information.get_return_type()
+    var return_type = function_information.return_type
     if type_shape.is_void(return_type) {
         if return_statement.value and not has_error {
             report(
@@ -33131,7 +33120,7 @@ func named_signature(information: Analysis.ClassInfo, function: Analysis.Functio
         parts.append("{c_type_name(parameter_type)} {c_value_name(parameter.name)}")
         index = index + 1
     }
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     var file = function.source_path
     if file.is_empty() {
         file = information.source_path
@@ -33718,7 +33707,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     leaving_statements = outer_leaving
     if not ended_in_return {
         emit_scope_drops(scope, true)
-        var function_return_type = function.get_return_type()
+        var function_return_type = function.return_type
         if not type_shape.is_void(function_return_type) {
             builder.add_user("return {default_value_for_type(function_return_type)};")
         }
@@ -33737,7 +33726,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
 }
 
 func returned_class_name(function: Analysis.FunctionInfo): String {
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     var returned_reference = type_shape.as_class_ref(function_return_type)
     if not returned_reference {
         return ""
@@ -33759,9 +33748,8 @@ func parameter_scope(function: Analysis.FunctionInfo): Scope {
     arguments_parameter_names.clear()
     lent_parameter_names = function.lent_parameters
     lent_parameter_caller = ""
-    var caller = lent_callers.get(function.c_name)
-    if caller {
-        lent_parameter_caller = caller
+    if lent_callers[function.c_name] {
+        lent_parameter_caller = lent_callers[function.c_name]
     }
     var parameter_index = 0
     while parameter_index < function.parameters.count() {
@@ -34977,9 +34965,8 @@ func report_joined_parallel(
     var index = 0
     while index < reached_keys.count() {
         var key = reached_keys[index]
-        var owner = locked_keys.get(key)
-        if owner {
-            if owner == information.simple_name {
+        if locked_keys[key] {
+            if locked_keys[key] == information.simple_name {
                 report_locked_wait(declared, information, function, site, key)
                 return
             }
@@ -35170,7 +35157,7 @@ func statement_endless_loop_line(statement: Syntax.Statements.Statement): Intege
 }
 
 func report_falling_end(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
-    var return_type = function.get_return_type()
+    var return_type = function.return_type
     assert not type_shape.is_void(return_type)
     var path = falling_path(function.body)
     assert path
@@ -35826,7 +35813,7 @@ func holds_read_only(field_type: Analysis.SpiteType, visiting: List<String>): Bo
     var held_type = field_type
     var nullable = type_shape.as_nullable(field_type)
     if nullable {
-        held_type = nullable.get_inner()
+        held_type = nullable.inner
     }
     var class_ref = type_shape.as_class_ref(held_type)
     if not class_ref {
@@ -35894,7 +35881,7 @@ func stays_with_singleton(target_class: Analysis.ClassInfo, field: Analysis.Fiel
     var held_type = field_type
     var nullable = type_shape.as_nullable(field_type)
     if nullable {
-        held_type = nullable.get_inner()
+        held_type = nullable.inner
     }
     var held_class = type_shape.as_class_ref(held_type)
     var collection = false
@@ -35979,7 +35966,7 @@ func emit_guard_wrapper(information: Analysis.ClassInfo, function: Analysis.Func
     }
     var called = "{unguarded_name}({arguments.join(", ")})"
     var guard = "&{information.c_name}___guard"
-    var return_type = function.get_return_type()
+    var return_type = function.return_type
     var lines = List<String>()
     lines.append("{function_signature(information, function)} \{")
     append_unshared_path(lines, called, guard, return_type)
@@ -36110,7 +36097,7 @@ func offloaded_call_lines(
     waited: String,
 ): String {
     var call_type = "{function.c_name}___call"
-    var return_type = function.get_return_type()
+    var return_type = function.return_type
     var returns = not type_shape.is_void(return_type)
     var fields = List<String>()
     fields.append("SpiteOffload offload;")
@@ -37090,7 +37077,7 @@ func add_hot_slot(information: Analysis.ClassInfo, function: Analysis.FunctionIn
         index = index + 1
     }
     var returned = "return "
-    var function_return_type = function.get_return_type()
+    var function_return_type = function.return_type
     if type_shape.is_void(function_return_type) {
         returned = ""
     }
@@ -37646,10 +37633,10 @@ func shift_wait_marks(position: Integer) {
     while index < wait_mark_positions.count() {
         if wait_mark_positions[index] >= position {
             var shifted = wait_mark_positions[index] + 1
-            wait_mark_positions.set_at(index, shifted)
+            wait_mark_positions[index] = shifted
             crash wait_mark_ends[index]
             var shifted_end = wait_mark_ends[index] + 1
-            wait_mark_ends.set_at(index, shifted_end)
+            wait_mark_ends[index] = shifted_end
         }
         index = index + 1
     }
@@ -37690,7 +37677,7 @@ func mentions_name(text: String, name: String): Boolean {
 
 func ensure_machine(callee: String): Boolean {
     if machine_names.has(callee) {
-        return machine_names.get(callee) == true
+        return machine_names[callee] == true
     }
     var queued = queue_machine(callee)
     machine_names.set(callee, queued)
@@ -37825,7 +37812,7 @@ func emit_resumable_function(information: Analysis.ClassInfo, function: Analysis
     collect_body_facts(function.body)
     var ended_in_return = generate_statement_list(function.body, scope, information, function)
     terminal_if = null
-    var return_type = function.get_return_type()
+    var return_type = function.return_type
     var returns_value = not type_shape.is_void(return_type)
     if not ended_in_return {
         emit_scope_drops(scope, true)
@@ -37949,7 +37936,7 @@ func emit_primitive_machine(information: Analysis.ClassInfo, function: Analysis.
     var parts = machine_parts(information, function, machine)
     var name = function.c_name
     var fields = List<String>()
-    var return_type = function.get_return_type()
+    var return_type = function.return_type
     if not type_shape.is_void(return_type) {
         fields.append("{c_type_name(return_type)} spite_result;")
     }
@@ -38029,7 +38016,7 @@ func offload_steps(scheduler_class: Analysis.ClassInfo, function: Analysis.Funct
     lines.append("spite_frame->spite_head.state = 1;")
     lines.append("}")
     lines.append("bool spite_over = {offload_over.c_name}(spite_scheduler, {call}, spite_frame->spite_thread);")
-    var return_type = function.get_return_type()
+    var return_type = function.return_type
     if not type_shape.is_void(return_type) {
         lines.append("if (spite_over) spite_frame->spite_result = spite_frame->spite_call.result;")
     }
@@ -38756,10 +38743,9 @@ func analysis_snapshot(): Dictionary<String> {
     var index = 0
     while index < call_effects.function_keys.count() {
         var key = call_effects.function_keys[index]
-        var effects = call_effects.by_function.get(key)
-        crash effects
-        snapshot["effects {key}"] = digest.distinct_digest(effects.keys)
-        note_outside_writes(key, effects, outside)
+        crash call_effects.by_function[key]
+        snapshot["effects {key}"] = digest.distinct_digest(call_effects.by_function[key].keys)
+        note_outside_writes(key, call_effects.by_function[key], outside)
         index = index + 1
     }
     var written_classes = outside.keys()
@@ -38767,25 +38753,25 @@ func analysis_snapshot(): Dictionary<String> {
     while index < written_classes.count() {
         var written = written_classes[index]
         crash outside[written]
-        snapshot["outside {written}"] = digest.set_digest(outside[written])
+        snapshot["outside {written}"] = digest.deduplicated_digest(outside[written])
         index = index + 1
     }
     var reached_classes = call_effects.thread_reached_classes()
     var reached_class_names = reached_classes.keys()
-    snapshot["reach classes"] = digest.set_digest(reached_class_names)
+    snapshot["reach classes"] = digest.deduplicated_digest(reached_class_names)
     var reached_functions = call_effects.thread_reached_functions()
     var reached_function_names = reached_functions.keys()
-    snapshot["reach functions"] = digest.set_digest(reached_function_names)
+    snapshot["reach functions"] = digest.deduplicated_digest(reached_function_names)
     snapshot["table fields"] = digest.pairs_digest(call_effects.field_classes)
     snapshot["table elements"] = digest.pairs_digest(call_effects.element_classes)
     snapshot["table returns"] = digest.pairs_digest(call_effects.return_classes)
     snapshot["table types"] = digest.pairs_digest(call_effects.type_field_classes)
     var plain_names = call_effects.plain_fields.keys()
-    snapshot["table plain"] = digest.set_digest(plain_names)
+    snapshot["table plain"] = digest.deduplicated_digest(plain_names)
     var counted_names = call_effects.counted_field_names.keys()
-    snapshot["table counted"] = digest.set_digest(counted_names)
+    snapshot["table counted"] = digest.deduplicated_digest(counted_names)
     var shared_names = call_effects.shared_defaults.keys()
-    snapshot["table shared"] = digest.set_digest(shared_names)
+    snapshot["table shared"] = digest.deduplicated_digest(shared_names)
     if not instance_lists_studied {
         instance_lists_studied = true
         classes.each(study_instance_lists)
@@ -38794,17 +38780,17 @@ func analysis_snapshot(): Dictionary<String> {
     if every_class_listed {
         listed.append("*")
     }
-    snapshot["instances"] = digest.set_digest(listed)
+    snapshot["instances"] = digest.deduplicated_digest(listed)
     settle_wait_facts()
     var waiting_names_now = wait_facts.waits.keys()
-    snapshot["waits"] = digest.set_digest(waiting_names_now)
+    snapshot["waits"] = digest.deduplicated_digest(waiting_names_now)
     add_interface_snapshot(snapshot, digest)
     index = 0
     while index < unions.count() {
         var information = unions[index]
         if information.is_shape {
             var member_names = information.members.map_c_name()
-            snapshot["members {information.c_name}"] = digest.set_digest(member_names)
+            snapshot["members {information.c_name}"] = digest.deduplicated_digest(member_names)
         }
         index = index + 1
     }
@@ -38846,7 +38832,7 @@ func add_interface_snapshot(snapshot: Dictionary<String>, digest: ProgramFacts) 
                 var shown = "{lent}|{function.lent_sources}|{held}|{function.lent_element}|{function.result_slot}"
                 if shown != "||||false" {
                     var parts = [shown]
-                    snapshot["interface {function.c_name}"] = digest.set_digest(parts)
+                    snapshot["interface {function.c_name}"] = digest.deduplicated_digest(parts)
                 }
                 function_index = function_index + 1
             }
@@ -39027,7 +39013,7 @@ func prompt_signature(function: Analysis.FunctionInfo): String {
         parameters.append("{parameter.name}: {type_display_name(parameter_type)}")
         index = index + 1
     }
-    var return_type = function.get_return_type()
+    var return_type = function.return_type
     var returned = "Nothing"
     if not type_shape.is_void(return_type) {
         returned = type_display_name(return_type)
