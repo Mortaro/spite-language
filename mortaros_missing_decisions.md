@@ -14,7 +14,7 @@ Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection re
 answered by D314.
 
 Third pass, after D318-D325: 229 answered by D318 (on the reflection branch), 230 by D319, 227's JSON part by
-D320, 231 by D321, 232 by D322. Rewritten: 227 (the reload's rename only), 89 (D323), 238 (D324), 36 (D319).
+D320, 231 by D321, 232 by D322, 89 by D326. Rewritten: 227 (the reload's rename only), 238 (D324), 36 (D319).
 
 ## Blocking now
 
@@ -116,10 +116,6 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
 
 ## Taste (names, syntax, how it reads)
 
-89. **`.package_folder`** (relative to the load's root): D323 gives `Spite.Class.source_files` and
-    `Spite.Namespace.source_directories`, replacing `source_folder`. Does `package_folder` stay, as
-    `Spite.Namespace.package_directories`, or go, a relative path being a question for a `Directory`? Recommend
-    it goes. Blocks: registering every class in a folder (proposal section 7).
 36. **Telling a number class apart**: a walk tests for a number with ten comparisons because a union cannot hold
     number classes (D319's generated JSON no longer needs it; other walks do). Options: (a) a get-only
     `.is_number` beside `.is_list`/`.is_enum` (D317); (b) unions of number classes. Recommend (a).
