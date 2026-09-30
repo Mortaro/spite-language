@@ -163,6 +163,9 @@ var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
 var singleton_names = List<String>()
 var singleton_classes = List<Analysis.ClassInfo>()
+var singleton_functions = List<String>()
+var singleton_displays = List<String>()
+var singleton_argument_slots = Dictionary<Integer>()
 var tracked_class_names = List<String>()
 var singleton_releases = List<String>()
 var class_object_displays = List<String>()
@@ -11050,7 +11053,18 @@ func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.Spi
 
 func singleton_call(target_class: Analysis.ClassInfo): String {
     var function_c_name = "spite_singleton_{target_class.c_name}"
-    if not singleton_names.contains(function_c_name) and is_stateless_singleton(target_class) {
+    var display_name = singleton_display_name(target_class)
+    return singleton_slot_call(target_class, function_c_name, display_name, "")
+}
+
+func singleton_slot_call(
+    target_class: Analysis.ClassInfo,
+    function_c_name: String,
+    display_name: String,
+    argument_code: String,
+): String {
+    var keyed = not argument_code.is_empty()
+    if not keyed and not singleton_names.contains(function_c_name) and is_stateless_singleton(target_class) {
         singleton_names.append(function_c_name)
         builder.add_prototype("{target_class.c_name}* {function_c_name}(void);")
         builder.add_support(
@@ -11060,6 +11074,8 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
     if not singleton_names.contains(function_c_name) {
         singleton_names.append(function_c_name)
         singleton_classes.append(target_class)
+        singleton_functions.append(function_c_name)
+        singleton_displays.append(display_name)
         builder.add_typedef("static {target_class.c_name}* {function_c_name}_cache = 0;")
         builder.add_prototype("{target_class.c_name}* {function_c_name}(void);")
         var lines = List<String>()
@@ -11074,7 +11090,6 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
         lines.append("}")
         lines.append("static int32_t {function_c_name}_lock = 0;")
         lines.append("{target_class.c_name}* {function_c_name}(void) \{")
-        var display_name = singleton_display_name(target_class)
         var shown_name = escape_c_string(display_name)
         lines.append("{target_class.c_name}* found = SPITE_SINGLETON_FOUND({function_c_name}_cache);")
         lines.append("if (found != 0) return found;")
@@ -11085,7 +11100,7 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
             "if ({function_c_name}_destroyed) spite_singleton_used_after_exit(\"{escape_c_string(target_class.qualified_dotted)}\");",
         )
         lines.append("spite_singleton_making(\"{shown_name}\");")
-        lines.append("{target_class.c_name}* made = {target_class.c_name}___make();")
+        lines.append("{target_class.c_name}* made = {target_class.c_name}___make({argument_code});")
         lines.append("spite_singleton_made();")
         lines.append("spite_singleton_created({function_c_name}_teardown);")
         lines.append("SPITE_SINGLETON_PUBLISH({function_c_name}_cache, made);")
@@ -11097,6 +11112,66 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
         builder.add_support(joined_lines)
     }
     return "{function_c_name}()"
+}
+
+func singleton_with_arguments(
+    target_class: Analysis.ClassInfo,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    expected_types: List<Analysis.SpiteType>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var printer = Syntax.SourcePrinter()
+    var texts = List<String>()
+    var index = 0
+    while index < arguments_ast.count() {
+        var argument = arguments_ast[index]
+        if not is_singleton_key_literal(argument) {
+            var argument_text = printer.source_expression(argument)
+            report(
+                "'{argument_text}' is not a literal: a singleton's arguments are literals the compiler reads, because each distinct argument list is its own instance of '{target_class.simple_name}', made the first time it is asked for",
+            )
+            return ""
+        }
+        var literal_text = printer.source_expression(argument)
+        texts.append(literal_text)
+        index = index + 1
+    }
+    var saved_counter = temporary_counter
+    var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
+    rewind_temporaries(saved_counter)
+    if argument_codes.count() != arguments_ast.count() {
+        return ""
+    }
+    var display_name = "{singleton_display_name(target_class)}({texts.join(", ")})"
+    var slot = singleton_argument_slots.get(display_name)
+    var slot_number = singleton_argument_slots.count()
+    if slot {
+        slot_number = slot
+    } else {
+        singleton_argument_slots[display_name] = slot_number
+    }
+    var function_c_name = "spite_singleton_{target_class.c_name}___with_{slot_number}"
+    var argument_code = argument_codes.join(", ")
+    var call_code = singleton_slot_call(target_class, function_c_name, display_name, argument_code)
+    return call_code
+}
+
+func is_singleton_key_literal(argument: Syntax.Expressions.Expression): Boolean {
+    var negated = shape.as_unary(argument)
+    if negated {
+        crash negated.operand
+        var negated_integer = shape.as_integer_literal(negated.operand)
+        var negated_float = shape.as_float_literal(negated.operand)
+        return negated.operator == 'negate' and (negated_integer or negated_float)
+    }
+    if shape.as_integer_literal(argument) or shape.as_float_literal(argument) {
+        return true
+    }
+    if shape.as_string_literal(argument) or shape.as_enum_literal(argument) {
+        return true
+    }
+    return shape.is_true_literal(argument) or shape.is_false_literal(argument)
 }
 
 func hands_function_to_task(
@@ -11149,12 +11224,21 @@ func generate_constructor_call(
         note_wait_edge(target_class.constructor.c_name)
     }
     if target_class.is_singleton {
-        if not expected_types.is_empty() or not arguments_ast.is_empty() {
-            report(
-                "'{target_class.simple_name}' is a singleton, so its constructor takes no arguments: there is one instance, made the first time it is asked for",
+        var singleton_code = ""
+        if expected_types.is_empty() and arguments_ast.is_empty() {
+            singleton_code = singleton_call(target_class)
+        } else {
+            singleton_code = singleton_with_arguments(
+                target_class,
+                arguments_ast,
+                expected_types,
+                scope,
+                class_information,
             )
+            if singleton_code.is_empty() {
+                return void_result()
+            }
         }
-        var singleton_code = singleton_call(target_class)
         var class_type = Analysis.Types.ClassRefType(target_class.c_name)
         var shared = ExpressionResult(singleton_code, class_type)
         shared.owning_override = true
@@ -18915,6 +18999,10 @@ func note_made_class(name: String, made: List<String>) {
     if name.starts_with("spite_singleton_") {
         var name_length = name.length()
         made_name = name.slice(16, name_length)
+        var keyed_at = made_name.index_of("___with_")
+        if keyed_at >= 0 {
+            made_name = made_name.slice(0, keyed_at)
+        }
     }
     var suffixes = ["___make_into", "___make", "___default", "___allocate"]
     var index = 0
@@ -18927,8 +19015,8 @@ func note_made_class(name: String, made: List<String>) {
         }
         index = index + 1
     }
-    assert not made_name.is_empty() and not made.contains(made_name)
-    if find_class_by_c_name(made_name) {
+    assert not made_name.is_empty()
+    if not made.contains(made_name) and find_class_by_c_name(made_name) {
         made.append(made_name)
     }
 }
@@ -38757,9 +38845,13 @@ func emit_loop_singletons() {
     var index = 0
     while index < singleton_classes.count() {
         var information = singleton_classes[index]
+        crash singleton_functions[index]
+        var function_c_name = singleton_functions[index]
+        crash singleton_displays[index]
+        var display_name = singleton_displays[index]
         var described = information.qualified_dotted == "Environment" or information.qualified_dotted == "Build"
         if not is_library_class(information) or described {
-            var listed = listed_singleton(information, list_name)
+            var listed = listed_singleton(information, function_c_name, display_name, list_name)
             lines.append(listed)
         }
         index = index + 1
@@ -38886,11 +38978,16 @@ func note_loop_table_slot(what: String) {
     note_support_slot(entry_class, what)
 }
 
-func listed_singleton(information: Analysis.ClassInfo, list_name: String): String {
+func listed_singleton(
+    information: Analysis.ClassInfo,
+    function_c_name: String,
+    display_name: String,
+    list_name: String,
+): String {
     var class_type = class_type_of(information)
     var reflect = ensure_reflect_function(class_type)
-    var cache = "spite_singleton_{information.c_name}_cache"
-    var peek = "spite_singleton_{information.c_name}_peek"
+    var cache = "{function_c_name}_cache"
+    var peek = "{function_c_name}_peek"
     if not singleton_names.contains(peek) {
         singleton_names.append(peek)
         builder.add_prototype("{information.c_name}* {peek}(void);")
@@ -38898,7 +38995,6 @@ func listed_singleton(information: Analysis.ClassInfo, list_name: String): Strin
             "{information.c_name}* {peek}(void) \{\nreturn __atomic_load_n(&{cache}, __ATOMIC_ACQUIRE);\n}",
         )
     }
-    var display_name = singleton_display_name(information)
     var named = ensure_symbol(display_name)
     var unmade = "Spite_Attribute___make({named}, {class_object_call(class_type)})"
     return "\{ {information.c_name}* made = {peek}(); {list_name}_append(result, made != 0 ? {reflect}({named}, made) : {unmade}); }"

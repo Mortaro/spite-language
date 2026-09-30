@@ -479,8 +479,9 @@ func is_alive(): Boolean {
   `Spite.Function<String, String>` bound to `shouter`, called as `change(text)`), `Monster.instances` (live instances), and
   `Spite.Class.instances` (every class of the program and the packages it loads, not the standard library's). `class`, bare inside a class's function, is the class
   of the instance it answers on, and a class name reads its own class object: `Monster.name` is `"Monster"`.
-- A class whose file starts with a `singleton` line has one instance: `Journal()` always returns it, and its
-  constructor takes no arguments. A singleton is bound as an attribute -- `var journal = Journal()` beside the
+- A class whose file starts with a `singleton` line has one instance: `Journal()` always returns it. A
+  singleton whose constructor takes arguments has one instance per literal argument list: `Channel(1)` is the same
+  object everywhere, `Channel(2)` a second one, and a non-literal argument is an error. A singleton is bound as an attribute -- `var journal = Journal()` beside the
   others -- and used through the name: `Journal().record(entry)`, `Build().program`, `keep(Console())` and
   `return Console()` are errors (`'Console' is a singleton: bind it once beside the attributes`), and so are a
   binding nothing reads, even in a loaded package, and a binding inside a function (`'Build' is a singleton, bound
