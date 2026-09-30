@@ -15584,7 +15584,7 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
         lines.append("reflected->spite_release_held = (void (*)(void*)){walked.c_name}___release;")
         lines.append("reflected->spite_held_attributes = (void* (*)(void*)){ensure_attributes_function(walked)};")
         lines.append("reflected->spite_held_functions = (void* (*)(void*)){ensure_functions_function(walked)};")
-        lines.append("reflected->spite_held_bytes = (int64_t)sizeof({walked.c_name});")
+        lines.append("reflected->spite_held_bytes = {ensure_byte_count_function(walked)}();")
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
@@ -37482,4 +37482,26 @@ func parameter_class_type(owner: Analysis.SpiteType, segment: String): Analysis.
         "'argument_class(\"{function_name}\", {asked_index})' names the class of a parameter of '{owner_class.simple_name}.{function_name}', and '{owner_class.simple_name}' has no function '{function_name}'",
     )
     return null
+}
+
+func ensure_byte_count_function(information: Analysis.ClassInfo): String {
+    var name = "{information.c_name}___byte_count"
+    if reflect_function_names.contains(name) {
+        return name
+    }
+    reflect_function_names.append(name)
+    builder.add_prototype("int64_t {name}(void);")
+    var body = "return (int64_t)sizeof({information.c_name});"
+    if not is_hot_class(information) {
+        builder.add_support("int64_t {name}(void) \{\n{body}\n}")
+        return name
+    }
+    builder.add_prototype("int64_t {name}___hot(void);")
+    builder.add_slot(name, "static int64_t (*{name}___slot)(void) = {name}___hot;")
+    builder.add_support("int64_t {name}(void) \{\nreturn {name}___slot();\n}")
+    builder.add_support("int64_t {name}___hot(void) \{\n{body}\n}")
+    hot_slot_names.append(name)
+    hot_slot_owners.append(information.c_name)
+    hot_slot_displays.append("{information.qualified_dotted}'s size")
+    return name
 }
