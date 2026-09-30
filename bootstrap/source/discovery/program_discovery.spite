@@ -400,13 +400,12 @@ func load_root(entry_path: String, entry_directory: String, root_name: String, l
     var from_repository = loads_from_repositories.is_git_load(root_name)
     var root_folder = "{entry_directory}/{root_name}"
     if from_repository {
-        var loading_library = library_of_file.get(entry_path)
-        crash loading_library
+        crash library_of_file[entry_path]
         var fetched = loads_from_repositories.folder_of(
             root_name,
             entry_directory,
             "{entry_path}:{line}",
-            loading_library,
+            library_of_file[entry_path],
         )
         if not fetched {
             has_error = true
@@ -443,9 +442,8 @@ func load_root(entry_path: String, entry_directory: String, root_name: String, l
     var empty_segments = List<String>()
     var no_skip: String? = null
     var no_exclusions = List<String>()
-    var loaded_by = library_of_file.get(entry_path)
-    crash loaded_by
-    current_library = loaded_by
+    crash library_of_file[entry_path]
+    current_library = library_of_file[entry_path]
     current_checkout = ""
     current_version = ""
     var checkout = loads_from_repositories.checkout_holding(root_folder)
@@ -936,7 +934,7 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
             error_message = "{parsed_file.path}: error: '{qualified_dotted}' is the program's entry class ({entry_file_path}), so no other file may be a class of that name: rename this file, or the program's folder and its entry file"
             return
         }
-        var class_file_file = existing.get_file()
+        var class_file_file = existing.file
         if qualified_dotted == "Build" and walking_program {
             note_program_build_fields(parsed_file)
         }
@@ -1172,7 +1170,7 @@ func spelling_check(declared: List<String>, first_reading: Syntax.Statements.Sta
 func class_file_named(qualified_name: String): Syntax.SourceFile? {
     var found = class_files.find_by_qualified_dotted(qualified_name)
     assert found
-    return found.get_file()
+    return found.file
 }
 
 func environment_constructor(environment: Syntax.SourceFile): Syntax.Statements.FunctionDeclaration {
@@ -1735,17 +1733,16 @@ func version_of(path: String, qualified: String): String {
     if walking_library or not earlier {
         return ""
     }
-    var defining = earlier.defined_by.get(qualified)
+    var defining = earlier.defined_by[qualified]
     if not defining {
         return ""
     }
-    var library = library_of_file.get(path)
-    crash library
+    crash library_of_file[path]
     var index = 0
     while index < defining.count() {
         var identity = defining[index]
         if earlier.versioned.contains(identity) {
-            var pinned = earlier.pinned_by(library, identity)
+            var pinned = earlier.pinned_by(library_of_file[path], identity)
             if pinned {
                 return earlier.prefix_of(identity, pinned)
             }
@@ -1777,13 +1774,12 @@ func note_pinned_versions() {
     var index = 0
     while index < class_files.count() and not has_error {
         var discovered = class_files[index]
-        var file = discovered.get_file()
-        var library = library_of_file.get(file.path)
-        if library {
+        var file = discovered.file
+        if library_of_file[file.path] {
             var pinned_index = 0
             while pinned_index < earlier.versioned.count() {
                 var identity = earlier.versioned[pinned_index]
-                var pinned = earlier.pinned_by(library, identity)
+                var pinned = earlier.pinned_by(library_of_file[file.path], identity)
                 if pinned {
                     var prefix = earlier.prefix_of(identity, pinned)
                     discovered.pinned_versions.append(prefix)

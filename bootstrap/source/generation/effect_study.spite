@@ -114,7 +114,7 @@ func returned_class(value: Syntax.Expressions.Expression): String {
     crash member.object
     var receiver_class = owner_class(member.object)
     crash table
-    var found = table.return_classes.get("{receiver_class}#{member.name}")
+    var found = table.return_classes["{receiver_class}#{member.name}"]
     if not found {
         return ""
     }
@@ -338,9 +338,8 @@ func keep_parameters(declared: List<Syntax.Statements.Parameter>, body: List<Syn
 func owner_class(expression: Syntax.Expressions.Expression): String {
     var identifier = shape.as_identifier(expression)
     if identifier {
-        var local_class = local_classes.get(identifier.name)
-        if local_class {
-            return known_or_any(local_class)
+        if local_classes[identifier.name] {
+            return known_or_any(local_classes[identifier.name])
         }
         if local_sources.has(identifier.name) {
             return "*"
@@ -382,9 +381,8 @@ func owner_class(expression: Syntax.Expressions.Expression): String {
 func element_owner(listed: Syntax.Expressions.Expression): String {
     var identifier = shape.as_identifier(listed)
     if identifier {
-        var local_element = local_elements.get(identifier.name)
-        if local_element {
-            return known_or_any(local_element)
+        if local_elements[identifier.name] {
+            return known_or_any(local_elements[identifier.name])
         }
         if parameters.contains(identifier.name) or local_sources.has(identifier.name) {
             return "*"
@@ -404,7 +402,7 @@ func element_owner(listed: Syntax.Expressions.Expression): String {
 
 func element_class(owner: String, field: String): String {
     crash table
-    var found = table.element_classes.get("{owner}#{field}")
+    var found = table.element_classes["{owner}#{field}"]
     if found {
         return known_or_any(found)
     }
@@ -441,7 +439,7 @@ func call_owner(called: Syntax.Expressions.CallExpression): String {
 
 func returned_owner(owner: String, name: String): String {
     crash table
-    var found = table.return_classes.get("{owner}#{name}")
+    var found = table.return_classes["{owner}#{name}"]
     if found {
         return known_or_any(found)
     }
@@ -450,7 +448,7 @@ func returned_owner(owner: String, name: String): String {
 
 func field_class(owner: String, field: String): String {
     crash table
-    var found = table.field_classes.get("{owner}#{field}")
+    var found = table.field_classes["{owner}#{field}"]
     if found {
         return known_or_any(found)
     }
@@ -462,12 +460,12 @@ func type_attribute_class(object: Syntax.Expressions.Expression, name: String): 
     if not identifier {
         return "*"
     }
-    var type_name = local_types.get(identifier.name)
+    var type_name = local_types[identifier.name]
     if not type_name {
         return "*"
     }
     crash table
-    var found = table.type_field_classes.get("{type_name}#{name}")
+    var found = table.type_field_classes["{type_name}#{name}"]
     if not found {
         return "*"
     }
@@ -494,9 +492,8 @@ func classify(expression: Syntax.Expressions.Expression): String {
         if position >= 0 {
             return "parameter:{position}"
         }
-        var source = local_sources.get(identifier.name)
-        if source {
-            return source
+        if local_sources[identifier.name] {
+            return local_sources[identifier.name]
         }
         return "shrink:{class_name}#{identifier.name}"
     }

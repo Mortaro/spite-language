@@ -143,7 +143,7 @@ func returns_only_fresh(
     assert not function.result_slot and not owner.is_value_class and not owner.is_generic_template
     assert not owner.is_singleton and not owner.is_stateless_singleton and not generator.is_hot_class(owner)
     assert not generator.asks_function_waits(function.body)
-    var returned_type = function.get_return_type()
+    var returned_type = function.return_type
     var returned_reference = type_shape.as_class_ref(returned_type)
     assert returned_reference
     var returned = generator.find_class_by_c_name(returned_reference.c_name)

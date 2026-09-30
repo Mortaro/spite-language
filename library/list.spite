@@ -371,7 +371,7 @@ func sort_by_member(member: Symbol<$element_type>): List<$element_type> {
                 }
                 crash order[taken]
                 var position = order[taken]
-                merged.set_at(placed, position)
+                merged[placed] = position
                 placed = placed + 1
             }
             start = end

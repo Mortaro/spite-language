@@ -11,7 +11,7 @@ var used_slots = 0
 func set(key: $key_type, value: $value_type) {
     var existing = index_of_key(key)
     if existing >= 0 {
-        entry_values.set_at(existing, value)
+        entry_values[existing] = value
     } else {
         make_room()
         var position = entry_keys.count()
