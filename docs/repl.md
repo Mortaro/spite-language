@@ -549,7 +549,7 @@ the entry class's own Spite name). Built:
   the program's own classes that are not singletons. The standard library's generic singletons (`TypedMemory<T>`,
   `InlineMemory<T>`) are left out. Any other build writes them as an empty list and empty text, and nothing calls
   them, so they are shaken out with the rest of the loop: a normal build carries none of it (D143, D177).
-- **`bytes`: native memory** (D289, decided by Claude under D205, implementing D281 and D282; the command's name
+- **`bytes`: native memory** (D291, decided by Claude under D205, implementing D281 and D282; the command's name
   provisional under D214).  **[implemented]** `bytes <path>` answers one JSON object: for a value the path holds
   an object of (an instance, a list, a dictionary, a singleton), `class`, `address` (hexadecimal text), `bytes`
   (the object's size), `hex` (its bytes, at most 4096 shown) or `"unreadable":true`, then for an instance `fields`,
