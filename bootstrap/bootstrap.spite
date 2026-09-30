@@ -25,6 +25,7 @@ var reload_rebuilt = List<String>()
 var reload_generator: Generation.Generator? = null
 var reload_baseline = ""
 var reload_host_text = ""
+var reload_renames_text = ""
 var breakpoint_sites = List<String>()
 var prompt_code = ""
 var breakpoint_requests = List<String>()
@@ -462,6 +463,9 @@ func configure(generator: Generation.Generator) {
     generator.remote_loop_port = port
     generator.development = is_on("development") or is_on("hot_reload")
     generator.hot_reload = is_on("hot_reload")
+    if reloading {
+        generator.read_reload_renames(reload_renames_text)
+    }
     generator.debug_memory = is_on("debug_memory")
     generator.trace_asserts = is_on("trace_asserts")
     generator.bare_crash_sites = is_on("optimized")
@@ -1049,6 +1053,10 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
     var host_text = File("{base}.reload_host").read()
     var state_text = File("{base}.reload_files").read()
     var baseline_text = File("{base}.reload_baseline").read()
+    var renames_text = File("{base}.reload_renames").read()
+    if renames_text {
+        reload_renames_text = renames_text
+    }
     if host_text and baseline_text {
         if not baseline_text.is_empty() {
             host_text = baseline_text
@@ -1270,12 +1278,16 @@ func compile_reload(
         }
         changed_index = changed_index + 1
     }
-    if not fixed.is_empty() {
-        return "error: '{fixed.join("', '")}' changed, and a reload swaps only the functions of the program's own classes, which it holds none of (it reopens a class of the standard library, or sets how the program is built): restart the program to change it, or undo that change to reload the rest"
+    if not fixed.is_empty() and partial {
+        return "whole '{fixed.join("', '")}' changed, which declares none of the program's own classes"
     }
     var layout_problem = reload.layout_problem(generator.builder.typedefs, generator.migrating_classes)
     if not layout_problem.is_empty() {
         return "error: {layout_problem}"
+    }
+    var unused_renames = generator.unused_renames()
+    if not unused_renames.is_empty() {
+        return "error: the reload map names {unused_renames.join(", ")}, but the reload moves no object of that class to a new attribute of that name: name an attribute that is gone and one that is new"
     }
     var rebuilt = List<String>()
     var code = generator.reload_library(reload, changed_files, rebuilt, partial)
@@ -1381,6 +1393,15 @@ func changed_paths(discovery: Discovery.DiscoveryResult, reload: Generation.HotR
             if reload.is_changed(path, hash) {
                 changed.append(path)
             }
+        }
+        index = index + 1
+    }
+    var running_paths = reload.running_hashes.keys()
+    index = 0
+    while index < running_paths.count() {
+        var running_path = running_paths[index]
+        if not paths.contains(running_path) {
+            changed.append(running_path)
         }
         index = index + 1
     }
