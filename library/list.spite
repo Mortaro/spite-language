@@ -46,30 +46,27 @@ func get_at(index: Integer): $element_type? {
 }
 
 func set_at(index: Integer, value: $element_type) {
-    if index >= 0 and index < item_count {
-        values.release_value(items, index)
-        values.write_value(items, index, value)
-    }
+    crash index >= 0 and index < item_count
+    values.release_value(items, index)
+    values.write_value(items, index, value)
 }
 
 func remove_at(index: Integer) {
-    if index >= 0 and index < item_count {
-        values.release_value(items, index)
-        move_items(index + 1, index, item_count - index - 1)
-        item_count = item_count - 1
-    }
+    crash index >= 0 and index < item_count
+    values.release_value(items, index)
+    move_items(index + 1, index, item_count - index - 1)
+    item_count = item_count - 1
 }
 
 func remove_swapping(index: Integer) {
-    if index >= 0 and index < item_count {
-        values.release_value(items, index)
-        var final_index = item_count - 1
-        if index != final_index {
-            var bytes = values.value_bytes()
-            (items + bytes * final_index).copy_to(items + bytes * index, bytes)
-        }
-        item_count = final_index
+    crash index >= 0 and index < item_count
+    values.release_value(items, index)
+    var final_index = item_count - 1
+    if index != final_index {
+        var bytes = values.value_bytes()
+        (items + bytes * final_index).copy_to(items + bytes * index, bytes)
     }
+    item_count = final_index
 }
 
 func remove_last(): $element_type? {

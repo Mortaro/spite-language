@@ -1055,9 +1055,9 @@ word needs a reason, and a place where the compiler lets one through is a bug to
 a word unless the program runs with `--debug-memory`, which prints the allocation balance
 ([memory.md](memory.md#cycles-leak)); signed arithmetic wraps in production builds and unsigned arithmetic
 wraps in every build (D249); a `Concurrent` polled for `finished` under `resume_only_when_asked()` without
-`run_ready()` never ends ([concurrency.md](concurrency.md#choosing-where-concurrents-resume)); a `List`'s
-`set_at`, `remove_at` and `remove_swapping` do nothing out of range ([collections.md](collections.md#listt-additions--implemented));
-and a Windows `__fastfail` (`0xC0000409`), or a corrupted heap on
+`run_ready()` never ends ([concurrency.md](concurrency.md#choosing-where-concurrents-resume)); a `Vector`'s and an
+`Items`' `remove_at` (and `Items.remove_swapping`) do nothing out of range, where a `List`'s now halt
+([collections.md](collections.md)); and a Windows `__fastfail` (`0xC0000409`), or a corrupted heap on
 Linux and macOS (the C library's own message and `SIGABRT`), ends the program without Spite's report or frames
 ([what a native fault reports](#what-a-native-fault-reports-1)).
 Also open: a write to the attributes of a copy that nothing reads afterwards is lost without a word -- a function
