@@ -647,7 +647,11 @@ from outside. Which reads and writes are intercepted is decided while compiling:
 call of the getter or setter, and every other one a plain field access.
 
 **A getter with no setter makes a read-only attribute**: a read of `.name` that finds no attribute but finds
-`get_name()` reads through it, and a write finds no `set_name()` and is an error, "'number' is read-only: 'Badge'
+`get_name()` reads through it, and a write finds no `set_name()` and is an error. **A setter answers a write
+with no attribute of its name** (proposed by Claude, unconfirmed; SlopTheseus alert A101): `ticket.id = 4` calls
+the class's own `set_id(value)` beside a private `_id`, as `get_id()` answers the read -- only a function the class
+declares, never one Symbol codegen would write for an attribute that does not exist (`tests/interception_tests`). The
+read-only error is "'number' is read-only: 'Badge'
 answers it through get_number() and has no set_number(value)" (`diagnostics/read_only_attribute`,
 `tests/interception_tests`). Reflection's own members are kept read-only
 this way ([Reflection is read-only](reflection.md#reflection-is-read-only)).

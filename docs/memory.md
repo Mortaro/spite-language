@@ -1412,7 +1412,8 @@ kept past its use. What is built (the error texts and the readings marked are pr
   with `attribute: Symbol<$row_type>`) is a row when the walk writes out to one: the template's body is the
   statement `row.attributes[attribute] = <value>`, after any number of `crash` lines and `var` lines naming a
   value (`var stored_row = rows[attribute.index]`, each written out where its name is read, so D285's hoisted
-  `values[stored_row]` walks exactly as `values[rows[attribute.index]]` does), the value built from `<object>.attributes[attribute]` (read as
+  `values[stored_row]` walks exactly as `values[rows[attribute.index]]` does) or naming an object the template
+  goes on to change (below), the value built from `<object>.attributes[attribute]` (read as
   `<object>.<the attribute's name>`), member reads, `[ ]`, the template's other parameters and whole numbers, and
   the call's arguments are the row and names, attribute paths (`matcher.rows`, D221) or number or `Boolean`
   literals. The compiler then writes, in place of the two lines, each attribute's `crash` lines walked as the
@@ -1462,6 +1463,15 @@ kept past its use. What is built (the error texts and the readings marked are pr
     of a walk that would borrow is `'row' is a row filled by the walk on the next line, and its line for
     'position' reads 'attribute.index + 1', which a walked row cannot write out: ... so work out 'attribute.index
     + 1' before the walk and pass it in`.
+  - **A local the template changes** (proposed by Claude, unconfirmed; SlopTheseus alert A100). A `var` that later
+    lines of the branch change -- assigning into it (`own.id = entity`, through `set_id` when the class has one) or
+    calling one of its functions (`own.raise(1)`) -- is made as a local before the row, those lines run where they
+    stand among the `crash` lines, and the row's attribute is that local. When the `var` is a construction the row
+    could make in the frame (see *Mixed attributes*), the row's attribute is the local itself, and neither those lines
+    nor the functions they call (nor, in turn, the functions of its class those call) use `this` as a value, it is
+    made in the frame and allocates nothing; otherwise it is an ordinary counted object. Before this, any such line
+    made the whole walk ordinary calls, so a sibling branch storing a borrowed item was refused. Lines that change
+    anything else still make the walk ordinary calls. `conformance/stage6/walked_row_locals`.
   - **A choice per attribute.** The template's statement may be an `if` whose conditions are decided while
     compiling for each attribute -- `attribute.class == Entity`, `attribute.class.fits_vector()`,
     `attribute.class.has_function(...)` -- each branch holding one such line and its `crash` and `var` lines; the branch
