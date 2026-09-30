@@ -231,8 +231,9 @@ never called.
 An engine that adds and removes components all the time keeps each one in a **sparse set**: a generic singleton
 `Column<Position>` whose `Vector` is packed, so each entity sits at a different place in each column. The runner
 works out those places first, one per attribute, and the walk's line reads each attribute from its own column at
-its own place: `Column<attribute.class>().values[found[attribute.index]]`, where `attribute.index` is the
-attribute's place in the `type` ([D217](decisions.md)), after one `crash` line for the place and one for the item.
+its own place: `Column<attribute.class>().values[stored_row]`, after `var stored_row = found[attribute.index]`,
+where `attribute.index` is the attribute's place in the `type` ([D217](decisions.md)), with one `crash` line for the
+place and one for the item (an index never holds another `[]` read, D285).
 A generic singleton made with no arguments is the same object every time, so `Column<Position>()` starts a path
 that `crash` narrows like a name. The places are numbers in a `List`, so they may come from any `List<Integer>`
 -- the runner's own, or another object's, `fill_attributes(row, matcher.rows)` ([D221](decisions.md)). A class that cannot be a `Vector` item stays a reference
@@ -359,8 +360,9 @@ func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Int
         row.attributes[attribute] = Entity(entity)
     } else if attribute.class.fits_vector() {
         crash rows[attribute.index]
-        crash Column<attribute.class>().values[rows[attribute.index]]
-        row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+        var stored_row = rows[attribute.index]
+        crash Column<attribute.class>().values[stored_row]
+        row.attributes[attribute] = Column<attribute.class>().values[stored_row]
     } else {
         crash rows[attribute.index]
         row.attributes[attribute] = ReferenceColumn<attribute.class>().at(rows[attribute.index])
@@ -419,8 +421,9 @@ func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Int
         row.attributes[attribute] = Entity(entity)
     } else {
         crash rows[attribute.index]
-        crash Column<attribute.class>().values[rows[attribute.index]]
-        row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+        var stored_row = rows[attribute.index]
+        crash Column<attribute.class>().values[stored_row]
+        row.attributes[attribute] = Column<attribute.class>().values[stored_row]
     }
 }
 ```
@@ -436,7 +439,8 @@ A system may take its components as arguments instead of a row, `update_each(pos
 Velocity)`, and a generic runner fills them with a template over the function's arguments whose plural is the
 call's whole argument list ([metaprogramming.md](metaprogramming.md#asking-for-a-function-and-walking-its-arguments)).
 The template's line is the walked row's line, read per argument: `argument.index` is the argument's place, so
-`Column<argument.class>().values[rows[argument.index]]` is that component's item. The plural stands for exactly
+`Column<argument.class>().values[stored_row]`, after `var stored_row = rows[argument.index]`, is that component's
+item. The plural stands for exactly
 one call the compiler writes, so its results may be borrowed items for that call and no longer
 ([D220](decisions.md)):
 
@@ -485,8 +489,9 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
 
 func made_argument(argument: Symbol<$system_type.phase_each>, rows: List<Integer>): argument.class {
     crash rows[argument.index]
-    crash Column<argument.class>().values[rows[argument.index]]
-    return Column<argument.class>().values[rows[argument.index]]
+    var stored_row = rows[argument.index]
+    crash Column<argument.class>().values[stored_row]
+    return Column<argument.class>().values[stored_row]
 }
 ```
 ```gdscript title=lent_arguments_doc/lent_arguments_doc.spite entry
@@ -1420,8 +1425,8 @@ kept past its use. What is built (the error texts and the readings marked are pr
   **A walked read is narrowed by the template's `crash` lines** (proposed by Claude, unconfirmed, under D225:
   every `[]` answers `T?`, and a row's attribute is an item, never a `T?`). The walk cannot prove its index -- the
   places come from a list the runner filled, and nothing the compiler knows ties them to the columns' counts -- so
-  the template states each read it relies on, innermost first (`crash rows[attribute.index]`, then `crash
-  Column<attribute.class>().values[rows[attribute.index]]`); a read the lines do not narrow is the usual `this
+  the template states each read it relies on, innermost first (`crash rows[attribute.index]`, then `var
+  stored_row = rows[attribute.index]` and `crash Column<attribute.class>().values[stored_row]`); a read the lines do not narrow is the usual `this
   value may be null` error on the walk's line. The lines sit inside the branch they narrow, so a template that
   chooses per attribute keeps its shape (`if attribute.class.fits_vector() { crash ...; row.attributes[attribute] =
   Column<attribute.class>().values[...] } else { crash ...; row.attributes[attribute] =
@@ -1502,7 +1507,7 @@ kept past its use. What is built (the error texts and the readings marked are pr
   visits are borrowed, and every rule above applies to them, rows and walked rows included; `remove_swapping`
   counts as a removal wherever `remove_at` does, on the collection or through the call effects. An `Items<T>`
   whose `T` does not fit lends nothing: its items are counted references, and none of these rules apply to them.
-  In a walked row, `Column<attribute.class>().values[found[attribute.index]]` over an `Items` value is therefore a
+  In a walked row, `Column<attribute.class>().values[stored_row]` over an `Items` value is therefore a
   borrowed item for a class that fits and a counted value for one that does not, the D217 mix, decided per
   attribute while compiling. Every error about an `Items` item begins with the choice that made it borrowed:
   `'Velocity' fits a Vector, so the items of 'velocities' are borrowed: ...`. Nothing runs for any of it.
@@ -1517,7 +1522,8 @@ kept past its use. What is built (the error texts and the readings marked are pr
     (`<value>.attributes[...]` aside):
     attribute reads, `[ ]`, calls and constructions, the template's other parameters (read as the plural's
     arguments), `argument.index` and whole numbers, with `Column<argument.class>()` the singleton made with the
-    argument's class -- `return Column<argument.class>().values[rows[argument.index]]`. It is a local of the call;
+    argument's class -- `return Column<argument.class>().values[stored_row]` after `var stored_row =
+    rows[argument.index]` (a `var` naming a walked value is written out where its name is read). It is a local of the call;
     a borrowed item from a `Vector`, or from an `Items` whose class fits one, is a borrowed name, and the function
     is called through its `___lent_<positions>` copy, in which that parameter is a borrowed name for the call: it
     is not retained or released, and every rule above holds for it (it is not kept, returned, given a second name

@@ -1,0 +1,4 @@
+union Creature {
+    Monster
+    Ghost
+}

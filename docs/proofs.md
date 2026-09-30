@@ -220,23 +220,39 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 
 ### Proving what is proven is an error
 
-- **Status.** Partial. [D279](decisions.md) (Mortaro) makes it every fact the compiler holds: a narrowed
-  `T?` of any type, a proven read or divisor, a decided class test, a condition checked twice with nothing between
-  that could change it, and a folded condition -- each refused with where it was proven. Built today: the two below.
-- **Proves.** A check adds nothing, because the value is already narrowed or the read already proven.
-- **Rule.** `assert`/`crash` on a `[]` read a bound or count already proves names the proof: `'codes[index]' is
-  already proven by the loop condition 'index < codes.count()', so this 'crash' proves nothing: remove it`. On a
-  class-typed value that cannot be null: `this value cannot be null here (it is a Tracker), so 'assert' on it proves
-  nothing: remove the check`.
+- **Status.** Built ([D279](decisions.md), Mortaro: every fact the compiler holds).
+- **Proves.** A check adds nothing, because the value is already narrowed, the read or divisor already proven, the
+  class already known or the condition already checked.
+- **Rule.** Each is refused in an `assert`, `crash`, `if` or `while` condition, naming where it was proven:
+  - A `[]` read a bound or count already proves: `'codes[index]' is already proven by the loop condition 'index <
+    codes.count()', so this 'crash' proves nothing: remove it`.
+  - A narrowed `T?` of any type -- a class, `String`, number or enum -- names the check that narrowed it: `'first' is
+    already narrowed by 'crash first' on line 7: remove this check` (by `'if x'`, `'if not x'`, `'while x'`,
+    `'assert x'`, `'crash x'`, `the 'if'` for a side of an `and`, or `the 'switch'`). A value that was never a
+    `T?`: `this value cannot be null here (it is a Tracker), so 'assert' on it proves nothing: remove the check`.
+  - A divisor already proven: `path != 0` after `path != 0` or `path > 0`, and `path > 0` after `path > 0`, is
+    `'parts != 0' is already proven by 'parts > 0' on line 19: remove this check`.
+  - A class test the value's type already answers, outside a generic class or a walk (where it folds per instance,
+    D167): `'creature' is already a Monster, narrowed by 'if creature == Monster' on line 30: remove this test`,
+    `'monster' is a Monster here, so this test is decided while compiling: remove it`, and for another class
+    `'monster' is a Monster here, so it is never Ghost and this test is decided while compiling: remove it`.
+  - The same `assert` or `crash` condition on the very next statement, when it calls nothing (a call could change
+    what it reads): `'total > 2' was already checked on line 22, and nothing between could change it: remove this
+    check`.
+  - An `assert` or `crash` that [folds](#conditions-decided-while-compiling) true outside a generic class or a
+    walk: `'crash ...' is decided while compiling and always holds here: remove it`. In a generic class it holds
+    for some instances and not others, so it stays. A folded `if` stays everywhere: deciding a branch while
+    compiling is what `if` on a `Build` field or a codegen question is for.
   Inside a `while`, only a proof made inside that loop makes a check of a `[]` read redundant: one made before the
   loop does not, since an assignment in the loop would leave the next pass unproven (D277), so `crash
   names[index - 1]` may be written inside a loop that lowers `index`.
 - **Buys.** No dead check survives, so a reader never wonders what it guards.
 - **Falls back.** Delete the line.
 - **See.** D43, D256; [failure.md: Narrowing a path](failure.md#narrowing-a-path);
-  `diagnostics/check_proves_nothing`, `diagnostics/proven_element`, `diagnostics/proven_index_check`.
-- **Compiler today.** On a narrowed class the message is "proves nothing"; on a narrowed `String?`, number or enum it
-  is the error for a non-`Boolean` condition, which names the wrong fix. Still open in [failure.md](failure.md#nothing-fails-silently--the-rule).
+  `diagnostics/check_proves_nothing`, `diagnostics/proven_element`, `diagnostics/proven_index_check`,
+  `diagnostics/known_fact_checked`.
+- **Does not apply.** A check the compiler cannot prove redundant stays allowed: two equal checks with a statement
+  between them, a condition with a call in it, a stronger check after a weaker one (`parts > 0` after `parts != 0`).
 
 ### A copy made to narrow is an error
 

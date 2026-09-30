@@ -1615,8 +1615,8 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   plural is an error naming the call it belongs in, and so is passing it to a different function
   (`diagnostics/function_reflection`). D77's rule does not apply to it: the call it stands for is
   written by the compiler. **Its results may be borrowed items for that one call** (D220): when the template's
-  body folds to one `return` of a walked line, such as `Column<argument.class>().values[rows[argument.index]]`
-  (`argument.index` is the argument's place, from 0), after the `crash` lines that narrow its reads (every `[]`
+  body folds to one `return` of a walked line, such as `Column<argument.class>().values[stored_row]` after `var
+  stored_row = rows[argument.index]` (`argument.index` is the argument's place, from 0), after the `crash` lines that narrow its reads (every `[]`
   answers a `T?`, D225), or to a walked row declared, filled and returned, the
   compiler writes each argument out before the call instead of calling the template, and the borrow ends when the
   call returns ([memory.md](memory.md#borrowed-items-of-a-vectort--implemented) has the rules). A condition on the

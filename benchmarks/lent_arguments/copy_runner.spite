@@ -40,8 +40,9 @@ func copy_argument(argument: Symbol<$system_type.phase_each>, rows: List<Integer
     var column = Column<argument.class>()
     var copied = Copied<argument.class>()
     crash rows[argument.index]
-    crash column.values[rows[argument.index]]
-    copied.current = column.values[rows[argument.index]].copy()
+    var stored_row = rows[argument.index]
+    crash column.values[stored_row]
+    copied.current = column.values[stored_row].copy()
 }
 
 func copied_argument(argument: Symbol<$system_type.phase_each>): argument.class {

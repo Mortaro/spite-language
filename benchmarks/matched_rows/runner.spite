@@ -18,6 +18,7 @@ func run(system: $system_type, entity_count: Integer) {
 
 func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Integer>) {
     crash rows[attribute.index]
-    crash Column<attribute.class>().values[rows[attribute.index]]
-    row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+    var stored_row = rows[attribute.index]
+    crash Column<attribute.class>().values[stored_row]
+    row.attributes[attribute] = Column<attribute.class>().values[stored_row]
 }

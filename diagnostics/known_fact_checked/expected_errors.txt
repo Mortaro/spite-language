@@ -1,0 +1,6 @@
+diagnostics/known_fact_checked/known_fact_checked.spite:8: error: 'first' is already narrowed by 'crash first' on line 7: remove this check (in KnownFactChecked.KnownFactChecked)
+diagnostics/known_fact_checked/known_fact_checked.spite:14: error: 'number' is already narrowed by 'if number' on line 13: remove this check (in KnownFactChecked.KnownFactChecked)
+diagnostics/known_fact_checked/known_fact_checked.spite:20: error: 'parts != 0' is already proven by 'parts > 0' on line 19: remove this check (in KnownFactChecked.KnownFactChecked)
+diagnostics/known_fact_checked/known_fact_checked.spite:23: error: 'total > 2' was already checked on line 22, and nothing between could change it: remove this check (in KnownFactChecked.KnownFactChecked)
+diagnostics/known_fact_checked/known_fact_checked.spite:26: error: 'monster' is a Monster here, so it is never Ghost and this test is decided while compiling: remove it (in KnownFactChecked.KnownFactChecked)
+diagnostics/known_fact_checked/known_fact_checked.spite:31: error: 'creature' is already a Monster, narrowed by 'if creature == Monster' on line 30: remove this test (in KnownFactChecked.KnownFactChecked)

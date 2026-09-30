@@ -239,15 +239,16 @@ func is_alive(): Boolean {
 - Over sparse sets (each entity at a different place in each column), the runner first walks the attributes to
   fill `found: List<Integer>` with each one's place, then the fill template reads each attribute from its own
   generic singleton, after a `crash` line for each read (the places arrive as the parameter `rows`): `crash
-  rows[attribute.index]`, `crash Column<attribute.class>().values[rows[attribute.index]]`, then
-  `row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]`. Choose
+  rows[attribute.index]`, `var stored_row = rows[attribute.index]`, `crash
+  Column<attribute.class>().values[stored_row]`, then `row.attributes[attribute] =
+  Column<attribute.class>().values[stored_row]` -- an index never holds another `[]` read (D285). Choose
   per attribute with an `if` on `attribute.class == Entity` or `attribute.class.fits_vector()` (both decided while
   compiling), each branch one such line: `Entity(entity)` is made in the frame, a reference column's value
   (`ReferenceColumn<attribute.class>().at(rows[attribute.index])`, after `crash rows[attribute.index]`) is counted
   for the row (D217). Keep the index
   expression to parameters, `attribute.index` and whole numbers; work anything else out before the walk. The
   places may live in another object: pass its list straight in (`fill_attributes(row, matcher.rows)`) or read
-  `matcher.rows[attribute.index]` in the line -- its items are numbers in a `List` -- and never copy them into a
+  `matcher.rows[attribute.index]` into the line's `var` -- its items are numbers in a `List` -- and never copy them into a
   list of the runner's first.
 - In a generic class that keeps values of a type it does not know (an engine's `Column<$component_type>`), use
   `Items<$component_type>()` (D218, name provisional): inline and borrowed like a `Vector` when the type fits
@@ -256,14 +257,14 @@ func is_alive(): Boolean {
   `clear`, `copy`, `deep_copy`, and the `each_`/`map_`/`filter_`/`count_`/`any_`/`all_`/`sum_`/`parallel_each_`
   templates; no `each(f)` forms). Then one column class serves every component,
   and the walked row's line is
-  `Column<attribute.class>().values[found[attribute.index]]` for all of them, with no `fits_vector()` branch. The
+  `Column<attribute.class>().values[stored_row]` (after `var stored_row = found[attribute.index]`) for all of them, with no `fits_vector()` branch. The
   borrow rules above apply only to a type that fits; the error then starts `'Velocity' fits a Vector, so the
   items of 'velocities' are borrowed: ...`.
 - A system may take components as arguments (`update_each(position: Position, velocity: Velocity)`); the runner
   passes them with `system.phase_each(made_arguments(found))` on a line of its own, where `made_argument(argument:
-  Symbol<$system_type.phase_each>, rows: List<Integer>): argument.class` is `crash rows[argument.index]`, `crash
-  Column<argument.class>().values[rows[argument.index]]` and `return
-  Column<argument.class>().values[rows[argument.index]]` (an `if` on `argument.class == Entity` may choose another
+  Symbol<$system_type.phase_each>, rows: List<Integer>): argument.class` is `crash rows[argument.index]`, `var
+  stored_row = rows[argument.index]`, `crash Column<argument.class>().values[stored_row]` and `return
+  Column<argument.class>().values[stored_row]` (an `if` on `argument.class == Entity` may choose another
   line, such as `return Entity(entity)`). The items are borrowed for that one call only (D220): the system may not
   keep them or resize their columns (it may lend them on to its own helpers, D257), and calling `made_position(...)` anywhere else is the error for returning a
   borrowed item. The template's `Symbol` parameter must be a word of its name (`made_argument(argument: ...)`), or

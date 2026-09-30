@@ -16,7 +16,8 @@ func DictionaryKeys() {
     var by_name = Dictionary<Integer>()
     index = 0
     while index < names.count() {
-        by_name[names[index]] = index
+        var name = names[index]
+        by_name[name] = index
         index = index + 1
     }
     var total: Long = 0

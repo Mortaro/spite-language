@@ -217,7 +217,8 @@ func record() {
 ```
 
 A check on something that cannot be null proves nothing, and is an error too: `assert tracker` written twice,
-or an `assert` on a plain `Tracker`.
+or an `assert` on a plain `Tracker`. The error names the check that already proved it -- "'tracker' is already
+narrowed by 'assert tracker' on line 8: remove this check" -- whatever the type, text and numbers included (D279).
 
 ### A call may undo a proof
 
@@ -396,6 +397,27 @@ ada 3
 bo 2
 cy 2
 ada is 36
+```
+
+### An index reads nothing
+
+An index is a name, a path, a number or arithmetic on those -- never another `[]` read. `draws[run_draws[run]]` is
+hard to read, and under the rule above it would need two `crash` lines for one value, so it is an error (D285):
+read the inner value into a named `var` first, narrow it, and index with the name.
+
+```gdscript title=read_in_index_error/read_in_index_error.spite
+var console = Console()
+
+func ReadInIndexError() {
+    var draws = ["sky", "ground"]
+    var run_draws = [1, 0]
+    crash run_draws[0]
+    crash draws[run_draws[0]]
+    console.print(draws[run_draws[0]])
+}
+```
+```diagnostic
+'run_draws[0]' is read inside the index of 'draws': compute it first into a named 'var' and pass the name
 ```
 
 ### Comparing needs no narrowing
@@ -1069,9 +1091,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs ([proo
   ([metaprogramming.md](metaprogramming.md#asking-whether-a-function-writes-a-parameter)).
 - **A copy made only to narrow slips through** (D63). The check sees only a condition that is exactly the copy's
   bare name, so a copy narrowed by `if not copy { return }`, `while copy` or `assert copy and ...` compiles.
-- **A second `assert` on a narrowed value gets the wrong error.** On a narrowed class it is "proves nothing:
-  remove the check"; on a narrowed `String?`, number or enum it is the error for a condition that is not a
-  `Boolean`, which names the wrong fix.
 - **The guard lint sees only literal defaults** (D106). An `if` whose only statement returns `null`, `false`,
   `0`, `0.0`, `""` or nothing is caught; `if ... { return List<T>() }` in a function answering a `List` is not. And
   a function that lends a list element (D269) is not checked for a guard `assert` at all.
@@ -1223,8 +1242,11 @@ Claude, unconfirmed, 2026-09-24; `conformance/stage6/and_narrowing`).
   line can simply go: `crash codes[index]` inside `while index < codes.count()` is "'codes[index]' is already
   proven by the loop condition 'index < codes.count()', so this 'crash' proves nothing: remove it"; a count or
   bound check is named the same way, and anything else as "an earlier check" (proposed by Claude, unconfirmed;
-  `diagnostics/proven_element`). A plain `T?` that is already narrowed is "this value cannot be null here (it is
-  a Tracker), so 'assert' on it proves nothing: remove the check".
+  `diagnostics/proven_element`). A `T?` of any type that is already narrowed names the check that narrowed it:
+  "'tracker' is already narrowed by 'assert tracker' on line 8: remove this check" (D279,
+  `diagnostics/check_proves_nothing`, `diagnostics/known_fact_checked`); a value that was never a `T?` is "this
+  value cannot be null here (it is a Tracker), so 'assert' on it proves nothing: remove the check". The other facts
+  D279 refuses are listed in [proofs.md](proofs.md#proving-what-is-proven-is-an-error).
 - `crash` (below) narrows a chain the same way, since it narrows exactly as `assert` does but never returns.
 - Reading through a link that may be null and has not been narrowed is still an error. This removes the verbosity of
   proving a path, not the requirement to prove it.
@@ -1245,6 +1267,11 @@ Claude, unconfirmed, 2026-09-24; `conformance/stage6/and_narrowing`).
 **Reading with `[]` answers `T?`** (D64, decided by Mortaro, 2026-09-23). `names[index]` and `table["key"]` may
 not be there, so they are values that may be null, and an index or key that is a name, a path, a number or
 quoted text makes the read a path that narrows like any other: `crash names[index]`, then `names[index].upper_case()`.
+An index never holds another `[]` read (D285, decided by Mortaro; the message proposed by Claude, unconfirmed):
+`values[rows[index]]` is "'rows[index]' is read inside the index of 'values': compute it first into a named 'var'
+and pass the name", found anywhere in the index -- under arithmetic, `not` or a member read -- and reported for the
+first read found. A walk's template writes the hoisted form (`var stored_row = rows[attribute.index]`, then
+`values[stored_row]`), which it walks exactly as it did the nested one ([memory.md](memory.md)).
 How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked for them):
 
 - **A proven count proves the indices below it.** After `crash names.count() == 3` (or `>= 3`, or `> 2`),

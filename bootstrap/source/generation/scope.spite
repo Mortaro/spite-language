@@ -23,6 +23,10 @@ var row_sources = List<String>()
 var row_paths = List<String>()
 var counted_keys = List<String>()
 var counted_items = List<String>()
+var site_paths = List<String>()
+var site_texts = List<String>()
+var last_check_text = ""
+var last_check_line = 0
 
 func Scope(starting_parent: Scope?) {
     parent = starting_parent
@@ -314,6 +318,26 @@ func proven_inside_loop(candidate: String): Boolean {
         return false
     }
     return parent.proven_inside_loop(candidate)
+}
+
+func note_site(path: String, text: String) {
+    site_paths.append(path)
+    site_texts.append(text)
+}
+
+func site_of(path: String): String {
+    var index = site_paths.count() - 1
+    while index >= 0 {
+        if site_paths[index] == path {
+            crash site_texts[index]
+            return site_texts[index]
+        }
+        index = index - 1
+    }
+    if not parent {
+        return ""
+    }
+    return parent.site_of(path)
 }
 
 func proof_of(path: String): String {

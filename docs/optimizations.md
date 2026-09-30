@@ -1024,7 +1024,7 @@ over). **Built** (2026-09-28; proposed by Claude, unconfirmed).
 
 ### A singleton's attribute that never changes is read in place
 
-**What it does.** Reading an attribute of a singleton from another class -- `Column<Heat>().values[rows[0]]`,
+**What it does.** Reading an attribute of a singleton from another class -- `Column<Heat>().values[place]`,
 `column.values.count()` -- counted the attribute's object for the expression and, in a program where a `Parallel`
 reaches the singleton, took its lock or readers' side around the read ([D211](decisions.md)). When the attribute
 holds an object (a class, list or dictionary, not text or a number) that nothing assigns after the singleton is
@@ -1383,7 +1383,7 @@ the column, or reads the column itself, keeps its count). **Built** (2026-09-28;
 
 The arguments a plural value template fills (D220, `system.phase_each(made_arguments(found))`) are written out
 the same way, in the caller: when the template's body, folded for an argument, is one `return` of a walked line
-(`Column<argument.class>().values[rows[argument.index]]`) or a walked row declared, filled and returned, the
+(`Column<argument.class>().values[stored_row]`, after `var stored_row = rows[argument.index]`) or a walked row declared, filled and returned, the
 compiler writes that value as a local of a C block around the call, one per argument in order, and calls the
 function's `___lent_<positions>` copy, in which a borrowed item's parameter is neither retained nor released. The
 template is not called for that call, so it is not compiled for it; an argument whose body has any other shape
@@ -1653,9 +1653,9 @@ proposed by Claude, unconfirmed).
 ### A walked `crash` line's read is the row's read
 
 **What it does.** Every `[]` answers a `T?` ([D225](decisions.md)), so a walked row's template states each read with
-a `crash` line before the fill ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call)): `crash
-Column<attribute.class>().values[rows[attribute.index]]`, then `row.attributes[attribute] =
-Column<attribute.class>().values[rows[attribute.index]]`. Written out plainly that would read each item twice --
+a `crash` line before the fill ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call)): `var stored_row =
+rows[attribute.index]`, `crash Column<attribute.class>().values[stored_row]`, then `row.attributes[attribute] =
+Column<attribute.class>().values[stored_row]`. Written out plainly that would read each item twice --
 once to test it, once to fill the row -- and each read of a generic singleton's column enters its guard. The
 compiler reads it once: the walked `crash` line keeps the answer in a local, tests it, and the literal (or a lent
 argument, `made_arguments(found)`) takes the same read from that local.
@@ -1664,7 +1664,7 @@ argument, `made_arguments(found)`) takes the same read from that local.
 A read that answers a counted reference (an element of a `List<T>` column, or of an `Items` whose class does not
 fit a `Vector`) is kept counted in that local and let go once the row or call is written, so the row counts it once
 more for itself as it always did (`conformance/stage6/sparse_rows` reads its reference column as
-`ReferenceColumn<attribute.class>().values[rows[attribute.index]]`).
+`ReferenceColumn<attribute.class>().at(stored_row)`).
 
 **What you notice.** Speed only: a walked row costs the one compare per read that D218's halting `[]` did.
 `benchmarks/sparse_rows`, `matched_rows` and `lent_arguments`, run alternately against the compiler before D225,

@@ -38,12 +38,14 @@ func find_attribute(attribute: Symbol<$row_type>, entity: Integer) {
 
 func fill_attribute(attribute: Symbol<$row_type>, row: $row_type) {
     crash matcher.rows[attribute.index]
-    crash Column<attribute.class>().values[matcher.rows[attribute.index]]
-    row.attributes[attribute] = Column<attribute.class>().values[matcher.rows[attribute.index]]
+    var stored_row = matcher.rows[attribute.index]
+    crash Column<attribute.class>().values[stored_row]
+    row.attributes[attribute] = Column<attribute.class>().values[stored_row]
 }
 
 func pass_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Integer>) {
     crash rows[attribute.index]
-    crash Column<attribute.class>().values[rows[attribute.index]]
-    row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+    var stored_row = rows[attribute.index]
+    crash Column<attribute.class>().values[stored_row]
+    row.attributes[attribute] = Column<attribute.class>().values[stored_row]
 }
