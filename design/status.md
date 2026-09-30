@@ -632,10 +632,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### What a reload can change
 - Changes to whether a class fits an `Items`' own memory are refused (naming the class). Decided direction: nothing may need a restart, so moving these is to be built.
-- The rows for library code, `environment.spite`, `build.spite` and a deleted file are built (D330); how settings are read again after a reload was proposed by Claude, unconfirmed.
+- The rows for library code, `environment.spite`, `build.spite` and a deleted file are built (D333); how settings are read again after a reload was proposed by Claude, unconfirmed.
 
 ### Nothing needs a restart
-- Decided (Mortaro, D280): nothing needs a restart; every refusal is a gap to close. Built: step 1 (attributes move), step 2 (dependents rebuilt through a whole-program compile, every function slotted, D330), step 3 (enums keep their numbers), step 4 (`environment.spite`, `build.spite`, D330), and a change to a value class's functions. Not built: moving objects of a class that starts or stops fitting an `Items`' own memory.
+- Decided (Mortaro, D280): nothing needs a restart; every refusal is a gap to close. Built: step 1 (attributes move), step 2 (dependents rebuilt through a whole-program compile, every function slotted, D333), step 3 (enums keep their numbers), step 4 (`environment.spite`, `build.spite`, D333), and a change to a value class's functions. Not built: moving objects of a class that starts or stops fitting an `Items`' own memory.
 - The rules of step 1 were proposed by Claude and are unconfirmed by Mortaro; the enum rule (D302) was decided by Claude under D205, not by Mortaro.
 
 ### Command language
