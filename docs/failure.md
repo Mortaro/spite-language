@@ -411,13 +411,11 @@ var console = Console()
 func ReadInIndexError() {
     var draws = ["sky", "ground"]
     var run_draws = [1, 0]
-    crash run_draws[0]
-    crash draws[run_draws[0]]
     console.print(draws[run_draws[0]])
 }
 ```
 ```diagnostic
-'run_draws[0]' is read inside the index of 'draws': compute it first into a named 'var' and pass the name
+is read inside the index of 'draws': compute it first into a named 'var' and pass the name
 ```
 
 ### Comparing needs no narrowing
