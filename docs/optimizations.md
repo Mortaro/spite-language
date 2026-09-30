@@ -1101,7 +1101,7 @@ copy of the text.
 ones stay constant text; both forms release and retain as nothing.
 
 **What a user can observe.** Nothing: a symbol compares, prints and converts the same in either form. The C
-shows it: `static SpiteString spite_symbol_4 = \{ (int64_t)0x00000065756c6176ULL, ... }` for `'value'`.
+shows it: `static SpiteString spite_symbol_4 = { (int64_t)0x00000065756c6176ULL, ... }` for `'value'`.
 
 ### Crash text out of the binary
 
