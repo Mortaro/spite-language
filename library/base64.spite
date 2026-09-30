@@ -1,0 +1,144 @@
+singleton
+
+var heap = Memory.Heap()
+var _alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+var _url_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+
+func encode(bytes: List<Byte>): String {
+    return _encoded(bytes, _alphabet, true)
+}
+
+func encode_url(bytes: List<Byte>): String {
+    return _encoded(bytes, _url_alphabet, false)
+}
+
+func decode(text: String): List<Byte>? {
+    return _decoded(text, false)
+}
+
+func decode_url(text: String): List<Byte>? {
+    return _decoded(text, true)
+}
+
+func _encoded(bytes: List<Byte>, alphabet: String, padded: Boolean): String {
+    var count = bytes.count()
+    var room: Long = (count + 2) / 3 * 4
+    var address = heap.allocate(room + 1)
+    var source = bytes.items
+    var written: Long = 0
+    var index = 0
+    while index < count {
+        var first: Integer = source.read_byte(index)
+        var group = first.shifted_left(16)
+        var present = count - index
+        if present > 1 {
+            var second: Integer = source.read_byte(index + 1)
+            var shifted = second.shifted_left(8)
+            group = group.bits_or(shifted)
+        }
+        if present > 2 {
+            var third: Integer = source.read_byte(index + 2)
+            group = group.bits_or(third)
+        }
+        written = _write_digit(address, written, alphabet, group, 18)
+        written = _write_digit(address, written, alphabet, group, 12)
+        if present > 1 {
+            written = _write_digit(address, written, alphabet, group, 6)
+        } else if padded {
+            address.write_byte(written, 61)
+            written = written + 1
+        }
+        if present > 2 {
+            written = _write_digit(address, written, alphabet, group, 0)
+        } else if padded {
+            address.write_byte(written, 61)
+            written = written + 1
+        }
+        index = index + 3
+    }
+    var text = address.text(written)
+    heap.free(address)
+    return text
+}
+
+func _write_digit(address: Memory.Address, at: Long, alphabet: String, group: Integer, shift: Integer): Long {
+    var value = group.shifted_right(shift).bits_and(63)
+    var digit = alphabet.code_at(value)
+    address.write_byte(at, digit)
+    return at + 1
+}
+
+func _decoded(text: String, url: Boolean): List<Byte>? {
+    var written_length = text.length()
+    var length = written_length
+    while length > 0 and text.code_at(length - 1) == 61 {
+        length = length - 1
+    }
+    var padding = written_length - length
+    assert padding <= 2
+    assert padding == 0 or written_length % 4 == 0
+    assert length % 4 != 1
+    assert url or length % 4 == 0 or padding > 0
+    var bytes = List<Byte>()
+    bytes.reserve(length / 4 * 3 + 2)
+    var group = 0
+    var held = 0
+    var index = 0
+    while index < length {
+        var code = text.code_at(index)
+        var value = _digit_value(code, url)
+        assert value >= 0
+        group = group.shifted_left(6).bits_or(value)
+        held = held + 1
+        if held == 4 {
+            _append_byte(bytes, group, 16)
+            _append_byte(bytes, group, 8)
+            _append_byte(bytes, group, 0)
+            group = 0
+            held = 0
+        }
+        index = index + 1
+    }
+    if held == 2 {
+        assert group.bits_and(15) == 0
+        _append_byte(bytes, group, 4)
+    } else if held == 3 {
+        assert group.bits_and(3) == 0
+        _append_byte(bytes, group, 10)
+        _append_byte(bytes, group, 2)
+    }
+    return bytes
+}
+
+func _append_byte(bytes: List<Byte>, group: Integer, shift: Integer) {
+    var value: Byte = group.shifted_right(shift).bits_and(255)
+    bytes.append(value)
+}
+
+func _digit_value(code: Integer, url: Boolean): Integer {
+    if code >= 65 and code <= 90 {
+        return code - 65
+    }
+    if code >= 97 and code <= 122 {
+        return code - 71
+    }
+    if code >= 48 and code <= 57 {
+        return code + 4
+    }
+    if url {
+        if code == 45 {
+            return 62
+        }
+        if code == 95 {
+            return 63
+        }
+        return -1
+    }
+    if code == 43 {
+        return 62
+    }
+    if code == 47 {
+        return 63
+    }
+    return -1
+}

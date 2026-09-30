@@ -1,0 +1,45 @@
+var console = Console()
+
+func Datagrams() {
+    var server = UdpSocket()
+    var client = UdpSocket()
+    var server_open = server.open_locally(47811)
+    var client_open = client.open()
+    console.print("server open: {server_open}, client open: {client_open}")
+    var nothing_yet = server.receive_now()
+    if not nothing_yet {
+        console.print("nothing has arrived yet")
+    }
+    var ping_text = "ping"
+    var ping = ping_text.to_bytes()
+    var sent = client.send_to("127.0.0.1", 47811, ping)
+    console.print("sent: {sent}")
+    var arrived = server.receive()
+    crash arrived
+    var arrived_bytes = arrived.join(",")
+    var from_host = server.sender_host()
+    console.print("server got {arrived_bytes} from {from_host}")
+    var pong_text = "pong!"
+    var pong = pong_text.to_bytes()
+    var reply_host = server.sender_host()
+    var reply_port = server.sender_port()
+    var replied = server.send_to(reply_host, reply_port, pong)
+    var answer = client.receive()
+    crash answer
+    var answer_count = answer.count()
+    console.print("replied: {replied}, client got {answer_count} bytes")
+    var empty = List<Byte>()
+    client.send_to("localhost", 47811, empty)
+    var empty_arrived = server.receive()
+    crash empty_arrived
+    var empty_count = empty_arrived.count()
+    console.print("an empty datagram arrives as {empty_count} bytes")
+    var taken = UdpSocket()
+    var twice = taken.open_locally(47811)
+    console.print("a second socket on the same port: {twice}")
+    server.close()
+    var after_close = server.receive()
+    if not after_close {
+        console.print("a closed socket receives nothing")
+    }
+}

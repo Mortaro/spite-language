@@ -1,0 +1,86 @@
+var console = Console()
+var base64 = Base64()
+var zlib = Zlib()
+var gzip = Gzip()
+
+func Encodings() {
+    var samples = ["", "f", "fo", "foo", "foob", "fooba", "foobar"]
+    samples.each(show_base64)
+    var binary = List<Byte>()
+    binary.append(251)
+    binary.append(255)
+    binary.append(191)
+    var standard = base64.encode(binary)
+    var url_safe = base64.encode_url(binary)
+    console.print("standard {standard}, url {url_safe}")
+    var not_base64 = base64.decode("Zm9v!")
+    if not not_base64 {
+        console.print("'Zm9v!' is not base64")
+    }
+    var unpadded = base64.decode("Zg")
+    if not unpadded {
+        console.print("'Zg' needs its padding in standard base64")
+    }
+    var url_unpadded = base64.decode_url("-_-_Zg")
+    crash url_unpadded
+    var url_bytes = url_unpadded.join(",")
+    console.print("base64url '-_-_Zg' is {url_bytes}")
+    read_zlib("eJzLSM3JyVfIQCcBaAMIsQ==")
+    read_zlib("eJwDAAAAAAE=")
+    read_gzip("H4sIAAAAAAACCstIzcnJBwCGphA2BQAAAA==")
+    var repeated = List<Byte>()
+    while repeated.count() < 100000 {
+        var value: Byte = repeated.count() % 7 + 97
+        repeated.append(value)
+    }
+    var packed = zlib.compress(repeated)
+    var packed_count = packed.count()
+    var unpacked = zlib.decompress(packed)
+    crash unpacked
+    var same = unpacked.count() == repeated.count()
+    console.print("100000 repeating bytes pack into {packed_count} and come back: {same}")
+    var zipped = gzip.compress(repeated)
+    var last = zipped.count() - 5
+    var damaged: Byte = 1
+    crash zipped[last]
+    damaged = damaged + zipped[last]
+    zipped.set_at(last, damaged)
+    var refused = gzip.decompress(zipped)
+    if not refused {
+        console.print("gzip with a wrong size is refused")
+    }
+    var cut = zlib.compress(repeated)
+    cut.truncate(10)
+    var truncated = zlib.decompress(cut)
+    if not truncated {
+        console.print("a truncated zlib stream is refused")
+    }
+}
+
+func show_base64(sample: String) {
+    var bytes = sample.to_bytes()
+    var encoded = base64.encode(bytes)
+    var url = base64.encode_url(bytes)
+    var decoded = base64.decode(encoded)
+    crash decoded
+    var again = base64.encode(decoded)
+    console.print("'{sample}': '{encoded}', url '{url}', back '{again}'")
+}
+
+func read_zlib(text: String) {
+    var packed = base64.decode(text)
+    crash packed
+    var unpacked = zlib.decompress(packed)
+    crash unpacked
+    var read = unpacked.join(",")
+    console.print("zlib: {read}")
+}
+
+func read_gzip(text: String) {
+    var packed = base64.decode(text)
+    crash packed
+    var unpacked = gzip.decompress(packed)
+    crash unpacked
+    var read = unpacked.join(",")
+    console.print("gzip: {read}")
+}

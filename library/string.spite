@@ -184,6 +184,15 @@ func to_string(): String {
     return this
 }
 
+func to_bytes(): List<Byte> {
+    var bytes = List<Byte>()
+    var counted: Integer = _length
+    bytes.reserve(counted)
+    _bytes.copy_to(bytes.items, _length)
+    bytes.item_count = counted
+    return bytes
+}
+
 func to_debug(): String {
     var escaped = replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
     return "\"{escaped}\""

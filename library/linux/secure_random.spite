@@ -1,0 +1,12 @@
+var _library = DynamicLibrary("libc.so.6", 'identity', "")
+
+func _fill(address: Memory.Address, count: Integer) {
+    var filled = 0
+    while filled < count {
+        var at = address + filled
+        var wanted = count - filled
+        var got: Integer = _library.getrandom_as_long(at, wanted, 0)
+        crash got > 0
+        filled = filled + got
+    }
+}
