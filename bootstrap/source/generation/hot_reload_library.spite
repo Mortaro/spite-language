@@ -72,15 +72,35 @@ func function_name(line: String, shaker: TreeShaker): String {
     return name
 }
 
-func symbol_table(): String {
+func symbol_table(declarations: String): String {
     var entries = List<String>()
     var index = 0
     while index < host_names.count() {
         entries.append("\{ \"{host_names[index]}\", (void*)&{host_names[index]} }")
         index = index + 1
     }
+    var shared = shared_variables_in(declarations)
+    index = 0
+    while index < shared.count() {
+        entries.append("\{ \"{shared[index]}\", (void*)&{shared[index]} }")
+        index = index + 1
+    }
     entries.append("\{ 0, 0 }")
     return "typedef struct SpiteHotSymbol \{ const char* name; void* address; } SpiteHotSymbol;\nstatic const SpiteHotSymbol spite_hot_symbols[] = \{ {entries.join(", ")} };\nstatic void* spite_hot_find(const char* name) \{\nfor (int64_t index = 0; spite_hot_symbols[index].name != 0; index = index + 1) \{\nif (strcmp(spite_hot_symbols[index].name, name) == 0) return spite_hot_symbols[index].address;\n}\nreturn 0;\n}"
+}
+
+func shared_variables_in(text: String): List<String> {
+    var names = ["spite_program_arguments", "spite_check_point_wanted", "spite_assert_trace", "spite_assert_total"]
+    var shared = List<String>()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if text.contains(" {name};") or text.contains(" {name} =") or text.contains(" {name}[") {
+            shared.append(name)
+        }
+        index = index + 1
+    }
+    return shared
 }
 
 func host_manifest(
@@ -541,6 +561,66 @@ func changed_bodies(constants: Dictionary<String>): List<String> {
     return changed
 }
 
+func is_static_function(name: String): Boolean {
+    var name_length = name.length()
+    var position = program_shaker.find_function(name, 0, name_length)
+    if position < 0 {
+        return false
+    }
+    crash program_shaker.pieces[position]
+    var piece = program_shaker.pieces[position]
+    var line_end = piece.index_of("\n")
+    var first = piece
+    if line_end > 0 {
+        first = piece.slice(0, line_end)
+    }
+    return first.starts_with("static ") and first.contains(") \{")
+}
+
+func pieces_mentioning(name: String): List<String> {
+    var found = List<String>()
+    var index = 0
+    while index < program_shaker.pieces.count() {
+        crash program_shaker.piece_names[index]
+        var piece_name = program_shaker.piece_names[index]
+        var piece = program_shaker.pieces[index]
+        if not piece_name.is_empty() and piece_name != name and mentions_word(piece, name) {
+            found.append(piece_name)
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func mentions_word(text: String, name: String): Boolean {
+    var name_length = name.length()
+    var text_length = text.length()
+    var position = text.index_of(name)
+    while position >= 0 {
+        var before = position == 0
+        if not before {
+            var previous = text.code_at(position - 1)
+            before = not is_name_code(previous)
+        }
+        var end = position + name_length
+        var after = end >= text_length
+        if not after {
+            var following = text.code_at(end)
+            after = not is_name_code(following)
+        }
+        if before and after {
+            return true
+        }
+        var rest = text.slice(end, text_length)
+        var next = rest.index_of(name)
+        if next < 0 {
+            return false
+        }
+        position = end + next
+    }
+    return false
+}
+
 func library_hashes(constants: Dictionary<String>): Dictionary<String> {
     var hashes = Dictionary<String>()
     var index = 0
@@ -711,6 +791,23 @@ func library(
                 shaker.keep_function(hot_position)
             }
         }
+    }
+    var kept_pieces = List<String>()
+    index = 0
+    while index < shaker.pieces.count() {
+        if shaker.kept[index] == true and bound[index] == false {
+            kept_pieces.append(shaker.pieces[index])
+        }
+        index = index + 1
+    }
+    var used = kept_pieces.join("\n")
+    var shared = shared_variables_in("{builder.typedefs.join("\n")}\n{prototype_text}")
+    index = 0
+    while index < shared.count() {
+        if used.contains(shared[index]) {
+            redirected.append(shared[index])
+        }
+        index = index + 1
     }
     var roots = List<String>()
     index = 0

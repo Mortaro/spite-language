@@ -714,7 +714,11 @@ ask for it:
   and assign live values (outside those builds they answer an empty list, `false` and `null`), and every fitting
   member template instantiated for the classes a list reaches, so the prompt can call `monsters.sum_health()`.
 - `--hot-reload`: a function pointer per function and a forwarder in front of it (about a nanosecond a call), the
-  file watcher and the reload manifest. Every other build calls functions directly and is tree-shaken.
+  standard library's functions and the compiler's helpers included, so none of them is inlined into its caller;
+  the program's own `Build` fields read from the `Build` singleton instead of folded; the file watcher and the
+  reload manifest. Such a build is expected to be slower: it exists to give information while the program runs,
+  and benchmarks measure production builds only (Mortaro, 2026-09-30). Every other build calls functions directly
+  and is tree-shaken.
 - `--debug-memory`: the allocation table that names leaked objects, and its C (`AllocationTable`, the functions
   that call it, the class-name table) exists only in that build's C. Every other build allocates with the C
   library's own `malloc`, `realloc` and `free` and nothing beside them, unless the program reads

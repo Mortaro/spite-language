@@ -1330,8 +1330,13 @@ func setting_reading(variable: Syntax.Statements.VariableDeclaration, reader: St
     var arguments = List<Syntax.Expressions.Expression>()
     var setting_name = Syntax.Expressions.StringLiteralExpression(variable.name)
     arguments.append(setting_name)
-    var default_value = Syntax.Expressions.IdentifierExpression(variable.name)
-    arguments.append(default_value)
+    if build_values["hot_reload"] == "true" {
+        crash variable.value
+        arguments.append(variable.value)
+    } else {
+        var default_value = Syntax.Expressions.IdentifierExpression(variable.name)
+        arguments.append(default_value)
+    }
     var reader_name = Syntax.Expressions.IdentifierExpression(reader)
     var call = Syntax.Expressions.CallExpression(reader_name, arguments)
     var target = Syntax.Expressions.IdentifierExpression(variable.name)

@@ -1270,8 +1270,8 @@ func compile_reload(
         }
         changed_index = changed_index + 1
     }
-    if not fixed.is_empty() {
-        return "error: '{fixed.join("', '")}' changed, and a reload swaps only the functions of the program's own classes, which it holds none of (it reopens a class of the standard library, or sets how the program is built): restart the program to change it, or undo that change to reload the rest"
+    if not fixed.is_empty() and partial {
+        return "whole '{fixed.join("', '")}' changed, which declares none of the program's own classes"
     }
     var layout_problem = reload.layout_problem(generator.builder.typedefs, generator.migrating_classes)
     if not layout_problem.is_empty() {
@@ -1381,6 +1381,15 @@ func changed_paths(discovery: Discovery.DiscoveryResult, reload: Generation.HotR
             if reload.is_changed(path, hash) {
                 changed.append(path)
             }
+        }
+        index = index + 1
+    }
+    var running_paths = reload.running_hashes.keys()
+    index = 0
+    while index < running_paths.count() {
+        var running_path = running_paths[index]
+        if not paths.contains(running_path) {
+            changed.append(running_path)
         }
         index = index + 1
     }

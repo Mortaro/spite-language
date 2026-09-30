@@ -655,15 +655,22 @@ printf '\nfunc growl(): String {\n    return "{name} growls"\n}\n' >> "$hot_fold
 ask wait_reload > /dev/null
 grown=$(ask 'monster.growl()')
 [ "$grown" == '{"ok":true,"value":"Goblin growls","type":"String"}' ] || hot_fail "a function added by a reload was not callable: $grown"
-# A file that holds none of the program's classes -- here a reopening of Environment -- cannot be swapped in, and a
-# reload says so rather than answering that nothing changed (D244); once it is gone, nothing has changed again.
+# A file that holds none of the program's own classes, here a first environment.spite reopening Environment, is
+# swapped in as well (the whole program is compiled), and so is its removal; then nothing has changed again.
 printf 'var greeting_word = "hello"\n' > "$hot_folder/environment.spite"
-refused=$(ask reload)
-case "$refused" in
-  *"environment.spite' changed, and a reload swaps only the functions of the program's own classes"*) ;;
-  *) hot_fail "a reload of a new environment.spite answered $refused" ;;
+added=$(ask reload)   # a new file is seen by the watcher's event only, so reload compiles it unless the watcher did
+case "$added" in *"nothing changed since the code the program runs"*) added=$(ask wait_reload) ;; esac
+case "$added" in
+  *'"ok":true'*"greeting_word is new"*) ;;
+  *) hot_fail "a reload of a new environment.spite answered $added" ;;
 esac
 rm "$hot_folder/environment.spite"
+removed=$(ask reload)
+case "$removed" in *"nothing changed since the code the program runs"*) removed=$(ask wait_reload) ;; esac
+case "$removed" in
+  *'"ok":true'*"greeting_word is gone"*) ;;
+  *) hot_fail "a reload of a removed environment.spite answered $removed" ;;
+esac
 expect 'reload' '{"ok":true,"value":"nothing changed since the code the program runs","type":""}'
 expect 'exit' '{"ok":true,"value":"","type":""}'
 for attempt in $(seq 1 50); do kill -0 $served 2>/dev/null || break; sleep 0.2; done
@@ -772,6 +779,51 @@ kill -0 $enum_program 2>/dev/null && enum_fail "a switch that met a removed valu
 wait $enum_program && enum_fail "a switch that met a removed value ended with exit code 0"
 grep -q "a switch over LiveEnum.Mood met the value 'angry', which a reload removed from it" "$work/live_enum/output.txt" || enum_fail "the halt did not name the removed value"
 echo "live enums: an enum gained and lost values while the program ran, every held value kept its meaning, a new class answered at the prompt, and a switch that met the removed value halted naming it"
+
+# Settings and the standard library's classes change live (docs/repl.md#what-a-reload-can-change): a copy of
+# conformance/stage6/live_settings runs with --hot-reload and a setting on its command line that it does not declare
+# yet. A function the program adds to Integer changes, environment.spite gains that setting and a new default, and
+# build.spite a new default; each is swapped in, and the new setting is read from the command line. Every wait is a
+# wait_reload with a timeout.
+settings_folder="$work/live_settings/live_settings"
+mkdir -p "$work/live_settings"; cp -r conformance/stage6/live_settings "$settings_folder"; rm -f "$settings_folder/expected_output.txt"
+settings_port=$((port + 5))
+"$work/generation_two.exe" "$settings_folder" --executable --run=false --hot-reload --repl-port=$settings_port --executable-path="$work/live_settings/live_settings.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED live settings: live_settings does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/live_settings/live_settings.exe" --volume=7 > "$work/live_settings/output.txt" 2>&1 < /dev/null &
+settings_program=$!
+settings_fail() { kill $settings_program 2>/dev/null; echo "FAILED live settings: $1"; head -5 "$work/live_settings/output.txt"; exit 1; }
+settings_ask() { timeout 120 "$work/generation_two.exe" connect $settings_port --command="$1" 2>&1 | tr -d '\r'; }
+settings_expect() { local answer; answer=$(settings_ask "$1"); [ "$answer" == "$2" ] || settings_fail "'$1' answered $answer, not $2"; }
+settings_reload() {   # the watcher swaps each save in; wait_reload answers once it has
+  local answer; answer=$(settings_ask wait_reload)
+  case "$answer" in *'"ok":true'*"$1"*) ;; *) settings_fail "a reload answered $answer, without $1" ;; esac
+}
+listening=false
+for attempt in $(seq 1 100); do
+  timeout 10 "$work/generation_two.exe" connect $settings_port --command=help > /dev/null 2>&1 && { listening=true; break; }
+  kill -0 $settings_program 2>/dev/null || break
+  sleep 0.2
+done
+$listening || settings_fail "the program never listened on $settings_port"
+settings_expect 'greeting()' '{"ok":true,"value":"hello","type":"String"}'
+settings_expect 'twice()' '{"ok":true,"value":"14","type":"Integer"}'
+sed -i 's/this \* 2/this * 3/' "$settings_folder/integer.spite"
+settings_reload "rebuilt Integer"
+settings_expect 'twice()' '{"ok":true,"value":"21","type":"Integer"}'
+printf 'var greeting_word = "welcome"\nvar volume = 1\n' > "$settings_folder/environment.spite"
+settings_reload "volume is new and is read like every setting"
+settings_expect 'greeting()' '{"ok":true,"value":"welcome","type":"String"}'
+settings_expect 'environment.volume' '{"ok":true,"value":"7","type":"Integer"}'
+sed -i 's/false/true/' "$settings_folder/build.spite"
+settings_reload "rebuilt Build"
+settings_expect 'greeting()' '{"ok":true,"value":"welcome!","type":"String"}'
+settings_expect 'build.loud' '{"ok":true,"value":"true","type":"Boolean"}'
+settings_expect 'exit' '{"ok":true,"value":"","type":""}'
+for attempt in $(seq 1 50); do kill -0 $settings_program 2>/dev/null || break; sleep 0.2; done
+kill -0 $settings_program 2>/dev/null && settings_fail "the program kept running after exit"
+wait $settings_program || settings_fail "the program ended with exit code $?"
+echo "live settings: a function added to Integer, a new setting read from the command line, a setting's default and a Build field's default were swapped in while the program ran"
 
 # Breakpoints (docs/repl.md#breakpoints): a program that ticks in a loop runs with --hot-reload and --repl-port; a
 # breakpoint is compiled into it, the loop stops there with its locals readable, goes on, and the breakpoint is

@@ -394,8 +394,9 @@ Monster`); with `--repl` or `--repl-port`, `reload` swaps in what changed right 
 swapped in (or refused), with what `last_reload` would then say, so a tool that saves a file never polls. A program
 built without `--hot-reload` has none of this -- no watcher, no swapping, and `reload` answers that it was not
 built for it. `--hot-reload` keeps every function (it implies `--development`), since a new version of a class
-may call one nothing called before, and it is compiled at `--optimized`'s level, so a program that cooks assets or
-simulates between saves runs at release speed.
+may call one nothing called before, and it is compiled at `--optimized`'s level. It is still slower than a
+release build, since every call goes through a slot a reload can re-point: a `--hot-reload` build is for seeing
+and changing a running program, and speed is measured on release builds.
 
 ```gdscript title=hot_counter/monster.spite
 var name = ""
@@ -472,7 +473,10 @@ watcher has swapped the save in.
 | a class's attributes: added, removed, renamed or retyped | every live object of the class moves to the new attributes, components in an `Items`' own memory too ([below](#changing-a-classs-attributes)); the answer says what each class's objects kept |
 | an enum's values: added, removed or reordered | the whole program is compiled again, and every value a running object holds keeps its meaning; a `switch` that meets a value the reload removed halts naming it ([D302](decisions.md)) |
 | a file that does not compile | refused with the compiler's error, and the program keeps all of its code |
-| a file that declares none of the program's classes: `environment.spite`, `build.spite`, a reopening of a class of the standard library | refused: `'environment.spite' changed, and a reload swaps only the functions of the program's own classes, ...`, and the program keeps all of its code |
+| a function of a class the program reopens, a class of the standard library or a number (`func doubled(): Integer` in `integer.spite`) | the whole program is compiled again and every function whose code changed is swapped in, the standard library's and the compiler's helpers included |
+| `environment.spite`: a setting added, removed or given a new default | the whole program is compiled again, `Environment` moves to its new attributes, and every setting is read again the way it is when the program starts: from the command line it was started with, the environment, or the new default |
+| `build.spite`: a field added, removed or given a new default | the whole program is compiled again, and the program's code sees the new value: a `Build` field the program declares is read while it runs in a `--hot-reload` build ([rules](#live-reload-and-6b--implemented-on-windows-the-mechanism-and-the-rules-below-proposed-by-claude-unconfirmed)) |
+| a file deleted | the program is compiled without it, as for any other change |
 | a new class | its functions are compiled into the new code, and `classes` and `describe` see it: the REPL's tables of classes, singletons and enums are swapped in with the code |
 
 A refused reload leaves the program exactly as it was, so a save that caught a file half-written is harmless: the
@@ -613,10 +617,10 @@ worked out while compiling, so the check folds away with the branch it guards.
 
 ### How it works
 
-- **One slot per function.** In a `--hot-reload` build, every function of the program's own classes (not the
-  standard library's) is called through a slot the program can re-point: the function the rest of the code calls
-  is a one-line forwarder to its slot. A normal build is untouched -- direct calls, and tree shaking. The slot
-  costs about a nanosecond per call, one indirect call the C compiler cannot inline
+- **One slot per function.** In a `--hot-reload` build every function is called through a slot the program can
+  re-point: the program's own, the standard library's, and the helpers the compiler writes. The function the rest
+  of the code calls is a one-line forwarder to its slot. A normal build is untouched: direct calls, and tree
+  shaking. The slot costs about a nanosecond per call, one indirect call the C compiler cannot inline
   ([measured](#live-reload-and-6b--implemented-on-windows-the-mechanism-and-the-rules-below-proposed-by-claude-unconfirmed)),
   and only in a `--hot-reload` build.
 - **Only what changed is compiled again.** The build writes two files beside the executable: `game.reload_host`,
@@ -628,7 +632,7 @@ worked out while compiling, so the check folds away with the branch it guards.
   but no other class's functions are compiled -- the new code reaches them in the running program. The C it writes
   is only the changed classes' functions and whatever those need that the running program lacks, with the types
   and declarations they use, and it compiles that into `game_reload_1.dll` (`.so` on Linux, `.dylib` on macOS).
-  For SlopTheseus's server (about 460 files; 880,000 lines of C for the whole program) a changed system is swapped
+  For a game server of about 460 files (880,000 lines of C for the whole program) a changed system is swapped
   in about 6 seconds after the save (5 of them the compiler, 1 the C compiler and starting up), where compiling the
   whole program took 20 to 30 seconds, and a save that changed
   nothing answers in under a second.
@@ -640,11 +644,13 @@ worked out while compiling, so the check folds away with the branch it guards.
   them -- or a parameter list, or the layout of a class -- code in other classes compiled against the old one would
   be stale, so the reload compiles the whole program instead, and says why on the compiler's error output
   (`spite: compiling the whole program, since outside HotCounter changed`). A whole compile compares every function
-  it writes with the running program's: another program class whose C changed is rebuilt too, and a changed
-  function the program cannot swap -- the standard library's, a helper the compiler writes -- refuses the reload
-  with `the change reaches '<name>', which the running program cannot swap: restart the program to take the
-  change, or undo it`. Either way what swaps in is what compiling the whole program writes; `check.sh` holds it by
-  compiling a reload of every file of ten programs both ways and comparing them (`SPITE_RELOAD_CHECK=<file>`).
+  it writes with the running program's, and every function whose C changed is swapped in, whatever class it
+  belongs to, a helper the compiler wrote included. Only a helper that keeps state of its own (a singleton's
+  cache, a table the program fills as it runs) has no slot, since a new copy would start empty: a change that
+  reaches one refuses the reload with `the change reaches '<name>', which the running program cannot swap:
+  restart the program to take the change, or undo it`. Either way what swaps in is what compiling the
+  whole program writes; `check.sh` holds it by compiling a reload of every file of ten programs both ways and
+  comparing them (`SPITE_RELOAD_CHECK=<file>`).
 - **A reload that compiled the whole program is the next one's baseline.** After it, every function the program
   runs is what that compile wrote, so the facts, the hashes and the class ids it compiled with describe the
   running program better than the build's do. It writes them beside its library (`game_reload_2.baseline`); when
@@ -720,10 +726,17 @@ is a gap to close, not a rule. The plan (proposed by Claude, unconfirmed), in th
      and for each what is new, gone, renamed or retyped (`moved every Hero to its new attributes: health is new and
      holds its default`), in its answer and on the error output.
    - Once a class has moved, its code reads through the function for as long as the program runs. Refused, not
-     built: a class that starts or stops fitting an `Items`' own
-     memory, and a change to a value class (`String` and the numbers).
-2. **Dependents are rebuilt**: a change whose dependents cannot be swapped alone compiles the whole program into
-   the reload library and re-points every slot, keeping the heap, instead of refusing.
+     built: a class that starts or stops fitting an `Items`' own memory.
+2. **Dependents are rebuilt**, **built** (Mortaro's option (a), 2026-09-30): every function of a `--hot-reload`
+   build has a slot, the standard library's, a number's (a function a program adds to `Integer`) and the helpers
+   the compiler writes included, so a change whose dependents cannot be swapped alone compiles the whole program
+   and swaps in every function whose C changed, keeping the heap. A helper that keeps state of its own (a static
+   variable: a singleton's cache, a list of live objects, a lazily loaded foreign function) has no slot, since a
+   new copy would start with its own empty state; a change that reaches one is still refused by name. The
+   running program's command line, its check point flag and its assert ring are shared with every reload
+   library, so reloaded code reads the arguments the program started with. A `--hot-reload` build is slower for
+   it (every call of the standard library is an indirect call the C compiler cannot inline); it exists to give
+   information while the program runs, and benchmarks measure production builds only.
 3. **Enums change** -- **built** ([D302](decisions.md), decided by Claude under D205 in place of re-mapping):
    in a `--hot-reload` build every enum value's number is fixed for as long as the program runs, so nothing held
    has to be re-mapped. The build numbers each enum's values in order and writes the numbers into its C
@@ -738,8 +751,17 @@ is a gap to close, not a rule. The plan (proposed by Claude, unconfirmed), in th
    layout names an enum by its name, not its values. `check.sh` adds a value, removes a held one and meets it
    (`conformance/stage6/live_enum`). The number an enum value compiles to is a representation detail
    ([values_and_types.md](values_and_types.md)), so nothing else observes this.
-4. **`environment.spite` and `build.spite`**: a `Build` field is a constant folded into the code, so changing one is
-   step 2 -- the whole program recompiled with the new value and swapped in live.
+4. **`environment.spite` and `build.spite`**, **built** (option (a); how settings are read again proposed by
+   Claude, unconfirmed): in a `--hot-reload` build `Environment` and `Build` move to new attributes like a class of
+   the program, and a `Build` field that the program or a package declares is read while the program runs by the
+   program's own code, from the `Build` singleton, instead of being folded into it (the standard library's own
+   reads of the compiler's options stay folded). A change to either file compiles the whole program. When a reload
+   swaps in `Environment`'s reading of its settings or `Build`'s values, the running singleton reads them again:
+   `Build` takes the values the build gives, and every setting of `Environment` is read as when the program
+   starts, from the command line it was started with, then the environment, then the declared default, so a
+   setting added while the program runs finds a `--volume=7` given at start. `check.sh` changes a function added
+   to `Integer`, adds a setting given on the command line, and changes a setting's default and a `Build` field's
+   (`conformance/stage6/live_settings`).
 All of it lives only in a `--hot-reload` build (D143): a normal build carries none of it.
 
 A REPL that inspects and drives the *running* program, local (`--repl`) and remote (`--repl-port`), and live
@@ -1018,9 +1040,9 @@ session against a copy of the program it edits.
   constant. As with `--repl-port`, a `--hot-reload` build swaps where the program waits and at each loop's check
   point (D174). `spite program --hot-reload` runs the program attached to the terminal, like a REPL build.
 - **A `--hot-reload` build is optimised** (A74; the level proposed by Claude, unconfirmed). Its executable and
-  every reload library are compiled at `--optimized`'s level (`-O3`) whether or not `--optimized` is given, so a
-  program that cooks or simulates between saves runs at release speed and swapped-in code as fast as the code it
-  replaces. It is one C file, so it has no link-time optimisation, and it keeps every run-time check of an
+  every reload library are compiled at `--optimized`'s level (`-O3`) whether or not `--optimized` is given, so
+  swapped-in code runs as fast as the code it replaces; every call still goes through a slot, so the build is
+  slower than a release build (Mortaro, 2026-09-30: benchmarks measure production builds only). It is one C file, so it has no link-time optimisation, and it keeps every run-time check of an
   inspectable build. Every call of a function a reload can replace still goes through its slot: the slot is read
   with an acquiring atomic load, which the C compiler may neither fold to the function the build started with nor
   hoist out of a loop, and a reload writes it with a sequentially consistent store.
@@ -1037,12 +1059,14 @@ session against a copy of the program it edits.
   its end when it is made, before the line
   after it: `var ringing = Concurrent(ring)` followed by `console.print("started")` prints what `ring` prints
   first. The program's results are the same; only the overlap is lost.
-- **The swap mechanism: one slot per function.** In a `--hot-reload` build every function of the program's own
-  classes (not `library/` or `launcher/`), and each such class's `_init` (its attribute defaults), is written as
-  `<name>_hot`, with a function pointer `<name>_slot` holding it, and `<name>` becomes a one-line forwarder through
-  the slot. Every call site, function value and REPL thunk still names `<name>`, so all of them follow a swap;
-  library functions stay direct calls. Any other build is unchanged: direct calls and tree shaking. The cost is one
-  indirect call that the C compiler cannot inline, about a nanosecond: 200 million calls to a one-line function
+- **The swap mechanism: one slot per function.** In a `--hot-reload` build every function, the program's own,
+  the standard library's and every helper the compiler writes that keeps no static state of its own, and each
+  program class's `_init` (its attribute defaults), is written as `<name>_hot`, with a function pointer
+  `<name>_slot` holding it, and `<name>` becomes a one-line forwarder through the slot. Every call site, function
+  value and REPL thunk still names `<name>`, so all of them follow a swap. The functions the scheduler turns into
+  waits (`Program.sleep`, `Console.read_line_into` and the like) keep their direct calls. Any other build is
+  unchanged: direct calls and tree shaking. The cost is one indirect call that the C compiler cannot inline, about
+  a nanosecond: 200 million calls to a one-line function
   took about 0.62 s instead of 0.44 s at `-O0` and 0.40 s instead of 0.18 s with `--optimized` (Windows, clang).
 - **What the build records.** Beside the executable, `<program>.reload_host` lists every function the executable
   defines with its C prototype and a hash of its C, its slots and the class each belongs to, its class ids in
@@ -1082,13 +1106,9 @@ session against a copy of the program it edits.
   the whole program, only the library's, whose types and prototypes are shaken to what its functions use. With
   `SPITE_RELOAD_CHECK=<file>` set, `spite reload` treats that file as changed, compiles the reload both ways, and
   prints whether the fast one writes what the whole one does; it is how `check.sh` holds the fast reload.
-  **A changed file that declares none of the program's classes is refused** (proposed
-  by Claude, unconfirmed; D244): a file reopening a class of the standard library, as `environment.spite` reopens
-  `Environment`, or `build.spite`, holds nothing a slot can swap, and before, its change was answered `unchanged`
-  and silently not applied. Now the reload answers `'<file>' changed, and a reload swaps only the functions of the
-  program's own classes, which it holds none of (it reopens a class of the standard library, or sets how the
-  program is built): restart the program to change it, or undo that change to reload the rest`, and the program
-  keeps all of its code. The rebuilt set is the
+  **A changed file that declares none of the program's classes compiles the whole program** (D280 step 4): a
+  file reopening a class of the standard library, as `environment.spite` reopens `Environment`, or `build.spite`,
+  or a deleted file. The rebuilt set is the
   classes the changed files declare, plus every class whose code calls a function of the set that the running
   program has with another prototype or does not have at all (the running caller would still call the old one),
   repeated until nothing is added. It writes C only for the rebuilt classes' functions and what they reach that the
