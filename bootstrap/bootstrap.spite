@@ -683,7 +683,7 @@ func wrote_final_class(
     var path = final_class_path(output_directory, class_file.qualified_dotted)
     var final_class_directory = directory_of(path)
     create_folder(final_class_directory)
-    var class_file_file = class_file.get_file()
+    var class_file_file = class_file.file
     var ordered = in_file_order(class_file_file, class_file.simple_name)
     var source = "{Syntax.SourcePrinter().source_file(ordered)}{generator.generated_functions_source(class_file.qualified_dotted)}"
     var formatted = formatted_or_as_printed(source)
