@@ -6,12 +6,12 @@
 # of each is reported with the ratio Spite/C: 1.00 is as fast as C, 2.00 takes twice as long. Not part of check.sh,
 # which only compiles them. Run from anywhere:
 #   bash benchmarks/versus_c/run.sh [compiler] [program ...]
-# The compiler defaults to .spite-cache/spite_development.exe, the one check.sh last built. SPITE_FLAGS is added
+# The compiler defaults to .spite/spite_development.exe, the one check.sh last built. SPITE_FLAGS is added
 # to the Spite build and C_FLAGS to the C build, so --tune-for-this-machine is compared with -march=native.
 cd "$(dirname "$0")/../.." || exit 1
-compiler=${1:-.spite-cache/spite_development.exe}
+compiler=${1:-.spite/spite_development.exe}
 shift
-work=.spite-cache/versus_c
+work=.spite/versus_c
 mkdir -p "$work"
 if [ -z "$CC" ]; then
     for candidate in clang cc gcc; do

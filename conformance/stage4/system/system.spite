@@ -10,11 +10,11 @@ func System() {
     } else {
         console.print("no such argument")
     }
-    var folder = Directory(".spite-cache/conformance_system")
+    var folder = Directory(".spite/conformance_system")
     var create = folder.create()
     var exists = folder.exists()
     console.print(create, exists)
-    var file = File(".spite-cache/conformance_system/note.txt")
+    var file = File(".spite/conformance_system/note.txt")
     var write = file.write("first line\n")
     var append = file.append("second line")
     var file_exists = file.exists()

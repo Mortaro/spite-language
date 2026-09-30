@@ -1,6 +1,6 @@
 var console = Console()
 var program = Program()
-var root = ".spite-cache/docs"
+var root = ".spite/docs"
 var folder_names = List<String>()
 var folder_entries = List<String>()
 var folder_flags = List<String>()

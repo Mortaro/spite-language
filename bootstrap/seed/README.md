@@ -5,10 +5,10 @@ fixpoint: compiling it gives a compiler that emits this exact file again. It exi
 but a C compiler:
 
     cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite_seed -lm
-    ./spite_seed.exe bootstrap --c-source --run=false      # writes bootstrap/bootstrap.c, which must equal the seed
+    ./spite_seed.exe bootstrap --c-source --run=false      # writes .spite/build/bootstrap/bootstrap.c, which must equal the seed
     ./spite_seed.exe path/to/program
 
-The compiler's C goes to its default place beside the program, `bootstrap/bootstrap.c`, and not to a `--c-path`:
+The compiler's C goes to its default place, `.spite/build/bootstrap/bootstrap.c` (D283), and not to a `--c-path`:
 every `Build` field is a constant in the compiler it describes, so a path given there would be written into the C
 and no two generations would be equal. Regenerate the seed whenever the compiler sources change (the compiler finds
 `library/` in a folder above its own executable, so build it inside the repository):

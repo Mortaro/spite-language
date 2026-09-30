@@ -18,7 +18,7 @@ import re
 import subprocess
 import sys
 
-SKIPPED_FOLDERS = {".git", ".spite-cache", ".claude", "seed", "node_modules"}
+SKIPPED_FOLDERS = {".git", ".spite", ".claude", "seed", "node_modules"}
 SKIPPED_PATHS = {
     "manual.md",
     "docs/decisions.md",

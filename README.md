@@ -160,8 +160,9 @@ export CC=cc                     # the compiler shells out to this to build the 
 ./spite path/to/folder
 ```
 
-That builds the executable beside the program, `path/to/folder/folder.exe`, and runs it. The compiler reads the
-whole program first and then produces every output asked for: `--c-source` also writes `folder.c` beside it,
+That builds the executable into `.spite/build/path/to/folder/folder.exe` in the folder you ran it from, and runs
+it: nothing is written beside the source. The compiler reads the whole program first and then produces every
+output asked for: `--c-source` also writes `folder.c` beside the executable,
 `--run=false` runs nothing, and `--executable-path=` and `--c-path=` put either somewhere else
 ([docs/compiler.md](docs/compiler.md)).
 

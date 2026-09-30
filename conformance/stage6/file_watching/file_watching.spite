@@ -2,7 +2,7 @@ var console = Console()
 var program = Program()
 
 func FileWatching() {
-    var folder = Directory(".spite-cache/file_watching")
+    var folder = Directory(".spite/file_watching")
     var inner = Directory("{folder.path}/inner")
     folder.create()
     inner.create()

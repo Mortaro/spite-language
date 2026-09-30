@@ -1,5 +1,5 @@
 var console = Console()
-var level = File(".spite-cache/waiting_systems_level.txt")
+var level = File(".spite/waiting_systems_level.txt")
 
 func update_each() {
     var text = level.read()

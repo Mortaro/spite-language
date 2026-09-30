@@ -453,9 +453,12 @@ next save reloads.
   program can use, started on a thread of its own: `ReadDirectoryChangesW` on Windows, `inotify` on Linux and
   `kqueue` on macOS, with no polling. The thread sits in `wait_for_changes()`, which the operating system wakes;
   a burst of changes is waited out until 100 ms pass without one, so a save that writes a file in pieces reloads
-  once. The program's own folder is watched with every folder below it, and so is every folder it `load`s. A build beside its program (the default) writes each reload's library into that
-  folder too, which wakes the watcher once more for a check that finds nothing changed; `--executable-path=`
-  elsewhere avoids it.
+  once. The program's own folder is watched with every folder below it, and so is every folder it `load`s, except
+  a repository's checkout under `.spite/git/` ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)),
+  which is read-only: a pinned commit never changes, so there is nothing to reload there, and a change to that
+  package is a new commit and a restart (D283). Each reload's library is written beside the executable, into
+  `.spite/build/` by default (D283); only when that lies inside a watched folder -- `spite .` run from inside the
+  program's own folder -- does it wake the watcher once more, for a check that finds nothing changed.
 - The compiler, its options and the executable are recorded in the build, so the program must run from the folder
   it was built from, as `spite game --hot-reload` does.
 
