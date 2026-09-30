@@ -6338,7 +6338,7 @@ func is_pending(information: Analysis.ClassInfo, function: Analysis.FunctionInfo
     if function.is_emitted {
         return false
     }
-    if waits_for_constants(information, function) and not builder.mentions(function.c_name) {
+    if skips_generic(information, function) and not builder.mentions(function.c_name) {
         return false
     }
     if not information.is_instantiated or ran_in_host(information, function) {
@@ -33930,7 +33930,7 @@ func emit_class(information: Analysis.ClassInfo) {
     var function_index = 0
     while function_index < information.declared_functions.count() {
         var emitted_function = information.declared_functions[function_index]
-        if not waits_for_constants(information, emitted_function) or builder.mentions(emitted_function.c_name) {
+        if not skips_generic(information, emitted_function) or builder.mentions(emitted_function.c_name) {
             emit_user_function(information, emitted_function)
         }
         function_index = function_index + 1
@@ -41771,4 +41771,27 @@ func held_reflected_value(
     }
     scope.mark_used(hidden)
     return generate_expression(held, scope, class_information)
+}
+
+func skips_generic(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
+    if not waits_for_constants(information, function) {
+        return false
+    }
+    var inspectable = read_evaluate_print_loop or development or hot_reload
+    if not inspectable or constant_return_names.contains(function.c_name) {
+        return true
+    }
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.get_type()
+        var class_ref = type_shape.as_class_ref(parameter_type)
+        if class_ref {
+            if class_ref.c_name == "Spite_Attribute" or class_ref.c_name == "Spite_Argument" {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }
