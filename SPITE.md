@@ -107,6 +107,9 @@ as the language need it is, without naming the package.
 
 **Abbreviations, anywhere.** "Avoid abbreviations like the devil, even if I accidentally abbreviated something we
 shouldn't." `DLL` became `DynamicLibrary`; `Library` was rejected separately for being too generic.
+*Except:* a well-known acronym followed by a full word that carries the meaning, as in `HttpClient`. An acronym is
+not an abbreviation, and it reads better than its expansion: most people know HTTP, few know what it stands for.
+The acronym is written as a word (`Http`, not `HTTP`).
 
 **Vague names.** `add` does not say where, so it is `append` and `prepend`. A name should not need a comment to
 disambiguate it.
