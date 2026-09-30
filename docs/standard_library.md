@@ -936,7 +936,7 @@ program that computes without waiting in the buffer. A program that prints a gre
 need to be watched builds its text and prints it in fewer, longer lines.
 
 Printing a value costs what the call says: the list of values
-is a `List` like any variadic call's, a number goes through its box and its `to_string()`, and the text is written
+is a `List` like any variadic call's, a number is held in the list with its class and goes through its `to_string()`, and the text is written
 with its length rather than up to its first zero byte. `conformance/stage6/text_building` and
 `fused_chain_allocations` pin those allocations. A `crash` writes its operands itself, through each value's
 `to_string()`, because it reports on the way out of a program that is stopping. `flush()` writes out what the

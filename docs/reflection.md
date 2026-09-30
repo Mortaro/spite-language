@@ -11,7 +11,7 @@ class exists only in a program that asks for it. So reflection can be as detaile
 costs nothing.
 
 What a read does cost at run time is what it builds, and only where it is written: each read of `.attributes`
-makes a fresh list with one entry per field; reading `attribute.value` boxes a number field into an object;
+makes a fresh list with one entry per field; reading `attribute.value` boxes a text field into an object;
 `Monster.instances` makes every construction and release of a `Monster` add or remove it from a list, and a class
 nobody asks the instances of keeps no list. Everything else (names, classes, namespaces, `has_function` asked of
 a generic's type) is constant data or folds while compiling. The whole list is in
@@ -118,8 +118,8 @@ A local variable or a parameter may still use any of these names, since nothing 
 
 `.value` is the instance the attribute refers to, as an object of any class: `Anything?`. `Anything` is the
 library's empty `type`, the counterpart of `Nothing`: every class fits it, so a function that takes any object
-says `component: Anything`, and a program never declares its own. A number, `Boolean`, enum or `Symbol` attribute
-is boxed, as it is whenever a plain value goes into a `type`; the value is `null` only when the attribute holds
+says `component: Anything`, and a program never declares its own. A number, `Boolean` or enum attribute is held
+with its class's tag, and a text or `Symbol` attribute is boxed, as whenever such a value goes into a `type`; the value is `null` only when the attribute holds
 `null`. Its text is `.value.to_string()`: a class's own `to_string()` when it has one, a number's or a `String`'s
 usual text, and `to_debug()` for anything else (a list, or a class that does not say how to print). Only a
 program that reads `.value` builds the objects; every other program's attributes carry nothing. `.attributes`
@@ -606,8 +606,8 @@ composable: `function.arguments[0].class == ServerContext` is an identity compar
   therefore empty for a collection.
 - **`attribute.value` is the actual instance the attribute refers to.** Its type is `Anything?`, the library's
   built-in empty `type`, so `entity.add_component(attribute.value)` compiles once it is narrowed. **A number,
-  `Boolean`, enum or `Symbol` attribute is boxed**, as it is whenever a plain value is passed where a shape is
-  wanted, so its `.class` is `Integer` and `if value == Integer` narrows it back; it is `null` only when the
+  `Boolean` or enum attribute keeps its class**, held with its class's tag as whenever a plain value is stored where
+  a shape is wanted (a text or `Symbol` attribute is boxed), so its `.class` is `Integer` and `if value == Integer` narrows it back; it is `null` only when the
   attribute holds `null`. **Its text is `attribute.value.to_string()`**: through `Anything`, `to_string()` answers
   each class's own `to_string()` (a `String` itself, a number's usual text), and `to_debug()` for a class that has
   none, a `List` or a `Dictionary`; the REPL's display calls it for a number, text or enum. **It costs nothing

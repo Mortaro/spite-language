@@ -1,6 +1,6 @@
 var console = Console()
 var clock = Clock()
-var rounds = 2000000
+var rounds = 20000000
 var held_total = 1000
 
 func ShapeCalls() {

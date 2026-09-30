@@ -821,7 +821,7 @@ var _memory = Memory.Bytes(4)
 
 Four bytes, and nothing is allocated: `Memory.Bytes(4)` says only how big the value is, which is true wherever it
 lives. The compiler places it (a number's memory is a register, or wherever the C compiler keeps an `int32_t`, a
-local on the stack, an attribute inside an object, or a box only when it is passed as a shape), so there is no
+local on the stack, an attribute inside an object, or the value of a `type` beside its class's tag), so there is no
 address behind `this` and nothing to free. `Memory.Bytes` is not a class and is not called: it is how a value
 class states its size, and it is read only there. Every number file says the same with its own width (`Long` 8, `Short` 2,
 `Byte` 1, `Boolean` 1, `Double` 8, `Memory.Address` 8, ...), the compiler checks it against the C type it emits,

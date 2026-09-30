@@ -585,11 +585,11 @@ list that accepts any object is written `component: Anything` or `List<Anything>
 declares an empty `type` of its own for that. An empty `type` requires nothing, so every class fits it. A
 function taking `Anything` is compiled once for each class that reaches it
 ([values_and_types.md](values_and_types.md#inline-types-and-duck-typing)), so a number, `Boolean` or enum passed
-to it arrives as itself; one stored as `Anything` (in a `List<Anything>`, say) is boxed like any plain value stored
-as a `type`, and `if component == Health` narrows it back. `Spite.Attribute.value`, the instance an attribute holds, is typed `Anything?`
+to it arrives as itself; one stored as `Anything` (in a `List<Anything>`, say) keeps its class beside it, as any
+plain value stored as a `type` does, and `if component == Health` narrows it back. `Spite.Attribute.value`, the instance an attribute holds, is typed `Anything?`
 ([Reflection objects](reflection.md#reflection-objects)). An empty `type` costs nothing until a value is
-passed to it: it holds no functions, and a box is made only where a plain value is actually stored as
-`Anything`.
+passed to it: it holds no functions, and nothing is allocated for a number, `Boolean` or enum value stored
+as `Anything`.
 
 ### Variadic arguments: the rules
 
@@ -630,10 +630,10 @@ each call builds the `List` its function receives, as the caller would have; not
 **A number, a `Boolean` or an enum value fits a `type` too** A
 shape holds class instances, and these are plain values. Passed to a function that takes a `type`, one reaches the
 copy of the function made for its class as itself; stored where a `type` is wanted (a list's element, an
-attribute, the list of a variadic call such as `console.print`), it is put in a small box the compiler allocates
-and frees like any object, and a call through the shape reaches its class's function (`Integer.to_string()`, for
-an `Integer`). A `String` needs no box; a `Symbol` gets one so that it keeps its
-class. An enum value answers two functions, `to_string()` (its name as text; `weather.to_string()` works on
+attribute, the list of a variadic call such as `console.print`), it is held beside its class's tag with nothing
+allocated, and a call through the shape reaches its class's function (`Integer.to_string()`, for an `Integer`).
+Text and a `Symbol` travel in a small box the compiler allocates and frees like any object, so that a `Symbol`
+keeps its class. An enum value answers two functions, `to_string()` (its name as text; `weather.to_string()` works on
 any enum value) and `to_debug()`, so that is all a shape can ask of one. `.class` read through the shape names the
 value's own class (`Integer`, `Symbol`, the enum), as it does for a class instance. A value of a union passed where a
 `type` is wanted brings the union's members into the shape.

@@ -1095,8 +1095,8 @@ else it is an error saying to call it. Tested through a `type`, a class that fit
 by the test itself, so a value read back from a `Dictionary<AnyStorage>` can be narrowed before this function
 has stored one (`conformance/stage6/generic_class_test`).
 **A codegen value bound to a class is a class test too**: inside `Fetch<$wanted_type>`, `if item == $wanted_type { found = item }` narrows `item`
-to the bound class, as `if item == Health` would. A binding that is a number, `Boolean` or enum tests for its boxed
-class, since that is what such a value is inside a `type`, and the narrowed name is the plain value again;
+to the bound class, as `if item == Health` would. A binding that is a number, `Boolean` or enum tests for its
+class, since such a value keeps it inside a `type`, and the narrowed name is the plain value again;
 `String`, a `List` or a `Dictionary` test for their own classes. Where the value's static type already answers,
 the test is decided while compiling instead: a `Health` against `$wanted_type` bound to `Health` is `true`, bound
 to `Label` is `false`, and a union that does not hold the bound class is `false` rather than the "never true"

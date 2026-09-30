@@ -5,6 +5,7 @@ var owner_namespace = ""
 var member_types = List<Syntax.Types.Type>()
 var members = List<ClassInfo>()
 var is_shape = false
+var is_tagged = false
 var shape_fields = List<Syntax.Statements.FieldDeclaration>()
 var shape_path = ""
 var accessor_names = List<String>()

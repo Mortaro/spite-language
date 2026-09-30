@@ -56,8 +56,10 @@ when a page gains a rule that is not built yet, add it here.
 - Built: a copy per class for a call whose argument's class is known while compiling, and a class test over the
   shape's closed set for a value read at run time, with the function as written compiled under another name and
   shaken out (`conformance/stage6/shape_copies`, `benchmarks/shape_calls`).
-- NOT BUILT: a plain value stored as a `type` (a list's element, an attribute, the list of a variadic call such as
-  `console.print`) is still a heap box, not a tagged value; so printing a number still allocates.
+- Built: a `type` that requires no attributes is a tagged value (a class id and the object or the plain value), so a
+  number, `Boolean` or enum stored as one allocates nothing (`conformance/stage6/tagged_values`).
+- NOT BUILT: text and a `Symbol` stored as a `type` are still heap boxes; a `type` with attributes (a row) and a
+  union stay pointers.
 - NOT BUILT: the closed set tested for a run-time value is every class the program admits to the `type`, not the
   classes that reach that particular spot.
 - NOT BUILT: a nullable `type` parameter, a parameter the function assigns to, a function that waits, and the

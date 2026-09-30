@@ -490,6 +490,18 @@ if grep -q "___for_0_" "$work/shape_copies_hot.c"; then
   echo "FAILED: a --hot-reload build should compile a function taking a type as written, with no copies"; exit 1
 fi
 echo "shape copies: a function taking a type is compiled per class, with no general version and no box, except in a --hot-reload build"
+# A number, Boolean or enum value held as a type without attributes is a tagged value, never a box
+# (docs/optimizations.md): tagged_values prints numbers, stores them in a List<Anything> and debugs an enum value,
+# and its production C calls no box maker for any of them; only text made at run time is boxed.
+tagged="$work/tagged_values.c"
+"$work/generation_two.exe" conformance/stage6/tagged_values --run=false --c-source --c-path="$tagged" > /dev/null 2>&1 || {
+  echo "FAILED: tagged_values does not write its C"; exit 1; }
+if grep -qE "spite_box_(Spite(Integer|Long|Double|Float|Boolean)|TaggedValues_Level)\(" "$tagged" \
+   || ! grep -q "^typedef SpiteTagged Nothing_Anything;$" "$tagged" \
+   || ! grep -q "List_Nothing_Anything_append(held_, spite_tagged_SpiteLong(total_));" "$tagged"; then
+  echo "FAILED: tagged_values should hold its numbers and enum values tagged, with no box"; exit 1
+fi
+echo "tagged values: a number, Boolean or enum value held as a type is tagged in place, never boxed"
 # A loop over a list of plain values that cannot change its size reads the count once and its items without a range
 # check (docs/optimizations.md): counted_loops' scale_in_place is a plain C loop the C compiler can vectorise, and
 # scale_into checks the list it writes once, before the loop; add_from, whose counter starts at a parameter, is not.

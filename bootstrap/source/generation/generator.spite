@@ -348,6 +348,7 @@ var placed_frames = List<String>()
 var placed_receiver_names = List<String>()
 var placed_receiver_codes = List<String>()
 var boxed_value_types = Dictionary<Analysis.SpiteType>()
+var tagged_makers = Dictionary<Boolean>()
 var constant_boxes = List<String>()
 var box_release_emitted = false
 var union_release_positions = Dictionary<Integer>()
@@ -3241,6 +3242,7 @@ func register_shapes(entry: Discovery.DiscoveredClass) {
             )
             information.is_shape = true
             information.shape_fields = declaration.fields
+            information.is_tagged = not declaration.fields.any(is_attribute_field)
             information.shape_path = file.path
             var reopened = shape_position(information.c_name)
             if reopened < 0 {
@@ -3575,14 +3577,12 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
         var member_index = 0
         while member_index < information.members.count() {
             var member = information.members[member_index]
-            var receiver = "({member.c_name}*)self"
-            if boxed_value_types.has(member.c_name) {
-                receiver = "((SpiteBox_{member.c_name}*)self)->value"
-            }
+            var shape_type = union_type_of(information)
+            var receiver = member_value_code("self", shape_type, member)
             var called_function = shape_member_function(member, name)
             crash called_function
             var call = "{called_function.c_name}({receiver}{passed})"
-            var member_test = class_id_test("self", member)
+            var member_test = value_class_test("self", shape_type, member)
             if type_shape.is_void(return_type) {
                 lines.append("if {member_test} \{ {call}; return; }")
             } else {
@@ -3701,7 +3701,9 @@ func emit_union_class_of_bodies() {
                     crash boxed_value_types[member.c_name]
                     class_type = boxed_value_types[member.c_name]
                 }
-                lines.append("if {class_id_test("self", member)} return {class_object_call(class_type)};")
+                var owner_type = union_type_of(information)
+                var tested_member = value_class_test("self", owner_type, member)
+                lines.append("if {tested_member} return {class_object_call(class_type)};")
                 member_index = member_index + 1
             }
             lines.append(
@@ -3740,6 +3742,25 @@ func union_release_text(information: Analysis.UnionInfo): String {
     var name = information.c_name
     var release_lines = List<String>()
     release_lines.append("void {name}___release({name} self) \{")
+    if information.is_tagged {
+        release_lines.append("if (self.plain != 0 || self.value.object == 0) return;")
+        var tagged_index = 0
+        while tagged_index < information.members.count() {
+            var tagged_member = information.members[tagged_index]
+            if not is_plain_member(tagged_member) {
+                var released_object = "{tagged_member.c_name}___release(({tagged_member.c_name}*)self.value.object)"
+                if tagged_member.c_name == "SpiteString" {
+                    released_object = "spite_string_box_release(self.value.object)"
+                } else if boxed_value_types.has(tagged_member.c_name) {
+                    released_object = "spite_box_release(self.value.object)"
+                }
+                release_lines.append("if {tagged_member_test("self", tagged_member)} \{ {released_object}; return; }")
+            }
+            tagged_index = tagged_index + 1
+        }
+        release_lines.append("}")
+        return release_lines.join("\n")
+    }
     release_lines.append("if (self == 0) return;")
     var member_index = 0
     while member_index < information.members.count() {
@@ -4103,6 +4124,151 @@ func class_type_of(information: Analysis.ClassInfo): Analysis.SpiteType {
     return resolved
 }
 
+func is_attribute_field(field: Syntax.Statements.FieldDeclaration): Boolean {
+    return not field.is_function
+}
+
+func tagged_shape_of(spite_type: Analysis.SpiteType): Analysis.UnionInfo? {
+    var inner = expected_type_without_nullable(spite_type)
+    var union_type = type_shape.as_union(inner)
+    assert union_type
+    var information = find_union_by_c_name(union_type.c_name)
+    assert information
+    assert information.is_tagged
+    return information
+}
+
+func is_plain_member(member: Analysis.ClassInfo): Boolean {
+    if member.c_name == "SpiteString" or not boxed_value_types.has(member.c_name) {
+        return false
+    }
+    crash boxed_value_types[member.c_name]
+    return is_tagged_in_place(boxed_value_types[member.c_name])
+}
+
+func value_class_test(code: String, value_type: Analysis.SpiteType, member: Analysis.ClassInfo): String {
+    var tagged = tagged_shape_of(value_type)
+    if tagged {
+        return tagged_member_test(code, member)
+    }
+    return class_id_test(code, member)
+}
+
+func tagged_member_test(code: String, member: Analysis.ClassInfo): String {
+    if member.c_name == "SpiteString" {
+        return "((({code}).tag == 0) && (({code}).plain == 0))"
+    }
+    return "(({code}).tag == {member.class_id})"
+}
+
+func member_value_code(code: String, value_type: Analysis.SpiteType, member: Analysis.ClassInfo): String {
+    var tagged = tagged_shape_of(value_type)
+    if not tagged {
+        if boxed_value_types.has(member.c_name) {
+            return "(((SpiteBox_{member.c_name}*)({code}))->value)"
+        }
+        var class_type = instance_type_of(member)
+        return "(({c_type_name(class_type)})({code}))"
+    }
+    if is_plain_member(member) {
+        crash boxed_value_types[member.c_name]
+        var plain_c_type = c_type_name(boxed_value_types[member.c_name])
+        return "SPITE_TAGGED_VALUE({code}, {plain_c_type})"
+    }
+    if boxed_value_types.has(member.c_name) {
+        return "(((SpiteBox_{member.c_name}*)({code}).value.object)->value)"
+    }
+    var object_type = instance_type_of(member)
+    return "(({c_type_name(object_type)})({code}).value.object)"
+}
+
+func object_pointer_code(code: String, value_type: Analysis.SpiteType): String {
+    var tagged = tagged_shape_of(value_type)
+    if tagged {
+        return "({code}).value.object"
+    }
+    return code
+}
+
+func tagged_value(code: String, from: Analysis.SpiteType, information: Analysis.UnionInfo): String {
+    if tagged_shape_of(from) {
+        return code
+    }
+    if type_shape.as_string(from) {
+        var string_class = find_class_by_c_name("SpiteString")
+        crash string_class
+        admit_to_union(information, string_class)
+        return "spite_tagged_object({string_class.class_id}, {boxed_text(code)})"
+    }
+    var boxed_class = boxed_class_of(from)
+    if boxed_class {
+        admit_to_union(information, boxed_class)
+        if is_tagged_in_place(from) {
+            return "{ensure_tag(boxed_class, from)}({code})"
+        }
+        var box_maker = ensure_box(boxed_class, from)
+        return "spite_tagged_object({boxed_class.class_id}, {box_maker}({code}))"
+    }
+    var container_class = container_class_of(from)
+    if container_class {
+        admit_to_union(information, container_class)
+        return "spite_tagged_object({container_class.class_id}, (void*)({code}))"
+    }
+    var class_ref = type_shape.as_class_ref(from)
+    if class_ref {
+        var admitted = find_class_by_c_name(class_ref.c_name)
+        if admitted {
+            if not information.has_member(admitted.c_name) {
+                admit_to_union(information, admitted)
+            }
+            return "spite_tagged_object({admitted.class_id}, (void*)({code}))"
+        }
+    }
+    var from_union = type_shape.as_union(from)
+    if from_union {
+        var from_information = find_union_by_c_name(from_union.c_name)
+        if from_information {
+            var member_index = 0
+            while member_index < from_information.members.count() {
+                var member = from_information.members[member_index]
+                if not information.has_member(member.c_name) {
+                    admit_to_union(information, member)
+                }
+                member_index = member_index + 1
+            }
+            if from_information.is_shape {
+                record_shape_flow(from_information, information)
+            }
+        }
+    }
+    return "spite_tagged_from_pointer((void*)({code}))"
+}
+
+func is_tagged_in_place(value_type: Analysis.SpiteType): Boolean {
+    if type_shape.as_scalar(value_type) {
+        return true
+    }
+    if type_shape.as_enum(value_type) {
+        return true
+    }
+    return false
+}
+
+func ensure_tag(member: Analysis.ClassInfo, value_type: Analysis.SpiteType): String {
+    var maker = "spite_tagged_{member.c_name}"
+    if tagged_makers.has(member.c_name) {
+        return maker
+    }
+    tagged_makers[member.c_name] = true
+    ensure_box(member, value_type)
+    var value_c_type = c_type_name(value_type)
+    builder.add_prototype("static inline SpiteTagged {maker}({value_c_type} value);")
+    builder.add_support(
+        "static inline SpiteTagged {maker}({value_c_type} value) \{\nSpiteTagged tagged;\ntagged.tag = {member.class_id};\ntagged.plain = 1;\ntagged.value.bits = 0;\nmemcpy(&tagged.value, &value, sizeof(value));\nreturn tagged;\n}",
+    )
+    return maker
+}
+
 func class_id_test(code: String, information: Analysis.ClassInfo): String {
     if information.c_name == "SpiteString" {
         return "(((SpiteHeader*)({code}))->class_id <= 0)"
@@ -4116,6 +4282,9 @@ func shaped_value(
     to: Analysis.SpiteType,
     information: Analysis.UnionInfo,
 ): String {
+    if information.is_tagged {
+        return tagged_value(code, from, information)
+    }
     if type_shape.as_string(from) {
         var string_class = find_class_by_c_name("SpiteString")
         crash string_class
@@ -4390,12 +4559,19 @@ func emit_unions() {
     while index < unions.count() {
         var information = unions[index]
         var name = information.c_name
-        builder.add_typedef("typedef void* {name};")
         builder.add_prototype("{name} {name}___retain({name} self);")
         builder.add_prototype("void {name}___release({name} self);")
-        builder.add_support(
-            "{name} {name}___retain({name} self) \{\nif (self != 0) SPITE_COUNT_UP(((SpiteHeader*)self)->ref_count);\nreturn self;\n}",
-        )
+        if information.is_tagged {
+            builder.add_typedef("typedef SpiteTagged {name};")
+            builder.add_support(
+                "{name} {name}___retain({name} self) \{\nif (self.plain == 0 && self.value.object != 0) SPITE_COUNT_UP(((SpiteHeader*)self.value.object)->ref_count);\nreturn self;\n}",
+            )
+        } else {
+            builder.add_typedef("typedef void* {name};")
+            builder.add_support(
+                "{name} {name}___retain({name} self) \{\nif (self != 0) SPITE_COUNT_UP(((SpiteHeader*)self)->ref_count);\nreturn self;\n}",
+            )
+        }
         if not information.is_shape {
             emit_union_release(information)
         }
@@ -7479,12 +7655,18 @@ func null_code(inner: Analysis.SpiteType): String {
     if type_shape.as_string(inner) or type_shape.is_symbol(inner) {
         return "SPITE_STRING_NULL"
     }
+    if tagged_shape_of(inner) {
+        return "SPITE_TAGGED_NULL"
+    }
     return "0"
 }
 
 func present_code(code: String, inner: Analysis.SpiteType): String {
     if type_shape.as_string(inner) or type_shape.is_symbol(inner) {
         return "(!SPITE_STRING_IS_NULL({code}))"
+    }
+    if tagged_shape_of(inner) {
+        return "SPITE_TAGGED_PRESENT({code})"
     }
     return "(({code}) != 0)"
 }
@@ -7987,6 +8169,9 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
             var admitted_union = find_union_by_c_name(to_union.c_name)
             var admitted_class = find_class_by_c_name(from_class_ref.c_name)
             if admitted_union {
+                if admitted_union.is_tagged {
+                    return tagged_value(code, from, admitted_union)
+                }
                 if admitted_class {
                     admit_to_union(admitted_union, admitted_class)
                 }
@@ -9396,9 +9581,10 @@ func generate_class_test(
     var lines = List<String>()
     var tested_type = tested.get_type()
     lines.append("{c_type_name(tested_type)} {temporary} = {tested.code};")
-    var test = class_id_test(temporary, tested_class)
+    var test = value_class_test(temporary, tested_type, tested_class)
     if is_nullable {
-        test = "({temporary} != 0 && {test})"
+        var present = present_code(temporary, value_type)
+        test = "({present} && {test})"
     }
     if binary.operator == 'not_equal' {
         test = "(!{test})"
@@ -12005,15 +12191,16 @@ func dispatch_lines(
     }
     crash function.parameters[index]
     var argument = c_value_name(function.parameters[index].name)
+    var argument_type = function.parameters[index].get_type()
     var member_index = 0
     while member_index < shaped.members.count() {
         var member = shaped.members[member_index]
         var member_type = dispatched_member_type(member)
         if member_type {
             var unboxed = "spite_dispatched_{index}"
-            var tested = class_id_test(argument, member)
+            var tested = value_class_test(argument, argument_type, member)
             lines.append("if {tested} \{")
-            var unboxing = unbox_line(member, member_type, argument, unboxed)
+            var unboxing = unbox_line(member, member_type, argument, unboxed, argument_type)
             lines.append(unboxing)
             var member_types = types.copy()
             member_types.set_at(index, member_type)
@@ -12042,8 +12229,21 @@ func unbox_line(
     member_type: Analysis.SpiteType,
     argument: String,
     unboxed: String,
+    argument_type: Analysis.SpiteType,
 ): String {
     var value_c_type = c_type_name(member_type)
+    if tagged_shape_of(argument_type) {
+        var held = member_value_code(argument, argument_type, member)
+        if is_plain_member(member) or not boxed_value_types.has(member.c_name) {
+            return "{value_c_type} {unboxed} = {held};"
+        }
+        var retained_value = retain_call(member_type, held)
+        var boxed_object = object_pointer_code(argument, argument_type)
+        if member.c_name == "SpiteString" {
+            return "{value_c_type} {unboxed} = {retained_value}; spite_string_box_release({boxed_object});"
+        }
+        return "{value_c_type} {unboxed} = {retained_value}; spite_box_release({boxed_object});"
+    }
     if member.c_name == "SpiteString" {
         return "SpiteString {unboxed} = SpiteString___retain(((SpiteBox_SpiteString*)({argument}))->value); spite_string_box_release({argument});"
     }
@@ -16083,7 +16283,7 @@ func emit_attribute_object_bodies() {
         var position = attribute_objects_emitted
         attribute_objects_emitted = attribute_objects_emitted + 1
         crash attribute_object_types[position]
-        var object_code = "0"
+        var object_code = null_code(shape_type)
         if attribute_object_used {
             object_code = attribute_object_code(attribute_object_types[position], "value", shape_type)
         }
@@ -16100,9 +16300,9 @@ func attribute_object_code(spite_type: Analysis.SpiteType, code: String, shape_t
     if nullable {
         var inner = nullable.inner
         if type_is_reference(inner) {
-            return "({present_code(code, inner)} ? {attribute_object_code(inner, code, shape_type)} : 0)"
+            return "({present_code(code, inner)} ? {attribute_object_code(inner, code, shape_type)} : {null_code(shape_type)})"
         }
-        return "({code}.has_value ? {attribute_object_code(inner, "{code}.value", shape_type)} : 0)"
+        return "({code}.has_value ? {attribute_object_code(inner, "{code}.value", shape_type)} : {null_code(shape_type)})"
     }
     if boxed_class_of(spite_type) {
         return cast(code, spite_type, shape_type)
@@ -16205,7 +16405,10 @@ func emit_union_attributes_bodies() {
                 var member = information.members[member_index]
                 if attributes_described(member) {
                     var described = ensure_attributes_function(member)
-                    lines.append("if {class_id_test("self", member)} return {described}(({member.c_name}*)self);")
+                    var attributes_type = union_type_of(information)
+                    var attributes_test = value_class_test("self", attributes_type, member)
+                    var attributes_object = member_value_code("self", attributes_type, member)
+                    lines.append("if {attributes_test} return {described}({attributes_object});")
                 }
                 member_index = member_index + 1
             }
@@ -28198,9 +28401,10 @@ func generate_class_narrowing_if(
     builder.add_user("\{")
     var subject_spite_type = subject.get_type()
     builder.add_user("{c_type_name(subject_spite_type)} {subject_temporary} = {subject.code};")
-    var test = class_id_test(subject_temporary, tested_class)
+    var test = value_class_test(subject_temporary, subject_spite_type, tested_class)
     if is_nullable {
-        test = "({subject_temporary} != 0 && {test})"
+        var subject_present = present_code(subject_temporary, subject_spite_type)
+        test = "({subject_present} && {test})"
     }
     builder.add_user("if ({test}) \{")
     var case_scope = Scope(scope)
@@ -28210,7 +28414,7 @@ func generate_class_narrowing_if(
         subject_identifier.name,
         "'if {subject_identifier.name} == {tested_class.simple_name}' on line {current_line}",
     )
-    var narrowed = narrowed_code(subject_temporary, tested_class, class_type)
+    var narrowed = member_value_code(subject_temporary, subject_spite_type, tested_class)
     case_scope.set_override(subject_identifier.name, narrowed)
     generate_block_in_scope(if_statement.then_branch, case_scope, class_information, function_information)
     builder.add_user("}")
@@ -28221,13 +28425,6 @@ func generate_class_narrowing_if(
     }
     builder.add_user("}")
     return true
-}
-
-func narrowed_code(code: String, tested_class: Analysis.ClassInfo, class_type: Analysis.SpiteType): String {
-    if boxed_value_types.has(tested_class.c_name) {
-        return "(((SpiteBox_{tested_class.c_name}*){code})->value)"
-    }
-    return "(({c_type_name(class_type)}){code})"
 }
 
 func generate_nullable_switch(

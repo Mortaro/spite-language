@@ -346,7 +346,7 @@ func is_alive(): Boolean {
   naming the *types* it takes and never the names) and accepts any class, or
   object literal `{ label: "x" }`, with those attributes and functions.
 - `Anything` is the built-in empty `type`, the counterpart of `Nothing`: `component: Anything` and
-  `List<Anything>()` accept any object (a number is boxed). Never declare an empty `type` of your own.
+  `List<Anything>()` accept any object (a number keeps its class, with no allocation). Never declare an empty `type` of your own.
 
 ## Nothing, null, and failure
 
