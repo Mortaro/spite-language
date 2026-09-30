@@ -1,0 +1,2 @@
+spite.crash	262f0d5a	conformance/stage6/crash_scope_values/crash_scope_values.spite:22	CrashScopeValues	load_level	inner=20	level=forest	depth=2	nickname is null	scale=1.5	title=a report longer than the eighty bytes a crash shows of one text, so the rest is ...(92 bytes)	mood=calm	retries=3
+before the crash

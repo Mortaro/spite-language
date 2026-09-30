@@ -89,28 +89,8 @@ func write_attribute(attribute: Symbol<$value_type>, shown: $value_type, members
 }
 
 func written_decimal(shown: $value_type): String {
-    var unwritable = ""
-    if shown != shown {
-        unwritable = "{described_path()} is not a number, which JSON cannot hold"
-    } else if shown - shown != 0 {
-        unwritable = "{described_path()} is {infinity_of(shown)}, which JSON cannot hold"
-    }
-    crash unwritable == ""
+    crash shown - shown == 0
     return shown
-}
-
-func infinity_of(shown: $value_type): String {
-    if shown < 0 {
-        return "negative infinity"
-    }
-    return "infinity"
-}
-
-func described_path(): String {
-    if path.is_empty() {
-        return "the value"
-    }
-    return "'{path}'"
 }
 
 func quoted(text: String): String {

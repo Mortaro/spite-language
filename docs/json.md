@@ -75,8 +75,8 @@ Ada "the" first shipped tea 2
 - `JsonReader<T>(text)` holds the text, and `read(): T?` answers `null` when it is not JSON, or not this class's
   JSON. Narrow it like any other `T?`: `crash` when bad input is a bug, `assert` when the program should carry on,
   `if` when absence is a case.
-- `read_or_crash(): T` halts on bad input instead, and the crash line says where and what was expected:
-  `failure=expected a number at character 10`.
+- `read_or_crash(): T` halts on bad input instead, at the point the reader finds it, and the crash line shows what
+  was wanted there, the position and the text: `wanted=a number	text={"count": three}	position=10`.
 
 ## Write and read bytes
 
@@ -622,7 +622,7 @@ What follows is Claude's reading where D22, D95 and D208 are not specific (propo
   gives anything never set. Besides a value of the wrong kind, a missing brace and anything after the value
   (`{} x`) make `read` answer `null`: the object would be wrong, and a wrong object that looks right is the
   surprise D27 exists to prevent. `read_or_crash` crashes on the same inputs, and its crash line carries
-  `failure=expected <what> at character <n>`.
+  `wanted=<what>` and `position=<n>`.
 - **A key in camelCase or PascalCase reads into the snake_case attribute it spells** (D247, decided by Claude
   under D205, from the Theseus data conversion; the member names provisional under D214). The exact name wins:
   `JsonReader` first compares the key with every attribute's name, as it always did, and only a key that matched
@@ -672,10 +672,10 @@ What follows is Claude's reading where D22, D95 and D208 are not specific (propo
 - **Infinity and not-a-number crash `JsonWriter`** (D198, decided by Mortaro; D208 keeps it JSON's alone): JSON
   (RFC 8259) holds neither, and a float became one through a division by zero or an overflow the program did not
   guard, which is the developer's mistake (D199, [failure.md](failure.md)); floats themselves keep them (D200),
-  and `BinaryWriter` writes their bits like any other. The crash names the attribute -- `Class.attribute`, with
-  `[index]` or `["key"]` for an element -- and the value: `unwritable='Order.price' is infinity, which JSON cannot
-  hold` (also `negative infinity` and `not a number`; `conformance/stage6/json_infinity`). A program that wants
-  `null` there checks the number first.
+  and `BinaryWriter` writes their bits like any other. The crash shows the value and the attribute's path --
+  `Class.attribute`, with `[index]` or `["key"]` for an element: `shown=inf	path=Order.price` (and the
+  same for negative infinity and not-a-number; `conformance/stage6/json_infinity`). A program that wants `null`
+  there checks the number first.
 - `--final-classes` does not print the functions `JsonWriter<Order>` generated, because a generic class's file
   is shared by all its instances.
 - **A plain `Symbol` attribute** (as opposed to an enum) is written as its name and read back through

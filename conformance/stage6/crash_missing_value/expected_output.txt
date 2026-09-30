@@ -1,2 +1,2 @@
-spite.crash	75b30821	conformance/stage6/crash_missing_value/crash_missing_value.spite:10	CrashMissingValue	show	width	width is null
+spite.crash	75b30821	conformance/stage6/crash_missing_value/crash_missing_value.spite:10	CrashMissingValue	show	width is null
 width 0
