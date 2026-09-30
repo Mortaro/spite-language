@@ -1,4 +1,4 @@
-longer 1.75 3.25 4.75 6.25 9 shorter 1.75 3.25
+longer 1.75 3.25 4.75 6.25 9 same 1.75 3.25 4.75 6.25
 in place 1 5
 sums 10 12
 pairs below 5 6

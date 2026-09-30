@@ -3,12 +3,12 @@ var console = Console()
 func CountedLoops() {
     var from = [1.0, 2.0, 3.0, 4.0]
     var longer = [0.0, 0.0, 0.0, 0.0, 9.0]
-    var shorter = [0.0, 0.0]
+    var same = [0.0, 0.0, 0.0, 0.0]
     scale_into(from, longer)
-    scale_into(from, shorter)
+    scale_into(from, same)
     var longer_text = longer.join(" ")
-    var shorter_text = shorter.join(" ")
-    console.print("longer", longer_text, "shorter", shorter_text)
+    var same_text = same.join(" ")
+    console.print("longer", longer_text, "same", same_text)
     var numbers = List<Float>()
     numbers.append(0.5)
     numbers.append(1.5)
