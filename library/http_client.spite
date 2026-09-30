@@ -11,10 +11,9 @@ func send(host: String, port: Integer, request: HttpRequest): HttpResponse? {
     var index = 0
     while index < names.count() {
         var name = names[index]
-        var value = request.headers.get(name)
-        crash value
+        crash request.headers[name]
         if name != "host" and name != "content-length" and name != "connection" {
-            head = "{head}{name}: {value}\r\n"
+            head = "{head}{name}: {request.headers[name]}\r\n"
         }
         index = index + 1
     }

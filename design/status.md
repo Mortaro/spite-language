@@ -330,7 +330,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Two versions of one repository
 
-- D331 (one package pinning two commits reads them as two loads in load order) was decided by Mortaro on 2026-09-30 and built; the error for a commit read into two different versions was proposed by Claude, unconfirmed.
+- D333 (one package pinning two commits reads them as two loads in load order) was decided by Mortaro on 2026-09-30 and built; the error for a commit read into two different versions was proposed by Claude, unconfirmed.
 - Not built: identical code folding, so the code two versions share unchanged is written twice today (`optimizations.md#identical-functions-are-folded-into-one`).
 - D296 (two versions are two libraries) was decided by Mortaro on 2026-09-30, built as proposed by Claude, unconfirmed.
 

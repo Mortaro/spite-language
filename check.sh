@@ -214,7 +214,7 @@ if command -v git > /dev/null 2>&1; then
   # D296: two commits of one repository are two libraries. The program pins the engine at the first commit and a
   # plugin repository pins it at the later one; each reads its own version, and a mod folder the program loads reopens
   # the program's version only. One package pinning both commits reads them as two loads, the later reopening the
-  # earlier (D331).
+  # earlier (D333).
   rm -rf "$checkout" "$checkout.files"   # the edited copy above is fetched again
   later=$(git -C "$engine_repository" rev-parse --short=7 HEAD)
   plugin_repository="$pinned_work/plugin_repo"

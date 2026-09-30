@@ -619,7 +619,7 @@ func _assign_codes(lengths: Memory.Address, symbol_count: Integer, limit: Intege
         _increment(counts.items, bits)
         index = index + 1
     }
-    counts.set_at(0, 0)
+    counts[0] = 0
     var code = 0
     var bits = 1
     while bits <= limit {

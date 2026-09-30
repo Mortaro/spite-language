@@ -56,7 +56,7 @@ func class_of_type(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
     var inner = spite_type
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        inner = nullable.get_inner()
+        inner = nullable.inner
     }
     var class_reference = type_shape.as_class_ref(inner)
     assert class_reference
@@ -169,7 +169,7 @@ func call_class(call: Syntax.Expressions.CallExpression): Analysis.ClassInfo? {
         return resolved.owner
     }
     if resolved.function {
-        var function_return_type = resolved.function.get_return_type()
+        var function_return_type = resolved.function.return_type
         return class_of_type(function_return_type)
     }
     crash call.callee
@@ -183,7 +183,7 @@ func operator_class(binary: Syntax.Expressions.BinaryExpression): Analysis.Class
     var resolved = operator_call(binary)
     assert resolved
     crash resolved.function
-    var function_return_type = resolved.function.get_return_type()
+    var function_return_type = resolved.function.return_type
     return class_of_type(function_return_type)
 }
 
@@ -206,7 +206,7 @@ func negated_class(unary: Syntax.Expressions.UnaryExpression): Analysis.ClassInf
     var resolved = negate_call(unary)
     assert resolved
     crash resolved.function
-    var function_return_type = resolved.function.get_return_type()
+    var function_return_type = resolved.function.return_type
     return class_of_type(function_return_type)
 }
 
