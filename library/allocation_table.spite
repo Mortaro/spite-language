@@ -4,6 +4,7 @@ var slots: Memory.Address = 0
 var capacity: Long = 0
 var divisor: UnsignedLong = 0
 var live_count: Long = 0
+var live_byte_count: Long = 0
 var used_count: Long = 0
 var allocations: Long = 0
 var frees: Long = 0
@@ -57,6 +58,10 @@ func free(address: Long) {
 
 func live_allocations(): Long {
     return live_count
+}
+
+func live_bytes(): Long {
+    return live_byte_count
 }
 
 func register_object(address: Long, class_id: Integer) {
@@ -118,6 +123,7 @@ func remember(address: Long, bytes: Long) {
     }
     place(address, -1, bytes)
     live_count = live_count + 1
+    live_byte_count = live_byte_count + bytes
     used_count = used_count + 1
 }
 
@@ -126,6 +132,7 @@ func forget(address: Long): Boolean {
     if slot < 0 {
         return false
     }
+    live_byte_count = live_byte_count - sizes.read_long(slot * 8)
     slots.write_long(slot * 8, 1)
     live_count = live_count - 1
     return true

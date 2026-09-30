@@ -1,0 +1,10 @@
+var radius = 0
+
+func Circle(starting_radius: Integer) {
+    radius = starting_radius
+}
+
+func grow(by: Integer): Integer {
+    radius = radius + by
+    return radius
+}

@@ -13,8 +13,12 @@
 > ([Live reload](#live-reload---hot-reload)), moving live objects to their class's new attributes when those
 > change; Windows runs it, and Linux and macOS are held to compiling.
 > `bytes <path>` answers a value's address, size, bytes and layout as JSON ([Native memory](#native-memory-bytes)).
-> **Not built yet:** the meta commands `describe`, `enums` and `memory`, a few paths and assignments,
-> and reloading a change to an enum's values -- [the list](#repl-and-live-reload--partial).
+> `describe Monster`, `enums` and `memory` describe a class, the program's enums and the heap in use; an
+> assignment takes `null` into a `T?`, a literal into a list or dictionary element, and another path's instance
+> (`follower = leader`); a path walks into a union's active member.
+> A reload swaps in a change to an enum's values, each held value keeping its meaning.
+> With `--hot-reload`, `eval <expression>` and `run <statement>` compile code typed at the prompt into the
+> running program and run it once ([below](#code-typed-at-the-prompt)).
 >
 > ```text
 > spite> monsters[0]
@@ -144,11 +148,16 @@ The commands are the ones `--repl` answers:
 - **singletons**, by their class's name: `World()`, `Tick().step_milliseconds`, `Ui.Panel().title`,
   `Column<Position>().values[0]`. The name binds the instance the program already has and never makes one.
 - **assignment** of a number, `Boolean`, text or enum literal: `program.player_name = "Aria"` -- through
-  `set_<attribute>` when the class declares one, answering the value read back afterwards.
+  `set_<attribute>` when the class declares one, answering the value read back afterwards. The target may be a
+  list or dictionary element (`names[1] = "cat"`, `scores["ann"] = 9`), a `T?` takes `null`, and an attribute or
+  element of a class takes another path's instance of that class (`follower = leader`), which then holds the same
+  object.
+- `describe Circle` (a class's attributes and functions, with their types and signatures), `enums` (each
+  of the program's enums with its values) and `memory` (the live allocations and the bytes they hold).
 - `attributes`, `functions` (of the program, or of any path: `functions World()`), `classes` (the singletons the
   prompt can bind, then the program's other classes), `help`, `exit`.
-- `reload` and `last_reload`, which answer in a `--hot-reload` build ([Live reload](#live-reload---hot-reload)) and
-  fail everywhere else with `'reload' answers in a program built with --hot-reload, which swaps its code while it
+- `reload`, `last_reload` and `wait_reload`, which answer in a `--hot-reload` build
+  ([Live reload](#live-reload---hot-reload)) and fail everywhere else with `'reload' answers in a program built with --hot-reload, which swaps its code while it
   runs, and this one was not`.
 
 ## A worked debugging session
@@ -313,6 +322,59 @@ The first eight bytes of every object are its header, the reference count and th
 reads, and it never crashes the program it inspects: the bytes are copied through the operating system's checked
 read, and an address that is not readable answers `unreadable`. At most 4096 bytes are shown at a time.
 
+## Breakpoints
+
+A program built with `--hot-reload` and `--repl-port` can be stopped at a line while it runs (D242):
+
+```text
+$ spite connect 4000 --command="break ticker.spite:16"
+{"ok":true,"value":"the program stops before ticker.spite:16: rebuilt Ticker","type":""}
+
+$ spite connect 4000 --command="where"
+{"ok":true,"value":"game/ticker.spite:16","type":""}
+
+$ spite connect 4000 --command="locals"
+{"ok":true,"value":"self: Ticker = Ticker {...}\namount: Integer = 1\ndoubled: Integer = 2","type":""}
+
+$ spite connect 4000 --command="doubled"
+{"ok":true,"value":"2","type":"Integer"}
+
+$ spite connect 4000 --command="continue"
+{"ok":true,"value":"continued from game/ticker.spite:16","type":""}
+```
+
+`break <file>:<line>` compiles a stop into the function that line belongs to and swaps it in, the way a reload
+swaps in a saved file -- a program that never sets one carries nothing for it. The next time any code reaches the
+line, the program stops before it and waits for the prompt: `where` answers where it stopped, `locals` lists
+`self` and every local in scope there, a path may start at a local's name (`doubled`, `self.total`), every other
+command answers as usual, and `continue` lets the program go on. `breaks` lists the breakpoints and `clear` (or
+`clear ticker.spite:16`) removes them, compiling the code again without the stop. A call made at the prompt that
+reaches a breakpoint answers `stopped at ... while answering` at once, and prints what it returned on the error
+output once it goes on. `check.sh` stops a ticking loop, reads its locals and lets it go.
+
+## Code typed at the prompt
+
+In a program built with `--hot-reload` and `--repl-port`, `eval` compiles an expression into the running program
+and answers its value as text, and `run` compiles a statement and runs it:
+
+```text
+$ spite connect 4000 --command="eval stock.count() + 40"
+{"ok":true,"value":"41","type":"String"}
+
+$ spite connect 4000 --command="eval Lookup().of(12)"
+{"ok":true,"value":"22","type":"String"}
+
+$ spite connect 4000 --command="run stock.append(9)"
+{"ok":true,"value":"","type":"Nothing"}
+```
+
+The code is compiled as the body of a new function of the entry class -- `prompt_answer_<n>(): String` for
+`eval`, whose value becomes text as it would in `var text: String = value`, and `prompt_run_<n>()` for `run` --
+swapped in by a reload and called once, so it reads and changes what the entry class reaches, makes objects
+(`Lookup().of(12)` makes a `Lookup` the program never held), and calls any function, a generic class's included.
+A value that does not become text, and code that does not compile, answer the compiler's error, and the program
+keeps its code. The function stays until the next reload, which compiles the entry file again without it.
+
 ## Live reload: `--hot-reload`
 
 `--hot-reload` builds a program that can take new code while it runs. Save a file of the program, and the classes
@@ -327,10 +389,13 @@ spite game --hot-reload --repl-port=4000
 
 It works with or without a REPL. Without one, each swap is reported on the program's error output (`spite: rebuilt
 Monster`); with `--repl` or `--repl-port`, `reload` swaps in what changed right away and answers what it rebuilt, and
-`last_reload` answers what the last swap did, which is how you learn about one the file watcher made. A program
+`last_reload` answers what the last swap did, which is how you learn about one the file watcher made.
+`wait_reload` waits for the watcher: it answers once every save of the program's files has been compiled and
+swapped in (or refused), with what `last_reload` would then say, so a tool that saves a file never polls. A program
 built without `--hot-reload` has none of this -- no watcher, no swapping, and `reload` answers that it was not
 built for it. `--hot-reload` keeps every function (it implies `--development`), since a new version of a class
-may call one nothing called before.
+may call one nothing called before, and it is compiled at `--optimized`'s level, so a program that cooks assets or
+simulates between saves runs at release speed.
 
 ```gdscript title=hot_counter/monster.spite
 var name = ""
@@ -380,7 +445,7 @@ $ spite connect 4000 --command="greeting()"
 {"ok":true,"value":"welcome back, visit 42","type":"String"}
 
 # monster.spite: roar() now returns "{name} roars louder", and nothing is sent: the watcher sees the save
-$ spite connect 4000 --command="last_reload"
+$ spite connect 4000 --command="wait_reload"
 {"ok":true,"value":"rebuilt Monster","type":""}
 
 $ spite connect 4000 --command="monster.roar()"
@@ -392,7 +457,8 @@ $ spite connect 4000 --command="exit"
 
 `visits` kept the 42 set before the first reload, and the second reload rebuilt `Monster` alone. When the watcher
 has already swapped a save in, `reload` finds nothing left to do and answers `nothing changed since the code the
-program runs`. For an AI: edit the file, send `reload`, and read `last_reload` if the answer says nothing changed.
+program runs`. For an AI: edit the file and send `reload`; or save and send `wait_reload`, which answers once the
+watcher has swapped the save in.
 
 ### What a reload can change
 
@@ -404,10 +470,10 @@ program runs`. For an AI: edit the file, send `reload`, and read `last_reload` i
 | a function you deleted | whatever still holds it -- a function value, the REPL -- keeps its last code; the answer says `removed Monster.roar` |
 | an attribute's default value | instances made after the reload get the new default |
 | a class's attributes: added, removed, renamed or retyped | every live object of the class moves to the new attributes, components in an `Items`' own memory too ([below](#changing-a-classs-attributes)); the answer says what each class's objects kept |
-| an enum's values | refused: `the layout of ... changed`, and the program keeps all of its code (not built yet, [D280](decisions.md)) |
+| an enum's values: added, removed or reordered | the whole program is compiled again, and every value a running object holds keeps its meaning; a `switch` that meets a value the reload removed halts naming it ([D302](decisions.md)) |
 | a file that does not compile | refused with the compiler's error, and the program keeps all of its code |
 | a file that declares none of the program's classes: `environment.spite`, `build.spite`, a reopening of a class of the standard library | refused: `'environment.spite' changed, and a reload swaps only the functions of the program's own classes, ...`, and the program keeps all of its code |
-| a new class | its functions are compiled into the new code; the REPL does not see it until a restart |
+| a new class | its functions are compiled into the new code, and `classes` and `describe` see it: the REPL's tables of classes, singletons and enums are swapped in with the code |
 
 A refused reload leaves the program exactly as it was, so a save that caught a file half-written is harmless: the
 next save reloads.
@@ -508,9 +574,8 @@ object has the old name, so it can be deleted after the reload, or kept.
 What it costs: a change to a class's attributes compiles the whole program, since every class that reads them is
 compiled again -- about 40 seconds for SlopTheseus's server, against a few for a change to function bodies alone.
 The saves after it are fast again: a reload that compiled the whole program becomes what the next one is compared
-with ([How it works](#how-it-works)). Not built yet ([D280](decisions.md)): an enum whose
-values change, and a class that starts or stops fitting in an `Items`' own memory -- both are refused, naming the
-class.
+with ([How it works](#how-it-works)). Not built yet ([D280](decisions.md)): a class that starts or stops fitting
+in an `Items`' own memory is refused, naming the class.
 
 ### Knowing what a reload rebuilt
 
@@ -656,11 +721,23 @@ is a gap to close, not a rule. The plan (proposed by Claude, unconfirmed), in th
      holds its default`), in its answer and on the error output.
    - Once a class has moved, its code reads through the function for as long as the program runs. Refused, not
      built: a class that starts or stops fitting an `Items`' own
-     memory, an enum whose values change, and a change to a value class (`String` and the numbers).
+     memory, and a change to a value class (`String` and the numbers).
 2. **Dependents are rebuilt**: a change whose dependents cannot be swapped alone compiles the whole program into
    the reload library and re-points every slot, keeping the heap, instead of refusing.
-3. **Enums change**: stored values are re-mapped by name; a value removed while something still holds it is
-   refused naming the holder, as a stale value would otherwise be a silent wrong answer (D244).
+3. **Enums change** -- **built** ([D302](decisions.md), decided by Claude under D205 in place of re-mapping):
+   in a `--hot-reload` build every enum value's number is fixed for as long as the program runs, so nothing held
+   has to be re-mapped. The build numbers each enum's values in order and writes the numbers into its C
+   (`Mood_calm = 0`); a reload gives every value the running program knows its number again and a new value the
+   next free one, so a value moved up the list or added before the others keeps what every object, list, local
+   and key already holds. A removed value keeps its number and its name too: something may still hold it, and it
+   still prints and compares as itself. A `switch` over an enum with no `_:` halts when it meets a value outside its
+   cases -- in a `--hot-reload` build, only a removed one can -- with `spite: a switch over LiveEnum.Mood met the
+   value 'angry', which a reload removed from it: restart the program, or put the value back`, rather than
+   running no case (D244). An enum whose values changed compiles the whole program, since the code naming its
+   values and the REPL's tables are compiled again; an attribute of an enum type keeps its value, since a class's
+   layout names an enum by its name, not its values. `check.sh` adds a value, removes a held one and meets it
+   (`conformance/stage6/live_enum`). The number an enum value compiles to is a representation detail
+   ([values_and_types.md](values_and_types.md)), so nothing else observes this.
 4. **`environment.spite` and `build.spite`**: a `Build` field is a constant folded into the code, so changing one is
    step 2 -- the whole program recompiled with the new value and swapped in live.
 All of it lives only in a `--hot-reload` build (D143): a normal build carries none of it.
@@ -669,15 +746,14 @@ A REPL that inspects and drives the *running* program, local (`--repl`) and remo
 reload (`--hot-reload`, D111, D112). The REPL is Spite, `library/read_evaluate_print_loop.spite` (D72), walking the
 program through reflection; nothing of it is in a build that did not ask for it (D177, D143). **Built:** paths,
 singletons by name, assignment of a literal, calls with literal arguments and paths through what they answer,
-`attributes`, `functions`, `classes`, `help`, `exit`, `reload` and `last_reload`
+`attributes`, `functions`, `classes`, `describe`, `enums`, `memory`, `help`, `exit`, `reload`, `last_reload` and
+`wait_reload`, assignment into elements, `T?`s and of whole instances, and walking into a union
 (`conformance/stage6/interactive_loop`, `conformance/stage6/interactive_paths`,
 `conformance/stage6/interactive_singletons`), `--repl-port` with
 `spite connect` over `Socket`, answered where the program waits and at each loop's check point (D37, D174), and
-live reload on Windows, with the Linux and macOS folders held to compiling. **Not built:** the meta commands
-`describe`, `enums` and `memory`; walking into a union; assigning a `T?`, a list or dictionary element or a whole
-instance; calling a generic class's function on an instance nothing holds (`Lookup<Position>().of(12)`, below);
-compiling new Spite code typed at the prompt; and reloading a change to an enum's values or to whether a class fits
-an `Items`' own memory.
+live reload on Windows, with the Linux and macOS folders held to compiling (`conformance/stage6/interactive_inspection`
+for D301), and code typed at the prompt (D305). **Not built:** reloading a change to whether a class fits an
+`Items`' own memory.
 
 #### Reflection in a REPL build  **[implemented]**
 
@@ -731,6 +807,23 @@ the entry class's own Spite name). Built:
   and describing them would drag most of the library's classes into the build's reflection, which a reload that
   compiles only the changed classes would then have to reproduce. Any other build writes them as an empty list and empty text, and nothing calls
   them, so they are shaken out with the rest of the loop: a normal build carries none of it (D143, D177).
+- **Breakpoints** (D303, decided by Claude under D205, implementing D242; the command names provisional under
+  D214). `break <file>:<line>`, `breaks`, `clear` and `clear <file>:<line>` answer in a program built with both
+  `--hot-reload` and `--repl-port`, and everywhere else with `'break ...' answers in a program built with
+  --hot-reload and --repl-port: ...`. The file is a path of the program ending in what is written (`ticker.spite`,
+  `game/ticker.spite`); none or two such files are refused naming them, and a line no statement starts on is
+  `no statement starts on 'ticker.spite:3': a breakpoint stops before a statement, so name the line a statement
+  starts on`, the program keeping all of its code. How it is built: the running program writes the breakpoints
+  beside its executable (`<program>.reload_breaks`) and runs a reload; the compiler adds every file whose
+  breakpoints differ from the ones the running code has (kept in the reload state, `breakpoint <line> <path>`) to
+  the files it compiles, and before the statement starting on each line writes a call of `spite_breakpoint(site,
+  locals)` with `self` and every local in scope reflected as `Spite.Attribute`s; the executable's `spite_breakpoint`
+  hands them to `ReadEvaluatePrintLoop.pause_at`. So a build carries nothing for breakpoints until one is set, and
+  only the functions of the files holding one change. `pause_at` publishes the site and the locals and waits until
+  `continue`; on the main thread it answers the prompt itself while it waits, and on another thread the main
+  thread answers as usual (one thread stops at a time; another that reaches a breakpoint waits its turn).
+  `where`, `locals` and `continue` answer `the program is not stopped at a breakpoint: 'break hero.spite:12' sets
+  one` when it is not. Only the program's own classes can hold a breakpoint, since only their code is swapped.
 - **`bytes`: native memory** (D291, decided by Claude under D205, implementing D281 and D282; the command's name
   provisional under D214).  **[implemented]** `bytes <path>` answers one JSON object: for a value the path holds
   an object of (an instance, a list, a dictionary, a singleton), `class`, `address` (hexadecimal text), `bytes`
@@ -754,8 +847,8 @@ the entry class's own Spite name). Built:
   folder), a singleton any program can call on `value.memory`'s address (`conformance/stage6/memory_inspector`).
   A program that never inspects carries none of it; the attribute's five hidden numbers are set only where a
   REPL build links it.
-- **Generic functions beyond the instances the program holds** (the plan, proposed by Claude, unconfirmed; not
-  built). The prompt calls what the build compiled: a generic class's functions on an instance some path reaches,
+- **Generic functions beyond the instances the program holds** (built as D305's `eval`; what follows was the
+  plan). The prompt calls what the build compiled: a generic class's functions on an instance some path reaches,
   or on a generic singleton (`Column<Position>().values[0]`). An expression the build never compiled --
   `Lookup<Position>().of(12)`, which makes a `Lookup` -- needs code the program lacks. In a `--hot-reload` build
   the reload machinery already compiles the whole program and writes a library of what changed; the prompt would
@@ -774,7 +867,7 @@ the entry class's own Spite name). Built:
   its class and `drop()` runs only when a value is released, so the prompt neither lists nor calls either:
   `'_swap' is private to values, and the prompt calls what code outside the class may call`. `classes` (D286) answers the singletons the prompt
   can bind, `World()` a line with `not made yet` after one the program has not made, then the program's other
-  classes a line each. Then `help`, `exit`, and `reload` and `last_reload`
+  classes a line each. Then `help`, `exit`, and `reload`, `last_reload` and `wait_reload`
   ([Live reload and 6b](#live-reload-and-6b--implemented-on-windows-the-mechanism-and-the-rules-below-proposed-by-claude-unconfirmed)).
 - Printing a class instance shows `ClassName { attribute: value, ... }` one level deep: a nested class attribute
   prints as `ClassName {...}`; a list or dictionary prints as `List<T>(count)`/`Dictionary<T>(count)` regardless
@@ -787,11 +880,43 @@ the entry class's own Spite name). Built:
   an Integer, and "x" is not one`), calling an attribute is `target.name is not callable`, and an unknown function
   is `no function 'nope' in program: 'functions' lists them`.
 
-**Not built** (the design, kept for when it is): `program.settings["volume"]`; walking into a union's active
-member (`program.shape.radius`); `Dictionary<T>`'s `keys()` and `has(key)` at the prompt; assigning a `T?`, a list
-or dictionary element or a whole instance; and the meta commands `describe
-Engine.Renderer` (its attributes and functions with signatures), `enums` and `memory` (live allocation count and
-bytes).
+**Not built** (the design, kept for when it is): `Dictionary<T>`'s `keys()` and `has(key)` at the prompt, and
+assigning an object made at the prompt (`follower = Circle(3)`; `run follower = Circle(3)` does it).
+
+- **`eval` and `run`** (D305, decided by Claude under D205, implementing D282; the names provisional under D214)
+  answer in a program built with both `--hot-reload` and `--repl-port`, and everywhere else with `'eval ...'
+  answers in a program built with --hot-reload and --repl-port: ...`. The running program writes the function
+  beside its executable (`<program>.reload_prompt`) and reloads; the compiler reads the entry file with that text
+  after it -- so its lines keep their numbers -- and never formats it into the file on disk. The entry file's hash
+  then differs from the file, so the next reload compiles it again without the function, which the answer names
+  as removed. The REPL calls the function through reflection like any function the prompt calls.
+
+**Built by D301** (decided by Claude under D205, implementing D282; the command names and the three members
+provisional under D214):
+
+- **`describe <class>`** answers the class's qualified name (`, a singleton` after one), its attributes
+  (`name: Class` a line; a private `_` one is left out) and its public functions with their signatures
+  (`grow(by: Integer): Integer`), or `none`. The name is the qualified name, or the name without its namespace when
+  one class has it; two classes sharing it are refused naming both, and a name no class has is `no class 'Nope' in
+  the program: 'classes' lists them`. It covers the classes `classes` lists -- the program's and every loaded
+  package's, not the standard library's -- from `class_descriptions()`, text the compiler writes into a REPL build
+  like `class_names()`, so describing a class runs nothing. (It does not read `Spite.Class.functions`: code that
+  does, anywhere in the library, changes how every program is compiled -- a bug recorded in
+  [failure.md](failure.md#nothing-fails-silently--the-rule).)
+- **`enums`** answers each of the program's enums, `Owner.Name: 'value', ...` a line, from `enum_names()`, which the
+  compiler writes into a REPL build like `class_names()`; a program with none answers `the program declares no enum`.
+- **`memory`** answers `<n> live allocations holding <b> bytes`, from `Program().live_allocations()` and
+  `live_bytes()` ([memory.md](memory.md)), which any program can call.
+- **Walking into a union**: a union value is walked as its active member, `shape.radius`, and prints with the
+  member's class name. The reflected attribute keeps the union as its `.class`; `held_class()` answers the class of
+  the object it holds when that differs (a union's active member), and `null` otherwise.
+- **Assignment**: `null` goes into a `T?` (`nickname = null`) and is refused elsewhere (`mood is a Mood, which is
+  never null: only a T? holds null`); a literal goes into a list or dictionary element through the element's own
+  slot; and a right side that is not a literal is a path, whose instance an attribute or element of a class (or of
+  its `T?`) then holds -- through `set_<attribute>` when the class declares one, and only when the classes match:
+  `follower is a Circle?, and spare is a Square: the loop assigns an instance of the attribute's own class`. The
+  compiler-supplied members are `Spite.Attribute`'s `assign_null()` and `assign_attribute(source)`, beside
+  `assign(text)`; each answers whether it could.
 
 #### `--repl`  **[implemented]**
 
@@ -886,11 +1011,27 @@ session against a copy of the program it edits.
   requiring it, since a new version of a class may call a function nothing called before. It works without a REPL:
   the watcher still swaps, and each swap or refusal is one line on the program's error output (`spite: rebuilt
   Monster`); an explicit rebuild needs `--repl` or `--repl-port`, whose `reload` swaps in what changed and answers
-  what it rebuilt, and whose `last_reload` answers what the last swap (the watcher's included) did. A build without
+  what it rebuilt, whose `last_reload` answers what the last swap (the watcher's included) did, and whose
+  `wait_reload` answers the same once the watcher is done (below). A build without
   it has no slots, no watcher and no reload code: `reload` answers `'reload' answers in a program built with
   --hot-reload, which swaps its code while it runs, and this one was not`, from a branch folded on the `Build`
   constant. As with `--repl-port`, a `--hot-reload` build swaps where the program waits and at each loop's check
   point (D174). `spite program --hot-reload` runs the program attached to the terminal, like a REPL build.
+- **A `--hot-reload` build is optimised** (A74; the level proposed by Claude, unconfirmed). Its executable and
+  every reload library are compiled at `--optimized`'s level (`-O3`) whether or not `--optimized` is given, so a
+  program that cooks or simulates between saves runs at release speed and swapped-in code as fast as the code it
+  replaces. It is one C file, so it has no link-time optimisation, and it keeps every run-time check of an
+  inspectable build. Every call of a function a reload can replace still goes through its slot: the slot is read
+  with an acquiring atomic load, which the C compiler may neither fold to the function the build started with nor
+  hoist out of a loop, and a reload writes it with a sequentially consistent store.
+- **`wait_reload` waits for the watcher** (asked for by `check.sh`, whose live-reload step polled `last_reload`;
+  the name proposed by Claude, unconfirmed). It answers once the watcher is not compiling, and every file the
+  running code was compiled from has the size and modification time it had when the last reload (the watcher's or
+  `reload`'s) started compiling; then it swaps in what that compile made, if nothing has yet, and answers what
+  `last_reload` would. Over `--repl-port` the waiting is done by the connection's thread, so the program keeps
+  running meanwhile. A file new since the last compile is seen only through the watcher's event. It never hangs
+  (D244): after ten minutes it answers `the watcher has not swapped in the saved files after 10 minutes: 'reload'
+  compiles them now`.
 - **A `Concurrent` does not overlap in a `--hot-reload` build** (proposed by Claude, unconfirmed). A program
   function, called through its slot, is not compiled into a state machine (D176), so a `Concurrent` of one runs to
   its end when it is made, before the line
@@ -974,13 +1115,9 @@ session against a copy of the program it edits.
   class, only in a `--hot-reload` build. A changed parameter list or return type (a new function: the rebuilt class and its callers are
   rebuilt). A deleted function keeps its last code for whatever still holds it, a function value or the REPL, and
   the answer names it. An attribute's default value (through the `_init` slot, for instances made afterwards).
-- **What needs a restart: a class's attributes or enums.** When the layout of a class or enum the running
-  program has differs, the reload is refused -- `the attributes of Monster changed, and the running program's
-  instances were made with the old ones: restart the program to change a class's attributes or enums, or undo that
-  part of the change to reload the rest` -- and the program keeps all of its code. Migrating instances by attribute
-  name (new attributes taking their defaults) needs every live instance and every reference to it, which the
-  program cannot find today; `mortaros_missing_decisions.md` asks which to build. A file that does not compile is
-  refused the same way, with the compiler's error, so a save caught half-written is harmless.
+- **What needs a restart** (superseded by D280's steps above: a class's attributes move their objects, and an
+  enum's values keep their numbers, D302). A file that does not compile is refused, with the compiler's error, and
+  the program keeps all of its code, so a save caught half-written is harmless.
 - **Watching** (D111, D194). `HotReload` (`library/hot_reload.spite`) watches through the standard library's
   `Watcher` ([System classes](standard_library.md#system-classes--implemented)), the one watcher any program uses: `ReadDirectoryChangesW` with overlapped I/O from
   `kernel32.dll` on Windows, `inotify` and `poll` from `libc.so.6` on Linux, and `kqueue`/`kevent` on each folder

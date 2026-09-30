@@ -157,7 +157,7 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 | `c_source` | `false` | writes the generated C |
 | `c_path` | `""` | where the C goes; `""` is `.spite/build/<program>/` in the working folder |
 | `final_classes` | `""` | writes the merged classes to this folder |
-| `optimized` | `false` | a release build: `-O3` instead of `-O0`, and link-time optimisation across the [translation units](#translation-units-the-c-compiled-in-parallel-and-cached) |
+| `optimized` | `false` | a release build: `-O3` instead of `-O0`, and link-time optimisation across the [translation units](#translation-units-the-c-compiled-in-parallel-and-cached); a `--hot-reload` build is always compiled at `-O3` ([repl.md](repl.md#live-reload-and-6b--implemented-on-windows-the-mechanism-and-the-rules-below-proposed-by-claude-unconfirmed)) |
 | `tune_for_this_machine` | `false` | lets the C compiler use every instruction this machine has (`-march=native`, or `-mcpu=native` on ARM); the executable may not run on an older processor ([below](#release-builds)) |
 | `translation_units` | `0` (chosen) | how many C files the executable is compiled from: `0` is one file in a default build and, in an `--optimized` one, a number chosen by the size of the C and the processors; `1` is one file ([below](#translation-units-the-c-compiled-in-parallel-and-cached)) |
 | `development` | `false` | an [inspectable build](#development-builds-and-tree-shaking): nothing tree-shaken, internals as ordinary objects |

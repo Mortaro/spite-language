@@ -1,6 +1,7 @@
 var type_shape = Analysis.TypeShape()
 var tokens = List<String>()
 var position = 0
+var enums_by_name = false
 
 func encoded(spite_type: Analysis.SpiteType): String {
     var written = List<String>()
@@ -44,6 +45,7 @@ func write_type(spite_type: Analysis.SpiteType, written: List<String>) {
 func write_enum(written_enum: Analysis.Types.EnumType, written: List<String>) {
     written.append("E")
     written.append(written_enum.c_name)
+    assert not enums_by_name
     var count = written_enum.values.count().to_string()
     written.append(count)
     var index = 0

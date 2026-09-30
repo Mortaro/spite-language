@@ -1,0 +1,5 @@
+var side = 0
+
+func Square(starting_side: Integer) {
+    side = starting_side
+}
