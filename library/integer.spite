@@ -1,5 +1,4 @@
-var heap = Memory.Heap()
-var _memory = heap.allocate(4)
+var _memory = Memory.Bytes(4)
 
 func to_string(): String {
     var wide: Long = this

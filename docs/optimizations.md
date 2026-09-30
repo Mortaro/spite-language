@@ -366,7 +366,7 @@ abc a
 way to give it back, `heap.free(address)`. Where the bytes live is the compiler's choice ([D108](decisions.md),
 [Placement](memory.md#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)):
 
-- **Register:** a number's own memory (`var _memory = heap.allocate(4)` in `library/integer.spite`) is its C
+- **Register:** a number's own memory (`var _memory = Memory.Bytes(4)` in `library/integer.spite`) is its C
   scalar. A number is never an object.
 - **Frame:** an allocation a function frees itself, in the same block, whose address it only reads and writes
   through, copies, compares, turns into `text`, hands to a `TypedMemory` or lends to a function of its own class

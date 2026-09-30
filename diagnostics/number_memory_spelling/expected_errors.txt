@@ -1,0 +1,1 @@
+diagnostics/number_memory_spelling/integer.spite:2: error: a value states its size as 'var _memory = Memory.Bytes(bytes)', with the bytes written out: the compiler places that memory, and a number's is a register (in Integer.)
