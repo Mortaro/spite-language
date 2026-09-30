@@ -4,7 +4,7 @@ var body = ""
 
 func header(name: String): String? {
     var lowered = name.lower_case()
-    return headers.get(lowered)
+    return headers[lowered]
 }
 
 func set_header(name: String, value: String) {
