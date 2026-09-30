@@ -1,4 +1,4 @@
-spite.assert	3cc28d57	conformance/stage6/trace_asserts_optimized/trace_asserts_optimized.spite:14	TraceAssertsOptimized	greet	index < names.count()
+spite.assert	3cc28d57
 hello ada
 hello bo
 done

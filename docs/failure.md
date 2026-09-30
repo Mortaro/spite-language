@@ -792,9 +792,9 @@ func ConstructorAssertError() {
 ## `crash`
 
 `crash condition` mirrors `assert` exactly -- same polarity, same narrowing -- with the other severity: when the
-condition is false, the program halts. The compiler captures the condition's source text and the values of its
-operands, so nothing has to be written and nothing can drift out of date. A bare `crash` marks a branch that
-cannot happen (`crash false` is formatted to it).
+condition is false, the program halts. The report names the line and shows the values of the condition's
+operands and of the other names in scope, so nothing has to be written and nothing can drift out of date. A bare
+`crash` marks a branch that cannot happen (`crash false` is formatted to it).
 
 ```gdscript title=crash_guard/crash_guard.spite entry
 var console = Console()
@@ -845,19 +845,26 @@ is a compile error at the `crash`, since the program would halt there every time
 
 ### What a crash reports
 
-**Decided, not built ([D297](decisions.md)):** a report is the place of the crash and the memory that matters
-there -- its file and line, and the values in scope, read through the reflection any program has
-([reflection.md](reflection.md)) -- and it stops repeating the condition, which is on the line it names. What
-follows is the report as built today.
+A report is the place of the crash and the memory that matters there ([D297](decisions.md)): its file and line,
+and the values there. It does not repeat the condition, which is on the line it names.
 
 A crash flushes what the program printed, writes one tab-separated line to the error stream and exits with
-status 1. The line starts `spite.crash` and carries the site's id, its place, its class and function, the
-condition, and every name and call in the condition with its value -- then a `spite.assert` line for each `assert` that failed
-before it, because those are usually the trail that explains how the program got there:
+status 1. The line starts `spite.crash` and carries the site's id, its place, its class and function, every name
+and call in the condition with its value, and then the other values in scope -- then a `spite.assert` line for
+each `assert` that failed before it, because those are usually the trail that explains how the program got there:
 
 ```
-spite.crash	64b935f1	crash_report/crash_report.spite:14	CrashReport	check	value > limit	value=-9	limit=0
-spite.assert	0aae5005	crash_report/crash_report.spite:18	CrashReport	announce	amount > 0
+spite.crash	64b935f1	crash_report/crash_report.spite:14	CrashReport	check	value=-9	limit=0
+spite.assert	0aae5005	crash_report/crash_report.spite:18	CrashReport	announce
+```
+
+After the condition's parts come the parameters and locals in scope, then the attributes of the object the
+function runs on, each once as `name=value`: text, numbers and enums, and a `T?` of one of them (`name is null`
+when it is empty). An object, a list or a function is left out, and so is a name the condition already reported.
+A report shows at most 12 of these values, and at most the first 80 bytes of a text, followed by its full length:
+
+```
+spite.crash	262f0d5a	crash_scope_values/crash_scope_values.spite:22	CrashScopeValues	load_level	inner=20	level=forest	depth=2	nickname is null	scale=1.5	title=a report longer than the eighty bytes a crash shows of one text, so the rest is ...(92 bytes)	mood=calm	retries=3
 ```
 
 When the condition is a call on a value, `crash settings.exists()` (or `crash not names.contains(name)`), the
@@ -865,7 +872,7 @@ value the call was made on is the operand: text, a number or an enum is written 
 has a `to_string()` as that text, so a missing `File` names its path:
 
 ```
-spite.crash	00b7d810	crash_receiver/crash_receiver.spite:6	CrashReceiver	CrashReceiver	settings.exists()	settings=.spite/crash_receiver/missing_settings.txt
+spite.crash	00b7d810	crash_receiver/crash_receiver.spite:6	CrashReceiver	CrashReceiver	settings=.spite/crash_receiver/missing_settings.txt
 ```
 
 A condition of any shape -- `or`, `not`, comparisons, arithmetic, calls inside it -- reports every part it read,
@@ -874,7 +881,7 @@ ran (it is never called a second time), and a value that is not there in the wor
 (`is null`, `is missing: ...`). A part that an `and` or an `or` skipped is left out, since it never ran:
 
 ```
-spite.crash	01478395	crash_compound/crash_compound.spite:21	CrashCompound	finish	record or cooked.count() > 2 or never_cooked_id != name	record is null	cooked.count()=1	never_cooked_id=cake	name=cake
+spite.crash	01478395	crash_compound/crash_compound.spite:21	CrashCompound	finish	record is null	cooked.count()=1	never_cooked_id=cake	name=cake
 ```
 
 A crash that narrows a `T?` fails because something is not there, so it never prints a value for it -- a default
@@ -882,15 +889,22 @@ would read like a real `0`. It names the first link of the path that is missing,
 asked for: the index and the count of a list, the key of a dictionary.
 
 ```
-spite.crash	26b57b59	crash_missing_item/crash_missing_item.spite:13	CrashMissingItem	read	clip.keys [start + 1]	clip.keys[start + 1] is missing: index 3, count 2
-spite.crash	474c3f17	crash_missing_key/crash_missing_key.spite:11	CrashMissingKey	show	scores [player]	scores[player] is missing: key "bea"
-spite.crash	0f912d8f	crash_missing_link/crash_missing_link.spite:14	CrashMissingLink	show	rig.skeleton.heights [0]	rig.skeleton is null
-spite.crash	75b30821	crash_missing_value/crash_missing_value.spite:10	CrashMissingValue	show	width	width is null
+spite.crash	26b57b59	crash_missing_item/crash_missing_item.spite:13	CrashMissingItem	read	clip.keys[start + 1] is missing: index 3, count 2	frame=1
+spite.crash	474c3f17	crash_missing_key/crash_missing_key.spite:11	CrashMissingKey	show	scores[player] is missing: key "bea"
+spite.crash	0f912d8f	crash_missing_link/crash_missing_link.spite:14	CrashMissingLink	show	rig.skeleton is null
+spite.crash	75b30821	crash_missing_value/crash_missing_value.spite:10	CrashMissingValue	show	width is null
 ```
 
 The id is derived from the site's content, so it stays the same when unrelated lines move. Each build also writes
 a `.crashes` file beside the executable it builds: one line per `assert` and `crash` site, sorted by id, with its file,
-line, class, function, kind and condition, so `grep 64b935f1 program.crashes` finds a site from a report.
+line, class, function, kind and condition, so `grep 64b935f1 program.crashes` finds a site from a report and the
+condition it checked. An `--optimized` build writes only the id where the place would be, and the map is how
+the id is read back ([D32](decisions.md)):
+
+```
+spite.crash	64b935f1	value=-9	limit=0
+spite.assert	0aae5005
+```
 A failed `assert` prints nothing when it fails, in every build: it is the program answering "nothing" and
 carrying on, and a long run fails thousands of them, which would bury the one line that matters. It is kept for the
 report instead. To watch them as they fail, build with `--trace-asserts` (a `Build` field, `trace_asserts`): each
@@ -1492,20 +1506,24 @@ Absence is fine -> `assert`. Absence is a bug -> `crash`. Absence is meaningful 
 D297 (decided by Mortaro, 2026-09-30, answering `mortaros_missing_decisions.md` item 218): **`crash` never takes a
 message, and neither does `assert`.** There is no syntax for one and none will be added: a report points at the
 code and shows the memory, so the reader reads the source line and the data instead of prose about them. **The
-report, decided and not built:** the crash line names the site (id, `path:line`, class, function) and carries the
-values that matter there, read through the same reflection metaprogramming gives a program (D282) rather than
-through text the compiler builds per site: the condition's operands as today, and -- proposed by Claude,
-unconfirmed -- the function's parameters and locals in scope and the attributes of the object it runs on, each as
-one `name=value` field written the way the REPL's `bytes` and `to_debug()` write values, bounded (a list's count and
-its first items, not all of it). Mortaro on the condition's text: "probably not -- location + memory is enough", so
-the report line stops carrying the condition; the `.crashes` map, which costs the executable nothing, keeps it for
-`grep` (proposed by Claude, unconfirmed). A condition written only to put text into the report (`crash
-bone_matrix_is_finite or bone_name == ""`) then has no reason to exist: the values in scope are reported without
-it. As built, a crash reports its condition and the condition's operands only, so such conditions still work;
-counted on 2026-09-30: none in the compiler's sources, two in `library/` (`JsonReader.read_or_crash`'s
-`crash failure == ""` and `JsonWriter.written_decimal`'s `crash unwritable == ""`, which hold the explanation in a
-variable), one in `conformance/stage6/crash_compound` (which tests the compound report on purpose), and six in
-SlopEngine.
+report:** the crash line names the site (id, `path:line`, class, function) and carries the values that matter
+there: the condition's operands, then -- proposed by Claude, unconfirmed (item 226) -- the function's parameters
+and locals in scope and the attributes of the object it runs on, each once as one `name=value` field. Mortaro on
+the condition's text: "probably not -- location + memory is enough", so neither the `spite.crash` line nor a
+`spite.assert` line carries the condition; the `.crashes` map, which costs the executable nothing, keeps it for
+`grep` (proposed by Claude, unconfirmed). **Built:** a value in scope is shown when it is text, a number, an enum,
+or a `T?` of one (`name is null` when empty); an object, a list, a function or a row is left out, since showing
+one would call code (`to_string()`) or walk memory while the program is failing. A name the condition mentions is
+left out, since its part already reported it (and a narrowing crash has just proven it absent). At most 12 values
+are shown, locals and parameters first in the order they were declared, then the attributes in declaration order,
+and a text shows its first 80 bytes (cut back to a whole UTF-8 character) and then `...(<length> bytes)`. The
+values are read where they are, as the C locals and the object's fields, with no reflection tables, so they cost
+the code of the failure branch only. A condition written only to put text into the report (`crash
+bone_matrix_is_finite or bone_name == ""`) has no reason to exist. The two in `library/` were migrated:
+`JsonReader.read_or_crash` sets the cursor's `crashes`, and the cursor crashes where it finds the fault, so the
+report shows what it wanted, the position and the text there; `JsonWriter.written_decimal` crashes on
+`shown - shown == 0`, which is false for infinities and NaN, and the report shows the value and the attribute's
+`path`. `conformance/stage6/crash_scope_values`, `json_crash`, `json_infinity`.
 
 #### What a crash reports
 
@@ -1562,9 +1580,10 @@ most in a wasm module where size is startup time, and **the same logical site ke
 target**, so a crash from the server bundle and one from the browser bundle compare directly. The id is
 content-derived -- a hash of namespace, class, function, the site's ordinal and the condition source -- never a
 counter, because a counter renumbers everything below an inserted line and destroys both old reports and
-cross-target identity. **Not built:** the binary without the text. Every build today writes each site's report
-line -- id, place, class, function and condition -- into the program as fixed text beside writing the map, so no
-build needs a lookup; other targets are not built either ([targets.md](targets.md)).
+cross-target identity. **Built:** no build carries a condition's text (D297), and an `--optimized` build carries
+only each site's id: its crash line is `spite.crash<TAB>id` followed by the values, and its trace line
+`spite.assert<TAB>id`, while other builds also write the place, class and function so a local run needs no lookup
+(`conformance/stage6/trace_asserts_optimized`). Other targets are not built ([targets.md](targets.md)).
 
 D33: the map is a greppable tab-separated table named after the program, `<program>.crashes`, beside the
 executable, one line per site, sorted by id so archived maps diff cleanly: id, file, line, column (written as `0`
@@ -1575,7 +1594,7 @@ and the build hash (`# spite crashes 1 2660c8aa`). At runtime a crash emits one 
 ring buffer**: a crash happens once and then the program is dead, so it should be informative rather than fast,
 while an assert may fire thousands of times an hour and must stay cheap until something dumps it. **Not built:**
 an assert's values in the ring. A ring entry is a pointer to its site's fixed `spite.assert` line, so a failed
-`assert` stores one pointer and counts it, and its trace line names the condition without operand values.
+`assert` stores one pointer and counts it, and its trace line names the site without values.
 
 **Implemented.** `crash` is built -- the keyword, narrowing, bare `crash` for an unreachable branch, the compiler
 enforcing D28/D29 and D106 -- and so is the reporting above: crash and assert sites carry content-derived ids, every
@@ -1585,11 +1604,11 @@ of 32, with a `spite.assert	earlier=<count>` line when more failed than it kept
 status 1:
 
 ```
-spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition
+spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>name=value...
 ```
 
-The condition is rebuilt from its own tokens and the line ends with every part of it and its value --
-`value > limit<TAB>value=-9<TAB>limit=0` -- with calls never evaluated a second time. **Every name and call in a
+The line carries every part of the condition and its value -- `value=-9<TAB>limit=0` -- with calls never
+evaluated a second time, and then the values in scope (D297). **Every name and call in a
 condition of any shape is reported** (D244: `crash record or never_cooked_id == ""` printed only its text, the
 very report that has to explain it; the reading of each shape proposed by Claude, unconfirmed). The compiler walks
 the condition as written and reports, left to right and each once by its text: every name or path (a `[]` read
@@ -1613,7 +1632,7 @@ drops; a condition of names and comparisons stores nothing. The `.crashes` map l
 **A condition that is a call on a value** (D228), `crash file.exists()` or `crash not list.contains(x)`,
 has that value as its operand when it is a name or a path: text, a number or an enum is written as it is, and an
 object whose class declares `to_string()` with no arguments is written as what that answers, called once on the
-way out -- `settings.exists()<TAB>settings=saves/settings.txt`, since `File`'s `to_string()` is its path. A value
+way out -- `settings=saves/settings.txt`, since `File`'s `to_string()` is its path. A value
 with no `to_string()` (a `List`) adds nothing, and the call itself is not evaluated again. The `.crashes` map
 lists it with its type (`settings:File`; `conformance/stage5/crash_receiver`).
 
