@@ -104,9 +104,7 @@ func whole_numbers() {
     console.print("Byte {Byte.largest} {Byte.smallest} {byte.absolute()} {byte.clamp(10, 100)} {byte.minimum(300)}")
     var long: Long = -9000000000
     console.print("Long {Long.largest} {Long.smallest} {long.absolute()} {long.maximum(4)}")
-    console.print(
-        "UnsignedLong {UnsignedLong.largest} Short {Short.smallest} UnsignedShort {UnsignedShort.largest}",
-    )
+    console.print("UnsignedLong {UnsignedLong.largest} Short {Short.smallest} UnsignedShort {UnsignedShort.largest}")
     var high = 10
     console.print("clamp with low above high {other.clamp(high, 1)}")
 }
