@@ -1,1 +1,1 @@
-diagnostics/missing_switch_case/missing_switch_case.spite:11: error: this switch over 'Held' has no case for File: a switch over a union covers every member, so a member added later cannot be forgotten -- add the cases, or end with '_:' for the rest (in MissingSwitchCase.MissingSwitchCase)
+diagnostics/missing_switch_case/missing_switch_case.spite:11: error: this switch over 'Held' has no case for File: a switch over a union covers every member, so a member added later cannot be forgotten; add the cases, or end with '_:' for the rest (in MissingSwitchCase.MissingSwitchCase)

@@ -44,7 +44,7 @@ static PositionObject *position_objects[ENTITIES];
 static VelocityObject *velocity_objects[ENTITIES];
 static uint32_t position_generations[ENTITIES], velocity_generations[ENTITIES];
 static uint32_t kept_position_generations[ENTITIES], kept_velocity_generations[ENTITIES];
-// a sparse set per column, as SlopEngine keeps them: the entity of each row, and the row of each entity
+// a sparse set per column, as an ECS engine keeps them: the entity of each row, and the row of each entity
 static int32_t entity_of_position_row[ENTITIES];
 static int32_t velocity_row_of_entity[ENTITIES];
 static uint8_t position_alive[ENTITIES];
