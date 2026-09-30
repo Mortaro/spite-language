@@ -668,6 +668,46 @@ case "$answer" in
 esac
 echo "moving objects: a reload moved live objects and an Items' own memory to new attributes, keeping, renaming and releasing them, and a body edit after compiled only its class, matching a whole compile"
 
+# An enum's values change live (docs/repl.md#what-a-reload-can-change): a copy of conformance/stage6/live_enum runs
+# with --hot-reload, gains a value before the others and loses one an attribute still holds. Every value keeps its
+# meaning, and a switch that meets the removed value halts naming it. Every wait has a timeout.
+enum_folder="$work/live_enum/live_enum"
+mkdir -p "$work/live_enum"; cp -r conformance/stage6/live_enum "$enum_folder"; rm -f "$enum_folder/expected_output.txt"
+enum_port=$((port + 3))
+"$work/generation_two.exe" "$enum_folder" --executable --run=false --hot-reload --repl-port=$enum_port --executable-path="$work/live_enum/live_enum.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED live enums: live_enum does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/live_enum/live_enum.exe" > "$work/live_enum/output.txt" 2>&1 < /dev/null &
+enum_program=$!
+enum_fail() { kill $enum_program 2>/dev/null; echo "FAILED live enums: $1"; head -5 "$work/live_enum/output.txt"; exit 1; }
+enum_ask() { timeout 120 "$work/generation_two.exe" connect $enum_port --command="$1" 2>&1 | tr -d '\r'; }
+enum_expect() { local answer; answer=$(enum_ask "$1"); [ "$answer" == "$2" ] || enum_fail "'$1' answered $answer, not $2"; }
+enum_reload() {   # the watcher may swap the save in first: then wait_reload answers what it swapped in
+  local answer; answer=$(enum_ask reload)
+  case "$answer" in *"nothing changed since the code the program runs"*) answer=$(enum_ask wait_reload) ;; esac
+  [ "$answer" == '{"ok":true,"value":"rebuilt LiveEnum","type":""}' ] || enum_fail "a reload answered $answer"
+}
+listening=false
+for attempt in $(seq 1 100); do
+  timeout 10 "$work/generation_two.exe" connect $enum_port --command=help > /dev/null 2>&1 && { listening=true; break; }
+  kill -0 $enum_program 2>/dev/null || break
+  sleep 0.2
+done
+$listening || enum_fail "the program never listened on $enum_port"
+sed -i "s/^    'calm'$/    'sleepy'\n    'calm'/; s/'calm': return \"fine\"/'calm': return \"fine\"\n        'sleepy': return \"resting\"/" "$enum_folder/live_enum.spite"
+enum_reload
+enum_expect "other = 'sleepy'" '{"ok":true,"value":"sleepy","type":"Mood"}'
+enum_expect 'describe()' '{"ok":true,"value":"angry and sleepy","type":"String"}'
+enum_expect 'verdict()' '{"ok":true,"value":"careful","type":"String"}'
+sed -i "/^    'angry'$/d; /'angry': return/d; s/^var mood: Mood = 'angry'$/var mood: Mood = 'calm'/" "$enum_folder/live_enum.spite"
+enum_reload
+enum_expect 'describe()' '{"ok":true,"value":"angry and sleepy","type":"String"}'
+enum_ask 'verdict()' > /dev/null
+for attempt in $(seq 1 50); do kill -0 $enum_program 2>/dev/null || break; sleep 0.2; done
+kill -0 $enum_program 2>/dev/null && enum_fail "a switch that met a removed value kept running"
+wait $enum_program && enum_fail "a switch that met a removed value ended with exit code 0"
+grep -q "a switch over LiveEnum.Mood met the value 'angry', which a reload removed from it" "$work/live_enum/output.txt" || enum_fail "the halt did not name the removed value"
+echo "live enums: an enum gained and lost values while the program ran, every held value kept its meaning, and a switch that met the removed one halted naming it"
+
 # A reload compiles only the classes of the changed files (docs/repl.md#how-it-works), from what the running
 # program's manifest says about the rest. SPITE_RELOAD_CHECK makes a reload of the file it names compile both
 # ways and compare what they write; a fast reload that differs from a whole compile is a bug. Every file of these

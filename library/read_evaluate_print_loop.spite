@@ -321,63 +321,32 @@ func describe(command: String): Answer {
     if name.is_empty() {
         return failure("describe names a class, such as 'describe Monster': 'classes' lists them")
     }
-    var matches = List<Spite.Class>()
+    var descriptions = class_descriptions()
+    var blocks = descriptions.split("\n\n")
+    var matches = List<String>()
     var matched_names = List<String>()
-    var all_classes = Spite.Class.instances
     var index = 0
-    while index < all_classes.count() {
-        var candidate = all_classes[index]
-        var qualified = qualified_name(candidate)
+    while index < blocks.count() {
+        var block = blocks[index]
+        var block_lines = block.split("\n")
+        crash block_lines[0]
+        var qualified = block_lines[0].replace(", a singleton", "")
         if qualified == name {
-            return described_class(candidate)
+            return success(block, "")
         }
         if unqualified(qualified) == name {
-            matches.append(candidate)
+            matches.append(block)
             matched_names.append(qualified)
         }
         index = index + 1
     }
     if matches.count() == 1 {
-        return described_class(matches[0])
+        return success(matches[0], "")
     }
     if matches.count() > 1 {
         return failure("'{name}' names more than one class, {matched_names.join(" and ")}: write the whole name")
     }
     return failure("no class '{name}' in the program: 'classes' lists them")
-}
-
-func qualified_name(named_class: Spite.Class): String {
-    if named_class.namespace {
-        return "{named_class.namespace.name_with_namespaces}.{named_class.name}"
-    }
-    return named_class.name
-}
-
-func described_class(shown_class: Spite.Class): Answer {
-    var lines = List<String>()
-    var qualified = qualified_name(shown_class)
-    if shown_class.is_singleton() {
-        lines.append("{qualified}, a singleton")
-    } else {
-        lines.append(qualified)
-    }
-    var class_attributes = shown_class.attributes
-    if class_attributes.is_empty() {
-        lines.append("attributes: none")
-    } else {
-        lines.append("attributes, at their defaults:")
-        var attribute_listing = listed_attributes(class_attributes)
-        lines.append(attribute_listing)
-    }
-    var function_listing = listed_functions(shown_class.functions)
-    if function_listing.is_empty() {
-        lines.append("functions: none the prompt can call")
-    } else {
-        lines.append("functions:")
-        lines.append(function_listing)
-    }
-    var description = lines.join("\n")
-    return success(description, "")
 }
 
 func evaluate(command: String, program: Spite.Attribute): Answer {

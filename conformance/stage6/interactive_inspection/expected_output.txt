@@ -4,11 +4,10 @@ spite> 2
 spite> 3
 spite> 3
 spite> Circle
-attributes, at their defaults:
-radius: Integer = 0
+attributes:
+radius: Integer
 functions:
 grow(by: Integer): Integer
-to_debug(): String
 spite> no class 'Nope' in the program: 'classes' lists them
 spite> describe names a class, such as 'describe Monster': 'classes' lists them
 spite> InteractiveInspection.Mood: 'calm', 'angry'

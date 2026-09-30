@@ -611,6 +611,8 @@ func read_evaluate_print_loop_members(): List<String> {
         "written per build by the generator: every singleton the program binds, one not made yet without a value"
         "func class_names(): String"
         "written per build by the generator: the program's own classes that are not singletons, one per line"
+        "func class_descriptions(): String"
+        "written per build by the generator: each of the program's classes, its attributes and its functions, a blank line between classes"
         "func enum_names(): String"
         "written per build by the generator: the program's own enums, each with its values, one per line"
     ]

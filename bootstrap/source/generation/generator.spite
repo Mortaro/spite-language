@@ -141,6 +141,7 @@ var hot_slot_names = List<String>()
 var hot_slot_owners = List<String>()
 var hot_slot_displays = List<String>()
 var layout_host: HotReloadLibrary? = null
+var enum_typedefs = Dictionary<String>()
 var field_signatures = Dictionary<String>()
 var migrating_classes = List<String>()
 var changing_layouts = List<String>()
@@ -4342,14 +4343,31 @@ func emit_enums() {
         var name_lines = List<String>()
         name_lines.append("const char* {information.c_name}___name({information.c_name} value) \{")
         name_lines.append("switch (value) \{")
+        var numbers = enum_numbers(information)
         var value_index = 0
         while value_index < information.values.count() {
             var value_name = information.values[value_index]
-            typedef_lines.append("{information.c_name}_{value_name},")
+            if hot_reload {
+                crash numbers[value_name]
+                typedef_lines.append("{information.c_name}_{value_name} = {numbers[value_name]},")
+            } else {
+                typedef_lines.append("{information.c_name}_{value_name},")
+            }
             name_lines.append("case {information.c_name}_{value_name}: return \"{value_name}\";")
             value_index = value_index + 1
         }
+        var removed = removed_enum_values(information, numbers)
+        var removed_index = 0
+        while removed_index < removed.count() {
+            var removed_name = removed[removed_index]
+            crash numbers[removed_name]
+            typedef_lines.append("{information.c_name}_{removed_name} = {numbers[removed_name]},")
+            name_lines.append("case {information.c_name}_{removed_name}: return \"{removed_name}\";")
+            removed_index = removed_index + 1
+        }
         typedef_lines.append("} {information.c_name};")
+        var enum_typedef = typedef_lines.join("\n")
+        enum_typedefs[information.c_name] = enum_typedef.replace("\n", " ")
         name_lines.append("}")
         name_lines.append("return \"\";")
         name_lines.append("}")
@@ -4357,9 +4375,73 @@ func emit_enums() {
         builder.add_typedef(joined_typedef_lines)
         builder.add_prototype("const char* {information.c_name}___name({information.c_name} value);")
         var joined_name_lines = name_lines.join("\n")
+        var owner = enum_owner(information)
+        if owner {
+            note_support_slot(owner, "'s names of {information.simple_name}")
+        }
         builder.add_support(joined_name_lines)
         index = index + 1
     }
+}
+
+func enum_shown(c_name: String): String {
+    var index = 0
+    while index < enums.count() {
+        if enums[index].c_name == c_name {
+            return enum_display_name(enums[index])
+        }
+        index = index + 1
+    }
+    return c_name
+}
+
+func enum_owner(information: Analysis.EnumInfo): Analysis.ClassInfo? {
+    assert hot_reload and not information.owner_qualified.is_empty()
+    return find_class_by_qualified(information.owner_qualified)
+}
+
+func enum_numbers(information: Analysis.EnumInfo): Dictionary<Integer> {
+    var numbers = Dictionary<Integer>()
+    if layout_host {
+        numbers = layout_host.host_enum_numbers(information.c_name)
+    }
+    var next = 0
+    var known = numbers.keys()
+    var known_index = 0
+    while known_index < known.count() {
+        var known_number = numbers[known[known_index]]
+        crash known_number
+        if known_number >= next {
+            next = known_number + 1
+        }
+        known_index = known_index + 1
+    }
+    var index = 0
+    while index < information.values.count() {
+        var value_name = information.values[index]
+        if not numbers.has(value_name) {
+            numbers[value_name] = next
+            next = next + 1
+        }
+        index = index + 1
+    }
+    return numbers
+}
+
+func removed_enum_values(information: Analysis.EnumInfo, numbers: Dictionary<Integer>): List<String> {
+    var removed = List<String>()
+    if not hot_reload {
+        return removed
+    }
+    var names = numbers.keys()
+    var index = 0
+    while index < names.count() {
+        if not information.values.contains(names[index]) {
+            removed.append(names[index])
+        }
+        index = index + 1
+    }
+    return removed
 }
 
 func find_class_by_qualified(qualified: String): Analysis.ClassInfo? {
@@ -28667,6 +28749,12 @@ func generate_value_switch(
         case_index = case_index + 1
     }
     report_value_coverage(switch_statement.subject, subject_type, covered, answers_the_rest)
+    var switched_enum = type_shape.as_enum(subject_type)
+    if hot_reload and switched_enum and chained and not answers_the_rest {
+        builder.add_user(
+            "else \{ fflush(stdout); fprintf(stderr, \"spite: a switch over {enum_shown(switched_enum.c_name)} met the value '%s', which a reload removed from it: restart the program, or put the value back\\n\", {switched_enum.c_name}___name({subject_temporary})); exit(1); }",
+        )
+    }
     if owns(subject, switch_statement.subject) {
         builder.add_user("{release_call(subject_type, subject_temporary)};")
     }
@@ -35028,6 +35116,7 @@ func field_place(object_code: String, owner: Analysis.ClassInfo, name: String): 
 
 func field_signature(information: Analysis.ClassInfo): String {
     var codec = TypeCodec()
+    codec.enums_by_name = true
     var parts = List<String>()
     var index = 0
     while index < information.fields.count() {
@@ -35210,6 +35299,7 @@ func inline_memory_item(c_name: String): Analysis.ClassInfo? {
 func layout_descriptor(information: Analysis.ClassInfo): String {
     var c_name = information.c_name
     var codec = TypeCodec()
+    codec.enums_by_name = true
     var facts = ProgramFacts()
     var entries = List<String>()
     var index = 0
@@ -37129,6 +37219,10 @@ func partial_problem(host: HotReloadLibrary): String {
     if partial_falls_short() {
         return "a function of a changed class has another parameter list or return type"
     }
+    var changed_enum = changed_enum_values(host)
+    if not changed_enum.is_empty() {
+        return "the values of {changed_enum} changed, and the code that names them is compiled again"
+    }
     var missing = missing_slot(host)
     if not missing.is_empty() {
         return "'{missing}' of a changed class is not made without compiling the whole program"
@@ -37152,6 +37246,20 @@ func partial_problem(host: HotReloadLibrary): String {
         return interface_problem
     }
     return changed_key_kind()
+}
+
+func changed_enum_values(host: HotReloadLibrary): String {
+    var index = 0
+    while index < enums.count() {
+        var information = enums[index]
+        var running = host.host_layouts[information.c_name]
+        var written = enum_typedefs[information.c_name]
+        if running and written and running != written {
+            return enum_display_name(information)
+        }
+        index = index + 1
+    }
+    return ""
 }
 
 func changed_interface(host: HotReloadLibrary, snapshot: Dictionary<String>): String {
@@ -37538,6 +37646,13 @@ func read_evaluate_print_loop_body(name: String): String {
         }
         return "return List_Spite_Attribute___make();"
     }
+    if name == "class_descriptions" {
+        if read_evaluate_print_loop {
+            builder.add_prototype("SpiteString spite_loop_class_descriptions(void);")
+            return "return spite_loop_class_descriptions();"
+        }
+        return "return spite_string_from_cstring_owned(\"\");"
+    }
     if name == "enum_names" {
         if read_evaluate_print_loop {
             builder.add_prototype("SpiteString spite_loop_enum_names(void);")
@@ -37573,6 +37688,7 @@ func emit_loop_singletons() {
     lines.append("return result;")
     lines.append("}")
     var joined_lines = lines.join("\n")
+    note_loop_table_slot("'s singletons")
     builder.add_support(joined_lines)
     var names = List<String>()
     index = 0
@@ -37584,6 +37700,7 @@ func emit_loop_singletons() {
         index = index + 1
     }
     var joined_names = names.join("\n")
+    note_loop_table_slot("'s classes")
     builder.add_support("SpiteString spite_loop_class_names(void) \{\nreturn {owned_c_text(joined_names)};\n}")
     var enum_lines = List<String>()
     index = 0
@@ -37602,7 +37719,92 @@ func emit_loop_singletons() {
         index = index + 1
     }
     var joined_enums = enum_lines.join("\n")
+    note_loop_table_slot("'s enums")
     builder.add_support("SpiteString spite_loop_enum_names(void) \{\nreturn {owned_c_text(joined_enums)};\n}")
+    var blocks = List<String>()
+    index = 0
+    while index < classes.count() {
+        if is_listed_class(classes[index]) {
+            var block = class_description(classes[index])
+            blocks.append(block)
+        }
+        index = index + 1
+    }
+    var joined_blocks = blocks.join("\n\n")
+    note_loop_table_slot("'s class descriptions")
+    builder.add_support("SpiteString spite_loop_class_descriptions(void) \{\nreturn {owned_c_text(joined_blocks)};\n}")
+}
+
+func class_description(information: Analysis.ClassInfo): String {
+    var lines = List<String>()
+    var display_name = singleton_display_name(information)
+    if information.is_singleton {
+        lines.append("{display_name}, a singleton")
+    } else {
+        lines.append(display_name)
+    }
+    if information.fields.is_empty() {
+        lines.append("attributes: none")
+    } else {
+        lines.append("attributes:")
+        var field_index = 0
+        while field_index < information.fields.count() {
+            var field = information.fields[field_index]
+            var field_type = field.get_type()
+            if not field.name.starts_with("_") {
+                lines.append("{field.name}: {type_display_name(field_type)}")
+            }
+            field_index = field_index + 1
+        }
+    }
+    var signatures = List<String>()
+    var function_index = 0
+    while function_index < information.declared_functions.count() {
+        var listed = information.declared_functions[function_index]
+        var public = not listed.name.starts_with("_") and listed.name != "drop"
+        if public and not listed.is_constructor and listed.symbol_name.is_empty() {
+            var signature = prompt_signature(listed)
+            if not signatures.contains(signature) {
+                signatures.append(signature)
+            }
+        }
+        function_index = function_index + 1
+    }
+    if signatures.is_empty() {
+        lines.append("functions: none")
+    } else {
+        lines.append("functions:")
+        var signature_index = 0
+        while signature_index < signatures.count() {
+            lines.append(signatures[signature_index])
+            signature_index = signature_index + 1
+        }
+    }
+    return lines.join("\n")
+}
+
+func prompt_signature(function: Analysis.FunctionInfo): String {
+    var parameters = List<String>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.get_type()
+        parameters.append("{parameter.name}: {type_display_name(parameter_type)}")
+        index = index + 1
+    }
+    var return_type = function.get_return_type()
+    var returned = "Nothing"
+    if not type_shape.is_void(return_type) {
+        returned = type_display_name(return_type)
+    }
+    return "{function.name}({parameters.join(", ")}): {returned}"
+}
+
+func note_loop_table_slot(what: String) {
+    assert hot_reload
+    var entry_class = find_class_by_c_name(entry_class_c_name)
+    crash entry_class
+    note_support_slot(entry_class, what)
 }
 
 func listed_singleton(information: Analysis.ClassInfo, list_name: String): String {

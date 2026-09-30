@@ -16,8 +16,9 @@
 > `describe Monster`, `enums` and `memory` describe a class, the program's enums and the heap in use; an
 > assignment takes `null` into a `T?`, a literal into a list or dictionary element, and another path's instance
 > (`follower = leader`); a path walks into a union's active member.
-> **Not built yet:** code typed at the prompt, a generic class's function on an instance nothing holds, and
-> reloading a change to an enum's values -- [the list](#repl-and-live-reload--partial).
+> A reload swaps in a change to an enum's values, each held value keeping its meaning.
+> **Not built yet:** code typed at the prompt, and a generic class's function on an instance nothing holds --
+> [the list](#repl-and-live-reload--partial).
 >
 > ```text
 > spite> monsters[0]
@@ -151,7 +152,7 @@ The commands are the ones `--repl` answers:
   list or dictionary element (`names[1] = "cat"`, `scores["ann"] = 9`), a `T?` takes `null`, and an attribute or
   element of a class takes another path's instance of that class (`follower = leader`), which then holds the same
   object.
-- `describe Circle` (a class's attributes at their defaults and the functions the prompt can call), `enums` (each
+- `describe Circle` (a class's attributes and functions, with their types and signatures), `enums` (each
   of the program's enums with its values) and `memory` (the live allocations and the bytes they hold).
 - `attributes`, `functions` (of the program, or of any path: `functions World()`), `classes` (the singletons the
   prompt can bind, then the program's other classes), `help`, `exit`.
@@ -416,7 +417,7 @@ watcher has swapped the save in.
 | a function you deleted | whatever still holds it -- a function value, the REPL -- keeps its last code; the answer says `removed Monster.roar` |
 | an attribute's default value | instances made after the reload get the new default |
 | a class's attributes: added, removed, renamed or retyped | every live object of the class moves to the new attributes, components in an `Items`' own memory too ([below](#changing-a-classs-attributes)); the answer says what each class's objects kept |
-| an enum's values | refused: `the layout of ... changed`, and the program keeps all of its code (not built yet, [D280](decisions.md)) |
+| an enum's values: added, removed or reordered | the whole program is compiled again, and every value a running object holds keeps its meaning; a `switch` that meets a value the reload removed halts naming it ([D301](decisions.md)) |
 | a file that does not compile | refused with the compiler's error, and the program keeps all of its code |
 | a file that declares none of the program's classes: `environment.spite`, `build.spite`, a reopening of a class of the standard library | refused: `'environment.spite' changed, and a reload swaps only the functions of the program's own classes, ...`, and the program keeps all of its code |
 | a new class | its functions are compiled into the new code; the REPL does not see it until a restart |
@@ -520,9 +521,8 @@ object has the old name, so it can be deleted after the reload, or kept.
 What it costs: a change to a class's attributes compiles the whole program, since every class that reads them is
 compiled again -- about 40 seconds for SlopTheseus's server, against a few for a change to function bodies alone.
 The saves after it are fast again: a reload that compiled the whole program becomes what the next one is compared
-with ([How it works](#how-it-works)). Not built yet ([D280](decisions.md)): an enum whose
-values change, and a class that starts or stops fitting in an `Items`' own memory -- both are refused, naming the
-class.
+with ([How it works](#how-it-works)). Not built yet ([D280](decisions.md)): a class that starts or stops fitting
+in an `Items`' own memory is refused, naming the class.
 
 ### Knowing what a reload rebuilt
 
@@ -668,11 +668,23 @@ is a gap to close, not a rule. The plan (proposed by Claude, unconfirmed), in th
      holds its default`), in its answer and on the error output.
    - Once a class has moved, its code reads through the function for as long as the program runs. Refused, not
      built: a class that starts or stops fitting an `Items`' own
-     memory, an enum whose values change, and a change to a value class (`String` and the numbers).
+     memory, and a change to a value class (`String` and the numbers).
 2. **Dependents are rebuilt**: a change whose dependents cannot be swapped alone compiles the whole program into
    the reload library and re-points every slot, keeping the heap, instead of refusing.
-3. **Enums change**: stored values are re-mapped by name; a value removed while something still holds it is
-   refused naming the holder, as a stale value would otherwise be a silent wrong answer (D244).
+3. **Enums change** -- **built** ([D301](decisions.md), decided by Claude under D205 in place of re-mapping):
+   in a `--hot-reload` build every enum value's number is fixed for as long as the program runs, so nothing held
+   has to be re-mapped. The build numbers each enum's values in order and writes the numbers into its C
+   (`Mood_calm = 0`); a reload gives every value the running program knows its number again and a new value the
+   next free one, so a value moved up the list or added before the others keeps what every object, list, local
+   and key already holds. A removed value keeps its number and its name too: something may still hold it, and it
+   still prints and compares as itself. A `switch` over an enum with no `_:` halts when it meets a value outside its
+   cases -- in a `--hot-reload` build, only a removed one can -- with `spite: a switch over LiveEnum.Mood met the
+   value 'angry', which a reload removed from it: restart the program, or put the value back`, rather than
+   running no case (D244). An enum whose values changed compiles the whole program, since the code naming its
+   values and the REPL's tables are compiled again; an attribute of an enum type keeps its value, since a class's
+   layout names an enum by its name, not its values. `check.sh` adds a value, removes a held one and meets it
+   (`conformance/stage6/live_enum`). The number an enum value compiles to is a representation detail
+   ([values_and_types.md](values_and_types.md)), so nothing else observes this.
 4. **`environment.spite` and `build.spite`**: a `Build` field is a constant folded into the code, so changing one is
    step 2 -- the whole program recompiled with the new value and swapped in live.
 All of it lives only in a `--hot-reload` build (D143): a normal build carries none of it.
@@ -688,8 +700,8 @@ singletons by name, assignment of a literal, calls with literal arguments and pa
 `spite connect` over `Socket`, answered where the program waits and at each loop's check point (D37, D174), and
 live reload on Windows, with the Linux and macOS folders held to compiling (`conformance/stage6/interactive_inspection`
 for D300). **Not built:** calling a generic class's function on an instance nothing holds (`Lookup<Position>().of(12)`, below);
-compiling new Spite code typed at the prompt; and reloading a change to an enum's values or to whether a class fits
-an `Items`' own memory.
+compiling new Spite code typed at the prompt; and reloading a change to whether a class fits an `Items`' own
+memory.
 
 #### Reflection in a REPL build  **[implemented]**
 
@@ -805,12 +817,15 @@ making an object at the prompt (`follower = Circle(3)`), which is code typed at 
 **Built by D300** (decided by Claude under D205, implementing D282; the command names and the three members
 provisional under D214):
 
-- **`describe <class>`** answers the class's qualified name (`, a singleton` after one), its attributes at their
-  defaults (`name: Class = value` a line, read from the stand-in `Spite.Class.attributes` makes, so nothing runs)
-  and the functions the prompt can call, with their signatures. The name is the qualified name, or the name without
-  its namespace when one class has it; two classes sharing it are refused naming both, and a name no class has is
-  `no class 'Nope' in the program: 'classes' lists them`. It reads `Spite.Class.instances`: the program's classes
-  and every loaded package's, not the standard library's. The entry class has no stand-in, so it lists no function.
+- **`describe <class>`** answers the class's qualified name (`, a singleton` after one), its attributes
+  (`name: Class` a line; a private `_` one is left out) and its public functions with their signatures
+  (`grow(by: Integer): Integer`), or `none`. The name is the qualified name, or the name without its namespace when
+  one class has it; two classes sharing it are refused naming both, and a name no class has is `no class 'Nope' in
+  the program: 'classes' lists them`. It covers the classes `classes` lists -- the program's and every loaded
+  package's, not the standard library's -- from `class_descriptions()`, text the compiler writes into a REPL build
+  like `class_names()`, so describing a class runs nothing. (It does not read `Spite.Class.functions`: code that
+  does, anywhere in the library, changes how every program is compiled -- a bug recorded in
+  [failure.md](failure.md#nothing-fails-silently--the-rule).)
 - **`enums`** answers each of the program's enums, `Owner.Name: 'value', ...` a line, from `enum_names()`, which the
   compiler writes into a REPL build like `class_names()`; a program with none answers `the program declares no enum`.
 - **`memory`** answers `<n> live allocations holding <b> bytes`, from `Program().live_allocations()` and
@@ -1023,13 +1038,9 @@ session against a copy of the program it edits.
   class, only in a `--hot-reload` build. A changed parameter list or return type (a new function: the rebuilt class and its callers are
   rebuilt). A deleted function keeps its last code for whatever still holds it, a function value or the REPL, and
   the answer names it. An attribute's default value (through the `_init` slot, for instances made afterwards).
-- **What needs a restart: a class's attributes or enums.** When the layout of a class or enum the running
-  program has differs, the reload is refused -- `the attributes of Monster changed, and the running program's
-  instances were made with the old ones: restart the program to change a class's attributes or enums, or undo that
-  part of the change to reload the rest` -- and the program keeps all of its code. Migrating instances by attribute
-  name (new attributes taking their defaults) needs every live instance and every reference to it, which the
-  program cannot find today; `mortaros_missing_decisions.md` asks which to build. A file that does not compile is
-  refused the same way, with the compiler's error, so a save caught half-written is harmless.
+- **What needs a restart** (superseded by D280's steps above: a class's attributes move their objects, and an
+  enum's values keep their numbers, D301). A file that does not compile is refused, with the compiler's error, and
+  the program keeps all of its code, so a save caught half-written is harmless.
 - **Watching** (D111, D194). `HotReload` (`library/hot_reload.spite`) watches through the standard library's
   `Watcher` ([System classes](standard_library.md#system-classes--implemented)), the one watcher any program uses: `ReadDirectoryChangesW` with overlapped I/O from
   `kernel32.dll` on Windows, `inotify` and `poll` from `libc.so.6` on Linux, and `kqueue`/`kevent` on each folder
