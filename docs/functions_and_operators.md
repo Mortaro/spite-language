@@ -375,6 +375,42 @@ A parameter that is never read is an error, as every unused name is: remove it, 
 signature needs it. An operator function's, a template's or a setter's parameter needs neither, since its
 signature is dictated from outside ([style.md](style.md#nothing-unused)).
 
+## Functions the compiler calls by name
+
+Some functions are never called by the program's own code: the compiler calls them itself, so their signatures are
+fixed. `drop()` runs when the last reference to an object goes ([memory.md](memory.md)), `to_string()` wherever an
+object is used as text, `to_debug()` wherever it is shown for debugging, and `equals`, `less_than` and
+`greater_than` for `==`, `<` and `>`. Declaring one with another signature is an error that writes the one it must
+have, since a `drop` with a parameter could never run and an `equals` with two would leave `==` comparing identity:
+
+| Function | Signature |
+|---|---|
+| `drop` | `func drop()` |
+| `to_string` | `func to_string(): String` |
+| `to_debug` | `func to_debug(): String` |
+| `equals` | `func equals(other: Class): Boolean` |
+| `less_than` | `func less_than(other: Class): Boolean` |
+| `greater_than` | `func greater_than(other: Class): Boolean` |
+
+```gdscript title=drop_with_parameter/handle.spite
+var open = true
+
+func drop(_reason: Integer) {
+    open = false
+}
+```
+```gdscript title=drop_with_parameter/drop_with_parameter.spite entry error
+var console = Console()
+
+func DropWithParameter() {
+    var handle = Handle()
+    console.print(handle.open)
+}
+```
+```diagnostic
+'drop' is called by the compiler when the last reference to an object goes, so it is declared exactly 'func drop()'
+```
+
 ## Rules in full
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
@@ -393,6 +429,10 @@ func function_name(first: Reference, second: Value): Tiny {
 
 - The return type is written `(): Type`. No other form is valid: `() Type` is the parse error "a return type is
   written '(): Type'".
+- `drop`, `to_string`, `to_debug`, `equals`, `less_than` and `greater_than` are called by the compiler, so a class
+  declares them only with the signatures [above](#functions-the-compiler-calls-by-name) (their parameter's type is
+  not checked, only how many there are and what they answer); anything else is "'<name>' is called by the compiler
+  <when>, so it is declared exactly '<signature>'" (proposed by Claude, unconfirmed; `diagnostics/reserved_signature`).
 - `return` is always explicit. There is no implicit return of the last expression. A function with a
   return type whose body falls off the end without a `return` gets the defensive default return of its
   return type, with no diagnostic.

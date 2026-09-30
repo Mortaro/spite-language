@@ -3,6 +3,5 @@ false
 true
 false
 true
-true
 a circle of radius 1
 not a circle

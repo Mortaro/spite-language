@@ -230,6 +230,11 @@ var nullable_scalar_labels = List<String>()
 var has_error = false
 var error_message = ""
 var error_lines = List<String>()
+var errors_reported = 0
+var reported_lines = Dictionary<Boolean>()
+var own_errors_hidden = 0
+var package_error_lines = List<String>()
+var hidden_package_errors = Dictionary<Integer>()
 var statement_poisoned = false
 var poisoned_names = List<String>()
 var current_function = ""
@@ -271,6 +276,7 @@ var walked_checks = List<Syntax.Statements.Statement>()
 var walked_local_count = 0
 var framed_walked_locals = List<String>()
 var walked_check_texts = List<String>()
+var walked_statement_places = Dictionary<Boolean>()
 var walked_read_paths = List<String>()
 var walked_read_results = List<ExpressionResult>()
 var walked_read_owned = List<Boolean>()
@@ -392,13 +398,113 @@ func report(message: String) {
         shown_line = fallback_line()
     }
     var line = "{current_path}:{shown_line}: error: {message} (in {current_owner}.{current_function})"
-    assert not error_lines.contains(line)
-    if error_lines.count() == 25 {
-        error_lines.append("too many errors: stopping at 25")
+    assert not reported_lines.has(line)
+    reported_lines.set(line, true)
+    errors_reported = errors_reported + 1
+    var package = error_package(current_path)
+    if package.is_empty() {
+        list_own_error(line)
+    } else {
+        list_package_error(line, package)
     }
-    assert not (error_lines.count() > 25)
-    error_lines.append(line)
-    error_message = error_lines.join("\n")
+    error_message = listed_errors()
+}
+
+func list_own_error(line: String) {
+    if error_lines.count() < 25 {
+        error_lines.append(line)
+    } else {
+        own_errors_hidden = own_errors_hidden + 1
+    }
+}
+
+func list_package_error(line: String, package: String) {
+    if package_error_lines.count() < 25 {
+        package_error_lines.append(line)
+        return
+    }
+    if hidden_package_errors[package] {
+        hidden_package_errors.set(package, hidden_package_errors[package] + 1)
+    } else {
+        hidden_package_errors.set(package, 1)
+    }
+}
+
+# ../docs/compiler.md#how-many-errors-are-listed
+func listed_errors(): String {
+    var shown = error_lines.copy()
+    if own_errors_hidden > 0 {
+        shown.append("and {own_errors_hidden} more in the program")
+    }
+    var index = 0
+    while index < package_error_lines.count() {
+        shown.append(package_error_lines[index])
+        index = index + 1
+    }
+    var packages = hidden_package_errors.keys()
+    index = 0
+    while index < packages.count() {
+        var package = packages[index]
+        crash hidden_package_errors[package]
+        shown.append("and {hidden_package_errors[package]} more in {package}")
+        index = index + 1
+    }
+    return shown.join("\n")
+}
+
+func error_package(path: String): String {
+    var entry_class = find_class_by_c_name(entry_class_c_name)
+    if not entry_class or path.is_empty() {
+        return ""
+    }
+    var slashed = path.replace("\\", "/")
+    var base = working_folder.replace("\\", "/")
+    var language = language_folder.replace("\\", "/")
+    var joined = "{base}/{slashed}"
+    if slashed.starts_with("library/") or slashed.starts_with("launcher/") {
+        joined = "{language}/{slashed}"
+    }
+    if slashed.starts_with("/") or slashed.slice(1, 2) == ":" {
+        joined = slashed
+    }
+    var folder = normalized_folder(joined)
+    var program_folder = absolute_source_folder(entry_class)
+    if folder == program_folder or folder.starts_with("{program_folder}/") {
+        return ""
+    }
+    var library_root = normalized_folder("{language}/library/")
+    if folder == library_root or folder.starts_with("{library_root}/") {
+        return "library"
+    }
+    var launcher_root = normalized_folder("{language}/launcher/")
+    if folder == launcher_root or folder.starts_with("{launcher_root}/") {
+        return "launcher"
+    }
+    var best_root = ""
+    var index = 0
+    while index < loaded_folders.count() {
+        var loaded = loaded_folders[index].replace("\\", "/")
+        var loaded_path = loaded
+        if not loaded.starts_with("/") and loaded.slice(1, 2) != ":" {
+            loaded_path = "{base}/{loaded}"
+        }
+        var loaded_root = normalized_folder("{loaded_path}/")
+        var holds = folder == loaded_root or folder.starts_with("{loaded_root}/")
+        if holds and loaded_root.length() > best_root.length() {
+            best_root = loaded_root
+        }
+        index = index + 1
+    }
+    if best_root.is_empty() {
+        best_root = folder
+    }
+    var working_root = normalized_folder("{base}/")
+    if best_root.starts_with("{working_root}/") {
+        var start = working_root.length() + 1
+        var end = best_root.length()
+        return best_root.slice(start, end)
+    }
+    return best_root
 }
 
 func allocate_class_id(debug_name: String): Integer {
@@ -4421,10 +4527,10 @@ func enum_numbers(information: Analysis.EnumInfo): Dictionary<Integer> {
     var known = numbers.keys()
     var known_index = 0
     while known_index < known.count() {
-        var known_number = numbers[known[known_index]]
-        crash known_number
-        if known_number >= next {
-            next = known_number + 1
+        var known_name = known[known_index]
+        crash numbers[known_name]
+        if numbers[known_name] >= next {
+            next = numbers[known_name] + 1
         }
         known_index = known_index + 1
     }
@@ -4726,9 +4832,9 @@ func resolve_field(
         return
     }
     var field_type = infer_declared_type(declaration.type_reference, declaration.value, scope, information)
-    var errors_before = error_lines.count()
+    var errors_before = errors_reported
     report_function_shape_default(declaration, field_type, information, file_statements)
-    if error_lines.count() == errors_before and not constructor_assigns(information.simple_name, declaration.name, file_statements) {
+    if errors_reported == errors_before and not constructor_assigns(information.simple_name, declaration.name, file_statements) {
         report_null_default(declaration, field_type, "attribute")
     }
     var default_code = coerce_for_store(declaration.value, field_type, scope, information)
@@ -5969,8 +6075,8 @@ func instantiate_template(
     function.symbol_range = range_text(template)
     if not declaration.has_body {
         function.has_body = false
-        function.supplied_body = "#define {function.c_name}(self, value) (({c_type_name(return_type)})(value))"
-        if declaration.name != "from_type" {
+        function.supplied_body = "#define {function.c_name}(self) (({c_type_name(return_type)})(self))"
+        if declaration.name != "to_type" {
             report(
                 "'{information.simple_name}.{declaration.name}' has no body, and only a function whose body the compiler supplies is written without one: give it a body",
             )
@@ -6276,6 +6382,11 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     if declaration.name == "get_at" and not type_shape.as_nullable(return_type) {
         report_plain_get_at(declaration, return_type)
     }
+    var parameter_count = parameters.count()
+    report_reserved_signature(declaration, parameter_count, return_type, information)
+    if declaration.name.starts_with("from_") {
+        report_from_declaration(declaration, information)
+    }
     function.line = declaration.line
     function.end_line = declaration.end_line
     if is_constructor {
@@ -6296,6 +6407,71 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         existing = existing + 1
     }
     information.declared_functions.append(function)
+}
+
+# ../docs/values_and_types.md#numbers-are-classes-and-this--implemented
+func report_from_declaration(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo) {
+    var saved_line = current_line
+    current_line = declaration.line
+    var target_words = snake_words(information.simple_name)
+    report(
+        "'{information.simple_name}.{declaration.name}' makes a {information.simple_name} from another value, and a conversion belongs to the value converted (D293): declare 'to_{target_words}()' on the class it converts from, or take the value in the constructor",
+    )
+    current_line = saved_line
+}
+
+# ../docs/functions_and_operators.md#functions-the-compiler-calls-by-name
+func report_reserved_signature(
+    declaration: Syntax.Statements.FunctionDeclaration,
+    parameter_count: Integer,
+    return_type: Analysis.SpiteType,
+    information: Analysis.ClassInfo,
+) {
+    var wanted = reserved_signature(declaration.name, information.simple_name)
+    assert not wanted.is_empty()
+    var wanted_count = 1
+    var wanted_return = "Boolean"
+    if declaration.name == "drop" {
+        wanted_count = 0
+        wanted_return = ""
+    } else if declaration.name == "to_string" or declaration.name == "to_debug" {
+        wanted_count = 0
+        wanted_return = "String"
+    }
+    var answered = ""
+    if not type_shape.is_void(return_type) {
+        answered = type_display_name(return_type)
+    }
+    assert parameter_count != wanted_count or answered != wanted_return
+    var saved_line = current_line
+    current_line = declaration.line
+    report(
+        "'{declaration.name}' is called by the compiler {reserved_use(declaration.name)}, so it is declared exactly '{wanted}'",
+    )
+    current_line = saved_line
+}
+
+func reserved_signature(name: String, class_name: String): String {
+    switch name {
+        "drop": return "func drop()"
+        "to_string": return "func to_string(): String"
+        "to_debug": return "func to_debug(): String"
+        "equals": return "func equals(other: {class_name}): Boolean"
+        "less_than": return "func less_than(other: {class_name}): Boolean"
+        "greater_than": return "func greater_than(other: {class_name}): Boolean"
+        _: return ""
+    }
+}
+
+func reserved_use(name: String): String {
+    switch name {
+        "drop": return "when the last reference to an object goes"
+        "to_string": return "wherever the object is used as text"
+        "to_debug": return "wherever the object is shown for debugging"
+        "equals": return "for '==' and '!='"
+        "less_than": return "for '<' and '<='"
+        _: return "for '>' and '>='"
+    }
 }
 
 func report_plain_get_at(declaration: Syntax.Statements.FunctionDeclaration, return_type: Analysis.SpiteType) {
@@ -7827,7 +8003,7 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
             if conversion.is_empty() {
                 return "(({c_type_name(to)})({code}))"
             }
-            return "{conversion}(0, {code})"
+            return "{conversion}({code})"
         }
         report_mismatch(from, to, code)
         return code
@@ -7845,13 +8021,13 @@ func numeric_conversion(from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         return conversion_names[key]
     }
     var conversion_name = ""
-    var to_scalar = type_shape.as_scalar(to)
-    crash to_scalar
-    var target_class = value_class_of(to_scalar.kind)
-    if target_class {
-        var source_words = words_of(from_label)
-        var source_name = source_words.join("_")
-        var conversion = find_or_instantiate_function(target_class, "from_{source_name}")
+    var from_scalar = type_shape.as_scalar(from)
+    crash from_scalar
+    var source_class = value_class_of(from_scalar.kind)
+    if source_class {
+        var target_words = words_of(to_label)
+        var target_name = target_words.join("_")
+        var conversion = find_or_instantiate_function(source_class, "to_{target_name}")
         if conversion {
             conversion_name = conversion.c_name
             conversion_names[key] = conversion_name
@@ -9087,6 +9263,39 @@ func class_passed_as_object(
     return tested_class_of(expression, class_information)
 }
 
+# ../docs/proofs.md#proving-what-is-proven-is-an-error
+func report_decided_class_test(
+    binary: Syntax.Expressions.BinaryExpression,
+    value_type: Analysis.SpiteType,
+    tested_class: Analysis.ClassInfo,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert class_information.codegen_types.is_empty() and bound_symbol_name.is_empty()
+    var class_ref = type_shape.as_class_ref(value_type)
+    assert class_ref
+    assert class_ref.c_name != "Spite_Class" and tested_class.c_name != "Spite_Class"
+    crash binary.left
+    var subject = operand_text(binary.left)
+    assert not subject.is_empty()
+    var value_class = class_of_type(value_type)
+    assert value_class
+    if value_class.c_name != tested_class.c_name {
+        report(
+            "'{subject}' is {type_with_article(value_type)} here, so it is never {tested_class.simple_name} and this test is decided while compiling: remove it",
+        )
+        return
+    }
+    var site = scope.site_of(subject)
+    if site.is_empty() {
+        report(
+            "'{subject}' is {type_with_article(value_type)} here, so this test is decided while compiling: remove it",
+        )
+        return
+    }
+    report("'{subject}' is already {type_with_article(value_type)}, narrowed by {site}: remove this test")
+}
+
 func generate_class_test(
     binary: Syntax.Expressions.BinaryExpression,
     tested_class: Analysis.ClassInfo,
@@ -9112,6 +9321,9 @@ func generate_class_test(
     }
     if is_class_object_type(value_type) and tested_class.c_name != "Spite_Class" {
         return generate_class_object_comparison(binary, tested, tested_class, is_nullable)
+    }
+    if not is_nullable {
+        report_decided_class_test(binary, value_type, tested_class, scope, class_information)
     }
     var tested_union = type_shape.as_union(value_type)
     if tested_union {
@@ -12131,7 +12343,7 @@ func report_not_a_number_constant(information: Analysis.ClassInfo, name: String,
         constants = "pi(), tau(), euler_number(), infinity(), not_a_number(), largest() and smallest()"
     }
     var class_name = information.qualified_dotted
-    if name.starts_with("from_") and function {
+    if name.starts_with("from_") {
         report_cast_by_name(information, name)
         return
     }
@@ -12151,17 +12363,8 @@ func report_cast_by_name(information: Analysis.ClassInfo, name: String) {
     var source_name = joined_case_spelling(source_words, true)
     var target_words = snake_words(information.simple_name)
     var assignment = "'var converted: {class_name} = value'"
-    var source = find_class_by_qualified(source_name)
-    if source {
-        if source.find_function("to_{target_words}") {
-            report(
-                "'{class_name}.{name}()' is not a function a program calls: a conversion belongs to the value converted (D275), so write 'value.to_{target_words}()', or cast by assignment: {assignment}",
-            )
-            return
-        }
-    }
     report(
-        "'{class_name}.{name}()' is not a function a program calls: a conversion belongs to the value converted (D275), and {with_article(source_name)} has no 'to_{target_words}()' yet, so cast by assignment: {assignment}, or pass the value where {with_article(class_name)} is expected",
+        "there is no '{class_name}.{name}()': a conversion belongs to the value converted (D293), so write 'value.to_{target_words}()' on {with_article(source_name)}, or cast by assignment: {assignment}",
     )
 }
 
@@ -16693,6 +16896,126 @@ func collect_statement_head_names(statement: Syntax.Statements.Statement, names:
     }
 }
 
+func report_reads_in_template(statements: List<Syntax.Statements.Statement>) {
+    var saved_line = current_line
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        current_line = statement_line(statement)
+        report_reads_in_indices(statement)
+        index = index + 1
+    }
+    current_line = saved_line
+}
+
+# ../docs/failure.md#an-index-reads-nothing
+func report_reads_in_indices(statement: Syntax.Statements.Statement) {
+    assert not walked_statement_places.has("{current_path}:{current_line}")
+    switch statement {
+        Syntax.Statements.VariableDeclaration: report_read_in_index(statement.value)
+        Syntax.Statements.AssignmentStatement: {
+            report_read_in_index(statement.target)
+            report_read_in_index(statement.value)
+        }
+        Syntax.Statements.IfStatement: report_read_in_index(statement.condition)
+        Syntax.Statements.WhileStatement: report_read_in_index(statement.condition)
+        Syntax.Statements.SwitchStatement: report_read_in_index(statement.subject)
+        Syntax.Statements.AssertStatement: report_read_in_index(statement.value)
+        Syntax.Statements.ReturnStatement: report_read_in_index(statement.value)
+        Syntax.Statements.ExpressionStatement: report_read_in_index(statement.value)
+        _: return
+    }
+}
+
+func report_read_in_index(expression: Syntax.Expressions.Expression?) {
+    assert expression
+    var outer = index_holding_read(expression)
+    assert outer
+    crash outer.object
+    crash outer.index
+    var inner = read_inside(outer.index)
+    crash inner
+    var printer = Syntax.SourcePrinter()
+    var inner_text = printer.source_expression(inner)
+    var object_text = printer.source_expression(outer.object)
+    report(
+        "'{inner_text}' is read inside the index of '{object_text}': compute it first into a named 'var' and pass the name",
+    )
+}
+
+func index_holding_read(expression: Syntax.Expressions.Expression): Syntax.Expressions.IndexExpression? {
+    var children = List<Syntax.Expressions.Expression>()
+    switch expression {
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            if read_inside(expression.index) {
+                return expression
+            }
+            children.append(expression.object)
+            children.append(expression.index)
+        }
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            children.append(expression.callee)
+            expression.arguments.each(children.append)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            children.append(expression.callee)
+            expression.arguments.each(children.append)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            children.append(expression.left)
+            children.append(expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            children.append(expression.operand)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            children.append(expression.object)
+        }
+        _: return null
+    }
+    var index = 0
+    while index < children.count() {
+        var found = index_holding_read(children[index])
+        if found {
+            return found
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func read_inside(expression: Syntax.Expressions.Expression): Syntax.Expressions.IndexExpression? {
+    switch expression {
+        Syntax.Expressions.IndexExpression: return expression
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            var left_read = read_inside(expression.left)
+            if left_read {
+                return left_read
+            }
+            return read_inside(expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return read_inside(expression.operand)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            return read_inside(expression.object)
+        }
+        _: return null
+    }
+}
+
 func generate_index_read(
     index_expression: Syntax.Expressions.IndexExpression,
     scope: Scope,
@@ -19990,7 +20313,8 @@ func add_key_dependency(
     dependencies.append("{class_information.simple_name}#{word}")
 }
 
-func narrow_by_guard(scope: Scope, guard: NullableGuard) {
+func narrow_by_guard(scope: Scope, guard: NullableGuard, check: String) {
+    scope.note_site(guard.name, "{check} on line {current_line}")
     if guard.override_code.is_empty() {
         scope.narrow_path(guard.name)
     } else {
@@ -21542,6 +21866,7 @@ func write_lent_argument(
     fallback.line = line
     fallback.source_path = current_path
     statements.append(fallback)
+    walked_statement_places.set("{current_path}:{line}", true)
     names.append(name)
     return false
 }
@@ -21561,13 +21886,46 @@ func written_lent_argument(
     assert argument_type
     var written_body = folded_template_body(body, scope, class_information)
     assert written_body
+    report_reads_in_template(written_body)
     var attribute = Syntax.Statements.FieldDeclaration(parameter.name, argument_type)
-    var folded = walk_lent_checks(written_body, attribute, walk, line, statements)
-    if folded.count() == 1 {
-        return written_lent_value(folded[0], attribute, walk, line, statements, names, scope, class_information)
+    var steps = List<Syntax.Statements.Statement>()
+    var index = 0
+    while index < written_body.count() {
+        var statement = written_body[index]
+        if not local_bound_for_walk(attribute, walk, statement) {
+            steps.append(statement)
+        }
+        index = index + 1
     }
-    assert folded.count() == 3
-    assert written_lent_row(folded, attribute, walk, line, statements, names, scope, class_information)
+    var folded = walk_lent_checks(steps, attribute, walk, line, statements)
+    var written: Boolean? = null
+    if folded.count() == 1 {
+        written = written_lent_value(folded[0], attribute, walk, line, statements, names, scope, class_information)
+    } else if folded.count() == 3 and written_lent_row(folded, attribute, walk, line, statements, names, scope, class_information) {
+        written = true
+    }
+    walk.clear_locals()
+    return written
+}
+
+func local_bound_for_walk(
+    attribute: Syntax.Statements.FieldDeclaration,
+    walk: RowWalk,
+    statement: Syntax.Statements.Statement,
+): Boolean {
+    var local = shape.as_variable_declaration(statement)
+    if not local {
+        return false
+    }
+    crash local.value
+    if local.type_reference or shape.is_null_literal(local.value) {
+        return false
+    }
+    var bound = walked_value(local.value, attribute, walk)
+    if not bound {
+        return false
+    }
+    walk.bind_local(local.name, bound)
     return true
 }
 
@@ -21628,6 +21986,7 @@ func written_lent_value(
     written.line = line
     written.source_path = current_path
     statements.append(written)
+    walked_statement_places.set("{current_path}:{line}", true)
     names.append(name)
     return may_lend(value, scope, class_information)
 }
@@ -21710,6 +22069,7 @@ func written_lent_row(
     var filled = Syntax.Statements.ExpressionStatement(filled_call)
     filled.line = line
     statements.append(filled)
+    walked_statement_places.set("{current_path}:{line}", true)
     names.append(name)
     return true
 }
@@ -22032,6 +22392,7 @@ func walked_field(
     var filled: Syntax.Expressions.Expression? = null
     var folded = folded_template_body(filling, scope, class_information)
     if folded {
+        report_reads_in_template(folded)
         var steps = walked_steps(folded, attribute, walk)
         var assigned = walked_assignment(steps, walk)
         if assigned {
@@ -25190,6 +25551,17 @@ func address_parameter_names(function: Analysis.FunctionInfo): List<String> {
     return names
 }
 
+# ../docs/control_flow.md#nothing-after-a-return
+func report_after_return(statements: List<Syntax.Statements.Statement>, index: Integer) {
+    assert index + 1 < statements.count()
+    assert shape.as_return_statement(statements[index])
+    var next = statements[index + 1]
+    var saved_line = current_line
+    current_line = statement_line(next)
+    report("this statement comes after a 'return', so it never runs: remove it")
+    current_line = saved_line
+}
+
 func generate_statement_list(
     statements: List<Syntax.Statements.Statement>,
     scope: Scope,
@@ -25232,6 +25604,7 @@ func generate_statement_list(
             overlapped_reads.append(read_name)
         }
         var folded_return = ended_in_return and (statements[index] == Syntax.Statements.IfStatement or statements[index] == Syntax.Statements.AssertStatement)
+        report_after_return(statements, index)
         index = index + 1
         if folded_return and index < statements.count() {
             undo_proofs_after_calls(scope, class_information)
@@ -27157,7 +27530,7 @@ func generate_unfolded_if(
         report_terminal_if(if_statement, guard.name, function_information)
         builder.add_user("if ({guard.guard_code}) \{")
         var then_scope = Scope(scope)
-        narrow_by_guard(then_scope, guard)
+        narrow_by_guard(then_scope, guard, "'if {guard.name}'")
         generate_block_in_scope(if_statement.then_branch, then_scope, class_information, function_information)
         builder.add_user("}")
         if if_statement.has_else_branch {
@@ -27257,7 +27630,8 @@ func generate_leaving_if(
     builder.add_user("}")
     var guard_index = 0
     while guard_index < guards.count() {
-        narrow_by_guard(scope, guards[guard_index])
+        var leaving_guard = guards[guard_index]
+        narrow_by_guard(scope, leaving_guard, "'if not {leaving_guard.name}'")
         guard_index = guard_index + 1
     }
     var side_index = 0
@@ -27280,14 +27654,14 @@ func leaving_side_test(
         if unary.operator == 'logical_not' and unary.operand {
             var guard = try_nullable_guard(unary.operand, probe_scope, class_information)
             if guard {
-                narrow_by_guard(probe_scope, guard)
+                narrow_by_guard(probe_scope, guard, "'if not {guard.name}'")
                 guards.append(guard)
                 return "({guard.guard_code})"
             }
         }
     }
     var side_result = generate_joined(side, probe_scope, class_information)
-    check_condition(side_result, "if")
+    check_condition(side, side_result, "if", probe_scope)
     plain_sides.append(side)
     return "!({owned_truth(side_result, side)})"
 }
@@ -27310,7 +27684,7 @@ func generate_plain_if(
 ) {
     crash if_statement.condition
     var condition_result = generate_joined(if_statement.condition, scope, class_information)
-    check_condition(condition_result, "if")
+    check_condition(if_statement.condition, condition_result, "if", scope)
     builder.add_user("if ({owned_truth(condition_result, if_statement.condition)}) \{")
     var proven_scope = Scope(scope)
     narrow_proven_indices(if_statement.condition, proven_scope)
@@ -27375,6 +27749,10 @@ func generate_class_narrowing_if(
     var case_scope = Scope(scope)
     var class_type = instance_type_of(tested_class)
     case_scope.declare(subject_identifier.name, class_type)
+    case_scope.note_site(
+        subject_identifier.name,
+        "'if {subject_identifier.name} == {tested_class.simple_name}' on line {current_line}",
+    )
     var narrowed = narrowed_code(subject_temporary, tested_class, class_type)
     case_scope.set_override(subject_identifier.name, narrowed)
     generate_block_in_scope(if_statement.then_branch, case_scope, class_information, function_information)
@@ -27436,7 +27814,7 @@ func generate_nullable_switch(
                 covered_value = true
                 builder.add_user("if ({guard.guard_code}) \{")
                 var case_scope = Scope(scope)
-                narrow_by_guard(case_scope, guard)
+                narrow_by_guard(case_scope, guard, "the 'switch'")
                 generate_block_in_scope(switch_case.body, case_scope, class_information, function_information)
                 builder.add_user("}")
             }
@@ -28961,7 +29339,7 @@ func generate_switch_statement(
             member_index = member_index + 1
         }
         report(
-            "this switch over '{information.simple_name}' has no case for {missing.join(", ")}: every member is covered, so a member added later cannot be forgotten",
+            "this switch over '{information.simple_name}' has no case for {missing.join(", ")}: a switch over a union covers every member, so a member added later cannot be forgotten -- add the cases, or end with '_:' for the rest",
         )
     }
     if owns(subject, switch_statement.subject) {
@@ -29516,7 +29894,7 @@ func check_asserted_condition(
     }
     var proof = earlier_proof(assert_statement.value, condition_result, scope)
     if proof.is_empty() {
-        check_condition(condition_result, keyword)
+        check_condition(assert_statement.value, condition_result, keyword, scope)
     } else {
         var proven_path = operand_text(assert_statement.value)
         report("'{proven_path}' is already proven by {proof}, so this '{keyword}' proves nothing: remove it")
@@ -29551,10 +29929,64 @@ func earlier_proof(value: Syntax.Expressions.Expression, condition: ExpressionRe
     return proof
 }
 
-func check_condition(condition: ExpressionResult, keyword: String) {
+func check_keyword(check: Syntax.Statements.AssertStatement): String {
+    if check.is_crash {
+        return "crash"
+    }
+    return "assert"
+}
+
+# ../docs/proofs.md#proving-what-is-proven-is-an-error
+func report_known_fact(
+    condition_ast: Syntax.Expressions.Expression,
+    condition_type: Analysis.SpiteType,
+    scope: Scope,
+): Boolean {
+    var path = operand_text(condition_ast)
+    if not path.is_empty() and not is_boolean_type(condition_type) {
+        var site = scope.site_of(path)
+        if not site.is_empty() {
+            report("'{path}' is already narrowed by {site}: remove this check")
+            return true
+        }
+        return false
+    }
+    var binary = shape.as_binary(condition_ast)
+    if not binary or binary.operator != 'not_equal' and binary.operator != 'greater' {
+        return false
+    }
+    crash binary.left
+    crash binary.right
+    var bound = shape.as_integer_literal(binary.right)
+    var divisor_text = operand_text(binary.left)
+    if not bound or bound.value != 0 or divisor_text.is_empty() {
+        return false
+    }
+    if not scope.is_present_narrowed("~[{divisor_text}]") {
+        return false
+    }
+    var proof = scope.site_of("~[{divisor_text}]")
+    if proof.is_empty() {
+        return false
+    }
+    if binary.operator == 'greater' and scope.site_of("~>[{divisor_text}]") != proof {
+        return false
+    }
+    var written = Syntax.SourcePrinter().source_expression(condition_ast)
+    report("'{written}' is already proven by {proof}: remove this check")
+    return true
+}
+
+func check_condition(
+    condition_ast: Syntax.Expressions.Expression,
+    condition: ExpressionResult,
+    keyword: String,
+    scope: Scope,
+) {
     var condition_type = condition.get_type()
     assert not type_shape.is_void(condition_type)
     assert not type_shape.as_nullable(condition_type)
+    assert not report_known_fact(condition_ast, condition_type, scope)
     if type_shape.as_class_ref(condition_type) {
         report(
             "this value cannot be null here (it is {type_with_article(condition_type)}), so '{keyword}' on it proves nothing: remove the check",
@@ -29653,6 +30085,12 @@ func narrow_nonzero(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
     var divisor_text = operand_text(binary.left)
     assert not divisor_text.is_empty()
     scope.narrow_path("~[{divisor_text}]")
+    var written = Syntax.SourcePrinter().source_expression(binary)
+    var site = "'{written}' on line {current_line}"
+    scope.note_site("~[{divisor_text}]", site)
+    if binary.operator == 'greater' {
+        scope.note_site("~>[{divisor_text}]", site)
+    }
 }
 
 func narrow_counted_element(condition: Syntax.Expressions.Expression, scope: Scope) {
@@ -30282,7 +30720,7 @@ func generate_while_loop(
         builder.add_user("while ({guard.guard_code}) \{")
         var narrowed_body = Scope(scope)
         narrowed_body.is_loop = true
-        narrow_by_guard(narrowed_body, guard)
+        narrow_by_guard(narrowed_body, guard, "'while {guard.name}'")
         generate_block_in_scope(while_statement.body, narrowed_body, class_information, function_information)
         add_loop_check_point(class_information)
         builder.add_user("}")
@@ -30291,7 +30729,7 @@ func generate_while_loop(
     var counted = counted_loop_list(while_statement, scope, class_information, function_information)
     var condition_start = builder.user_count()
     var condition_result = generate_joined(while_statement.condition, scope, class_information)
-    check_condition(condition_result, "while")
+    check_condition(while_statement.condition, condition_result, "while", scope)
     var truth = owned_truth(condition_result, while_statement.condition)
     if not counted.is_empty() {
         generate_counted_loop(counted, while_statement, scope, class_information, function_information)
@@ -31775,11 +32213,11 @@ func and_side_test(
 ): String {
     var guard = try_nullable_guard(side, then_scope, class_information)
     if guard {
-        narrow_by_guard(then_scope, guard)
+        narrow_by_guard(then_scope, guard, "the 'if'")
         return "({guard.guard_code})"
     }
     var side_result = generate_joined(side, then_scope, class_information)
-    check_condition(side_result, "if")
+    check_condition(side, side_result, "if", then_scope)
     narrow_proven_indices(side, then_scope)
     return "({owned_truth(side_result, side)})"
 }
@@ -31833,7 +32271,7 @@ func generate_assert_statement(
     crash_parts = List<CrashPart>()
     if guard {
         guard_code = guard.guard_code
-        narrow_by_guard(scope, guard)
+        narrow_by_guard(scope, guard, "'{check_keyword(assert_statement)} {guard.name}'")
     } else {
         var declarations_at = builder.user_count()
         var parts = List<CrashPart>()
@@ -31847,8 +32285,8 @@ func generate_assert_statement(
         crash_capturing = false
         crash_parts = parts
         declare_crash_parts(declarations_at)
-        narrow_proven_indices(assert_statement.value, scope)
         check_asserted_condition(assert_statement, condition_result, scope)
+        narrow_proven_indices(assert_statement.value, scope)
     }
     if not assert_statement.is_crash and function_information.is_constructor {
         report(
@@ -32035,6 +32473,11 @@ func emit_folded_check(
     if not assert_statement.is_crash and function_information.is_constructor {
         report(
             "'assert' is not allowed in a constructor: a constructor is setup, not logic. Take already resolved values, or use 'crash' when absence is a bug",
+        )
+    }
+    if holds and class_information.codegen_types.is_empty() and bound_symbol_name.is_empty() {
+        report(
+            "'{check_keyword(assert_statement)} {assert_statement.condition_text}' is decided while compiling and always holds here: remove it",
         )
     }
     assert not holds
@@ -32326,6 +32769,7 @@ func generate_statement(
     if statement.line == 0 {
         current_line = function_information.line
     }
+    report_reads_in_indices(statement)
     if not breakpoint_sites.is_empty() {
         emit_breakpoint(statement, scope, class_information, function_information)
     }
@@ -32335,9 +32779,10 @@ func generate_statement(
         statement_poisoned = true
         mark_each_used(mentioned, scope)
     }
-    var errors_before = error_lines.count()
+    var errors_before = errors_reported
     var waits_before = wait_mark_counters.count()
     var ended_in_return = generate_statement_kind(statement, scope, class_information, function_information)
+    note_repeated_check(statement, scope, errors_reported == errors_before)
     if ended_in_return {
         leaving_statements.append(statement)
     }
@@ -32345,7 +32790,7 @@ func generate_statement(
         drop_unread_waits(waits_before)
     }
     var declared = shape.as_variable_declaration(statement)
-    if declared and error_lines.count() > errors_before {
+    if declared and errors_reported > errors_before {
         scope.mark_used(declared.name)
     }
     if declared and statement_poisoned {
@@ -32355,6 +32800,23 @@ func generate_statement(
     }
     statement_poisoned = saved_poisoned
     return ended_in_return
+}
+
+# ../docs/proofs.md#proving-what-is-proven-is-an-error
+func note_repeated_check(statement: Syntax.Statements.Statement, scope: Scope, clean: Boolean) {
+    var check = shape.as_assert_statement(statement)
+    if not check or check.condition_text.is_empty() or check.condition_text.contains("(") {
+        scope.last_check_text = ""
+        return
+    }
+    if clean and check.condition_text == scope.last_check_text {
+        report(
+            "'{check.condition_text}' was already checked on line {scope.last_check_line}, and nothing between could change it: remove this check",
+        )
+        return
+    }
+    scope.last_check_text = check.condition_text
+    scope.last_check_line = statement.line
 }
 
 func emit_breakpoint(

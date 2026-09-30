@@ -1,0 +1,3 @@
+diagnostics/reserved_signature/thing.spite:3: error: 'drop' is called by the compiler when the last reference to an object goes, so it is declared exactly 'func drop()' (in Thing.)
+diagnostics/reserved_signature/thing.spite:7: error: 'equals' is called by the compiler for '==' and '!=', so it is declared exactly 'func equals(other: Thing): Boolean' (in Thing.)
+diagnostics/reserved_signature/thing.spite:11: error: 'to_string' is called by the compiler wherever the object is used as text, so it is declared exactly 'func to_string(): String' (in Thing.)

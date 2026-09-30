@@ -294,7 +294,8 @@ func read_state(text: String) {
         } else if words.count() >= 3 and words[0] == "fields" {
             var line_length = line.length()
             var signature_start = words[0].length() + words[1].length() + 2
-            running_fields[words[1]] = line.slice(signature_start, line_length)
+            var class_name = words[1]
+            running_fields[class_name] = line.slice(signature_start, line_length)
         } else if words.count() >= 3 and words[0] == "breakpoint" {
             var line_length = line.length()
             var site = line.slice(11, line_length)
@@ -657,7 +658,8 @@ func library(
     }
     index = 0
     while index < local_only.count() {
-        local_names[local_only[index]] = local_only[index]
+        var local_name = local_only[index]
+        local_names[local_name] = local_name
         index = index + 1
     }
     var migration_position = shaker.find_function("spite_migrate_all", 0, 17)

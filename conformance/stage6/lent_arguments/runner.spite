@@ -47,6 +47,7 @@ func made_argument(argument: Symbol<$system_type.phase_each>, rows: List<Integer
         return Entity(entity)
     }
     crash rows[argument.index]
-    crash Column<argument.class>().values[rows[argument.index]]
-    return Column<argument.class>().values[rows[argument.index]]
+    var stored_row = rows[argument.index]
+    crash Column<argument.class>().values[stored_row]
+    return Column<argument.class>().values[stored_row]
 }

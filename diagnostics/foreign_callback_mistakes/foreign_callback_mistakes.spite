@@ -3,7 +3,7 @@ var library = DynamicLibrary("fixture.dll", 'identity', "")
 var marks = List<Integer>()
 
 func ForeignCallbackMistakes() {
-    from_a_variable()
+    through_a_variable()
     nowhere()
     not_a_singleton()
     text_from_c()
@@ -11,7 +11,7 @@ func ForeignCallbackMistakes() {
     library.each_name(named)
 }
 
-func from_a_variable() {
+func through_a_variable() {
     var chosen = counted
     var calling = ForeignCallback(chosen, 'no_context')
     library.keep(calling.address)

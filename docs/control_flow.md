@@ -380,8 +380,10 @@ The same goes for an `else if` chain. Two such `if`s stay as they are.
 
 A class name on the right of `==` or `!=` asks what class a value is: `creature == Fish` is true when `creature`
 is a `Fish`. A `T?` that is null is no class, so the test is false. Naming a class that cannot be a member of the
-value's union is an error, since the answer could only be `false`. `if value == Class { }` narrows the value
-inside the block, the way a switch case does:
+value's union is an error, since the answer could only be `false`, and so is testing a value whose own type already
+answers -- a plain `Cat` tested for `Cat` or `Fish`, or a union already narrowed to `Fish` tested again -- outside
+a generic class (D279, [proofs.md](proofs.md#proving-what-is-proven-is-an-error)). `if value == Class { }` narrows
+the value inside the block, the way a switch case does:
 
 ```gdscript title=class_test_doc/cat.spite
 func sound(): String {
@@ -551,6 +553,28 @@ this switch only asks what class 'creature' is: write 'return creature == Fish'
 
 Anything that would need an `else` stays a switch, and so does a switch with more cases: `_:` narrows to each
 remaining member, which an `else` cannot.
+
+## Nothing after a `return`
+
+A statement written after a `return` in the same block could never run, so it is an error rather than a step
+skipped without a word (D244):
+
+```gdscript title=after_return_error/after_return_error.spite entry error
+var console = Console()
+
+func AfterReturnError() {
+    var doubled = double(4)
+    console.print(doubled)
+}
+
+func double(value: Integer): Integer {
+    return value * 2
+    console.print("doubled")
+}
+```
+```diagnostic
+this statement comes after a 'return', so it never runs: remove it
+```
 
 ## Rules in full
 

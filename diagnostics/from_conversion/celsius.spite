@@ -1,0 +1,7 @@
+var value = 0
+
+func from_integer(number: Integer): Celsius {
+    var made = Celsius()
+    made.value = number
+    return made
+}

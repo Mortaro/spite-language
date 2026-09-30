@@ -14,8 +14,6 @@ func ClassTest() {
     console.print(favorite == Circle)
     favorite = Square()
     console.print(favorite == Square)
-    var circle = Circle()
-    console.print(circle == Circle)
     var described_circle = Circle()
     var circle_description = describe(described_circle)
     console.print(circle_description)

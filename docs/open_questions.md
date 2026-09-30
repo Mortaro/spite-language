@@ -127,8 +127,7 @@ these five are what is left, with where each stands today.
 13. **(Answered by D275 and D293: a conversion is the source's `to_<type>()`, never a `from_` function, and a class
     becomes castable by defining `to_<type>()`; [values_and_types.md](values_and_types.md#numbers-are-classes-and-this--implemented).)**
     **How casting works, so a class can define its own casts, and how to name a variable's class as a type**
-    (Mortaro, 2026-09-23: "a thing for you to ask me later"). Example shape: `func from_type(type: Symbol, value:
-    type.class)`. Not argued yet; waiting to be asked. D59 (arguments cast to their parameter type) is where it
+    (Mortaro, 2026-09-23: "a thing for you to ask me later"). Example shape then: a `from_` function, now refused. Not argued yet; waiting to be asked. D59 (arguments cast to their parameter type) is where it
     will first matter.
 14. **(Answered by D90: `...args: List<Type or Class>`. Built 2026-09-24, [Variadic arguments](functions_and_operators.md#variadic-arguments--implemented).)** **An ABI for variadic arguments** (Mortaro, 2026-09-23, "fight me on this before we implement"). Proposed:
     `func hello(world: String, ...args: List<Spite.Argument<String>>)`, which would make `Spite.Argument` generic.

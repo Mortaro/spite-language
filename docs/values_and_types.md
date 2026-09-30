@@ -168,8 +168,8 @@ None of this costs anything at run time: a number is still a plain value (an `In
 class gives it functions, not a header, and a function the program never calls is not emitted. A cast from one
 number type to another is written by assignment, `var half: Float = count`, or by passing the value where the
 other type is expected; it compiles to the one machine conversion. A conversion belongs to the value converted
-([D275](decisions.md)): its function is the source's `to_<type>()`, so `count.to_float()` will be the call form
-once that is built ([rules](#numbers-are-classes-and-this--implemented)).
+([D275](decisions.md), [D293](decisions.md)): its function is the source's `to_<type>()`, so `count.to_float()` is
+the call form, and a function named `from_...` is an error ([rules](#numbers-are-classes-and-this--implemented)).
 
 `this` works in every class, not only numbers, to hand the object itself to something:
 `registry.append(this)`. Reading your own members through it is an error, because a class already reads them by
@@ -928,28 +928,23 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   smaller types widen and call `Long.to_string()`. `Boolean.to_string()` answers `"true"` or `"false"`.
   Interpolation (`"count {count}"`), `+` onto a `String` and `console.print` call it (D109,
   [standard_library.md](standard_library.md)).
-- **Decided, not built ([D275](decisions.md) and [D293](decisions.md), replacing the rule below):** a conversion
-  belongs to the value being converted, and there is no `from_` conversion anywhere: never `Class.from_x()`, never
-  `from_class`, not even for the compiler's own number casts. The function behind a cast is the source's
-  `to_<type>()` (`count.to_float()`); a class becomes castable by defining `to_<type>()`, and a class made from
-  another value is made by that value's `to_<class>()` or by its own constructor; declaring a function whose name
-  starts with `from_` is a compile error naming `to_<type>()` on the source. Both the implicit cast (`var half: Float = count`) and the explicit call `count.to_float()` are
-  allowed for now; the call may be limited later. Until it is built, the rule below describes the compiler.
-- **Casting is a function of the class cast to** (D100, decided by Mortaro): each number class has
-  `func from_type(type: Symbol, value: type.class)`, a Symbol codegen function whose symbol ranges over the
-  program's types, which the compiler uses to make each right-to-left cast. Its body is the compiler's (a C cast,
-  emitted inline, so a cast costs only the conversion), and `--final-classes` prints the declaration in every
-  number class, which is where a reader sees how a cast is made; it is the compiler's, not a function a program
-  calls. **A program writes a cast by assignment or by passing**: `var half: Float = count`, or `count` handed to a
-  parameter typed `Float`. Calling a number class's `from_<type>` by name is an error that points to the
-  conversion on the value converted and to the assignment form (D274, decided by Claude under D205, from the
-  Theseus port, and worded for D275; `diagnostics/cast_by_name`): when the source has `to_<type>()`, "... a
-  conversion belongs to the value converted (D275), so write 'value.to_float()', or cast by assignment: 'var
-  converted: Float = value'"; until then, "'Float.from_integer()' is not a function a program calls: a conversion
-  belongs to the value converted (D275), and an Integer has no 'to_float()' yet, so cast by assignment: 'var
-  converted: Float = value', or pass the value where a Float is expected". It used to say, wrongly, to call it on
-  a value. `type` may name a parameter and begin a type path for this, although it is
-  a keyword elsewhere (proposed by Claude, unconfirmed).
+- **A conversion belongs to the value converted** ([D275](decisions.md) and [D293](decisions.md), decided by
+  Mortaro, replacing D100's `from_type`): there is no `from_` conversion anywhere -- never `Class.from_x()`, never
+  `from_class`, not for the compiler's own number casts either. Each number class and `Memory.Address` has `func
+  to_type(type: Symbol): type.class`, a Symbol codegen function whose symbol ranges over the program's types, and
+  the compiler makes each right-to-left cast with the source's `to_<type>()` (`count.to_float()`,
+  `wide.to_short()`, `number.to_memory_address()`). Its body is the compiler's (a C cast, emitted inline, so a cast
+  costs only the conversion), and `--final-classes` prints the declaration in every number class. A cast is
+  written by assignment or by passing -- `var half: Float = count`, or `count` handed to a parameter typed `Float`
+  -- or as the call `count.to_float()`; both are allowed for now, and the call may be limited later.
+- **Declaring a function whose name starts with `from_` is an error** (D293; the text proposed by Claude,
+  unconfirmed; `diagnostics/from_conversion`): "'Celsius.from_integer' makes a Celsius from another value, and a
+  conversion belongs to the value converted (D293): declare 'to_celsius()' on the class it converts from, or take
+  the value in the constructor". Calling one by name on a number class is the same rule (D274, reworded for
+  D293; `diagnostics/cast_by_name`): "there is no 'Float.from_integer()': a conversion belongs to the value
+  converted (D293), so write 'value.to_float()' on an Integer, or cast by assignment: 'var converted: Float =
+  value'". `type` may name a parameter and begin a type path, although it is a keyword elsewhere (proposed by
+  Claude, unconfirmed).
 - **Bitwise operations are functions of the whole-number classes** (D117, decided by Mortaro; the names and the
   rules below proposed by Claude, unconfirmed). `Tiny`, `Short`, `Integer`, `Long`, `Byte`, `UnsignedShort`,
   `UnsignedInteger` and `UnsignedLong` each answer the functions in [the table above](#bitwise-functions):

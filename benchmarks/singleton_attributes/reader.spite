@@ -9,8 +9,9 @@ func run(): Float {
     while row < rows {
         places[0] = rows - 1 - row
         crash places[0]
-        crash column.values[places[0]]
-        total = total + column.values[places[0]].value
+        var place = places[0]
+        crash column.values[place]
+        total = total + column.values[place].value
         row = row + 1
     }
     return total

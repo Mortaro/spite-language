@@ -426,10 +426,10 @@ func hot_state(
     var hashes = List<String>()
     var index = 0
     while index < paths.count() {
-        var content = discovery.program_texts[paths[index]]
+        var path = paths[index]
         var hash = ""
-        if content {
-            hash = reload.hash_of(content)
+        if discovery.program_texts[path] {
+            hash = reload.hash_of(discovery.program_texts[path])
         }
         hashes.append(hash)
         index = index + 1
@@ -1375,11 +1375,11 @@ func changed_paths(discovery: Discovery.DiscoveryResult, reload: Generation.HotR
     var changed = List<String>()
     var index = 0
     while index < paths.count() {
-        var content = discovery.program_texts[paths[index]]
-        if content {
-            var hash = reload.hash_of(content)
-            if reload.is_changed(paths[index], hash) {
-                changed.append(paths[index])
+        var path = paths[index]
+        if discovery.program_texts[path] {
+            var hash = reload.hash_of(discovery.program_texts[path])
+            if reload.is_changed(path, hash) {
+                changed.append(path)
             }
         }
         index = index + 1

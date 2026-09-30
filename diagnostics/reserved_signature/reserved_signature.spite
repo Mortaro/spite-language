@@ -1,0 +1,8 @@
+var console = Console()
+
+func ReservedSignature() {
+    var thing = Thing()
+    var other = Thing()
+    var same = thing == other
+    console.print(same)
+}

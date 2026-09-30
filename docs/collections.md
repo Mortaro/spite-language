@@ -28,10 +28,10 @@ var empty = List<String>()
 | `append(value)` / `prepend(value)` | | adds to the end / to the front (index 0) |
 | `insert(index, value)` | | an index out of range is clamped to the nearest end |
 | `list[index]` | `T?` | may not be there, so it is narrowed ([failure.md](failure.md#reading-with--answers-t)) |
-| `list[index] = value` | | the explicit form is `set_at(index, value)`; nothing happens out of range |
+| `list[index] = value` | | the explicit form is `set_at(index, value)`; an index out of range halts, naming the line (D244) |
 | `get_at(index)` | `T?` | what `list[index]` calls, so it answers the same `T?`, `null` out of range ([D226](decisions.md)) |
-| `remove_at(index)` | | nothing happens out of range |
-| `remove_swapping(index)` | | moves the last element into `index` instead of moving every later one down (name provisional); nothing happens out of range |
+| `remove_at(index)` | | an index out of range halts |
+| `remove_swapping(index)` | | moves the last element into `index` instead of moving every later one down (name provisional); an index out of range halts |
 | `remove_where(test)` / `remove_where_<member>()` | | removes every element the test is true for, in one pass, keeping the rest in order ([below](#removing-many-at-once)) |
 | `truncate(count)` | | keeps the first `count` elements and releases the rest; nothing happens when `count` is out of range |
 | `swap(first, second)` | | exchanges two elements; nothing happens when either is out of range |

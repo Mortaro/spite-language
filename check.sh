@@ -143,6 +143,17 @@ absolute=$("$work/generation_two.exe" "$work/absolute/absolute_load" --executabl
 if [ "$absolute" != "far engine" ]; then echo "FAILED: a program could not load a folder by its absolute path"; echo "$absolute" | head -5; exit 1; fi
 echo "absolute load: a program loads a folder named by its absolute path"
 
+# A94: the program's own errors are listed before a loaded package's, which are capped at 25 with a count of the rest.
+mkdir -p "$work/error_list/broken_package" "$work/error_list/many_errors"
+{ printf 'func run() {\n'; for i in $(seq 1 30); do printf '    missing_%d()\n' "$i"; done; printf '}\n'; } > "$work/error_list/broken_package/thing.spite"
+printf 'func ManyErrors() {\n    load "../broken_package"\n    var thing = Thing()\n    thing.run()\n    own_missing()\n}\n' > "$work/error_list/many_errors/many_errors.spite"
+listed=$(cd "$work/error_list" && "$repository/$work/generation_two.exe" many_errors --run=false 2>&1 | tr -d '\r')
+if [ "$(echo "$listed" | wc -l)" != "27" ] || [ "$(echo "$listed" | head -1)" != "many_errors/many_errors.spite:5: error: this class has no function 'own_missing' (in ManyErrors.ManyErrors)" ] \
+   || [ "$(echo "$listed" | tail -1)" != "and 5 more in broken_package" ]; then
+  echo "FAILED: the program's own errors are not listed first, with a loaded package's capped at 25"; echo "$listed" | head -3; echo "$listed" | tail -2; exit 1
+fi
+echo "error list: the program's own errors come first, and a broken package's are capped at 25"
+
 # D38, D283: a load names a repository and a commit, 'load "../engine_repo@<commit>/slop"', and the ordinary compile
 # checks that commit's files out into the working folder's .spite/git/. The repository is a local one made here, so
 # no network is needed; its HEAD moves on after the pin, and the program must keep the pinned commit's code.
