@@ -21,8 +21,9 @@ func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Int
         row.attributes[attribute] = Entity(entity)
     } else {
         crash rows[attribute.index]
-        crash Column<attribute.class>().values[rows[attribute.index]]
-        row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+        var stored_row = rows[attribute.index]
+        crash Column<attribute.class>().values[stored_row]
+        row.attributes[attribute] = Column<attribute.class>().values[stored_row]
     }
 }
 
@@ -31,7 +32,8 @@ func shift_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<In
         row.attributes[attribute] = Entity(entity)
     } else {
         crash rows[attribute.index + 1]
-        crash Column<attribute.class>().values[rows[attribute.index + 1]]
-        row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index + 1]]
+        var stored_row = rows[attribute.index + 1]
+        crash Column<attribute.class>().values[stored_row]
+        row.attributes[attribute] = Column<attribute.class>().values[stored_row]
     }
 }

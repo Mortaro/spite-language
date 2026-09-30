@@ -16518,6 +16518,18 @@ func collect_statement_head_names(statement: Syntax.Statements.Statement, names:
     }
 }
 
+func report_reads_in_template(statements: List<Syntax.Statements.Statement>) {
+    var saved_line = current_line
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        current_line = statement_line(statement)
+        report_reads_in_indices(statement)
+        index = index + 1
+    }
+    current_line = saved_line
+}
+
 # ../docs/failure.md#an-index-reads-nothing
 func report_reads_in_indices(statement: Syntax.Statements.Statement) {
     assert not walked_statement_places.has("{current_path}:{current_line}")
@@ -21436,6 +21448,7 @@ func written_lent_argument(
     assert argument_type
     var written_body = folded_template_body(body, scope, class_information)
     assert written_body
+    report_reads_in_template(written_body)
     var attribute = Syntax.Statements.FieldDeclaration(parameter.name, argument_type)
     var steps = List<Syntax.Statements.Statement>()
     var index = 0
@@ -21941,6 +21954,7 @@ func walked_field(
     var filled: Syntax.Expressions.Expression? = null
     var folded = folded_template_body(filling, scope, class_information)
     if folded {
+        report_reads_in_template(folded)
         var steps = walked_steps(folded, attribute, walk)
         var assigned = walked_assignment(steps)
         if assigned {
