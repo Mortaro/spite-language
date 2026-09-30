@@ -325,7 +325,7 @@ func render(): String {
     if hot_reload {
         slot_text = "{slot_lines.join("\n")}\n"
         host.record_host(prototype_lines, bodies, constant_texts)
-        var symbol_table = host.symbol_table()
+        var symbol_table = host.symbol_table("{typedef_text}\n{prototype_lines}")
         bodies = "{bodies}\n{symbol_table}"
     }
     var fault_text = native_fault_text(typedef_text, bodies)

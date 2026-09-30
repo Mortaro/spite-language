@@ -630,11 +630,12 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - The old page said typing new Spite code at the prompt is not built; it has since been built as `eval` and `run` (needs `--hot-reload` and `--repl-port`).
 
 ### What a reload can change
-- Changes to whether a class fits an `Items`' own memory are refused (naming the class), and so is a change to a value class (`String` and the numbers). Decided direction: nothing may need a restart, so moving these is to be built.
-- Row "a file that declares none of the program's classes" (`environment.spite`, `build.spite`): refused today. Decided direction (step 4 of Nothing needs a restart): a `Build` field is a folded constant, so changing one should recompile the whole program and swap it in live. Not built; the page states the decided rule in "Nothing needs a restart" and the current refusal in this table.
+- Changes to whether a class fits an `Items`' own memory are refused (naming the class). Decided direction: nothing may need a restart, so moving these is to be built.
+- The rows for library code, `environment.spite`, `build.spite` and a deleted file are built (D333); how settings are read again after a reload was proposed by Claude, unconfirmed.
 
 ### Nothing needs a restart
-- Decided (Mortaro, D280): nothing needs a restart; every refusal is a gap to close. Built: step 1 (attributes move), step 2 (dependents rebuilt through a whole-program compile), step 3 (enums keep their numbers). Not built: step 4 (`environment.spite`, `build.spite`), moving objects of a class that starts or stops fitting an `Items`' own memory, and a change to a value class.
+- Decided (Mortaro, D280): nothing needs a restart; every refusal is a gap to close. Built: step 1 (attributes move), step 2 (dependents rebuilt through a whole-program compile, every function slotted, D333), step 3 (enums keep their numbers), step 4 (`environment.spite`, `build.spite`, D333), and a change to a value class's functions. Not built: moving objects of a class that starts or stops fitting an `Items`' own memory.
+- The rename map (D329) is built as D333 describes; the prompt's `reload {Class.attributes['old']: "new"}` form is read as text by the REPL (proposed by Claude, unconfirmed) until the prompt evaluates maps and `attributes[...]`.
 - The rules of step 1 were proposed by Claude and are unconfirmed by Mortaro; the enum rule (D302) was decided by Claude under D205, not by Mortaro.
 
 ### Command language
@@ -707,7 +708,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Identical functions are folded into one
 
-- Built (D296, D333). Proposed by Claude, unconfirmed: the normalisation details (layout equality by attribute order and type, numbered temporaries, texts by content, a site shared by two versions or instances reporting the first one met); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values; no folding in `--hot-reload` builds and the REPL.
+- Built (D296, D334). Proposed by Claude, unconfirmed: the normalisation details (layout equality by attribute order and type, numbered temporaries, texts by content, a site shared by two versions or instances reporting the first one met); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values; no folding in `--hot-reload` builds and the REPL.
 - Not folded yet: a function that differs only in which class of another layout it passes around by reference (a `List<A>` and a `List<B>` of two unrelated classes whose items are only retained and released); a boxed text constant (`spite_lit_N_box`) compares by its name, not its text; a site of a foreign callback still writes its place into the function.
 
 ### Other optimisations
