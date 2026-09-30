@@ -28,9 +28,12 @@ system's file in a class that each system's folder reopens, as the standard libr
 
 - **The arguments are literals**, because the compiler reads them while compiling. The file is named exactly as
   it is on disk, extension included -- a name without one is an error.
-- **One instance per file, naming rule and header.** `DynamicLibrary` is a singleton keyed by all three of its
-  arguments: every class asking for `DynamicLibrary("ucrtbase.dll", 'identity', "")` shares one library and one
-  table of symbols, and the same file asked for with a header is a second instance that knows that header.
+- **One instance per file, naming rule and header.** `DynamicLibrary` follows the rule every singleton does
+  (D314, [classes_and_files.md](classes_and_files.md#one-instance-per-argument-values)): a singleton constructed
+  with different argument values is a different instance. Every class asking for
+  `DynamicLibrary("ucrtbase.dll", 'identity', "")` shares one library and one table of symbols; the same file
+  asked for with a header, or another file, is a second instance with its own table. It is not a special case:
+  it was only the first singleton the compiler let take arguments.
 - **Only what is called is bound.** The symbols a program calls are looked up once, when the library opens, so
   every later call is one indirect call. A symbol named only by code the program never reaches is not looked up
   at all ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)), except in an inspectable build
@@ -381,7 +384,7 @@ enum. Today a call answers an `Integer`, and `crash result == 0` compiles -- the
 Choices Claude made while building it (proposed, unconfirmed):
 
 - One library per distinct file, naming rule and header, following D8's "one instance per literal argument
-  list", opened on first use and closed at exit. The same file with another header is a second instance, with its
+  list" and D314's "different argument values, different instance", opened on first use and closed at exit. The same file with another header is a second instance, with its
   own import table, so a constant read through the one that names the header always finds it, whichever
   construction the program reaches first (`conformance/stage6/foreign_library`).
 - The arguments are literals: otherwise `DynamicLibrary(...) takes three literals the compiler reads while it

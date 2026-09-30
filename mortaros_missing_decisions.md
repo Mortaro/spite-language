@@ -35,9 +35,6 @@ Cleaned 2026-09-30: answered by D280 (64), D287 (71), D293 (34), D294 (21), D295
 36. **Unions of number classes**: `Json` tests for a number with ten comparisons because a union cannot hold them.
 39. **The C left in `main`** (`argv`, `_setmode`, releasing singletons, the `--debug-memory` report): moving it
     into Spite needs a way to receive `argv` and to run code after the program ends.
-46. **Singletons with arguments.** The compiler refuses a singleton constructor with parameters except
-    `DynamicLibrary`'s. Your inbox note of 2026-09-30 answers it -- different arguments make different instances,
-    for every singleton -- and waits for your confirmation before it is recorded.
 76. **Enums declaring more than `to_string()`/`to_debug()`**, the way a number's class does.
 79. **The REPL showing values through `to_debug()`** (quoted text, full nesting) instead of its own display.
 89. **The name `source_folder()`** (D228; D287 added `package_folder()` beside it). Keep both names?

@@ -212,7 +212,7 @@ func OperatorsAsFunctions() {
     var total = wallet + found
     console.print("total cents", total.cents)
     var two_hundred = Money(200)
-    var is_two_hundred = total.equals(two_hundred)
+    var is_two_hundred = total == two_hundred
     console.print("equal", is_two_hundred)
     console.print("greater", total > wallet)
 }
@@ -346,6 +346,34 @@ func ReadOnlyError() {
 ```diagnostic
 'fahrenheit' is read-only
 ```
+
+## Use the operator, not its function
+
+When a class offers an operator for a function, **the operator is the only way to call it** (D315). Writing the
+function's name instead is a compile error that names the shortcut, so every program says the same thing the same
+way and a reader never wonders whether `get_x()` and `.x` differ:
+
+| Written | Error: write instead |
+|---|---|
+| `point.get_x()` | `point.x` |
+| `point.set_x(4)` | `point.x = 4` |
+| `shelf.get_at(0)` / `shelf.set_at(0, book)` | `shelf[0]` / `shelf[0] = book` |
+| `names.get("ann")` on a `Dictionary` | `names["ann"]` |
+| `a.sum(b)`, `a.subtract(b)`, `a.multiply(b)`, `a.divide(b)`, `a.remainder(b)` | `a + b`, `a - b`, `a * b`, `a / b`, `a % b` |
+| `a.equals(b)` / `not a.equals(b)` | `a == b` / `a != b` |
+| `a.less_than(b)` / `a.greater_than(b)` | `a < b` / `a > b` |
+| `a.negate()` | `-a` |
+
+```gdscript
+var total = wallet.sum(found)
+# error (planned wording): 'sum' is what '+' calls: write 'wallet + found'
+```
+
+**The one exception is the function used as a value**, where no operator can stand in: `run_callback(point.get_x)`
+hands over the function itself, so it is written by name. Declaring the function stays as it is -- `func
+get_x()`, `func sum(other)`, `func get_at(index)` are how a class offers the operator.
+
+**Planned:** the compiler does not refuse the direct call yet; the table is what it will refuse.
 
 ## One name, one function
 
@@ -644,8 +672,19 @@ Every operator is a shortcut for a function, which a class can define to support
 | `a[x] = v` | `set_at(x, v)` | |
 
 For `Integer`/`Float`/`Boolean`/enum/`String`/`List<T>`/`Dictionary<T>` these are intrinsic (they compile to exactly
-the same C as before this table existed); `String`/`List<T>`/`Dictionary<T>` additionally accept the explicit
-call form alongside the operator (`list.get_at(0)` next to `list[0]`, `"a".sum("b")` next to `"a" + "b"`).
+the same C as before this table existed). `String`/`List<T>`/`Dictionary<T>` also accept the explicit call form
+today (`list.get_at(0)` next to `list[0]`), which D315 turns into an error below.
+
+**A direct call of an operator's function is an error naming the operator** (D315, decided by Mortaro)
+**[planned]**: `a.sum(b)` is "write 'a + b'", and the same for every row of the table above, for `get_<name>()`
+and `set_<name>(value)` (write `.name` and `.name = value`), and for a `Dictionary`'s `get(key)` (write
+`[key]`). It holds for every class -- built-in, library or the program's own -- wherever the operator could be
+written instead. The only exception is the function used as a value (`run_callback(point.get_x)`,
+[Functions are values](#functions-are-values)), since no operator can be passed. Proposed by Claude, unconfirmed:
+a call with no receiver inside the class's own functions (`get_x()`) is not covered, since a bare `x` there is
+the raw field and no shortcut reaches the getter; nor is `get_attribute(attribute)`/`set_attribute`, which
+Symbol codegen offers per attribute rather than as one operator. This also settles `get_x()` against `.x`: there
+is one spelling. Until it is built, the compiler accepts both.
 
 For a user class or union, `a + b` compiles to `a.sum(b)` when the class defines (an exact function, or Symbol
 codegen answers) `sum`; a union duck-types the same way a method call already does (every member must define
@@ -679,8 +718,8 @@ Symbol codegen), otherwise it assigns the field directly. `person.age` (a read) 
 same way when defined -- **(proposed by Claude, unconfirmed: the decision covered only the setter half; this
 read half mirrors it)**. Every function return is a properly retained, independent reference (D1,
 [Memory](memory.md#memory--implemented)), so a getter that computes and hands back a fresh value is exactly as
-safe to intercept through as one that just returns the field itself. A getter written and called explicitly (`person.get_full_name()`) was always just an
-ordinary method call. Compound assignment through interception works both ways: `person.age = person.age + 1`
+safe to intercept through as one that just returns the field itself. Calling a getter or setter by name (`person.get_full_name()`) is refused once D315 is
+built: write `person.full_name`. Compound assignment through interception works both ways: `person.age = person.age + 1`
 reads through `get_age()` and writes through `set_age(...)`. Inside a class's own functions, a bare `age = 1`
 (no receiver) and `attributes[attribute]` stay raw -- interception only applies to `receiver.field` written
 from outside. Which reads and writes are intercepted is decided while compiling: an intercepted one is a direct

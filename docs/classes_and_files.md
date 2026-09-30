@@ -182,7 +182,8 @@ func DroppedReport() {
 ## Singletons
 
 A file whose first line is `singleton` has one instance: calling its constructor anywhere answers that same
-instance, made the first time it is asked for, and the constructor takes no arguments. `Console`, `Program`,
+instance, made the first time it is asked for -- one instance *per argument values*, when the constructor takes
+arguments ([below](#one-instance-per-argument-values)). `Console`, `Program`,
 `Environment`, `Build` and `Memory.Heap` are singletons; `File`, `Directory` and `Process` are not, since
 several may exist at once.
 
@@ -213,8 +214,7 @@ func SingletonBasics() {
 
 Call sites never change: `var console = Console()` reads the same whether or not the class is a singleton, and
 the class file is where that is said. `is_singleton()` is answered by `Spite.Class` for every class, from the
-line. `DynamicLibrary` is the one singleton that takes arguments: it has one instance per distinct list of
-literal arguments ([foreign_libraries.md](foreign_libraries.md)).
+line.
 
 A singleton lives until the program ends, and its `drop()` runs then, newest singleton first, so a `drop()` may
 use any singleton its class keeps in an attribute. What one costs at run time is a static slot, filled the first
@@ -224,6 +224,55 @@ A singleton that a `Parallel` can reach is made safe for threads by the compiler
 source, and only in programs that use `Parallel`
 ([optimizations.md](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form)). The details are in
 [the rules](#singletons--implemented).
+
+### One instance per argument values
+
+**A singleton constructed with different argument values is a different instance** (D314). `Singleton(1)` and
+`Singleton(2)` are two objects; `Singleton(1)` asked for again, anywhere in the program, is the first one. So a
+singleton is not "one object of this class" but "one object per value of its arguments": the arguments are the
+instance's name. Two bindings with the same values are the same object, and a write through one is seen through
+the other; bindings with different values share nothing but the class.
+
+```gdscript
+# channel.spite
+singleton
+
+var number = 0
+var messages = List<String>()
+
+func Channel(channel_number: Integer) {
+    number = channel_number
+}
+```
+```gdscript
+# radio.spite (entry)
+var console = Console()
+var news = Channel(1)
+var music = Channel(2)
+var news_again = Channel(1)
+
+func Radio() {
+    news.messages.append("storm tonight")
+    music.messages.append("song")
+    news_again.messages.append("roads closed")
+    var news_count = news.messages.count()
+    var music_count = music.messages.count()
+    console.print(news == news_again, news == music, news_count, music_count)
+}
+```
+```output
+true false 2 1
+```
+
+`news` and `news_again` are one channel, so both messages land in it; `music` is a second channel with its own
+list. The constructor runs once per argument values, the first time those values are asked for, and each instance
+lives until the program ends like any singleton.
+
+**Planned:** today the compiler refuses arguments on every singleton but `DynamicLibrary`
+(`diagnostics/singleton_arguments`), so the program above does not compile yet, and is shown without a title for
+that reason. `DynamicLibrary` already follows the rule -- one library per file, naming rule and header
+([foreign_libraries.md](foreign_libraries.md)) -- and is now its first case rather than an exception. A generic
+singleton follows the same pattern with codegen values, next.
 
 A singleton with `generic` lines has one instance per set of codegen values, the way `DynamicLibrary` has one
 per argument list: `Column<Health>()` is the same object everywhere, and `Column<Label>()` is a second one. This
@@ -531,11 +580,17 @@ var heap = Memory.Heap()
 
 - **Call sites never change** (D8). `var console = Console()` reads the same for a singleton and for any other
   class; the class file is where the difference is said.
-- **One instance per distinct constructor argument list** (D8). An ordinary singleton's constructor takes no
-  arguments: `'Registry' is a singleton, so its constructor takes no arguments: there is one instance, made the
-  first time it is asked for` (`diagnostics/singleton_arguments`). `DynamicLibrary` is the one that takes
-  arguments, and they must be literals: `DynamicLibrary("user32.dll", 'windows', "windows.h")` is one object
-  however many classes ask for it, and `"gdi32.dll"` is a second one.
+- **One instance per distinct constructor argument values** (D8, D314). A singleton constructed with different
+  argument values is a different instance, and the same values give the same instance, for every singleton:
+  `var a = Channel(1)` and `var b = Channel(2)` are two objects, `Channel(1)` asked for anywhere else is `a`. The
+  constructor runs once per argument values, on first use; each instance is a root until exit, like any
+  singleton. `DynamicLibrary` is this rule's first case, not an exception: `DynamicLibrary("user32.dll",
+  'windows', "windows.h")` is one object however many classes ask for it, and `"gdi32.dll"` is a second one.
+  **[planned]** for every other singleton: the compiler still refuses their arguments, `'Registry' is a singleton,
+  so its constructor takes no arguments: there is one instance, made the first time it is asked for`
+  (`diagnostics/singleton_arguments`), and that error goes when the rule is built. As built for `DynamicLibrary`
+  and proposed by Claude for the rest (unconfirmed): the arguments are literals the compiler reads while
+  compiling, so each distinct list is its own static slot (D8) and nothing is looked up at run time.
 - **A generic singleton has one instance per set of codegen values** (proposed by Claude, unconfirmed: the
   reading of "one per literal argument list" for `generic` lines): `Column<Health>()` is one object wherever it
   is called and `Column<Label>()` is another (`conformance/stage6/generic_singletons`).
