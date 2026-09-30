@@ -16844,7 +16844,7 @@ func parsed_value_lines(spite_type: Analysis.SpiteType, text: String, target: St
     if type_shape.as_string(inner) {
         return "if ({null_test}) {target} = SPITE_STRING_NULL; else {target} = SpiteString___retain({text});"
     }
-    return "if ({null_test}) {target} = 0; else {failure}"
+    return "if ({null_test}) {target} = {null_code(inner)}; else {failure}"
 }
 
 func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.FieldInfo): String {
