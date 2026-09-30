@@ -4,6 +4,24 @@
 
 message_file="$1"
 
+# No em dashes, not the character and not two hyphens between spaces: see SPITE.md, "Em dashes, anywhere".
+# Only the message counts: git's own comment lines and anything below the scissors line are dropped first.
+em_dash=$(printf '\342\200\224')
+stand_in=' -''- '   # written in two pieces so this file does not contain what it refuses
+message=$(sed -e '/^# -\{8,\} >8 -\{8,\}$/,$d' -e '/^#/d' "$message_file")
+if printf '%s\n' "$message" | grep -q -F -e "$em_dash" -e "$stand_in"; then
+    cat >&2 <<'ERROR'
+
+  commit rejected: the message has an em dash
+
+  Spite has no em dashes anywhere, commit messages included: not the
+  character, and not two hyphens between spaces standing in for one.
+  End the sentence, or use a colon, a comma or parentheses.
+
+ERROR
+    exit 1
+fi
+
 if grep -qiE '^Co-authored-by: .+ <.+@.+>' "$message_file"; then
     exit 0
 fi
