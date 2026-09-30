@@ -99,8 +99,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
      scope and the attributes of `this`, at most 12 values, text cut at 80 bytes, objects left out, and no condition
      text on the line (the `.crashes` map keeps it). Right set?
 219. **Confirm D263-D267** and the names `remove_where`, `truncate`, `swap`.
-225. **One package pinning two commits of one repository** (D296): both versions' classes share dotted names there.
-     Keep it an error (proposed), or a way to name each (`load ... as Name`)? Recommend the error.
 234. **Identical code folding** (D296's second half; the duplicate C of two versions stays until it lands).
      Options: (a) fold functions whose C is literally identical, in the compiler, every build (as
      [optimizations.md](docs/optimizations.md#identical-functions-are-folded-into-one) proposes); (b) also fold
