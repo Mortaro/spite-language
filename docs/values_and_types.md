@@ -1048,8 +1048,9 @@ That is all an enum is; the integer it compiles to is a representation detail.
   wherever text is expected (every `String` function answers on it) while `symbol.class` is `Symbol`, and text
   becomes a `Symbol` only through `Symbol(text)`, which answers `Symbol?` -- `null` unless that symbol is already
   in the table (D68). An enum is still the closed form: the list of symbols a place accepts.
-  Most symbols are short, so the representation can later become a small inline string rather than a pointer
-  into the table ("TinyString"); that is an optimisation the language does not observe.
+  A symbol of 15 bytes or fewer is held inline, its bytes inside the value itself, like any short text, and a
+  longer one points at constant text ("TinyString"); that is an optimisation the language does not observe
+  ([optimizations.md](optimizations.md#short-symbols-are-inline-text)).
 - **What a `Symbol` names is still checked by whatever consumes it**, at compile time, the way the Symbol
   codegen path checks `set_age(2)` against `Person`'s real attributes
   ([Symbol codegen](metaprogramming.md#symbol-codegen--implemented)). **Not built:** calling a template with the

@@ -1090,6 +1090,19 @@ other function, from what tree shaking kept.
 **When.** Every build. **What you notice.** A fault prints a report instead of nothing, and the program is a few
 kilobytes larger. **Built.**
 
+### Short symbols are inline text
+
+**What it is.** A symbol whose text is 15 bytes or fewer is written into the symbol table as an inline `String`
+-- its bytes inside the 16-byte value, the form any short text built at run time takes -- rather than as a pointer
+to constant text ([D70](decisions.md)). Reading its bytes follows no pointer, and the executable holds no separate
+copy of the text.
+
+**When it applies.** Every symbol literal and every reflection name of 15 bytes or fewer, in every build. Longer
+ones stay constant text; both forms release and retain as nothing.
+
+**What a user can observe.** Nothing: a symbol compares, prints and converts the same in either form. The C
+shows it: `static SpiteString spite_symbol_4 = \{ (int64_t)0x00000065756c6176ULL, ... }` for `'value'`.
+
 ### Crash text out of the binary
 
 **What it is.** A `crash` or `assert` site's condition text lives only in the `<output>.crashes` map written
@@ -1841,8 +1854,6 @@ folded first) are set aside. Every call and every function value then goes to th
   allocates once per item for a moment ([collections.md](collections.md#vectort--implemented)). Writing the
   constructor's attributes straight into the block, when the object is used for nothing else, would make filling
   it allocate only when the block grows.
-- **Short symbols inline** ([D70](decisions.md)): a short symbol held as a small inline string rather
-  than a pointer into the symbol table.
 - **A build report of what could not be optimised** ([D36](decisions.md)): not "400 copies elided"
   but "3 copies could not be elided, and the callee that writes the field", so every line is actionable.
 

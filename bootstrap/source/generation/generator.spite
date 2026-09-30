@@ -17348,11 +17348,43 @@ func ensure_symbol(name: String): String {
     var position = symbol_names.count()
     symbol_names.append(name)
     symbol_positions[name] = position
-    builder.add_typedef(
-        "static SpiteString spite_symbol_{position} = SPITE_STATIC_STRING(\"{escape_c_string(name)}\", {name.length()});",
-    )
+    var initializer = "SPITE_STATIC_STRING(\"{escape_c_string(name)}\", {name.length()})"
+    if name.length() <= 15 {
+        initializer = inline_text_initializer(name)
+    }
+    builder.add_typedef("static SpiteString spite_symbol_{position} = {initializer};")
     constant_texts["spite_symbol_{position}"] = name
     return "spite_symbol_{position}"
+}
+
+func inline_text_initializer(text: String): String {
+    var length = text.length()
+    var low = ""
+    var high = byte_hex(15 - length)
+    var index = 7
+    while index >= 0 {
+        low = "{low}{hex_byte(text, index, length)}"
+        if index > 0 {
+            high = "{high}{hex_byte(text, index + 7, length)}"
+        }
+        index = index - 1
+    }
+    return "\{ (int64_t)0x{low}ULL, (int64_t)0x{high}ULL }"
+}
+
+func hex_byte(text: String, index: Integer, length: Integer): String {
+    if index >= length {
+        return "00"
+    }
+    var code = text.code_at(index)
+    return byte_hex(code)
+}
+
+func byte_hex(code: Integer): String {
+    var alphabet = "0123456789abcdef"
+    var high = code / 16
+    var low = code % 16
+    return "{alphabet.slice(high, high + 1)}{alphabet.slice(low, low + 1)}"
 }
 
 func generate_symbol_lookup(
