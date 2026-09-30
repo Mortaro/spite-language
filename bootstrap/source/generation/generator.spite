@@ -32752,8 +32752,10 @@ func site_symbol(key: String, text: String): String {
     if known {
         return known
     }
-    var symbol = "spite_site_{site_symbols.count()}"
+    var name = "spite_site_{site_symbols.count()}"
+    var symbol = "{name}()"
     site_symbols[key] = symbol
+    builder.add_shaken_macro(name)
     builder.add_typedef("#define {symbol} \"{text}\"")
     return symbol
 }
