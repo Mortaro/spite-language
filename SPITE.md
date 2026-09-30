@@ -99,6 +99,12 @@ implementation status, no decision bookkeeping in the middle of a page. Each pag
 thing to learn.
 *Instead:* agent guidance, decisions, proposals, open questions and implementation status live outside `docs/`.
 
+**Naming a third-party package inside the language.** SlopEngine and Sword of Theseus are packages built on Spite,
+third-party even though Mortaro maintains them. The Spite repository never mentions them: not in docs, examples,
+tests, benchmarks, diagnostics, comments or decision rows.
+*Instead:* write examples, tests and benchmarks in Spite's own terms. A need found through a package is recorded
+as the language need it is, without naming the package.
+
 **Abbreviations, anywhere.** "Avoid abbreviations like the devil, even if I accidentally abbreviated something we
 shouldn't." `DLL` became `DynamicLibrary`; `Library` was rejected separately for being too generic.
 
