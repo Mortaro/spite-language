@@ -3,8 +3,8 @@
 Spite is a small, opinionated language meant to be written mostly by AI and skimmed by humans: one way to do
 each thing, no macros, metaprogramming and a real standard library instead of loops. It compiles to C, and the
 compiler is written in Spite and compiles itself. The compiler is also its own formatter and linter -- there is
-no separate style guide to follow, it rewrites your file to the one true style and refuses a naming problem
-outright instead of silently accepting it.
+no separate style guide to follow, it rewrites your file to the one true style, and a badly named variable or
+function (the wrong case, or an abbreviation such as `cnt` for `count`) is a compile error, not a warning.
 
 > **Spite: you write your intention, the compiler reminds you that you are a moron, and emits the fastest
 > possible code.**
