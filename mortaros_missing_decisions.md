@@ -14,7 +14,7 @@ Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection re
 answered by D314.
 
 Third pass, after D318-D325: 229 answered by D318 (on the reflection branch), 230 by D319, 227's JSON part by
-D320, 231 by D321, 232 by D322, 89 by D326. Rewritten: 227 (the reload's rename only), 238 (D324), 36 (D319).
+D320, 231 by D321, 232 by D322, 89 by D326, 216 by D327. Rewritten: 227 (the reload's rename only), 238 (D324), 36 (D319).
 
 ## Blocking now
 
@@ -157,4 +157,3 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
 210. **Is `Float` arithmetic rounded to `Float` after each operation?** 2-3x faster loops, but printed last bits
      change, so not D205.
 215. **The names `tune_for_this_machine` and `translation_units`**; a default build is not split (measured slower).
-216. **Cleaning the object cache `.spite/objects`**: by size, by age, or leave it to the user? (D205)
