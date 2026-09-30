@@ -405,7 +405,7 @@ An index is a name, a path, a number or arithmetic on those -- never another `[]
 hard to read, and under the rule above it would need two `crash` lines for one value, so it is an error (D285):
 read the inner value into a named `var` first, narrow it, and index with the name.
 
-```gdscript title=read_in_index_error/read_in_index_error.spite
+```gdscript title=read_in_index_error/read_in_index_error.spite entry
 var console = Console()
 
 func ReadInIndexError() {
