@@ -555,9 +555,16 @@ func child_named(current: Spite.Attribute, name: String): Spite.Attribute? {
 func function_named(owner: Spite.Attribute, name: String): Spite.Function? {
     assert is_public_function(name)
     var functions = owner.value_functions()
-    var symbol = Symbol(name)
-    assert symbol
-    return functions.find_by_name(symbol)
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        var function_name: String = function.name
+        if function_name == name {
+            return function
+        }
+        index = index + 1
+    }
+    return null
 }
 
 func is_public_function(name: String): Boolean {
