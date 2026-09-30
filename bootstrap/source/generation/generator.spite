@@ -35824,6 +35824,21 @@ func add_layout_owners(reload: HotReloadLibrary, owners: List<String>) {
 }
 
 func is_local_migration_piece(name: String): Boolean {
+    var helpers = [
+        "spite_migrate_all"
+        "spite_moving_release"
+        "spite_moving_free"
+        "spite_moving_finish"
+        "spite_same_layout"
+        "spite_old_field"
+        "spite_plan"
+        "spite_plan_holders"
+        "spite_plan_finish"
+        "spite_forget_fields"
+    ]
+    if helpers.contains(name) {
+        return true
+    }
     var index = 0
     while index < migrating_classes.count() {
         var c_name = migrating_classes[index]
