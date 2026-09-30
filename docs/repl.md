@@ -450,7 +450,7 @@ watcher has swapped the save in.
 | an enum's values: added, removed or reordered | the whole program is compiled again, and every value a running object holds keeps its meaning; a `switch` that meets a value the reload removed halts naming it ([D302](decisions.md)) |
 | a file that does not compile | refused with the compiler's error, and the program keeps all of its code |
 | a file that declares none of the program's classes: `environment.spite`, `build.spite`, a reopening of a class of the standard library | refused: `'environment.spite' changed, and a reload swaps only the functions of the program's own classes, ...`, and the program keeps all of its code |
-| a new class | its functions are compiled into the new code; the REPL does not see it until a restart |
+| a new class | its functions are compiled into the new code, and `classes` and `describe` see it: the REPL's tables of classes, singletons and enums are swapped in with the code |
 
 A refused reload leaves the program exactly as it was, so a save that caught a file half-written is harmless: the
 next save reloads.

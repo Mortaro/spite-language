@@ -37974,10 +37974,18 @@ func listed_singleton(information: Analysis.ClassInfo, list_name: String): Strin
     var class_type = class_type_of(information)
     var reflect = ensure_reflect_function(class_type)
     var cache = "spite_singleton_{information.c_name}_cache"
+    var peek = "spite_singleton_{information.c_name}_peek"
+    if not singleton_names.contains(peek) {
+        singleton_names.append(peek)
+        builder.add_prototype("{information.c_name}* {peek}(void);")
+        builder.add_support(
+            "{information.c_name}* {peek}(void) \{\nreturn __atomic_load_n(&{cache}, __ATOMIC_ACQUIRE);\n}",
+        )
+    }
     var display_name = singleton_display_name(information)
     var named = ensure_symbol(display_name)
     var unmade = "Spite_Attribute___make({named}, {class_object_call(class_type)})"
-    return "\{ {information.c_name}* made = __atomic_load_n(&{cache}, __ATOMIC_ACQUIRE); {list_name}_append(result, made != 0 ? {reflect}({named}, made) : {unmade}); }"
+    return "\{ {information.c_name}* made = {peek}(); {list_name}_append(result, made != 0 ? {reflect}({named}, made) : {unmade}); }"
 }
 
 func package_folder(information: Analysis.ClassInfo): String {

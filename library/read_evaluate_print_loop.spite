@@ -386,7 +386,10 @@ func pause_at(site: String, locals: List<Spite.Attribute>) {
     console.error("spite: stopped at {site}: 'locals' lists what is in scope there, and 'continue' goes on")
     var on_main_thread = scheduler.current_thread() == scheduler.scheduler_thread
     if on_main_thread and handover.read_long_atomically(0) == 3 {
-        answered = success("stopped at {site} while answering: 'locals' lists what is in scope there, and 'continue' goes on", "")
+        answered = success(
+            "stopped at {site} while answering: 'locals' lists what is in scope there, and 'continue' goes on",
+            "",
+        )
         early_at_depth = answer_depth
         handover.write_long_atomically(0, 2)
     }

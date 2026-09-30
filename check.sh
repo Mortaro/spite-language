@@ -701,12 +701,16 @@ enum_expect 'verdict()' '{"ok":true,"value":"careful","type":"String"}'
 sed -i "/^    'angry'$/d; /'angry': return/d; s/^var mood: Mood = 'angry'$/var mood: Mood = 'calm'/" "$enum_folder/live_enum.spite"
 enum_reload
 enum_expect 'describe()' '{"ok":true,"value":"angry and sleepy","type":"String"}'
+printf 'var name = "goat"\n\nfunc bleat(): String {\n    return "{name} bleats"\n}\n' > "$enum_folder/goat.spite"
+case "$(enum_ask reload)" in *'"ok":true'*) enum_ask wait_reload > /dev/null ;; *) enum_fail "a reload of a new class failed" ;; esac
+enum_expect 'classes' '{"ok":true,"value":"Build()\nLiveEnum\nGoat","type":""}'
+enum_expect 'describe Goat' '{"ok":true,"value":"Goat\nattributes:\nname: String\nfunctions:\nbleat(): String","type":""}'
 enum_ask 'verdict()' > /dev/null
 for attempt in $(seq 1 50); do kill -0 $enum_program 2>/dev/null || break; sleep 0.2; done
 kill -0 $enum_program 2>/dev/null && enum_fail "a switch that met a removed value kept running"
 wait $enum_program && enum_fail "a switch that met a removed value ended with exit code 0"
 grep -q "a switch over LiveEnum.Mood met the value 'angry', which a reload removed from it" "$work/live_enum/output.txt" || enum_fail "the halt did not name the removed value"
-echo "live enums: an enum gained and lost values while the program ran, every held value kept its meaning, and a switch that met the removed one halted naming it"
+echo "live enums: an enum gained and lost values while the program ran, every held value kept its meaning, a new class answered at the prompt, and a switch that met the removed value halted naming it"
 
 # Breakpoints (docs/repl.md#breakpoints): a program that ticks in a loop runs with --hot-reload and --repl-port; a
 # breakpoint is compiled into it, the loop stops there with its locals readable, goes on, and the breakpoint is
