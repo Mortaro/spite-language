@@ -376,9 +376,9 @@ func _last_word_start(): Integer {
 }
 
 func _cased_like(original: String, changed: String): String {
-    var shouted = original.upper_case()
-    var quiet = original.lower_case()
-    if original.length() > 1 and original == shouted and shouted != quiet {
+    var upper_form = original.upper_case()
+    var lower_form = original.lower_case()
+    if original.length() > 1 and original == upper_form and upper_form != lower_form {
         return changed.upper_case()
     }
     var first = original.code_at(0)
