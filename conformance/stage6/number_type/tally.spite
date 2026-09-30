@@ -1,0 +1,43 @@
+generic $number_type: Number
+
+func largest(values: List<$number_type>): $number_type {
+    crash values[0]
+    var best = values[0]
+    var index = 1
+    while index < values.count() {
+        if values[index] > best {
+            best = values[index]
+        }
+        index = index + 1
+    }
+    return best
+}
+
+func total(values: List<$number_type>): Double {
+    var sum: $number_type = 0
+    var index = 0
+    while index < values.count() {
+        sum = sum + values[index]
+        index = index + 1
+    }
+    return sum.to_double()
+}
+
+func span(values: List<$number_type>): Long {
+    crash values[0]
+    var low = values[0]
+    var high = values[0]
+    var index = 1
+    while index < values.count() {
+        var value = values[index]
+        if value < low {
+            low = value
+        }
+        if value > high {
+            high = value
+        }
+        index = index + 1
+    }
+    var difference = high - low
+    return difference.to_long()
+}
