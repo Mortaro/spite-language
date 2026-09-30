@@ -8,6 +8,25 @@ cd "$(dirname "$0")" || exit 1
 work=.spite/check_$$   # one folder per run: two sessions may run this at the same time
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work"
+
+# SPITE.md: no em dashes anywhere, neither the character nor two hyphens between spaces standing in for one, and
+# no third-party package named inside the language. Every tracked text file is read but the seed, which is C the
+# compiler writes from these sources. A '--' between spaces is allowed only where it is a command line's own
+# separator: before a flag, after 'spite <program>' or 'set', and between two holes of a Spite text.
+em_dash=$(printf '\342\200\224')
+stand_in=' -''- '
+dashes=$(git grep -n -I -F -e "$em_dash" -e "$stand_in" ':!bootstrap/seed' \
+  | grep -v -E "$stand_in-|(spite|bin/spite|spite\.exe) [^ ]+$stand_in|set$stand_in|\}$stand_in\{")
+if [ -n "$dashes" ]; then
+  echo "FAILED: em dashes (end the sentence, or use a colon, a comma or parentheses):"; echo "$dashes"; exit 1
+fi
+# the names are written in pieces so this file does not name them
+names="(^|[^[:alnum:]])sl""op(eng""ine)?([^[:alnum:]]|$)|thes""eus"
+package_names=$(git grep -n -I -i -E "$names" ':!bootstrap/seed')
+if [ -n "$package_names" ]; then
+  echo "FAILED: a third-party package is named (use a neutral invented one):"; echo "$package_names"; exit 1
+fi
+echo "writing: no em dashes, and no third-party package named"
 if [ -z "$CC" ]; then
     for candidate in cc clang gcc; do
         command -v "$candidate" >/dev/null 2>&1 && { CC="$candidate"; break; }
