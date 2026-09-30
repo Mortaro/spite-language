@@ -13,5 +13,7 @@ update_each takes 2
   1 label String 
 render_each takes 1
   0 scale Float 0
+functions named _each: 2
+run-time functions starting with re: 1
 part Axle Axle { length: 7 }
 part Wheel Wheel { size: 3 }

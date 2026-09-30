@@ -593,6 +593,45 @@ func TemplateLoopError() {
 this 'while' walks every element of 'items' only to add up 'price': write 'var total = items.sum_price()'
 ```
 
+### A member's own function in a template's name
+
+A member template can go one step further and ask each element's member a question of its own:
+`filter_<member>_<function>(arguments)` keeps the elements whose `member` answers `function(arguments)`. The
+arguments are handed on to that function, so `players.filter_name_starts_with("a")` keeps the players whose
+`name` starts with `a`. It works with every member template and every function the member's class has:
+
+```gdscript title=chained_members/player.spite
+var name = ""
+var score = 0
+
+func Player(starting_name: String, starting_score: Integer) {
+    name = starting_name
+    score = starting_score
+}
+```
+```gdscript title=chained_members/chained_members.spite entry
+var console = Console()
+
+func ChainedMembers() {
+    var players = List<Player>()
+    var anna = Player("anna", 3)
+    players.append(anna)
+    var bruno = Player("bruno", 5)
+    players.append(bruno)
+    var alex = Player("alex", 7)
+    players.append(alex)
+    var starting_with_a = players.filter_name_starts_with("a")
+    var names = starting_with_a.map_name()
+    var joined = names.join(", ")
+    var with_n = players.count_name_contains("n")
+    var best = players.sum_score()
+    console.print(joined, with_n, best)
+}
+```
+```output
+anna, alex 2 15
+```
+
 ## Member templates over an enum value
 
 When the element has a member typed with a named enum, the

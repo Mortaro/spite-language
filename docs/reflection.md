@@ -21,11 +21,11 @@ a generic's type) is constant data or folds while compiling. The whole list is i
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `.values` (an enum's), `.is_singleton`, `.is_stateful`, `.is_fixed_size`, `.is_list`, `.is_dictionary`, `.is_optional`, `.is_enum`, `.element_type`, `.value_type`, `has_function(name)`, `function_waits(name)`, `argument_count(name)`, `source_folder()` |
+| `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `.values` (an enum's), `.is_singleton`, `.is_stateful`, `.is_fixed_size`, `.is_list`, `.is_dictionary`, `.is_optional`, `.is_enum`, `.element_type`, `.value_type`, `.source_files: List<File>` (every file that declares or reopens it, in load order), `has_function(name)`, `function_waits(name)`, `argument_count(name)`, `source_folder()` |
 | `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `.is_resumable`, `.returned_literal`, `call_function()`, `name_fits(pattern)`, `waits()`, `argument_count()` |
 | `Spite.Argument` | `.name`, `.class: Spite.Class`, `.index`, `.is_mutated`, `.function` |
 | `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.index`, `.owner`, `.camel_case_name`, `.pascal_case_name`, `.is_singleton`, `.value: Anything?` (the value itself; `.value.to_string()` is its text) |
-| `Spite.Namespace` | `.name` (the segment), `.name_with_namespaces` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces`, `.every_class` |
+| `Spite.Namespace` | `.name` (the segment), `.name_with_namespaces` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces`, `.every_class`, `.source_directories: List<Directory>` (every directory its classes come from) |
 | `Spite.Memory` | `.address: Long`, `.bytes: Long`, `.section` (`'heap'`, `'stack'`, `'constant'`); see [memory.md](memory.md#where-a-value-lives-memory) |
 
 Every member is read as an attribute, with no `()`: what reflection answers is known while compiling, so it is
@@ -726,12 +726,14 @@ own named `memory` ([below](#the-names-reflection-gives-every-object)). Choosing
   `.is_stateful` (some function besides the constructor and `drop()` changes the object, or a bound singleton
   does), `.is_fixed_size` (the class has a size known while compiling, so a `Vector` can hold it inline),
   `.is_list`, `.is_dictionary`, `.is_optional`, `.is_enum`, `.element_type` (a list's element, or what an
-  optional holds), `.value_type` (a dictionary's), `.values` (an enum's values, in order) and `.instances` on a
-  class; `.owner`, `.is_resumable` (it can reach a wait, so it is also compiled as a state machine) and
+  optional holds), `.value_type` (a dictionary's), `.values` (an enum's values, in order), `.instances` and
+  `.source_files` (a `File` for every file that declares or reopens it, in load order) on a class; `.owner`, `.is_resumable` (it can reach a wait, so it is also compiled as a state machine) and
   `.returned_literal` (the text literal it returns, an error when it returns anything else) on a function;
   `.index`, `.is_mutated` (it changes the object passed there) and `.function` on an argument; `.index`, `.owner`,
   `.camel_case_name`, `.pascal_case_name` and `.is_singleton` (its class is a singleton) on an attribute;
-  `.every_class` (this namespace and every one below it) on a namespace. `Spite.Namespace.instances` is every
+  `.every_class` (this namespace and every one below it) and `.source_directories` (a `Directory` for every
+  folder its classes come from, in load order) on a namespace. A path is asked of those files and directories;
+  a class has no other path member. `Spite.Namespace.instances` is every
   namespace of the program's own classes, parents first, in the order the classes were found.
 - **A constant** is a reflection object the compiler can identify: a class, enum or namespace named in the code
   (a name that is both an enum and a class is the enum), `$T`, `class` and `namespace` inside a function; `value.class`,

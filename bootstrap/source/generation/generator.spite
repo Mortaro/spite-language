@@ -39,6 +39,7 @@ var constant_return_names = List<String>()
 var namespaces_known = List<String>()
 var namespaces_known_for = -1
 var folded_by_reflection = false
+var source_paths_used = false
 var conversion_names = Dictionary<String>()
 var foreign_library_files = List<String>()
 var foreign_library_namings = List<String>()
@@ -187,7 +188,6 @@ var all_classes_used = false
 var class_level_attributes_used = false
 var namespace_read_used = false
 var source_folder_used = false
-var package_folder_used = false
 var working_folder = ""
 var language_folder = ""
 var namespace_tree_used = false
@@ -264,6 +264,10 @@ var bound_function_name = ""
 var bound_display_name = ""
 var bound_range = ""
 var bound_enum_c_name = ""
+var bound_chain_method = ""
+var bound_chain_arguments = List<String>()
+var chained_parameters = List<Analysis.ParamInfo>()
+var chained_method_name = ""
 var unliteral_reported = List<String>()
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
@@ -4863,6 +4867,7 @@ func resolve_field(
     var field = Analysis.FieldInfo(declaration.name, field_type, default_code)
     field.line = declaration.line
     information.fields.append(field)
+    note_source_path(information, declaration.source_path)
 }
 
 func report_null_default(
@@ -6068,6 +6073,15 @@ func instantiate_template(
         var described_parameter = Analysis.ParamInfo("owner", owner_type)
         parameters.append(described_parameter)
     }
+    var chained_names = List<String>()
+    var chained_index = 0
+    while chained_index < chained_parameters.count() {
+        var chained = chained_parameters[chained_index]
+        parameters.append(chained)
+        chained_names.append(chained.name)
+        chained_index = chained_index + 1
+    }
+    chained_parameters = List<Analysis.ParamInfo>()
     var return_type = void_type()
     if declaration.return_type {
         var resolved_return = resolve_type(declaration.return_type, information.qualified_dotted)
@@ -6087,6 +6101,9 @@ func instantiate_template(
     function.symbol_field_name = member_name
     function.symbol_field_type = member_type
     function.symbol_owner_c_name = member_owner_c_name
+    function.symbol_chain_method = chained_method_name
+    function.symbol_chain_arguments = chained_names
+    chained_method_name = ""
     if owner_type {
         function.symbol_through_caller = true
     }
@@ -6135,6 +6152,8 @@ func bind_symbol_of(function: Analysis.FunctionInfo) {
     bound_function_name = function.symbol_function_name
     bound_display_name = function.symbol_display_name
     bound_enum_c_name = function.symbol_enum_c_name
+    bound_chain_method = function.symbol_chain_method
+    bound_chain_arguments = function.symbol_chain_arguments
 }
 
 func is_bound_member_index(index_expression: Syntax.Expressions.IndexExpression): Boolean {
@@ -6161,11 +6180,28 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
         return caller_call_expression(member.object)
     }
     var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(member.object, bound_field_name)
-    if not bound_member_is_function() {
+    if bound_member_is_function() {
+        var no_arguments = List<Syntax.Expressions.Expression>()
+        read = Syntax.Expressions.CallExpression(read, no_arguments)
+    }
+    return chained_read(read)
+}
+
+# ../docs/collections.md#a-members-own-function-in-a-templates-name
+func chained_read(read: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
+    if bound_chain_method.is_empty() {
         return read
     }
-    var no_arguments = List<Syntax.Expressions.Expression>()
-    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(read, no_arguments)
+    var arguments = List<Syntax.Expressions.Expression>()
+    var index = 0
+    while index < bound_chain_arguments.count() {
+        var argument_name = bound_chain_arguments[index]
+        var argument: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(argument_name)
+        arguments.append(argument)
+        index = index + 1
+    }
+    var method: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(read, bound_chain_method)
+    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(method, arguments)
     return called
 }
 
@@ -6393,6 +6429,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         is_constructor,
     )
     function.source_path = declaration.source_path
+    note_source_path(information, declaration.source_path)
     if takes_reflection(function) {
         reflection_declaration_positions[c_name] = reflection_declarations.count()
         reflection_declarations.append(declaration)
@@ -11903,6 +11940,8 @@ func ensure_into_variant(owner: Analysis.ClassInfo, function: Analysis.FunctionI
     variant.specialisation_position = function.specialisation_position
     variant.symbol_name = function.symbol_name
     variant.symbol_field_name = function.symbol_field_name
+    variant.symbol_chain_method = function.symbol_chain_method
+    variant.symbol_chain_arguments = function.symbol_chain_arguments
     variant.symbol_field_index = function.symbol_field_index
     variant.symbol_field_type = function.symbol_field_type
     variant.symbol_owner_c_name = function.symbol_owner_c_name
@@ -12117,6 +12156,8 @@ func add_lent_variant(
     variant.specialisation_position = original.specialisation_position
     variant.symbol_name = original.symbol_name
     variant.symbol_field_name = original.symbol_field_name
+    variant.symbol_chain_method = original.symbol_chain_method
+    variant.symbol_chain_arguments = original.symbol_chain_arguments
     variant.symbol_field_index = original.symbol_field_index
     variant.symbol_field_type = original.symbol_field_type
     variant.symbol_owner_c_name = original.symbol_owner_c_name
@@ -12215,6 +12256,8 @@ func held_variant_name(
     variant.specialisation_position = original.specialisation_position
     variant.symbol_name = original.symbol_name
     variant.symbol_field_name = original.symbol_field_name
+    variant.symbol_chain_method = original.symbol_chain_method
+    variant.symbol_chain_arguments = original.symbol_chain_arguments
     variant.symbol_field_index = original.symbol_field_index
     variant.symbol_field_type = original.symbol_field_type
     variant.symbol_owner_c_name = original.symbol_owner_c_name
@@ -12692,9 +12735,6 @@ func generate_method_call(
     if member.name == "source_folder" and target_class.c_name == "Spite_Class" {
         source_folder_used = true
         note_fact("flag source_folder_used")
-    }
-    if member.name == "package_folder" and target_class.c_name == "Spite_Class" {
-        package_folder_used = true
     }
     var parameter_types = parameter_types_of(function.parameters)
     var function_return_type = function.get_return_type()
@@ -13256,6 +13296,12 @@ func instantiate_element_template(
         member_type = shape_member_type(element_shape, member_name)
     }
     var element_label = type_display_name(element)
+    if not member_type and element_class {
+        var chained = chained_element_template(list_class, element_class, template, name)
+        if chained {
+            return chained
+        }
+    }
     if not member_type {
         var hint = passing_hint(caller, template.prefix, member_name)
         report("'{element_label}' has no attribute or zero argument function '{member_name}' for '{name}'{hint}")
@@ -15088,20 +15134,6 @@ func folded_source_folder(
     return ExpressionResult(folder_code, text_type)
 }
 
-func folded_package_folder(
-    member: Syntax.Expressions.MemberExpression,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
-): ExpressionResult? {
-    crash member.object
-    var asked = source_folder_class(member.object, scope, class_information)
-    assert asked
-    var folder = package_folder(asked)
-    var folder_code = render_string_literal(folder)
-    var text_type = string_type()
-    return ExpressionResult(folder_code, text_type)
-}
-
 func source_folder_class(
     object: Syntax.Expressions.Expression,
     scope: Scope,
@@ -15145,7 +15177,7 @@ func source_folder_class(
     }
     var named = try_resolve_static_path(object, class_information.qualified_dotted)
     assert named
-    assert not named.find_function("source_folder") and not named.find_function("package_folder")
+    assert not named.find_function("source_folder")
     return named
 }
 
@@ -15211,9 +15243,8 @@ func emit_class_object_bodies() {
                 var described_folder = absolute_source_folder(described)
                 lines.append("{function_c_name}_cache->_source_folder_ = {render_string_literal(described_folder)};")
             }
-            if package_folder_used and not described.source_path.is_empty() {
-                var described_package = package_folder(described)
-                lines.append("{function_c_name}_cache->_package_folder_ = {render_string_literal(described_package)};")
+            if source_paths_used {
+                emit_source_paths(lines, "{function_c_name}_cache", described.source_paths, false)
             }
             if namespace_read_used {
                 crash class_object_namespaces[position]
@@ -15400,6 +15431,10 @@ func emit_namespace_object_bodies() {
         lines.append(
             "{function_c_name}_cache = Spite_Namespace___make({ensure_symbol(namespace_name)}, {ensure_symbol(namespace_dotted)});",
         )
+        if source_paths_used {
+            var namespace_paths = namespace_source_paths(namespace_dotted)
+            emit_source_paths(lines, "{function_c_name}_cache", namespace_paths, true)
+        }
         if segments.count() > 1 {
             var parent_segments = segments.copy()
             parent_segments.remove_last()
@@ -19273,12 +19308,6 @@ func generate_call(
                 return folded_folder
             }
         }
-        if member.name == "package_folder" and call.arguments.is_empty() {
-            var folded_package = folded_package_folder(member, scope, class_information)
-            if folded_package {
-                return folded_package
-            }
-        }
         if member.name == "class" {
             var walked_made = generate_walked_default(member, call.arguments, scope, class_information)
             if walked_made {
@@ -19603,6 +19632,10 @@ func generate_member_read_raw(
                 note_fact("flag attribute_object_used")
             }
         }
+    }
+    if member.name == "source_files" or member.name == "source_directories" {
+        source_paths_used = true
+        note_fact("flag source_paths_used")
     }
     if member.name == "classes" or member.name == "namespaces" {
         var tree_receiver = type_shape.as_class_ref(object_result_type)
@@ -39021,53 +39054,6 @@ func listed_singleton(information: Analysis.ClassInfo, list_name: String): Strin
     return "\{ {information.c_name}* made = {peek}(); {list_name}_append(result, made != 0 ? {reflect}({named}, made) : {unmade}); }"
 }
 
-func package_folder(information: Analysis.ClassInfo): String {
-    var folder = absolute_source_folder(information)
-    var roots = List<String>()
-    var entry_class = find_class_by_c_name(entry_class_c_name)
-    crash entry_class
-    var program_folder = absolute_source_folder(entry_class)
-    roots.append(program_folder)
-    var language = language_folder.replace("\\", "/")
-    var library_root = normalized_folder("{language}/library/")
-    roots.append(library_root)
-    var launcher_root = normalized_folder("{language}/launcher/")
-    roots.append(launcher_root)
-    var index = 0
-    while index < loaded_folders.count() {
-        var loaded = loaded_folders[index].replace("\\", "/")
-        if not loaded.starts_with("/") and loaded.slice(1, 2) != ":" {
-            var base = working_folder.replace("\\", "/")
-            loaded = "{base}/{loaded}"
-        }
-        var loaded_root = normalized_folder(loaded)
-        roots.append(loaded_root)
-        index = index + 1
-    }
-    var best = ""
-    index = 0
-    while index < roots.count() {
-        var root = roots[index]
-        var holds = folder == root or folder.starts_with("{root}/")
-        if holds and root.length() > best.length() {
-            best = root
-        }
-        index = index + 1
-    }
-    if best.is_empty() {
-        report(
-            "'{information.qualified_dotted}' was declared in '{information.source_path}', which is in no folder the program loads, so it has no package folder",
-        )
-        return ""
-    }
-    if folder == best {
-        return ""
-    }
-    var folder_length = folder.length()
-    var best_length = best.length()
-    return folder.slice(best_length + 1, folder_length)
-}
-
 func parameter_class_type(owner: Analysis.SpiteType, segment: String): Analysis.SpiteType? {
     var pieces = segment.split("\"")
     crash pieces.count() == 3
@@ -41380,4 +41366,148 @@ func reflected_construction(
     crash made_class.described_type
     var written = Syntax.SourcePrinter().source_expression(callee)
     return generate_default_of(made_class.described_type, written, arguments, scope, class_information)
+}
+
+func chained_element_template(
+    list_class: Analysis.ClassInfo,
+    element_class: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    name: String,
+): Analysis.FunctionInfo? {
+    var existing = list_class.find_function(name)
+    if existing {
+        return existing
+    }
+    var hole = template.member_name_for(name)
+    var words = hole.split("_")
+    var split = 1
+    while split < words.count() {
+        var member_words = List<String>()
+        var method_words = List<String>()
+        var word_index = 0
+        while word_index < words.count() {
+            var word = words[word_index]
+            if word_index < split {
+                member_words.append(word)
+            } else {
+                method_words.append(word)
+            }
+            word_index = word_index + 1
+        }
+        var member_name = member_words.join("_")
+        var method_name = method_words.join("_")
+        var member_type = member_type_of(element_class, member_name)
+        if member_type {
+            var method = chained_method(member_type, method_name)
+            if method {
+                return instantiate_chained(list_class, element_class, template, member_name, method, name)
+            }
+        }
+        split = split + 1
+    }
+    return null
+}
+
+func chained_method(member_type: Analysis.SpiteType, method_name: String): Analysis.FunctionInfo? {
+    var owner = class_of_type(member_type)
+    if type_shape.as_string(member_type) or type_shape.is_symbol(member_type) {
+        owner = find_class_by_c_name("SpiteString")
+    }
+    assert owner
+    var method = find_or_instantiate_function(owner, method_name)
+    assert method
+    assert not method.is_constructor
+    return method
+}
+
+func instantiate_chained(
+    list_class: Analysis.ClassInfo,
+    element_class: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    member_name: String,
+    method: Analysis.FunctionInfo,
+    name: String,
+): Analysis.FunctionInfo {
+    chained_parameters = List<Analysis.ParamInfo>()
+    var index = 0
+    while index < method.parameters.count() {
+        var parameter = method.parameters[index]
+        var parameter_type = parameter.get_type()
+        var chained = Analysis.ParamInfo("chained_{parameter.name}", parameter_type)
+        chained_parameters.append(chained)
+        index = index + 1
+    }
+    chained_method_name = method.name
+    var returned = method.get_return_type()
+    return instantiate_template(list_class, template, member_name, returned, element_class.c_name, name, null)
+}
+
+func note_source_path(information: Analysis.ClassInfo, path: String) {
+    if information.source_paths.is_empty() and not information.source_path.is_empty() {
+        information.source_paths.append(information.source_path)
+    }
+    if not path.is_empty() and not information.source_paths.contains(path) {
+        information.source_paths.append(path)
+    }
+}
+
+func emit_source_paths(lines: List<String>, cache: String, paths: List<String>, folders: Boolean) {
+    var text_type = string_type()
+    var list_name = ensure_list(text_type)
+    if not paths.is_empty() {
+        lines.append("if ({cache}->_source_paths_ == 0) {cache}->_source_paths_ = {list_name}___make();")
+    }
+    var index = 0
+    while index < paths.count() {
+        var path = paths[index]
+        var absolute = absolute_source_path(path)
+        if folders {
+            absolute = path
+        }
+        lines.append("{list_name}_append({cache}->_source_paths_, {render_string_literal(absolute)});")
+        index = index + 1
+    }
+}
+
+func absolute_source_path(path: String): String {
+    var forward = path.replace("\\", "/")
+    var base = working_folder.replace("\\", "/")
+    if forward.starts_with("library/") or forward.starts_with("launcher/") {
+        base = language_folder.replace("\\", "/")
+    }
+    var joined = "{base}/{forward}"
+    if forward.starts_with("/") or forward.slice(1, 2) == ":" {
+        joined = forward
+    }
+    var folder = normalized_folder(joined)
+    var segments = forward.split("/")
+    var file_name = segments.last()
+    crash file_name
+    return "{folder}/{file_name}"
+}
+
+func namespace_source_paths(dotted: String): List<String> {
+    var folders = List<String>()
+    var index = 0
+    while index < classes.count() {
+        var candidate = classes[index]
+        if candidate.namespace_dotted == dotted {
+            add_class_folders(candidate, folders)
+        }
+        index = index + 1
+    }
+    return folders
+}
+
+func add_class_folders(candidate: Analysis.ClassInfo, folders: List<String>) {
+    var index = 0
+    while index < candidate.source_paths.count() {
+        var path = candidate.source_paths[index]
+        var absolute = absolute_source_path(path)
+        var folder = normalized_folder(absolute)
+        if not folders.contains(folder) {
+            folders.append(folder)
+        }
+        index = index + 1
+    }
 }

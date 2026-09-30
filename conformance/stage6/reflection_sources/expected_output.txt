@@ -1,0 +1,5 @@
+4 3
+file package/creatures/monster.spite
+file mod/creatures/monster.spite
+directory package/creatures
+directory mod/creatures

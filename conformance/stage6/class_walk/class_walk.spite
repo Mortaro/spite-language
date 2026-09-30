@@ -14,8 +14,9 @@ func ClassWalk() {
     var marked = scribbler.scribble()
     console.print("ran", counter.total, doubled, seen, marked)
     var part_class = part.class
-    var part_folder = part_class.package_folder()
-    console.print("at run time", part_folder)
+    var part_files = part_class.source_files
+    var part_file = file_name(part_files)
+    console.print("at run time", part_file)
     check_kinds()
 }
 
@@ -23,7 +24,17 @@ func check_kind(kind: Symbol<Spite.Class>) {
     var name: String = kind.name
     if name.starts_with("Walk") or name.starts_with("Parts.") or name == "Console" or name == "Spite.Class" {
         var stateful = kind.class.has_state()
-        var folder = kind.class.package_folder()
-        console.print(name, stateful, "'{folder}'")
+        var files = kind.class.source_files
+        var shown = file_name(files)
+        console.print(name, stateful, "'{shown}'")
     }
+}
+
+func file_name(files: List<File>): String {
+    var first = files.first()
+    crash first
+    var parts = first.path.split("/")
+    var last = parts.last()
+    crash last
+    return last
 }
