@@ -88,6 +88,17 @@ bundler story in Ruby. Same spite as bring-your-own-runtime: it fragments what s
 
 ## Code style
 
+**Em dashes, anywhere.** "Absolutely no emdashes in the entire codebase for spite/slop/theseus. I really hate
+emdashes, my grandmother was killed by an emdash when I was a child, even though she is still alive." This covers
+the `—` character and the ` -- ` stand-in written in prose, in code, comments, docs and commit messages across
+SpiteLanguage, SlopEngine and SlopTheseus (command-line flags like `--optimized` are not dashes).
+*Instead:* end the sentence, or use a colon, a comma or parentheses.
+
+**Docs that talk to agents.** `docs/` is documentation for people learning Spite: no notes to AI writers, no
+implementation status, no decision bookkeeping in the middle of a page. Each page ends with a link to the next
+thing to learn.
+*Instead:* agent guidance, decisions, proposals, open questions and implementation status live outside `docs/`.
+
 **Abbreviations, anywhere.** "Avoid abbreviations like the devil, even if I accidentally abbreviated something we
 shouldn't." `DLL` became `DynamicLibrary`; `Library` was rejected separately for being too generic.
 
