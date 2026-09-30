@@ -1,0 +1,15 @@
+singleton
+
+type Counted {
+    total(): Integer
+}
+
+var tallies = List<Counted>()
+
+func record(tally: Counted) {
+    tallies.append(tally)
+}
+
+func count(): Integer {
+    return tallies.count()
+}

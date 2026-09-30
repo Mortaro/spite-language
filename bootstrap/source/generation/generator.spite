@@ -18285,6 +18285,7 @@ func emit_singleton_teardown() {
     builder.add_prototype("void spite_singleton_created(void (*teardown)(void));")
     builder.add_prototype("void spite_singleton_used_after_exit(const char* name);")
     builder.add_prototype("void spite_singletons_destroy(void);")
+    builder.add_prototype("void spite_singleton_free_later(void* object);")
     builder.add_prototype("void spite_singleton_check_circle(const char* name);")
     builder.add_prototype("void spite_singleton_making(const char* name);")
     builder.add_prototype("void spite_singleton_made(void);")
@@ -18357,13 +18358,36 @@ func emit_singleton_teardown() {
     )
     lines.append("exit(1);")
     lines.append("}")
+    lines.append("static bool spite_singletons_ending = false;")
+    lines.append("static void** spite_singletons_freed = 0;")
+    lines.append("static int32_t spite_singletons_freed_total = 0;")
+    lines.append("static int32_t spite_singletons_freed_capacity = 0;")
+    lines.append("void spite_singleton_free_later(void* object) \{")
+    lines.append("if (!spite_singletons_ending) \{ SPITE_FREE(object); return; }")
+    lines.append("if (spite_singletons_freed_total == spite_singletons_freed_capacity) \{")
+    lines.append(
+        "spite_singletons_freed_capacity = spite_singletons_freed_capacity == 0 ? 16 : spite_singletons_freed_capacity * 2;",
+    )
+    lines.append(
+        "spite_singletons_freed = (void**)realloc(spite_singletons_freed, (size_t)spite_singletons_freed_capacity * sizeof(void*));",
+    )
+    lines.append("}")
+    lines.append("spite_singletons_freed[spite_singletons_freed_total] = object;")
+    lines.append("spite_singletons_freed_total = spite_singletons_freed_total + 1;")
+    lines.append("}")
     lines.append("void spite_singletons_destroy(void) \{")
     lines.append("fflush(stdout);")
+    lines.append("spite_singletons_ending = true;")
     lines.append("while (spite_singleton_total > 0) \{")
     lines.append("spite_singleton_total = spite_singleton_total - 1;")
     lines.append("spite_singleton_teardowns[spite_singleton_total]();")
     lines.append("}")
     lines.append("free(spite_singleton_teardowns);")
+    lines.append(
+        "for (int32_t index = 0; index < spite_singletons_freed_total; index = index + 1) SPITE_FREE(spite_singletons_freed[index]);",
+    )
+    lines.append("free(spite_singletons_freed);")
+    lines.append("spite_singletons_ending = false;")
     lines.append("}")
     var joined_lines = lines.join("\n")
     builder.add_support(joined_lines)
@@ -32171,7 +32195,11 @@ func emit_class_support(information: Analysis.ClassInfo) {
     release_lines.append("#ifdef SPITE_WEAK_{information.c_name}")
     release_lines.append("spite_weak_object_freed(self);")
     release_lines.append("#endif")
-    release_lines.append("SPITE_FREE(self);")
+    if information.is_singleton {
+        release_lines.append("spite_singleton_free_later(self);")
+    } else {
+        release_lines.append("SPITE_FREE(self);")
+    }
     release_lines.append("}")
     var joined_release_lines = release_lines.join("\n")
     information.release_position = builder.support_count()

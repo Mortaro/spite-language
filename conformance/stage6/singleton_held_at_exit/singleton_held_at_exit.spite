@@ -1,0 +1,11 @@
+var console = Console()
+var first = Tally<Integer>()
+var second = Tally<String>()
+var registry = Registry()
+
+func SingletonHeldAtExit() {
+    first.add(3)
+    second.add(4)
+    var count = registry.count()
+    console.print("tallies", count)
+}

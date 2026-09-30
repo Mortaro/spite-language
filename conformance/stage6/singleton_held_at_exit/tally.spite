@@ -1,0 +1,21 @@
+singleton
+
+generic $value_type
+
+var registry = Registry()
+var sum = 0
+var names = List<String>()
+var recorded = false
+
+func add(amount: Integer) {
+    if not recorded {
+        recorded = true
+        registry.record(this)
+    }
+    sum = sum + amount
+    names.append("added {amount}")
+}
+
+func total(): Integer {
+    return sum
+}
