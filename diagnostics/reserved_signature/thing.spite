@@ -1,0 +1,13 @@
+var name = "x"
+
+func drop(_reason: Integer) {
+    name = ""
+}
+
+func equals(other: Thing, _strict: Boolean): Boolean {
+    return name == other.name
+}
+
+func to_string(_width: Integer): String {
+    return name
+}

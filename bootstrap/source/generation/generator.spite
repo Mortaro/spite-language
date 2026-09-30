@@ -6200,6 +6200,8 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     if declaration.name == "get_at" and not type_shape.as_nullable(return_type) {
         report_plain_get_at(declaration, return_type)
     }
+    var parameter_count = parameters.count()
+    report_reserved_signature(declaration, parameter_count, return_type, information)
     function.line = declaration.line
     function.end_line = declaration.end_line
     if is_constructor {
@@ -6220,6 +6222,60 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         existing = existing + 1
     }
     information.declared_functions.append(function)
+}
+
+# ../docs/functions_and_operators.md#functions-the-compiler-calls-by-name
+func report_reserved_signature(
+    declaration: Syntax.Statements.FunctionDeclaration,
+    parameter_count: Integer,
+    return_type: Analysis.SpiteType,
+    information: Analysis.ClassInfo,
+) {
+    var wanted = reserved_signature(declaration.name, information.simple_name)
+    assert not wanted.is_empty()
+    var wanted_count = 1
+    var wanted_return = "Boolean"
+    if declaration.name == "drop" {
+        wanted_count = 0
+        wanted_return = ""
+    } else if declaration.name == "to_string" or declaration.name == "to_debug" {
+        wanted_count = 0
+        wanted_return = "String"
+    }
+    var answered = ""
+    if not type_shape.is_void(return_type) {
+        answered = type_display_name(return_type)
+    }
+    assert parameter_count != wanted_count or answered != wanted_return
+    var saved_line = current_line
+    current_line = declaration.line
+    report(
+        "'{declaration.name}' is called by the compiler {reserved_use(declaration.name)}, so it is declared exactly '{wanted}'",
+    )
+    current_line = saved_line
+}
+
+func reserved_signature(name: String, class_name: String): String {
+    switch name {
+        "drop": return "func drop()"
+        "to_string": return "func to_string(): String"
+        "to_debug": return "func to_debug(): String"
+        "equals": return "func equals(other: {class_name}): Boolean"
+        "less_than": return "func less_than(other: {class_name}): Boolean"
+        "greater_than": return "func greater_than(other: {class_name}): Boolean"
+        _: return ""
+    }
+}
+
+func reserved_use(name: String): String {
+    switch name {
+        "drop": return "when the last reference to an object goes"
+        "to_string": return "wherever the object is used as text"
+        "to_debug": return "wherever the object is shown for debugging"
+        "equals": return "for '==' and '!='"
+        "less_than": return "for '<' and '<='"
+        _: return "for '>' and '>='"
+    }
 }
 
 func report_plain_get_at(declaration: Syntax.Statements.FunctionDeclaration, return_type: Analysis.SpiteType) {
