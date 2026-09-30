@@ -1,0 +1,35 @@
+spite.crash	1c62d251	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:19	AssertRingThreads	AssertRingThreads	total=64000	index=64
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse
+spite.assert	earlier=63968
+asked 64000

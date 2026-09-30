@@ -918,7 +918,10 @@ the record out of a library `assert` altogether, so it costs what an `if` costs.
 reports its own site ([D189](decisions.md)).
 A crash reports the ring as it stood when the crash began. Other threads may still be failing asserts while it
 prints -- a game's pool threads running their guards -- and those never lengthen the report: it is the crash line,
-at most 32 `spite.assert` lines and the `earlier=` count, and then the program exits. Only the first thread to crash
+at most 32 `spite.assert` lines and the `earlier=` count, and then the program exits. In a program that starts
+threads, each failed `assert` takes its place in the ring with one atomic add, so asserts failing on several
+threads at once are all counted (`conformance/stage6/assert_ring_threads`); a program without threads pays a
+plain add. Only the first thread to crash
 reports; one that crashes while that report is being written waits for the program to end, so two reports never
 interleave.
 
@@ -1070,10 +1073,6 @@ Also open: a reload that moves objects to new attributes ([repl.md](repl.md#chan
 them while the program's own threads may run: the swap pauses the scheduler's tasks, not a thread the program
 started itself, so a thread reading an object of the class while it moves could read its old attributes. The move
 should wait for every thread to reach a point where it holds nothing, as the swap of code does for the main loop.
-Also open: the assert ring is written without atomics, so asserts failing on several threads at once can lose
-counts, and a crash's `spite.assert	earlier=<count>` line can then be lower than the number that failed. An atomic
-count would cost every failed `assert` a locked add; a per-thread ring would cost a crash nothing extra but cannot
-say which thread's asserts came first.
 
 Also open, each a bug under D244, found cataloguing the compiler's proofs ([proofs.md](proofs.md)):
 

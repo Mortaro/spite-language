@@ -1,0 +1,34 @@
+var console = Console()
+
+func AssertRingThreads() {
+    var runs = List<Parallel<Integer>>()
+    var index = 0
+    while index < 64 {
+        var run = Parallel(refuse_many)
+        runs.append(run)
+        index = index + 1
+    }
+    var total = 0
+    index = 0
+    while index < runs.count() {
+        var refused: Integer = runs[index]
+        total = total + refused
+        index = index + 1
+    }
+    console.print("asked", total)
+    crash total == 0
+}
+
+func refuse_many(): Integer {
+    var tries = 0
+    while tries < 1000 {
+        refuse(tries)
+        tries = tries + 1
+    }
+    return tries
+}
+
+func refuse(value: Integer) {
+    assert value < 0
+    console.print("never printed", value)
+}
