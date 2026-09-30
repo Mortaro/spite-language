@@ -1,0 +1,28 @@
+enum Mood {
+    'calm'
+    'angry'
+}
+
+var console = Console()
+var title = "a report longer than the eighty bytes a crash shows of one text, so the rest is only counted"
+var mood: Mood = 'calm'
+var retries = 3
+var names = List<String>()
+
+func CrashScopeValues() {
+    console.print("before the crash")
+    load_level("forest", 2)
+}
+
+func load_level(level: String, depth: Integer) {
+    var nickname: String? = null
+    var scale = 1.5
+    if depth > 1 {
+        var inner = depth * 10
+        crash inner < 20
+    }
+    var count = names.count()
+    console.print("never printed", level, scale, count, title, mood, retries)
+    assert nickname
+    console.print(nickname)
+}

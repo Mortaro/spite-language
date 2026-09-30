@@ -417,7 +417,7 @@ watcher has swapped the save in.
 | a function you deleted | whatever still holds it -- a function value, the REPL -- keeps its last code; the answer says `removed Monster.roar` |
 | an attribute's default value | instances made after the reload get the new default |
 | a class's attributes: added, removed, renamed or retyped | every live object of the class moves to the new attributes, components in an `Items`' own memory too ([below](#changing-a-classs-attributes)); the answer says what each class's objects kept |
-| an enum's values: added, removed or reordered | the whole program is compiled again, and every value a running object holds keeps its meaning; a `switch` that meets a value the reload removed halts naming it ([D301](decisions.md)) |
+| an enum's values: added, removed or reordered | the whole program is compiled again, and every value a running object holds keeps its meaning; a `switch` that meets a value the reload removed halts naming it ([D302](decisions.md)) |
 | a file that does not compile | refused with the compiler's error, and the program keeps all of its code |
 | a file that declares none of the program's classes: `environment.spite`, `build.spite`, a reopening of a class of the standard library | refused: `'environment.spite' changed, and a reload swaps only the functions of the program's own classes, ...`, and the program keeps all of its code |
 | a new class | its functions are compiled into the new code; the REPL does not see it until a restart |
@@ -671,7 +671,7 @@ is a gap to close, not a rule. The plan (proposed by Claude, unconfirmed), in th
      memory, and a change to a value class (`String` and the numbers).
 2. **Dependents are rebuilt**: a change whose dependents cannot be swapped alone compiles the whole program into
    the reload library and re-points every slot, keeping the heap, instead of refusing.
-3. **Enums change** -- **built** ([D301](decisions.md), decided by Claude under D205 in place of re-mapping):
+3. **Enums change** -- **built** ([D302](decisions.md), decided by Claude under D205 in place of re-mapping):
    in a `--hot-reload` build every enum value's number is fixed for as long as the program runs, so nothing held
    has to be re-mapped. The build numbers each enum's values in order and writes the numbers into its C
    (`Mood_calm = 0`); a reload gives every value the running program knows its number again and a new value the
@@ -699,7 +699,7 @@ singletons by name, assignment of a literal, calls with literal arguments and pa
 `conformance/stage6/interactive_singletons`), `--repl-port` with
 `spite connect` over `Socket`, answered where the program waits and at each loop's check point (D37, D174), and
 live reload on Windows, with the Linux and macOS folders held to compiling (`conformance/stage6/interactive_inspection`
-for D300). **Not built:** calling a generic class's function on an instance nothing holds (`Lookup<Position>().of(12)`, below);
+for D301). **Not built:** calling a generic class's function on an instance nothing holds (`Lookup<Position>().of(12)`, below);
 compiling new Spite code typed at the prompt; and reloading a change to whether a class fits an `Items`' own
 memory.
 
@@ -814,7 +814,7 @@ the entry class's own Spite name). Built:
 **Not built** (the design, kept for when it is): `Dictionary<T>`'s `keys()` and `has(key)` at the prompt, and
 making an object at the prompt (`follower = Circle(3)`), which is code typed at the prompt.
 
-**Built by D300** (decided by Claude under D205, implementing D282; the command names and the three members
+**Built by D301** (decided by Claude under D205, implementing D282; the command names and the three members
 provisional under D214):
 
 - **`describe <class>`** answers the class's qualified name (`, a singleton` after one), its attributes
@@ -1039,7 +1039,7 @@ session against a copy of the program it edits.
   rebuilt). A deleted function keeps its last code for whatever still holds it, a function value or the REPL, and
   the answer names it. An attribute's default value (through the `_init` slot, for instances made afterwards).
 - **What needs a restart** (superseded by D280's steps above: a class's attributes move their objects, and an
-  enum's values keep their numbers, D301). A file that does not compile is refused, with the compiler's error, and
+  enum's values keep their numbers, D302). A file that does not compile is refused, with the compiler's error, and
   the program keeps all of its code, so a save caught half-written is harmless.
 - **Watching** (D111, D194). `HotReload` (`library/hot_reload.spite`) watches through the standard library's
   `Watcher` ([System classes](standard_library.md#system-classes--implemented)), the one watcher any program uses: `ReadDirectoryChangesW` with overlapped I/O from

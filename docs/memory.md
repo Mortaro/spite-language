@@ -1127,7 +1127,7 @@ unless the program reads `Memory.Heap().live_allocations()` or `live_bytes()`: t
 allocation adds one to a counter and each free subtracts one, which is what `live_allocations()` answers, and the
 bytes the C library holds for each block (its usable size, `_msize`, `malloc_usable_size` or `malloc_size`) are
 added and subtracted the same way, which is what `live_bytes()` answers; a `--debug-memory` build answers the
-bytes asked for, from its table (D300)
+bytes asked for, from its table (D301)
 ([optimizations.md](optimizations.md#allocation-is-the-c-librarys-counted-only-where-read)).
 
 #### Where a value lives: `.memory`
@@ -1165,7 +1165,7 @@ same object is where an allocator is set ([below](#allocators-memoryallocator--i
   reading and writing memory is a function of the address, so the value needs to be a 'Memory.Address'`.
 - **`Memory.Heap()`** is the default allocator, a singleton with `allocate(bytes: Long): Memory.Address`,
   `resize(address, bytes): Memory.Address`, `free(address)`, `live_allocations(): Integer` and `live_bytes(): Long`
-(D300; `Program().live_bytes()` answers the same). Nothing frees an
+(D301; `Program().live_bytes()` answers the same). Nothing frees an
   allocation for you: a class that allocates frees in its `drop()`. The bytes are not cleared: a new block, and
   the part `resize` adds, hold whatever was there before, so a byte must be written before it is read -- a read of
   a byte nobody wrote can pass on one machine and crash on the next, since what the heap holds depends even on how
