@@ -649,6 +649,13 @@ func show(item: Renderable) {
 == banner 12 ==
 ```
 
+`show` above is compiled twice, once for `Badge` and once for `Banner`: a function that takes a `type` gets a
+copy for each class that reaches it, and in that copy `item` is that class, so `item.render(12)` is a direct call.
+A number, `Boolean` or enum value passed to it arrives as the plain value. When the class is known only as the
+program runs (a value read from a `List<Anything>`, say), the call tests the value's class against every class the
+program ever gives that `type` and runs the matching copy. A class that never reaches the function gets no copy,
+so nothing is compiled for it.
+
 A `type` can also be the element of a variadic parameter, `...items: List<Renderable>`, so a call takes any number
 of values of any classes that fit ([functions_and_operators.md](functions_and_operators.md#variadic-arguments)).
 
@@ -1194,6 +1201,19 @@ item 2 promises expressible as an ordinary type rather than as reflection.
 of values of any classes that fit, written one by one, "a generic can be done over both a type or a class, but in
 the end monomorphised into each class". Each class that is passed is admitted to the shape, and each call on an
 element is compiled once per admitted class ([Variadic arguments](functions_and_operators.md#variadic-arguments--implemented)).
+
+**A function that takes a `type` is compiled once for each class that reaches it**, following calls through the
+whole program. A call whose argument's class is known while compiling runs the copy made for that class: there the
+parameter is that class, a number, `Boolean` or enum value arrives unboxed, calls through it are direct, a class
+test on it is decided while compiling, and a copy that passes the parameter on reaches the copy made for the same
+class. A value whose class is known only at run time (from a list, a dictionary, parsed data) goes through a test
+of its class against the closed set of classes the program admits to that `type`, which runs the matching copy;
+no general version of the function is in the program. The function as written is still compiled, so every error
+in it is reported against the `type` it names; a class test that only a copy decides is not the "decided while
+compiling" error. Not copied: a parameter the function assigns to, a `T?` of a `type`, a row of borrowed items, a
+function that waits, and the functions of `List`, `Dictionary` and the other containers of the library. A
+`--repl`, `--repl-port` or `--hot-reload` build compiles the function as written and no copies, since a class the
+compiler has not seen may reach it later.
 
 **A shape's members behave as a class's do** (proposed by Claude, unconfirmed, 2026-09-24): a required function
 read without calling it is a function value bound to the value (D17), dispatched on the value's class when it is

@@ -47,6 +47,7 @@ nothing at run time because they emit nothing.
 | [Singletons: made on first use, never counted](#singletons-made-on-first-use-never-counted) | built | every | the constructor runs at first use |
 | [Singletons that hold nothing are static objects](#singletons-that-hold-nothing-are-static-objects) | built | production | one allocation fewer each; not in `.instances` |
 | [Atomic reference counts only with threads](#atomic-reference-counts-only-with-threads) | built | every, decided per program | nothing |
+| [A function taking a `type` is compiled per class](#a-function-taking-a-type-is-compiled-per-class) | built | every but `--repl`, `--repl-port`, `--hot-reload` | no box for a value passed to it; direct calls; a copy per class |
 | [Boxing only where a value travels as a shape](#boxing-only-where-a-value-travels-as-a-shape) | built | every | one allocation per boxed value |
 | [Concurrency machinery only where it is used](#concurrency-machinery-only-where-it-is-used) | built | every, decided per program | nothing |
 | [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | built | every, in programs that make a `Concurrent` | one heap frame per waiting call; a wait inside an expression runs first |
@@ -585,16 +586,40 @@ object between threads: one that makes a `Concurrent` or a `Parallel` (reads in 
 thread never pays for atomics. **Built** (the "reference counts are atomic only in a program that starts a
 thread" row; [concurrency.md](concurrency.md)).
 
+### A function taking a `type` is compiled per class
+
+**What it does.** A function whose parameter is a `type` (`Anything`, `Printable`, a shape of your own) is compiled
+once for each class that reaches it, following calls through the whole program. A call whose argument's class is
+known while compiling calls that class's copy, so a number, `Boolean` or enum value is passed as itself instead of
+in a box, every call through the parameter is a direct call, and each class test on it is decided while compiling.
+A value whose class is known only at run time, read from a `List<Anything>` for example, is passed to the
+function's own name, which in these builds is a test of the value's class against the closed set of classes the
+program admits to the `type`, calling the matching copy and unboxing a plain value on the way. The function as
+written is still compiled, under another name, so every mistake in it is reported, and
+[tree shaking](#tree-shaking-the-generated-c) drops it.
+
+**When.** Every build but `--repl`, `--repl-port` and `--hot-reload`, where a class the compiler has not seen may
+arrive later and the function is compiled as written. Not for a parameter the function assigns to, a `T?` of a
+`type`, a row of borrowed items passed to it, a function that waits, a function whose program runs a
+`Concurrent` (the run-time case calls the function as written there), or the functions of `List`, `Dictionary`
+and the library's other containers, which store what they are given.
+
+**What you notice.** Fewer allocations under `--debug-memory`: `describe(42)` for `describe(item: Printable)`
+boxes nothing. More functions in `--c-source`, named `<function>___for_<position>_<class>`, one per class that
+reaches it; a class that never does gets none. `conformance/stage6/shape_copies`, whose C `check.sh` greps for
+the copies, for no general version and for no box of a value passed straight to the function. **Built.**
+
 ### Boxing only where a value travels as a shape
 
 **What it does.** A number, `Boolean`, enum value, `Symbol` or `String` is a plain value everywhere the compiler
-can see its type. It is put in a box -- one small object, released like any other -- only where it has to travel as
+can see its type, including where it is passed to a function that takes a `type`
+([above](#a-function-taking-a-type-is-compiled-per-class)). It is put in a box -- one small object, released like any other -- only where it has to travel as
 a `type` shape (a `Printable`, a `Debuggable`, an empty `type` that accepts anything) and be called through it
 ([D109, D164](decisions.md)). A written text's box is part of the program and allocates nothing
 ([short text](#short-text-lives-inside-the-string)). Class instances are objects already and are never boxed.
 
-**When.** Passing a plain value where a shape is wanted, reading `attribute.value` of a number or text
-attribute, or a class test against a number class.
+**When.** Storing a plain value where a shape is wanted (a list's element, an attribute, the list of a variadic
+call), reading `attribute.value` of a number or text attribute, or a class test against a number class.
 
 **What you notice.** One allocation per boxed value under `--debug-memory`. The visible cost today: every value
 given to `console.print` is passed as a `Printable`, so printing a number boxes it; text made while the

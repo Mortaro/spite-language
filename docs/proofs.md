@@ -232,8 +232,8 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
     `T?`: `this value cannot be null here (it is a Tracker), so 'assert' on it proves nothing: remove the check`.
   - A divisor already proven: `path != 0` after `path != 0` or `path > 0`, and `path > 0` after `path > 0`, is
     `'parts != 0' is already proven by 'parts > 0' on line 19: remove this check`.
-  - A class test the value's type already answers, outside a generic class or a walk (where it folds per instance,
-    D167): `'creature' is already a Monster, narrowed by 'if creature == Monster' on line 30: remove this test`,
+  - A class test the value's type already answers, outside a generic class, a walk or a copy of a function made
+    for one class that reaches a `type` (where it folds per instance or per copy, D167): `'creature' is already a Monster, narrowed by 'if creature == Monster' on line 30: remove this test`,
     `'monster' is a Monster here, so this test is decided while compiling: remove it`, and for another class
     `'monster' is a Monster here, so it is never Ghost and this test is decided while compiling: remove it`.
   - The same `assert` or `crash` condition on the very next statement, when it calls nothing (a call could change
@@ -489,7 +489,7 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 - **Proves.** A condition's answer is a fact of the build.
 - **Rule.** An `if` whose condition is a `Build` field, a codegen value (`$is_magic`), a test on a codegen type
   (`$T == List`, `$T.element_type == Float`), `attribute.class == X` in a walk, a class test the value's type already
-  answers, one of the questions below, or `not`, `and`, `or`, `==`, `!=` over them. An `and` whose left folds false,
+  answers (in a copy of a function made for one class that reaches a `type`, a test on its parameter), one of the questions below, or `not`, `and`, `or`, `==`, `!=` over them. An `and` whose left folds false,
   or an `or` whose left folds true, folds whatever the right side is. A function of a generic class is compiled for
   an instance only when code that survived folding names it.
 - **Buys.** The branch not taken is absent, so it may use what this build or instance does not have.

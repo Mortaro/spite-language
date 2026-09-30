@@ -1223,6 +1223,10 @@ at compile time:
 - A **generic class** exists only for the values a program gives it, and each of its functions is compiled for
   one set of values only when surviving code calls it; a [constraint](#constraining-what-a-generic-accepts)
   is checked by the compiler and emits nothing.
+- A **function that takes a `type`** (`Anything` included) is compiled once for each class that reaches it, and a
+  value whose class is known only at run time picks its copy by a test over the classes the program admits to
+  that `type` ([values_and_types.md](values_and_types.md#inline-types-and-duck-typing)). A class that
+  never reaches the function has no copy of it.
 - **Reflection** is built only where it is read ([reflection.md](reflection.md)), and a generic class such as
   [`JsonWriter` and the rest of json.md](json.md) exist only for the types a program uses them with.
 - In a production build, a **function or class** nothing reachable uses is not emitted

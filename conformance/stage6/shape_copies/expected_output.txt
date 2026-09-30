@@ -1,0 +1,3 @@
+gadget 3:gadget 42:integer true:other high:other
+gadget
+other

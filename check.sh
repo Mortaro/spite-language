@@ -228,7 +228,8 @@ func TwoVersions() {
     return "the program modded its own version"
 }
 ' > "$pinned_work/two_versions/mods/greeter.spite"
-  two_versions=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" two_versions < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '')
+  two_versions=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" two_versions < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '
+')
   if [ "$two_versions" != "$(printf 'the program modded its own version
 hello from a later commit')" ]; then
     echo "FAILED: two commits of one repository are not two libraries, each read by the package that pinned it"; echo "$two_versions" | head -5; exit 1
@@ -238,7 +239,8 @@ hello from a later commit')" ]; then
     load "../engine_repo@%s/slop"
 }
 ' "$pinned" "$later" > "$pinned_work/one_package_two_pins/one_package_two_pins.spite"
-  two_pins=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" one_package_two_pins --run=false 2>&1 | tr -d '')
+  two_pins=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" one_package_two_pins --run=false 2>&1 | tr -d '
+')
   echo "$two_pins" | grep -q "^one_package_two_pins/one_package_two_pins.spite:3: error: .* pins it at another commit in the same package" || {
     echo "FAILED: one package pinning two commits of one repository is not an error naming both lines"; echo "$two_pins" | head -5; exit 1; }
   echo "git load: two commits of one repository are two libraries, and one package pins one commit"
@@ -450,6 +452,27 @@ if grep -q "spite_class_object_" "$work/walked_class.c"; then
   echo "FAILED: walked_class_fold should compare classes without making a Spite.Class object"; exit 1
 fi
 echo "class comparisons: a class known while compiling is compared by its id, with no class object made"
+# A function taking a type is compiled once per class that reaches it (docs/optimizations.md): shape_copies passes a
+# Gadget, 42, true and an enum value to describe(item: Printable), which calls kind_of(item: Anything), and reads
+# values back from a List<Anything>. The production C holds a copy per class, no general version of either function,
+# no box for a plain value passed straight to them, and a kind_of that tests the class of a value read at run time.
+copies="$work/shape_copies.c"
+"$work/generation_two.exe" conformance/stage6/shape_copies --run=false --c-source --c-path="$copies" > /dev/null 2>&1 || {
+  echo "FAILED: shape_copies does not write its C"; exit 1; }
+if ! grep -q "^SpiteString ShapeCopies_describe___for_0_Integer(ShapeCopies\* self, int32_t item_) {$" "$copies" \
+   || ! grep -q "^SpiteString ShapeCopies_kind_of___for_0_Level_Level(ShapeCopies\* self, Level_Level item_) {$" "$copies" \
+   || ! grep -q "= ShapeCopies_describe___for_0_Boolean(self, true);$" "$copies" \
+   || grep -q "___general" "$copies" || grep -q "ShapeCopies_describe(ShapeCopies\* self, Console_Printable" "$copies" \
+   || grep -qE "spite_box_Spite(Integer|Boolean)\((42|true)\)|spite_box_Level_Level\(" "$copies" \
+   || ! grep -q "^SpiteString ShapeCopies_kind_of(ShapeCopies\* self, Nothing_Anything item_) {$" "$copies"; then
+  echo "FAILED: shape_copies should call a copy of each function per class, with no general version and no box"; exit 1
+fi
+"$work/generation_two.exe" conformance/stage6/shape_copies --run=false --hot-reload --c-source --c-path="$work/shape_copies_hot.c" > /dev/null 2>&1 || {
+  echo "FAILED: shape_copies does not write its --hot-reload C"; exit 1; }
+if grep -q "___for_0_" "$work/shape_copies_hot.c"; then
+  echo "FAILED: a --hot-reload build should compile a function taking a type as written, with no copies"; exit 1
+fi
+echo "shape copies: a function taking a type is compiled per class, with no general version and no box, except in a --hot-reload build"
 # A loop over a list of plain values that cannot change its size reads the count once and its items without a range
 # check (docs/optimizations.md): counted_loops' scale_in_place is a plain C loop the C compiler can vectorise, and
 # scale_into checks the list it writes once, before the loop; add_from, whose counter starts at a parameter, is not.
@@ -900,8 +923,10 @@ for printed_program in conformance/stage3/interpolation conformance/stage6/symbo
   printed="$work/final/$printed_name"   # a program is a folder named like its entry file (D89)
   "$work/generation_two.exe" "$printed_program" --run=false --final-classes="$printed" > /dev/null 2>&1 || {
     echo "FAILED: --final-classes could not write $printed_program out"; exit 1; }
-  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '' | grep -v '^allocations: ')
-  if [ "$printed_output" != "$(tr -d '' < "$printed_program/expected_output.txt")" ]; then
+  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '
+' | grep -v '^allocations: ')
+  if [ "$printed_output" != "$(tr -d '
+' < "$printed_program/expected_output.txt")" ]; then
     echo "FAILED: the printed $printed_name does not run like the one it was printed from"; echo "$printed_output" | head -6; exit 1
   fi
 done
