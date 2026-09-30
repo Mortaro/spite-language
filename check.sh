@@ -632,27 +632,17 @@ case "$reloaded" in
   '{"ok":true,"value":"rebuilt HotCounter","type":""}'|'{"ok":true,"value":"nothing changed since the code the program runs","type":""}') ;;
   *) hot_fail "reload answered $reloaded" ;;
 esac
-expect 'last_reload' '{"ok":true,"value":"rebuilt HotCounter","type":""}'
+expect 'wait_reload' '{"ok":true,"value":"rebuilt HotCounter","type":""}'
 expect 'greeting()' '{"ok":true,"value":"welcome back, visit 42","type":"String"}'
 sed -i 's/{name} roars/{name} roars louder/' "$hot_folder/monster.spite"
-watched=""
-for attempt in $(seq 1 150); do   # the watcher settles, then the program rebuilds at its next wait: up to 30 seconds
-  watched=$(ask last_reload)
-  [ "$watched" == '{"ok":true,"value":"rebuilt Monster","type":""}' ] && break
-  sleep 0.2
-done
+watched=$(ask wait_reload)   # answers once the watcher has swapped in every save it sees
 [ "$watched" == '{"ok":true,"value":"rebuilt Monster","type":""}' ] || hot_fail "the watcher did not rebuild Monster alone: $watched"
 expect 'monster.roar()' '{"ok":true,"value":"Goblin roars louder","type":"String"}'
 expect 'greeting()' '{"ok":true,"value":"welcome back, visit 42","type":"String"}'
 # A function a reload adds is listed and callable at the prompt: reflection follows the reload (D211).
 printf '\nfunc growl(): String {\n    return "{name} growls"\n}\n' >> "$hot_folder/monster.spite"
-grown=""
-for attempt in $(seq 1 150); do
-  ask reload > /dev/null
-  grown=$(ask 'monster.growl()')
-  [ "$grown" == '{"ok":true,"value":"Goblin growls","type":"String"}' ] && break
-  sleep 0.2
-done
+ask wait_reload > /dev/null
+grown=$(ask 'monster.growl()')
 [ "$grown" == '{"ok":true,"value":"Goblin growls","type":"String"}' ] || hot_fail "a function added by a reload was not callable: $grown"
 # A file that holds none of the program's classes -- here a reopening of Environment -- cannot be swapped in, and a
 # reload says so rather than answering that nothing changed (D244); once it is gone, nothing has changed again.
@@ -685,9 +675,9 @@ party=$!
 party_fail() { kill $party 2>/dev/null; echo "FAILED moving objects: $1"; head -5 "$work/live_party/output.txt"; exit 1; }
 party_ask() { timeout 120 "$work/generation_two.exe" connect $party_port --command="$1" 2>&1 | tr -d '\r'; }
 party_expect() { local answer; answer=$(party_ask "$1"); [ "$answer" == "$2" ] || party_fail "'$1' answered $answer, not $2"; }
-party_reload() {   # the watcher may swap the save in first: then last_reload holds the answer
+party_reload() {   # the watcher may swap the save in first: then wait_reload answers what it swapped in
   local answer; answer=$(party_ask reload)
-  case "$answer" in *"nothing changed since the code the program runs"*) answer=$(party_ask last_reload) ;; esac
+  case "$answer" in *"nothing changed since the code the program runs"*) answer=$(party_ask wait_reload) ;; esac
   case "$answer" in *"$1"*) ;; *) party_fail "a reload answered $answer, without $1" ;; esac
 }
 listening=false
@@ -727,6 +717,121 @@ case "$answer" in
   *) echo "FAILED moving objects: a fast reload against the baseline answered: $answer" | head -c 600; echo; exit 1 ;;
 esac
 echo "moving objects: a reload moved live objects and an Items' own memory to new attributes, keeping, renaming and releasing them, and a body edit after compiled only its class, matching a whole compile"
+
+# An enum's values change live (docs/repl.md#what-a-reload-can-change): a copy of conformance/stage6/live_enum runs
+# with --hot-reload, gains a value before the others and loses one an attribute still holds. Every value keeps its
+# meaning, and a switch that meets the removed value halts naming it. Every wait has a timeout.
+enum_folder="$work/live_enum/live_enum"
+mkdir -p "$work/live_enum"; cp -r conformance/stage6/live_enum "$enum_folder"; rm -f "$enum_folder/expected_output.txt"
+enum_port=$((port + 3))
+"$work/generation_two.exe" "$enum_folder" --executable --run=false --hot-reload --repl-port=$enum_port --executable-path="$work/live_enum/live_enum.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED live enums: live_enum does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/live_enum/live_enum.exe" > "$work/live_enum/output.txt" 2>&1 < /dev/null &
+enum_program=$!
+enum_fail() { kill $enum_program 2>/dev/null; echo "FAILED live enums: $1"; head -5 "$work/live_enum/output.txt"; exit 1; }
+enum_ask() { timeout 120 "$work/generation_two.exe" connect $enum_port --command="$1" 2>&1 | tr -d '\r'; }
+enum_expect() { local answer; answer=$(enum_ask "$1"); [ "$answer" == "$2" ] || enum_fail "'$1' answered $answer, not $2"; }
+enum_reload() {   # the watcher may swap the save in first: then wait_reload answers what it swapped in
+  local answer; answer=$(enum_ask reload)
+  case "$answer" in *"nothing changed since the code the program runs"*) answer=$(enum_ask wait_reload) ;; esac
+  [ "$answer" == '{"ok":true,"value":"rebuilt LiveEnum","type":""}' ] || enum_fail "a reload answered $answer"
+}
+listening=false
+for attempt in $(seq 1 100); do
+  timeout 10 "$work/generation_two.exe" connect $enum_port --command=help > /dev/null 2>&1 && { listening=true; break; }
+  kill -0 $enum_program 2>/dev/null || break
+  sleep 0.2
+done
+$listening || enum_fail "the program never listened on $enum_port"
+sed -i "s/^    'calm'$/    'sleepy'\n    'calm'/; s/'calm': return \"fine\"/'calm': return \"fine\"\n        'sleepy': return \"resting\"/" "$enum_folder/live_enum.spite"
+enum_reload
+enum_expect "other = 'sleepy'" '{"ok":true,"value":"sleepy","type":"Mood"}'
+enum_expect 'describe()' '{"ok":true,"value":"angry and sleepy","type":"String"}'
+enum_expect 'verdict()' '{"ok":true,"value":"careful","type":"String"}'
+sed -i "/^    'angry'$/d; /'angry': return/d; s/^var mood: Mood = 'angry'$/var mood: Mood = 'calm'/" "$enum_folder/live_enum.spite"
+enum_reload
+enum_expect 'describe()' '{"ok":true,"value":"angry and sleepy","type":"String"}'
+printf 'var name = "goat"\n\nfunc bleat(): String {\n    return "{name} bleats"\n}\n' > "$enum_folder/goat.spite"
+case "$(enum_ask reload)" in *'"ok":true'*) enum_ask wait_reload > /dev/null ;; *) enum_fail "a reload of a new class failed" ;; esac
+enum_expect 'classes' '{"ok":true,"value":"Build()\nLiveEnum\nGoat","type":""}'
+enum_expect 'describe Goat' '{"ok":true,"value":"Goat\nattributes:\nname: String\nfunctions:\nbleat(): String","type":""}'
+enum_ask 'verdict()' > /dev/null
+for attempt in $(seq 1 50); do kill -0 $enum_program 2>/dev/null || break; sleep 0.2; done
+kill -0 $enum_program 2>/dev/null && enum_fail "a switch that met a removed value kept running"
+wait $enum_program && enum_fail "a switch that met a removed value ended with exit code 0"
+grep -q "a switch over LiveEnum.Mood met the value 'angry', which a reload removed from it" "$work/live_enum/output.txt" || enum_fail "the halt did not name the removed value"
+echo "live enums: an enum gained and lost values while the program ran, every held value kept its meaning, a new class answered at the prompt, and a switch that met the removed value halted naming it"
+
+# Breakpoints (docs/repl.md#breakpoints): a program that ticks in a loop runs with --hot-reload and --repl-port; a
+# breakpoint is compiled into it, the loop stops there with its locals readable, goes on, and the breakpoint is
+# cleared again. A prompt call that meets a breakpoint answers that it stopped. Every wait has a timeout.
+break_folder="$work/live_break/ticker"
+mkdir -p "$break_folder"
+cat > "$break_folder/ticker.spite" <<'SPITE'
+var console = Console()
+var program = Program()
+var total = 0
+var stopped = false
+
+func Ticker() {
+    console.print("ticking")
+    while not stopped {
+        tick(1)
+        program.sleep(20)
+    }
+}
+
+func tick(amount: Integer) {
+    var doubled = amount * 2
+    total = total + doubled
+}
+SPITE
+break_port=$((port + 4))
+"$work/generation_two.exe" "$break_folder" --executable --run=false --hot-reload --repl-port=$break_port --executable-path="$work/live_break/ticker.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED breakpoints: the ticker does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/live_break/ticker.exe" > "$work/live_break/output.txt" 2>&1 < /dev/null &
+ticker=$!
+break_fail() { kill $ticker 2>/dev/null; echo "FAILED breakpoints: $1"; head -5 "$work/live_break/output.txt"; exit 1; }
+break_ask() { timeout 120 "$work/generation_two.exe" connect $break_port --command="$1" 2>&1 | tr -d '\r'; }
+break_expect() { local answer; answer=$(break_ask "$1"); [ "$answer" == "$2" ] || break_fail "'$1' answered $answer, not $2"; }
+listening=false
+for attempt in $(seq 1 100); do
+  timeout 10 "$work/generation_two.exe" connect $break_port --command=help > /dev/null 2>&1 && { listening=true; break; }
+  kill -0 $ticker 2>/dev/null || break
+  sleep 0.2
+done
+$listening || break_fail "the program never listened on $break_port"
+break_expect 'break ticker.spite:3' '{"ok":false,"error":"the program keeps the code it runs: error: no statement starts on '"'"'ticker.spite:3'"'"': a breakpoint stops before a statement, so name the line a statement starts on"}'
+break_expect 'break ticker.spite:16' '{"ok":true,"value":"the program stops before ticker.spite:16: rebuilt Ticker","type":""}'
+where=""
+for attempt in $(seq 1 100); do   # the loop meets the breakpoint at its next tick
+  where=$(break_ask where)
+  case "$where" in *'ticker.spite:16"'*) break ;; esac
+  sleep 0.1
+done
+case "$where" in *'ticker.spite:16"'*) ;; *) break_fail "the loop never stopped at the breakpoint: $where" ;; esac
+break_expect 'doubled' '{"ok":true,"value":"2","type":"Integer"}'
+break_expect 'amount' '{"ok":true,"value":"1","type":"Integer"}'
+held=$(break_ask 'locals')
+case "$held" in '{"ok":true,"value":"self: Ticker = Ticker {...}\namount: Integer = 1\ndoubled: Integer = 2","type":""}') ;; *) break_fail "locals answered $held" ;; esac
+before=$(break_ask total)
+break_expect 'clear' '{"ok":true,"value":"cleared: rebuilt Ticker","type":""}'
+break_expect 'breaks' '{"ok":true,"value":"no breakpoint is set: '"'"'break hero.spite:12'"'"' sets one","type":""}'
+case "$(break_ask continue)" in *'"ok":true,"value":"continued from '*) ;; *) break_fail "continue did not go on" ;; esac
+sleep 0.2
+after=$(break_ask total)
+[ "$before" != "$after" ] || break_fail "the loop did not go on after continue: total stayed $after"
+break_expect 'continue' '{"ok":false,"error":"the program is not stopped at a breakpoint: '"'"'break hero.spite:12'"'"' sets one"}'
+# Code typed at the prompt is compiled into the running program and run once (docs/repl.md#code-typed-at-the-prompt).
+break_expect 'eval 20 + 22' '{"ok":true,"value":"42","type":"String"}'
+case "$(break_ask 'eval nope + 1')" in *"unknown identifier 'nope'"*) ;; *) break_fail "eval of an unknown name did not fail naming it" ;; esac
+break_expect 'run stopped = true' '{"ok":true,"value":"","type":"Nothing"}'
+break_expect 'stopped' '{"ok":true,"value":"true","type":"Boolean"}'
+break_expect 'exit' '{"ok":true,"value":"","type":""}'
+for attempt in $(seq 1 50); do kill -0 $ticker 2>/dev/null || break; sleep 0.2; done
+kill -0 $ticker 2>/dev/null && break_fail "the program kept running after exit"
+wait $ticker || break_fail "the program ended with exit code $?"
+echo "breakpoints: a breakpoint compiled into a running loop stopped it with its locals readable, it went on once cleared, and code typed at the prompt ran in the program"
 
 # A reload compiles only the classes of the changed files (docs/repl.md#how-it-works), from what the running
 # program's manifest says about the rest. SPITE_RELOAD_CHECK makes a reload of the file it names compile both

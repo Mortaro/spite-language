@@ -1123,8 +1123,11 @@ for that. Only a `--debug-memory` build does this.
 
 **Run-time cost (D177).** The table and the summary exist only in a `--debug-memory` build: no other build's C
 has them. Every other build allocates with the C library's `malloc`, `realloc` and `free` and nothing else,
-unless the program reads `Memory.Heap().live_allocations()`: then, and only then, each allocation adds one to a
-counter and each free subtracts one, which is what it answers
+unless the program reads `Memory.Heap().live_allocations()` or `live_bytes()`: then, and only then, each
+allocation adds one to a counter and each free subtracts one, which is what `live_allocations()` answers, and the
+bytes the C library holds for each block (its usable size, `_msize`, `malloc_usable_size` or `malloc_size`) are
+added and subtracted the same way, which is what `live_bytes()` answers; a `--debug-memory` build answers the
+bytes asked for, from its table (D301)
 ([optimizations.md](optimizations.md#allocation-is-the-c-librarys-counted-only-where-read)).
 
 #### Where a value lives: `.memory`
@@ -1161,7 +1164,8 @@ same object is where an allocator is set ([below](#allocators-memoryallocator--i
   (`diagnostics/memory_access`). On a `Long` that is not an address: `a Long has no function 'read_integer':
   reading and writing memory is a function of the address, so the value needs to be a 'Memory.Address'`.
 - **`Memory.Heap()`** is the default allocator, a singleton with `allocate(bytes: Long): Memory.Address`,
-  `resize(address, bytes): Memory.Address`, `free(address)` and `live_allocations(): Integer`. Nothing frees an
+  `resize(address, bytes): Memory.Address`, `free(address)`, `live_allocations(): Integer` and `live_bytes(): Long`
+(D301; `Program().live_bytes()` answers the same). Nothing frees an
   allocation for you: a class that allocates frees in its `drop()`. The bytes are not cleared: a new block, and
   the part `resize` adds, hold whatever was there before, so a byte must be written before it is read -- a read of
   a byte nobody wrote can pass on one machine and crash on the next, since what the heap holds depends even on how

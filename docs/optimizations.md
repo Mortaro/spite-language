@@ -765,7 +765,9 @@ that keeps a program class's objects in its own memory is listed the same way, a
 too. Every function that reads a program class's attributes without being its own -- its allocation, release,
 copy and deep copy, the REPL's reflection and assignment, a union's dispatch, the functions of a standard-library
 template made for it (`List<Monster>`, `Items<Step>`) -- is called through a slot, one indirect call, like the
-class's own functions. Each class has a table of its layout. Until a reload changes a class's attributes, reading
+class's own functions. A slot is read with an acquiring atomic load, so the `-O3` the build is compiled at (A74)
+can neither fold a call through it to the function the build started with nor hoist the read out of a loop. Each
+class has a table of its layout. Until a reload changes a class's attributes, reading
 one is a plain load (`<Class>___fields(object)` is the object); after, the class's code tests whether the object
 moved first.
 
@@ -1271,7 +1273,9 @@ is decided per program. In an ordinary build they are the C library's `malloc`, 
 nothing beside them: no counter, no table, no list of kept blocks. A program that reads
 `Memory.Heap.live_allocations()` (or `Program.live_allocations()`, which asks it) gets a counter beside each call
 instead -- atomic in a program that starts a thread -- and the tree shaker decides which: the counter is written
-only when `live_allocations` is still in the program after shaking. A `--debug-memory` build routes every call
+only when `live_allocations` is still in the program after shaking. The same counted allocator adds and subtracts
+each block's usable size for `live_bytes()` (D301), which keeps `live_allocations` for that purpose, so a program
+that reads either pays for both: a usable-size lookup and an atomic add per allocation and free. A `--debug-memory` build routes every call
 through its allocation table instead, and only that build's C has the table.
 
 **When.** Every build but `--debug-memory`. An inspectable build (`--development`, `--hot-reload`, `--repl`) is

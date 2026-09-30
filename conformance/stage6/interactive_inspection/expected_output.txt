@@ -1,0 +1,38 @@
+ready
+spite> Circle { radius: 2 }
+spite> 2
+spite> 3
+spite> 3
+spite> Circle
+attributes:
+radius: Integer
+functions:
+grow(by: Integer): Integer
+spite> no class 'Nope' in the program: 'classes' lists them
+spite> describe names a class, such as 'describe Monster': 'classes' lists them
+spite> InteractiveInspection.Mood: 'calm', 'angry'
+spite> cat
+spite> List<String>(2)
+spite> cat
+spite> 9
+spite> 9
+spite> nick
+spite> nick
+spite> null
+spite> null
+spite> null
+spite> null
+spite> 12
+spite> 12
+spite> mood is a Mood, which is never null: only a T? holds null
+spite> Circle { radius: 1 }
+spite> Circle { radius: 1 }
+spite> 4
+spite> 4
+spite> follower is a Circle?, and spare is a Square: the loop assigns an instance of the attribute's own class
+spite> Circle { radius: 4 }
+spite> 4
+spite> null
+spite> null
+spite> type mismatch: leader is a Circle, and 3 is not one
+spite> 
