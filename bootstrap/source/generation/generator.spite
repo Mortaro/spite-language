@@ -4639,16 +4639,14 @@ func resolve_field(
     report_written_handle_type(declaration)
     if information.is_value_class and information.c_name != "SpiteString" {
         var bound_singleton = constructed_singleton(declaration.value, information)
-        if bound_singleton {
-            information.memory_binding = declaration.name
-            return
+        if not bound_singleton {
+            information.memory_bytes = declared_memory_bytes(declaration)
+            information.memory_path = current_path
+            information.memory_line = current_line
+            var memory_type = long_type()
+            var field = Analysis.FieldInfo(declaration.name, memory_type, "0")
+            information.fields.append(field)
         }
-        information.memory_bytes = declared_memory_bytes(declaration, information)
-        information.memory_path = current_path
-        information.memory_line = current_line
-        var memory_type = long_type()
-        var field = Analysis.FieldInfo(declaration.name, memory_type, "0")
-        information.fields.append(field)
         return
     }
     var field_type = infer_declared_type(declaration.type_reference, declaration.value, scope, information)
@@ -32745,7 +32743,7 @@ func emit_value_class(information: Analysis.ClassInfo) {
     if information.qualified_dotted != "String" and not information.fields.is_empty() and not declares_only_memory {
         current_path = information.source_path
         report(
-            "'{information.simple_name}' is a value the compiler keeps in one piece of memory, so it declares only that memory, 'var heap = Memory.Heap()' and then 'var _memory = heap.allocate(bytes)': keep what a function needs in its locals",
+            "'{information.simple_name}' is a value the compiler keeps in one piece of memory, so it declares only its size, 'var _memory = Memory.Bytes(bytes)': keep what a function needs in its locals",
         )
         return
     }
@@ -32825,23 +32823,20 @@ func emit_string_support(information: Analysis.ClassInfo) {
     )
 }
 
-func declared_memory_bytes(
-    declaration: Syntax.Statements.VariableDeclaration,
-    information: Analysis.ClassInfo,
-): Integer {
+func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration): Integer {
     crash declaration.value
     var allocation = shape.as_call(declaration.value)
     if allocation {
         crash allocation.callee
-        var allocating = shape.as_member(allocation.callee)
-        if allocating {
-            crash allocating.object
-            var memory = shape.as_identifier(allocating.object)
-            var through_memory = false
-            if memory {
-                through_memory = memory.name == information.memory_binding
+        var sizing = shape.as_member(allocation.callee)
+        if sizing {
+            crash sizing.object
+            var namespace = shape.as_identifier(sizing.object)
+            var names_bytes = false
+            if namespace {
+                names_bytes = namespace.name == "Memory" and sizing.name == "Bytes"
             }
-            if allocating.name == "allocate" and through_memory and allocation.arguments.count() == 1 {
+            if names_bytes and allocation.arguments.count() == 1 {
                 var bytes = shape.as_integer_literal(allocation.arguments[0])
                 if bytes {
                     return bytes.value
@@ -32850,9 +32845,9 @@ func declared_memory_bytes(
         }
     }
     report(
-        "a number declares its memory as 'var heap = Memory.Heap()' and then 'var _memory = heap.allocate(bytes)', with the bytes written out: the compiler places that memory, and a number's is a register",
+        "a value states its size as 'var _memory = Memory.Bytes(bytes)', with the bytes written out: the compiler places that memory, and a number's is a register",
     )
-    return 0
+    return -1
 }
 
 func scalar_c_bytes(c_type: String): Integer {
@@ -32886,9 +32881,9 @@ func check_number_memory() {
             var laid_out = scalar_c_bytes(c_type)
             if not information.find_field("_memory") {
                 report(
-                    "'{information.simple_name}' declares no memory: its file says what it is with 'var heap = Memory.Heap()' and then 'var _memory = heap.allocate({laid_out})', the {laid_out} bytes the compiler keeps it in",
+                    "'{information.simple_name}' declares no memory: its file states its size with 'var _memory = Memory.Bytes({laid_out})', the {laid_out} bytes the compiler keeps it in",
                 )
-            } else if information.memory_bytes != laid_out {
+            } else if information.memory_bytes >= 0 and information.memory_bytes != laid_out {
                 report(
                     "'{information.simple_name}' declares {information.memory_bytes} bytes of memory, and the compiler lays it out as {c_type}, which is {laid_out}",
                 )
