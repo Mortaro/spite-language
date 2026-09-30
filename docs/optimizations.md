@@ -1247,7 +1247,9 @@ is decided per program. In an ordinary build they are the C library's `malloc`, 
 nothing beside them: no counter, no table, no list of kept blocks. A program that reads
 `Memory.Heap.live_allocations()` (or `Program.live_allocations()`, which asks it) gets a counter beside each call
 instead -- atomic in a program that starts a thread -- and the tree shaker decides which: the counter is written
-only when `live_allocations` is still in the program after shaking. A `--debug-memory` build routes every call
+only when `live_allocations` is still in the program after shaking. The same counted allocator adds and subtracts
+each block's usable size for `live_bytes()` (D300), which keeps `live_allocations` for that purpose, so a program
+that reads either pays for both: a usable-size lookup and an atomic add per allocation and free. A `--debug-memory` build routes every call
 through its allocation table instead, and only that build's C has the table.
 
 **When.** Every build but `--debug-memory`. An inspectable build (`--development`, `--hot-reload`, `--repl`) is

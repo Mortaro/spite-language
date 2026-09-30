@@ -204,7 +204,7 @@ func failure(text: String): Answer {
 func answer(command: String, program: Spite.Attribute): Answer {
     if command == "help" {
         return success(
-            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), bytes of a path or 'bytes 0x1f2a40 64', reload, last_reload, wait_reload, help, exit",
+            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), bytes of a path or 'bytes 0x1f2a40 64', describe a class, enums, memory, reload, last_reload, wait_reload, help, exit",
             "",
         )
     }
@@ -214,6 +214,15 @@ func answer(command: String, program: Spite.Attribute): Answer {
     if command == "classes" {
         var class_listing = listed_classes()
         return success(class_listing, "")
+    }
+    if command == "enums" {
+        return listed_enums()
+    }
+    if command == "memory" {
+        return memory_in_use()
+    }
+    if command == "describe" or command.starts_with("describe ") {
+        return describe(command)
     }
     if command == "bytes" or command.starts_with("bytes ") {
         return bytes_of(command, program)
@@ -286,6 +295,89 @@ func listed_classes(): String {
         lines.append(names)
     }
     return lines.join("\n")
+}
+
+func listed_enums(): Answer {
+    var listed = enum_names()
+    if listed.is_empty() {
+        return success("the program declares no enum", "")
+    }
+    return success(listed, "")
+}
+
+func memory_in_use(): Answer {
+    var allocations = running_program.live_allocations()
+    var bytes = running_program.live_bytes()
+    return success("{allocations} live allocations holding {bytes} bytes", "")
+}
+
+func describe(command: String): Answer {
+    var command_length = command.length()
+    var name = command.slice(8, command_length).trim().replace(" ", "")
+    if name.ends_with("()") {
+        var name_length = name.length()
+        name = name.slice(0, name_length - 2)
+    }
+    if name.is_empty() {
+        return failure("describe names a class, such as 'describe Monster': 'classes' lists them")
+    }
+    var matches = List<Spite.Class>()
+    var matched_names = List<String>()
+    var all_classes = Spite.Class.instances
+    var index = 0
+    while index < all_classes.count() {
+        var candidate = all_classes[index]
+        var qualified = qualified_name(candidate)
+        if qualified == name {
+            return described_class(candidate)
+        }
+        if unqualified(qualified) == name {
+            matches.append(candidate)
+            matched_names.append(qualified)
+        }
+        index = index + 1
+    }
+    if matches.count() == 1 {
+        return described_class(matches[0])
+    }
+    if matches.count() > 1 {
+        return failure("'{name}' names more than one class, {matched_names.join(" and ")}: write the whole name")
+    }
+    return failure("no class '{name}' in the program: 'classes' lists them")
+}
+
+func qualified_name(named_class: Spite.Class): String {
+    if named_class.namespace {
+        return "{named_class.namespace.name_with_namespaces}.{named_class.name}"
+    }
+    return named_class.name
+}
+
+func described_class(shown_class: Spite.Class): Answer {
+    var lines = List<String>()
+    var qualified = qualified_name(shown_class)
+    if shown_class.is_singleton() {
+        lines.append("{qualified}, a singleton")
+    } else {
+        lines.append(qualified)
+    }
+    var class_attributes = shown_class.attributes
+    if class_attributes.is_empty() {
+        lines.append("attributes: none")
+    } else {
+        lines.append("attributes, at their defaults:")
+        var attribute_listing = listed_attributes(class_attributes)
+        lines.append(attribute_listing)
+    }
+    var function_listing = listed_functions(shown_class.functions)
+    if function_listing.is_empty() {
+        lines.append("functions: none the prompt can call")
+    } else {
+        lines.append("functions:")
+        lines.append(function_listing)
+    }
+    var description = lines.join("\n")
+    return success(description, "")
 }
 
 func evaluate(command: String, program: Spite.Attribute): Answer {
@@ -790,6 +882,10 @@ func shown(attribute: Spite.Attribute, nested: Boolean): String {
         var class_name_length = class_name.length()
         class_name = class_name.slice(0, class_name_length - 1)
     }
+    var held_class = attribute.held_class()
+    if held_class {
+        class_name = held_class.name
+    }
     if nested {
         return "{class_name} \{...}"
     }
@@ -883,16 +979,43 @@ func assign(command: String, program: Spite.Attribute): Answer {
     if not found {
         return failure(unresolved)
     }
-    var kind = kind_of(found)
-    if kind != "scalar" and kind != "text" {
-        return failure("{target} is {described(found.class.name)}, which the loop cannot assign")
+    var class_name: String = found.class.name
+    var nullable = class_name.ends_with("?")
+    var inner_name = class_name
+    if nullable {
+        var class_name_length = class_name.length()
+        inner_name = class_name.slice(0, class_name_length - 1)
     }
-    var text = literal_text(literal, found.class.name)
-    if not text {
-        return failure("type mismatch: {target} is {described(found.class.name)}, and {literal} is not one")
-    }
-    if not found.assign(text) {
-        return failure("{literal} is not {described(found.class.name)}, or {target} cannot be assigned")
+    if literal == "null" {
+        if not nullable {
+            return failure("{target} is {described(class_name)}, which is never null: only a T? holds null")
+        }
+        if not found.assign_null() {
+            return failure("{target} cannot be assigned")
+        }
+    } else if looks_like_literal(literal) {
+        var text = literal_text(literal, inner_name)
+        if not text {
+            return failure("type mismatch: {target} is {described(class_name)}, and {literal} is not one")
+        }
+        if not found.assign(text) {
+            return failure("{literal} is not {described(class_name)}, or {target} cannot be assigned")
+        }
+    } else {
+        var source = found_at(literal, program)
+        if not source {
+            return failure(unresolved)
+        }
+        if not found.assign_attribute(source) {
+            var source_class = source.class.name
+            var held_class = source.held_class()
+            if held_class {
+                source_class = held_class.name
+            }
+            return failure(
+                "{target} is {described(class_name)}, and {literal} is {described(source_class)}: the loop assigns an instance of the attribute's own class",
+            )
+        }
     }
     var updated = found_at(target, program)
     if updated {
@@ -900,6 +1023,14 @@ func assign(command: String, program: Spite.Attribute): Answer {
         return success(shown_text, updated.class.name)
     }
     return failure(unresolved)
+}
+
+func looks_like_literal(literal: String): Boolean {
+    if literal.is_empty() or literal == "true" or literal == "false" {
+        return true
+    }
+    var code = literal.code_at(0)
+    return code == 34 or code == 39 or code == 45 or (code >= 48 and code <= 57)
 }
 
 func call_found(function: Spite.Function, literals: List<String>): Spite.Attribute? {

@@ -1,0 +1,33 @@
+shape
+shape.radius
+spare.side
+shape.grow(1)
+describe Circle
+describe Nope
+describe
+enums
+names[1] = "cat"
+names
+names[1]
+scores["ann"] = 9
+scores["ann"]
+nickname = "nick"
+nickname
+nickname = null
+nickname
+lucky = null
+lucky
+lucky = 12
+lucky
+mood = null
+follower = leader
+follower
+follower.radius = 4
+leader.radius
+follower = spare
+circles[0] = leader
+circles[0].radius
+follower = null
+follower
+leader = 3
+exit

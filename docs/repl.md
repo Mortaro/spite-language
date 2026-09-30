@@ -13,8 +13,11 @@
 > ([Live reload](#live-reload---hot-reload)), moving live objects to their class's new attributes when those
 > change; Windows runs it, and Linux and macOS are held to compiling.
 > `bytes <path>` answers a value's address, size, bytes and layout as JSON ([Native memory](#native-memory-bytes)).
-> **Not built yet:** the meta commands `describe`, `enums` and `memory`, a few paths and assignments,
-> and reloading a change to an enum's values -- [the list](#repl-and-live-reload--partial).
+> `describe Monster`, `enums` and `memory` describe a class, the program's enums and the heap in use; an
+> assignment takes `null` into a `T?`, a literal into a list or dictionary element, and another path's instance
+> (`follower = leader`); a path walks into a union's active member.
+> **Not built yet:** code typed at the prompt, a generic class's function on an instance nothing holds, and
+> reloading a change to an enum's values -- [the list](#repl-and-live-reload--partial).
 >
 > ```text
 > spite> monsters[0]
@@ -144,7 +147,12 @@ The commands are the ones `--repl` answers:
 - **singletons**, by their class's name: `World()`, `Tick().step_milliseconds`, `Ui.Panel().title`,
   `Column<Position>().values[0]`. The name binds the instance the program already has and never makes one.
 - **assignment** of a number, `Boolean`, text or enum literal: `program.player_name = "Aria"` -- through
-  `set_<attribute>` when the class declares one, answering the value read back afterwards.
+  `set_<attribute>` when the class declares one, answering the value read back afterwards. The target may be a
+  list or dictionary element (`names[1] = "cat"`, `scores["ann"] = 9`), a `T?` takes `null`, and an attribute or
+  element of a class takes another path's instance of that class (`follower = leader`), which then holds the same
+  object.
+- `describe Circle` (a class's attributes at their defaults and the functions the prompt can call), `enums` (each
+  of the program's enums with its values) and `memory` (the live allocations and the bytes they hold).
 - `attributes`, `functions` (of the program, or of any path: `functions World()`), `classes` (the singletons the
   prompt can bind, then the program's other classes), `help`, `exit`.
 - `reload`, `last_reload` and `wait_reload`, which answer in a `--hot-reload` build
@@ -673,13 +681,13 @@ A REPL that inspects and drives the *running* program, local (`--repl`) and remo
 reload (`--hot-reload`, D111, D112). The REPL is Spite, `library/read_evaluate_print_loop.spite` (D72), walking the
 program through reflection; nothing of it is in a build that did not ask for it (D177, D143). **Built:** paths,
 singletons by name, assignment of a literal, calls with literal arguments and paths through what they answer,
-`attributes`, `functions`, `classes`, `help`, `exit`, `reload`, `last_reload` and `wait_reload`
+`attributes`, `functions`, `classes`, `describe`, `enums`, `memory`, `help`, `exit`, `reload`, `last_reload` and
+`wait_reload`, assignment into elements, `T?`s and of whole instances, and walking into a union
 (`conformance/stage6/interactive_loop`, `conformance/stage6/interactive_paths`,
 `conformance/stage6/interactive_singletons`), `--repl-port` with
 `spite connect` over `Socket`, answered where the program waits and at each loop's check point (D37, D174), and
-live reload on Windows, with the Linux and macOS folders held to compiling. **Not built:** the meta commands
-`describe`, `enums` and `memory`; walking into a union; assigning a `T?`, a list or dictionary element or a whole
-instance; calling a generic class's function on an instance nothing holds (`Lookup<Position>().of(12)`, below);
+live reload on Windows, with the Linux and macOS folders held to compiling (`conformance/stage6/interactive_inspection`
+for D300). **Not built:** calling a generic class's function on an instance nothing holds (`Lookup<Position>().of(12)`, below);
 compiling new Spite code typed at the prompt; and reloading a change to an enum's values or to whether a class fits
 an `Items`' own memory.
 
@@ -791,11 +799,32 @@ the entry class's own Spite name). Built:
   an Integer, and "x" is not one`), calling an attribute is `target.name is not callable`, and an unknown function
   is `no function 'nope' in program: 'functions' lists them`.
 
-**Not built** (the design, kept for when it is): `program.settings["volume"]`; walking into a union's active
-member (`program.shape.radius`); `Dictionary<T>`'s `keys()` and `has(key)` at the prompt; assigning a `T?`, a list
-or dictionary element or a whole instance; and the meta commands `describe
-Engine.Renderer` (its attributes and functions with signatures), `enums` and `memory` (live allocation count and
-bytes).
+**Not built** (the design, kept for when it is): `Dictionary<T>`'s `keys()` and `has(key)` at the prompt, and
+making an object at the prompt (`follower = Circle(3)`), which is code typed at the prompt.
+
+**Built by D300** (decided by Claude under D205, implementing D282; the command names and the three members
+provisional under D214):
+
+- **`describe <class>`** answers the class's qualified name (`, a singleton` after one), its attributes at their
+  defaults (`name: Class = value` a line, read from the stand-in `Spite.Class.attributes` makes, so nothing runs)
+  and the functions the prompt can call, with their signatures. The name is the qualified name, or the name without
+  its namespace when one class has it; two classes sharing it are refused naming both, and a name no class has is
+  `no class 'Nope' in the program: 'classes' lists them`. It reads `Spite.Class.instances`: the program's classes
+  and every loaded package's, not the standard library's. The entry class has no stand-in, so it lists no function.
+- **`enums`** answers each of the program's enums, `Owner.Name: 'value', ...` a line, from `enum_names()`, which the
+  compiler writes into a REPL build like `class_names()`; a program with none answers `the program declares no enum`.
+- **`memory`** answers `<n> live allocations holding <b> bytes`, from `Program().live_allocations()` and
+  `live_bytes()` ([memory.md](memory.md)), which any program can call.
+- **Walking into a union**: a union value is walked as its active member, `shape.radius`, and prints with the
+  member's class name. The reflected attribute keeps the union as its `.class`; `held_class()` answers the class of
+  the object it holds when that differs (a union's active member), and `null` otherwise.
+- **Assignment**: `null` goes into a `T?` (`nickname = null`) and is refused elsewhere (`mood is a Mood, which is
+  never null: only a T? holds null`); a literal goes into a list or dictionary element through the element's own
+  slot; and a right side that is not a literal is a path, whose instance an attribute or element of a class (or of
+  its `T?`) then holds -- through `set_<attribute>` when the class declares one, and only when the classes match:
+  `follower is a Circle?, and spare is a Square: the loop assigns an instance of the attribute's own class`. The
+  compiler-supplied members are `Spite.Attribute`'s `assign_null()` and `assign_attribute(source)`, beside
+  `assign(text)`; each answers whether it could.
 
 #### `--repl`  **[implemented]**
 

@@ -1,0 +1,30 @@
+enum Mood {
+    'calm'
+    'angry'
+}
+
+union Shape {
+    Circle
+    Square
+}
+
+var console = Console()
+var shape: Shape = Circle(2)
+var spare: Shape = Square(3)
+var names = List<String>()
+var scores = Dictionary<Integer>()
+var nickname: String? = null
+var lucky: Integer? = 7
+var mood: Mood = 'calm'
+var leader = Circle(1)
+var follower: Circle? = null
+var circles = List<Circle>()
+
+func InteractiveInspection() {
+    names.append("ann")
+    names.append("bob")
+    scores["ann"] = 3
+    var small = Circle(5)
+    circles.append(small)
+    console.print("ready")
+}

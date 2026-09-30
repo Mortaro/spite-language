@@ -29,7 +29,7 @@ spite> 12
 spite> 12
 spite> List<String>(1)
 spite> refused -4
-spite> player.weapon is a Weapon, which the loop cannot assign
+spite> type mismatch: player.weapon is a Weapon, and 3 is not one
 spite> no attribute 'missing' in player: name, health, speed, alive, job, weapon, log
 spite> turn is an Integer, which has no attributes
 spite> weakest(): Monster
