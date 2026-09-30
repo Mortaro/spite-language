@@ -8,6 +8,25 @@ cd "$(dirname "$0")" || exit 1
 work=.spite/check_$$   # one folder per run: two sessions may run this at the same time
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work"
+
+# SPITE.md: no em dashes anywhere, neither the character nor two hyphens between spaces standing in for one, and
+# no third-party package named inside the language. Every tracked text file is read but the seed, which is C the
+# compiler writes from these sources. A '--' between spaces is allowed only where it is a command line's own
+# separator: before a flag, after 'spite <program>' or 'set', and between two holes of a Spite text.
+em_dash=$(printf '\342\200\224')
+stand_in=' -''- '
+dashes=$(git grep -n -I -F -e "$em_dash" -e "$stand_in" ':!bootstrap/seed' \
+  | grep -v -E "$stand_in-|(spite|bin/spite|spite\.exe) [^ ]+$stand_in|set$stand_in|\}$stand_in\{")
+if [ -n "$dashes" ]; then
+  echo "FAILED: em dashes (end the sentence, or use a colon, a comma or parentheses):"; echo "$dashes"; exit 1
+fi
+# the names are written in pieces so this file does not name them
+names="(^|[^[:alnum:]])sl""op(eng""ine)?([^[:alnum:]]|$)|thes""eus"
+package_names=$(git grep -n -I -i -E "$names" ':!bootstrap/seed')
+if [ -n "$package_names" ]; then
+  echo "FAILED: a third-party package is named (use a neutral invented one):"; echo "$package_names"; exit 1
+fi
+echo "writing: no em dashes, and no third-party package named"
 if [ -z "$CC" ]; then
     for candidate in cc clang gcc; do
         command -v "$candidate" >/dev/null 2>&1 && { CC="$candidate"; break; }
@@ -69,7 +88,7 @@ fi
 cp "$work/generation_two.exe" .spite/spite_development.exe   # the freshly built compiler, handy for trying things by hand
 echo "4/4 conformance corpus and examples with generation 2"
 # A program that calls a foreign library brings the library's C as fixture.c; it is built next to it here, as
-# fixture.dll on every platform, so the program can name one real file (D71) -- dlopen does not mind the name.
+# fixture.dll on every platform, so the program can name one real file (D71); dlopen does not mind the name.
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) position_independent="" ;; *) position_independent="-fPIC" ;; esac
 for fixture in conformance/*/*/fixture.c; do
   [ -f "$fixture" ] || continue
@@ -154,40 +173,40 @@ if [ "$(echo "$listed" | wc -l)" != "27" ] || [ "$(echo "$listed" | head -1)" !=
 fi
 echo "error list: the program's own errors come first, and a broken package's are capped at 25"
 
-# D38, D283: a load names a repository and a commit, 'load "../engine_repo@<commit>/slop"', and the ordinary compile
+# D38, D283: a load names a repository and a commit, 'load "../engine_repo@<commit>/engine"', and the ordinary compile
 # checks that commit's files out into the working folder's .spite/git/. The repository is a local one made here, so
 # no network is needed; its HEAD moves on after the pin, and the program must keep the pinned commit's code.
 if command -v git > /dev/null 2>&1; then
   pinned_work="$work/git_load"
   engine_repository="$pinned_work/engine_repo"
-  mkdir -p "$engine_repository/slop" "$pinned_work/git_load" "$pinned_work/unknown_commit"
+  mkdir -p "$engine_repository/engine" "$pinned_work/git_load" "$pinned_work/unknown_commit"
   commit_in() { git -C "$engine_repository" -c user.email=check@spite.invalid -c user.name=check -c commit.gpgsign=false commit -q "$@"; }
   git -C "$engine_repository" init -q
-  printf 'func greeting(): String {\n    return "hello from the pinned commit"\n}\n' > "$engine_repository/slop/greeter.spite"
-  git -C "$engine_repository" add slop/greeter.spite && commit_in -m pinned
+  printf 'func greeting(): String {\n    return "hello from the pinned commit"\n}\n' > "$engine_repository/engine/greeter.spite"
+  git -C "$engine_repository" add engine/greeter.spite && commit_in -m pinned
   pinned=$(git -C "$engine_repository" rev-parse --short=7 HEAD)
-  printf 'func greeting(): String {\n    return "hello from a later commit"\n}\n' > "$engine_repository/slop/greeter.spite"
+  printf 'func greeting(): String {\n    return "hello from a later commit"\n}\n' > "$engine_repository/engine/greeter.spite"
   commit_in -am later
-  printf 'var console = Console()\n\nfunc GitLoad() {\n    load "../engine_repo@%s/slop"\n    var greeter = Greeter()\n    var said = greeter.greeting()\n    console.print(said)\n}\n' "$pinned" > "$pinned_work/git_load/git_load.spite"
+  printf 'var console = Console()\n\nfunc GitLoad() {\n    load "../engine_repo@%s/engine"\n    var greeter = Greeter()\n    var said = greeter.greeting()\n    console.print(said)\n}\n' "$pinned" > "$pinned_work/git_load/git_load.spite"
   first_build=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" git_load < /dev/null 2>&1 | tr -d '\r')
   second_build=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" git_load < /dev/null 2>&1 | tr -d '\r')
   checkout=$(ls -d "$pinned_work/.spite/git/engine_repo_"*/"$pinned" 2>/dev/null)
   if [ "$(echo "$first_build" | tail -1)" != "hello from the pinned commit" ] || ! echo "$first_build" | grep -q "^fetched .*engine_repo@$pinned into " \
-     || [ "$second_build" != "hello from the pinned commit" ] || [ ! -f "$checkout/slop/greeter.spite" ] \
+     || [ "$second_build" != "hello from the pinned commit" ] || [ ! -f "$checkout/engine/greeter.spite" ] \
      || [ -n "$(git -C "$engine_repository" status --porcelain)" ]; then
     echo "FAILED: a git load did not build the pinned commit, once fetched and then from .spite/git/ with no git work"
     echo "$first_build" | head -5; echo "$second_build" | head -5; exit 1
   fi
   hot=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" git_load --hot-reload --executable --run=false --executable-path="$repository/$work/git_load_hot.exe" 2>&1 | tr -d '\r')
   [ -z "$hot" ] || { echo "FAILED: a --hot-reload build of a program with a git load"; echo "$hot" | head -5; exit 1; }
-  printf 'var console = Console()\n\nfunc UnknownCommit() {\n    load "../engine_repo@0000000/slop"\n}\n' > "$pinned_work/unknown_commit/unknown_commit.spite"
+  printf 'var console = Console()\n\nfunc UnknownCommit() {\n    load "../engine_repo@0000000/engine"\n}\n' > "$pinned_work/unknown_commit/unknown_commit.spite"
   unknown=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" unknown_commit --run=false 2>&1 | tr -d '\r')
-  echo "$unknown" | grep -q "^unknown_commit/unknown_commit.spite:4: error: 'load \"../engine_repo@0000000/slop\"': .*engine_repo has no commit 0000000" || {
+  echo "$unknown" | grep -q "^unknown_commit/unknown_commit.spite:4: error: 'load \"../engine_repo@0000000/engine\"': .*engine_repo has no commit 0000000" || {
     echo "FAILED: a git load of a commit the repository does not hold is not an error at its line"; echo "$unknown" | head -5; exit 1; }
   missing_git=$(cd "$pinned_work" && PATH=/nothing "$repository/$work/generation_two.exe" unknown_commit --run=false 2>&1 | tr -d '\r')
   echo "$missing_git" | grep -q "with git, and there is no 'git' on the PATH" || {
     echo "FAILED: a git load without git on the PATH is not an error naming it"; echo "$missing_git" | head -5; exit 1; }
-  echo "// changed" >> "$checkout/slop/greeter.spite"
+  echo "// changed" >> "$checkout/engine/greeter.spite"
   edited=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" git_load --run=false 2>&1 | tr -d '\r')
   echo "$edited" | grep -q "is not what the commit $pinned of .*engine_repo holds: a checkout is read-only" || {
     echo "FAILED: a changed checkout is not an error"; echo "$edited" | head -5; exit 1; }
@@ -200,7 +219,7 @@ if command -v git > /dev/null 2>&1; then
   plugin_repository="$pinned_work/plugin_repo"
   mkdir -p "$plugin_repository/plugin" "$pinned_work/two_versions/mods" "$pinned_work/one_package_two_pins"
   printf 'func Plugin() {
-    load "../../engine_repo@%s/slop"
+    load "../../engine_repo@%s/engine"
 }
 
 func told(): String {
@@ -213,7 +232,7 @@ func told(): String {
   printf 'var console = Console()
 
 func TwoVersions() {
-    load "../engine_repo@%s/slop"
+    load "../engine_repo@%s/engine"
     load "../plugin_repo@%s/plugin"
     load "mods"
     var greeter = Greeter()
@@ -235,8 +254,8 @@ hello from a later commit')" ]; then
     echo "FAILED: two commits of one repository are not two libraries, each read by the package that pinned it"; echo "$two_versions" | head -5; exit 1
   fi
   printf 'func OnePackageTwoPins() {
-    load "../engine_repo@%s/slop"
-    load "../engine_repo@%s/slop"
+    load "../engine_repo@%s/engine"
+    load "../engine_repo@%s/engine"
 }
 ' "$pinned" "$later" > "$pinned_work/one_package_two_pins/one_package_two_pins.spite"
   two_pins=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" one_package_two_pins --run=false 2>&1 | tr -d '
@@ -249,7 +268,7 @@ else
 fi
 
 # Every program above is built with --debug-memory, whose allocations go through a locked table. The thread pool is
-# also run the way a user runs it -- `spite <program>`, compile and run, no flags -- with runners started from a
+# also run the way a user runs it (`spite <program>`, compile and run, no flags) with runners started from a
 # stage, a singleton reached from the pool, a ThreadLocal and a Lock.
 stages=conformance/stage6/parallel_stages
 plain=$("$work/generation_two.exe" "$stages" --executable-path="$work/parallel_stages_plain.exe" < /dev/null 2>&1 | tr -d '\r')
@@ -294,8 +313,8 @@ for attempt in 1 2 3 4 5; do
 done
 echo "threads: eight threads asking for the same class objects make each once, five runs balanced"
 # A crash reports the asserts that failed before it, as the ring stood when it crashed (D244). A pool thread that keeps
-# failing a guard assert while the program's thread crashes must not keep the report printing -- that streamed every
-# failed assert and never exited -- so the crash ends with its crash line, at most 32 assert lines and an earlier count.
+# failing a guard assert while the program's thread crashes must not keep the report printing (that streamed every
+# failed assert and never exited), so the crash ends with its crash line, at most 32 assert lines and an earlier count.
 mkdir -p "$work/crash_while_asserting"
 cat > "$work/crash_while_asserting/crash_while_asserting.spite" <<'SPITE'
 var console = Console()
@@ -341,8 +360,8 @@ echo "crash reports: a crash while a pool thread keeps failing asserts reports t
 
 # What a production build leaves out is only visible in its C (docs/optimizations.md): hello carries no struct,
 # allocate or singleton slot of a library class it never makes, and each singleton singleton_forms reaches from a
-# Parallel takes its cheapest safe form -- atomics for a counter, nothing for one that never changes or that no
-# Parallel reaches -- so no lock at all.
+# Parallel takes its cheapest safe form (atomics for a counter, nothing for one that never changes or that no
+# Parallel reaches), so no lock at all.
 "$work/generation_two.exe" examples/hello --run=false --c-source --c-path="$work/hello_shaken.c" > /dev/null 2>&1 || {
   echo "FAILED: examples/hello does not write its C"; exit 1; }
 if grep -qE "struct (Watcher|Socket|Process|HotReload|ThreadPool|Scheduler|ForeignCallback) \{|(Watcher|Socket|ThreadPool|Scheduler)___allocate|spite_singleton_(ThreadPool|Scheduler)_cache|spite_callback_" "$work/hello_shaken.c"; then
@@ -678,7 +697,7 @@ printf '\nfunc growl(): String {\n    return "{name} growls"\n}\n' >> "$hot_fold
 ask wait_reload > /dev/null
 grown=$(ask 'monster.growl()')
 [ "$grown" == '{"ok":true,"value":"Goblin growls","type":"String"}' ] || hot_fail "a function added by a reload was not callable: $grown"
-# A file that holds none of the program's classes -- here a reopening of Environment -- cannot be swapped in, and a
+# A file that holds none of the program's classes (here a reopening of Environment) cannot be swapped in, and a
 # reload says so rather than answering that nothing changed (D244); once it is gone, nothing has changed again.
 printf 'var greeting_word = "hello"\n' > "$hot_folder/environment.spite"
 refused=$(ask reload)
@@ -696,7 +715,7 @@ echo "live reload: an edited class was swapped in by reload and another by the w
 
 # A reload moves live objects to their class's new attributes (docs/repl.md#changing-a-classs-attributes): docs/'s
 # live_party program runs from a copy that this step edits. A kept attribute keeps its value, a new one holds its
-# default, a renamed one keeps its value, a removed one is released -- in objects and in an Items' own memory -- and
+# default, a renamed one keeps its value, a removed one is released (in objects and in an Items' own memory), and
 # a reload after a move still swaps in a change to a body. Every wait has a timeout.
 party_folder="$work/live_party/live_party"
 [ -d .spite/docs/live_party ] || { echo "FAILED moving objects: docs/repl.md has no live_party program"; exit 1; }
@@ -972,7 +991,7 @@ launched=$(bin/spite conformance/stage6/launcher_arguments --executable-path="$w
 if [ "$launched" != "$(printf '[--prefixes=/Game/Legacy/]\n[/usr/share]\n[a b]')" ]; then
   echo "FAILED: bin/spite changed the program's arguments after --"; echo "$launched" | head -5; exit 1
 fi
-echo "launcher: bin/spite passes the program's arguments after -- as they were typed"
+echo "launcher: bin/spite passes the program's arguments after '--' as they were typed"
 
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would

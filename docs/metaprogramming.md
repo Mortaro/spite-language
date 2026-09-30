@@ -7,18 +7,18 @@ classes, so what they generate is typed, visible in `--final-classes`, and remov
 it happens while compiling: a program pays at run time only for the ordinary functions and classes it was
 expanded into, and nothing for a template, a walk or a generic it never uses ([Tree shaking](#tree-shaking)).
 
-Reading a program's structure at run time -- `.class`, `.attributes`, `.functions` -- is
+Reading a program's structure at run time (`.class`, `.attributes`, `.functions`) is
 [reflection.md](reflection.md). The standard library's member templates (`filter_<member>()`,
 `sum_<member>()`, ...) are Symbol codegen written in Spite, in [collections.md](collections.md). They look only at
 the element: a function of the calling class is passed as a value, `people.each(say_hello)`, never found by name
-([D148](decisions.md), [collections.md](collections.md#passing-a-function-for-each-element)).
+([collections.md](collections.md#passing-a-function-for-each-element)).
 
 ## Symbol codegen, step by step
 
 A parameter of type `Symbol` whose name is a segment of its own function's name turns that function into a
 *template*: it answers every call whose name fits the pattern, one per attribute. `set_attribute`/
 `get_attribute` (with a `Symbol` parameter named `attribute`) answer `set_age`/`get_age`, `set_name`/
-`get_name`, and so on, for each field of the class -- generated only for the names actually called.
+`get_name`, and so on, for each field of the class. They are generated only for the names actually called.
 
 Inside the template, the `Symbol` names that attribute two different ways: written as a **type**
 (`value: attribute.class`, `): attribute.class`), it *is* the attribute's real type; written as an
@@ -51,7 +51,7 @@ func set_name(new_name: String) {
 
 `age` is reached through that pair of templates: calling `set_age`/`get_age` from outside the class
 instantiates `set_attribute`/`get_attribute` with `attribute` bound to the `'age'` symbol. `set_name` is an
-exact function, and an exact function always wins over a template -- but only for that one direction of that
+exact function, and an exact function always wins over a template, but only for that one direction of that
 one name: writing `person.name` goes through `set_name`, while reading it still goes through the
 `get_attribute` template, since no exact `get_name` exists.
 
@@ -73,14 +73,14 @@ name BEA
 ```
 
 `set_age` and `get_age` are generated on demand by those two calls, and `get_name` by the read of `person.name`;
-no other instance exists. The exact rules are in [Symbol codegen](#symbol-codegen--implemented).
+no other instance exists. The exact rules are in [Symbol codegen](#symbol-codegen).
 
 ### Another class's attributes, and all of them at once
 
 A template can answer for the attributes of a class other than its own: write the class inside the `Symbol`,
 `attribute: Symbol<Label>`. Inside, `label.attributes[attribute]` is that attribute of the `Label` passed in,
-for reading and for writing. Calling the template with the symbol's name made plural -- `show_attributes(...)`
-for `show_attribute` -- calls it once for every attribute, in the order they are declared, so the template has
+for reading and for writing. Calling the template with the symbol's name made plural (`show_attributes(...)`
+for `show_attribute`) calls it once for every attribute, in the order they are declared, so the template has
 to return nothing. It is how a class walks another one attribute by attribute without a loop or reflection at
 run time: every call is an ordinary typed function the compiler wrote.
 
@@ -115,16 +115,16 @@ copies: 2
 
 The member may also be a function that takes no arguments: `label.attributes[attribute]` is then a call to it.
 In a generic class the class inside the `Symbol` is usually a codegen value. `List<$element_type>` writes its
-member templates over `member: Symbol<$element_type>`, so `item.attributes[member]` reads a member of the element
--- that is how `filter_<member>()`, `sum_<member>()` and the rest are written, in Spite, in `library/list.spite`
-([collections.md](collections.md#how-the-member-templates-are-written)) -- and the standard library's
-[`JsonWriter`, `JsonReader` and the binary pair](json.md) write and read any class over `attribute: Symbol<$value_type>`. When there is nothing to walk
--- a class with no attributes, a marker, or a codegen value that is no class at all, an `Integer` or a `T?` -- the
-plural is still there and calls nothing, so `Pack<Marker>` and `Pack<Integer?>` compile like any other
+member templates over `member: Symbol<$element_type>`, so `item.attributes[member]` reads a member of the element.
+That is how `filter_<member>()`, `sum_<member>()` and the rest are written, in Spite, in `library/list.spite`
+([collections.md](collections.md#how-the-member-templates-are-written)), and the standard library's
+[`JsonWriter`, `JsonReader` and the binary pair](json.md) write and read any class over
+`attribute: Symbol<$value_type>`. When there is nothing to walk (a class with no attributes, a marker, or a codegen
+value that is no class at all, an `Integer` or a `T?`), the plural is still there and calls nothing, so `Pack<Marker>` and `Pack<Integer?>` compile like any other
 (`conformance/stage6/empty_plural`).
 
 Reading `label.attributes[attribute]` reads every attribute the walk reaches, so they count as used;
-`attribute.name` and `attribute.class` do not ([the rule](#symbol-codegen--implemented),
+`attribute.name` and `attribute.class` do not ([the rule](#symbol-codegen),
 [style.md](style.md#nothing-unused)).
 
 The class inside the `Symbol` may also be a `type`. The template then ranges over the attributes the type names,
@@ -204,18 +204,18 @@ Hero and 7
 
 One line declares one value, and the lines sit at the top of the file, so skimming it shows what a class
 accepts. Every hole is filled at every call: there are no defaults, and the wrong number of values is an error
-that lists the class's values in order (the second program below). A generic class needs no constructor --
-`library/list.spite` is `generic $element_type` and its functions -- and when the constructor's arguments say
+that lists the class's values in order (the second program below). A generic class needs no constructor
+(`library/list.spite` is `generic $element_type` and its functions), and when the constructor's arguments say
 every value, the `<...>` may be left out: `Pair("Hero", 7)` is a `Pair<String, Integer>`, `JsonWriter(order)` a
 `JsonWriter<Order>` ([json.md](json.md)) and `Concurrent(file.read)` a `Concurrent<String?>`
 ([concurrency.md](concurrency.md)). `Pair` may declare `var left: $left_type = null` because its constructor
-assigns `left` at once; anywhere else `null` belongs to `T?` alone (D236), and `var left = $left_type()` makes
+assigns `left` at once; anywhere else `null` belongs to `T?` alone, and `var left = $left_type()` makes
 the default of whatever `$left_type` is bound to.
 
 Only a class has codegen values. A function never lists its own (`func pick<$value_type>(...)` is an error), and
-there are no generic functions to write instead ([D123](decisions.md)): a function that takes any class takes a
+there are no generic functions to write instead: a function that takes any class takes a
 `type`, such as the built-in empty `Anything` ([reflection.md](reflection.md#an-attributes-value)), or it belongs to a
-generic class. The exact forms and error texts are in [Codegen values](#codegen-values---implemented).
+generic class. The exact forms and error texts are in [Codegen values](#codegen-values-).
 
 A codegen value may be a value rather than a type. A condition on it is decided while compiling, so each set of
 values is its own class with only its own branch in it:
@@ -268,7 +268,7 @@ takes 1 codegen value(s), in this order: $element_type
 ### Constraining what a generic accepts
 
 A `generic` line may name a `type` after a colon. The class accepts only types that fit it, and a class that does
-not is an error where it is named, saying which function or attribute is missing -- not an error deep inside the
+not is an error where it is named, saying which function or attribute is missing, rather than an error deep inside the
 generic's body, the first time some function happens to call what the class lacks.
 
 ```gdscript title=generic_constraint/shelf.spite
@@ -343,19 +343,19 @@ var weight = 3
 'Rock' does not fit type 'Singer', which 'Chorus' requires of $singer_type: it has no function 'sing'
 ```
 
-The constraint is optional and names an existing `type` -- `Printable` is `Console`'s, found like any type name,
-and a `type` of the generic's own file works too. What fits is what the `type` would accept anywhere, so
+The constraint is optional and names an existing `type` (`Printable` is `Console`'s, found like any type name,
+and a `type` of the generic's own file works too). What fits is what the `type` would accept anywhere, so
 `Shelf<Integer>` above is fine, while a `T?` or a function value is not. It is checked wherever a class is given,
 written out or read from the constructor's arguments, and it costs nothing at run time: the check is the
 compiler's, and the class made is the one an unconstrained line would make
-([the rules](#codegen-values---implemented)).
+([the rules](#codegen-values-)).
 
 ### Asking what a generic was given
 
 When a codegen value is a type, `if $value_type == String { }` asks which type it is. The answer is known when
 the class is made, so only the branch taken is compiled, and each branch may use what only that type has. Besides
-naming a type exactly, four names ask for a kind: `List`, `Dictionary`, `Null` (any `T?`) and `Symbol` (an enum)
--- the table is in [the rules](#codegen-values---implemented).
+naming a type exactly, four names ask for a kind: `List`, `Dictionary`, `Null` (any `T?`) and `Symbol` (an enum).
+The table is in [the rules](#codegen-values-).
 
 What the branch ruled out is not compiled at all, and neither is what only it reaches. Below, `Field<Integer>`
 compiles `write` without the `List` branch, never compiles `write_list`, and so never checks its `.count()`
@@ -421,7 +421,7 @@ something else
 A class test on a value folds the same way inside a generic. In `Detector<Label>`, `item == Health` can never be
 true, so it is `false` and its branch is removed from that copy, while `Detector<Health>` keeps it. Outside a
 generic the same never-true test is an error, since there it is always a mistake; inside one, code a particular
-copy cannot use is what tree shaking is for ([D167](decisions.md), [control_flow.md](control_flow.md#value--class)).
+copy cannot use is what tree shaking is for ([control_flow.md](control_flow.md#value--class)).
 
 ```gdscript title=generic_never_true/detector.spite
 generic $item_type
@@ -466,7 +466,7 @@ false true
 
 A codegen value that is a type reads as its class wherever a class name would: `$component_type.name` is the
 bound class's name the way `Health.name` is, and `$component_type.attributes` its attributes, with no value of
-the type made to ask. On its own, `$name` is still not a value -- only a member read through it is.
+the type made to ask. On its own, `$name` is still not a value: only a member read through it is.
 
 ```gdscript title=codegen_class_name/column.spite
 generic $component_type
@@ -492,9 +492,9 @@ a column of String
 ### Asking whether a class fits a Vector
 
 A `Vector` keeps its items inline, so only a class of known size can be one
-([collections.md](collections.md#vectort--implemented)). `$component_type.fits_vector()` asks that while
+([collections.md](collections.md#vectort)). `$component_type.fits_vector()` asks that while
 compiling, like `has_function`, so a generic keeps a class that fits in a `Vector` and any other as references in
-a `List`, and never makes the `Vector` it could not ([D217](decisions.md)):
+a `List`, and never makes the `Vector` it could not:
 
 ```gdscript title=fits_vector_doc/store.spite
 generic $component_type
@@ -545,9 +545,8 @@ the arguments of one function, the classes of every folder with a given name, th
 pattern, and an enum's values ([values_and_types.md](values_and_types.md#walking-an-enums-values)). With
 `has_function`, which asks a generic's type a question while compiling, this is how an engine finds its systems
 and calls them with nothing registered. It all happens at compile time: each walk becomes ordinary calls, no
-list of functions or classes exists at run time, and only what a program calls is generated. What these ranges
-do was decided by Mortaro (D114-D116, and D180 for the enum a pattern's hole matches); the spellings are
-proposals, not yet confirmed ([the rules in full](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)).
+list of functions or classes exists at run time, and only what a program calls is generated
+([the rules in full](#a-classs-functions-a-folders-classes-and-a-names-pattern-in-full)).
 
 ### Asking for a function, and walking its arguments
 
@@ -621,7 +620,7 @@ Hero has no run_each
 `Caller<Hero>` keeps only its `else` branch, and the templates over `run_each` are never generated for it. An
 argument of type `List<Row>` names its row type as `argument.class.element_type`. Because the plural stands for
 one call, the values it passes may be items borrowed from a column for that call, with no copy
-([memory.md](memory.md#borrowed-arguments-for-one-call), D220). Asking with a name that is not
+([memory.md](memory.md#borrowed-arguments-for-one-call)). Asking with a name that is not
 written in the code cannot be decided while compiling:
 
 ```gdscript title=function_name_error/asker.spite
@@ -647,12 +646,12 @@ is decided while compiling, so the name it asks for is written as a literal
 
 ### Asking whether a function waits
 
-`$system_type.function_waits("update_each")` asks a second question the same way: can this function reach a wait
--- a file or socket read, a sleep, anything that calls one ([concurrency.md](concurrency.md#what-the-compiler-does-at-a-wait))?
+`$system_type.function_waits("update_each")` asks a second question the same way: can this function reach a wait:
+a file or socket read, a sleep, anything that calls one ([concurrency.md](concurrency.md#what-the-compiler-does-at-a-wait))?
 The compiler already knows, since it compiles exactly those functions into state machines, so the answer is a
 constant like `has_function`'s, and only the branch taken is compiled. An engine uses it to start a system that
 does IO as a `Concurrent` it polls between frames, and to call every other system directly, while each system is
-written as straight-line code ([D209](decisions.md); the spelling is proposed, unconfirmed):
+written as straight-line code:
 
 ```gdscript title=waiting_question/loader.spite
 var console = Console()
@@ -710,7 +709,7 @@ Spinner ran inside the frame
 `Stage<Spinner>` has no `Concurrent` in it at all. Inside a template over a folder's classes,
 `system.class.function_waits("update_each")` is decided for each class walked, and `klass.function_waits(name)`
 answers the same at run time. A function that asks cannot be asked about itself: its own answer would decide
-whether it waits, and that is an error ([the rules](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)).
+whether it waits, and that is an error ([the rules](#a-classs-functions-a-folders-classes-and-a-names-pattern-in-full)).
 [concurrency.md](concurrency.md#choosing-where-concurrents-resume) shows the frame loop that polls what it starts.
 
 ### Asking whether a function writes a parameter
@@ -718,10 +717,10 @@ whether it waits, and that is an error ([the rules](#a-classs-functions-a-folder
 `$system_type.function_writes_parameter("last_each", 1)` asks a third question: does this function change the
 object its parameter number 1 (counted from 0) is given, or anything reached through it? An attribute set on it
 (`quitting.quit.requested = true`), an item written or a list grown, a function called on it that changes its own
-object, or the parameter handed to another function that does any of these -- followed through every call, however
-deep, recursion included -- all count; reading does not, and neither does giving the parameter's name a new object
-(`quitting = Quitting()`). The answer is a constant, like `function_waits`'s, so only the branch taken is compiled
-([D261](decisions.md); the name is provisional). An engine asks it of a system it will run on a copy of its row:
+object, or the parameter handed to another function that does any of these all count, followed through every call,
+however deep, recursion included. Reading does not count, and neither does giving the parameter's name a new object
+(`quitting = Quitting()`). The answer is a constant, like `function_waits`'s, so only the branch taken is compiled.
+An engine asks it of a system it will run on a copy of its row:
 
 ```gdscript title=writes_question/quitting.spite
 var requested = false
@@ -773,9 +772,9 @@ quit requested: true
 ```
 
 When the answer means a program is wrong, a `crash` on it turns it into a compile error, as for every question
-decided while compiling ([below](#codegen-values---implemented)): the engine writes the rule it keeps, and a system
+decided while compiling ([below](#codegen-values-)): the engine writes the rule it keeps, and a system
 that breaks it fails the build with the line that breaks it. A system that can wait runs between frames on a copy of
-its row, so a write to that row would be lost -- silently, which D244 forbids -- and the engine refuses it:
+its row, so a write to that row would be lost, silently, which the language forbids, and the engine refuses it:
 
 ```gdscript title=io_row_error/quitting.spite
 var requested = false
@@ -822,7 +821,7 @@ An engine that walks a phase function's arguments asks the same of each one, wit
 and pairs it with `argument.class.any_attribute_fits_vector(Entity)`, which is `true` when the row holds a
 component stored inline, one whose class fits a `Vector` (the classes it is given are skipped). A write to a
 component stored by reference still arrives, only later, so only a row holding an inline one needs refusing
-([the rules](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)):
+([the rules](#a-classs-functions-a-folders-classes-and-a-names-pattern-in-full)):
 
 ```gdscript
 func refuse_snapshot_argument(argument: Symbol<$system_type.phase_each>) {
@@ -836,7 +835,7 @@ A runner that treats a one-row system differently from a system of several rows 
 function takes. `phase.argument_count()`, inside a walk over the functions a pattern matches, is the number the
 function walked takes, and `$target_type.argument_count("update_each")` asks it of a named function. Both are
 constants, like `has_function`, so a comparison with them decides an `if` while compiling and only the branch taken
-is compiled ([D219](decisions.md); the name is provisional). Below, `Caller<Fetch>` never compiles
+is compiled. Below, `Caller<Fetch>` never compiles
 `target.phase_each(hero)`, which would pass one argument to a function of two:
 
 ```gdscript title=argument_count_doc/hero.spite
@@ -908,7 +907,7 @@ time, from `.functions`, and so does `function.argument_count()` on a `Spite.Fun
 read as the end of a folder's namespace. Inside, `system.class` is the class, as a type or as a value, and
 `system.name` is its dotted name. The plural calls the template for each class, so adding a file to a `system/`
 folder is how a system is added, with no list anywhere. A range that matches no folder walks nothing, and naming
-one class it does not hold is an error ([the rules](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)).
+one class it does not hold is an error ([the rules](#a-classs-functions-a-folders-classes-and-a-names-pattern-in-full)).
 
 ```gdscript title=folder_walk/system/greet.spite
 var console = Console()
@@ -961,7 +960,7 @@ class's dotted name in snake_case. Written with a generic, `Runner<system.class>
 found.
 
 Each class walked is known while compiling, so `system.class.has_function("run")` is decided for each one, as
-`$system_type.has_function` is in a generic class (D167): only the branch taken is compiled for that class, and it
+`$system_type.has_function` is in a generic class: only the branch taken is compiled for that class, and it
 may call what only that class has.
 
 ```gdscript title=folder_ask/system/wave.spite
@@ -998,13 +997,13 @@ wave runs
 ### Every class in the program
 
 `kind: Symbol<Spite.Class>` ranges over every class the program holds: its own, every package it loads and the
-standard library's, in order of their dotted names (D287). It is the folder walk with no folder: `kind.class` is
+standard library's, in order of their dotted names. It is the folder walk with no folder: `kind.class` is
 the class and `kind.name` its dotted name, and every question a walked class answers folds for each one. Two
 questions exist for this walk above all. **`kind.class.package_folder()`** is the folder of the class's file
-relative to the root of the `load` that brought it in -- the program's folder for its own classes, the loaded
-folder for a package's (`ui/layout` for a class in `plugins/slop_ui_plugin/ui/layout`, loaded as
-`load "../../plugins/slop_ui_plugin"`), and `library/` for the standard library's (`spite` for `Spite.Class`) --
-so a check can tell whose a class is without knowing where anything lives; `source_folder()` stays the absolute
+relative to the root of the `load` that brought it in: the program's folder for its own classes, the loaded
+folder for a package's (`ui/layout` for a class in `plugins/ui_plugin/ui/layout`, loaded as
+`load "../../plugins/ui_plugin"`), and `library/` for the standard library's (`spite` for `Spite.Class`).
+So a check can tell whose a class is without knowing where anything lives; `source_folder()` stays the absolute
 folder. **`kind.class.has_state()`** is `true` when some function of the class other than its constructor and
 `drop()` writes the class's own attributes, or anything reached through them, or a singleton, or when a singleton
 the class binds has state; it is the same study `function_writes_parameter` answers from ([below](#asking-whether-a-function-writes-a-parameter)),
@@ -1033,8 +1032,8 @@ and they answer the same way: `Console` has state, since reading a line writes i
 When the parameter's own name is a word of the function named in the range, that word is a hole, exactly as it
 is in a template's own name: `phase: Symbol<$system_type.phase_all>` ranges over the functions whose names fit
 `<phase>_all`. The hole matches only the values of the enum named for it, `Phase`, found the way a type written
-`Phase` would be from the template's class (D180). So the engine's phases are an enum, and a function whose name
-fits the pattern without naming one of its values -- `count_all` below -- is an ordinary function. For
+`Phase` would be from the template's class. So the engine's phases are an enum, and a function whose name
+fits the pattern without naming one of its values (`count_all` below) is an ordinary function. For
 `update_all`, `phase.name` is `"update"` and `phase.value` is the enum value `'update'`. Inside the template, the
 pattern written as a member, `system.phase_all()`, calls the matched function. Another template ranging over
 `$system_type.phase_all` that is called from inside walks the matched function's arguments. The plural walks the
@@ -1231,38 +1230,35 @@ at compile time:
   [`JsonWriter` and the rest of json.md](json.md) exist only for the types a program uses them with.
 - In a production build, a **function or class** nothing reachable uses is not emitted
   ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)).
-- The **concurrency machinery** -- the state machines of a `Concurrent` and the loop that runs them, the thread
-  pool, atomic reference counts -- exists only in a program that makes a `Concurrent` or a `Parallel`, or is
+- The **concurrency machinery** (the state machines of a `Concurrent` and the loop that runs them, the thread
+  pool, atomic reference counts) exists only in a program that makes a `Concurrent` or a `Parallel`, or is
   built with `--repl-port` or `--hot-reload`
   ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-used)).
 
 This is tree shaking over the program's own model, not dead-code elimination left to the C compiler.
 
-An inspectable build -- `--development`, `--hot-reload`, `--repl` or `--repl-port` -- keeps every function and
+An inspectable build (`--development`, `--hot-reload`, `--repl` or `--repl-port`) keeps every function and
 class the program generated instead of only the ones reachable from `main`, so live reload has all of them to
-swap and the REPL can reach them ([D143](decisions.md), [compiler.md](compiler.md#development-builds-and-tree-shaking)).
+swap and the REPL can reach them ([compiler.md](compiler.md#development-builds-and-tree-shaking)).
 What is decided while compiling is decided there too: templates are still generated only for the names called,
-and [conditions on codegen values](#codegen-values---implemented) still fold. Every optimisation the compiler
+and [conditions on codegen values](#codegen-values-) still fold. Every optimisation the compiler
 makes on its own, and the builds it applies in, is listed in [optimizations.md](optimizations.md).
 
 ## Rules in full
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
-cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
-rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+cases and the exact error texts. Where the teaching above and these rules disagree, the rules win.
 
-### Symbol codegen  **[implemented]**
+### Symbol codegen
 
 There are no macros. A parameter of class `Symbol` whose name is a segment of its function's name turns the
 function into codegen for every name that fits: below, `set_attribute` answers `set_age`, `set_name`, and so on,
 for each attribute of the class. Inside, the symbol names that attribute: written as a type (`value:
 attribute.class`, `): attribute.class`), it is the attribute's actual type; written as an expression,
-`attribute.class` is a `Spite.Class` naming that type, printing just like the type name would --
-`"type {attribute.class}"` and `var shown: String = attribute.class` included, since a text hole and a cast to text (D223)
-call the `to_string()` of a value whose class declares one (D109's reading of printable, applied to text;
-proposed by Claude, unconfirmed; `conformance/stage6/class_text`).
+`attribute.class` is a `Spite.Class` naming that type, printing just like the type name would.
+`"type {attribute.class}"` and `var shown: String = attribute.class` are included, since a text hole and a cast to
+text call the `to_string()` of a value whose class declares one (the same reading of printable that printing
+uses; `conformance/stage6/class_text`).
 
 ```gdscript person.spite
 func set_attribute(attribute: Symbol, value: attribute.class) {
@@ -1282,94 +1278,84 @@ person.set_age(2)
 A function with the exact name always wins over codegen, for that one name: an exact `set_name` answers a write
 of `name` while its read still goes through `get_attribute`. A plural cannot use that exception: when
 `store_attributes` would call `store_row` for an attribute `row` and the class already has an ordinary `store_row`,
-it is an error at that function's line -- "the template 'store_attribute' makes 'store_row' for the attribute
-'row' of 'RowView', which is already a function of 'Row': rename the function or the template" -- where it used
-to be an argument mismatch at line 0 (fixed 2026-09-27, proposed by Claude, unconfirmed;
-`diagnostics/template_function_clash`). An error raised in code the compiler wrote for a template names the
+it is an error at that function's line: "the template 'store_attribute' makes 'store_row' for the attribute
+'row' of 'RowView', which is already a function of 'Row': rename the function or the template"
+(`diagnostics/template_function_clash`). An error raised in code the compiler wrote for a template names the
 template's line, never line 0. Only the names actually called are generated, in
 every build; the template itself emits nothing, and each instance is an ordinary function that costs what its
 body costs. A generated `get_<attribute>()` of an owning attribute (a `String`, `List<T>` or `Dictionary<T>`)
-returns a retained, independent value, exactly as an explicit getter does, which is what lets D15 treat a field
-and a zero-argument function as the same member.
+returns a retained, independent value, exactly as an explicit getter does, which is what lets a field
+and a zero-argument function be the same member.
 
 A walk makes an attribute used only when it reads its value: `x.attributes[attribute]` counts as a read of every
 attribute it reaches, while `attribute.name` and `attribute.class` describe the attribute without reading it, so
-an attribute only they look at is the unread-attribute error (D118, [Unused is an
-error](style.md#unused-is-an-error--implemented)).
+an attribute only they look at is the unread-attribute error ([Unused is an
+error](style.md#unused-is-an-error)).
 
-**`attribute.index` is the attribute's place in the walk** (D217, decided by Claude under D205; the name
-provisional under D214).  **[implemented]** In a template a walk of attributes calls, `attribute.index` is a
-whole-number constant, 0 for the first attribute walked, in the order the plural walks them (a class's
-declaration order, a `type`'s order); a runner uses it to keep one value per attribute in a list it fills by
-walking, as a sparse-set engine keeps each component's dense place
-([memory.md](memory.md#borrowed-items-of-a-vectort--implemented)). Read in a template reached by name alone, where
+**`attribute.index` is the attribute's place in the walk.** In a template a walk of attributes calls,
+`attribute.index` is a whole-number constant, 0 for the first attribute walked, in the order the plural walks them
+(a class's declaration order, a `type`'s order); a runner uses it to keep one value per attribute in a list it
+fills by walking, as a sparse-set engine keeps each component's dense place
+([memory.md](memory.md#borrowed-items-of-a-vectort)). Read in a template reached by name alone, where
 no walk gives it a place, it is the error "'attribute.index' is the attribute's place among the attributes walked,
 so it is read in a function a walk of attributes calls, such as 'fill_attribute(attribute: Symbol<Row>, ...)'".
 In the same templates **`attribute.class == Entity` is decided while compiling** for each attribute, like
-`$component_type == Entity` in a generic, and only the branch taken is compiled (proposed by Claude,
-unconfirmed; `conformance/stage6/sparse_rows`), whatever the attribute's type: an `Integer` or `String`
+`$component_type == Entity` in a generic, and only the branch taken is compiled
+(`conformance/stage6/sparse_rows`), whatever the attribute's type: an `Integer` or `String`
 attribute answers `false` there too, so `if attribute.class == Entity { value.attributes[attribute].id = ... }`
-compiles for a class that also holds numbers (fixed 2026-09-27: only an attribute whose type is a class folded;
-`conformance/stage6/walked_class_fold`); an attribute that may be null (`Entity?`) is not an `Entity`, so the test
-folds to `false` for it as `$T == Entity` does for a `$T` of `Entity?`.
+compiles for a class that also holds numbers (`conformance/stage6/walked_class_fold`); an attribute that may be
+null (`Entity?`) is not an `Entity`, so the test folds to `false` for it as `$T == Entity` does for a `$T` of
+`Entity?`.
 
-**Every `.class` a program compares is known once generics are resolved and each instance is compiled** (decided
-by Mortaro, 2026-09-27: "every attribute.class should be possible to figure out at compile time after we resolve
-generics and monomorphise"; built as proposed by Claude, unconfirmed).  **[implemented]** In a template instance --
-a Symbol walk, a generic class's instance, a plural -- `attribute.class`, a walked symbol's `.class` and `$T` are
-constants of that instance, so every comparison and question on them folds: `==`, `!=`, `has_function`,
-`function_waits`, `argument_count`, `fits_vector`, `element_type` and the other codegen names. Outside a template,
-`value.class` of a value whose type is one class is that class. So comparing a value that is only known at run
-time with such a class -- `given == known.class` with `given: Anything`, or `given == attribute.class` -- is the
-class test `given == Targeting`: one comparison of the object's class id, and no `Spite.Class` object is made
-(this also fixed that comparison, which compared the value with a class object made for the purpose, answered
-`false` and leaked the object; `check.sh` greps `conformance/stage6/walked_class_fold`'s C for any class object).
-In a walk over a folder's classes, `given == bundle.class` and `BundleKind<bundle.class>().is_kind(given)` (with
-`given == $bundle_type` inside) are the same test, and answer alike for a class holding a marker, a class whose
-constructor takes arguments and a plain one.
-The only `.class` values left at run time are the reflection objects a program walks as data -- a
+**Every `.class` a program compares is known once generics are resolved and each instance is compiled.** In a
+template instance (a Symbol walk, a generic class's instance, a plural), `attribute.class`, a walked symbol's
+`.class` and `$T` are constants of that instance, so every comparison and question on them folds: `==`, `!=`,
+`has_function`, `function_waits`, `argument_count`, `fits_vector`, `element_type` and the other codegen names.
+Outside a template, `value.class` of a value whose type is one class is that class. So comparing a value that is
+only known at run time with such a class (`given == known.class` with `given: Anything`, or
+`given == attribute.class`) is the class test `given == Targeting`: one comparison of the object's class id, and no
+`Spite.Class` object is made. In a walk over a folder's classes, `given == bundle.class` and
+`BundleKind<bundle.class>().is_kind(given)` (with `given == $bundle_type` inside) are the same test, and answer
+alike for a class holding a marker, a class whose constructor takes arguments and a plain one.
+The only `.class` values left at run time are the reflection objects a program walks as data (a
 `Spite.Class` in a list, `x.class.attributes` walked in a plain loop, the class of a value read through a union
-or a `type` -- and those are values, not folds.
+or a `type`), and those are values, not folds.
 
 **`attribute.camel_case_name` and `attribute.pascal_case_name` are the attribute's name in other systems'
-spellings** (D247, decided by Claude under D205; the names provisional under D214).  **[implemented]** In a
-template, each is a text constant the compiler writes: the name with its underscores dropped and every word after
-the first capitalised (`buy_price` is `buyPrice`), or every word capitalised (`BuyPrice`). They cost what
-`attribute.name` costs, nothing at run time, and describe the attribute without reading it. `JsonReader` matches a
-camelCase key with them ([json.md](json.md#a-camelcase-or-pascalcase-key)).
+spellings.** In a template, each is a text constant the compiler writes: the name with its underscores dropped and
+every word after the first capitalised (`buy_price` is `buyPrice`), or every word capitalised (`BuyPrice`). They
+cost what `attribute.name` costs, nothing at run time, and describe the attribute without reading it.
+`JsonReader` matches a camelCase key with them ([json.md](json.md#a-camelcase-or-pascalcase-key)).
 
-**Another class's attributes, and every attribute at once** (proposed by Claude, unconfirmed; built for D95's
-`Json`).  **[implemented]**
+**Another class's attributes, and every attribute at once**
 
 - **`attribute: Symbol<Label>` ranges over `Label`'s members** instead of the template's own class: its
-  attributes, and its functions that take no arguments (D15). Inside, `label.attributes[attribute]` is that member
-  of the `Label` passed in -- the field, read or written, or a call to the function -- and `attribute.name` and
-  `attribute.class` mean what they always did. `List`'s member templates are written this way,
-  `member: Symbol<$element_type>` (D91). In a generic class the class is usually the codegen value,
+  attributes, and its functions that take no arguments. Inside, `label.attributes[attribute]` is that member
+  of the `Label` passed in (the field, read or written, or a call to the function), and `attribute.name` and
+  `attribute.class` mean what they do in a template over the class's own attributes. `List`'s member templates are
+  written this way, `member: Symbol<$element_type>`. In a generic class the class is usually the codegen value,
   `Symbol<$value_type>`; when that value is not a class the template answers nothing.
-- **`Symbol<Row>` over a `type`** (proposed by Claude, unconfirmed) ranges over the attributes the type names
+- **`Symbol<Row>` over a `type`** ranges over the attributes the type names
   and the functions it requires with no arguments; `row.attributes[attribute]` is the shape's own read, write or
   call, answered from the value's class at run time like any read through a `type`, and the plural walks the
   type's attributes in its order (`conformance/stage6/shape_attributes`).
-- **An enum value fills the hole of a yes-or-no member template** (D295, decided by Mortaro; **not built**). A
+- **An enum value fills the hole of a yes-or-no member template.** A
   `Symbol<$element_type>` template in the standard library whose member must answer `Boolean` (`filter_`,
   `count_`, `any_`, `all_`, `remove_where_`) also answers a name that is no member of the element but a value of
   the enum one of its members is typed with: `entries.filter_files()` reads `entry.kind == 'files'`. A name that
-  matches both a member and an enum value, or the values of two members' enums, is an error, never a choice; the full rule is in [collections.md](collections.md#member-templates-over-an-enum-value--planned).
+  matches both a member and an enum value, or the values of two members' enums, is an error, never a choice; the
+  full rule is in [collections.md](collections.md#member-templates-over-an-enum-value-1).
 - **The plural calls it for every attribute.** `show_attributes(label, lines)`, for a template `show_attribute`
   whose symbol is `attribute`, calls `show_<name>(label, lines)` once per attribute, in declaration order. It is
   an ordinary generated function whose body is those calls, so it is typed, visible and shaken like any other,
   and the template it repeats must return nothing: "'count_attributes' calls 'count_attribute' once for every
-  attribute, so 'count_attribute' has to return nothing" (`diagnostics/every_attribute`). It replaces the
-  compile-time `for instance.attributes`, which went with `for`. Over another class's attributes it calls only
-  the ones that class lets others read: a private `_` attribute is skipped rather than being the private error
-  (proposed by Claude, unconfirmed). **Decided, not built ([D278](decisions.md), Mortaro): a walk sees every
+  attribute, so 'count_attribute' has to return nothing" (`diagnostics/every_attribute`). **A walk sees every
   attribute, private ones included**, since a walk that skips some silently builds an incomplete copy, column or
   layout. The walk may read and write a private attribute through the walked symbol (`value.attributes[attribute]`);
-  naming `_x` outside its class stays the private error. **A plural over nothing is an empty function**, not a missing one: over a class
-  with no attributes, and over a `Symbol<$value_type>` whose value is no class or `type` -- a number, a `T?`, a
-  `List` -- where the single template answers nothing, the plural calls nothing, so one generic compiles for a
-  marker and for a number alike (`conformance/stage6/empty_plural`).
+  naming `_x` outside its class stays the private error. **A plural over nothing is an empty function**, not a
+  missing one: over a class with no attributes, and over a `Symbol<$value_type>` whose value is no class or `type`
+  (a number, a `T?`, a `List`), where the single template answers nothing, the plural calls nothing, so one generic
+  compiles for a marker and for a number alike (`conformance/stage6/empty_plural`).
 
 ```gdscript
 func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>) {
@@ -1377,81 +1363,75 @@ func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>)
 }
 ```
 
-`conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
+`conformance/stage6/every_attribute`.
 
-### A class's functions, a folder's classes and a name's pattern  **[implemented; the spellings proposed by Claude, unconfirmed]**
+### A class's functions, a folder's classes and a name's pattern in full
 
-D114, D115 and D116 (decided by Mortaro) are one mechanism: the Symbol templates above, ranging over three more
-things a program already has -- a function's arguments, a folder's classes, and the functions whose names fit a
-pattern -- plus one question a generic asks of its type. Everything is decided while compiling: each walk expands
-into ordinary calls, there is no registry and no list walked at run time, and nothing is generated for a name no
-program calls (D177). The spellings below are Claude's, chosen to be the existing forms read one step further:
+These are one mechanism: the Symbol templates above, ranging over three more things a program already has (a
+function's arguments, a folder's classes, and the functions whose names fit a pattern), plus one question a
+generic asks of its type. Everything is decided while compiling: each walk expands into ordinary calls, there is
+no registry and no list walked at run time, and nothing is generated for a name no program calls. The spellings
+below are the existing forms read one step further:
 
-- **`$system_type.has_function("run_each")` in a condition folds like `if $is_magic`** (D114). The name is a
-  literal -- a symbol, or text holding a pattern such as `"<phase>_each"` (D116), which is true when some
-  function's name fits it with the hole naming one value of the enum named for the hole, as for every pattern
-(D180, [below](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)):
-`"<phase>_each"` is true when the class declares `update_each` and `update` is a `Phase`, and a hole no enum is
-named for is an error (`diagnostics/hole_values`). Only the taken branch is compiled, so it may call what only
+- **`$system_type.has_function("run_each")` in a condition folds like `if $is_magic`.** The name is a literal,
+  a symbol or text holding a pattern such as `"<phase>_each"`, which is true when some function's name fits it with
+  the hole naming one value of the enum named for the hole, as for every pattern (see the enum bullet below):
+  `"<phase>_each"` is true when the class declares `update_each` and `update` is a `Phase`, and a hole no enum is
+  named for is an error (`diagnostics/hole_values`). Only the taken branch is compiled, so it may call what only
   that type has; any other argument is an error: "'$system_type.has_function(...)' is decided while compiling, so
   the name it asks for is written as a literal" (`diagnostics/function_reflection`). It is an ordinary member of
-  `Spite.Class` (`library/spite/class.spite`, D92), so `klass.has_function("boost")` also answers at run time,
-  from `.functions` -- which exists only in a program that reads it ([reflection.md](reflection.md)). Folded,
+  `Spite.Class` (`library/spite/class.spite`), so `klass.has_function("boost")` also answers at run time,
+  from `.functions`, which exists only in a program that reads it ([reflection.md](reflection.md)). Folded,
   it counts the functions the class declares: not its constructor, not a `_` function, and not what a template
   generated for it. **It folds wherever it is written**, not only as an `if`'s condition: in a `return`, a `var`,
   or on either side of `and`, `or` and `not`, `$system_type.has_function("run_each")` is the constant `true` or
   `false`, exactly the value the `if` form decides on, and no class's table of functions is built to answer it
   (`conformance/stage6/folded_function_value`, whose allocations are pinned). **The class a template walks is asked
-  the same way** (D167 read for walks): inside a template over `Symbol<System>` (or any range whose symbol is a
+  the same way**: inside a template over `Symbol<System>` (or any range whose symbol is a
   class), `system.class.has_function("run_each")` with a literal name folds for each class walked, and only the
   branch taken is compiled for it; with a name that is not a literal it is the run-time question of
   `Spite.Class`, since `system.class` is also an ordinary value (`conformance/stage6/symbol_class_function`).
-- **The literal may hold the name of the symbol a template walks** (D273, decided by Claude under D205; built for
-  `JsonReader` and `JsonWriter`).  **[implemented]** Inside a template over attributes,
+- **The literal may hold the name of the symbol a template walks.** Inside a template over attributes,
   `$value_type.has_function("json_key_{attribute.name}")` is a literal too: the walked symbol's name is a constant
   of each instance, so the text is known while compiling and the question folds for each attribute walked. Only
-  `{symbol.name}` of the walked symbol may stand in the text; any other `{...}` is the error above.
-- **`$value_type.returned_text("json_key_level")` is the text a function returns, as a constant** (D273, decided by
-  Claude under D205; the name provisional under D214).  **[implemented]** Asked of a codegen type bound to a class,
-  or of a walked symbol's class (`attribute.class.returned_text(...)`), with a name written as `has_function`'s is
-  (a literal, which may hold the walked symbol's name), it answers the literal text that function of the class
-  returns, a `String` constant the C holds, so reading it costs nothing and a comparison with it is the one a
-  literal would make. It reads only a function written `func name(): String { return "..." }`: taking nothing, its
-  body one `return` of a literal with no `{...}` in it. Anything else is an error at that function: "'Label.title'
-  must be written 'func title(): String { return "..." }', taking nothing and returning a literal text with no
-  '{...}' in it, since '$value_type.returned_text("title")' reads it while compiling". A class without the function
-  is the error "'$value_type.returned_text("json_key_level")' reads the text a function of 'Label' returns, and it
-  has no function 'json_key_level': ask '$value_type.has_function("json_key_level")' first, and read the text only
-  in the branch where it is true", and a name that is not a literal is "'$value_type.returned_text(...)' is decided
-  while compiling, so the name it asks for is written as a literal: ..." (`diagnostics/returned_text`). It has no
-  run-time form. `JsonReader` and `JsonWriter` read a class's `json_key_<attribute>()` with it
-  ([json.md](json.md#a-key-that-is-not-an-attributes-name)).
-- **`Symbol<Spite.Class>` walks every class the program holds** (D287, decided by Claude under D205, asked for by
-  SlopEngine and D282; the spellings provisional under D214).  **[implemented]** A template whose `Symbol`
-  parameter ranges over `Spite.Class` is called once per class -- the program's, every loaded package's and the
-  standard library's, not a generic class's instances and not the compiler's own object literals -- in order of
+  `{symbol.name}` of the walked symbol may stand in the text; any other `{...}` is the error above. `JsonReader` and
+  `JsonWriter` use it.
+- **`$value_type.returned_text("json_key_level")` is the text a function returns, as a constant.** Asked of a
+  codegen type bound to a class, or of a walked symbol's class (`attribute.class.returned_text(...)`), with a name
+  written as `has_function`'s is (a literal, which may hold the walked symbol's name), it answers the literal text
+  that function of the class returns, a `String` constant the C holds, so reading it costs nothing and a comparison
+  with it is the one a literal would make. It reads only a function written `func name(): String { return "..." }`:
+  taking nothing, its body one `return` of a literal with no `{...}` in it. Anything else is an error at that
+  function: "'Label.title' must be written 'func title(): String { return "..." }', taking nothing and returning a
+  literal text with no '{...}' in it, since '$value_type.returned_text("title")' reads it while compiling". A class
+  without the function is the error "'$value_type.returned_text("json_key_level")' reads the text a function of
+  'Label' returns, and it has no function 'json_key_level': ask '$value_type.has_function("json_key_level")' first,
+  and read the text only in the branch where it is true", and a name that is not a literal is
+  "'$value_type.returned_text(...)' is decided while compiling, so the name it asks for is written as a literal:
+  ..." (`diagnostics/returned_text`). It has no run-time form. `JsonReader` and `JsonWriter` read a class's
+  `json_key_<attribute>()` with it ([json.md](json.md#a-key-that-is-not-an-attributes-name)).
+- **`Symbol<Spite.Class>` walks every class the program holds.** A template whose `Symbol`
+  parameter ranges over `Spite.Class` is called once per class (the program's, every loaded package's and the
+  standard library's, not a generic class's instances and not the compiler's own object literals), in order of
   their dotted names, and is read like a folder walk: `kind.class`, `kind.name`, the plural `check_kinds()`, and
-  every question a walked class answers. It replaces what `Symbol<Spite.Class>` meant before, the attributes of
-  `Spite.Class`, which nothing used.
-- **`$T.package_folder()` is the folder of a class's file relative to the root of the load that brought it in**
-  (D287; the name provisional).  **[implemented]** Asked as `source_folder()` is (`class.package_folder()`,
+  every question a walked class answers.
+- **`$T.package_folder()` is the folder of a class's file relative to the root of the load that brought it in.**
+  Asked as `source_folder()` is (`class.package_folder()`,
   `Name.package_folder()`, `$T.package_folder()`, `kind.class.package_folder()` in a walk, and
   `value.class.package_folder()` at run time), it folds to the path below the deepest root holding the file: the
   program's folder, a folder a `load` names, or the standard library's `library/`; a file at a root answers `""`.
   A class in no such folder is the error "'Name' was declared in '...', which is in no folder the program loads,
   so it has no package folder".
-- **`$T.has_state()` answers whether a class keeps state** (D288, decided by Claude under D205, asked for by
-  SlopEngine; the name provisional).  **[implemented]** It folds wherever it is written, for `$T`, a class named
-  statically and a walked class, to `true` when a function of the class other than its constructor and `drop()`
-  writes its own object -- an attribute set on it or on anything reached through it, a call that writes it -- by
-  the study `function_writes_parameter` uses (D261, [proofs.md](proofs.md#whether-a-class-keeps-state)), or when an
+- **`$T.has_state()` answers whether a class keeps state.** It folds wherever it is written, for `$T`, a class
+  named statically and a walked class, to `true` when a function of the class other than its constructor and
+  `drop()` writes its own object (an attribute set on it or on anything reached through it, a call that writes it)
+  by the study `function_writes_parameter` uses ([proofs.md](proofs.md#whether-a-class-keeps-state)), or when an
   attribute of the class holds a singleton that has state, followed through singletons however deep, or when such a
-  function writes a singleton, through an attribute binding it or not (D292). An attribute
+  function writes a singleton, through an attribute binding it or not. An attribute
   written only by other classes' code does not count: that write is state of the class that makes it. It has no
   run-time form, and it takes nothing: `'$T.has_state()' is decided while compiling, and it takes nothing`.
-- **`$T.argument_class("update_each", 0)` is the class of a function's parameter, as a type** (D288, decided by
-  Claude under D205, asked for by SlopEngine; the name provisional).  **[implemented]** Written where a type is, on
-  a codegen type, with the function's name as text and the parameter's number from 0 as literals:
+- **`$T.argument_class("update_each", 0)` is the class of a function's parameter, as a type.** Written where a
+  type is, on a codegen type, with the function's name as text and the parameter's number from 0 as literals:
   `var column = Column<$system_type.argument_class("update_each", 0)>()` binds the column of whatever a system's
   `update_each` takes first (`conformance/stage6/argument_class`). It resolves while compiling to the parameter's
   declared type, so it costs nothing at run time. A number past the last parameter is "'Mender.mend' takes 1
@@ -1459,46 +1439,44 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   (`diagnostics/argument_class`), and a name the class does not declare is "'argument_class("repair", 0)' names
   the class of a parameter of 'Mender.repair', and 'Mender' has no function 'repair'"
   (`diagnostics/argument_class_name`).
-- **`$system_type.function_waits("update_each")` folds exactly like `has_function`** (D209, decided by Mortaro;
-  the spelling and the reading below are proposed by Claude, unconfirmed).  **[implemented]** It is `true` when a
+- **`$system_type.function_waits("update_each")` folds exactly like `has_function`.** It is `true` when a
   function the class declares, whose name fits the literal (a name, or a pattern whose hole is read as
-  `has_function`'s), can reach a wait, and `false` otherwise -- also for a name the class does not declare. It
+  `has_function`'s), can reach a wait, and `false` otherwise, also for a name the class does not declare. It
   folds wherever it is written (an `if`, a `var`, a `return`, either side of `and`, `or` and `not`), for each class
   a `Symbol<...>` walk visits as `system.class.function_waits(...)`, and a name that is not a literal is the error
   `has_function` gives, naming `function_waits`. It is a function of `Spite.Class` too, so
   `klass.function_waits(name)` answers at run time from `.functions`, through `Spite.Function.waits()`, whose
   table holds every waiting function the program makes into a value or lists in a `.functions`. Asked of the
   entry class, which has no stand-in and so an empty `.functions`, it answers from the same table through a
-  private list of the entry class's functions described with no instance (proposed by Claude, unconfirmed;
-  `conformance/stage6/entry_function_waits`, [reflection.md](reflection.md)).
-  - **What can wait.** A function waits when it is one of the waits a state machine returns from -- `Program.sleep`,
+  private list of the entry class's functions described with no instance
+  (`conformance/stage6/entry_function_waits`, [reflection.md](reflection.md)).
+  - **What can wait.** A function waits when it is one of the waits a state machine returns from (`Program.sleep`,
     reading the console, reading or writing a `File`, a `Socket`'s `accept_client`, `read_line` and `read_bytes`,
-    reading or dropping a `Concurrent` ([concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows)) --
-    or calls one, transitively. Over calls made by name this is exactly the set D176 compiles into state
-    machines. Three more calls count, conservatively, where D176 runs the wait in place instead of returning from
+    reading or dropping a `Concurrent`; [concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting)),
+    or calls one, transitively. Over calls made by name this is exactly the set compiled into state
+    machines. Three more calls count, conservatively, where the wait runs in place instead of returning from
     it: a constructor, a call through a union's dispatch or a `type`, and a call through a function value. A call
     through a function value of one signature may wait when some function of that signature that the program
     makes into a value can wait; a function value handed straight to `Concurrent(...)` or `Parallel(...)` is not
     counted, since those run it as a state machine or on the pool, never through such a call. So a system whose
     `update_each` runs `guard.while_locked(tick)`, where `tick` sleeps, waits, and a `Concurrent` of it runs it to
     the end where it is made, as for any function without a state machine. Joining a `Parallel` is not a wait
-    here, as it is not in D176.
+    here, and state machines do not treat it as one.
   - **A question cannot decide itself.** A function that asks is compiled after every function that does not, so
     its answer sees all of them. When the answer depends on a function that itself asks (or on a function value
     made in one), the branch chosen could change the answer, so the compiler checks every answer again once
     everything is compiled, and one that changed is an error at the question: "whether 'Looper.update_each' can
     wait was answered false here, before the functions that ask 'function_waits' were compiled, and it is true
-    once they are: ... (D209) -- ask from a function that 'Looper.update_each' does not reach"
+    once they are: ...,so ask from a function that 'Looper.update_each' does not reach"
     (`diagnostics/function_waits_paradox`).
   - **Cost.** Folded, nothing: no table, no class object. Asked at run time, the program carries one function
     comparing a function's address against those of the functions it makes into values or lists in a
     `.functions` that can wait, and keeps those functions (`conformance/stage6/waiting_systems`,
     `conformance/stage6/default_handles`).
 - **`$system_type.function_writes_parameter("last_each", 1)` is whether a function changes what its parameter
-  is given, as a constant** (D261, decided by Claude under D205, requested by SlopEngine, an instance of D244; the
-  name provisional under D214).  **[implemented]** The first argument is the function's name as a literal, or a
+  is given, as a constant.** The first argument is the function's name as a literal, or a
   pattern read as `has_function` reads it; the second is the parameter's number, counted from 0, as a literal or
-  as a walked argument's `argument.index` (D268), which folds for each argument walked as `argument.class` does:
+  as a walked argument's `argument.index`, which folds for each argument walked as `argument.class` does:
   in a template over the arguments of the functions a pattern matches (`argument: Symbol<$system_type.phase_each>`),
   `$system_type.function_writes_parameter("<phase>_each", argument.index)` asks only the function whose arguments
   are walked, so another phase function with fewer arguments is not asked about a number it lacks.
@@ -1513,21 +1491,21 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   - **What counts as a write.** The object the parameter is given, and every object reached through it, is
     written when the function, or any function it calls, however deep: assigns an attribute of it
     (`p.a = x`, `p.a.b = x`) or an item of it (`p.list[i] = x`); calls a function on it that writes its own
-    object (`p.list.append(x)`, `p.counter.bump()`, the standard library's functions included -- a function
+    object (`p.list.append(x)`, `p.counter.bump()`, the standard library's functions included, where a function
     whose body the compiler supplies writes when it writes memory: `write_value`, `copy_to`, `free`, `resize`
     and the like); passes it, or anything reached through it, to a parameter of a function that writes that
-    parameter, a D257 lent argument included; or stores such an object in an attribute or a collection, where
+    parameter, a lent argument included; or stores such an object in an attribute or a collection, where
     a later write could reach it. A local that names something reached through the parameter (`var list =
     p.flags`) is the parameter's for this question, through `if`, `while` and `switch`. Reading is not a write;
     neither is giving the parameter's name, or such a local, a new object (`p = Row()` and writes to that new
     object after it), and neither is copying a number, a `Boolean`, text or an enum out of it. Recursion, direct
     or mutual, is followed to a fixed point.
-  - **A singleton is nobody's parameter** (D292). An attribute that binds a singleton (`var world = World()`)
+  - **A singleton is nobody's parameter.** An attribute that binds a singleton (`var world = World()`)
     holds shared state, not the object's own, so a write to it, or to anything reached through it, is not a
     write to the object that holds the attribute nor to the parameter that reached it: `row.entity.add_component(x)`,
-    where `Entity.add_component` only queues a command on `world`, does not write `row`. It is still a write --
+    where `Entity.add_component` only queues a command on `world`, does not write `row`. It is still a write:
     `has_state()` counts it for the class whose code makes it.
-  - **A call's result is what the callee returns** (D268). A call made by name to a function the compiler follows
+  - **A call's result is what the callee returns.** A call made by name to a function the compiler follows
     stands for only the objects that function can return: a function that returns an object it made
     (`var navigation = Navigation() ... return navigation`, or a constructor) gives a result that carries none of
     its arguments, so `var navigation = loader.load_map(rows[0])` followed by `navigation.steps = 2` or
@@ -1537,14 +1515,14 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
     return anything they are handed. An attribute read through a `type` (`loaded.library` with `type Loaded
     { library: Library }`) has the attribute's class, so `library.slots.count()` is followed to `Vector.count`,
     which only reads (`conformance/stage6/parameter_write_rows`).
-  - **Where it cannot decide, the answer is `true`** (D244: never a silent `false`). A call through a function
+  - **Where it cannot decide, the answer is `true`** (never a silent `false`). A call through a function
     value counts as writing every parameter of the function that makes it, since the value may be anything; so
     does a call the compiler cannot follow to one function (a union's dispatch, a `type`, a template a class
     generates, a value whose class it cannot tell), for the parameter's objects handed to it; reading a walked
     `value.attributes[member]` counts as writing `value`, since the member may be a function.
   - **A `crash` on it is the engine's compile error.** `crash not $system_type.function_writes_parameter(...)`
     in a function the program reaches folds, and where the answer is `true` it is the error of a folded `crash`,
-    naming the instance and, after it, what writes: "... always halts in Runner<Quitter>: ... -- 'Quitter.last_each'
+    naming the instance and, after it, what writes: "... always halts in Runner<Quitter>: ...; 'Quitter.last_each'
     writes its parameter 'quitting' at .../quitter.spite:5: 'quitting.quit.requested = true'"
     (`diagnostics/io_system_writes_row`). This is how an engine refuses a system that can wait (it runs between
     frames on a snapshot of its row, where a write would be lost) and still writes its row.
@@ -1552,9 +1530,8 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
     function studied once and remembered, and folds to a constant, so a program that does not ask carries none
     of it (`conformance/stage6/parameter_writes`).
 - **`$row_type.any_attribute_fits_vector(Entity)` is whether a row holds a component stored inline, as a
-  constant** (D268, decided by Claude under D205, requested by SlopEngine; the name provisional under D214).
-  **[implemented]** It is `true` when some attribute of the class or `type` asked about has a class -- not a
-  number, text or other value, and not a `T?` -- that fits a `Vector` (`fits_vector()`), other than the classes
+  constant.** It is `true` when some attribute of the class or `type` asked about has a class (not a
+  number, text or other value, and not a `T?`) that fits a `Vector` (`fits_vector()`), other than the classes
   it is given, which are written as class names and skipped; with none given it skips nothing. It folds wherever
   it is written, for a codegen type and for a walked symbol's class (`argument.class.any_attribute_fits_vector(Entity)`),
   and anything but a class name as an argument is the error "'wanted' is not a class: 'any_attribute_fits_vector(...)'
@@ -1566,15 +1543,13 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   Symbol<$system_type.phase_each>)` (`conformance/stage6/parameter_write_rows`, `diagnostics/snapshot_argument_writes`).
   Nothing is left at run time.
 - **`$system_type.function_runs_in_pieces("<phase>_each")` is whether a function may run in pieces across the
-  thread pool** (D229, decided by Mortaro; the spelling proposed by SlopEngine, provisional). **[decided, not
-  built]** It would fold like `has_function`, `true` when the function, with everything it calls, is safe to run
-  in pieces in D35's terms -- it writes no attribute of its own class, touches its arguments only through their own
-  attributes, and otherwise only locals and singletons made safe -- so an engine picks the pieces branch or the
-  one-thread branch and never errors; the reads a piece makes of shared state must not take a lock per row (D184's
-  read-only and single-owner forms). Nothing in the compiler answers it yet.
+  thread pool.** It folds like `has_function`, `true` when the function, with everything it calls, is safe to run
+  in pieces: it writes no attribute of its own class, touches its arguments only through their own
+  attributes, and otherwise only locals and singletons made safe. An engine picks the pieces branch or the
+  one-thread branch and never errors; the reads a piece makes of shared state must not take a lock per row (the
+  read-only and single-owner forms).
 - **`phase.argument_count()` and `$system_type.argument_count("update_each")` are the number of arguments a
-  function takes, as a constant** (D219, decided by Claude under D205; the name provisional under D214, the readings
-  below proposed by Claude, unconfirmed).  **[implemented]** Inside a template over the functions a pattern matches
+  function takes, as a constant.** Inside a template over the functions a pattern matches
   (`phase: Symbol<$system_type.phase_each>`, and a helper its symbol is passed to), `phase.argument_count()` is the
   number of arguments of the function walked. Asked of a codegen type with a literal name, or of a class a
   `Symbol<...>` walk visits (`system.class.argument_count("update_each")`), it is the number the declared function
@@ -1589,70 +1564,68 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   (`diagnostics/argument_count`). It folds wherever it is written: as a value (`var count =
   phase.argument_count()` is `var count = 1`), and compared with a whole number or another such count by `==`,
   `!=`, `<`, `<=`, `>` or `>=` in a condition, which is then decided while compiling like `has_function`, only the
-  branch taken being compiled -- so a runner's `if phase.argument_count() == 1 { stream_arguments() }` never makes a
+  branch taken being compiled, so a runner's `if phase.argument_count() == 1 { stream_arguments() }` never makes a
   one-row `Stream<$system_type, argument.class>` for a system of two rows (`conformance/stage6/folded_argument_count`).
   It is a function of `Spite.Class` and `Spite.Function` too: `klass.argument_count(name)` answers at run time from
   `.functions` (the first function whose name fits, 0 for none), and `function.argument_count()` counts
   `.arguments`. **Cost**: folded, nothing; at run time, the `.functions` a program already reads and one count.
-- **`$component_type.fits_vector()` asks whether the class can be a `Vector` item** (D217, decided by Claude
-  under D205; the name provisional under D214).  **[implemented]** It is `true` when a `Vector` of that type
-  compiles by D204's rule ([collections.md](collections.md#vectort--implemented)): a number, `Boolean`, enum or
-  `String`, or a class whose attributes are only those or singletons, with no `drop()` and no function using
-  `this` as a value; `false` for anything else, which is kept as a reference in a `List`. It folds like
-  `has_function` wherever it is written, asked of a codegen type (`$component_type.fits_vector()`), of a walked
-  attribute (`attribute.class.fits_vector()`, once per attribute) or of a class by name
+- **`$component_type.fits_vector()` asks whether the class can be a `Vector` item.** It is `true` when a `Vector`
+  of that type compiles by the `Vector` rule ([collections.md](collections.md#vectort)): a number,
+  `Boolean`, enum or `String`, or a class whose attributes are only those or singletons, with no `drop()` and no
+  function using `this` as a value; `false` for anything else, which is kept as a reference in a `List`. It folds
+  like `has_function` wherever it is written, asked of a codegen type (`$component_type.fits_vector()`), of a
+  walked attribute (`attribute.class.fits_vector()`, once per attribute) or of a class by name
   (`Position.fits_vector()`), and only the branch taken is compiled, so a generic can make a `Column<T>` for one
   type and a `ReferenceColumn<T>` for another without ever making a `Vector` of the second. It is a function of
   `Spite.Class` too, so `klass.fits_vector()` on a class value answers at run time, from a flag the compiler sets
   on each class object it makes. **Cost**: folded, nothing; asked at run time, one `Boolean` read, the flag
   written once when the class object is made (`conformance/stage6/sparse_rows`).
-- **`argument: Symbol<$system_type.run_each>` ranges over the arguments of `run_each`** (D114). A `Symbol<X>`
+- **`argument: Symbol<$system_type.run_each>` ranges over the arguments of `run_each`.** A `Symbol<X>`
   already ranged over X's members; a function's members are its arguments. Inside, `argument.name` is the
   argument's name and `argument.class` its type, written as a type (`Query<argument.class>()`,
   `): argument.class`, and `argument.class.element_type` for a `List<Row>` argument) or read as a
   `Spite.Class`. The plural (`count_arguments()`) calls the template once per argument, in order. When
   `$system_type` has no `run_each`, the template answers nothing and the plural calls nothing.
-- **A template over arguments that returns a value fills a call** (D114): its plural, written as the whole
-  argument list of a call to that same function, passes one value per argument --
+- **A template over arguments that returns a value fills a call.** Its plural, written as the whole
+  argument list of a call to that same function, passes one value per argument:
   `system.run_each(row_arguments())` is `system.run_each(row_potion(), row_target())`, evaluated left to
   right. That is how one generic calls a function of any arity without variadic generics. Anywhere else such a
   plural is an error naming the call it belongs in, and so is passing it to a different function
-  (`diagnostics/function_reflection`). D77's rule does not apply to it: the call it stands for is
-  written by the compiler. **Its results may be borrowed items for that one call** (D220): when the template's
-  body folds to one `return` of a walked line, such as `Column<argument.class>().values[stored_row]` after `var
-  stored_row = rows[argument.index]` (`argument.index` is the argument's place, from 0), after the `crash` lines that narrow its reads (every `[]`
-  answers a `T?`, D225), or to a walked row declared, filled and returned, the
-  compiler writes each argument out before the call instead of calling the template, and the borrow ends when the
-  call returns ([memory.md](memory.md#borrowed-items-of-a-vectort--implemented) has the rules). A condition on the
-  argument folds per argument there as in a walked row, `argument.class == $row_type` included. A plural of a
-  function whose `Symbol` parameter is not a word of its name is an error naming the rename, since that function
-  is a helper compiled for the symbol passed to it and has no plural: "'streamed_rows' is the plural of
-  'streamed_row', but 'streamed_row' walks nothing: its 'argument' is not a word of its name, so it is a helper
+  (`diagnostics/function_reflection`). The rule that only a constructor may be an argument does not apply to it:
+  the call it stands for is written by the compiler. **Its results may be borrowed items for that one call**: when
+  the template's body folds to one `return` of a walked line, such as `Column<argument.class>().values[stored_row]`
+  after `var stored_row = rows[argument.index]` (`argument.index` is the argument's place, from 0), after the
+  `crash` lines that narrow its reads (every `[]` answers a `T?`), or to a walked row declared, filled and
+  returned, the compiler writes each argument out before the call instead of calling the template, and the borrow
+  ends when the call returns ([memory.md](memory.md#borrowed-items-of-a-vectort) has the rules). A
+  condition on the argument folds per argument there as in a walked row, `argument.class == $row_type` included. A
+  plural of a function whose `Symbol` parameter is not a word of its name is an error naming the rename, since
+  that function is a helper compiled for the symbol passed to it and has no plural: "'streamed_rows' is the plural
+  of 'streamed_row', but 'streamed_row' walks nothing: its 'argument' is not a word of its name, so it is a helper
   compiled for the one symbol passed to it, not a template with a plural. Name it 'streamed_argument' and call
   'streamed_arguments(...)'" (`diagnostics/lent_arguments`).
-- **`system: Symbol<System>` ranges over the classes of every folder named `system`** (D115): `System.Heal`,
-  `Ui.System.Interact` -- a range that names no class or type is read as the end of a dotted namespace, and the
+- **`system: Symbol<System>` ranges over the classes of every folder named `system`**: `System.Heal`,
+  `Ui.System.Interact`. A range that names no class or type is read as the end of a dotted namespace, and the
   classes of every namespace ending in it are walked in order of their dotted names. Inside, `system.class` is
   the class (so `Runner<system.class>()` instantiates the generic per class) and `system.name` its dotted name;
   the single instance replaces the symbol's word with the whole path in snake_case (`add_system` for
   `Ui.System.Interact` is `add_ui_system_interact`, for `System.Heal` `add_system_heal`). A generic class there
   is skipped, since it has no values to be made with. A range that matches no folder at all walks nothing, like a
-  class with no attributes, so an engine that walks `Symbol<Recipe>` compiles for a program with no recipes
-  (proposed by Claude, unconfirmed). A typo is caught where a single class is named instead: "'cook_recipe_bread'
+  class with no attributes, so an engine that walks `Symbol<Recipe>` compiles for a program with no recipes. A typo
+  is caught where a single class is named instead: "'cook_recipe_bread'
   is 'cook_recipe' for a class 'recipe_bread', but no folder is named for 'Recipe'", or, when the folders exist,
   a list of the classes they do hold (`conformance/stage6/empty_folder_range`, `diagnostics/empty_folder_range`).
-- **`phase: Symbol<$system_type.phase_each>` ranges over the functions whose names fit `<phase>_each`** (D116):
+- **`phase: Symbol<$system_type.phase_each>` ranges over the functions whose names fit `<phase>_each`**:
   when the parameter's own name is a word of the function name in the range, that word is the hole, exactly as
   it is in a template's own name. `update_each` gives `phase` = `'update'`; `run_each_before_phase` would match
-  `run_each_before_render`. Inside, `phase.name` is the matched text, and the pattern written as a member --
-  `system.phase_each(...)` -- calls the matched function; another template ranging over `$system_type.phase_each`
+  `run_each_before_render`. Inside, `phase.name` is the matched text, and the pattern written as a member,
+  `system.phase_each(...)`, calls the matched function; another template ranging over `$system_type.phase_each`
   from inside walks that function's arguments, its instances named for it (`row_potion_in_update_each`) so two
   matched functions never share one. The engine owns the list of phases and decides what they mean; the language
   only reads the name.
-- **The hole matches only the values of an enum** (D180, decided by Mortaro; how the enum is found proposed by
-  Claude, unconfirmed). The engine's phases are an enum, and the enum is the one named for the hole --
-  `Phase` for `phase`, `RenderStep` for `render_step` -- resolved as a type written that way would be from the
-  template's class (its own class, its folders, then the whole program when only one class declares it). A
+- **The hole matches only the values of an enum.** The engine's phases are an enum, and the enum is the one named
+  for the hole (`Phase` for `phase`, `RenderStep` for `render_step`), resolved as a type written that way would be
+  from the template's class (its own class, its folders, then the whole program when only one class declares it). A
   function that fits the pattern without naming a value, such as a helper `count_all` when `count` is not a
   `Phase`, is an ordinary function. The plural (`run_phases_each()`) walks the matching functions **in the enum's
   order**, not their declaration order, and `phase.value` is the matched value, typed as the enum, so an engine
@@ -1664,10 +1637,10 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   `has_function` and `name_fits` answered at run time, from `.functions`, still take any text in the hole. A
   program adds a phase by reopening the enum ([packages.md](packages.md#reopening-an-enum-adds-values)), and
   every system with a function for it is then run in it (`conformance/stage6/system_phases`, where a system's
-  `sum_all` helper stays ordinary). Walking the enum emits one call per value and no table of its values (D177).
-- **A template's symbol is passed to a helper by name** (proposed by Claude, unconfirmed). A function whose
-  `Symbol<...>` parameter is not a word of its own name --
-  `run_combination(phase: Symbol<$system_type.phase_each>, combination: Integer)` -- is not
+  `sum_all` helper stays ordinary). Walking the enum emits one call per value and no table of its values.
+- **A template's symbol is passed to a helper by name.** A function whose
+  `Symbol<...>` parameter is not a word of its own name, such as
+  `run_combination(phase: Symbol<$system_type.phase_each>, combination: Integer)`, is not
   an ordinary function taking a run-time `Symbol`: it is a template compiled once for each symbol passed to it,
   and the only thing its symbol argument may be is the calling template's own symbol over the same range, written
   by name: `run_combination(phase, combination)`. Its instance is `run_combination_for_update`, keyed
@@ -1701,15 +1674,13 @@ func row_argument(argument: Symbol<$system_type.phase_each>): argument.class {
 `Runner<System.DrinkPotion>()`, and `RunnerDrinkPotion` with `run_update_each()`, `row_potion_in_update_each():
 Potion` and the rest. `conformance/stage6/system_functions` (a `run_each` of two rows and a `run_all` of a list,
 chosen by `has_function`), `conformance/stage6/system_folder` (`system/` and `ui/system/` found with no list),
-`conformance/stage6/system_phases` (two phases run in the engine's order, not the folder's),
-`docs/metaprogramming.md`, `docs/reflection.md`.
+`conformance/stage6/system_phases` (two phases run in the engine's order, not the folder's).
 
-### Codegen values (`$`)  **[implemented]**
+### Codegen values (`$`)
 
 `$name` means "replaced at code generation". That is its only meaning, everywhere it appears.
 
-D87 (decided by Mortaro, superseding D9's constructor list): **a class declares each codegen value on a `generic`
-line of its own, at the top of the file**, "instead of constructor":
+**A class declares each codegen value on a `generic` line of its own, at the top of the file**:
 
 ```gdscript weapon.spite
 generic $damage_type
@@ -1734,77 +1705,71 @@ var sword = Weapon<Integer, true>(10)
 ```
 
 - **Every value is declared, even a single one**, so skimming the top of a file is how a human sees what a class
-  accepts. The lines come after a `singleton` line and before everything else (D67); one line declares one value,
+  accepts. The lines come after a `singleton` line and before everything else; one line declares one value,
   and a comma is an error naming the line to write: "a 'generic' line declares one codegen value: write 'generic
   $left_type' and put the next one on its own line".
 - **Call sites are positional, always, in the order of the lines.** There is no named form: `List<Integer>()`,
   `Weapon<Integer, true>(10)`.
-- **`$` is for generics only** (D76, decided by Mortaro, superseding D9's "undeclared means supplied by a
-  compiler flag"). Every `$name` a class uses has a `generic` line and is supplied by the caller, so the lines
-  are exactly "what a caller must pass". A `$name` with no line is a compile error. Used as a value it points at
-  [`Environment`](programs.md#program-settings-environment--implemented), which is where a program's settings
+- **`$` is for generics only.** Every `$name` a class uses has a `generic` line and is supplied by the caller, so
+  the lines are exactly "what a caller must pass". A `$name` with no line is a compile error. Used as a value it
+  points at [`Environment`](programs.md#run-time-settings-environment), which is where a program's settings
   live: "'Game' has no 'generic $verbose' line, and '$' is for generics only: a program's settings are fields of
-  Environment -- ..."; used as a type it is "this class has no 'generic $other_type' line, so '$other_type' cannot
+  Environment, so ..."; used as a type it is "this class has no 'generic $other_type' line, so '$other_type' cannot
   be used as a type" (`diagnostics/codegen_values`).
-- **Only a class has codegen values; there are no generic functions** (D123, decided by Mortaro: "function
-  generics can ONLY come if the class has a generic declared for it"). A function reads the `generic` lines of its
-  class and declares none of its own; a function that must accept any class takes a `type` -- the built-in empty
-  `Anything` (D163) accepts every class -- and `value.class` is the real class
-  ([reflection.md](reflection.md#an-attributes-value)). Listing values on a function is the D9 error below.
-- **A class needs no constructor to take codegen values.** That was D9's cost, and the reason for D87:
-  `library/list.spite` is `generic $element_type` and its functions, and `library/dictionary.spite` is `generic
-  $value_type`; an empty constructor is still an error.
+- **Only a class has codegen values; there are no generic functions.** A function reads the `generic` lines of its
+  class and declares none of its own; a function that must accept any class takes a `type` (the built-in empty
+  `Anything` accepts every class), and `value.class` is the real class
+  ([reflection.md](reflection.md#an-attributes-value)). Listing values on a function is the error below.
+- **A class needs no constructor to take codegen values.** `library/list.spite` is `generic $element_type` and its
+  functions, and `library/dictionary.spite` is `generic $value_type`; an empty constructor is still an error.
 - **Every hole must be filled.** There are no defaults. A call supplying the wrong number is a compile error
-  naming the class's codegen values, in order -- "'Box' takes 1 codegen value(s), in this order: $held_type --
-  but 2 were given" -- so the mistake is corrected from the message rather than by opening the class. A `$name`
-  that is not declared is an error too -- which is what a typo like `$is_magik` produces.
+  naming the class's codegen values, in order: "'Box' takes 1 codegen value(s), in this order: $held_type,but 2 were given", so the mistake is corrected from the message rather than by opening the class. A `$name`
+  that is not declared is an error too, which is what a typo like `$is_magik` produces.
 - Reordering the `generic` lines changes what every existing positional call site means. Where the values
   have different kinds (a class versus a `Boolean`) the compiler catches it immediately; where they are the same
   kind (`Pair<Integer, String>` swapped) it compiles and means something else, and the tests are what catch it. This
-  is a deliberate, accepted trade (Mortaro).
+  is a deliberate, accepted trade.
 - **Each set of values is its own class**, made only where a program names it, with its own copy of every
   function surviving code calls. Nothing chooses between them at run time; what a generic costs is that code,
-  once per set of values used, and a generic nobody makes costs nothing (D177). `--final-classes` prints each
+  once per set of values used, and a generic nobody makes costs nothing. `--final-classes` prints each
   class with its codegen values already bound, which is where `true` reads as `is_magic` again.
-- Writing `generics` is a parse error naming this form (as `for`, `&` and `Heap<T>` already are), and so is D9's
+- Writing `generics` is a parse error naming this form, and so is listing codegen values on a function,
   `func Weapon<$damage_type, $is_magic>(...)`, on a constructor or any other function: "a function no longer
   lists codegen values between '<' and '>': declare each at the top of the file on its own line ('generic
   $damage_type', 'generic $is_magic'), and write 'func Weapon(' here" (`diagnostics/constructor_codegen_list`).
   A `generic` line inside a function is an error too.
-- **The values can be left out when the constructor's arguments say them** (proposed by Claude, unconfirmed;
-  generalised for D138): each parameter whose declared type mentions a `$name` is
-  matched against its argument's type -- `$name` itself, `$name?` (a `T` or a `T?` both give `T`), `List<$name>`,
-  `Dictionary<$name>`, and the arguments and return of a `Spite.Function<...>`. A `null` argument says nothing.
+- **The values can be left out when the constructor's arguments say them**: each parameter whose declared type
+  mentions a `$name` is
+  matched against its argument's type (`$name` itself, `$name?` (a `T` or a `T?` both give `T`), `List<$name>`,
+  `Dictionary<$name>`, and the arguments and return of a `Spite.Function<...>`). A `null` argument says nothing.
   Only when every `$name` is found; otherwise the error asks for them between `<` and `>`: "'Box' takes 1 codegen
-  value(s), in this order: $held_type -- write them between < and > before the arguments". `Pair("Hero", 7)`,
+  value(s), in this order: $held_type. Write them between < and > before the arguments". `Pair("Hero", 7)`,
   `Concurrent(file.read)`, `JsonWriter(order)`.
-- `$name()` makes the default of what `$name` is bound to (D236; proposed by Claude, unconfirmed): a class through
+- `$name()` makes the default of what `$name` is bound to: a class through
   its constructor with no arguments, an empty `List` or `Dictionary`, `0`, `""`, and for a `type` whose members
-  are all attributes a real object. `var held: $held_type = null` is D236's error, since `null` belongs to `T?`
-  alone ([values_and_types.md](values_and_types.md#variables-and-values--implemented)), except on an attribute the
+  are all attributes a real object. `var held: $held_type = null` is an error, since `null` belongs to `T?`
+  alone ([values_and_types.md](values_and_types.md#variables-and-values)), except on an attribute the
   constructor assigns and a local a walk fills. **Bound to a `type` that requires a function, `= null` is a
-  compile error naming the attribute** (D211), unless the class's constructor assigns the attribute: no object
+  compile error naming the attribute**, unless the class's constructor assigns the attribute: no object
   can supply the function, so there is no default to make. `'held' is a Weapon, a type that requires the function 'strike', so
   '= null' has no default to make: no object can supply a function it does not have. Make its type nullable, with
   a '?', and narrow it before use, or give it a real object in the constructor` (`diagnostics/function_shape_default`).
 
-**A `generic` line may name a constraint** (D175, decided by Mortaro). **[implemented]**
+**A `generic` line may name a constraint.**
 `generic $item_type: Printable` accepts only types that fit the `type` `Printable`, and a use that does not
-(`Shelf<Pet>`) is an error where the class is named, naming the constraint, the class and what it lacks --
-"'Pet' does not fit type 'Printable', which 'Shelf' requires of $item_type: it has no function 'to_string'" --
+(`Shelf<Pet>`) is an error where the class is named, naming the constraint, the class and what it lacks:
+"'Pet' does not fit type 'Printable', which 'Shelf' requires of $item_type: it has no function 'to_string'",
 instead of an error deep inside the generic's body. The constraint is optional and uses an existing `type`,
-resolved like any type name from the generic's file. What follows is Claude's reading where D175 is not specific
-(proposed by Claude, unconfirmed):
+resolved like any type name from the generic's file. In detail:
 
 - **Fitting is what [Types](values_and_types.md#types) already means by it**: the class a `type` would admit
-  fits -- a class with the listed functions and attributes, `String`, a number, an enum, a `List<T>` or
+  fits: a class with the listed functions and attributes, `String`, a number, an enum, a `List<T>` or
   `Dictionary<T>` with what the `type` needs, and the `type` itself. A `T?` does not fit ("'Integer?' does not fit
   type 'Printable', which 'Shelf' requires of $item_type: it may be null, and null has none of what the type
   needs"), and neither does a function value.
 - **A constraint names a `type`, not a class, a union or a number type**: anything else is an error on the
-  `generic` line -- "'$count_type' is constrained by 'Integer', which is not a 'type': a constraint names a
-  'type' the class given must fit, like 'generic $count_type: Printable'". Constraining by a union ("one of these
-  classes") is not built.
+  `generic` line: "'$count_type' is constrained by 'Integer', which is not a 'type': a constraint names a
+  'type' the class given must fit, like 'generic $count_type: Printable'".
 - **It is checked once per class given**, where the compiler first makes that instance, written out or read
   from the constructor's arguments. After the error the generic is compiled as if it had been given the `type`
   itself, so its body adds no errors of its own.
@@ -1812,99 +1777,94 @@ resolved like any type name from the generic's file. What follows is Claude's re
   instance made is the one an unconstrained line would make.
 
 `conformance/stage6/generic_constraints`, `diagnostics/generic_constraints`,
-`diagnostics/generic_constraint_not_a_type`, `docs/metaprogramming.md`.
+`diagnostics/generic_constraint_not_a_type`.
 
 **Conditions on codegen values fold.** They are decided at compile time and the untaken branch is removed (tree
-shaking), in every build, `--development`, `--hot-reload` and the REPL builds included (the D143 row that settled
-what `--development` does): a codegen value is part of which class this is -- `Weapon<Integer, true>` and
-`Weapon<Integer, false>` are two classes -- so there is no run-time value for live reload to change. To change
-one, change the call site.
+shaking), in every build, `--development`, `--hot-reload` and the REPL builds included: a codegen value is part of
+which class this is (`Weapon<Integer, true>` and `Weapon<Integer, false>` are two classes), so there is no
+run-time value for live reload to change. To change one, change the call site.
 
-**An `assert` or `crash` on such a condition folds the same way** (proposed by Claude, unconfirmed).
-**[implemented]** When the condition of an `assert` or `crash` asks only what is decided while compiling -- a
-`$flag`, `$slot_type == Entity` or any other test of a codegen type, `has_function`, `function_waits`,
-`function_writes_parameter`, `fits_vector` or `argument_count` of a codegen type or of a walked symbol's class, `argument.class == $row_type`,
-and `not`, `and` and `or` over them -- it is decided for each instance, with no test at run time: when it holds,
+**An `assert` or `crash` on such a condition folds the same way.** When the condition of an `assert` or `crash`
+asks only what is decided while compiling (a `$flag`, `$slot_type == Entity` or any other test of a codegen type,
+`has_function`, `function_waits`, `function_writes_parameter`, `fits_vector` or `argument_count` of a codegen type
+or of a walked symbol's class, `argument.class == $row_type`, and `not`, `and` and `or` over them), it is decided
+for each instance, with no test at run time: when it holds,
 nothing is written for it; when it does not, the `assert` answers "nothing" (recording its trace line), and the
 statements after it in the same block are not compiled for that instance, exactly as after an `if` whose taken
-branch returns. A folded `assert` is held to D244 like any other: it is allowed only in a function whose result can
-say "nothing" (a `T?`, `Nothing`, or a collection), so `assert $slot_type == Entity` followed by `return value.id`
-is written in a function returning `Integer?`; in one returning `Integer`, the answer for the other instances is
-written down instead, `if $slot_type != Entity { return 0 }`, which folds the same way
+branch returns. A folded `assert` is held to the same rule as any other: it is allowed only in a function whose
+result can say "nothing" (a `T?`, `Nothing`, or a collection), so `assert $slot_type == Entity` followed by
+`return value.id` is written in a function returning `Integer?`; in one returning `Integer`, the answer for the
+other instances is written down instead, `if $slot_type != Entity { return 0 }`, which folds the same way
 (`conformance/stage6/folded_checks`, [failure.md](failure.md#a-default-that-looks-like-an-answer-is-an-error)).
 
-**A `crash` that folds to false is a compile error where the program can reach it** (decided by Claude under
-D205; the wording proposed by Claude, unconfirmed). **[implemented]** A `crash` whose condition is decided while
-compiling and is false would halt every time its function runs, so it is a developer's mistake the compiler can
-prove (D199), and it is reported while compiling, at the `crash`, naming the instance: `'crash
+**A `crash` that folds to false is a compile error where the program can reach it.** A `crash` whose condition is
+decided while compiling and is false would halt every time its function runs, so it is a developer's mistake the
+compiler can prove, and it is reported while compiling, at the `crash`, naming the instance: `'crash
 $slot_type.fits_vector()' always halts in Slot<List<String>>: its condition is decided while compiling and is
 false, so the program would stop here every time this function runs: call it only where the condition holds, or
-change what the condition asks` (`diagnostics/folded_crash`). Only a function the program reaches counts -- the
+change what the condition asks` (`diagnostics/folded_crash`). Only a function the program reaches counts (the
 same reach tree shaking keeps in a production build, worked out for an inspectable build too, where nothing is
-shaken -- so an instance whose function nobody calls compiles (`conformance/stage6/folded_crash_uncalled`). This
+shaken), so an instance whose function nobody calls compiles (`conformance/stage6/folded_crash_uncalled`). This
 is how a library turns its rules into compile errors: a `crash $system_type.has_function("update_each")` in the
 function that runs a system fails the build for the class that breaks the rule, not the run. The sides of an `and`
 are checked one at a time, as two `crash` lines would be, so in `crash $system_type.has_function("update_each") and
 ready` the first side folds on its own and is this compile error when it is false, whatever `ready` holds; only a
 condition that mixes a run-time value in through `or` (or `not` over an `and`) is tested at run time as a whole.
-Before, such a condition was compiled as
-a value and was the error "'$slot_type' is a type here, so it cannot be used as a value". A condition that also
-reads a run-time value is compiled as before.
 
-**A class test that can never be true for one instantiation folds to `false`** (D167, decided by Mortaro): inside
+**A class test that can never be true for one instantiation folds to `false`.** Inside
 a generic class, `if item == Health { }` where `item`'s type comes from a codegen value that is not `Health` in
-this copy is `false`, and its branch is removed from that copy only -- "generics being possibly unused code is
-used for tree shake, its on purpose not an error". Outside generics the never-true test stays D75's error
-([control_flow.md](control_flow.md#control-flow--implemented)). A codegen value bound to a class is itself a
-class test on the right of `==`, `item == $wanted_type`
-([values_and_types.md](values_and_types.md#unions--implemented)).
+this copy is `false`, and its branch is removed from that copy only, since generic code that a particular copy does
+not use is what tree shaking removes, so it is on purpose not an error. Outside generics the never-true test stays
+an error ([control_flow.md](control_flow.md#control-flow-in-full)). A codegen value bound to a class is itself
+a class test on the right of `==`, `item == $wanted_type`
+([values_and_types.md](values_and_types.md#unions-in-full)).
 
-**Asking what type a generic was given** (proposed by Claude, unconfirmed; built for D95's `Json`).
-**[implemented]** When a codegen value is a type, `$value_type == String` is decided at compile time like any
-other condition on a codegen value, and only the branch taken is compiled -- so each branch may use what only
-that type has, which is what lets one generic class treat text, numbers, lists and classes differently. It is
-the class test (D75, [control_flow.md](control_flow.md#value--class)) asked of a type instead of a value. A type
-name asks for exactly that type; four names ask for a kind, since the type has arguments the test does not want
-to spell:
+**Asking what type a generic was given.** When a codegen value is a type, `$value_type == String` is decided at
+compile time like any other condition on a codegen value, and only the branch taken is compiled, so each branch
+may use what only that type has, which is what lets one generic class treat text, numbers, lists and classes
+differently. It is the class test ([control_flow.md](control_flow.md#value--class)) asked of a type instead of a
+value. A type name asks for exactly that type; four names ask for a kind, since the type has arguments the test
+does not want to spell:
 
 | Test | True when the type is |
 |---|---|
 | `$value_type == List` | any `List<T>` |
 | `$value_type == Dictionary` | any `Dictionary<T>` |
-| `$value_type == Null` | any `T?` -- `Null` is a member of the union a `T?` is (D45) |
-| `$value_type == Symbol` | an enum, or `Symbol` -- an enum is a closed list of symbols (D10) |
-| `$value_type == Enum` | an enum only, not a plain `Symbol` (proposed by Claude, unconfirmed: `JsonReader` and `BinaryFormat` need it to read a plain `Symbol` through `Symbol(text)` and an enum through the text cast) |
+| `$value_type == Null` | any `T?` (`Null` is a member of the union a `T?` is) |
+| `$value_type == Symbol` | an enum, or `Symbol` (an enum is a closed list of symbols) |
+| `$value_type == Enum` | an enum only, not a plain `Symbol` (`JsonReader` and `BinaryFormat` need it to read a plain `Symbol` through `Symbol(text)` and an enum through the text cast) |
 
 A union name is true for any of its members. Such a test always folds, `--development` included, because the
 branch it rules out would not compile.
 
-**Only what survives folding is compiled** (proposed by Claude, unconfirmed). A function of a generic class is
-compiled, and so type-checked, for one instantiation only when code already compiled for the program names it --
-a call that survived folding, a function value, a reflection table, or a call through a `type` the class is a
-member of -- so a helper reached only from a branch the instantiation rules out is never checked against that
+**Only what survives folding is compiled.** A function of a generic class is
+compiled, and so type-checked, for one instantiation only when code already compiled for the program names it (a
+call that survived folding, a function value, a reflection table, or a call through a `type` the class is a
+member of), so a helper reached only from a branch the instantiation rules out is never checked against that
 type. When a folded `if` (or `else if` chain) takes a branch that ends in `return`, the statements after it in the
 same block are not compiled either, and the names they read count as used, as for the untaken branch. This holds
 in every build, inspectable ones included. A class that is not generic still compiles every function, so a
-mistake in an uncalled one is still reported (D140). `conformance/stage6/folded_helpers`.
+mistake in an uncalled one is still reported. `conformance/stage6/folded_helpers`.
 
 **The types a type was built from are read by their codegen names**: `$value_type.element_type` for a
 `List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>` or a `$value_type?`, and a generic
-class's own names for one of its instances -- the names this section already gives the containers. Reading a name
-the type does not have is an error listing them: "a List<Integer> has no codegen value named '$value_type' --
-List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own"
-(`diagnostics/every_attribute`). `conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
+class's own names for one of its instances, the names this section already gives the containers. Reading a name
+the type does not have is an error listing them: "a List<Integer> has no codegen value named '$value_type': List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own"
+(`diagnostics/every_attribute`). `conformance/stage6/every_attribute`.
 Compared in a condition, a name read this way folds like `$value_type` itself: `if $list_type.element_type ==
 Float`, `else if $map_type.key_type == String`, `$holder_type.held_type != Item`, to any depth and in every
-branch of an `else if` chain, so a branch that does not fit the instantiation is not compiled (fixed 2026-09-26,
-proposed by Claude, unconfirmed; `conformance/stage6/codegen_member_fold`). An `and` whose left side folds to
+branch of an `else if` chain, so a branch that does not fit the instantiation is not compiled
+(`conformance/stage6/codegen_member_fold`). An `and` whose left side folds to
 `false`, or an `or` whose left folds to `true`, folds without its right side, which may then ask what the type does
 not have: `$list_type.element_type == List and $list_type.element_type.element_type == Float`.
 
-**A codegen value that is a type reads as its class** (proposed by Claude, unconfirmed): a member
+**A codegen value that is a type reads as its class**: a member
 read through it, `$component_type.name` or `$component_type.attributes`, is read from the bound class's
-`Spite.Class`, exactly as `Health.name` is -- no value of the type is made. `$component_type` alone in an
+`Spite.Class`, exactly as `Health.name` is, and no value of the type is made. `$component_type` alone in an
 expression is still the "is a type here" error (`conformance/stage6/codegen_class_name`).
 
-The `generic` line replaced the `generics` header, which "feels outside of our patterns" (D5), and D9's list on
-the constructor, which forced a constructor on every generic class (D87); it is a declaration like `var`, and a
-header pattern shared with `singleton` (D104). The alternatives tried on the way are in the decision log.
+The `generic` line is a declaration like `var`, and follows a header pattern shared with `singleton`.
+
+---
+
+Next: [Reflection](reflection.md), reading a program's classes, attributes and functions while it runs.

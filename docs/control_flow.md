@@ -59,12 +59,12 @@ not answer a default there. An `if` with no `else` that ends by returning proves
 for the rest of the block, so `if not found { return -1 }` narrows `found`
 ([failure.md](failure.md#an-if-that-leaves-proves-the-rest)).
 
-**An `if`/`else` directly inside a branch of another `if`/`else` is an error** ([D170](decisions.md)).
+**An `if`/`else` directly inside a branch of another `if`/`else` is an error.**
 Two stacked decisions are two things to hold in your head at once, so the inner one gets a name: move it into a
 function named for what it decides, or, when both test which member of a union or which value of an enum a value
 is, use one `switch`. A flat
 `else if` chain is fine, and so is an `if` with no `else` inside a branch, or an `if`/`else` inside a `while` or a
-`switch` inside the branch -- the loop or the switch is the unit.
+`switch` inside the branch, since the loop or the switch is the unit.
 
 ```gdscript title=nested_decision_error/nested_decision_error.spite entry error
 var console = Console()
@@ -123,7 +123,7 @@ func said(text: String, loud: Boolean): String {
 
 ## `while` is the only loop
 
-There is no `for`: "only the while loop, no for; that makes people favor the metaprogramming." Writing `for` is a
+There is no `for`, so that people favor metaprogramming over hand-written loops. Writing `for` is a
 parse error that names the fix instead of silently doing something else:
 
 ```gdscript title=for_rejected/for_rejected.spite entry error
@@ -141,13 +141,13 @@ Spite only has 'while' loops
 ```
 
 A loop over a list of objects that only does what a
-[member template](collections.md#member-templates-loops-you-do-not-write) does -- calling, collecting, keeping,
-counting, adding up or finding a member of each element -- is an error naming the template
-([D171](decisions.md), [the exact shape](#a-while-that-a-member-template-already-says)). To call one of your own
+[member template](collections.md#member-templates-loops-you-do-not-write) does (calling, collecting, keeping,
+counting, adding up or finding a member of each element) is an error naming the template
+([the exact shape](#a-while-that-a-member-template-already-says)). To call one of your own
 functions with each element, pass it: `items.each(restock)`
 ([Passing a function for each element](collections.md#passing-a-function-for-each-element)).
 
-When you do need to walk a list by hand -- because you need the index, walk two lists, or stop early -- index
+When you do need to walk a list by hand (because you need the index, walk two lists, or stop early), index
 it. The loop's condition `index < names.count()` proves `names[index]` inside the body, so the read needs no
 narrowing:
 
@@ -198,11 +198,11 @@ stopped at 2
 
 None of this costs anything at run time beyond the branches and loops it compiles to: every rule on this page
 is checked while compiling. Only a REPL build adds a check point to each loop
-([the rules](#control-flow--implemented) say which builds).
+([the rules](#control-flow-in-full) say which builds).
 
 ## `switch` over a union
 
-A `switch` is over a union -- or a `T?`, which is the union of a type and `Null` -- and must cover every member.
+A `switch` is over a union (or a `T?`, which is the union of a type and `Null`) and must cover every member.
 Inside each case the value is narrowed to that member. A case is one statement on its line, or a block in `{ }`.
 
 ```gdscript title=switch_cases/cat.spite
@@ -262,10 +262,10 @@ something that says meow
 
 **`_:` answers for every member without a case of its own.** It is the last case, and it means "this body, written
 once for each remaining member": the value is narrowed to each of them in turn, so `creature.sound()` needs
-`sound()` only on the members `_` answers for (here `Cat`), not on the whole union. A switch stays exhaustive --
+`sound()` only on the members `_` answers for (here `Cat`), not on the whole union. A switch stays exhaustive:
 `_` is how it covers the rest, not a way to skip it. Two cases that do the same thing are an error naming `_:`,
 and so is a case that does what `_:` already does, or a `_:` that answers for nothing (the exact rules are with
-[unions](values_and_types.md#unions--implemented)).
+[unions](values_and_types.md#unions-in-full)).
 
 ## `switch` over values
 
@@ -345,8 +345,8 @@ func seconds_for(light: Light): Integer {
 this switch over 'light' has no case for 'amber'
 ```
 
-**Three `if`s that only compare one value with a constant and return are a `switch`**
-([D239](decisions.md)). Each is a compile error that shows the switch to write, which says in one place what the
+**Three `if`s that only compare one value with a constant and return are a `switch`.**
+Each is a compile error that shows the switch to write, which says in one place what the
 chain says in three:
 
 ```gdscript title=if_chain_error/if_chain_error.spite entry error
@@ -381,8 +381,8 @@ The same goes for an `else if` chain. Two such `if`s stay as they are.
 A class name on the right of `==` or `!=` asks what class a value is: `creature == Fish` is true when `creature`
 is a `Fish`. A `T?` that is null is no class, so the test is false. Naming a class that cannot be a member of the
 value's union is an error, since the answer could only be `false`, and so is testing a value whose own type already
-answers -- a plain `Cat` tested for `Cat` or `Fish`, or a union already narrowed to `Fish` tested again -- outside
-a generic class (D279, [proofs.md](proofs.md#proving-what-is-proven-is-an-error)). `if value == Class { }` narrows
+answers (a plain `Cat` tested for `Cat` or `Fish`, or a union already narrowed to `Fish` tested again) outside
+a generic class ([proofs.md](proofs.md#proving-what-is-proven-is-an-error)). `if value == Class { }` narrows
 the value inside the block, the way a switch case does:
 
 ```gdscript title=class_test_doc/cat.spite
@@ -472,13 +472,13 @@ hello
 Inside a generic class, a codegen value bound to a class tests for that class: `item == $wanted_type`. A value
 read through a `type` that accepts anything is narrowed to the bound class, so a function can find the first
 value of the class it was made for without a generic function (there are none). A number is boxed when it goes
-into a `type`, so `Find<Integer>` finds it too. Where the value's own type already answers -- a `Health` tested
-against `$wanted_type` bound to `Health`, or a union that does not hold the bound class -- the test is decided
+into a `type`, so `Find<Integer>` finds it too. Where the value's own type already answers (a `Health` tested
+against `$wanted_type` bound to `Health`, or a union that does not hold the bound class) the test is decided
 while compiling, and it is never the "never true" error, since another binding may make it true. The same goes
 for any class test inside a generic class: one that can never be true for one instantiation (`held == Health` in
 a `Box<Label>`) folds to `false` and its branch is removed from that copy, while outside a generic it stays the
-error ([D167](decisions.md)). The full rules for class tests are with
-[unions](values_and_types.md#unions--implemented).
+error. The full rules for class tests are with
+[unions](values_and_types.md#unions-in-full).
 
 ```gdscript title=codegen_class_test_doc/find.spite
 generic $wanted_type
@@ -517,7 +517,7 @@ hello 43
 ```
 
 **So a switch that is one early return is an error.** A switch with one class case and `_:`, each a single
-`return`, says no more than `if value == Class { return ... }` followed by what `_:` returns -- and when both
+`return`, says no more than `if value == Class { return ... }` followed by what `_:` returns, and when both
 return `Boolean` literals, it is `return value == Class`. The error names the form to write:
 
 ```gdscript title=single_case_switch_error/cat.spite
@@ -557,7 +557,7 @@ remaining member, which an `else` cannot.
 ## Nothing after a `return`
 
 A statement written after a `return` in the same block could never run, so it is an error rather than a step
-skipped without a word (D244):
+skipped without a word:
 
 ```gdscript title=after_return_error/after_return_error.spite entry error
 var console = Console()
@@ -579,12 +579,10 @@ this statement comes after a 'return', so it never runs: remove it
 ## Rules in full
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
-cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
-rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+cases, the exact error texts and the notes on how it is built. Where the teaching above and these rules
+disagree, the rules win.
 
-### Control flow  **[implemented]**
+### Control flow in full
 
 ```gdscript
 if condition { } else { }
@@ -597,31 +595,28 @@ switch enemy {
 ```
 
 An `if` on a `T?` narrows the value in place ([Null safety and `assert` narrowing](failure.md#narrowing)): the block runs with `value` as a plain `T`,
-and the `else` runs exactly when it is null/absent -- one rule for narrowing everywhere, `assert`/`if`/`switch`
-alike (D3 gave it its `else`; the `if value do name { }` form it had is gone, and `do` is not a keyword,
-[Lexical structure](classes_and_files.md#lexical-structure--implemented)). The terminal-`if` lint
-([The last `if` of a function](failure.md#the-last-if-of-a-function)) applies only when the `if` has no `else` --
+and the `else` runs exactly when it is null/absent: one rule for narrowing everywhere, `assert`/`if`/`switch`
+alike. `do` is not a keyword ([Lexical structure](classes_and_files.md#lexical-structure)). The terminal-`if` lint
+([The last `if` of a function](failure.md#the-last-if-of-a-function)) applies only when the `if` has no `else`:
 one with an `else` already handles the missing case explicitly, so there is nothing left to rewrite with
 `assert`. `else if` is written on one line; the formatter joins an `else { if ... }` into it.
 
-**A statement ends with its line** (D244; the messages proposed by Claude, unconfirmed). Anything left on the line
+**A statement ends with its line.** Anything left on the line
 after a statement is a parse error at the first word left over, so nothing written there is silently dropped or
 read as a second statement: `return every attribute at its default` is `'attribute' is left over after the end of
 the statement: a statement ends with its line, so remove it, or put it on a line of its own if it is a statement`
 (`diagnostics/left_over_after_return`). An `if`, `while` or `switch` ends with the `}` that closes it (after its
 `else` chain, for an `if`), and a word after that `}` on the same line is `'console' is left over after the '}'
-that closes this statement: ...` (`diagnostics/left_over_after_block`). Before, `while ... { ... } console.print(total)`
-compiled as two statements and the formatter moved the second onto a line of its own without a word. **[implemented]**
+that closes this statement: ...` (`diagnostics/left_over_after_block`).
 
-There is deliberately no `break`/`continue` (D2): `while` is the only loop construct Spite has, full stop.
+There is deliberately no `break`/`continue`: `while` is the only loop construct Spite has, full stop.
 Neither is a keyword, but either written as a statement of its own is an error naming the form (`Spite has no
 'break': a loop stops in its own condition, like 'while index < count and not found', ...`,
 `diagnostics/old_break`), and both stay usable as names. An
-early exit says so in the loop's own condition -- a flag (`var stopped = false` ... `while not stopped { ... }`)
+early exit says so in the loop's own condition: a flag (`var stopped = false` ... `while not stopped { ... }`)
 or the bound itself (`while index < words.count() and words[index] != "stop"`).
 
-`while` is the only loop. There is no `for` (decided by Mortaro, 2026-09-19): "only the while loop, no for; that makes people favor the
-metaprogramming" -- reach for `List<T>`/`Dictionary<T>` metaprogramming
+`while` is the only loop. There is no `for`, so that people favor metaprogramming: reach for `List<T>`/`Dictionary<T>` metaprogramming
 ([Member templates](collections.md#member-templates-loops-you-do-not-write),
 [Passing a function for each element](collections.md#passing-a-function-for-each-element)) first, and index with
 `while index < list.count() { }` when a loop is genuinely needed. Writing `for` is a parse error rather than
@@ -631,35 +626,31 @@ code.
 
 `while` costs nothing at run time beyond the loop itself, with one exception in debugging builds: in a
 `--repl-port` or `--hot-reload` build, each pass of a `while` in the program's own code (not `library/` or
-`launcher/`) ends with a check point that answers a waiting REPL command or reload (D174,
-[repl.md](repl.md#remote---repl-port)); every other build has none. D174 names `--repl` builds too, but a
-local `--repl` build reads its commands from the console only after the entry constructor returns, so a check
-point there would have nothing to answer and would cost a call per pass for nothing (D147): it gets none
-(proposed by Claude, unconfirmed, reading D174's purpose, "still answers the remote REPL", over its list of
-flags).
+`launcher/`) ends with a check point that answers a waiting REPL command or reload
+([repl.md](repl.md#remote---repl-port)); every other build has none. A local `--repl` build gets none either: it
+reads its commands from the console only after the entry constructor returns, so a check point there would have
+nothing to answer and would cost a call per pass for nothing.
 
 #### Nested `if`/`else`
 
-**An `if` with an `else`, directly inside a branch of another `if` with an `else`, is a compile error** (D170).
+**An `if` with an `else`, directly inside a branch of another `if` with an `else`, is a compile error.**
 The message names the fix: "this 'if'/'else' is inside a branch of another 'if'/'else': move it into a function
 named for what it decides, or, when both test which member of a union a value is, use one 'switch'"
 (`diagnostics/nested_if_else`). An `else if` link counts as a branch of its chain, so an `if`/`else` inside the
 body of an `else if` is caught too. Not counted: a flat `else if` chain; an `if` without an `else` inside a
 branch; and an `if`/`else` inside a `while` or `switch` inside the branch, since the loop or the switch is the
-unit. The message names "a union or an enum" as D170 wrote it, since `switch` takes an enum's values (D239).
-Compile time only. **[implemented]**
+unit. The message names "a union or an enum", since `switch` takes an enum's values.
+Compile time only.
 
 #### `switch` over values
 
-D239 (decided by Mortaro, answering `mortaros_missing_decisions.md` item 170): `switch` works over enums. Built
-as (the case syntax, the other kinds and the messages proposed by Claude, unconfirmed): a `switch` whose subject
-is an enum value, a whole number or a `String` takes value cases -- an enum literal (`'red':`), a whole-number
-literal, negative included (`-1:`), or a text literal without holes (`"es":`) -- and `_:` as its last case for
-the values without one. **[implemented]**
+A `switch` whose subject is an enum value, a whole number or a `String` takes value cases: an enum literal
+(`'red':`), a whole-number literal, negative included (`-1:`), or a text literal without holes (`"es":`), and `_:`
+as its last case for the values without one.
 
 - A switch over an enum names only its values; one that leaves a value out without `_:` is "this switch over
   'light' has no case for 'amber': a switch over an enum covers every value, so a value added later cannot be
-  forgotten -- add the cases, or end with '_:' for the rest", and a `_:` after every value is "every value of
+  forgotten; add the cases, or end with '_:' for the rest", and a `_:` after every value is "every value of
   'Light' already has a case, so '_:' answers for nothing: remove it".
 - A switch over a number or a text always ends with `_:` ("this switch over 'number' has no '_:': an Integer has
   more values than a switch can list, ...").
@@ -667,7 +658,7 @@ the values without one. **[implemented]**
   "'blue' is not a value of this enum"; a class as a case of such a switch, a name or a call as a case, a value
   case in a switch over a union, and a value case over a `T?` (narrow it first) are errors saying so.
 - `_:`, two cases with the same body, and a switch of one case and `_:` that each only return follow the rules of
-  union switches ([Unions](values_and_types.md#unions--implemented)): the last one names `return light ==
+  union switches ([Unions](values_and_types.md#unions-in-full)): the last one names `return light ==
   'red'`, "this switch only asks whether 'light' is 'red'".
 - The subject is evaluated once, into a temporary; the cases are tested in order as an `if`/`else if` chain on
   it, with `==` as it compares that type (a text by its bytes). Nothing is added at run time beyond those tests.
@@ -677,10 +668,8 @@ the values without one. **[implemented]**
 
 #### A chain of `if`s on one value is a `switch`
 
-D239 (decided by Mortaro): "this code has all the ifs just comparing the same variable, with 1 return, we should
-force this case to be a switch with a compiler error". Built as (the threshold and the message proposed by Claude,
-unconfirmed): three or more `if`s in a row, each with no `else`, whose condition is `subject == constant` and whose
-whole block is one `return`, with the same `subject` -- a name or a member path, no call -- and a constant that is
+Three or more `if`s in a row, each with no `else`, whose condition is `subject == constant` and whose
+whole block is one `return`, with the same `subject` (a name or a member path, no call) and a constant that is
 an enum literal, a whole-number literal (negative included) or a text literal, are a compile error at the first
 `if`. So is an `if`/`else if` chain of three or more such links. The message writes the switch out:
 
@@ -690,20 +679,18 @@ these 6 'if's each compare 'index' with a value and return, which is what a 'swi
 
 `_:` answers with the `return` that follows the chain (or the final `else`), and is `_: ...` when something else
 follows; a chain that covers every value of an enum gets no `_:`. Two such `if`s, a comparison with anything but
-a constant, and an `if` doing more than return are left alone. Compile time only. Every chain in the compiler and
-`library/` became a switch -- 44 in all, among them `Date.get_weekday()`, `Duration`'s units, the lexer's keyword
-table and the compiler's operator tables (`diagnostics/switch_chain`). **[implemented]**
+a constant, and an `if` doing more than return are left alone. Compile time only (`diagnostics/switch_chain`).
 
 #### A `while` that a member template already says
 
 **A `while` that only walks every element of a list, doing what a member template does, is a compile error naming
-the template** (D171); `while` stays for loops over state. The shape is exact (proposed by Claude, unconfirmed): the statement before the loop is `var counter = 0`; the condition is
+the template**; `while` stays for loops over state. The shape is exact: the statement before the loop is `var counter = 0`; the condition is
 `counter < list.count()` with `list` a name or a path of type `List<T>`; the last statement is
 `counter = counter + 1`; the counter is read nowhere else in the body and not at all after the loop; and the
-rest of the body reads `list[counter]` -- directly, or through one `var item = list[counter]` first -- and is
+rest of the body reads `list[counter]` (directly, or through one `var item = list[counter]` first) and is
 exactly one of these, with `m` and `n` members of `T` that are not private (an attribute or a function taking
 nothing), which needs `T` to be a class, or with `f` a function that takes the element as its only argument,
-which fits a list of anything -- numbers and `String` included:
+which fits a list of anything, numbers and `String` included:
 
 | Body | The error names |
 |---|---|
@@ -730,10 +717,13 @@ which fits a list of anything -- numbers and `String` included:
 mentioned between its declaration and the loop, and `value` may not mention the counter or the element. The
 message reads `this 'while' walks every element of 'items' only to add up 'price': write 'var total =
 items.sum_price()'` (`diagnostics/template_walk`). `f` is a function of the class (`say_hello`), a function of an
-attribute or a local (`evaluator.process_line`), or a local or attribute holding a function value (D148); it
-takes exactly one argument, and where the loop tests it -- `filter`, `count`, `find`, `any`, `all` -- it returns
+attribute or a local (`evaluator.process_line`), or a local or attribute holding a function value; it
+takes exactly one argument, and where the loop tests it (`filter`, `count`, `find`, `any`, `all`) it returns
 `Boolean` (a function answering a `T?` there is a presence test, which no passed-function form says, so that loop
 stays). The message names it: `this 'while' walks every element of 'names' only to call 'say_hello' with each:
-write 'names.each(say_hello)'` (`diagnostics/walk_with_function`; proposed by Claude, unconfirmed: which callees
-count, and that a tested function must return `Boolean`). Loops that pass extra arguments, need the index, walk
+write 'names.each(say_hello)'` (`diagnostics/walk_with_function`). Loops that pass extra arguments, need the index, walk
 two lists, scan text, stop early any other way or walk state are not touched. Compile time only.
+
+---
+
+Next: [Style: the compiler is the formatter and the linter](style.md), how the compiler formats and lints code.

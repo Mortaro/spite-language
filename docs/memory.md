@@ -1,17 +1,17 @@
 # Memory
 
 Spite uses **reference counting**, JavaScript-like. A scalar (a number, a `Boolean`, an enum value) is a plain
-value, copied wherever it goes. Everything else -- a class instance, `List<T>`, `Dictionary<T>`, `String`, a
-union, an object literal -- is a **reference**: assigning it, passing it, storing it in a field, a list or a
+value, copied wherever it goes. Everything else (a class instance, `List<T>`, `Dictionary<T>`, `String`, a
+union, an object literal) is a **reference**: assigning it, passing it, storing it in a field, a list or a
 dictionary, and returning it all share the exact same object. There is no reference syntax to write: a reference
-is the default. When the last reference to an object goes -- a scope ends, a field is overwritten, an element is
-removed -- the object's `drop()` runs, if it has one, its own references are released, and it is freed. There is
+is the default. When the last reference to an object goes (a scope ends, a field is overwritten, an element is
+removed), the object's `drop()` runs, if it has one, its own references are released, and it is freed. There is
 no garbage collector and no pause.
 
 What that costs while the program runs is a count in every object and one addition or subtraction each time a
-reference is kept or let go -- plain arithmetic, atomic only in a program that starts a thread -- and nothing
-else: no collector, no runtime to ship ([D177](decisions.md)). A singleton is not counted at all
-([D142](decisions.md)), and a number, a `Boolean` or an enum value is never an object.
+reference is kept or let go (plain arithmetic, atomic only in a program that starts a thread) and nothing
+else: no collector, no runtime to ship. A singleton is not counted at all, and a number, a `Boolean` or an enum
+value is never an object.
 
 ## Do: know that sharing is visible
 
@@ -72,27 +72,25 @@ original label a
 independent label b
 ```
 
-`deep_copy()` does not follow a cycle safely: see [the rules](#memory--implemented).
+`deep_copy()` does not follow a cycle safely: see [the rules](#the-memory-model).
 
 ## A `Vector` lends its items
 
 A `Vector<T>` is the one place a value is not a counted reference: it holds its items inline, one block of their
 attributes with no header ([collections.md](collections.md#vectort-items-inline)), and `velocities[index]` is the
 item inside that block, **borrowed**. Writing its attributes writes the vector's item; taking it and letting it go
-costs nothing. In exchange the compiler never lets it be kept -- in an attribute, a list, a returned value, a
-function value, or past a line that may grow or shrink the vector -- and each of those errors names `copy()`,
-which makes an independent object ([the rules](#borrowed-items-of-a-vectort--implemented)).
+costs nothing. In exchange the compiler never lets it be kept (in an attribute, a list, a returned value, a
+function value, or past a line that may grow or shrink the vector), and each of those errors names `copy()`,
+which makes an independent object ([the rules](#borrowed-items-of-a-vectort)).
 
-Only a class is lent: numbers, `Boolean`s and enums are kept in a `List`, never a `Vector`
-([D225](decisions.md)), and reading one gives a number of its own. `velocities[index]`, like every `[]`, answers a
-`T?`, so an item is lent once the read is narrowed -- by `crash velocities[index]`, or by a proof such as the loop
-bound `index < velocities.count()`.
+Only a class is lent: numbers, `Boolean`s and enums are kept in a `List`, never a `Vector`, and reading one gives
+a number of its own. `velocities[index]`, like every `[]`, answers a `T?`, so an item is lent once the read is
+narrowed, by `crash velocities[index]` or by a proof such as the loop bound `index < velocities.count()`.
 
 ### A row of borrowed items, for one call
 
 An engine keeps each component in its own `Vector` and hands a system one entity's components at a time. The
-row is an object literal of borrowed items, and the system takes it as a `type`
-([D206](decisions.md)):
+row is an object literal of borrowed items, and the system takes it as a `type`:
 
 ```gdscript title=vector_row_doc/position.spite
 var left = 0.0
@@ -143,11 +141,11 @@ The row is made in the function's frame, not on the heap, and nothing in it is c
 vectors' own items. In exchange the row lives for exactly the call it is passed to. It is never kept, returned,
 put in a list or given a second name, by the function that makes it or the one it is passed to, and the call may
 not append to or remove from a vector the row borrows from, directly or through anything it calls
-([the rules](#borrowed-items-of-a-vectort--implemented)).
+([the rules](#borrowed-items-of-a-vectort)).
 
 A generic runner does not know the attributes of the `type` it is given, so it cannot write the literal. It fills
 the row with a `Symbol` walk instead, and a local of the `type` declared `= null` and filled by the walk on the
-next line is a row exactly like the literal ([D212](decisions.md)):
+next line is a row exactly like the literal:
 
 ```gdscript title=walked_row_doc/position.spite
 var left = 0.0
@@ -220,7 +218,7 @@ func WalkedRowDoc() {
 5
 ```
 
-Every `[]` answers a `T?` ([D225](decisions.md)) and a row's attributes are items, so the template states each
+Every `[]` answers a `T?` and a row's attributes are items, so the template states each
 read with a `crash` line before the fill: nothing the walk knows proves that `index` is inside each column. The
 compiler writes the walk out where it is called: for `Runner<Moving>` the two lines become `crash
 columns.position[index]`, `crash columns.velocity[index]` and `var row: Moving = {position:
@@ -232,13 +230,13 @@ An engine that adds and removes components all the time keeps each one in a **sp
 `Column<Position>` whose `Vector` is packed, so each entity sits at a different place in each column. The runner
 works out those places first, one per attribute, and the walk's line reads each attribute from its own column at
 its own place: `Column<attribute.class>().values[stored_row]`, after `var stored_row = found[attribute.index]`,
-where `attribute.index` is the attribute's place in the `type` ([D217](decisions.md)), with one `crash` line for the
-place and one for the item (an index never holds another `[]` read, D285).
+where `attribute.index` is the attribute's place in the `type`, with one `crash` line for the
+place and one for the item (an index never holds another `[]` read).
 A generic singleton made with no arguments is the same object every time, so `Column<Position>()` starts a path
-that `crash` narrows like a name. The places are numbers in a `List`, so they may come from any `List<Integer>`
--- the runner's own, or another object's, `fill_attributes(row, matcher.rows)` ([D221](decisions.md)). A class that cannot be a `Vector` item stays a reference
-in a `List`, `attribute.class.fits_vector()` choosing while compiling, and the row may hold it beside the borrowed
-items, as it may hold an `Entity` made from the id:
+that `crash` narrows like a name. The places are numbers in a `List`, so they may come from any `List<Integer>`:
+the runner's own, or another object's, `fill_attributes(row, matcher.rows)`. A class that cannot be a `Vector`
+item stays a reference in a `List`, `attribute.class.fits_vector()` choosing while compiling, and the row may hold
+it beside the borrowed items, as it may hold an `Entity` made from the id:
 
 ```gdscript title=sparse_row_doc/position.spite
 var left = 0.0
@@ -406,13 +404,13 @@ func SparseRowDoc() {
 For `Runner<Moving>` the walk is written out as `{entity: <an Entity in the frame>, position:
 Column<Position>().values[found[1]], velocity: Column<Velocity>().values[found[2]], trail:
 ReferenceColumn<Trail>().at(found[3])}`: the `Entity` is made in the frame, since `Entity` could be a `Vector`
-item, and the `Trail` is counted once for the row and let go after the call -- unless nothing the call runs can
-let go of it, when `at` lends it to the row uncounted ([below](#borrowed-items-of-a-vectort--implemented), D269). Only `Position` and `Velocity` are
-borrowed, so only their vectors are checked for a resize during the call.
+item, and the `Trail` is counted once for the row and let go after the call, unless nothing the call runs can
+let go of it, when `at` lends it to the row uncounted ([below](#borrowed-items-of-a-vectort)). Only `Position`
+and `Velocity` are borrowed, so only their vectors are checked for a resize during the call.
 
 Two column classes, and a choice in every line that reaches them, are only there because a `Vector<Trail>` cannot
 be made. An [`Items<T>`](collections.md#itemst-the-storage-chosen-for-you) makes that choice itself, inline when
-the class fits and by reference when it does not ([D218](decisions.md)), so one `Column<$component_type>` holding
+the class fits and by reference when it does not, so one `Column<$component_type>` holding
 `var values = Items<$component_type>()` serves every component, and the fill template needs no `fits_vector()`:
 
 ```gdscript
@@ -441,8 +439,7 @@ call's whole argument list ([metaprogramming.md](metaprogramming.md#asking-for-a
 The template's line is the walked row's line, read per argument: `argument.index` is the argument's place, so
 `Column<argument.class>().values[stored_row]`, after `var stored_row = rows[argument.index]`, is that component's
 item. The plural stands for exactly
-one call the compiler writes, so its results may be borrowed items for that call and no longer
-([D220](decisions.md)):
+one call the compiler writes, so its results may be borrowed items for that call and no longer:
 
 ```gdscript title=lent_arguments_doc/position.spite
 var left = 0.0
@@ -522,13 +519,13 @@ it, it may lend it on to a call of its own ([below](#an-item-lent-to-a-call)), a
 to or remove from a column it borrows from. `made_position`
 called anywhere else is an ordinary function, and returning a borrowed item from it is the error for returning one.
 The template may also fill a whole walked row for an argument that is a `type`
-([the rules](#borrowed-items-of-a-vectort--implemented)).
+([the rules](#borrowed-items-of-a-vectort)).
 
 ### An item lent to the caller
 
 A singleton lives until the program ends, so an item of its `Items` or `Vector` can be handed to a caller: a
 function that returns `column.values[row]`, read straight from a singleton's storage, **lends** the stored item,
-and the caller writes it in place ([D230](decisions.md)):
+and the caller writes it in place:
 
 ```gdscript title=lent_result_doc/column.spite
 singleton
@@ -580,10 +577,10 @@ parameters folded first, so one `of` may lend a fitting class's item and hand ba
 
 ### An item lent to a call
 
-A borrowed item -- a name read from a `Vector` or `Items`, `velocities[index]` itself, a row's attribute, an item
-lent to the caller -- may be passed as an ordinary argument. It is **lent for the call**: the function reads and
+A borrowed item (a name read from a `Vector` or `Items`, `velocities[index]` itself, a row's attribute, an item
+lent to the caller) may be passed as an ordinary argument. It is **lent for the call**: the function reads and
 writes the caller's own item and may lend it on to the functions it calls, and when the call returns the borrow is
-the caller's again ([D257](decisions.md)):
+the caller's again:
 
 ```gdscript title=lent_call_doc/mouse.spite
 var left = 0
@@ -619,9 +616,9 @@ func LentCallDoc() {
 ```
 
 `apply` and `press` write the vector's item: nothing is copied, counted or allocated, so no write can land on a
-copy and vanish. What the function may not do is keep the item past the call -- store it in an attribute or a
-list, return it, or make a function value of it -- and each of those is an error in the function, naming the call
-that lent it: `'mouse' is lent to 'keep' for one call (D257), by the call on line 9 of 'LentToCalls': it is the
+copy and vanish. What the function may not do is keep the item past the call: store it in an attribute or a
+list, return it, or make a function value of it. Each of those is an error in the function, naming the call
+that lent it: `'mouse' is lent to 'keep' for one call, by the call on line 9 of 'LentToCalls': it is the
 caller's item, read and written in place, so 'keep' does not keep it in the attribute 'last': keep the values it
 needs, ...`. Nothing the call reaches may append to or remove from the collection the item is borrowed from,
 since that could move it while the function holds it.
@@ -629,7 +626,7 @@ since that could move it while the function holds it.
 ## `drop()` runs once, right before the object is freed
 
 A class may define a zero-argument `func drop() { ... }` for cleanup (closing a handle, clearing a
-back-reference). The compiler calls it automatically the moment the last reference goes away -- never by name:
+back-reference). The compiler calls it automatically the moment the last reference goes away, never by name:
 
 ```gdscript title=drop_basics/resource.spite
 var console = Console()
@@ -718,7 +715,7 @@ total 6
 ## Cycles leak
 
 Two objects that hold each other, directly or through several hops, keep each other's count above zero, so
-neither is ever freed. The back reference is written with `Weak<T>` instead ([D197](decisions.md)): it holds a
+neither is ever freed. The back reference is written with `Weak<T>` instead: it holds a
 `T` without counting it, and `get()` answers a `T?` that is `null` once the object is freed, so the usual
 narrowing does the rest. A parent that owns its children and a child that knows its parent is the common case:
 
@@ -763,13 +760,13 @@ grace belongs to ada
 
 Everything above is freed when `WeakFamily` returns, which is what `--debug-memory`, below, checks: a cycle left
 in shows up there as leaked objects by class. Without `Weak`, clear the `T?` field that closes the loop when you
-are done with it ([the rules](#memory--implemented)).
+are done with it ([the rules](#the-memory-model)).
 
 ## `--debug-memory`
 
 `spite program --debug-memory` builds with an allocation table and prints `allocations: N frees: N` right before
 the program exits. A mismatch means something leaked; when the two do not balance, it also prints a
-**leaked-object summary by class name**, naming which classes' instances are still alive -- which is what makes a
+**leaked-object summary by class name**, naming which classes' instances are still alive, which is what makes a
 leaked cycle visible instead of an unexplained count. Every program on these pages is run this way, and must
 balance. It also fills every byte it hands out that nobody has written yet with the same pattern, so a program that
 reads memory it never wrote fails the same way on every run and from every launcher, instead of reading whatever
@@ -777,26 +774,25 @@ the heap held. The table exists only in a `--debug-memory` build ([what it recor
 
 ## `Memory` is the floor, and you can build on it
 
-Memory is its own namespace, because it is the most basic thing a program has and the most dangerous
-([D151](decisions.md)). It holds two kinds of class:
+Memory is its own namespace, because it is the most basic thing a program has and the most dangerous. It holds two kinds of class:
 
 - **`Memory.Address` is a place in memory** (`library/memory/address.spite`). It is a number, eight bytes, kept
   in a register like a `Long` and cast to and from one by the ordinary casting rule, so `address + 16` is the
   address sixteen bytes on. What makes it an address is what it answers: `read_long(offset)`,
   `write_float(offset, value)` and the rest read and write the value at `address + offset`.
-- **An allocator is who owns memory**: `Memory.Heap()` is the one every object uses unless told otherwise
-  ([D152](decisions.md)). It hands out addresses and takes them back; `Memory.Arena` is another
+- **An allocator is who owns memory**: `Memory.Heap()` is the one every object uses unless told otherwise.
+  It hands out addresses and takes them back; `Memory.Arena` is another
   ([below](#choosing-an-allocator-memoryallocator)).
 
 Every type in the standard library is Spite over these two: `String`, `List<T>` and `Dictionary<T>` keep their
 bytes in memory the heap hands out, and each number says in its own file how much memory it is. A container of
 your own is written over the heap and `TypedMemory<T>` (below), with nothing the compiler does for `List<T>`
-that it would not do for yours -- read `library/list.spite` for a complete one. What is built of this floor and
-what is not yet is in [the rules](#the-floor-memoryaddress-memoryheap-and-typedmemoryt--implemented-os-pages-planned).
+that it would not do for yours: read `library/list.spite` for a complete one. The rules of this floor are in
+[the rules](#the-floor-memoryaddress-memoryheap-and-typedmemoryt).
 
 ### Where `String` and `Integer` keep their memory
 
-A type's storage is attributes at the top of its file (D108). `library/string.spite` starts with the memory a
+A type's storage is attributes at the top of its file. `library/string.spite` starts with the memory a
 `String` is:
 
 ```gdscript
@@ -804,9 +800,9 @@ var _bytes: Memory.Address = 0
 var _length: Long = 0
 ```
 
-Sixteen bytes, kept wherever the `String` is -- in a local, an attribute, a list's element -- and never an object
+Sixteen bytes, kept wherever the `String` is (in a local, an attribute, a list's element) and never an object
 of their own. `_bytes` is where its characters are, with a 0 after the last one for C, and `_length` is how many
-there are. Where the characters live is the compiler's choice ([D203](decisions.md)): text of up to 15 bytes is
+there are. Where the characters live is the compiler's choice: text of up to 15 bytes is
 kept in those sixteen bytes themselves, so it allocates nothing and is never counted; longer text is one block the
 heap hands out, with its reference count and capacity in front of the characters; and a written text (`"hello"`)
 points at the characters the program already carries, which are never counted or freed. Everything else is Spite
@@ -814,18 +810,18 @@ in the same file: `length()` answers `_length`, `equals` and `less_than` compare
 `slice` ends in `_bytes.text(length)`. What stays C is what depends on where the characters are: reading one
 (`code_at`, which answers the 0 after the last one past the end, and is one load in a loop over the text), making
 text from bytes (`Memory.Address.text`), joining two texts (`sum`), counting a block's references, and growing text
-in place, which fills the sixteen bytes first and moves the text into a block once it passes 15 bytes -- and only
+in place, which fills the sixteen bytes first and moves the text into a block once it passes 15 bytes, and only
 when nothing else holds that block.
 
-`library/integer.spite` starts with the size of an `Integer` (D235):
+`library/integer.spite` starts with the size of an `Integer`:
 
 ```gdscript
 var _memory = Memory.Bytes(4)
 ```
 
 Four bytes, and nothing is allocated: `Memory.Bytes(4)` says only how big the value is, which is true wherever it
-lives. The compiler places it -- a number's memory is a register (or wherever the C compiler keeps an `int32_t`), a
-local on the stack, an attribute inside an object, or a box only when it is passed as a shape -- so there is no
+lives. The compiler places it (a number's memory is a register, or wherever the C compiler keeps an `int32_t`, a
+local on the stack, an attribute inside an object, or a box only when it is passed as a shape), so there is no
 address behind `this` and nothing to free. `Memory.Bytes` is not a class and is not called: it is how a value
 class states its size, and it is read only there. Every number file says the same with its own width (`Long` 8, `Short` 2,
 `Byte` 1, `Boolean` 1, `Double` 8, `Memory.Address` 8, ...), the compiler checks it against the C type it emits,
@@ -835,7 +831,7 @@ What a container of your own works with:
 
 - **Allocating:** `heap.allocate(bytes)` returns a `Memory.Address`, `heap.resize(address, bytes)` grows it and
   `heap.free(address)` gives it back, from your `drop()`. The bytes are not cleared, so write before you read.
-- **Where it lives is the compiler's choice** ([placement](#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)):
+- **Where it lives is the compiler's choice** ([placement](#placement-the-compiler-decides-where-memory-lives)):
   a buffer a function allocates, uses and frees itself lands in the function's own frame, with no allocation at
   all; anything else is on the heap. You write the same `allocate` and `free` either way.
 - **Reading and writing an address:** `address.read_long(offset)`, `address.write_float(offset, value)` and the
@@ -939,7 +935,7 @@ allocated while summing: 0
 ### Where a value lives: `.memory`
 
 Every named value can see its own memory through reflection: `value.memory` is a `Spite.Memory`
-(`library/spite/memory.spite`) with a read-only `address`, `bytes` and `section` -- `'heap'`, `'stack'` or
+(`library/spite/memory.spite`) with a read-only `address`, `bytes` and `section`: `'heap'`, `'stack'` or
 `'constant'` (the text of a literal, which is part of the program). A class instance or a list answers with
 its object; a `String` with its characters; a number held in a local with the local itself. It is built only
 where a program reads it, so it costs nothing anywhere else ([the rule](#where-a-value-lives-memory-1)).
@@ -965,7 +961,7 @@ constant 5 true
 ### Choosing an allocator: `.memory.allocator`
 
 Every object is made on `Memory.Heap` unless its program says otherwise, and it says so on the line right after
-the object is made ([D152](decisions.md)):
+the object is made:
 
 ```gdscript
 var spark = Particle("spark", 1.5)
@@ -973,7 +969,7 @@ spark.memory.allocator = arena
 ```
 
 The compiler reads the two lines as one intent: `spark` is made in `arena` from the start. Nothing is allocated
-on the heap first and moved, and nothing is looked up while the program runs -- the constructor is handed the
+on the heap first and moved, and nothing is looked up while the program runs: the constructor is handed the
 arena's memory instead of the heap's. The standard library's allocator besides the heap is
 **`Memory.Arena(block_bytes)`**, which hands out memory from blocks of that size, one after another, never gives
 any of it back one piece at a time, and frees every block at once when the arena itself goes. An object made in
@@ -982,15 +978,14 @@ an arena holds the arena, so the arena cannot go while anything made in it is al
 - **Only right after it is made.** A constructor, `List<T>()` or `.copy()` on one line, and the allocator on the
   next. To move an object that was already used, copy it and set the copy's allocator, as `kept` does below.
 - **Only an object.** A number or a `String` is placed by the compiler, not by an allocator.
-- **A list holds references** ([D154](decisions.md)): giving a `List` an allocator places the list itself there,
+- **A list holds references**: giving a `List` an allocator places the list itself there,
   and each element lives wherever it was made. A `Vector` holds its items inline
   ([collections.md](collections.md#vectort-items-inline)); giving one an allocator places the vector object, and
-  its block of items stays on the heap for now.
-- **It costs nothing where it is not used** ([D177](decisions.md)): only a class some line gives an allocator
+  its block of items stays on the heap.
+- **It costs nothing where it is not used**: only a class some line gives an allocator
   grows, by sixteen bytes per object.
 
-The exact rules, the errors and what is not built yet are in
-[the rules](#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-a-vectors-block-planned).
+The exact rules and the errors are in [the rules](#allocators-memoryallocator).
 
 ```gdscript title=arena_particles/particle.spite
 var name = ""
@@ -1031,14 +1026,12 @@ The one heap allocation is the arena's first block; both particles are inside it
 ## Rules in full
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
-cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
-rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+cases, the exact error texts and the notes on how it is built. Where the teaching above and these rules
+disagree, the rules win.
 
-### Memory  **[implemented]**
+### The memory model
 
-D1 (decided by Mortaro): **reference counting is the memory model**, JavaScript-like. Every non-scalar value (a
+**Reference counting is the memory model**, JavaScript-like. Every non-scalar value (a
 class instance, `List<T>`, `Dictionary<T>`, `String`, a union of classes, an object literal) is a reference:
 passing it, assigning it, storing it in a field/list/dictionary, and returning it all share the exact same object.
 Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied. There is no reference syntax
@@ -1049,113 +1042,109 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
   an element being removed from a container releases it (drops the count). When a release brings the count to
   zero: the class's own `drop()` function runs first, if it declared one, then every attribute that itself needs
   releasing is released, then the object is freed. A singleton is never counted: fetching and letting go of one
-  does nothing, and it is destroyed at exit ([D142](decisions.md),
-  [classes_and_files.md](classes_and_files.md#singletons)).
-- **Run-time cost (D177).** A count in every object's header and one addition or subtraction per retain and
+  does nothing, and it is destroyed at exit ([classes_and_files.md](classes_and_files.md#singletons)).
+- **Run-time cost.** A count in every object's header and one addition or subtraction per retain and
   release. The counts are atomic only in a program that can share an object between threads (one that makes a
   `Concurrent` or a `Parallel`, runs a `parallel_each_` pass, or is built with `--repl-port` or `--hot-reload`);
   every other program counts with plain arithmetic
   ([optimizations.md](optimizations.md#atomic-reference-counts-only-with-threads)).
 - **`drop()`.** A class may define `func drop() { ... }` to run cleanup the moment its last reference goes (closing
-  a file handle, logging, clearing a back-reference to help break a cycle by hand -- see below). It takes no
+  a file handle, logging, clearing a back-reference to help break a cycle by hand, see below). It takes no
   parameters and returns nothing; the compiler calls it automatically, never by name.
-- **Identity vs equality.** `==` on two class instances calls `equals` if the class defines one ([Operators](functions_and_operators.md#operators--implemented));
-  otherwise it compares **identity** -- are these two references the same object.
-  A union compares identity the same way. A comparison releases whatever operand it produced itself -- an item
-  read with `[]`, a call's result -- so `kept[index] == shape` holds nothing afterwards ([D258](decisions.md)).
+- **Identity vs equality.** `==` on two class instances calls `equals` if the class defines one ([Operators](functions_and_operators.md#operators));
+  otherwise it compares **identity**: are these two references the same object.
+  A union compares identity the same way. A comparison releases whatever operand it produced itself (an item
+  read with `[]`, a call's result), so `kept[index] == shape` holds nothing afterwards.
   `String` always compares by content, never by identity (sharing a `String`'s buffer is unobservable, since it is
   immutable, and so is its absence: text of up to 15 bytes has no buffer to share, each holder keeping it in its
-  own sixteen bytes, [D203](decisions.md)).
-- **`copy()`/`deep_copy()`** (names **proposed by Claude, unconfirmed**). Every non-scalar value has both:
-  `copy()` is shallow -- a fresh object, its own attributes/elements the exact same references the source had
+  own sixteen bytes).
+- **`copy()`/`deep_copy()`**. Every non-scalar value has both:
+  `copy()` is shallow: a fresh object, its own attributes/elements the exact same references the source had
   (retained, not duplicated; a `String` field needs no special handling either way, since it is immutable).
   `deep_copy()` recurses: every reference-kind attribute/element gets its own `deep_copy()`/independent buffer
-  instead of being shared. **Cycles are not supported** by `deep_copy()` -- a self-referential (or mutually
+  instead of being shared. **Cycles are not supported** by `deep_copy()`: a self-referential (or mutually
   referential) structure recurses forever; break the cycle by hand first if you need to deep-copy one.
 - **Cycles leak.** Reference counting cannot free a cycle (two objects holding a reference to each other, directly
-  or through several hops): neither one's count ever reaches zero. This is a known, accepted tradeoff, not a bug --
-  break a cycle by hand when you are done with it (set the back-reference to `null` inside `drop()`-time logic, or
+  or through several hops): neither one's count ever reaches zero. This is a known, accepted tradeoff, not a bug.
+  Break a cycle by hand when you are done with it (set the back-reference to `null` inside `drop()`-time logic, or
   clear a `T?` field that closes the loop) if it matters for a long-running program, or hold one side with
   `Weak<T>`.
-- **`Weak<T>` holds an object without counting it** (D197, decided by Mortaro: a generic library class, not a
+- **`Weak<T>` holds an object without counting it** (a generic library class, not a
   keyword; `library/weak.spite`). `Weak(object)` makes one, `Weak<T>(null)` an empty one, and `get(): T?` answers
-  the object while something else keeps it alive and `null` once it has been freed. As built (proposed by Claude,
-  unconfirmed): the first `Weak` of an object makes a small box holding its address, found through a table keyed
+  the object while something else keeps it alive and `null` once it has been freed. The first `Weak` of an object
+  makes a small box holding its address, found through a table keyed
   by address; a class some `Weak` holds tells the table when an instance is freed, so its box answers `null`; the
   box goes when the last `Weak` of it does. A program that never makes a `Weak` carries none of this: the table,
   the boxes and the one check in the freeing of each weakly held class are written only for the classes a `Weak`
   holds, and `T` must be a class (`Weak<Integer>` is an error, since a number is kept by value)
-  (`conformance/stage6/weak_parent`). **A `Weak` stays on the program's own thread** (D211, decided by Claude under
-  D205): the table has no lock, so a `Parallel(work)` whose work reaches a class some `Weak` holds, or a class with a
+  (`conformance/stage6/weak_parent`). **A `Weak` stays on the program's own thread**: the table has no lock, so a `Parallel(work)` whose work reaches a class some `Weak` holds, or a class with a
   `Weak` attribute, is a compile error at the `Parallel`: `'Parallel(tree.grow)' runs on another thread, and what it
   runs reaches 'Branch', which is a Weak or is held by one: a Weak is kept in one table that is not shared between
   threads, so a Weak and the objects it holds stay on the program's own thread. Hold the object itself in the
   work, or keep the Weak out of what the Parallel reaches` (`diagnostics/weak_across_threads`). What the work
   reaches is the same walk over calls that decides which singletons need a lock.
-- Parameters follow the same rule as everything else in [Functions](functions_and_operators.md#functions--implemented): a scalar is passed by value (copied); anything
+- Parameters follow the same rule as everything else in [Functions](functions_and_operators.md#functions): a scalar is passed by value (copied); anything
   else is passed by reference (the same object, retained for the callee's own binding and released when the
-  callee's scope ends); nothing is written at the call site. A name the caller already holds for the whole call --
-  its own parameter, or a local it owns -- is passed without that count when the callee never assigns the
-  parameter (D270, proposed by Claude, unconfirmed): nothing the call runs can let the caller's name go, so the
+  callee's scope ends); nothing is written at the call site. A name the caller already holds for the whole call
+  (its own parameter, or a local it owns) is passed without that count when the callee never assigns the
+  parameter: nothing the call runs can let the caller's name go, so the
   count would change nothing a program can see ([optimizations.md](optimizations.md#an-argument-its-caller-holds-is-passed-without-counting)).
 
 Every function/method return retains its result, so a getter's returned value is always a fresh, independent
-reference -- including through attribute read interception ([Operators](functions_and_operators.md#operators--implemented)): a `person.age`-shaped read answered by a
+reference, including through attribute read interception ([Operators](functions_and_operators.md#operators)): a `person.age`-shaped read answered by a
 getter, used directly as a call/print argument rather than stored, is released like any other temporary
 (`ExpressionResult.is_owning` in the generator is how a read that compiles to a call, but still
-parses as a `.member`/`.index` expression -- an intercepted attribute read, `arguments.some_key`, the
-`attributes[attribute]` template form -- tells every caller whether it is independently owned regardless of what
+parses as a `.member`/`.index` expression (an intercepted attribute read, `arguments.some_key`, the
+`attributes[attribute]` template form), tells every caller whether it is independently owned regardless of what
 the plain AST shape alone would suggest).
 
 #### `--debug-memory`
 
 `--debug-memory` reports total allocations and frees right before the program exits (`allocations: N frees: N`),
-and they must balance exactly -- not just be bounded -- for every example, every documentation program,
+and they must balance exactly, not just be bounded, for every example, every documentation program,
 `tests/references` and the compiler's own runs. When they do not, it also prints a **leaked-object summary by class
 name**, naming which classes' instances are still live. The table keeps each live allocation's class beside it and
 forgets it on free, so the summary names exactly the objects still alive, the same ones on every run; memory that
 is not an object (a list's elements, a string's bytes) is counted but not named. An object a program leaked is
-named even when it points at a singleton, which is still destroyed at exit (D142). The compiler's own bookkeeping
--- the list behind `.instances`, the list of singletons to destroy -- is allocated outside the table and not counted
-(D143).
+named even when it points at a singleton, which is still destroyed at exit. The compiler's own bookkeeping
+(the list behind `.instances`, the list of singletons to destroy) is allocated outside the table and not counted.
 
-**Fresh memory is filled with a fixed pattern** (D211, decided by Claude under D205; the pattern proposed by
-Claude). Every byte an allocation or a growing `resize` hands out that the program has not written is `0xA5`, so a
+**Fresh memory is filled with a fixed pattern.** Every byte an allocation or a growing `resize` hands out that the program has not written is `0xA5`, so a
 `Long` read from it is -6510615555426900571 and an address read from it points nowhere: reading bytes nobody wrote
-fails the same way on every run, where it used to depend on what the heap held, which the launcher's environment
-decided. A `resize` keeps the bytes it moves and fills only the new ones; the table keeps each allocation's size
+fails the same way on every run, instead of depending on what the heap held, which the launcher's environment
+decides. A `resize` keeps the bytes it moves and fills only the new ones; the table keeps each allocation's size
 for that. Only a `--debug-memory` build does this.
 
-**Run-time cost (D177).** The table and the summary exist only in a `--debug-memory` build: no other build's C
+**Run-time cost.** The table and the summary exist only in a `--debug-memory` build: no other build's C
 has them. Every other build allocates with the C library's `malloc`, `realloc` and `free` and nothing else,
 unless the program reads `Memory.Heap().live_allocations()` or `live_bytes()`: then, and only then, each
 allocation adds one to a counter and each free subtracts one, which is what `live_allocations()` answers, and the
 bytes the C library holds for each block (its usable size, `_msize`, `malloc_usable_size` or `malloc_size`) are
 added and subtracted the same way, which is what `live_bytes()` answers; a `--debug-memory` build answers the
-bytes asked for, from its table (D301)
+bytes asked for, from its table
 ([optimizations.md](optimizations.md#allocation-is-the-c-librarys-counted-only-where-read)).
 
 #### Where a value lives: `.memory`
 
 Every named value has a read-only `.memory`, a `Spite.Memory` (`library/spite/memory.spite`): `address`, `bytes`,
 and `section`, one of `'heap'`, `'stack'` or `'constant'`. A class instance or a list answers with its object
-(`'stack'` for an object the compiler placed in the frame, [Placement](#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)), a
+(`'stack'` for an object the compiler placed in the frame, [Placement](#placement-the-compiler-decides-where-memory-lives)), a
 `String` with its characters (`'constant'` for a literal, whose characters are part of the program; for text made
 while the program runs, `'heap'` when it is longer than 15 bytes and lives in a block, and otherwise wherever the
-value itself is, since the characters are in it: `'stack'` in a local, `'heap'` in an attribute, [D203](decisions.md)),
+value itself is, since the characters are in it: `'stack'` in a local, `'heap'` in an attribute),
 and a number held in a local with the local itself (`'stack'`). A class with an attribute of its own named `memory` answers that
-attribute instead. `.memory` is built only where a program reads it, so it costs nothing anywhere else (D152); the
-same object is where an allocator is set ([below](#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-a-vectors-block-planned)).
+attribute instead. `.memory` is built only where a program reads it, so it costs nothing anywhere else; the
+same object is where an allocator is set ([below](#allocators-memoryallocator)).
 
-#### The floor: `Memory.Address`, `Memory.Heap` and `TypedMemory<T>`  **[implemented; OS pages planned]**
+#### The floor: `Memory.Address`, `Memory.Heap` and `TypedMemory<T>`
 
-`Memory` is a namespace, not an object (D151): there is no `Memory()` to make.
+`Memory` is a namespace, not an object: there is no `Memory()` to make.
 
 - **`Memory.Address`** (`library/memory/address.spite`) is a number class of eight bytes, the place in memory. It
   casts to and from `Long` like every number, so `address + 16` is the address sixteen bytes on, and a foreign
   function's `Long` result is an address by assignment. `copy_to(target, bytes)`, `compare_bytes(other, bytes)`,
   `text(length)` and `terminated_text()` are open to every program.
-- **Reading and writing** (D178): `read_byte`, `read_short`, `read_unsigned_short`, `read_integer`,
+- **Reading and writing**: `read_byte`, `read_short`, `read_unsigned_short`, `read_integer`,
   `read_unsigned_integer`, `read_long`, `read_float` and `read_double`, each `(offset)`, the matching
   `write_*(offset, value)`, and `exchange_long`, `read_long_atomically`, `write_long_atomically`,
   `add_long_atomically` (answering the sum) and `compare_and_swap_long(offset, expected, desired)` (answering
@@ -1170,99 +1159,88 @@ same object is where an allocator is set ([below](#allocators-memoryallocator--i
   reading and writing memory is a function of the address, so the value needs to be a 'Memory.Address'`.
 - **`Memory.Heap()`** is the default allocator, a singleton with `allocate(bytes: Long): Memory.Address`,
   `resize(address, bytes): Memory.Address`, `free(address)`, `live_allocations(): Integer` and `live_bytes(): Long`
-(D301; `Program().live_bytes()` answers the same). Nothing frees an
+  (`Program().live_bytes()` answers the same). Nothing frees an
   allocation for you: a class that allocates frees in its `drop()`. The bytes are not cleared: a new block, and
-  the part `resize` adds, hold whatever was there before, so a byte must be written before it is read -- a read of
+  the part `resize` adds, hold whatever was there before, so a byte must be written before it is read. A read of
   a byte nobody wrote can pass on one machine and crash on the next, since what the heap holds depends even on how
-  the program was launched. Where an allocation lives is the compiler's choice ([placement](#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)).
+  the program was launched. Where an allocation lives is the compiler's choice ([placement](#placement-the-compiler-decides-where-memory-lives)).
   The heap holds nothing, so in a production build it is one static object and costs no allocation
   ([optimizations.md](optimizations.md#singletons-that-hold-nothing-are-static-objects)).
-- **`TypedMemory<$value_type>`** stores a value of any type -- a class, a `String`, a number or a nullable -- at an
+- **`TypedMemory<$value_type>`** stores a value of any type (a class, a `String`, a number or a nullable) at an
   index of an address: `read_value(address, index)`, `write_value(address, index, value)`,
   `release_value(address, index)` and `value_bytes()`, keeping reference counts right for that type. It is one
   shared instance per type (a singleton that holds nothing), and it is what `library/list.spite` uses for its
   elements. Its three value functions use the address the way a read does, so a frame-placed allocation may be
   handed to them.
-- **A number's storage** is one line at the top of its file, `var _memory = Memory.Bytes(4)` (D235, replacing
-  D145's `var heap = Memory.Heap()` and `var _memory = heap.allocate(4)`, which said "allocate" where nothing is
-  allocated). The bytes are written out, and any other spelling is `a value states its size as 'var _memory =
+- **A number's storage** is one line at the top of its file, `var _memory = Memory.Bytes(4)`. The bytes are written out, and any other spelling is `a value states its size as 'var _memory =
   Memory.Bytes(bytes)', with the bytes written out: ...` (`diagnostics/number_memory_spelling`). The size must be
   the C type's: `'Integer' declares 8 bytes of memory, and the compiler lays it out as
   int32_t, which is 4` (`diagnostics/number_memory`). Inside a number `this` is the value, and reading `_memory` is
   `'_memory' is the memory Integer is kept in, and the compiler keeps the value itself there: write 'this'`
   (`diagnostics/number_memory_read`). `count.memory.bytes` reads the size.
 
-**Not built** (D178): the heap asking the operating system for pages itself, and `copy_to` and `compare_bytes` as
-plain Spite through `DynamicLibrary`. Today `Memory.Heap`'s four functions are bodies the compiler supplies over
-the C library's `realloc` and `free` (with the live-allocation counter), and `copy_to` and `compare_bytes` are
-written in place as `memmove` and `memcmp`; `library/memory/heap.spite` declares only `singleton`, so D147's "zero
-hidden code" is not reached for the heap yet.
+#### Placement: the compiler decides where memory lives
 
-#### Placement: the compiler decides where memory lives  **[implemented; the rule proposed by Claude, unconfirmed]**
-
-D108 (decided by Mortaro): "Memory should be a abstraction that lets us allocate heap/stack/register but our
-compiler decides best use placement." A program has one way to ask for raw memory, `Memory.Heap`'s `allocate`
-(D151), and one way to give it back, `free`; where the bytes live is the compiler's choice, and the program's text
+Memory is an abstraction that lets a program allocate on the heap, the stack or in a register, while the
+compiler decides the best placement. A program has one way to ask for raw memory, `Memory.Heap`'s `allocate`,
+and one way to give it back, `free`; where the bytes live is the compiler's choice, and the program's text
 is the same whichever it makes:
 
 - **Register:** a number's own memory, whose size its file states as `var _memory = Memory.Bytes(4)` (for
-  `Integer`, D235). The wrapper is flattened: a number is its C scalar, and `this` is the value.
+  `Integer`). The wrapper is flattened: a number is its C scalar, and `this` is the value.
 - **Frame:** `var name = heap.allocate(bytes)` in a function, when a later statement of the same block
   is `heap.free(name)` and every other use of `name` reads or writes through it (`name.read_long(offset)`, also
   as `(name + offset)`), copies or compares with it (`copy_to`, `compare_bytes`), turns it into `text`, or hands
   it to a `TypedMemory`'s `read_value`, `write_value` or `release_value`, or lends it to a function of the same
-  class, called by its bare name, whose `Memory.Address` parameter is proven to keep nothing (D211: the same rules,
+  class, called by its bare name, whose `Memory.Address` parameter is proven to keep nothing (the same rules,
   applied to the parameter in that function's body, and to the functions it lends it on to; a recursive lend and a
   `--hot-reload` build, whose functions can be swapped, prove nothing), or, in a file of `library/` only, lends it
   to a function of a `DynamicLibrary` attribute of the same class (`kernel.QueryPerformanceCounter(counter)`: the
   standard library's own operating-system calls, which fill the memory and keep nothing; a program's foreign
-  library could keep the address, so its calls still move it to the heap; proposed by Claude, unconfirmed) -- it is never stored, returned,
+  library could keep the address, so its calls still move it to the heap), and it is never stored, returned,
   assigned, resized or passed to anything else, and neither `name` nor `heap` is declared or assigned again
   after it. The compiler gives it a slot of 256 bytes
   in the function's frame (exactly the size, for a literal size up to 256), uses the heap when a run-time size
   is larger, and makes the `free` a no-op for the slot. A loop body is a block like any other, so the slot is
   reused on every pass. So `Long.to_string()` and `upper_case()` of a
-  short text allocate only the `String` they return -- which is nothing when it is 15 bytes or fewer.
-- **In the value:** text of up to 15 bytes is kept in the sixteen bytes of the `String` itself ([D203](decisions.md),
-  [optimizations.md](optimizations.md#short-text-lives-inside-the-string)).
+  short text allocate only the `String` they return, which is nothing when it is 15 bytes or fewer.
+- **In the value:** text of up to 15 bytes is kept in the sixteen bytes of the `String` itself
+  ([optimizations.md](optimizations.md#short-text-lives-inside-the-string)).
 - **Constant:** a `String` literal's characters are part of the program (its `.memory.section` is `'constant'`).
-- **Frame, for objects** (proposed by Claude, unconfirmed; decided under D205/D214): an instance of a class of only
-  numbers, `Boolean`s, enum values and singletons -- no `drop()`, not a singleton, a constructor that keeps nothing, no
-  `.instances` read of its class -- that never leaves the function that made it lives in that function's frame,
+- **Frame, for objects:** an instance of a class of only
+  numbers, `Boolean`s, enum values and singletons (no `drop()`, not a singleton, a constructor that keeps nothing,
+  no `.instances` read of its class) that never leaves the function that made it lives in that function's frame,
   and so does the fresh answer a function writes into its caller's slot and a temporary inside an expression. Never
   leaving means: read and written only through its attributes, handed only to functions proven to keep nothing
-  (the same proof as D211's, run on each parameter and on the object a function is called on), compared, asked for
+  (the same proof as for a buffer's slot, run on each parameter and on the object a function is called on), compared, asked for
   its `.memory`, given a new fresh object, and returned only from a function that answers its class (copied to
   the heap there). Its `.memory.section` is `'stack'`. Not in the inspectable builds, nor in a function that waits
   ([optimizations.md](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)).
 - **Heap:** everything else.
 
-There is no way to ask for the stack by name (D98's `allocate_stack_bytes` is gone): it would be a second way to
+There is no way to ask for the stack by name: it would be a second way to
 allocate, and one a program could get wrong by keeping an address past the return. What makes a data structure's
-layout efficient stays its author's -- one allocation holding many values at offsets they choose,
+layout efficient stays its author's: one allocation holding many values at offsets they choose,
 `TypedMemory<$value_type>` for values of any type, `resize` to grow. Placement runs entirely while compiling and
-costs nothing at run time (D177); a frame slot is cheaper than the heap call it replaces.
+costs nothing at run time; a frame slot is cheaper than the heap call it replaces.
 
-#### Allocators: `.memory.allocator`  **[implemented for objects; a list's buffer and a vector's block planned]**
+#### Allocators: `.memory.allocator`
 
-D150-D154 (decided by Mortaro): types never name an allocator; an **object** does, through its tree-shakeable
-`.memory`, on the line right after it is made -- `var scratch = List<Integer>()` then `scratch.memory.allocator =
-arena` -- and the compiler reads the two lines as where the object was always meant to live (D152), so it is made
-there from the start. Setting it after the object was used is a compile error naming `copy()` (D153). What is
-built (2026-09-25; the readings marked are proposed by Claude, unconfirmed):
+Types never name an allocator; an **object** does, through its tree-shakeable
+`.memory`, on the line right after it is made (`var scratch = List<Integer>()` then `scratch.memory.allocator =
+arena`), and the compiler reads the two lines as where the object was always meant to live, so it is made
+there from the start. Setting it after the object was used is a compile error naming `copy()`. The rules:
 
 - **An allocator is a class that answers `allocate(bytes: Long): Memory.Address` and `free(address:
-  Memory.Address)`** (the D150 shape; no `type` is declared for it, per D151). `Memory.Heap` is the default, and
+  Memory.Address)`** (no `type` is declared for it). `Memory.Heap` is the default, and
   setting it changes nothing. `Memory.Arena(block_bytes)` (`library/memory/arena.spite`, Spite over the heap)
   hands out 16-byte-aligned memory from blocks of that size, chaining a new block when one is full, never frees
-  one piece at a time, and frees every block when the arena itself is dropped (proposed by Claude, unconfirmed:
-  no `reset()` yet, because resetting under live objects is the undecided safety rule of
-  `mortaros_missing_decisions.md` item 173).
-- **Where it may be set** (proposed by Claude, unconfirmed): only as the statement directly after `var name =
+  one piece at a time, and frees every block when the arena itself is dropped.
+- **Where it may be set:** only as the statement directly after `var name =
   ...` whose value is a constructor call, `List<T>()`/`Dictionary<T>()` or `.copy()` of a class whose copy the
   compiler writes, and only to a name or a path of names (so evaluating it earlier than written changes nothing).
   Anything else is an error (`diagnostics/allocator_after_use`):
-  - after the object was used (D153): `'spark' was already used, so its allocator can no longer change: an
+  - after the object was used: `'spark' was already used, so its allocator can no longer change: an
     object's allocator is set on the line right after it is made. To move it, copy it and set the copy's: 'var
     moved = spark.copy()' and then 'moved.memory.allocator = ...'`;
   - on a value no constructor made, such as a reflection object (`var place = text.memory`): `'place' gets an
@@ -1274,35 +1252,29 @@ built (2026-09-25; the readings marked are proposed by Claude, unconfirmed):
 - **How it is compiled**: the construction becomes `C___make_in(allocator, give_back, address, arguments...)` with
   the address from the allocator's `allocate`, so nothing is allocated twice or moved. An object made this way
   holds a reference to its allocator and the allocator's `free`, and gives its memory back through them when its
-  count reaches zero; the allocator therefore outlives everything made in it. **Tree-shaken (D177)**: only a class
+  count reaches zero; the allocator therefore outlives everything made in it. **Tree-shaken**: only a class
   some line gives an allocator carries the two hidden pointers (16 bytes per object of that class), and nothing
   else in the program changes; there is no run-time registry and no current-allocator state.
-- **Lists** (D154): a `List` given an allocator is made there itself; each element lives wherever it was made,
-  since a list holds references.
-- **Not built:** D154's list buffer following its list's allocator (a list placed in an arena keeps its buffer of
-  references on the heap), and likewise a `Vector<T>`'s block of items (built, with its items inline, but its block
-  is on the heap wherever the vector object is: item 175's proposal for a class reading its own allocator is still
-  open), `Memory.Frame` (`mortaros_missing_decisions.md`
-  item 173), `reset()` on an arena, and reading `.memory.allocator` back.
+- **Lists:** a `List` given an allocator is made there itself; each element lives wherever it was made,
+  since a list holds references. A list's buffer of references stays on the heap, and so does a `Vector<T>`'s
+  block of items, wherever the vector object is.
 
-#### Borrowed items of a `Vector<T>`  **[implemented]**
+#### Borrowed items of a `Vector<T>`
 
-D204 (decided by Mortaro, answering `mortaros_missing_decisions.md` item 182): **reading an item of a
-`Vector<T>` gives a borrowed reference into the vector**, and the compiler proves at compile time that it is never
-kept past its use. What is built (the error texts and the readings marked are proposed by Claude, unconfirmed):
+**Reading an item of a `Vector<T>` gives a borrowed reference into the vector**, and the compiler proves at
+compile time that it is never kept past its use. The rules:
 
 - **Layout.** A vector of a class keeps one block of memory: each item is the class's attributes laid out as its
   object would lay them out, with no header, no class and no reference count, one after another
   (`InlineMemory<T>`, `library/inline_memory.spite`, whose functions the compiler writes per item type). A vector
   of numbers, `Boolean`s, enums or `String`s is a plain array of them, like a list's buffer.
-- **Only a class is borrowed** (D221, decided by Claude under D205 and D214, which copied a plain item as it was
-  read; D225, decided by Mortaro, then moved plain values out of `Vector` and `Items` altogether). A whole number
+- **Only a class is borrowed.** A whole number
   of any size, `Float`, `Double`, `Boolean`, an enum or `Memory.Address` is kept in a `List`, and
   `Vector<Integer>` or `Items<Integer>` is an error naming `List<Integer>`, so every item of a `Vector` is a class
   or a `String`, read as a counted reference as a list's is. `conformance/stage6/plain_items`,
   `diagnostics/plain_items`.
 - **A borrowed item** is what `vector[index]`, `vector.get_at(index)` and the item a member template visits are,
-  once the `T?` a read answers is narrowed (D225): `crash velocities[index]`, `assert`, `if`, or a proof the
+  once the `T?` a read answers is narrowed: `crash velocities[index]`, `assert`, `if`, or a proof the
   compiler holds.
   It is the address of the item inside the block, and reading or writing its attributes (`first.down = 2.0`,
   `velocities[0].across`, `first.integrate()`) reads and writes the vector's own item. It is never retained or
@@ -1318,7 +1290,7 @@ kept past its use. What is built (the error texts and the readings marked are pr
     an independent object`;
   - made into a function value: `'stored.integrate' would keep 'stored', which is borrowed from 'velocities', in a
     function value: make it from a copy, 'var kept = stored.copy()' and then 'kept.integrate'`;
-  - passing it as an argument is **not** among them: the item is lent to the call (D257, below);
+  - passing it as an argument is **not** among them: the item is lent to the call (below);
   - given a second name (`var alias = stored`): `'stored' is borrowed from 'velocities', and a borrowed item has
     one name: use 'stored' itself instead of 'alias', or keep 'stored.copy()', an independent object`;
   - assigned again (`first = velocities[1]`): `'first' is borrowed from 'velocities' and is not assigned again:
@@ -1326,11 +1298,11 @@ kept past its use. What is built (the error texts and the readings marked are pr
 - **Not past a change of size.** Growing a vector may move its block, and removing an item moves the ones after
   it, so a borrowed name is not read after a statement that may change its vector's size or move its block:
   `append`, `prepend`, `insert`, `reserve`, `remove_at`, `remove_first`, `remove_last`, `remove_swapping`,
-  `remove_where`/`remove_where_<member>`, `truncate`, `swap` (D263: it changes which item an index names) or
+  `remove_where`/`remove_where_<member>`, `truncate`, `swap` (it changes which item an index names) or
   `clear` on it, assigning the vector or anything on its path, or a call that may do one of those. `reserve` adds no
-  item but may move the block as surely as `append` does, so it counts as growing (proposed by Claude,
-  unconfirmed; `diagnostics/vector_reserve_borrows`), and so do the library's own `make_room`, `_make_room` and
-  `_reserve_exactly`, which a program reopening `Vector` or `Items` could call. A call is followed with D169's call
+  item but may move the block as surely as `append` does, so it counts as growing
+  (`diagnostics/vector_reserve_borrows`), and so do the library's own `make_room`, `_make_room` and
+  `_reserve_exactly`, which a program reopening `Vector` or `Items` could call. A call is followed with the call
   effects (`generation/call_effects.spite`): a function that appends to or reserves room in a vector records a
   `grow:` effect on it as a
   removal records `shrink:`, through its callers and through the parameters it was passed, and a call through a
@@ -1339,8 +1311,7 @@ kept past its use. What is built (the error texts and the readings marked are pr
   line 13 may move the items of 'velocities', so 'again' is not read after it: read 'velocities[index]' again after
   that line, or keep 'again.copy()', an independent object`. A vector named by a local variable is taken to change
   only through the calls it is passed to and through calls that resize an attribute holding a `Vector`.
-- **What a call can reach** (D262, decided by Claude under D205 and D244, a bug fix: the readings below proposed
-  by Claude, unconfirmed). The call effects follow only what the call can run, so a call that cannot resize the
+- **What a call can reach.** The call effects follow only what the call can run, so a call that cannot resize the
   item's vector is not refused:
   - **A collection read with `[ ]` from an attribute is that attribute's element.** `buffers[buffer].append(command)`
     grows an item of `World.buffers`, not "some collection": when `buffers` is a `List<List<Command>>` it can only
@@ -1357,27 +1328,26 @@ kept past its use. What is built (the error texts and the readings marked are pr
     (`follower.entity.id`) and through a local declared before the call. They pass into the functions the
     arguments are handed on to, a variadic list keeping the classes of the arguments it was made from while no
     function it reaches assigns, appends to, stores or hands it anywhere else. Anything the compiler cannot place
-    -- a nullable, a union, a `type`, the result of a call, a parameter reassigned in the function -- is followed
-    through every function of that name, as before, so a class whose `to_string()` grows the vector is still
+    (a nullable, a union, a `type`, the result of a call, a parameter reassigned in the function) is followed
+    through every function of that name, so a class whose `to_string()` grows the vector is still
     refused when it is printed (`console.print("printing", loud)` in `diagnostics/dispatched_resizes`).
   - **Cost.** None at run time; both are read while compiling from the effects already gathered.
     `conformance/stage6/queued_borrows` holds an item across a queued command and a print.
 - **Inside the item's class.** A function of the item's class runs on a borrowed item when a template or a call
   reaches it, so it may not use `this` as a value (the item-class error in
-  [collections.md's rules](collections.md#vectort--implemented)).
+  [collections.md's rules](collections.md#vectort)).
 - **Only the library is trusted.** The functions of `Vector`, `Items` and `InlineMemory` in `library/` hand out
   and move borrowed items by design, so these rules are not checked inside them. A function a program adds to one
   of those classes by reopening it in its own file ([packages.md](packages.md)) is checked like any other code
-  (proposed by Claude, unconfirmed; `diagnostics/reopened_vector_borrows`).
+  (`diagnostics/reopened_vector_borrows`).
 - **What stays an object.** `append(value)` and `set_at(index, value)` copy the value's attributes in, counting
   each `String` attribute once more, and the value stays an ordinary object; `remove_at`, `clear` and dropping the
   vector release the `String`s of the items they remove.
-- **Run-time cost (D177).** None beyond the block: every rule above is proven while compiling, a borrowed item is
+- **Run-time cost.** None beyond the block: every rule above is proven while compiling, a borrowed item is
   one address, and a program that makes no `Vector` carries none of `library/vector.spite` or `InlineMemory`.
   Measured in `benchmarks/vector_items`.
-- **A row of borrowed items** (D206, decided by Claude under D205; the error texts and the readings below are
-  proposed by Claude, unconfirmed). An object literal written as `var row = {...}` or `var row: Moving = {...}`
-  whose attributes include a borrowed item -- `positions[index]`, or a name already borrowed from a vector -- is a
+- **A row of borrowed items.** An object literal written as `var row = {...}` or `var row: Moving = {...}`
+  whose attributes include a borrowed item (`positions[index]`, or a name already borrowed from a vector) is a
   **row**: each attribute is a borrowed item or a plain value (a number, `Boolean` or enum), and anything else is
   `'mixed' borrows items from a Vector, so each of its attributes is a borrowed item or a plain value: 'name'
   holds a String, which the row would have to keep`. The row is a borrowed name like the items it holds:
@@ -1415,23 +1385,22 @@ kept past its use. What is built (the error texts and the readings marked are pr
     ([optimizations.md](optimizations.md#a-row-of-borrowed-items-lives-in-the-frame)). A program that makes no
     row carries none of it. `benchmarks/vector_rows`: 200 000 entities, two systems, 2.4 ms a tick with `Vector`
     columns and rows against 6.0 ms with `List` columns and a reused row object (best of five, `clang -O2`).
-- **A row filled by a walk** (D212, decided by Claude under D205; the readings below proposed by Claude,
-  unconfirmed). A local declared as a `type` with `= null` (`var row: $row_type = null`) and filled on the very next
+- **A row filled by a walk.** A local declared as a `type` with `= null` (`var row: $row_type = null`) and filled on the very next
   line by a plural walk of its own class (`fill_attributes(row, index)`, whose template ranges over that `type`
   with `attribute: Symbol<$row_type>`) is a row when the walk writes out to one: the template's body is the
   statement `row.attributes[attribute] = <value>`, after any number of `crash` lines and `var` lines naming a
-  value (`var stored_row = rows[attribute.index]`, each written out where its name is read, so D285's hoisted
+  value (`var stored_row = rows[attribute.index]`, each written out where its name is read, so a hoisted
   `values[stored_row]` walks exactly as `values[rows[attribute.index]]` does) or naming an object the template
   goes on to change (below), the value built from `<object>.attributes[attribute]` (read as
   `<object>.<the attribute's name>`), member reads, `[ ]`, the template's other parameters and whole numbers, and
-  the call's arguments are the row and names, attribute paths (`matcher.rows`, D221) or number or `Boolean`
+  the call's arguments are the row and names, attribute paths (`matcher.rows`) or number or `Boolean`
   literals. The compiler then writes, in place of the two lines, each attribute's `crash` lines walked as the
   value is (`crash columns.position[index]`), then the literal, one attribute for each attribute of the `type` in
   its order (`{position: columns.position[index], velocity: columns.velocity[index]}`), and every rule above
   applies to it unchanged, the check for a resize starting on the line after the walk.
-  **A walked read is narrowed by the template's `crash` lines** (proposed by Claude, unconfirmed, under D225:
-  every `[]` answers `T?`, and a row's attribute is an item, never a `T?`). The walk cannot prove its index -- the
-  places come from a list the runner filled, and nothing the compiler knows ties them to the columns' counts -- so
+  **A walked read is narrowed by the template's `crash` lines**
+  (every `[]` answers `T?`, and a row's attribute is an item, never a `T?`). The walk cannot prove its index: the
+  places come from a list the runner filled, and nothing the compiler knows ties them to the columns' counts. So
   the template states each read it relies on, innermost first (`crash rows[attribute.index]`, then `var
   stored_row = rows[attribute.index]` and `crash Column<attribute.class>().values[stored_row]`); a read the lines do not narrow is the usual `this
   value may be null` error on the walk's line. The lines sit inside the branch they narrow, so a template that
@@ -1440,29 +1409,28 @@ kept past its use. What is built (the error texts and the readings marked are pr
   ReferenceColumn<attribute.class>().values[...] }`), and a reference read from a `List` column is narrowed the same
   way. A `crash` line is walked like the fill line, and a generic
   singleton made with no arguments is a path root (`Column<Position>().values[found[1]]` narrows like a name's
-  read), so each line narrows the very read the literal makes. Cost: none beyond D218's: a walked `crash` line
+  read), so each line narrows the very read the literal makes. Cost: a walked `crash` line
   reads the item once into a local and tests it, and the literal (or the lent argument) uses that local instead
-  of reading again, so a row costs one compare per read, as D218's halting `[]` did; the borrowed items, the
+  of reading again, so a row costs one compare per read; the borrowed items, the
   frame-made row and the resize check are unchanged (`benchmarks/matched_rows`, `benchmarks/sparse_rows`,
-  `benchmarks/lent_arguments`, run against the compiler before D225: no tick slower beyond the run-to-run
+  `benchmarks/lent_arguments`: no tick is slower beyond the run-to-run
   noise). The template is not called, so it is not
   compiled for that walk. A walk of any other shape leaves the local an ordinary `type` value, and storing a
   borrowed item in it is the error for keeping one. Nothing runs for it: the rewrite is done while compiling.
-- **A walked row over sparse columns** (D217, decided by Claude under D205; the names `attribute.index` and
-  `fits_vector()` provisional under D214, the readings below proposed by Claude, unconfirmed). A walk that fills a
+- **A walked row over sparse columns.** A walk that fills a
   row may also be written with:
   - **A generic singleton per attribute.** `Column<attribute.class>()` in the line is the singleton made with the
     walked attribute's class, written out as `Column<Position>()` for `position`; its `Vector` attribute is the
     source the item is borrowed from (`'row' borrows items from 'Column<Position>().values' ...`), and the resize
     check follows the singleton's attribute through the call effects as it follows a class's own attribute. A
     singleton made from `attribute.class` is never an attribute, so it may be written where it is used, inline
-    included (the D144 and D110 errors leave it out).
+    included (the usual errors for a singleton made inline leave it out).
   - **The place of the attribute.** `attribute.index` is the attribute's place among those walked, from 0, a
     constant written into the line (`found[attribute.index]` becomes `found[1]`), and it may be read in any
-    function a walk of attributes calls. The places are read from a `List<Integer>` (a `Vector` or `Items` of
-    them until D225), whose numbers are values of their own, so the list may be any object's: the runner's own attribute, a walk argument such
+    function a walk of attributes calls. The places are read from a `List<Integer>`, whose numbers are values of their
+    own, so the list may be any object's: the runner's own attribute, a walk argument such
     as `matcher.rows`, or `matcher.rows[attribute.index]` read in the line itself. It is read once, when the row is
-    made, and no rule of the row reaches it; a runner no longer copies another object's places into its own
+    made, and no rule of the row reaches it, so a runner does not copy another object's places into its own
     vector first. `benchmarks/matched_rows`: 200 000 entities, two systems, 6.8 ms a tick reading the places
     from the matcher against 8.2 ms copying them into the runner's vector first (best of three rounds of three,
     `clang -O2`). Read elsewhere, it is `'attribute.index' is the attribute's place among
@@ -1472,18 +1440,17 @@ kept past its use. What is built (the error texts and the readings marked are pr
     of a walk that would borrow is `'row' is a row filled by the walk on the next line, and its line for
     'position' reads 'attribute.index + 1', which a walked row cannot write out: ... so work out 'attribute.index
     + 1' before the walk and pass it in`.
-  - **A local the template changes** (proposed by Claude, unconfirmed; SlopTheseus alert A100). A `var` that later
-    lines of the branch change -- assigning into it (`own.id = entity`, through `set_id` when the class has one) or
-    calling one of its functions (`own.raise(1)`) -- is made as a local before the row, those lines run where they
+  - **A local the template changes.** A `var` that later
+    lines of the branch change, by assigning into it (`own.id = entity`, through `set_id` when the class has one) or
+    by calling one of its functions (`own.raise(1)`), is made as a local before the row, those lines run where they
     stand among the `crash` lines, and the row's attribute is that local. When the `var` is a construction the row
     could make in the frame (see *Mixed attributes*), the row's attribute is the local itself, and neither those lines
     nor the functions they call (nor, in turn, the functions of its class those call) use `this` as a value, it is
-    made in the frame and allocates nothing; otherwise it is an ordinary counted object. Before this, any such line
-    made the whole walk ordinary calls, so a sibling branch storing a borrowed item was refused. Lines that change
-    anything else still make the walk ordinary calls. `conformance/stage6/walked_row_locals`.
+    made in the frame and allocates nothing; otherwise it is an ordinary counted object. Lines that change
+    anything else make the walk ordinary calls. `conformance/stage6/walked_row_locals`.
   - **A choice per attribute.** The template's statement may be an `if` whose conditions are decided while
-    compiling for each attribute -- `attribute.class == Entity`, `attribute.class.fits_vector()`,
-    `attribute.class.has_function(...)` -- each branch holding one such line and its `crash` and `var` lines; the branch
+    compiling for each attribute (`attribute.class == Entity`, `attribute.class.fits_vector()`,
+    `attribute.class.has_function(...)`), each branch holding one such line and its `crash` and `var` lines; the branch
     taken for an attribute is what is written out for it.
   - **Mixed attributes.** Beside borrowed items, an attribute of a walked row may hold any other value. A
     construction of a class that could be a `Vector` item and holds nothing counted (`Entity(entity)`) is made in
@@ -1491,11 +1458,10 @@ kept past its use. What is built (the error texts and the readings marked are pr
     constructor may not use `this` as a value. Any other counted value (a reference read from a reference column,
     a `String`) is counted once when the row is made and let go at the end of the row's block, so a call that
     removes it from its column cannot free it under the row. The resize check covers the borrowed items' vectors
-    only. A row written as a literal keeps D206's rule, borrowed items and plain values only.
-  - **A reference column's element lent to the row** (D269, decided by Claude under D205, D214 and D244, asked by
-    SlopEngine; the readings below proposed by Claude, unconfirmed). The count above is left out when it cannot
+    only. A row written as a literal keeps the rule for a row: borrowed items and plain values only.
+  - **A reference column's element lent to the row.** The count above is left out when it cannot
     matter: the attribute's line calls a function of a singleton (`Column<Trail>().at(found[3])`) whose body is
-    only `return <list>[<index>]` after `crash` of that same read (which D225 asks for, since the read is a `T?`),
+    only `return <list>[<index>]` after `crash` of that same read (which is asked for, since the read is a `T?`),
     where `<list>` is an attribute of the singleton holding a `List` of a class that nothing assigns after the
     singleton is made and `<index>` is a whole-number parameter or literal, the function takes nothing counted, and
     the rest of the row's block is proven to let go of nothing: every call in it is one the compiler can name (a
@@ -1505,7 +1471,7 @@ kept past its use. What is built (the error texts and the readings marked are pr
     singleton or its list. The row then holds the element as it lies in the list, never retained or released, read
     through a copy of the function, `<name>___lent_element`, which answers exactly what the function answers, crash
     included. In a program where a `Parallel` reaches the singleton, the element is also held against other
-    threads for the rest of the block: the block takes the singleton's readers' side (D266) or its lock once, and
+    threads for the rest of the block: the block takes the singleton's readers' side or its lock once, and
     only when what the block runs reaches no singleton and nothing that waits; otherwise the line calls the function
     and counts its result as above. Nothing is an error: every other caller of the function, and every line that
     keeps the element, counts it as before. **Cost**: none; the lock or readers' side is taken once for the block
@@ -1517,18 +1483,16 @@ kept past its use. What is built (the error texts and the readings marked are pr
     `benchmarks/sparse_rows`: 200 000 entities, two systems, sparse sets for every component, 7.4 ms a tick with
     `Vector` columns and walked rows against 24.0 ms with reference columns and a reused row object (best of five,
     `clang -O2`).
-- **Items of an `Items<T>`** (D218, decided by Claude under D205 and D214; the readings below proposed by Claude,
-  unconfirmed). An [`Items<T>`](collections.md#itemst--implemented-the-name-provisional) whose `T` fits a
+- **Items of an `Items<T>`.** An [`Items<T>`](collections.md#itemst) whose `T` fits a
   `Vector` lends its items exactly as a `Vector` does: `items[index]`, `get_at(index)` and the item a template
   visits are borrowed, and every rule above applies to them, rows and walked rows included; `remove_swapping`
   counts as a removal wherever `remove_at` does, on the collection or through the call effects. An `Items<T>`
   whose `T` does not fit lends nothing: its items are counted references, and none of these rules apply to them.
   In a walked row, `Column<attribute.class>().values[stored_row]` over an `Items` value is therefore a
-  borrowed item for a class that fits and a counted value for one that does not, the D217 mix, decided per
+  borrowed item for a class that fits and a counted value for one that does not, a mix decided per
   attribute while compiling. Every error about an `Items` item begins with the choice that made it borrowed:
   `'Velocity' fits a Vector, so the items of 'velocities' are borrowed: ...`. Nothing runs for any of it.
-- **Arguments a plural fills** (D220, decided by Claude under D205 and D214; the readings below proposed by
-  Claude, unconfirmed). A call whose whole argument list is the plural of a template over that function's
+- **Arguments a plural fills.** A call whose whole argument list is the plural of a template over that function's
   arguments, written as a statement of its own (`system.phase_each(made_arguments(found))`), stands for exactly
   one call, and its results may carry borrowed items into it. For each argument in order, the compiler folds the
   template's body for that argument (an `if` decided while compiling keeps only its branch, as in a walked row)
@@ -1538,50 +1502,49 @@ kept past its use. What is built (the error texts and the readings marked are pr
     (`<value>.attributes[...]` aside):
     attribute reads, `[ ]`, calls and constructions, the template's other parameters (read as the plural's
     arguments), `argument.index` and whole numbers, with `Column<argument.class>()` the singleton made with the
-    argument's class -- `return Column<argument.class>().values[stored_row]` after `var stored_row =
+    argument's class: `return Column<argument.class>().values[stored_row]` after `var stored_row =
     rows[argument.index]` (a `var` naming a walked value is written out where its name is read). It is a local of the call;
     a borrowed item from a `Vector`, or from an `Items` whose class fits one, is a borrowed name, and the function
     is called through its `___lent_<positions>` copy, in which that parameter is a borrowed name for the call: it
     is not retained or released, and every rule above holds for it (it is not kept, returned, given a second name
-    or assigned; it may be lent on to a call, D257). Any other value (`Entity(entity)`, a reference from an `Items` that does not fit) is
+    or assigned; it may be lent on to a call). Any other value (`Entity(entity)`, a reference from an `Items` that does not fit) is
     an ordinary local, counted for the call and let go after it.
-  - **a walked row declared, filled and returned** -- `var row: $row_type = null`, `fill_attributes(row, rows)`,
-    `return row` (or `var row: argument.class = null`) -- which is written out as the walked row it is, under
+  - **a walked row declared, filled and returned** (`var row: $row_type = null`, `fill_attributes(row, rows)`,
+    `return row`, or `var row: argument.class = null`), which is written out as the walked row it is, under
     every rule above, and passed as a row. Folding `argument.class == $row_type` is what lets a generic
     `Stream<$system_type, $row_type>` fill the one argument of its row type this way
     (`conformance/stage6/streamed_rows`).
-  Any other body is the template's ordinary call, as before; a call none of whose arguments borrows is left as
+  Any other body is the template's ordinary call; a call none of whose arguments borrows is left as
   it was. **The call may not resize what it borrows from**: a call whose call effects may append to or remove
   from a borrowed argument's collection is `'Position' fits a Vector, so the items of 'Column<Position>().values'
   are borrowed: 'position' is borrowed from 'Column<Position>().values' for the one call
   'system.phase_each(made_arguments(found))' stands for, and 'system.update_each()' on line 20 may move the items
   of 'Column<Position>().values': a function handed borrowed arguments may not append to or remove from the
-  collections they borrow from, directly or through what it calls` (a row keeps D206's error). **Anywhere else a
-  result keeps D204's refusal**: the template called by its single name (`made_position(found)`) is an ordinary
+  collections they borrow from, directly or through what it calls` (a row keeps its own error). **Anywhere else a
+  result keeps the refusal for a borrowed item**: the template called by its single name (`made_position(found)`) is an ordinary
   function, and its `return` of a borrowed item is the error for returning one, which then adds `-- a template
   over the arguments of 'phase_each' may hand back a borrowed item only through its plural, as the whole argument
-  list of the one call it fills: 'phase_each(made_arguments(...))' (D220)` (`diagnostics/lent_arguments`).
+  list of the one call it fills: 'phase_each(made_arguments(...))'` (`diagnostics/lent_arguments`).
   **Cost.** The written-out arguments cost what the walked line costs; the template is not called, so it is not
   compiled for that call. `benchmarks/lent_arguments`: 6.9 ms a tick against 34.3 ms copying each argument out and
   back ([optimizations.md](optimizations.md#a-row-of-borrowed-items-lives-in-the-frame);
   `conformance/stage6/lent_arguments`).
-- **An item lent to the caller** (D230, decided by Claude under D205; the error texts and the readings below
-  proposed by Claude, unconfirmed). A function one of whose `return`s reads an item straight from a singleton's
-  storage -- `return column.values[row]` or `return values[index]` (`get_at` too), where the path is attributes
+- **An item lent to the caller.** A function one of whose `return`s reads an item straight from a singleton's
+  storage (`return column.values[row]` or `return values[index]`, `get_at` too, where the path is attributes
   of the function's class, the object holding the last attribute is a singleton, and that attribute is a `Vector`
-  or an `Items` whose class fits one -- **lends its result**: the item is returned uncounted and its caller never
+  or an `Items` whose class fits one) **lends its result**: the item is returned uncounted and its caller never
   lets it go. It is decided per class the function is compiled for, so `Lookup<Label>.of` over an `Items` of
-  references returns a counted reference as before. **The returns are read per instance with compile-time
-  conditions folded** (D259): an `if` whose condition is made only of `$T.fits_vector()`,
+  references returns a counted reference. **The returns are read per instance with compile-time
+  conditions folded**: an `if` whose condition is made only of `$T.fits_vector()`,
   `$T.has_function("name")` with a plain literal name, and a generic parameter compared with a class (`$component_type != Entity`), joined with
   `and`, `or` and `not`, keeps only its taken branch (`function_waits` is left unfolded here, since answering it
-  this early would decide it before the functions that ask it are compiled, D209), and a statement after an `if` folded true whose branch returns is dead,
+  this early would decide it before the functions that ask it are compiled), and a statement after an `if` folded true whose branch returns is dead,
   so it does not count either. `Lookup.of` written as `if $component_type.fits_vector() and $component_type !=
   Entity { return column.values[row] }` followed by `return column.value_at(row)` lends for every instance whose
   class fits and returns an owned value for `Entity` and every class that does not fit, and each caller treats
   the result as its instance does (`conformance/stage6/folded_lends`). At every caller:
-  - the result is a borrowed item of `<Singleton>().<attribute>` -- `'layout' is borrowed from
-    'Column<Layout>().values'` -- and every rule above applies to it: `var layout = lookup.of(entity)` names it,
+  - the result is a borrowed item of `<Singleton>().<attribute>` (`'layout' is borrowed from
+    'Column<Layout>().values'`), and every rule above applies to it: `var layout = lookup.of(entity)` names it,
     `layout.order = 3` and `lookup.of(entity).order = 3` write the stored item, and it is not kept in an
     attribute, put in a list, given a second name, assigned again, captured in a function value or read past a line whose call effects may append to or remove from that storage, whose error ends
     `... so 'grown' is not read after it: ask for the item again after that line, or keep 'grown.copy()', an
@@ -1589,78 +1552,76 @@ kept past its use. What is built (the error texts and the readings marked are pr
   - **it is not returned further**: only the read from the singleton's storage lends, so `return lookup.of(0)`, or
     returning a name that holds it, is the error for returning a borrowed item, ending `-- a function lends its
     caller an item only by reading it from a singleton's Items or Vector itself, never one that was lent to it
-    (D230)`;
+   `;
   - a name already used in the block is not reused for it: `'tally' already names a value earlier in this block,
     and an item borrowed from 'Column<Tally>().values' is given a name of its own: call it something new, such as
     'var tally_item = ...'` (this applies to every borrowed item);
-  - **narrowing keeps it borrowed** (D259, a bug fix under D244): `if layout { ... }`, `if layout and
-    layout.order > 0 { ... }` make it a plain `Layout` inside the block that is still the borrowed item, so passing it to a call lends it (D257) and keeping, listing or returning it is the
-    error above. Before, the narrowed name was an ordinary local: a call retained and released the stored item,
+  - **narrowing keeps it borrowed**: `if layout { ... }`, `if layout and
+    layout.order > 0 { ... }` make it a plain `Layout` inside the block that is still the borrowed item, so passing it to a call lends it and keeping, listing or returning it is the
+    error above. If the narrowed name were an ordinary local, a call would retain and release the stored item,
     which is a double free under `--debug-memory` and heap corruption in production
     (`conformance/stage6/narrowed_lends`, `diagnostics/lent_escapes`);
-  - **it is called by name only** (D259): a lending function is never made a function value (`var find =
-    lookup.of`, `entities.map(lookup.of)`), whose caller would let go of an item it does not own -- `'of' lends its
-    caller an item of 'Column<Justify>().values' (D230), which only a call written by name can borrow: a function
-    value's caller would let go of an item it does not own, so 'of' is not made a function value -- call 'of(...)'
-    by name where the item is wanted` -- and its class does not fit a `type` requiring that function: `'Lookup'
-    does not fit type 'Finder': its 'of' lends its caller an item of 'Column<Justify>().values' (D230), which only
+  - **it is called by name only**: a lending function is never made a function value (`var find =
+    lookup.of`, `entities.map(lookup.of)`), whose caller would let go of an item it does not own, with the error `'of' lends its
+    caller an item of 'Column<Justify>().values', which only a call written by name can borrow: a function
+    value's caller would let go of an item it does not own, so 'of' is not made a function value; call 'of(...)'
+    by name where the item is wanted`, and its class does not fit a `type` requiring that function: `'Lookup'
+    does not fit type 'Finder': its 'of' lends its caller an item of 'Column<Justify>().values', which only
     a call written by name can borrow: a call through the type would let go of an item it does not own`.
   A function that lends returns only such items or `null`: any other value would be an object the caller never
   lets go, so it is `'at_or_made' lends its caller an item of 'Scores().values', which the caller writes in place
-  and never lets go, so each of its returns is an item of 'Scores().values' or null: 'made' is neither -- return
+  and never lets go, so each of its returns is an item of 'Scores().values' or null: 'made' is neither, so return
   null for 'none', with a '?' result, or make it a function of its own`. A storage path through a local, a
-  parameter or an object that is not a singleton keeps D204's refusal, since that storage may not outlive the
-  call. **Cost**: none -- the return is the item's address, with no retain, and the caller releases nothing
+  parameter or an object that is not a singleton keeps the refusal for a borrowed item, since that storage may not
+  outlive the call. **Cost**: none, since the return is the item's address, with no retain, and the caller releases nothing
   (`conformance/stage6/lent_results`, `diagnostics/lent_results`, `conformance/stage6/folded_lends`,
   `conformance/stage6/narrowed_lends`, `diagnostics/lent_escapes`).
-- **An item lent to a call** (D257, decided by Claude under D205 and D244, the argument-side twin of D220 and
-  D230; the error texts and the readings below proposed by Claude, unconfirmed). A borrowed item passed as an
-  argument -- a borrowed name (`mouse`, including one lent to the function itself), an item read with `[ ]`
-  (`mice[0]`) or a row's attribute (`device.mouse`) -- at a place whose parameter is not a union or a variadic
+- **An item lent to a call.** A borrowed item passed as an
+  argument, whether a borrowed name (`mouse`, including one lent to the function itself), an item read with `[ ]`
+  (`mice[0]`) or a row's attribute (`device.mouse`), at a place whose parameter is not a union or a variadic
   list, to a function of the program called by name, is **lent** to that call. The compiler writes a second copy
-  of the function, `<name>___lent_<positions>` (the D206 mechanism, shared with rows and with D220's arguments), in
+  of the function, `<name>___lent_<positions>` (the same mechanism as for rows and for the arguments a plural fills), in
   which that parameter is a borrowed name for the call: it is never retained or released, reading and writing it
   reads and writes the caller's item, and passing it on to another call lends it again, to that function's own
   `___lent_` copy. Every caller that passes a class instance keeps the ordinary function.
   - **The function keeps nothing.** Every rule above holds for the lent parameter inside the copy, so each way of
     keeping it is an error in that function naming the parameter and the call that lent it (`'mouse' is lent to
-    'keep' for one call (D257), by the call on line 9 of 'LentToCalls': it is the caller's item, read and written
+    'keep' for one call, by the call on line 9 of 'LentToCalls': it is the caller's item, read and written
     in place,` followed by the site):
     - kept in an attribute: `... so 'keep' does not keep it in the attribute 'last': keep the values it needs, or
       have the caller pass something 'keep' may keep`;
     - put in a list: `... so 'list' does not put it in a list, which would keep it: keep the values it needs`;
     - returned: `... so 'hand_back' does not return it: return the values the caller needs`;
     - made into a function value: `'mouse.move' would keep 'mouse' in a function value, and 'mouse' is lent to
-      'capture' for one call (D257), so 'capture' does not keep it: call 'mouse.move()' directly, or keep the
+      'capture' for one call, so 'capture' does not keep it: call 'mouse.move()' directly, or keep the
       values it needs`;
     - given a second name: `... and a lent item has one name: use 'mouse' itself instead of 'alias'`.
-    These are the facts escape analysis proves per parameter ([optimizations.md](optimizations.md)) -- the function
-    keeps nothing its parameter reaches -- checked here by compiling the function under the borrow rules, which
+    These are the facts escape analysis proves per parameter ([optimizations.md](optimizations.md)): the function
+    keeps nothing its parameter reaches. They are checked here by compiling the function under the borrow rules, which
     names the very line that would keep it.
   - **The call may not resize what the item is borrowed from.** A statement that lends an item is checked with
     the call effects: a call whose `grow:` or `shrink:` facts reach the collection the item is borrowed from (for
     a row's attribute, each collection the row borrows from) is `'mouse' is borrowed from 'mice' and lent to
     'grow' for its call, and 'input.grow()' on line 19 may move the items of 'mice': a function lent a borrowed
-    item may not append to or remove from the collection it is borrowed from, directly or through what it calls
-    -- change the size of 'mice' before or after the call (D257)`. An item lent on from inside a lent function is
+    item may not append to or remove from the collection it is borrowed from, directly or through what it calls;
+    change the size of 'mice' before or after the call`. An item lent on from inside a lent function is
     covered by the check at the call that first lent it, whose call effects include everything the function
-    reaches. D220's plural calls keep their own error.
-  - **Where it is not lent, the error says why, and never offers a copy the function would write** (D244: a write
+    reaches. The calls a plural fills keep their own error.
+  - **Where it is not lent, the error says why, and never offers a copy the function would write** (a write
     to a copy vanishes silently). Passing to a library function: `'first' is borrowed from 'other', and 'append'
     is a library function, which is never lent an item: pass the attributes it needs, or 'first.copy()' where a
     snapshot is what it wants`; to a union parameter: `... and 'f' takes it as a union, which holds its own values
     and is never lent an item: pass the attributes it needs, or give 'f' a parameter of the item's own class`;
     any other expression (such as a call that lends its result, written inside the argument): `... only a named
-    item, an item read with '[ ]' or a row's attribute is lent to a call (D257): name it first, 'var item =
+    item, an item read with '[ ]' or a row's attribute is lent to a call: name it first, 'var item =
     ...', and pass 'item'`.
   - **Cost.** None: the argument is the item's address, the parameter is never counted, and nothing is copied.
     The `___lent_` copy is compiled only for the positions a program lends, and a program that lends nothing
     carries none (tree-shaken like any function). `conformance/stage6/lent_to_calls` (an input system handing a
     walked row's mouse and keyboard to `apply(event, mouse, keyboard)`, which writes them and passes them on,
     with balanced memory and the writes read back from the vectors), `diagnostics/lent_to_calls`.
-- **A walked line names the attribute's class wherever it was declared** (proposed by Claude, unconfirmed; a bug
-  fix found making every fitting component inline in SlopEngine). `Column<attribute.class>()` in a walked row or
-  a plural's argument is written out with the class's full name, so a row type declared in another namespace
+- **A walked line names the attribute's class wherever it was declared.** `Column<attribute.class>()` in a walked
+  row or a plural's argument is written out with the class's full name, so a row type declared in another namespace
   (`mouse: Component.Mouse` in `Input`) names the same class from the runner's file.
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/vector_rows`, `conformance/stage6/vector_items`,
@@ -1668,3 +1629,7 @@ kept past its use. What is built (the error texts and the readings marked are pr
 `conformance/stage6/sparse_rows`, `diagnostics/sparse_rows`, `conformance/stage6/items_columns`,
 `diagnostics/items_borrows`, `conformance/stage6/lent_arguments`, `conformance/stage6/streamed_rows`,
 `diagnostics/lent_arguments`, `conformance/stage6/lent_to_calls`, `diagnostics/lent_to_calls`.
+
+---
+
+Next: [Metaprogramming](metaprogramming.md), writing code that writes code for every attribute of a class.
