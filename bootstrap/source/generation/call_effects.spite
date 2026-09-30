@@ -9,24 +9,64 @@ var plain_fields = Dictionary<Boolean>()
 var counted_field_names = Dictionary<Boolean>()
 var type_field_classes = Dictionary<String>()
 var shared_defaults = Dictionary<Boolean>()
+var generator: Generator? = null
 
-func study(class_files: List<Discovery.DiscoveredClass>) {
+func study(class_files: List<Discovery.DiscoveredClass>, studying_generator: Generator) {
+    generator = studying_generator
     var index = 0
     while index < class_files.count() {
         var discovered = class_files[index]
+        class_names.set(discovered.qualified_dotted, true)
+        index = index + 1
+    }
+    index = 0
+    while index < class_files.count() {
+        var discovered = class_files[index]
         var file = discovered.get_file()
-        class_names.set(discovered.simple_name, true)
-        record_fields(file.statements, discovered.simple_name)
+        record_fields(file.statements, discovered.qualified_dotted)
         index = index + 1
     }
     var class_index = 0
     while class_index < class_files.count() {
         var discovered = class_files[class_index]
         var file = discovered.get_file()
-        study_class(file.statements, discovered.simple_name)
+        study_class(file.statements, discovered.qualified_dotted)
         class_index = class_index + 1
     }
     settle()
+    generator = null
+}
+
+func class_identity(named: Syntax.Expressions.Expression, from_class: String): String {
+    crash generator
+    var saved_owner = generator.current_owner
+    generator.current_owner = from_class
+    var found = generator.try_resolve_static_path(named, from_class)
+    generator.current_owner = saved_owner
+    if not found {
+        return "*"
+    }
+    return found.qualified_dotted
+}
+
+func type_identity(path: List<String>, from_class: String): String {
+    crash generator
+    var saved_owner = generator.current_owner
+    generator.current_owner = from_class
+    var joined = path.join(".")
+    var found = generator.find_class(joined, from_class)
+    var shape_owner = ""
+    if not found and path.count() == 1 {
+        shape_owner = generator.nearest_declaring_owner(joined, from_class)
+    }
+    generator.current_owner = saved_owner
+    if found {
+        return found.qualified_dotted
+    }
+    if shape_owner.is_empty() {
+        return ""
+    }
+    return "{shape_owner}.{joined}"
 }
 
 func effects_of(class_name: String, name: String): List<String> {
@@ -228,11 +268,11 @@ func record_fields(statements: List<Syntax.Statements.Statement>, class_name: St
     while index < statements.count() {
         var declared = shape.as_variable_declaration(statements[index])
         if declared {
-            var declared_class = declared_class_name(declared)
+            var declared_class = declared_class_name(declared, class_name)
             if not declared_class.is_empty() {
                 field_classes.set("{class_name}#{declared.name}", declared_class)
             }
-            var declared_element = declared_element_name(declared)
+            var declared_element = declared_element_name(declared, class_name)
             if not declared_element.is_empty() {
                 element_classes.set("{class_name}#{declared.name}", declared_element)
             }
@@ -251,19 +291,19 @@ func record_fields(statements: List<Syntax.Statements.Statement>, class_name: St
         }
         var declared_type = shape.as_type_declaration(statements[index])
         if declared_type {
-            record_type_fields(declared_type)
+            record_type_fields(declared_type, class_name)
         }
         index = index + 1
     }
 }
 
-func record_type_fields(declared_type: Syntax.Statements.TypeDeclaration) {
+func record_type_fields(declared_type: Syntax.Statements.TypeDeclaration, class_name: String) {
     var index = 0
     while index < declared_type.fields.count() {
         var field = declared_type.fields[index]
         if field.is_attribute() and field.type_reference {
-            var key = "{declared_type.name}#{field.name}"
-            var field_class = type_class_name(field.type_reference)
+            var key = "{class_name}.{declared_type.name}#{field.name}"
+            var field_class = type_class_name(field.type_reference, class_name)
             if field_class.is_empty() {
                 field_class = "*"
             }
@@ -337,20 +377,20 @@ func default_is_shared(class_name: String, name: String): Boolean {
 
 func record_return(function: Syntax.Statements.FunctionDeclaration, class_name: String) {
     assert function.return_type
-    var returned_class = type_class_name(function.return_type)
+    var returned_class = type_class_name(function.return_type, class_name)
     assert not returned_class.is_empty()
     return_classes.set("{class_name}#{function.name}", returned_class)
 }
 
-func declared_class_name(declaration: Syntax.Statements.VariableDeclaration): String {
+func declared_class_name(declaration: Syntax.Statements.VariableDeclaration, from_class: String): String {
     if declaration.type_reference {
-        return type_class_name(declaration.type_reference)
+        return type_class_name(declaration.type_reference, from_class)
     }
     crash declaration.value
-    return value_class_name(declaration.value)
+    return value_class_name(declaration.value, from_class)
 }
 
-func type_class_name(type_reference: Syntax.Types.Type): String {
+func type_class_name(type_reference: Syntax.Types.Type, from_class: String): String {
     var named = shape.as_named_type(type_reference)
     if not named {
         return ""
@@ -361,7 +401,7 @@ func type_class_name(type_reference: Syntax.Types.Type): String {
     var last = named.path.last()
     crash last
     if last != "Nullable" {
-        return last
+        return type_identity(named.path, from_class)
     }
     if named.arguments.count() != 1 {
         return ""
@@ -371,12 +411,12 @@ func type_class_name(type_reference: Syntax.Types.Type): String {
         return ""
     }
     crash wrapped.value
-    return type_class_name(wrapped.value)
+    return type_class_name(wrapped.value, from_class)
 }
 
-func declared_element_name(declaration: Syntax.Statements.VariableDeclaration): String {
+func declared_element_name(declaration: Syntax.Statements.VariableDeclaration, from_class: String): String {
     if declaration.type_reference {
-        return element_class_name(declaration.type_reference)
+        return element_class_name(declaration.type_reference, from_class)
     }
     crash declaration.value
     var constructed = shape.as_generic_call(declaration.value)
@@ -388,10 +428,10 @@ func declared_element_name(declaration: Syntax.Statements.VariableDeclaration): 
         return ""
     }
     crash first.value
-    return type_class_name(first.value)
+    return type_class_name(first.value, from_class)
 }
 
-func element_class_name(type_reference: Syntax.Types.Type): String {
+func element_class_name(type_reference: Syntax.Types.Type, from_class: String): String {
     var named = shape.as_named_type(type_reference)
     if not named {
         return ""
@@ -407,19 +447,21 @@ func element_class_name(type_reference: Syntax.Types.Type): String {
     }
     crash wrapped.value
     if last == "Nullable" {
-        return element_class_name(wrapped.value)
+        return element_class_name(wrapped.value, from_class)
     }
-    if last != "List" and last != "Vector" and last != "Items" and last != "Dictionary" {
+    var collections = ["List", "Vector", "Items", "Dictionary"]
+    var collection = type_identity(named.path, from_class)
+    if not collections.contains(collection) {
         return ""
     }
-    return type_class_name(wrapped.value)
+    return type_class_name(wrapped.value, from_class)
 }
 
-func value_class_name(value: Syntax.Expressions.Expression): String {
+func value_class_name(value: Syntax.Expressions.Expression, from_class: String): String {
     var constructed = shape.as_generic_call(value)
     if constructed {
         crash constructed.callee
-        return last_name(constructed.callee)
+        return class_identity(constructed.callee, from_class)
     }
     var listed = shape.as_list_literal(value)
     if listed {
@@ -434,7 +476,7 @@ func value_class_name(value: Syntax.Expressions.Expression): String {
     if not names_a_class(callee_name) {
         return ""
     }
-    return callee_name
+    return class_identity(called.callee, from_class)
 }
 
 func names_a_class(name: String): Boolean {
