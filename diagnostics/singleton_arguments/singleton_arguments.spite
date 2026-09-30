@@ -1,5 +1,6 @@
 var console = Console()
-var registry = Registry("main")
+var starting_name = "main"
+var registry = Registry(starting_name)
 
 func SingletonArguments() {
     console.print(registry.name)
