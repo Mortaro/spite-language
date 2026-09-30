@@ -1,0 +1,20 @@
+singleton
+
+var registry = Registry()
+var kept = List<Filler>()
+
+func touch() {
+    kept.clear()
+    var held = registry.holders.count()
+    assert held >= 0
+}
+
+func drop() {
+    var index = 0
+    while index < 64 {
+        var made = Filler()
+        made.name()
+        registry.keep("filler {index}", made)
+        index = index + 1
+    }
+}

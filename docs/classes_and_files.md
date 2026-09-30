@@ -587,7 +587,7 @@ var heap = Memory.Heap()
   `drop()` is destroyed right after it (`conformance/stage6/singleton_teardown`). A singleton's memory is given
   back only after every singleton is destroyed, so an older singleton that holds a newer one -- a registry that
   generic singletons record themselves in, like SlopEngine's `Columns` and its `Column<T>`s -- lets go of it
-  without reading freed memory (`conformance/stage6/singleton_held_at_exit`).
+  without reading freed memory (`conformance/stage6/singleton_held_at_exit`, `singleton_freed_after_teardown`).
 - **Never made in a circle** (under D244, which makes a hang a bug; the texts proposed by Claude, unconfirmed).
   A singleton's attributes are made with it, so singletons whose attributes make each other -- directly, through
   a generic singleton, or through an ordinary object whose own attributes bind one (`var sample: Entity = ...`

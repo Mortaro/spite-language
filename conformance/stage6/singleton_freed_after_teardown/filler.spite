@@ -1,0 +1,7 @@
+var items = List<Integer>()
+var extra = List<Integer>()
+
+func name() {
+    items.append(2)
+    extra.append(3)
+}

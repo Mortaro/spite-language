@@ -1,0 +1,11 @@
+var reuser = Reuser()
+var first = Store<Integer>()
+var second = Store<String>()
+var console = Console()
+
+func SingletonFreedAfterTeardown() {
+    reuser.touch()
+    first.record("first")
+    second.record("second")
+    console.print("recorded")
+}

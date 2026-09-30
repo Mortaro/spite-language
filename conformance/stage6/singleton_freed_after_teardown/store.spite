@@ -1,0 +1,14 @@
+singleton
+
+generic $item_type
+
+var registry = Registry()
+var items = List<Integer>()
+
+func record(key: String) {
+    registry.keep(key, this)
+}
+
+func name() {
+    items.append(1)
+}

@@ -1,0 +1,11 @@
+singleton
+
+type Named {
+    name()
+}
+
+var holders = Dictionary<Named>()
+
+func keep(key: String, held: Named) {
+    holders.set(key, held)
+}
