@@ -2,27 +2,26 @@
 
 Spite is a small, opinionated language meant to be written mostly by AI and skimmed by humans: one way to do
 each thing, no macros, metaprogramming and a real standard library instead of loops. It compiles to C, and the
-compiler is written in Spite and compiles itself. The compiler is also its own formatter and linter -- there is
-no separate style guide to follow, it rewrites your file to the one true style, and a badly named variable or
+compiler is written in Spite and compiles itself. The compiler is also its own formatter and linter. There is
+no separate style guide to follow: it rewrites your file to the one true style, and a badly named variable or
 function (the wrong case, or an abbreviation such as `cnt` for `count`) is a compile error, not a warning.
 
 > **Spite: you write your intention, the compiler reminds you that you are a moron, and emits the fastest
 > possible code.**
 
-That goes for everyone who writes it -- people, AI agents and the language's own author. In practice:
+That goes for everyone who writes it: people, AI agents and the language's own author. In practice:
 
 - **You say what you want, not how to do it.** Chains of list operations become one loop, singletons get the
-  cheapest safe form of thread safety, and anything a program does not use is not in it -- decided from what the
-  whole program does. The direction is one `List` whose layout (inline, on the stack, vectorised, across threads)
-  the compiler picks too; that is being proven before it is built ([D222](design/decisions.md)).
-- **The compiler refuses mistakes instead of guessing.** An error names the problem and the fix -- a race, a
-  value that may be null, a borrowed item kept too long, a misspelt or abbreviated name -- and there is no
+  cheapest safe form of thread safety, and anything a program does not use is not in it, all decided from what
+  the whole program does.
+- **The compiler refuses mistakes instead of guessing.** An error names the problem and the fix (a race, a
+  value that may be null, a borrowed item kept too long, a misspelt or abbreviated name), and there is no
   warning to ignore: it compiles or it tells you why not.
-- **Anything that can go wrong silently is a bug** ([D244](design/decisions.md)). Every failure is loud -- a compile
-  error, or a crash that names its cause -- and never a wrong value, a lost write, a skipped step, a leak or a
+- **Anything that can go wrong silently is a bug.** Every failure is loud (a compile
+  error, or a crash that names its cause) and never a wrong value, a lost write, a skipped step, a leak or a
   hang. Something that can be absent is a `T?` you must handle; a real developer mistake crashes with the line
-  that made it; a fault below Spite still prints where it happened. What the language already refuses, and what
-  is still open, is listed in [docs/failure.md](docs/failure.md#nothing-fails-silently).
+  that made it; a fault below Spite still prints where it happened. What the language refuses is listed in
+  [docs/failure.md](docs/failure.md#nothing-fails-silently).
 - **Every optimisation is written down.** What the compiler does behind your back is listed in
   [docs/optimizations.md](docs/optimizations.md), so it surprises nobody.
 
@@ -77,42 +76,45 @@ up while the program runs, and whatever it does not call is not in the executabl
 
 [`docs/`](docs/README.md) is both the tutorial and the definition of the language: each page teaches one part and
 ends with its rules in full, and every titled program on it is compiled and run by `bash check.sh`. Read it in
-this order, from a first program to the compiler's internals:
+this order, from a first program to what the compiler proves; each page ends with a link to the next:
 
-1. [Getting started](docs/getting_started.md) -- build the compiler, run hello world, a program of two classes.
-2. [Classes and files](docs/classes_and_files.md) -- a file is a class; what it holds and in what order;
+1. [Getting started](docs/getting_started.md): build the compiler, run hello world, a program of two classes.
+2. [Classes and files](docs/classes_and_files.md): a file is a class; what it holds and in what order;
    constructors and singletons.
-3. [Programs](docs/programs.md) -- the entry file, the launcher, `Arguments`, `Environment` and `Build`.
-4. [Values and types](docs/values_and_types.md) -- numbers and the casting rule, `String`, enums, unions, `type`
+3. [Programs](docs/programs.md): the entry file, the launcher, `Arguments`, `Environment` and `Build`.
+4. [Values and types](docs/values_and_types.md): numbers and the casting rule, `String`, enums, unions, `type`
    shapes.
-5. [Nullable values and failure](docs/failure.md) -- `T?` and narrowing, `assert`, `crash`, and nothing else.
-6. [Functions and operators](docs/functions_and_operators.md) -- function values, variadic arguments, operators
+5. [Nullable values and failure](docs/failure.md): `T?` and narrowing, `assert`, `crash`, and nothing else.
+6. [Functions and operators](docs/functions_and_operators.md): function values, variadic arguments, operators
    as functions.
-7. [Control flow](docs/control_flow.md) -- `if`, `while` (the only loop), `switch`.
-8. [Style](docs/style.md) -- the compiler is the formatter and the linter: names, comments, nothing unused.
-9. [Memory](docs/memory.md) -- reference counting, `copy`, `drop`, `Memory.Address`, `Memory.Heap` and choosing
+7. [Control flow](docs/control_flow.md): `if`, `while` (the only loop), `switch`.
+8. [Style](docs/style.md): the compiler is the formatter and the linter (names, comments, nothing unused).
+9. [Memory](docs/memory.md): reference counting, `copy`, `drop`, `Memory.Address`, `Memory.Heap` and choosing
    an allocator.
-10. [Metaprogramming](docs/metaprogramming.md) -- Symbol codegen, generics and codegen values, tree shaking.
-11. [Reflection](docs/reflection.md) -- `Spite.Class`, `Spite.Function`, namespaces, instances.
-12. [Packages](docs/packages.md) -- `load`, namespaces, reopening classes (mods).
-13. [Concurrency](docs/concurrency.md) -- `Concurrent` and `Parallel`, without `async`/`await`.
-14. [Standard library](docs/standard_library.md) -- `String`, files, folders, processes, the console, sockets.
-15. [Collections](docs/collections.md) -- `List`, `Dictionary` and member templates.
-16. [JSON and binary](docs/json.md) and [Time](docs/time.md).
-17. [Game maths](docs/game_maths.md) -- `Vector2` to `Vector4`, `Matrix3`, `Matrix4`, `Quaternion`.
-18. [Foreign libraries](docs/foreign_libraries.md) -- `DynamicLibrary` and one folder per operating system.
-19. [Targets](docs/targets.md) -- planned: the web and isomorphic classes.
-20. [The compiler](docs/compiler.md), [the REPL and live reload](docs/repl.md), [testing](docs/testing.md),
-    [optimizations](docs/optimizations.md) and [self hosting](design/self_hosting.md).
-21. [Decisions](design/decisions.md), [open questions](design/open_questions.md) and
-    [known issues](design/KNOWN_ISSUES.md) -- why each rule is what it is, and what is not settled or not built.
+10. [Metaprogramming](docs/metaprogramming.md): Symbol codegen, generics and codegen values, tree shaking.
+11. [Reflection](docs/reflection.md): `Spite.Class`, `Spite.Function`, namespaces, instances.
+12. [Packages](docs/packages.md): `load`, namespaces, reopening classes (mods).
+13. [Concurrency](docs/concurrency.md): `Concurrent` and `Parallel`, without `async`/`await`.
+14. [Standard library](docs/standard_library.md): `String`, files, folders, processes, the console, sockets.
+15. [Collections](docs/collections.md): `List`, `Dictionary` and member templates.
+16. [JSON and binary](docs/json.md): any value to JSON text or compact bytes and back.
+17. [Time](docs/time.md): instants, durations, the calendar and time zones.
+18. [Game maths](docs/game_maths.md): `Vector2` to `Vector4`, `Matrix3`, `Matrix4`, `Quaternion`.
+19. [Foreign libraries](docs/foreign_libraries.md): `DynamicLibrary` and one folder per operating system.
+20. [Targets](docs/targets.md): the web and isomorphic classes.
+21. [The compiler](docs/compiler.md): every command and flag, and where the outputs go.
+22. [The REPL and live reload](docs/repl.md): inspect and change a running program.
+23. [Testing](docs/testing.md): a test is a function that crashes.
+24. [Optimizations](docs/optimizations.md): everything the compiler optimises without being asked.
+25. [Proofs](docs/proofs.md): every fact the compiler proves while compiling, and when it does not apply.
 
 Writing Spite with an AI? Paste [design/for_ai_writers.md](design/for_ai_writers.md), the whole language on one
 dense page, into its context first.
 
 ## Status
 
-The docs say, heading by heading, what is implemented, partial or planned; in short:
+The docs describe the language as decided; [design/status.md](design/status.md) says, page by page, what is not
+built yet. In short:
 
 | Area | Status |
 |---|---|
@@ -129,7 +131,7 @@ The docs say, heading by heading, what is implemented, partial or planned; in sh
 | Foreign libraries (`DynamicLibrary`), one folder per operating system | implemented; Linux and macOS folders compile but have never run |
 | REPL: `--repl`, `--repl-port`, `spite connect`; live reload (`--hot-reload`) | implemented; live reload runs on Windows ([docs/repl.md](docs/repl.md)) |
 | Self hosting | done: the compiler is Spite, and the only hand-written C is `bootstrap/source/generation/prelude.spite` |
-| Web target, isomorphic classes | planned -- see [docs/targets.md](docs/targets.md) |
+| Web target, isomorphic classes | planned ([docs/targets.md](docs/targets.md)) |
 
 Decisions waiting on Mortaro are collected in [`mortaros_missing_decisions.md`](mortaros_missing_decisions.md).
 
@@ -185,22 +187,25 @@ every `.spite` file in it is part of the same program.
 `Set-Content -Encoding utf8` writes one by default: use `-Encoding utf8NoBOM`, or an editor set to UTF-8
 without BOM.
 
-**`docs/` is the ground truth, for what works today and for what the language is**: every titled program in it,
-and every program in `conformance/` and `examples/`, is compiled and checked by `bash check.sh`, and each page's
-rules in full also record what is decided but not built yet, marked as such.
+**`docs/` is the ground truth for what the language is**: every titled program in it, and every program in
+`conformance/` and `examples/`, is compiled and checked by `bash check.sh`. What is decided but not built yet is
+listed in [design/status.md](design/status.md).
 
 ## Where to look
 
-- [`AGENTS.md`](AGENTS.md) -- how to work in this repository: gitmoji commits, how decisions are recorded,
-  and the conventions for shared files when more than one agent is running.
-- [`SPITE.md`](SPITE.md) -- things that cause Mortaro spite, with what to do instead. Read it before proposing
+- [`AGENTS.md`](AGENTS.md): how to work in this repository (gitmoji commits, how decisions are recorded, and the
+  conventions for shared files when more than one agent is running).
+- [`SPITE.md`](SPITE.md): things that cause Mortaro spite, with what to do instead. Read it before proposing
   a language feature or a way of working; it is the point of the project.
-- [`docs/`](docs/README.md) -- the language, normative: one page per topic that teaches it and then states its
-  rules in full, the [decision log](design/decisions.md), and a dense cheat sheet meant to be pasted into an AI's
-  context (`design/for_ai_writers.md`). When anything else disagrees with the docs, the docs win. Every titled
+- [`docs/`](docs/README.md): the language, normative, for people learning it: one page per topic that teaches it
+  and then states its rules in full. When anything else disagrees with the docs, the docs win. Every titled
   Spite code block in `docs/` is compiled and checked as part of `bash check.sh`.
-- [`PLAN.md`](PLAN.md) -- implementation milestones, decisions made where the docs were silent, and what is
+- [`design/`](design/): for the people building Spite: the [decision log](design/decisions.md), what is
+  [not built yet](design/status.md), [open questions](design/open_questions.md), proposals,
+  [known issues](design/KNOWN_ISSUES.md), [how the compiler builds itself](design/self_hosting.md), and a dense
+  cheat sheet meant to be pasted into an AI's context ([design/for_ai_writers.md](design/for_ai_writers.md)).
+- [`PLAN.md`](PLAN.md): implementation milestones, decisions made where the docs were silent, and what is
   left.
-- [`bootstrap/COMPILER_PLAN.md`](bootstrap/COMPILER_PLAN.md) -- the compiler's own plan and progress log:
-  what it implements today, and what it does not.
-- [`examples/`](examples/) -- idiomatic sample programs the end-to-end test suite also runs.
+- [`bootstrap/COMPILER_PLAN.md`](bootstrap/COMPILER_PLAN.md): the compiler's own plan and progress log: what it
+  implements today, and what it does not.
+- [`examples/`](examples/): idiomatic sample programs the end-to-end test suite also runs.

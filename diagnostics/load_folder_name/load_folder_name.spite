@@ -1,6 +1,6 @@
 var console = Console()
 
 func LoadFolderName() {
-    load "Slop-Plugin"
+    load "Engine-Plugin"
     console.print("never built")
 }

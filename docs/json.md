@@ -7,13 +7,13 @@ type needs only when a program uses one with it. A program that never names them
 
 A writer takes the value, so writing names no type: `JsonWriter(order)`, then `write()`. A reader has no value
 yet, so it names the class it makes and takes what to read it from: `JsonReader<Order>(text)`, then `read()`,
-which answers `Order?` -- `null` when the input is not an `Order`.
+which answers `Order?`, `null` when the input is not an `Order`.
 
 Which one to use: **binary between Spite programs, JSON for everything else.** Two Spite programs compile from
 the same source, so both ends already know every type and nothing has to describe itself; the bytes are about a
 quarter the size of the JSON, more than ten times faster to write and twenty-five times faster to read
 ([measured below](#how-fast-and-how-small)). JSON is for talking to systems that are not Spite
-([The wire format](targets.md#the-wire-format--planned)).
+([The wire format](targets.md#the-wire-format)).
 
 ## Write and read a class
 
@@ -71,7 +71,7 @@ Ada "the" first shipped tea 2
   gives `JsonWriter<T>`, and writes `null` when it is empty.
 - `write(): String` answers the text: every attribute has a type the compiler knows. Attributes are written in
   the order the class declares them. The one thing it cannot write is a `Float` or `Double` that is infinity or
-  not-a-number, which JSON cannot hold, and there it crashes naming the attribute and the value (D198, below).
+  not-a-number, which JSON cannot hold, and there it crashes naming the attribute and the value (see below).
 - `JsonReader<T>(text)` holds the text, and `read(): T?` answers `null` when it is not JSON, or not this class's
   JSON. Narrow it like any other `T?`: `crash` when bad input is a bug, `assert` when the program should carry on,
   `if` when absence is a case.
@@ -138,16 +138,16 @@ The same `Order` is 23 bytes here and 104 as JSON: `id` and `total` (a `Float`) 
 says exactly what each type becomes.
 
 - `write(): List<Byte>` answers a new list holding the value. `append_to(bytes)` writes it at the end of a
-  list the program already has instead, so many values -- a network frame's worth of messages, a file's records
-  -- go into one buffer with no copying.
+  list the program already has instead, so many values (a network frame's worth of messages, a file's records)
+  go into one buffer with no copying.
 - `BinaryReader<T>(bytes)` reads from a `List<Byte>`. Each `read(): T?` reads the next value from `position`
   (an attribute, starting at `0`) and moves past it, so values written one after another are read one after
   another; `remaining()` is how many bytes are left. It answers `null` when there is nothing left, when the bytes
   run out in the middle of a value, and when they are not a `T` (a `Boolean` byte that is neither 0 nor 1, an enum
   index the enum does not have, a count larger than the bytes left). A failed read leaves `position` where it
   was.
-- `read_memory(address, count): T?` reads one value from `count` bytes at a `Memory.Address` -- a buffer a
-  `Socket` filled, say -- without copying them into a list first; the reader is made with `null` for its bytes.
+- `read_memory(address, count): T?` reads one value from `count` bytes at a `Memory.Address` (a buffer a
+  `Socket` filled, say) without copying them into a list first; the reader is made with `null` for its bytes.
   Afterwards `position` is how many of the bytes the value took.
 
 ```gdscript
@@ -156,7 +156,7 @@ var reader = BinaryReader<Move>(null)
 var move = reader.read_memory(buffer, received)
 ```
 
-Infinity and not-a-number are ordinary bytes: only JSON cannot hold them (D208), so `BinaryWriter` never crashes.
+Infinity and not-a-number are ordinary bytes: only JSON cannot hold them, so `BinaryWriter` never crashes.
 
 ### Several values in one buffer
 
@@ -213,7 +213,7 @@ A reader reads one type; to read a different one from the same bytes, a second r
 A **count** is an unsigned LEB128 varint: seven bits per byte, low bits first, the top bit set on every byte but
 the last, so a count below 128 is one byte.
 
-Anything else a class holds -- another class, a list of lists, a dictionary of classes -- is one of these again,
+Anything else a class holds (another class, a list of lists, a dictionary of classes) is one of these again,
 so each writer and reader goes as deep as the class does. A `union`, a `type` such as `Anything`, or a function
 value anywhere in what they see has no form in either, and making one is a compile error at your line, naming the
 attribute: `JsonWriter cannot write 'Owner': 'Owner.pet' is the union Pet, and JSON does not say which member a
@@ -229,24 +229,24 @@ the rest in `_` attributes, or the program sends a smaller class that holds only
 
 The table above is the whole format, and it is stable: it depends only on the class's attributes, their order and
 their types, never on the machine, the compiler's version or the build, so bytes written today read back
-tomorrow, on another machine, from a program built another way. What changes it is changing the class -- adding,
-removing, reordering or retyping an attribute, or reordering an enum's values -- and then both ends must be built
+tomorrow, on another machine, from a program built another way. What changes it is changing the class (adding,
+removing, reordering or retyping an attribute, or reordering an enum's values), and then both ends must be built
 from the new source, since nothing in the bytes says which class they are or what it held.
 
 - **No header, no keys, no padding.** The bytes are the value and nothing else, so values can follow each other in
   one buffer and a program frames them however its transport needs.
-- **Little-endian everywhere.** It is the order of every machine Spite compiles for (x86-64 and ARM64, and
-  WebAssembly when that target is built), so a number is one store and one load with no swapping. A big-endian
+- **Little-endian everywhere.** It is the order of every machine Spite compiles for (x86-64, ARM64 and
+  WebAssembly), so a number is one store and one load with no swapping. A big-endian
   target would have to swap each number's bytes in `BinaryOutput` and `BinaryInput`; the format would not change.
 - **Reading never trusts a count.** A text length or an element count larger than the bytes left fails the read
   before anything is allocated, so a corrupt or hostile buffer cannot make a reader allocate gigabytes.
 
 ### The schema hash
 
-D31 asks for one in the handshake, so an old client meeting a new server fails with a clear report instead of
+A handshake carries one, so an old client meeting a new server fails with a clear report instead of
 misreading bytes. It belongs to the handshake or the file header, not to every value: a value's bytes stay bare so
 that thousands of them can share one buffer. `writer.schema(): Long` and `reader.schema(): Long` answer a hash of
-the attribute walk the bytes follow ([D215](../design/decisions.md); the name is provisional): the class's name, then each
+the attribute walk the bytes follow: the class's name, then each
 attribute's name and type in order, nested classes the same way, and each enum's values in order. The compiler
 works it out and the C holds the constant, so asking costs nothing; a program writes it once at the start of a
 file or a connection and compares it before reading.
@@ -298,7 +298,7 @@ lenient about what it does not need:
 - **An attribute the text does not mention keeps its default**, the value the class declares for it.
 - **A key in camelCase or PascalCase** (`buyPrice`, `BuyPrice`) reads into the attribute it spells, `buy_price`
   ([below](#a-camelcase-or-pascalcase-key)).
-- **A key that cannot be an attribute's name** -- `min_lod`, `instances` -- is named by the class, with a
+- **A key that cannot be an attribute's name** (`min_lod`, `instances`) is named by the class, with a
   `json_key_<attribute>()` function ([below](#a-key-that-is-not-an-attributes-name)).
 - **A value of the wrong kind makes the whole read `null`**: text where a number belongs, `null` for an
   attribute that is not a `T?`, an enum name the enum does not have.
@@ -413,7 +413,7 @@ unknown keys, skipped like any other. The compiler reads the key while compiling
 own name costs, and a class without such functions compiles exactly as before. A mistake is an error at the
 function: a name that is not an attribute's (`json_key_minimum_level_of_detial`), a body that is anything but
 `return` of a literal text, and a key two attributes would share
-([the rules](#json-is-reflection-not-a-library--implemented), `diagnostics/json_key`).
+([the rules](#json-is-reflection-not-a-library), `diagnostics/json_key`).
 
 Bytes have no keys to skip, so `BinaryReader` is strict throughout: the bytes are exactly the class, or the read
 is `null`.
@@ -447,9 +447,9 @@ func JsonValues() {
 
 ## How fast and how small
 
-`benchmarks/serialisation` writes 100 000 small objects -- an `Integer` id, a short name, two `Float`s, a `Short`,
-a `Boolean` and an enum -- and reads them back, as JSON (one text each) and as binary (all appended to one
-`List<Byte>`). `clang -O2`, on Mortaro's Windows machine, with the allocations `--debug-memory` counts for the
+`benchmarks/serialisation` writes 100 000 small objects (an `Integer` id, a short name, two `Float`s, a `Short`,
+a `Boolean` and an enum) and reads them back, as JSON (one text each) and as binary (all appended to one
+`List<Byte>`). `clang -O2`, on a Windows machine, with the allocations `--debug-memory` counts for the
 100 000 writes and reads:
 
 | | size | write | read | allocations |
@@ -498,45 +498,40 @@ text that remembers the first thing that went wrong.
 ## Rules in full
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
-cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
-rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](../design/decisions.md).
+cases, the exact error texts and the notes on how it is built. Where the teaching above and these rules disagree,
+the rules win.
 
-### JSON is reflection, not a library  **[implemented]**
+### JSON is reflection, not a library
 
-D22 and D23 (decided by Mortaro, 2026-09-19), amended by D31: writing JSON is walking a value's attributes and
+Writing JSON is walking a value's attributes and
 reading it is a series of symbol keyed writes, so JSON needs no machinery of its own: a `type` shape is the JSON
 shape, and the JSON pair is written with the language's own metaprogramming in `library/`, like the rest of the
-standard library ([Pure Spite](standard_library.md#pure-spite-dissolving-the-runtime--partial)). JSON is a format
+standard library ([Pure Spite](standard_library.md#pure-spite-dissolving-the-runtime)). JSON is a format
 for talking to foreign systems; it is not what Spite programs send each other
-([The wire format](targets.md#the-wire-format--planned)).
+([The wire format](targets.md#the-wire-format)).
 
 - **Writing never fails at run time**: a class that cannot be serialised is a compile error, the same check
   isomorphic classes need. Only parsing can fail, and it follows the failure model: a parse that may not succeed
   returns a `T?`, and a variant that crashes exists for callers who want the report instead. The compile-time
-  check (built as proposed by Claude, unconfirmed): when a program's line makes a `JsonWriter<T>`,
-  `JsonReader<T>`, `BinaryWriter<T>` or `BinaryReader<T>`, the compiler walks `T` -- through `T?`, list
-  elements, dictionary values and every attribute of every class it reaches -- and a `union`, a `type`
+  check: when a program's line makes a `JsonWriter<T>`,
+  `JsonReader<T>`, `BinaryWriter<T>` or `BinaryReader<T>`, the compiler walks `T` (through `T?`, list
+  elements, dictionary values and every attribute of every class it reaches) and a `union`, a `type`
   (`Anything` included) or a function value is an error at that line naming the attribute path; the rest of the
   four classes' files is then not reported on, so one mistake is one error (`diagnostics/json_unwritable`).
   Compile time only. The error names the class and what it does: `<class> cannot write '<T>'` for a writer,
   `cannot read` for a reader, and the reason ends `JSON does not say which member a value is` or `the bytes do not
   say which member a value is`, and `has no JSON form` or `has no binary form`.
-- The one exception to "writing never fails" is D198's, below: a `Float` or `Double` JSON cannot hold.
+- The one exception to "writing never fails" is below: a `Float` or `Double` JSON cannot hold.
 
-**Four classes: `JsonWriter`, `JsonReader`, `BinaryWriter`, `BinaryReader`** (D208, decided by Mortaro,
-2026-09-26, revising D138: "lets also split Json into a JsonWritter and a JsonReader it looks like it makes more
-sense, but that also allows us to have a BinaryWritter and a BinaryReader that Slop can use for its network and to
-serialize resources to disk").  **[implemented]** Writing takes the object, as D138 decided; reading names the
+**Four classes: `JsonWriter`, `JsonReader`, `BinaryWriter`, `BinaryReader`.** Writing takes the object; reading names the
 class it makes. Each class is generic, and every conversion it makes is a function the compiler writes from it for
-the types a program actually uses, so a program that never names one carries none of it (D42, D177): no table of
+the types a program actually uses, so a program that never names one carries none of it: no table of
 types, no reflection and no registry exists at run time. At run time a conversion costs what its Spite says:
 `JsonWriter.write()` makes one `String` per member and joins them, `JsonReader.read()` walks the text once through
 one `JsonCursor`, and the binary pair writes and reads each number with one machine store or load.
 
 ```gdscript
-var writer = JsonWriter(order)          # JsonWriter<Order>, read from the argument (D138)
+var writer = JsonWriter(order)          # JsonWriter<Order>, read from the argument
 var text = writer.write()               # String: never fails
 var reader = JsonReader<Order>(text)    # no object yet, so the class is named
 var read = reader.read()                # Order?: null on text that is not an Order
@@ -550,16 +545,15 @@ var next = unpacker.read()              # Order?: the next value from 'position'
 var from_socket = unpacker.read_memory(buffer, received)
 ```
 
-The names, as built (proposed by Claude, unconfirmed): the four class names are D208's, spelled `Writer`;
-`write`, `read` and `read_or_crash` are the old `Json`'s; `append_to(bytes)` says where the bytes go ("append",
-not "add", [SPITE.md](../SPITE.md)); `read_memory(address, count)` says what it reads from; `position` and
-`remaining()` are the reader's cursor, as on the cursors the standard library already has. The old name is an
-error that names the new pair: `there is no 'Json': it is two classes (D208), 'JsonWriter(value)' whose 'write()'
+The names: `write`, `read` and `read_or_crash`; `append_to(bytes)` says where the bytes go ("append", not
+"add"); `read_memory(address, count)` says what it reads from; `position` and `remaining()` are the reader's
+cursor, as on the cursors the standard library already has. The old name `Json` is an error that names the new
+pair: `there is no 'Json': it is two classes, 'JsonWriter(value)' whose 'write()'
 makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'` (`diagnostics/json_split`).
 
-- **A writer takes the value in its constructor** (D138) and infers its generic from it, by the general rule of
-  [Codegen values (`$`)](metaprogramming.md#codegen-values---implemented) for a constructor that takes a `$name`;
-  nothing about the writers is special to the compiler. As built (proposed by Claude, unconfirmed): the constructor
+- **A writer takes the value in its constructor** and infers its generic from it, by the general rule of
+  [Codegen values (`$`)](metaprogramming.md#codegen-values-) for a constructor that takes a `$name`;
+  nothing about the writers is special to the compiler. The constructor
   takes a `$value_type?`, so a `T?` argument gives a writer of `T`; `JsonWriter.write()` of an empty one is `null`,
   and `BinaryWriter` writes nothing for it (a `T?` inside a value has its presence byte; at the top the caller
   knows whether it wrote anything). `JsonWriter<Order>(null)` names the class when there is no value.
@@ -567,47 +561,45 @@ makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'` (`diagn
   `BinaryReader<T>(bytes: List<Byte>?)`. `JsonReader.read()` reads the whole text as one value, every time it is
   called; `BinaryReader.read()` reads the next value from `position`, so a buffer of many values is read by
   calling it again.
-- **What it is written with** is [Symbol codegen](metaprogramming.md#symbol-codegen--implemented) and
-  [Codegen values (`$`)](metaprogramming.md#codegen-values---implemented) and nothing else, as
+- **What it is written with** is [Symbol codegen](metaprogramming.md#symbol-codegen) and
+  [Codegen values (`$`)](metaprogramming.md#codegen-values-) and nothing else, as
   [How it is written](#how-it-is-written) shows. The binary walk's helper, `BinaryFormat<T>`, is a `singleton`
-  that holds nothing, bound where it is used (`BinaryFormat<attribute.class>()`), which D144 allows since a
+  that holds nothing, bound where it is used (`BinaryFormat<attribute.class>()`), which is allowed since a
   singleton made from a `$` or `.class` type cannot be an attribute; in a production build it is a static object
   ([optimizations.md](optimizations.md#singletons-that-hold-nothing-are-static-objects)).
 - **An enum is written by walking its values**, which a generic may do for the enum it is given
-  ([values_and_types.md](values_and_types.md#enums--implemented)): that is how `BinaryFormat` finds an enum value's
+  ([values_and_types.md](values_and_types.md#enums)): that is how `BinaryFormat` finds an enum value's
   index and how many values the enum has, with no table at run time: writing one costs one comparison per value
   of the enum, and reading one a comparison per value and a text-to-enum cast.
 - **What each type becomes** is [the table above](#what-each-type-becomes), applied again to whatever a value
   holds. JSON text escapes `"`, `\`, line feed, carriage return and tab as `\"`, `\\`, `\n`, `\r`, `\t` and every
   other control character as `\u00XX`, and reading turns any `\uXXXX` back into UTF-8, surrogate pairs included. A
   class's attributes are written in declaration order, leaving out private (`_`) ones as `to_debug()` does
-  ([standard_library.md](standard_library.md#system-classes--implemented)); a `Dictionary`'s entries in the order
+  ([standard_library.md](standard_library.md#system-classes)); a `Dictionary`'s entries in the order
   they were set.
 - **A walk reads every attribute**, so an attribute a program only ever hands to a writer counts as read, and the
-  unused-attribute error does not fire for it ([D118](../design/decisions.md), the ruling on walks).
+  unused-attribute error does not fire for it .
 
-What follows is Claude's reading where D22, D95 and D208 are not specific (proposed by Claude, unconfirmed):
+The details:
 
 - **The binary format** is [The binary format](#the-binary-format) and [the table](#what-each-type-becomes):
   little-endian fixed-width numbers, `Boolean` as one byte, an enum as its index in the smallest of 1, 2 or 4
   bytes that holds every index, text as a varint length and UTF-8, `T?` as a presence byte, lists and dictionaries
-  as a varint count and the items, nested objects inline, and no header. D208 asked for exactly these; the varint
+  as a varint count and the items, nested objects inline, and no header. The varint
   is unsigned LEB128, and a count or length above what an `Integer` holds, or above the bytes left, fails the read.
-- **`BinaryWriter<T>.schema()` and `BinaryReader<T>.schema()` answer a `Long` the compiler works out** (D215,
-  decided by Claude under D205 and D214; the name provisional): the 64-bit FNV-1a hash, as a signed `Long`, of the
-  walk's text -- the class's qualified name, then `name:type` for each attribute the bytes carry (not `_...`), in
+- **`BinaryWriter<T>.schema()` and `BinaryReader<T>.schema()` answer a `Long` the compiler works out** (the
+  name is provisional): the 64-bit FNV-1a hash, as a signed `Long`, of the
+  walk's text: the class's qualified name, then `name:type` for each attribute the bytes carry (not `_...`), in
   order, joined by `;` inside `{ }`, a nested class written the same way, `List<T>`, `Dictionary<T>`, `T?`, an
   enum as its name and `(` its values joined by `,` `)`, a class already being written by its name alone, and any
-  other type by its name. It is a bodiless declaration the compiler supplies (D82), a C macro that is the constant,
+  other type by its name. It is a bodiless declaration the compiler supplies, a C macro that is the constant,
   so it costs nothing at run time and a program that never asks carries none of it. A writer and a reader of the
   same `T` answer the same value (`conformance/stage6/binary_schema`).
-- **The bytes are a `List<Byte>`** (a `Vector<Byte>` until D225 folded a vector of numbers into `List`; the storage
-  is the same): one block, no count per byte, and a reader over it borrows nothing, since it keeps the list itself
-  and reads its block afresh at every `read()`. `read_memory` covers memory the program did not put in a list.
-  `List<T>` has `reserve(count)` for this, making room for `count` items without making any (proposed by Claude,
-  unconfirmed); the library's binary classes grow the list and write into its block directly, which only
-  `library/` may do.
-- **`BinaryReader` answers `null` for every bad input** (D199: bad input is a normal condition, never a crash):
+- **The bytes are a `List<Byte>`**: one block, no count per byte, and a reader over it borrows nothing, since it
+  keeps the list itself and reads its block afresh at every `read()`. `read_memory` covers memory the program did
+  not put in a list. `List<T>` has `reserve(count)` for this, making room for `count` items without making any;
+  the library's binary classes grow the list and write into its block directly, which only `library/` may do.
+- **`BinaryReader` answers `null` for every bad input** (bad input is a normal condition, never a crash):
   bytes that end inside a value, a `Boolean` byte other than 0 or 1, a presence byte other than 0 or 1, an enum
   index past the enum's last value, a plain `Symbol` name the program does not use, and a count past the bytes
   left. A failed read leaves `position` where it was. There is no `read_or_crash` for bytes: the bytes a Spite
@@ -616,42 +608,39 @@ What follows is Claude's reading where D22, D95 and D208 are not specific (propo
   the class because that is where Spite puts generics. `write` needs no crashing twin, since it cannot fail.
 - **`JsonReader` is strict about what it cannot use and lenient about what it does not need**
   ([Reading input you did not write](#reading-input-you-did-not-write), and
-  [Failure](failure.md#failure-three-outcomes-and-no-others--partial)'s three outcomes). An unknown key is skipped,
+  [Failure](failure.md#failure-three-outcomes-and-no-others)'s three outcomes). An unknown key is skipped,
   whatever it holds, because foreign systems send more than a program asks for; a missing attribute keeps the
-  default its class declares, the value [Variables and values](values_and_types.md#variables-and-values--implemented)
+  default its class declares, the value [Variables and values](values_and_types.md#variables-and-values)
   gives anything never set. Besides a value of the wrong kind, a missing brace and anything after the value
-  (`{} x`) make `read` answer `null`: the object would be wrong, and a wrong object that looks right is the
-  surprise D27 exists to prevent. `read_or_crash` crashes on the same inputs, and its crash line carries
+  (`{} x`) make `read` answer `null`: the object would be wrong, and a wrong object that looks right is a
+  surprise. `read_or_crash` crashes on the same inputs, and its crash line carries
   `wanted=<what>` and `position=<n>`.
-- **A key in camelCase or PascalCase reads into the snake_case attribute it spells** (D247, decided by Claude
-  under D205, from the Theseus data conversion; the member names provisional under D214). The exact name wins:
+- **A key in camelCase or PascalCase reads into the snake_case attribute it spells.** The exact name wins:
   `JsonReader` first compares the key with every attribute's name, as it always did, and only a key that matched
-  none is compared with each attribute's name written in camelCase and in PascalCase -- the words after the
-  first, or every word, capitalised and the underscores dropped (`buy_price` is `buyPrice` and `BuyPrice`). A key
+  none is compared with each attribute's name written in camelCase and in PascalCase (the words after the
+  first, or every word, capitalised and the underscores dropped: `buy_price` is `buyPrice` and `BuyPrice`). A key
   that matches neither is skipped as before. A snake_case key never matches a spelling (those have no
   underscores), and only a snake_case name has one, so no key can match two attributes; when the text holds both
   `buy_price` and `buyPrice`, the later one wins, as a repeated key does. `JsonWriter` writes the attribute's own
   name. The spellings are compile-time constants a walked symbol answers, `attribute.camel_case_name` and
-  `attribute.pascal_case_name` (proposed by Claude, unconfirmed; [metaprogramming.md](metaprogramming.md#symbol-codegen--implemented)),
+  `attribute.pascal_case_name` ([metaprogramming.md](metaprogramming.md#symbol-codegen)),
   and `JsonReader` compares them in a second walk, `read_camel_attributes`, that runs only for a key the first
   walk did not match: snake_case input runs the same comparisons it did before (`benchmarks/serialisation`, JSON
   read, best of eight alternating runs on a loaded machine: 269 ms before, 267 ms after), and a program that reads
   no JSON carries none of it (`conformance/stage6/json_camel_case`).
-- **A class names an attribute's JSON key with `func json_key_<attribute>(): String`** (D273, decided by Claude
-  under D205, asked by the Theseus port for Unreal's `min_lod`, `max_*`, `*_info_*` and `instances`; the name
-  provisional under D214).  **[implemented]** No syntax: an ordinary member function whose name is `json_key_`
-  followed by an attribute's name, and whose body is `return` of a literal text. `JsonReader` reads that key into
+- **A class names an attribute's JSON key with `func json_key_<attribute>(): String`.** No syntax: an ordinary member function whose name is
+  `json_key_` followed by an attribute's name, and whose body is `return` of a literal text. `JsonReader` reads that key into
   the attribute and `JsonWriter` writes the attribute under it, so the text round-trips. **The key replaces the
   attribute's name**: with one, neither the name (`minimum_level_of_detail`) nor its camelCase and PascalCase
-  spellings (D247) read into the attribute any more, so each attribute has exactly one key, and those keys are
-  skipped as unknown. Attributes without one keep D247's reading. Built in the library, with no JSON in the
-  compiler's code generation: `read_attribute`, `read_camel_attribute` and `write_attribute` ask
+  spellings read into the attribute any more, so each attribute has exactly one key, and those keys are
+  skipped as unknown. Attributes without one keep the camelCase and PascalCase reading. Built in the library, with no JSON in
+  the compiler's code generation: `read_attribute`, `read_camel_attribute` and `write_attribute` ask
   `$value_type.has_function("json_key_{attribute.name}")`, which folds for each attribute walked, and in the branch
   where it is true read the key with `$value_type.returned_text(...)`, a text constant
-  ([metaprogramming.md](metaprogramming.md#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)).
+  ([metaprogramming.md](metaprogramming.md#a-classs-functions-a-folders-classes-and-a-names-pattern)).
   So a key is compared exactly as an attribute's name is, and a class with no `json_key_` function compiles to
   the same C as before. Every class the program declares is checked while compiling, whether or not it is ever
-  read or written as JSON, and each mistake is an error at the function (D244; `diagnostics/json_key`):
+  read or written as JSON, and each mistake is an error at the function (`diagnostics/json_key`):
   - a name that is not `json_key_` and one of the class's attributes: "'MeshRecord.json_key_minimum_level_of_detial'
     names the JSON key of the attribute 'minimum_level_of_detial', and 'MeshRecord' has no attribute
     'minimum_level_of_detial': it has 'name', ... A function whose name starts with 'json_key_' is read by
@@ -669,19 +658,21 @@ What follows is Claude's reading where D22, D95 and D208 are not specific (propo
   Each instance of a generic class is checked the same way. `conformance/stage6/json_key`.
 - **A number reads into whatever number type the attribute has** through the ordinary text-to-number cast, so
   `3.7` read into an `Integer` is `3`; JSON has one number type and the class already says which one it wants.
-- **Infinity and not-a-number crash `JsonWriter`** (D198, decided by Mortaro; D208 keeps it JSON's alone): JSON
+- **Infinity and not-a-number crash `JsonWriter`**: JSON
   (RFC 8259) holds neither, and a float became one through a division by zero or an overflow the program did not
-  guard, which is the developer's mistake (D199, [failure.md](failure.md)); floats themselves keep them (D200),
-  and `BinaryWriter` writes their bits like any other. The crash shows the value and the attribute's path --
+  guard, which is the developer's mistake ([failure.md](failure.md)); floats themselves keep them,
+  and `BinaryWriter` writes their bits like any other. The crash shows the value and the attribute's path,
   `Class.attribute`, with `[index]` or `["key"]` for an element: `shown=inf	path=Order.price` (and the
   same for negative infinity and not-a-number; `conformance/stage6/json_infinity`). A program that wants `null`
   there checks the number first.
 - `--final-classes` does not print the functions `JsonWriter<Order>` generated, because a generic class's file
   is shared by all its instances.
 - **A plain `Symbol` attribute** (as opposed to an enum) is written as its name and read back through
-  `Symbol(text)` (D70), so a name the program does not already use as a symbol is a value of the wrong kind: `read`
-  answers `null` (proposed by Claude, unconfirmed; `conformance/stage6/json_symbols`). The library tells the two
+  `Symbol(text)`, so a name the program does not already use as a symbol is a value of the wrong kind: `read`
+  answers `null` (`conformance/stage6/json_symbols`). The library tells the two
   apart with the codegen test `$value_type == Enum`, true for an enum only, where `$value_type == Symbol` is true
-  for both (proposed by Claude, unconfirmed; [metaprogramming.md](metaprogramming.md)).
+  for both ([metaprogramming.md](metaprogramming.md)).
 
-`tests/json_tests.spite`, `tests/binary_tests.spite`, `conformance/stage6/json_crash`, `docs/json.md`.
+---
+
+Next: [Time](time.md), dates, durations, clocks and time zones.

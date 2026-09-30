@@ -1,7 +1,7 @@
 # Programs: the entry, the launcher, and settings
 
-A program is a folder. Its **entry file** is the file named after the folder -- `game/game.spite`, class `Game`
--- and the program runs by constructing that class. There is no `main` and no entry point declaration: the
+A program is a folder. Its **entry file** is the file named after the folder (`game/game.spite`, class `Game`),
+and the program runs by constructing that class. There is no `main` and no entry point declaration: the
 entry class's constructor *is* the program, and when it returns the program ends with exit code `0`.
 
 ```bash
@@ -110,7 +110,7 @@ Each field is read once, when `Environment()` is first made, from the first of:
 3. the declared default.
 
 Only declared fields are read, so nothing the program does not name is ever loaded. The default's literal is the
-setting's type -- `false` is a `Boolean`, a whole number an `Integer`, `""` a `String` -- and anything else, a type
+setting's type: `false` is a `Boolean`, a whole number an `Integer`, `""` a `String`. Anything else, a type
 annotation included, is an error naming the three forms. A value that is not of the setting's type
 (`--verbose=maybe`) crashes when `Environment()` is first made: the program was started wrong, and there is
 nothing sensible to continue with. The values are read when the program runs, so `if environment.verbose` is an
@@ -118,7 +118,7 @@ ordinary `if`, with both branches compiled in.
 
 That reading is the whole run-time cost: one pass over the command line and one environment lookup per declared
 field, once, when `Environment()` is first made. A program that never makes `Environment()` carries none of it
-([rules](#program-settings-environment--implemented)).
+([rules](#program-settings-environment)).
 
 ```gdscript title=setting_type_error/environment.spite
 var workers: Integer = 1
@@ -166,7 +166,7 @@ serving as tester
 ```
 
 That is `spite build_settings --serve=true -- --serve=false --name=tester`. A `--name=value` given to the
-**compiler** -- before the `--` -- sets the `Build` field of that name; a field nobody sets keeps the default it
+**compiler** (before the `--`) sets the `Build` field of that name; a field nobody sets keeps the default it
 was declared with. Either way `build.serve` is the literal `true` in the built program: `if build.serve { }` is
 decided while compiling, the branch it does not take is never generated, and the program's own `--serve=false`
 changes nothing. `name` belongs to `Environment`, so it is still read when the program runs.
@@ -190,23 +190,23 @@ func UnknownFlagError() {
 
 - A program's own `build.spite` may give a compiler option a different default: `var optimized = true` builds it
   optimized unless `--optimized=false` is given. The compiler reads the whole program before it decides
-  anything, so what it produces is a default like the rest -- `var c_source = true` writes the program's C
+  anything, so what it produces is a default like the rest: `var c_source = true` writes the program's C
   on every build, `var run = false` only builds it ([compiler.md](compiler.md#choose-the-outputs)).
   Formatting is not an option: every compile formats first, and `format` is not a field a program may declare.
-  `target_operating_system` is the one field only a flag sets ([below](#build-settings-build--implemented)).
-- A loaded package may declare `Build` fields too, and the program decides (D227): a field the program's own
+  `target_operating_system` is the one field only a flag sets ([below](#build-settings-build)).
+- A loaded package may declare `Build` fields too, and the program decides: a field the program's own
   `build.spite` declares keeps the program's default even when a package loaded after it declares the same field.
   An engine's `var plugins_folder = "../../plugins"` is only its default for programs that say nothing. The order
   is a flag, then the program, then the package:
 
 ```gdscript title=build_over_package/engine/build.spite
 var plugins_folder = "../../plugins"
-var engine = "slop"
+var engine = "forge"
 ```
 ```gdscript title=build_over_package/build.spite
 var plugins_folder = "plugins"
 ```
-```gdscript title=build_over_package/build_over_package.spite entry build=engine:theseus
+```gdscript title=build_over_package/build_over_package.spite entry build=engine:ember
 var build = Build()
 var console = Console()
 
@@ -218,7 +218,7 @@ func BuildOverPackage() {
 ```
 ```output
 plugins from plugins
-engine theseus
+engine ember
 ```
 
 `Build` costs nothing when the program runs: every field is a constant written into the program, and nothing is
@@ -271,8 +271,8 @@ func Launcher() {
 The compiler reads that file first and follows its `load` lines in order:
 
 1. `library/`, the standard library every system shares;
-2. the folder of the operating system the program is compiled for -- `library/windows/`, `library/linux/` or
-   `library/mac/`, each loaded only by name -- whose files reopen the classes that system does differently
+2. the folder of the operating system the program is compiled for (`library/windows/`, `library/linux/` or
+   `library/mac/`, each loaded only by name), whose files reopen the classes that system does differently
    ([foreign_libraries.md](foreign_libraries.md#each-operating-system-reopens-what-it-changes));
 3. the program's own folder, `build.program`, the folder named on the command line.
 
@@ -298,34 +298,32 @@ for this machine true
 ```
 
 `--final-classes` writes `Launcher` out with the rest of the program, so the printed program shows how it is
-loaded too. What the executable's `main` still does below it -- handing over the command line, and the teardown
-after `Launcher` returns -- is listed in [the rules](#constructors-and-the-entrypoint).
+loaded too. What the executable's `main` still does below it (handing over the command line, and the teardown
+after `Launcher` returns) is listed in [the rules](#constructors-and-the-entrypoint).
 
 ## Configuration is a class
 
 There is no configuration file format. A configuration is an ordinary class whose constructor sets its state,
-or -- for anything that should differ between runs or builds -- a field of `Environment` or `Build`, reopened in
+or, for anything that should differ between runs or builds, a field of `Environment` or `Build`, reopened in
 the program's own folder. Both are Spite, so a setting can be computed, reflected on, and read in the REPL like
 anything else.
 
 ## Rules in full
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
-cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
-rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](../design/decisions.md).
+cases, the exact error texts and the notes on how it is compiled. Where the teaching above and these rules
+disagree, the rules win.
 
 ### Constructors and the entrypoint
 
 There is no `main`: a program is a folder, its entry file is the file named after the folder (`kal/kal.spite`,
 class `Kal`), and the program is run by constructing that class; when the constructor returns, the program
-ends with exit code `0`. A program is named only by its folder (D130): `error: 'game/game.spite' is a file, and
+ends with exit code `0`. A program is named only by its folder: `error: 'game/game.spite' is a file, and
 a program is named by its folder: spite game`, and a folder with no entry file named after it is an error naming
 the file looked for. No other file may reopen the entry class
-([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)).
+([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading)).
 
-The entry constructor takes **no arguments** (D89): `'Kal' is the entry constructor, and it takes no arguments:
+The entry constructor takes **no arguments**: `'Kal' is the entry constructor, and it takes no arguments:
 a program reads its run-time settings through Environment() (declared in its environment.spite, given after
 '--'), what its build decided through Build(), and the raw command line through Arguments(), anywhere`
 (`diagnostics/entry_constructor_arguments`).
@@ -342,13 +340,13 @@ func Kal() {
 }
 ```
 
-**`Arguments()` is the raw command line, anywhere** (D89; the members proposed by Claude, unconfirmed): what
-the program was given -- after the first bare `--` when the compiler runs it -- with `count()`, `get(index)`, and
+**`Arguments()` is the raw command line, anywhere**: what
+the program was given (after the first bare `--` when the compiler runs it), with `count()`, `get(index)`, and
 `.name` answering the value of `--name=...` as a `String?`, `null` when that flag was not given
 (`conformance/stage6/program_arguments`). The compiler answers it in any function; its only cost is the slot
 `main` fills with the process's arguments.
 
-**Nothing starts a program behind its back** (D97, D131; the details proposed by Claude, unconfirmed). Running
+**Nothing starts a program behind its back.** Running
 one is itself Spite: `launcher/launcher.spite`, at the root of the repository (class `Launcher`), is the class
 the executable's `main` constructs, and its constructor, shown in [How a program is loaded](#how-a-program-is-loaded),
 is the whole of how a program is loaded:
@@ -360,12 +358,12 @@ is the whole of how a program is loaded:
   compiler finds beside its own executable.
 - A `load` in the launcher may use text and the `Build` fields the compiler knows before reading anything
   (`target_operating_system`, `operating_system`, `program`, and the ones given as flags), read through a `var`
-  of the launcher bound to `Build()` (D110). Anywhere else a `load` names its folder with literal text: `a
+  of the launcher bound to `Build()`. Anywhere else a `load` names its folder with literal text: `a
   program's 'load' names its folder with text, like 'load "engine"': the compiler reads every loaded folder before
   it compiles, so the folder cannot be computed`; it may sit under an `if` on a `Build` field
   ([`load` is a bundle boundary](packages.md#load-is-a-bundle-boundary)).
 - Loading the program's folder is what runs it: that one `load` constructs the program's entry class, runs a
-  `--repl` loop on it when asked, and releases it; every other `load` compiles to nothing (D177).
+  `--repl` loop on it when asked, and releases it; every other `load` compiles to nothing.
 - `main` keeps only the floor: it hands `argv` to `Arguments()`, puts standard output in binary mode on Windows,
   constructs `Launcher`, and after `Launcher` returns releases the singletons and class objects and prints the
   `--debug-memory` balance.
@@ -375,28 +373,27 @@ is the whole of how a program is loaded:
 **Configuration is a class.** There is no configuration file format: a configuration is an ordinary class whose
 constructor sets its state, or a field of `Environment` or `Build`.
 
-### Program settings: `Environment`  **[implemented]**
+### Program settings: `Environment`
 
-`Environment` (D76, D132) is a standard library singleton (`library/environment.spite`), and a program
-**reopens** it ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)) with a
+`Environment` is a standard library singleton (`library/environment.spite`), and a program
+**reopens** it ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading)) with a
 file of its own named `environment.spite` to declare the settings it has, one `var` per setting. `Environment()`
 works anywhere. Only the declared fields are read: nothing the program does not name is loaded, which makes it a
 deterministic replacement for packages like Node's dotenv.
 
-What follows is how it is built (proposed by Claude, unconfirmed):
+What follows is how it is compiled:
 
 - **Where a value comes from.** Each field is read once, when the singleton is first made, from the first of:
-  the program's own command line, `--serve=true` (what the program receives -- after `--` when the compiler runs
-  it, [Command line](compiler.md#command-line) -- and stopping at the program's own `--`); the process
+  the program's own command line, `--serve=true` (what the program receives: after `--` when the compiler runs
+  it, see [Command line](compiler.md#command-line), and stopping at the program's own `--`); the process
   environment variable named by the field in upper case, `SERVE`; the declared default. The command line wins
   because it is the more deliberate of the two. An argument that names no field is left alone for `Arguments` to
   read.
-- **A setting's flag is spelled like its field**, `--worker_count=4` for `var worker_count = 1`: D188's
-  kebab-case covers the compiler's flags, and whether settings after `--` follow it is open
-  (`mortaros_missing_decisions.md` item 153). Until that is decided, `--worker-count=4` for a declared
+- **A setting's flag is spelled like its field**, `--worker_count=4` for `var worker_count = 1`: the
+  compiler's flags are kebab-case, but a program's settings are spelled like their fields. `--worker-count=4` for a declared
   `worker_count` stops the program as it reads its settings, before anything else runs: `error: '--worker-count'
   is written '--worker_count': a program's setting is spelled like its field, Environment.worker_count, so
-  '--worker-count' would be ignored`, exit code 1 (proposed by Claude, unconfirmed; `conformance/stage6/kebab_setting`).
+  '--worker-count' would be ignored`, exit code 1 (`conformance/stage6/kebab_setting`).
   A kebab-case argument that names no setting is still left to `Arguments`. The check is one pass over the
   arguments when `Environment` is first made, and only in a program that declares a setting.
 - **The default's literal is the type.** A setting is declared with nothing but a literal default: `false`/`true`
@@ -405,10 +402,10 @@ What follows is how it is built (proposed by Claude, unconfirmed):
   program's command line (--workers=value) or its environment (WORKERS), so it is declared with only a literal
   default, and the literal is its type: 'var workers = false' (Boolean), 'var workers = 0' (Integer) or 'var
   workers = ""' (String)` (`diagnostics/environment_setting`). Text that is not a value of the setting's type
-  (`--serve=maybe`, `--workers=many`) **crashes** when the singleton is made (D24: a malformed setting is a bug in
+  (`--serve=maybe`, `--workers=many`) **crashes** when the singleton is made (a malformed setting is a bug in
   how the program was started, and there is nothing sensible to continue with).
 - **How the fields get filled.** The compiler prepends one assignment per declared field to `Environment`'s
-  constructor -- `serve = boolean_setting("serve", serve)` -- where `boolean_setting`, `integer_setting` and
+  constructor, `serve = boolean_setting("serve", serve)`, where `boolean_setting`, `integer_setting` and
   `text_setting` are ordinary Spite functions in `library/environment.spite`. The reading itself is Spite; the
   compiler only writes the calls, the way it writes a Symbol codegen function
   (`conformance/stage6/environment_settings`).
@@ -416,39 +413,38 @@ What follows is how it is built (proposed by Claude, unconfirmed):
   to pass it after `--`: `'--serve' was given to the compiler, but 'Environment.serve' is read when the program
   runs: give it to the program after '--' (spite program -- --serve=value), or, to decide it when compiling,
   declare it in the program's build.spite instead` (`diagnostics/environment_setting_to_compiler`).
-- **Run-time cost** (D177): one pass over the command line and one environment lookup per declared field, once,
+- **Run-time cost**: one pass over the command line and one environment lookup per declared field, once,
   when `Environment()` is first made. A program that never makes `Environment()` has none of its code: the
   class is tree-shaken with the rest of the unused library.
 
-### Build settings: `Build`  **[implemented]**
+### Build settings: `Build`
 
 `Environment` (above) is read when the program **runs**; `Build` (`library/build.spite`, a singleton) is decided
-when it is **compiled** (D84, D85, D86; the two names kept by D132). Every compiler option is a `Build` field
+when it is **compiled**. Every compiler option is a `Build` field
 with a literal default, and a program adds its own the same way it adds `Environment` settings, by reopening
-`Build` in a file named `build.spite`. What follows is how it is built (proposed by Claude, unconfirmed, except
-where a decision is named):
+`Build` in a file named `build.spite`. What follows is how it is compiled:
 
 - **Every field is a constant.** A `--name=value` before the `--` sets the field of that name; a field nobody
-  sets keeps its declared default -- the program's own `build.spite` if it reopens it, else a loaded package's,
+  sets keeps its declared default: the program's own `build.spite` if it reopens it, else a loaded package's,
   else `library/build.spite`.
   Either way the value is written into the program: `build.serve` compiles to `true`, a condition on it is decided
   while compiling, the branch not taken is never generated, and nothing is read when the program runs. The field
   still exists on the `Build` singleton with that value, for reflection.
-- **The program decides its own `Build`** (D227): a field the program's own `build.spite` declares keeps the
+- **The program decides its own `Build`**: a field the program's own `build.spite` declares keeps the
   program's default even when a loaded package's `build.spite` declares the same field, although the package is
-  merged later -- the one exception to "a later root replaces" ([packages.md](packages.md#packages-namespaces-and-loading--partial)).
+  merged later; this is the one exception to "a later root replaces" ([packages.md](packages.md#packages-namespaces-and-loading)).
   The order is a flag, then the program, then the package, and a flag sets a field only a package declares as it
   sets any other; a field only one side declares is unchanged (`conformance/stage6/build_precedence`). A field
   that decides a `load` is still read before any package is loaded, so it must be the program's or the library's.
-- **Flags are kebab-case** (D188): `--repl-port=4000` sets the field `repl_port`, and a flag written with `_` is
+- **Flags are kebab-case**: `--repl-port=4000` sets the field `repl_port`, and a flag written with `_` is
   an error before anything is read: `'--repl_port' is written '--repl-port': a flag is kebab-case, and it sets
   the Build field 'repl_port'` (`diagnostics/underscore_flag`).
-- **The compiler's options are fields** (D85, D128, D129): the outputs `run`, `executable`, `c_source` and
+- **The compiler's options are fields**: the outputs `run`, `executable`, `c_source` and
   `final_classes`, the paths `executable_path` and `c_path`, and `optimized`, `development`, `repl`, `repl_port`,
   `hot_reload` and `debug_memory` ([Command line](compiler.md#command-line)). The compiler reads them from the
-  program's resolved `Build`, after the whole program is read (D128), so a program whose `build.spite` says
+  program's resolved `Build`, after the whole program is read, so a program whose `build.spite` says
   `var optimized = true` is built optimized unless `--optimized=false` is given.
-- **Formatting is not an option** (D190): every compile formats first and nothing turns it off, so `--format`
+- **Formatting is not an option**: every compile formats first and nothing turns it off, so `--format`
   and a `format` field in a program's `build.spite` are compile errors (`diagnostics/format_flag`,
   `diagnostics/format_setting`).
 - **`target_operating_system` comes from the flag alone**: the launcher needs it to know which library folder is
@@ -457,30 +453,31 @@ where a decision is named):
   (one naming the same system, as `--final-classes` prints every `Build` field, is accepted): `'Build.target_operating_system' cannot be declared by a
   program: the standard library for the target system is loaded before the program, so the target is given to
   the compiler, --target-operating-system=linux (or windows, or mac), and is the system doing the compiling
-  otherwise` (proposed by Claude, unconfirmed; `diagnostics/target_in_build`). The system folders of `library/`
+  otherwise` (`diagnostics/target_in_build`). The system folders of `library/`
   still set it.
-- **A `Boolean` may be given bare** (D120): `--optimized` is `--optimized=true`. Any other bare flag is an error
+- **A `Boolean` may be given bare**: `--optimized` is `--optimized=true`. Any other bare flag is an error
   naming the value it needs.
 - **Nothing passes silently.** A value that is not of the field's type is a compile error: `'--workers=many' was
   given to the compiler, but 'Build.workers' is an Integer: a whole number, like --workers=3`
   (`diagnostics/build_setting_type`); a flag naming an `Environment` field is the error above; a flag naming no
   field is an error listing the fields `Build` has: `'--serve' is not a compiler option, and this program's Build
   declares no setting 'serve' (it declares run, executable, ...)` (`diagnostics/unknown_compiler_flag`).
-- **Two operating systems** (D86): `operating_system` is the system doing the compiling -- the compiler supplies
-  it, and giving it is an error -- and `target_operating_system` is the one the program is compiled for, which
+- **Two operating systems**: `operating_system` is the system doing the compiling (the compiler supplies
+  it, and giving it is an error), and `target_operating_system` is the one the program is compiled for, which
   defaults to it. `--target-operating-system=linux` loads `library/linux/` (the launcher,
   [above](#constructors-and-the-entrypoint)) and folds, so `if build.target_operating_system == "windows" { }`
   keeps one branch. Each system's folder reopens `Build` with `var target_operating_system = "linux"`, which is
-  only the default a compiler that does not fold `Build` sees -- the seed while bootstrapping. The compiler
+  only the default a compiler that does not fold `Build` sees (the seed while bootstrapping). The compiler
   learns which system it runs on from its own `build.target_operating_system`, folded when it was built.
 - **`program`** is the folder named on the command line, which the launcher loads; the compiler supplies it and
   giving it is an error.
 - **`--final-classes` prints `Build` with its declared defaults**, not the values one build folded, so running the
   printed program takes its flags again instead of, say, printing its classes forever.
-- **Run-time cost** (D177): none. `Build` holds nothing at run time -- every field is folded -- so in a
+- **Run-time cost**: none. `Build` holds nothing at run time, since every field is folded, so in a
   production build it is one static object with no code behind it, and in an inspectable build an ordinary
-  singleton ([Singletons](classes_and_files.md#singletons--implemented)); choosing and writing the outputs is the
+  singleton ([Singletons](classes_and_files.md#singleton-rules)); choosing and writing the outputs is the
   compiler's work, not the program's.
 
-`Build` is the compile-time home that D13's isomorphic split and
-[Other environments](targets.md#other-environments--planned)' target field read (the `$target` variable is gone, D76).
+---
+
+Next: [Values and types](values_and_types.md), the types, variables and literals a program is built from.
