@@ -23,10 +23,6 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
      `argument.is_mutated` already covers. And the marker attributes `Resource.World`/`Resource.MainThread`: keep
      them as attributes the runner reads, or a class-level marker? D205, as D261 was. Recommend (a) now, (b) when
      `Changed<T>` needs it. Blocks: SlopEngine's `Changed<T>` and field skipping, Theseus L6.
-229. **Reflection objects answering their name's text functions** (D317, proposal 12.3):
-     `functions.filter_ends_with("_each")`, with member templates passing arguments on to the member. Or keep the
-     element strict and write `filter_name_ends_with("_each")`? Recommend the first (D317's own example). Blocks:
-     SlopEngine's runner (systems placed by `_each`), the largest part of the migration.
 227. **Pairing a function with an attribute by name** (D273's `json_key_<attribute>`, proposal 12.1): names are never
      built (D317), so the writer must find the `json_key_` function for each attribute. Options: (a) select by
      suffix, `functions.filter_starts_with("json_key_").find_by_suffix(attribute.name)`; (b) move the override off
