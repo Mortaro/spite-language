@@ -26,10 +26,17 @@ var printer = Syntax.SourcePrinter()
 var program_environment = Environment()
 var working_folder = "."
 var loads_from_repositories = GitLoad()
+var earlier: Versions? = null
+var current_library = ""
+var current_checkout = ""
+var current_version = ""
+var library_of_file = Dictionary<String>()
+var library_classes = List<String>()
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     loads_from_repositories.working_folder = working_folder
     loads_from_repositories.cache_folder = "{working_folder}/.spite"
+    loads_from_repositories.earlier = earlier
     choose_target_operating_system()
     choose_program(entry_path)
     if has_error {
@@ -64,6 +71,15 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     discovered.program_paths = program_paths
     discovered.program_texts = program_texts
     discovered.checkout_folders = loads_from_repositories.checkout_folders
+    discovered.versions = loads_from_repositories.versions
+    if not earlier {
+        return discovered
+    }
+    note_pinned_versions()
+    if has_error {
+        return failure(error_message)
+    }
+    discovered.version_notes = version_notes()
     return discovered
 }
 
@@ -285,12 +301,15 @@ func discover_program(entry_path: String, entry_source: String) {
     var empty_segments = List<String>()
     reopen_with_supplied_members()
     entry_file.path = entry_path
+    current_library = entry_directory
+    library_of_file[entry_path] = current_library
     add_parsed_file(entry_file, empty_segments, entry_stem)
     entry_qualified = compute_qualified(empty_segments, entry_stem)
     entry_file_path = entry_path
     walking_program = true
     walk_directory(entry_directory, empty_segments, entry_basename, program_load_names)
     walking_program = false
+    current_library = ""
     pending_files.append(entry_file)
     var index = 0
     while index < program_files.count() {
@@ -381,7 +400,14 @@ func load_root(entry_path: String, entry_directory: String, root_name: String, l
     var from_repository = loads_from_repositories.is_git_load(root_name)
     var root_folder = "{entry_directory}/{root_name}"
     if from_repository {
-        var fetched = loads_from_repositories.folder_of(root_name, entry_directory, "{entry_path}:{line}")
+        var loading_library = library_of_file.get(entry_path)
+        crash loading_library
+        var fetched = loads_from_repositories.folder_of(
+            root_name,
+            entry_directory,
+            "{entry_path}:{line}",
+            loading_library,
+        )
         if not fetched {
             has_error = true
             error_message = "{entry_path}:{line}: error: {loads_from_repositories.problem}"
@@ -417,7 +443,21 @@ func load_root(entry_path: String, entry_directory: String, root_name: String, l
     var empty_segments = List<String>()
     var no_skip: String? = null
     var no_exclusions = List<String>()
+    var loaded_by = library_of_file.get(entry_path)
+    crash loaded_by
+    current_library = loaded_by
+    current_checkout = ""
+    current_version = ""
+    var checkout = loads_from_repositories.checkout_holding(root_folder)
+    if checkout {
+        current_library = checkout
+        current_checkout = checkout
+        current_version = loads_from_repositories.version_prefix(checkout)
+    }
     walk_directory(root_folder, empty_segments, no_skip, no_exclusions)
+    current_library = ""
+    current_checkout = ""
+    current_version = ""
 }
 
 func is_absolute_path(path: String): Boolean {
@@ -837,6 +877,7 @@ func read_and_add_file(path: String, segments: List<String>) {
             return
         }
         parsed_file.path = path
+        library_of_file[path] = current_library
         var stem = file_stem(path)
         var pascal_name = pascal_case(stem)
         check_order(path, parsed_file, pascal_name)
@@ -867,10 +908,27 @@ func read_and_add_file(path: String, segments: List<String>) {
 
 func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, stem: String) {
     var qualified = compute_qualified(segments, stem)
-    var mangled_name = mangle_dotted(qualified)
     var simple_name = compute_simple_name(segments, stem)
     var namespace_dotted = compute_namespace(segments, stem)
-    var qualified_dotted = compute_qualified(segments, stem)
+    if not current_checkout.is_empty() {
+        crash loads_from_repositories.identities[current_checkout]
+        loads_from_repositories.versions.note_defined(qualified, loads_from_repositories.identities[current_checkout])
+    }
+    var version = version_of(parsed_file.path, qualified)
+    assert not has_error
+    if not version.is_empty() {
+        qualified = "{version}.{qualified}"
+        namespace_dotted = "{version}.{namespace_dotted}"
+        if namespace_dotted.ends_with(".") {
+            var namespace_length = namespace_dotted.length()
+            namespace_dotted = namespace_dotted.slice(0, namespace_length - 1)
+        }
+    }
+    var mangled_name = mangle_dotted(qualified)
+    var qualified_dotted = qualified
+    if walking_library and not library_classes.contains(qualified_dotted) {
+        library_classes.append(qualified_dotted)
+    }
     var existing = class_files.find_by_qualified_dotted(qualified_dotted)
     if existing {
         if qualified_dotted == entry_qualified {
@@ -1665,4 +1723,93 @@ func file_stem(path: String): String {
         return base.slice(0, base_length - 6)
     }
     return base
+}
+
+func version_of(path: String, qualified: String): String {
+    if not current_version.is_empty() {
+        if library_classes.contains(qualified) {
+            return ""
+        }
+        return current_version
+    }
+    if walking_library or not earlier {
+        return ""
+    }
+    var defining = earlier.defined_by.get(qualified)
+    if not defining {
+        return ""
+    }
+    var library = library_of_file.get(path)
+    crash library
+    var index = 0
+    while index < defining.count() {
+        var identity = defining[index]
+        if earlier.versioned.contains(identity) {
+            var pinned = earlier.pinned_by(library, identity)
+            if pinned {
+                return earlier.prefix_of(identity, pinned)
+            }
+            has_error = true
+            error_message = "{path}: error: '{qualified}' reopens a class of a repository this program loads at two commits ({versions_of(identity)}), and this package pins neither: a package reopens the version it loads, so load the one it reopens here"
+            return ""
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func versions_of(identity: String): String {
+    crash earlier
+    crash earlier.commits[identity]
+    var described = List<String>()
+    var index = 0
+    while index < earlier.commits[identity].count() {
+        var commit = earlier.commits[identity][index]
+        var description = earlier.described(identity, commit)
+        described.append(description)
+        index = index + 1
+    }
+    return described.join("; ")
+}
+
+func note_pinned_versions() {
+    crash earlier
+    var index = 0
+    while index < class_files.count() and not has_error {
+        var discovered = class_files[index]
+        var file = discovered.get_file()
+        var library = library_of_file.get(file.path)
+        if library {
+            var pinned_index = 0
+            while pinned_index < earlier.versioned.count() {
+                var identity = earlier.versioned[pinned_index]
+                var pinned = earlier.pinned_by(library, identity)
+                if pinned {
+                    var prefix = earlier.prefix_of(identity, pinned)
+                    discovered.pinned_versions.append(prefix)
+                }
+                pinned_index = pinned_index + 1
+            }
+        }
+        index = index + 1
+    }
+}
+
+func version_notes(): Dictionary<String> {
+    crash earlier
+    var notes = Dictionary<String>()
+    var index = 0
+    while index < earlier.versioned.count() {
+        var identity = earlier.versioned[index]
+        crash earlier.commits[identity]
+        var commit_index = 0
+        while commit_index < earlier.commits[identity].count() {
+            var commit = earlier.commits[identity][commit_index]
+            var prefix = earlier.prefix_of(identity, commit)
+            notes[prefix] = earlier.described(identity, commit)
+            commit_index = commit_index + 1
+        }
+        index = index + 1
+    }
+    return notes
 }
