@@ -4,6 +4,9 @@ var builder = CodeBuilder()
 var classes = List<Analysis.ClassInfo>()
 var classes_indexed = 0
 var class_by_qualified = Dictionary<Integer>()
+var version_notes = Dictionary<String>()
+var pinned_versions_of = Dictionary<List<String>>()
+var pinned_versions_in = Dictionary<List<String>>()
 var class_by_c_name = Dictionary<Integer>()
 var enums = List<Analysis.EnumInfo>()
 var unions = List<Analysis.UnionInfo>()
@@ -649,6 +652,7 @@ func generate(
     entry_class_c_name = discovery.entry_mangled_name
     loaded_folders = discovery.loaded_folders
     checkout_folders = discovery.checkout_folders
+    version_notes = discovery.version_notes
     var allocator = allocator_text()
     var header_text = runtime_header_text.replace("/*spite_allocator*/", allocator)
     builder.add_typedef(header_text)
@@ -844,6 +848,7 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         }
         var registered = classes.last()
         crash registered
+        note_pinned_versions(entry)
         registered.source_path = entry.get_file().path
         registered.entry_index = index
         registered.codegen_names = declared_codegen_names(entry)
@@ -4394,6 +4399,9 @@ func find_class(name: String, current_namespace: String): Analysis.ClassInfo? {
     if current_namespace.is_empty() {
         segments.clear()
     }
+    if version_notes.count() > 0 {
+        return find_class_in_versions(name, segments)
+    }
     while not segments.is_empty() {
         var inside = find_class_by_qualified("{segments.join(".")}.{name}")
         if inside {
@@ -4409,6 +4417,91 @@ func find_class(name: String, current_namespace: String): Analysis.ClassInfo? {
         segments.remove_last()
     }
     return find_class_by_qualified(name)
+}
+
+func versions_holding(name: String): String? {
+    var holding = List<String>()
+    var prefixes = version_notes.keys()
+    var index = 0
+    while index < prefixes.count() {
+        var prefix = prefixes[index]
+        var note = version_notes[prefix]
+        if note and find_class_by_qualified("{prefix}.{name}") {
+            holding.append(note)
+        }
+        index = index + 1
+    }
+    assert not holding.is_empty()
+    return "'{name}' is a class of a repository this program loads at more than one commit ({holding.join("; ")}), and this package loads none of them: a package reads the version it loads, so load the one it means here"
+}
+
+func note_pinned_versions(entry: Discovery.DiscoveredClass) {
+    assert not entry.pinned_versions.is_empty()
+    pinned_versions_of[entry.qualified_dotted] = entry.pinned_versions
+    var own = entry.qualified_dotted.split(".")[0]
+    if own and version_notes.has(own) {
+        pinned_versions_in[own] = entry.pinned_versions
+    }
+}
+
+func find_class_in_versions(name: String, segments: List<String>): Analysis.ClassInfo? {
+    var own = ""
+    if not segments.is_empty() and version_notes.has(segments[0]) {
+        own = segments[0]
+        segments.remove_at(0)
+    }
+    var candidates = [own]
+    var pinned = pinned_versions_of.get(current_owner)
+    if not own.is_empty() {
+        pinned = pinned_versions_in.get(own)
+    }
+    if pinned {
+        var pinned_index = 0
+        while pinned_index < pinned.count() {
+            if not candidates.contains(pinned[pinned_index]) {
+                candidates.append(pinned[pinned_index])
+            }
+            pinned_index = pinned_index + 1
+        }
+    }
+    var level = segments.count()
+    while level >= 0 {
+        var index = 0
+        while index < candidates.count() {
+            var inside = find_class_at_level(name, candidates[index], segments, level)
+            if inside {
+                return inside
+            }
+            index = index + 1
+        }
+        level = level - 1
+    }
+    assert not own.is_empty()
+    return find_class_by_qualified(name)
+}
+
+func find_class_at_level(name: String, version: String, segments: List<String>, level: Integer): Analysis.ClassInfo? {
+    var parts = List<String>()
+    if not version.is_empty() {
+        parts.append(version)
+    }
+    var index = 0
+    while index < level and index < segments.count() {
+        parts.append(segments[index])
+        index = index + 1
+    }
+    if parts.is_empty() {
+        return find_class_by_qualified(name)
+    }
+    var namespace = parts.join(".")
+    var inside = find_class_by_qualified("{namespace}.{name}")
+    if inside {
+        return inside
+    }
+    if level > 0 and segments[level - 1] == name {
+        return find_class_by_qualified(namespace)
+    }
+    return null
 }
 
 func nearest_declaring_owner(name: String, current_namespace: String): String {
@@ -6801,6 +6894,10 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
 }
 
 func unknown_type_message(written: String, current_namespace: String): String {
+    var held = versions_holding(written)
+    if held {
+        return "unknown type '{written}': {held}"
+    }
     var segments = written.split(".")
     var dropped = 1
     while dropped < segments.count() {
@@ -11194,6 +11291,11 @@ func generate_own_function_call(
             report(
                 "this class has no function '{name}': maths is a function of the number itself, like 'value.{maths_spelling(name)}()'",
             )
+        } else if versions_holding(name) {
+            var held = versions_holding(name)
+            if held {
+                report("this class has no function '{name}': {held}")
+            }
         } else if not reported_old_spelling(name) {
             report("this class has no function '{name}'")
         }

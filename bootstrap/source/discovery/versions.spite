@@ -1,0 +1,66 @@
+var paths = Paths()
+var versioned = List<String>()
+var library_pins = Dictionary<String>()
+var commits = Dictionary<List<String>>()
+var sites = Dictionary<String>()
+var displays = Dictionary<String>()
+var defined_by = Dictionary<List<String>>()
+
+func note_pin(library: String, identity: String, display: String, full_commit: String, site: String) {
+    library_pins["{library}|{identity}"] = full_commit
+    displays[identity] = display
+    if not commits.has(identity) {
+        commits[identity] = List<String>()
+    }
+    crash commits[identity]
+    assert not commits[identity].contains(full_commit)
+    commits[identity].append(full_commit)
+    sites["{identity}|{full_commit}"] = site
+    if commits[identity].count() > 1 and not versioned.contains(identity) {
+        versioned.append(identity)
+    }
+}
+
+func note_defined(qualified: String, identity: String) {
+    if not defined_by.has(qualified) {
+        defined_by[qualified] = List<String>()
+    }
+    crash defined_by[qualified]
+    if not defined_by[qualified].contains(identity) {
+        defined_by[qualified].append(identity)
+    }
+}
+
+func pinned_by(library: String, identity: String): String? {
+    return library_pins.get("{library}|{identity}")
+}
+
+func prefix_of(identity: String, full_commit: String): String {
+    crash displays[identity]
+    var label = paths.label_of(displays[identity])
+    var known = commits.get(identity)
+    crash known
+    var length = 7
+    var index = 0
+    while index < known.count() {
+        var other = known[index]
+        while other != full_commit and other.slice(0, length) == full_commit.slice(0, length) {
+            length = length + 1
+        }
+        index = index + 1
+    }
+    var short = full_commit.slice(0, length)
+    var first = label.code_at(0)
+    if first >= 48 and first <= 57 {
+        return "v{label}_{short}"
+    }
+    return "{label}_{short}"
+}
+
+func described(identity: String, full_commit: String): String {
+    var site = "{identity}|{full_commit}"
+    crash displays[identity]
+    crash sites[site]
+    var short = full_commit.slice(0, 7)
+    return "{displays[identity]}@{short}, pinned by {sites[site]}"
+}
