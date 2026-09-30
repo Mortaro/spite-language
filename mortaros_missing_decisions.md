@@ -2,13 +2,13 @@
 
 Only questions Mortaro still has to answer. An agent adds one here with a link to where the docs argue it; when he
 answers (inline or in `mortaros_notes.md`), the answer goes into the page that teaches it and a row of
-`docs/decisions.md`, and the item is deleted. Item numbers never change; the list is ordered by what an answer
+`design/decisions.md`, and the item is deleted. Item numbers never change; the list is ordered by what an answer
 unblocks, most first. "D244" marks an item where something can go wrong silently today; "D205" marks one Claude
 could decide itself (no syntax, safe, no slower). Each item: the question, the options, a recommendation where
 one is clear, and what it blocks.
 
 Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection redesign (D316/D317,
-[proposal section 9](docs/proposals/reflection_objects.md#9-what-this-answers-in-mortaros_missing_decisionsmd)):
+[proposal section 9](design/proposals/reflection_objects.md#9-what-this-answers-in-mortaros_missing_decisionsmd)):
 25, 98, 99, 100, 108, 188, 206, 223; open question 8 (item 6) answered by D315. Rewritten for the new model: 6,
 10, 36, 89, 109, 220, 222. Added: 227-239. Earlier: 64, 71, 34, 21, 22, 5, 218 answered; 187 merged into 153; 46
 answered by D314.
@@ -93,7 +93,7 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
      Close each gap, or accept them? D205 where measured no slower.
 211. **`ForeignCallback`'s names and two limits**: a call through a dropped context is not caught; a `'no_context'`
      callback must be a singleton's function.
-6. **Open questions 9-11** ([open_questions.md](docs/open_questions.md#open-questions)): `${` in text prints a stray
+6. **Open questions 9-11** ([open_questions.md](design/open_questions.md#open-questions)): `${` in text prints a stray
    `$` (D205 could make it an error); how `--final-classes` shows which root supplied a declaration; whether a
    `type`'s functions are written as function-valued attributes. (Question 8, `get_x()` taking over `.x`, is
    answered by D315: calling `get_x()` is an error naming `.x`.)

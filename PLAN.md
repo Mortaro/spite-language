@@ -1,7 +1,7 @@
 # Spite compiler plan
 
 Source of truth for language design is `docs/` (D193: each page's rules in full, and the decision log in
-`docs/decisions.md`). This file tracks implementation milestones and decisions
+`design/decisions.md`). This file tracks implementation milestones and decisions
 Source of truth for language design is `docs/` (D193). This file tracks what the compiler still has to build.
 The compiler is written in Spite and compiles itself, emitting C.
 
@@ -25,7 +25,7 @@ and balanced allocations.
 ## Milestones
 
 10. Ruby grade reflection and reopening the standard library. Split in two:
-   - **10a. Done.** Reopen standard library classes (`docs/open_questions.md` item 1): the way to try out a
+   - **10a. Done.** Reopen standard library classes (`design/open_questions.md` item 1): the way to try out a
      package before upstreaming it. Reopening `Spite.Class` is D7 (`docs/reflection.md`, "Class-level
      functions") -- a root overrides a class-level default program-wide, a new hook name creates a new hook
      program-wide, and `--final-classes` shows each change with its root, so nothing about it is silent.
@@ -43,7 +43,7 @@ and balanced allocations.
      field's declared default.
      Calling by `Symbol` with arguments, defining members from data, and hooks that run when a class is
      reopened move out of this milestone (the design pass places them under compile-time class generation).
-     Comprehensive, Ruby grade reflection at compile time (`docs/open_questions.md` item 2): `attributes`,
+     Comprehensive, Ruby grade reflection at compile time (`design/open_questions.md` item 2): `attributes`,
      `class`, `functions`, `Class.instances`, enumerating and calling functions by `Symbol`, respond-to checks, defining
      members from data, and hooks when a class is reopened -- all resolved at compile time and all emitted as source that
      section 16 item 2 and by milestone 11c below; this entry exists because the manual (now `docs/`) pointed at a milestone that was
@@ -111,7 +111,7 @@ and balanced allocations.
     declaration), codegen (monomorphization keyed by the constructor's declared order, plus the declared-versus-
     flag-fed split), the formatter (the `generics`-first rule disappears) and the final-class printer.
     Migration: two live files declare `generics` (`examples/arsenal/weapon.spite`) plus
-    their call sites; `docs/metaprogramming.md` and `docs/for_ai_writers.md` migrate with it, since
+    their call sites; `docs/metaprogramming.md` and `design/for_ai_writers.md` migrate with it, since
     `check.sh` compiles every sample in them. `examples/dungeon` and `examples/arsenal` keep
     requiring `--serve=`/`--environment=` exactly as they do now, since those are flag-fed and undeclared.
     **Sequencing:** independent of milestones 10-12, but it is a syntax change, so `bootstrap/`'s Spite front end
@@ -213,7 +213,7 @@ and balanced allocations.
     Why this order: after 16a and 16b -- both small -- a failing test is a crash naming a file, a line, a class
     and a function, which is enough for an AI to fix it and re-run. Everything after that is refinement.
 
-17. **Mortaro's 2026-09-23 inbox** (`docs/decisions.md`, D58-D69; open questions 12-20 in `docs/open_questions.md`). Built:
+17. **Mortaro's 2026-09-23 inbox** (`design/decisions.md`, D58-D69; open questions 12-20 in `design/open_questions.md`). Built:
     D58 `join`, D59 (already true), D60 `_:` and repeated cases, D61 for Symbol codegen (the `List<T>` member
     templates wait on 15c), D63 copy-to-narrow, D64 `[]` answers `T?` with count/bound proofs, D65
     `name_with_namespaces`, D66 leak-proven tests, D67 file order, D69 `T? == value`. **Waiting on Mortaro:**

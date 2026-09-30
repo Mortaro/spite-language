@@ -5,7 +5,7 @@ something that went wrong has exactly three outcomes: a compile error, an `asser
 
 ## Nothing fails silently
 
-**Anything that can go wrong silently is a bug** ([D244](decisions.md)). Every failure is loud: a compile error,
+**Anything that can go wrong silently is a bug** ([D244](../design/decisions.md)). Every failure is loud: a compile error,
 or a crash that names its cause. It is never a wrong value that looks like a right one, a write that is lost, a
 step that is skipped, memory that leaks or a program that hangs. When the compiler can know about a mistake it
 refuses the program; when only the run can find it, the run stops and says where. Every rule on this page, and
@@ -223,7 +223,7 @@ narrowed by 'assert tracker' on line 8: remove this check" -- whatever the type,
 ### A call may undo a proof
 
 A call between a proof and a read undoes the proof only when the call may change what the proof depends on
-([D169](decisions.md)). The compiler follows the called function, and everything it calls, to see
+([D169](../design/decisions.md)). The compiler follows the called function, and everything it calls, to see
 which attributes it can assign and which lists it can shrink (`clear`, `remove_at`, `remove_first`,
 `remove_last`, `remove_swapping`, `remove_where` and `remove_where_<member>`, `truncate`, `swap`, a dictionary's
 `remove`). If it may change an attribute the proven path reads through -- or the
@@ -323,9 +323,9 @@ error.
 ### Reading with `[]` answers `T?`
 
 An index or a key may not be there, so `names[index]` and `table["key"]` are `T?` and are narrowed like any other
-path. Every `[]` answers this way ([D225](decisions.md)): a `List`, a `Dictionary`, a `Vector`, an `Items`, and any
+path. Every `[]` answers this way ([D225](../design/decisions.md)): a `List`, a `Dictionary`, a `Vector`, an `Items`, and any
 class of your own, since `a[x]` is only a shortcut for `a.get_at(x)` and every `get_at` answers a `T?`
-([D226](decisions.md), [functions_and_operators.md](functions_and_operators.md#operators--implemented)). The
+([D226](../design/decisions.md), [functions_and_operators.md](functions_and_operators.md#operators--implemented)). The
 compiler also understands the usual proofs for the library's collections, so most reads need nothing extra:
 
 - **A proven count proves the indices below it**: after `crash names.count() == 3`, or `>= 3`, or `> 2`,
@@ -456,7 +456,7 @@ Absence is fine: `assert`. Absence is a bug: `crash`. Absence is a case: `if val
 `assert condition` is a production feature, not a debug one: when the condition is false, the function stops
 there and answers "nothing", and no code after it runs. A failed one is remembered for the crash report
 ([below](#what-a-crash-reports)). "Nothing" has to be something the caller can see, so a guard `assert` is
-allowed only where the function's result can say it ([D244](decisions.md), [D245](decisions.md)):
+allowed only where the function's result can say it ([D244](../design/decisions.md), [D245](../design/decisions.md)):
 
 - a function that returns nothing just returns;
 - a function returning a `T?` answers `null`;
@@ -532,7 +532,7 @@ The message names the three ways out, and which one is right is a decision about
   program meets in normal use;
 - **an answer you chose**: an `if` that returns it -- when a value outside the real ones already means "none",
   as `-1` does for an index;
-- **`crash`**: when asking for a row that is not there is the caller's bug ([D199](decisions.md)).
+- **`crash`**: when asking for a row that is not there is the caller's bug ([D199](../design/decisions.md)).
 
 ```gdscript title=default_answer_fixed/default_answer_fixed.spite entry
 var console = Console()
@@ -604,7 +604,7 @@ func price_or_zero(name: String): Integer {
 
 A function that declares a result answers it on every path. A path that reaches the end of the function without
 a `return` is a compile error at the function's last line, naming the path, since the caller would otherwise get
-a `0` or a `""` that nobody wrote ([D244](decisions.md)). A bare `crash` ends a path as a `return` does, and so
+a `0` or a `""` that nobody wrote ([D244](../design/decisions.md)). A bare `crash` ends a path as a `return` does, and so
 does a `while true`, which Spite leaves only by returning:
 
 ```gdscript title=falling_end_error/falling_end_error.spite entry error
@@ -852,7 +852,7 @@ positive
 
 `crash` is allowed in a constructor, which is where a program that cannot start says so.
 
-**`crash` never takes a message, and neither does `assert`** ([D297](decisions.md)). There is no text to write
+**`crash` never takes a message, and neither does `assert`** ([D297](../design/decisions.md)). There is no text to write
 after the condition: the report points at the line of code and shows the values there, and an AI reading it opens
 that line and reads the data, which says more than a sentence about them would and cannot drift from the code. Do
 not smuggle text into a condition to have it printed (`crash found or bone_name == ""`): the report shows the
@@ -865,7 +865,7 @@ is a compile error at the `crash`, since the program would halt there every time
 
 ### What a crash reports
 
-A report is the place of the crash and the memory that matters there ([D297](decisions.md)): its file and line,
+A report is the place of the crash and the memory that matters there ([D297](../design/decisions.md)): its file and line,
 and the values there. It does not repeat the condition, which is on the line it names.
 
 A crash flushes what the program printed, writes one tab-separated line to the error stream and exits with
@@ -919,7 +919,7 @@ The id is derived from the site's content, so it stays the same when unrelated l
 a `.crashes` file beside the executable it builds: one line per `assert` and `crash` site, sorted by id, with its file,
 line, class, function, kind and condition, so `grep 64b935f1 program.crashes` finds a site from a report and the
 condition it checked. An `--optimized` build writes only the id where the place would be, and the map is how
-the id is read back ([D32](decisions.md)):
+the id is read back ([D32](../design/decisions.md)):
 
 ```
 spite.crash	64b935f1	value=-9	limit=0
@@ -935,7 +935,7 @@ It holds the asserts of the program and of every package it `load`s, never those
 `assert` in `library/` is how the library answers routine questions (a key that is not there, text that does not
 match, a read past the end), and those would push the program's own entries out of the ring. The compiler leaves
 the record out of a library `assert` altogether, so it costs what an `if` costs. A crash inside the library still
-reports its own site ([D189](decisions.md)).
+reports its own site ([D189](../design/decisions.md)).
 A crash reports the ring as it stood when the crash began. Other threads may still be failing asserts while it
 prints -- a game's pool threads running their guards -- and those never lengthen the report: it is the crash line,
 at most 32 `spite.assert` lines and the `earlier=` count, and then the program exits. In a program that starts
@@ -949,7 +949,7 @@ interleave.
 
 Some failures happen below Spite: a foreign library reads through a null pointer, a recursion runs out of stack, a
 driver runs an instruction the processor refuses. The program cannot survive them, but it never ends silently
-([D244](decisions.md)): every program installs a fault handler before its first line runs, and a fault writes a
+([D244](../design/decisions.md)): every program installs a fault handler before its first line runs, and a fault writes a
 `spite.fault` line to the error stream, then the failed asserts as a crash does, then the Spite functions on the
 stack, and ends the program:
 
@@ -1012,9 +1012,9 @@ a core dump is still written where the system keeps them. What the program print
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Nothing fails silently  **[the rule]**
 
@@ -1030,7 +1030,7 @@ run can find (D24, D199) -- and never:
 - **a hang** (a wait or a loop that can never end).
 
 It is a rule for the language, the compiler, the standard library and the programs written in it, and every open
-item -- in [open_questions.md](open_questions.md), [KNOWN_ISSUES.md](KNOWN_ISSUES.md) and
+item -- in [open_questions.md](../design/open_questions.md), [KNOWN_ISSUES.md](../design/KNOWN_ISSUES.md) and
 `mortaros_missing_decisions.md` -- is judged against it: a proposal that lets one of the five happen without a
 word needs a reason, and a place where the compiler lets one through is a bug to fix, not a style to document.
 
@@ -1056,7 +1056,7 @@ word needs a reason, and a place where the compiler lets one through is a bug to
 | a condition that is always false because it asks the compiler | a folded-false `crash` in reached code is a compile error (D250) | [metaprogramming.md](metaprogramming.md#codegen-values---implemented) |
 | a value computed and never read, an attribute nothing reads | compile error | [style.md](style.md#unused-is-an-error--implemented) |
 | an object made and dropped on the same line, to "do" something | compile error | [classes_and_files.md](classes_and_files.md#a-constructed-object-must-be-kept-and-used) |
-| `for`, `break`, `continue`, `++`, `&&` and other habits that would parse as something else | compile error naming the Spite form | [control_flow.md](control_flow.md#control-flow--implemented), [for_ai_writers.md](for_ai_writers.md#habits-from-other-languages-that-spite-rejects) |
+| `for`, `break`, `continue`, `++`, `&&` and other habits that would parse as something else | compile error naming the Spite form | [control_flow.md](control_flow.md#control-flow--implemented), [for_ai_writers.md](../design/for_ai_writers.md#habits-from-other-languages-that-spite-rejects) |
 | a borrowed `Vector` item kept, or read after the vector moved | compile error | [memory.md](memory.md#borrowed-items-of-a-vectort--implemented) |
 | an item lent to the caller retained and released as if owned -- narrowed by `if`, called as a function value or through a `type` | the narrowed name stays borrowed; the other two are compile errors (D259) | [memory.md](memory.md#borrowed-items-of-a-vectort--implemented) |
 | a C compile that reports success but leaves no executable, or two builds sharing one generated C file | the build is an error naming the missing file; each output gets its own generated C file (D260) | [compiler.md](compiler.md) |
@@ -1301,7 +1301,7 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   what the condition guards, so `while not found and index < names.count()` proves `names[index]` in the body.
   A list in a local, a parameter and an attribute are proven alike, and `assert`/`crash` on a read already
   proven is an error that says so (proposed by Claude, unconfirmed; `diagnostics/proven_index_check`).
-- **A bound past the index proves the reads below it** ([D277](decisions.md), proposed by Claude, unconfirmed).
+- **A bound past the index proves the reads below it** ([D277](../design/decisions.md), proposed by Claude, unconfirmed).
   `base + k < names.count()`, `k` a whole-number literal from 1 to 63, proves `names[base]`, `names[base + 1]`
   ... `names[base + k]`, each compared as printed; `base` is any call-free index. It is proven wherever
   `index < names.count()` would be (the forms above), and undone the same way. A bound on `base` alone proves

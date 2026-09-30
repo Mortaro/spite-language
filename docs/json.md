@@ -246,7 +246,7 @@ from the new source, since nothing in the bytes says which class they are or wha
 D31 asks for one in the handshake, so an old client meeting a new server fails with a clear report instead of
 misreading bytes. It belongs to the handshake or the file header, not to every value: a value's bytes stay bare so
 that thousands of them can share one buffer. `writer.schema(): Long` and `reader.schema(): Long` answer a hash of
-the attribute walk the bytes follow ([D215](decisions.md); the name is provisional): the class's name, then each
+the attribute walk the bytes follow ([D215](../design/decisions.md); the name is provisional): the class's name, then each
 attribute's name and type in order, nested classes the same way, and each enum's values in order. The compiler
 works it out and the C holds the constant, so asking costs nothing; a program writes it once at the start of a
 file or a connection and compares it before reading.
@@ -499,9 +499,9 @@ text that remembers the first thing that went wrong.
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### JSON is reflection, not a library  **[implemented]**
 
@@ -584,7 +584,7 @@ makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'` (`diagn
   ([standard_library.md](standard_library.md#system-classes--implemented)); a `Dictionary`'s entries in the order
   they were set.
 - **A walk reads every attribute**, so an attribute a program only ever hands to a writer counts as read, and the
-  unused-attribute error does not fire for it ([D118](decisions.md), the ruling on walks).
+  unused-attribute error does not fire for it ([D118](../design/decisions.md), the ruling on walks).
 
 What follows is Claude's reading where D22, D95 and D208 are not specific (proposed by Claude, unconfirmed):
 

@@ -3,12 +3,12 @@
 The standard library has the maths a game engine is built on: `Vector2`, `Vector3` and `Vector4`, `Matrix3` and
 `Matrix4`, and `Quaternion`, with the boxes, planes, frustums and rays that culling and picking need,
 `Color` with the web's colour formats, and the curves, easings, noise and half-precision floats that animation and
-rendering need ([D213](decisions.md)). They are plain classes in `library/` holding `Float`s and
+rendering need ([D213](../design/decisions.md)). They are plain classes in `library/` holding `Float`s and
 nothing else, so a list of them fits a [`Vector<T>`](collections.md) column and a binary writer, and a program that
-uses none of them carries none of their code ([D177](decisions.md)). They are built on the number classes' own
+uses none of them carries none of their code ([D177](../design/decisions.md)). They are built on the number classes' own
 maths -- `square_root()`, `sine()`, `arc_cosine()` ([values_and_types.md](values_and_types.md#maths-functions)) --
 and every name is spelled out in full, except the type names Mortaro gave. The names are proposed by Claude,
-unconfirmed ([D214](decisions.md)).
+unconfirmed ([D214](../design/decisions.md)).
 
 ## Vectors
 
@@ -38,7 +38,7 @@ func GameVectorsBasics() {
 (1.5, 2, 1) (1, 2, 0) (0.5, 0, 1)
 ```
 
-A constructor call is never an argument ([D202](decisions.md)) and neither is a call, so a chain of vector maths
+A constructor call is never an argument ([D202](../design/decisions.md)) and neither is a call, so a chain of vector maths
 is written a step per line, each step named: `var moved = velocity.scaled(2.0)` then `var next = position +
 moved`. Operators chain freely, `first + second - third`, because an operator is not an argument.
 
@@ -83,7 +83,7 @@ func GameMatricesBasics() {
 ```
 
 `inverse()` answers `Matrix4?`: a matrix that flattens space has none, and that is a value to handle, not a crash
-([D199](decisions.md)). `translation_part()`, `scale_part()` and `rotation_part()` take a transform apart again,
+([D199](../design/decisions.md)). `translation_part()`, `scale_part()` and `rotation_part()` take a transform apart again,
 `transform(vector)` multiplies a `Vector4`, `project_point(point)` divides by the `w` it makes, and
 `normal_matrix()` is the `Matrix3` that turns normals under a scaled model. `Matrix3` has the same shape for three
 dimensions: `multiply`, `transform`, `transposed`, `determinant`, `inverse` and `set_rotation`.
@@ -128,7 +128,7 @@ distance)`, and `signed_distance_to(point)` says how far in front of it a point 
 camera's view-projection matrix and culls: `contains_point`, `intersects_sphere(center, radius)` and
 `intersects_box(box)`. A `Ray(origin, direction)` picks: `hit_plane(plane)`, `hit_box(box)` and
 `hit_triangle(first, second, third)` answer how far along the ray the hit is, as a `Float?` that is `null` when
-there is none -- a miss is an answer, not a failure ([D199](decisions.md)).
+there is none -- a miss is an answer, not a failure ([D199](../design/decisions.md)).
 
 ```gdscript title=game_picking_basics/game_picking_basics.spite entry
 var console = Console()
@@ -164,7 +164,7 @@ nothing behind
 `Color(red, green, blue, alpha)` holds four `Float`s from 0 to 1. `ColorText()` reads the colours the web writes --
 `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`, `hsl()` and `hsla()` with commas or spaces and an
 alpha after a `/`, and the 148 CSS colour names -- and answers `null` for text that is none of them
-([D199](decisions.md)). A colour writes itself back as `to_hex()`, `to_rgb_text()` and `to_hsl_text()`, and
+([D199](../design/decisions.md)). A colour writes itself back as `to_hex()`, `to_rgb_text()` and `to_hsl_text()`, and
 `to_linear()` and `to_standard_rgb()` convert between the sRGB a picker or a texture holds and the linear light a
 shader adds up.
 
@@ -254,7 +254,7 @@ func HalfPrecisionBasics() {
 ## What they cost
 
 Every function that answers a vector, a matrix or a quaternion answers a new one, and these are classes: a class
-instance is a reference-counted object ([memory.md](memory.md)), passed by reference ([D149](decisions.md)). What
+instance is a reference-counted object ([memory.md](memory.md)), passed by reference ([D149](../design/decisions.md)). What
 it costs depends on where the answer goes. When it stays in the function that asked for it -- read, handed to
 functions that keep nothing, given a new value, or returned -- the compiler keeps it in that function's frame and
 the function that made it writes it straight there
@@ -272,12 +272,12 @@ went into the frame); 200 000 `Matrix4` products about 1.5 ms against 1 ms in C 
 ## Rules in full
 
 The normative rules for this part of the language, in full. A `D` number is a row of the
-[decision log](decisions.md).
+[decision log](../design/decisions.md).
 
 ### Game maths  **[implemented]**
 
 D213 (decided by Mortaro): the standard library fills every maths gap a game needs, as SlopEngine asks for it.
-Everything below is proposed by Claude, unconfirmed: the names ([D214](decisions.md): Mortaro picks names later),
+Everything below is proposed by Claude, unconfirmed: the names ([D214](../design/decisions.md): Mortaro picks names later),
 the layout and the conventions.
 
 - **Plain classes of `Float`s** in `library/` (`vector2.spite`, `vector3.spite`, `vector4.spite`, `matrix3.spite`,
@@ -362,7 +362,7 @@ the layout and the conventions.
   and `UnsignedInteger.bits_as_float(): Float`, which reinterpret the four bytes and which a program may use too,
   as it may `Double.bits(): Long`, `Long.bits_as_double(): Double` and `UnsignedLong.bits_as_double(): Double`.
   **Cost**: none beyond the arithmetic. Each bit view is a primitive the compiler writes in place, a C union of
-  the two types ([D215](decisions.md)), so no memory is touched and nothing is allocated; `benchmarks/half_precision`
+  the two types ([D215](../design/decisions.md)), so no memory is touched and nothing is allocated; `benchmarks/half_precision`
   (ten million round trips) takes 13 ms with `clang -O2` and makes no allocation of its own.
 - **Cost.** These classes hold only numbers, so an answer that never leaves the function that asked for it lives
   in that function's frame and is written there by the function that makes it; one that is stored or printed is

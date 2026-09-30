@@ -137,7 +137,7 @@ for an answer that is not a value (`help`, `attributes`, `functions`, `exit`) an
 returns nothing. The entry instance is always rooted at the fixed name `program`, regardless of what the entry
 class is actually called, and a path may leave `program.` out. JSON is what the wire speaks today, not a
 promise: the format is free to become whatever an AI client reads best, binary included
-([D96](decisions.md)).
+([D96](../design/decisions.md)).
 
 The commands are the ones `--repl` answers:
 
@@ -470,7 +470,7 @@ watcher has swapped the save in.
 | a function you deleted | whatever still holds it -- a function value, the REPL -- keeps its last code; the answer says `removed Monster.roar` |
 | an attribute's default value | instances made after the reload get the new default |
 | a class's attributes: added, removed, renamed or retyped | every live object of the class moves to the new attributes, components in an `Items`' own memory too ([below](#changing-a-classs-attributes)); the answer says what each class's objects kept |
-| an enum's values: added, removed or reordered | the whole program is compiled again, and every value a running object holds keeps its meaning; a `switch` that meets a value the reload removed halts naming it ([D302](decisions.md)) |
+| an enum's values: added, removed or reordered | the whole program is compiled again, and every value a running object holds keeps its meaning; a `switch` that meets a value the reload removed halts naming it ([D302](../design/decisions.md)) |
 | a file that does not compile | refused with the compiler's error, and the program keeps all of its code |
 | a file that declares none of the program's classes: `environment.spite`, `build.spite`, a reopening of a class of the standard library | refused: `'environment.spite' changed, and a reload swaps only the functions of the program's own classes, ...`, and the program keeps all of its code |
 | a new class | its functions are compiled into the new code, and `classes` and `describe` see it: the REPL's tables of classes, singletons and enums are swapped in with the code |
@@ -557,7 +557,7 @@ $ spite connect 4000 --command="describe()"
 ```
 
 **A renamed attribute keeps its value** when the class says what it was called, with a function beside it in the
-same form as a JSON key's ([D273](decisions.md)): `renamed_from_<attribute>()` returns the old name. Without one, a
+same form as a JSON key's ([D273](../design/decisions.md)): `renamed_from_<attribute>()` returns the old name. Without one, a
 rename is a removed attribute and a new one, and the value is released.
 
 ```gdscript
@@ -574,7 +574,7 @@ object has the old name, so it can be deleted after the reload, or kept.
 What it costs: a change to a class's attributes compiles the whole program, since every class that reads them is
 compiled again -- about 40 seconds for SlopTheseus's server, against a few for a change to function bodies alone.
 The saves after it are fast again: a reload that compiled the whole program becomes what the next one is compared
-with ([How it works](#how-it-works)). Not built yet ([D280](decisions.md)): a class that starts or stops fitting
+with ([How it works](#how-it-works)). Not built yet ([D280](../design/decisions.md)): a class that starts or stops fitting
 in an `Items`' own memory is refused, naming the class.
 
 ### Knowing what a reload rebuilt
@@ -582,7 +582,7 @@ in an `Items`' own memory is refused, naming the class.
 A program that makes things from its own code -- an engine that cooks assets with recipes written in Spite -- needs
 to know when that code changed, so it can make them again with the new code. Watching the files cannot tell it:
 the watcher sees the save before the new code is swapped in. The standard library's `Reload` singleton answers from
-the swaps themselves ([D290](decisions.md)): `generation()` is how many reloads the program has swapped in, and
+the swaps themselves ([D290](../design/decisions.md)): `generation()` is how many reloads the program has swapped in, and
 `rebuilt_since(generation)` the qualified names of the classes rebuilt after that one, as `$type.name` gives them.
 
 ```gdscript title=recooking/recooking.spite entry
@@ -665,7 +665,7 @@ worked out while compiling, so the check folds away with the branch it guards.
   a template of the standard library made for it (`Items<Step>`) -- are called through slots too, so they move
   with it. A reload moves nothing until it has installed every slot, and releases nothing a removed attribute held
   until every object has moved. All of it is in a `--hot-reload` build only (D143).
-- **The swap happens where the program waits** ([D37](decisions.md)), or at the end of a pass of one of its
+- **The swap happens where the program waits** ([D37](../design/decisions.md)), or at the end of a pass of one of its
   loops: the program loads the library
   with the operating system's loader, the one `DynamicLibrary` uses, hands it the addresses of the program's
   functions, and re-points the slots. Nothing runs halfway through a step. The library is compiled on a helper
@@ -687,13 +687,13 @@ worked out while compiling, so the check folds away with the branch it guards.
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### REPL and live reload  **[partial]**
 
-**Decided, step 1 built ([D280](decisions.md), Mortaro): nothing needs a restart.** "the fact that anything needs a
+**Decided, step 1 built ([D280](../design/decisions.md), Mortaro): nothing needs a restart.** "the fact that anything needs a
 restart is a fault in language or engine design." Every refusal in [What a reload can change](#what-a-reload-can-change)
 is a gap to close, not a rule. The plan (proposed by Claude, unconfirmed), in the order Theseus meets them:
 1. **A class's attributes change** -- **built**, [Changing a class's attributes](#changing-a-classs-attributes): the
@@ -724,7 +724,7 @@ is a gap to close, not a rule. The plan (proposed by Claude, unconfirmed), in th
      memory, and a change to a value class (`String` and the numbers).
 2. **Dependents are rebuilt**: a change whose dependents cannot be swapped alone compiles the whole program into
    the reload library and re-points every slot, keeping the heap, instead of refusing.
-3. **Enums change** -- **built** ([D302](decisions.md), decided by Claude under D205 in place of re-mapping):
+3. **Enums change** -- **built** ([D302](../design/decisions.md), decided by Claude under D205 in place of re-mapping):
    in a `--hot-reload` build every enum value's number is fixed for as long as the program runs, so nothing held
    has to be re-mapped. The build numbers each enum's values in order and writes the numbers into its C
    (`Mood_calm = 0`); a reload gives every value the running program knows its number again and a new value the

@@ -68,7 +68,7 @@ a function bound to the instance holding it is a cycle, and leaks like any other
 **Not built yet:** reading a function value's `.owner`, calling a function found through reflection with
 arguments, and reopening `call_function` to trace every call ([Calling one](#calling-one)).
 
-**A variable never has the name of a function it can see** ([D172](decisions.md)). Since a function's
+**A variable never has the name of a function it can see** ([D172](../design/decisions.md)). Since a function's
 name is already a value, a local, parameter or attribute named like a function of its class would make that name
 mean two things. `var file_stem = file_stem(path)` is an error; name the result for what it holds:
 
@@ -173,9 +173,9 @@ Every operator is a shortcut for a function a class can define to support it:
 | `a % b` | `remainder(b)` | | `a[x]` / `a[x] = v` | `get_at(x)` / `set_at(x, v)` |
 
 `a[x]` is `get_at(x)`, so any class that declares `get_at` can be indexed, and since every `[]` answers a value
-that may be absent ([D225](decisions.md)), `get_at` answers a `T?`: `func get_at(index: Integer): Integer?`,
+that may be absent ([D225](../design/decisions.md)), `get_at` answers a `T?`: `func get_at(index: Integer): Integer?`,
 `null` when nothing is at the index, and the reader narrows it (`crash shelf[0]`, then `shelf[0] + 1`). A `get_at`
-that answers a plain `Integer` is an error naming `Integer?` ([D226](decisions.md)).
+that answers a plain `Integer` is an error naming `Integer?` ([D226](../design/decisions.md)).
 
 `not`/`and`/`or` stay built-in keywords, never functions. On numbers, `Boolean`, enums, `String`, `List<T>` and
 `Dictionary<T>` the operators are built in (on numbers, the machine's own arithmetic); number arithmetic is done in the left side's
@@ -443,9 +443,9 @@ func DropWithParameter() {
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Functions  **[implemented]**
 

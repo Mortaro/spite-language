@@ -69,7 +69,7 @@ exactly when nothing can observe the difference:
 
 What the compiler already computes: (5) is `fits_vector()` (D217); (6) is D204's check with D169's call effects
 (`grow:`/`shrink:` facts through callers and parameters); (2) is D204's list of borrow errors, and the proof behind
-[reading a list's elements uncounted](../optimizations.md#a-lists-templates-read-its-elements-without-counting-them).
+[reading a list's elements uncounted](../../docs/optimizations.md#a-lists-templates-read-its-elements-without-counting-them).
 What is new: (1) is an ownership proof at `append` across calls, walks and `Anything` parameters, which nothing does
 today; (2) exists only as **errors** on a `Vector`, and for an automatic `List` each must become a silent fallback
 to references plus a line in a report; (3) and (4) are checked nowhere, since a `Vector`'s `filter_` copies and its
@@ -84,7 +84,7 @@ A local list lives in the frame (or, when it is a literal that never changes, in
 its size is known while compiling -- a literal, or appends only in straight-line code, never in a loop, never
 removed from -- and it never leaves the function: not returned, not stored, not put in a list, and passed only to
 functions that only read it. What exists: D108's placement and D211's
-[variadic list in the caller's frame](../optimizations.md#a-variadic-list-the-callee-only-reads-lives-in-the-callers-frame),
+[variadic list in the caller's frame](../../docs/optimizations.md#a-variadic-list-the-callee-only-reads-lives-in-the-callers-frame),
 which is this rule for one case. What is new: counting straight-line appends, and the constant-data form.
 
 ### SIMD
@@ -121,7 +121,7 @@ and locals), and three more facts:
    can be judged while compiling (a loop inside it, or enough work).
 
 And one cost that is not local at all: a program that runs any parallel pass switches **every** reference count in
-the program to atomic operations ([Atomic reference counts only with threads](../optimizations.md#atomic-reference-counts-only-with-threads)).
+the program to atomic operations ([Atomic reference counts only with threads](../../docs/optimizations.md#atomic-reference-counts-only-with-threads)).
 A compiler that parallelises one `each` on its own slows code elsewhere (measured [below](#4-speed)).
 
 ### Keeping a reference into the storage (Mortaro's idea)
@@ -146,7 +146,7 @@ attribute, as a plain pointer, as long as it is safe:
   parallel pass only its element's own values (D35), so a pointer cannot be shared with a task that resizes its
   list. The gap is a program singleton reached from threads: D183 guards its functions with a lock, but a function
   that *returns* a pointer into its list lets it out of the lock. D183's return check ("hand out only numbers,
-  text, copies or other safe singletons") is decided but [not built](../optimizations.md#thread-safety-for-singletons-the-rest-of-the-plan);
+  text, copies or other safe singletons") is decided but [not built](../../docs/optimizations.md#thread-safety-for-singletons-the-rest-of-the-plan);
   it has to be before kept pointers are.
 
 What the compiler can prove with facts it has: a pointer kept in a local, or in a row or argument for one call,
@@ -317,7 +317,7 @@ then vectorises both loops. The gain is 8.5x on `List` and 42x on `Vector`, and 
   the program's reference counts became atomic, and `each_step` reads its elements counted. So a compiler that
   parallelises one `each` by itself taxes every other counted operation in the program. (`each_step` being counted
   at all, when `each_simulate` over the same list is read uncounted, looks like a missed case of
-  [the uncounted-read proof](../optimizations.md#a-lists-templates-read-its-elements-without-counting-them) worth a
+  [the uncounted-read proof](../../docs/optimizations.md#a-lists-templates-read-its-elements-without-counting-them) worth a
   separate look.)
 
 ## 5. How `library/list.spite` would read

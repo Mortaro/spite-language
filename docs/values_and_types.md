@@ -37,7 +37,7 @@ wraps to 3410065408
 ### Signed arithmetic that does not fit halts while you develop
 
 `+`, `-` and `*` on a signed whole number (`Tiny`, `Short`, `Integer`, `Long`) whose answer does not fit its type
-is a developer's mistake, like dividing by zero ([D199](decisions.md)). A build you develop with -- `--debug-memory`,
+is a developer's mistake, like dividing by zero ([D199](../design/decisions.md)). A build you develop with -- `--debug-memory`,
 `--development`, `--hot-reload`, `--repl` or `--repl-port` -- checks each one and halts at the first that does not fit,
 naming the operation, the type, the operands and the line:
 
@@ -130,7 +130,7 @@ total 6
 `String` converts both ways. Text is read as a number by `String`'s `to_<name>()` for that type --
 `to_integer()`, `to_long()`, `to_double()`, ... (the full list is in [the rules](#numeric-types--implemented-provisional))
 -- which answers a `T?`, `null` when the text is not a number that fits, since a `0` there would read as a real
-zero ([D244](decisions.md)); assigning text to a `T?` of a number calls it too. A number becomes text with its own
+zero ([D244](../design/decisions.md)); assigning text to a `T?` of a number calls it too. A number becomes text with its own
 `to_string()` ([below](#numbers-are-classes)).
 
 ### Numbers are classes
@@ -168,7 +168,7 @@ None of this costs anything at run time: a number is still a plain value (an `In
 class gives it functions, not a header, and a function the program never calls is not emitted. A cast from one
 number type to another is written by assignment, `var half: Float = count`, or by passing the value where the
 other type is expected; it compiles to the one machine conversion. A conversion belongs to the value converted
-([D275](decisions.md), [D293](decisions.md)): its function is the source's `to_<type>()`, so `count.to_float()` is
+([D275](../design/decisions.md), [D293](../design/decisions.md)): its function is the source's `to_<type>()`, so `count.to_float()` is
 the call form, and a function named `from_...` is an error ([rules](#numbers-are-classes-and-this--implemented)).
 
 `this` works in every class, not only numbers, to hand the object itself to something:
@@ -272,7 +272,7 @@ return), `\\` (backslash), `\"` (double quote) and `\{` (brace). Escapes follow 
 backslash and a brace, and a text written inside a hole keeps its own escapes and holes
 ([the rule](#text-escapes--implemented)).
 
-A text that is one hole and nothing else, `"{clicks}"`, is an error ([D223](decisions.md)): it is the value
+A text that is one hole and nothing else, `"{clicks}"`, is an error ([D223](../design/decisions.md)): it is the value
 itself, so the value is written directly, and where text is wanted it becomes text on its own
 ([the rules](#casting)). The error gives the line to write:
 
@@ -706,9 +706,9 @@ wash, dry 1
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Variables and values  **[implemented]**
 
@@ -814,10 +814,10 @@ error too, naming its value: `'(65536 - 120) * 65536' is 4287102976, which does 
 arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long`.
 `diagnostics/wider_right_operand`. Both checks happen while compiling and change nothing in what is emitted.
 
-**Anything with a `to_string()` casts to text** ([D223](decisions.md), decided by Mortaro for assignment; its reach
+**Anything with a `to_string()` casts to text** ([D223](../design/decisions.md), decided by Mortaro for assignment; its reach
 to every place a `String` is wanted proposed by Claude, unconfirmed). **[implemented]** Where a `String` (or a
 `String?`) is wanted -- assignment, `var name: String = value`, an argument, a `return`, a `Dictionary` key that
-is not a whole number (one that is keys the dictionary by numbers, [D224](decisions.md)) -- and
+is not a whole number (one that is keys the dictionary by numbers, [D224](../design/decisions.md)) -- and
 the value is not text, it becomes text through its `to_string()`, the conversion a text hole makes: a number, a
 `Boolean`, an enum value (its name), a class object (`Spite.Class`, its name) and an object of any class that
 declares `func to_string(): String`. `label.text = clicks` with an `Integer` `clicks` stores `"42"`, and
@@ -825,7 +825,7 @@ declares `func to_string(): String`. `label.text = clicks` with an `Integer` `cl
 already made for numbers, extended to classes; the text made is released like any other (`conformance/stage6/direct_text`).
 A class with no `to_string()` stays an error: `a Pet cannot be used where a String is needed`.
 
-**A text of one hole and nothing else is an error** ([D223](decisions.md), decided by Mortaro: "string
+**A text of one hole and nothing else is an error** ([D223](../design/decisions.md), decided by Mortaro: "string
 concatenation to have only one variable in it with no extra string should be a crime and force direct
 assignment"; the wording and the rewrite for each place proposed by Claude, unconfirmed). **[implemented]**
 `"{value}"` -- no written character before or after, one hole -- is the value itself, so writing it is refused
@@ -928,7 +928,7 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   smaller types widen and call `Long.to_string()`. `Boolean.to_string()` answers `"true"` or `"false"`.
   Interpolation (`"count {count}"`), `+` onto a `String` and `console.print` call it (D109,
   [standard_library.md](standard_library.md)).
-- **A conversion belongs to the value converted** ([D275](decisions.md) and [D293](decisions.md), decided by
+- **A conversion belongs to the value converted** ([D275](../design/decisions.md) and [D293](../design/decisions.md), decided by
   Mortaro, replacing D100's `from_type`): there is no `from_` conversion anywhere -- never `Class.from_x()`, never
   `from_class`, not for the compiler's own number casts either. Each number class and `Memory.Address` has `func
   to_type(type: Symbol): type.class`, a Symbol codegen function whose symbol ranges over the program's types, and
@@ -971,7 +971,7 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
     (`diagnostics/wider_bitwise_operand`). The count is an `Integer`.
   - Called on `Float`, `Double` or `Boolean`, they are an error naming the whole numbers
     (`diagnostics/bitwise_on_float`). `conformance/stage6/bitwise_functions` and `negative_shift` pin them.
-- **A number's bits are read as another type in place** ([D215](decisions.md), decided by Claude under D205 and
+- **A number's bits are read as another type in place** ([D215](../design/decisions.md), decided by Claude under D205 and
   D214; the names proposed by Claude, unconfirmed): `Float.bits(): UnsignedInteger`, `Double.bits(): Long`,
   `UnsignedInteger.bits_as_float(): Float`, `Long.bits_as_double(): Double` and
   `UnsignedLong.bits_as_double(): Double` give the same bits as the other type, with nothing converted. They are
@@ -1187,7 +1187,7 @@ type Renderable {
 
 Any class with a `render()` of that signature is accepted. This is what lets a collection hold "any class that
 responds to `render()`" -- a list of components, [Markup](targets.md#markup--planned) -- without a union naming every class in advance,
-and it makes the respond-to check that [Decided by Mortaro, being implemented](open_questions.md#decided-by-mortaro-being-implemented--planned)
+and it makes the respond-to check that [Decided by Mortaro, being implemented](../design/open_questions.md#decided-by-mortaro-being-implemented--planned)
 item 2 promises expressible as an ordinary type rather than as reflection.
 
 **A `type` can be the element of a variadic parameter** (D90): `...children: List<Renderable>` takes any number

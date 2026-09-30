@@ -351,7 +351,7 @@ gadget x3
 
 ### Two versions of one repository
 
-Two pins of one repository at different commits are two different libraries ([D296](decisions.md)). Nothing
+Two pins of one repository at different commits are two different libraries ([D296](../design/decisions.md)). Nothing
 unifies them, nothing compares what differs between them, and it is not an error: a game that pins
 `slop_engine@6c7dca9` and a plugin that pins `slop_engine@41c09e2` each compile against the engine they pinned.
 
@@ -413,9 +413,9 @@ Which root supplied each declaration is not printed yet.
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Packages, namespaces and loading  **[partial]**
 

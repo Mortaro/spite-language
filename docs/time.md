@@ -12,7 +12,7 @@ ambiguity rules, where the zones come from -- is proposed by Claude and waits on
 ([the rules in full](#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed)).
 
 All of it is library code, written in Spite, with nothing running behind it: a program that never names a time
-class carries none of it, and one that only measures with `Clock()` carries only that ([D177](decisions.md)).
+class carries none of it, and one that only measures with `Clock()` carries only that ([D177](../design/decisions.md)).
 Each value is an ordinary small object, and arithmetic makes a new one for its result, which lives wherever the
 compiler places it ([memory.md](memory.md#where-a-value-lives-memory)).
 
@@ -408,9 +408,9 @@ program that names a zone. The costs are a machine with no database, where `find
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Time: one stored instant, zones for presentation  **[implemented on Windows; the shape proposed by Claude, unconfirmed]**
 

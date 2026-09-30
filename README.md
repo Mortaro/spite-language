@@ -14,11 +14,11 @@ That goes for everyone who writes it -- people, AI agents and the language's own
 - **You say what you want, not how to do it.** Chains of list operations become one loop, singletons get the
   cheapest safe form of thread safety, and anything a program does not use is not in it -- decided from what the
   whole program does. The direction is one `List` whose layout (inline, on the stack, vectorised, across threads)
-  the compiler picks too; that is being proven before it is built ([D222](docs/decisions.md)).
+  the compiler picks too; that is being proven before it is built ([D222](design/decisions.md)).
 - **The compiler refuses mistakes instead of guessing.** An error names the problem and the fix -- a race, a
   value that may be null, a borrowed item kept too long, a misspelt or abbreviated name -- and there is no
   warning to ignore: it compiles or it tells you why not.
-- **Anything that can go wrong silently is a bug** ([D244](docs/decisions.md)). Every failure is loud -- a compile
+- **Anything that can go wrong silently is a bug** ([D244](design/decisions.md)). Every failure is loud -- a compile
   error, or a crash that names its cause -- and never a wrong value, a lost write, a skipped step, a leak or a
   hang. Something that can be absent is a `T?` you must handle; a real developer mistake crashes with the line
   that made it; a fault below Spite still prints where it happened. What the language already refuses, and what
@@ -103,11 +103,11 @@ this order, from a first program to the compiler's internals:
 18. [Foreign libraries](docs/foreign_libraries.md) -- `DynamicLibrary` and one folder per operating system.
 19. [Targets](docs/targets.md) -- planned: the web and isomorphic classes.
 20. [The compiler](docs/compiler.md), [the REPL and live reload](docs/repl.md), [testing](docs/testing.md),
-    [optimizations](docs/optimizations.md) and [self hosting](docs/self_hosting.md).
-21. [Decisions](docs/decisions.md), [open questions](docs/open_questions.md) and
-    [known issues](docs/KNOWN_ISSUES.md) -- why each rule is what it is, and what is not settled or not built.
+    [optimizations](docs/optimizations.md) and [self hosting](design/self_hosting.md).
+21. [Decisions](design/decisions.md), [open questions](design/open_questions.md) and
+    [known issues](design/KNOWN_ISSUES.md) -- why each rule is what it is, and what is not settled or not built.
 
-Writing Spite with an AI? Paste [docs/for_ai_writers.md](docs/for_ai_writers.md), the whole language on one
+Writing Spite with an AI? Paste [design/for_ai_writers.md](design/for_ai_writers.md), the whole language on one
 dense page, into its context first.
 
 ## Status
@@ -196,8 +196,8 @@ rules in full also record what is decided but not built yet, marked as such.
 - [`SPITE.md`](SPITE.md) -- things that cause Mortaro spite, with what to do instead. Read it before proposing
   a language feature or a way of working; it is the point of the project.
 - [`docs/`](docs/README.md) -- the language, normative: one page per topic that teaches it and then states its
-  rules in full, the [decision log](docs/decisions.md), and a dense cheat sheet meant to be pasted into an AI's
-  context (`docs/for_ai_writers.md`). When anything else disagrees with the docs, the docs win. Every titled
+  rules in full, the [decision log](design/decisions.md), and a dense cheat sheet meant to be pasted into an AI's
+  context (`design/for_ai_writers.md`). When anything else disagrees with the docs, the docs win. Every titled
   Spite code block in `docs/` is compiled and checked as part of `bash check.sh`.
 - [`PLAN.md`](PLAN.md) -- implementation milestones, decisions made where the docs were silent, and what is
   left.

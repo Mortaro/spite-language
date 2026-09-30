@@ -21,7 +21,7 @@ The compiler writes C and builds it with the command in the `CC` environment var
 `clang` and `gcc` it finds. `bin/spite` picks that command itself -- `SPITE_CC` if it is set, else the first C
 compiler it finds, Visual Studio's clang included -- and hands it to the compiler as `CC`. `bash check.sh` proves
 the compiler still reproduces itself and still runs every program in `conformance/`, `examples/`, `tests/` and
-these pages ([self_hosting.md](self_hosting.md)).
+these pages ([self_hosting.md](../design/self_hosting.md)).
 
 ## Hello world
 
@@ -115,5 +115,5 @@ are no warnings: read the error and do what it says; there is no flag to silence
 
 Read [classes_and_files.md](classes_and_files.md), [programs.md](programs.md) and
 [values_and_types.md](values_and_types.md) next, then [failure.md](failure.md): together they are most of the
-language. Keep [for_ai_writers.md](for_ai_writers.md) at hand while writing -- it is the whole language on one
+language. Keep [for_ai_writers.md](../design/for_ai_writers.md) at hand while writing -- it is the whole language on one
 page -- and [compiler.md](compiler.md) for every command-line option.

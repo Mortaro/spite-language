@@ -3,14 +3,14 @@
 What is decided about compiling one Spite program for more than one place: platform code chosen by
 reopening, a class compiled into a server bundle and a browser bundle at once, the browser reached as a
 library, markup without a second grammar, and the binary format the two bundles talk in. None of it is built
-yet. These are the normative rules, moved whole from the language manual when [D193](decisions.md) dissolved
-it; a `D` number is a row of the [decision log](decisions.md). What runs today on one machine is on
+yet. These are the normative rules, moved whole from the language manual when [D193](../design/decisions.md) dissolved
+it; a `D` number is a row of the [decision log](../design/decisions.md). What runs today on one machine is on
 [foreign_libraries.md](foreign_libraries.md) and [programs.md](programs.md).
 
 Every piece of it is chosen while compiling, so a bundle carries only what its target uses
-([D177](decisions.md)): the losing platform's code is folded away before tree shaking, the client bundle holds no
+([D177](../design/decisions.md)): the losing platform's code is folded away before tree shaking, the client bundle holds no
 server body, the wire has nothing to parse, and a web build ships no scheduler of its own -- hidden waiting is
-compile-time state machines ([D176](decisions.md), [concurrency.md](concurrency.md)), and in a browser the event
+compile-time state machines ([D176](../design/decisions.md), [concurrency.md](concurrency.md)), and in a browser the event
 loop they return to is the browser's. That last point is why D176 rejected fibers: they would need a stack per
 fiber and stack switching that WebAssembly cannot do without a whole-program transform that bloats the binary.
 

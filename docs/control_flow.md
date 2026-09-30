@@ -59,7 +59,7 @@ not answer a default there. An `if` with no `else` that ends by returning proves
 for the rest of the block, so `if not found { return -1 }` narrows `found`
 ([failure.md](failure.md#an-if-that-leaves-proves-the-rest)).
 
-**An `if`/`else` directly inside a branch of another `if`/`else` is an error** ([D170](decisions.md)).
+**An `if`/`else` directly inside a branch of another `if`/`else` is an error** ([D170](../design/decisions.md)).
 Two stacked decisions are two things to hold in your head at once, so the inner one gets a name: move it into a
 function named for what it decides, or, when both test which member of a union or which value of an enum a value
 is, use one `switch`. A flat
@@ -143,7 +143,7 @@ Spite only has 'while' loops
 A loop over a list of objects that only does what a
 [member template](collections.md#member-templates-loops-you-do-not-write) does -- calling, collecting, keeping,
 counting, adding up or finding a member of each element -- is an error naming the template
-([D171](decisions.md), [the exact shape](#a-while-that-a-member-template-already-says)). To call one of your own
+([D171](../design/decisions.md), [the exact shape](#a-while-that-a-member-template-already-says)). To call one of your own
 functions with each element, pass it: `items.each(restock)`
 ([Passing a function for each element](collections.md#passing-a-function-for-each-element)).
 
@@ -346,7 +346,7 @@ this switch over 'light' has no case for 'amber'
 ```
 
 **Three `if`s that only compare one value with a constant and return are a `switch`**
-([D239](decisions.md)). Each is a compile error that shows the switch to write, which says in one place what the
+([D239](../design/decisions.md)). Each is a compile error that shows the switch to write, which says in one place what the
 chain says in three:
 
 ```gdscript title=if_chain_error/if_chain_error.spite entry error
@@ -477,7 +477,7 @@ against `$wanted_type` bound to `Health`, or a union that does not hold the boun
 while compiling, and it is never the "never true" error, since another binding may make it true. The same goes
 for any class test inside a generic class: one that can never be true for one instantiation (`held == Health` in
 a `Box<Label>`) folds to `false` and its branch is removed from that copy, while outside a generic it stays the
-error ([D167](decisions.md)). The full rules for class tests are with
+error ([D167](../design/decisions.md)). The full rules for class tests are with
 [unions](values_and_types.md#unions--implemented).
 
 ```gdscript title=codegen_class_test_doc/find.spite
@@ -580,9 +580,9 @@ this statement comes after a 'return', so it never runs: remove it
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Control flow  **[implemented]**
 

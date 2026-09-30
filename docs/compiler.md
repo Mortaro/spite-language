@@ -45,7 +45,7 @@ program reads its command line through `Environment()`, what its build decided t
 arguments through `Arguments()`. A program is named only by its folder (D130): `spite game/game.spite` is an
 error that answers with the folder form, `spite game`, and a folder with no entry file named after it is an error
 naming the file it looked for ([the texts](#naming-a-program)). The compiler compiles itself the same way,
-`spite bootstrap`, whose entry is `bootstrap/bootstrap.spite` ([self_hosting.md](self_hosting.md)).
+`spite bootstrap`, whose entry is `bootstrap/bootstrap.spite` ([self_hosting.md](../design/self_hosting.md)).
 
 ## How a program is loaded
 
@@ -418,7 +418,7 @@ again. Anywhere else, a `func` with no body is an error, because only the compil
 
 Which root supplied each declaration is **not** shown yet. It cannot be a comment, since a comment is only ever
 a link to a markdown heading ([style.md](style.md#comments-are-links)), so it needs a form of its own
-([open question 10](open_questions.md#open-questions)).
+([open question 10](../design/open_questions.md#open-questions)).
 
 The folder has no default: anything inside the program's own folder would be read back as part of the program,
 so the folder is always named. Like every output, it combines with the others; `--run=false` writes only it:
@@ -442,9 +442,9 @@ are listed is [below](#how-many-errors-are-listed).
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Command line
 
@@ -538,7 +538,7 @@ before any output is written.
   run.
 - **The compiler's own C goes to its default path**, `.spite/build/bootstrap/bootstrap.c` from the language's
   repository: every `Build` field is a constant in what is built, so a `--c-path` naming a different file each run
-  would be written into the C and the fixpoint would never hold ([self_hosting.md](self_hosting.md)).
+  would be written into the C and the fixpoint would never hold ([self_hosting.md](../design/self_hosting.md)).
 - **`.spite/` is never part of a program** (D283; proposed by Claude, unconfirmed): walking a program's folder or a
   loaded root, the compiler skips every folder named `.spite`, `.spite-cache` (the name before D283) or `.git`, so
   running `spite .` inside a program, whose outputs and checkouts land in its own `.spite/`, reads none of them

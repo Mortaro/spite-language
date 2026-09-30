@@ -9,7 +9,7 @@ language first and then states it in a closing **Rules in full** section: every 
 and note on how it is built. There is no other reference to check a page against: the rules on the page decide,
 and where the teaching above them disagrees, the teaching is the bug. Status tags on a heading --
 **[implemented]**, **[partial]**, **[planned]** -- refer to the compiler, and something decided but not built
-says so where it is described. Every decision is also a row of the append-only [decision log](decisions.md),
+says so where it is described. Every decision is also a row of the append-only [decision log](../design/decisions.md),
 which says when it was made and why.
 
 Every titled Spite program on these pages is real: `bash check.sh` extracts each one, compiles it, runs it and
@@ -87,15 +87,15 @@ Read them in this order the first time; each page assumes the ones before it.
     planned, and what (if anything) you could notice.
 25. [proofs.md](proofs.md) -- every fact the compiler proves while compiling, what each one buys, and when it does
     not apply, so you know when to write the check yourself.
-26. [self_hosting.md](self_hosting.md) -- how the compiler builds itself, and what proves it.
+26. [self_hosting.md](../design/self_hosting.md) -- how the compiler builds itself, and what proves it.
 
 **Reference**
 
-27. [decisions.md](decisions.md) -- the decision log: every decision, when and why, append-only.
-28. [open_questions.md](open_questions.md) -- decided work that has no page yet, and the questions still open.
-29. [KNOWN_ISSUES.md](KNOWN_ISSUES.md) -- where the compiler falls short of these pages today.
+27. [decisions.md](../design/decisions.md) -- the decision log: every decision, when and why, append-only.
+28. [open_questions.md](../design/open_questions.md) -- decided work that has no page yet, and the questions still open.
+29. [KNOWN_ISSUES.md](../design/KNOWN_ISSUES.md) -- where the compiler falls short of these pages today.
 
 **For AI writers**
 
-30. [for_ai_writers.md](for_ai_writers.md) -- the whole language on one dense page. Paste it into an AI's context
+30. [for_ai_writers.md](../design/for_ai_writers.md) -- the whole language on one dense page. Paste it into an AI's context
     before it writes Spite.

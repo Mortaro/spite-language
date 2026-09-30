@@ -33,7 +33,7 @@ a template instance is today, reached through an ordinary call instead of a spel
 
 Two systems grew side by side and never met.
 
-**Reflection** ([reflection.md](../reflection.md), D6, D11, D12, D41, D49, D57) already has the object model
+**Reflection** ([reflection.md](../../docs/reflection.md), D6, D11, D12, D41, D49, D57) already has the object model
 Mortaro describes: `Spite.Class` (`.name`, `.namespace`, `.attributes`, `.functions`, `.instances`,
 `is_singleton()`, `has_function(name)`...), `Spite.Function` (`.name`, `.arguments`, `.returns`,
 `call_function()`), `Spite.Argument`, `Spite.Attribute` (`.name`, `.class`, `.value: Anything?`) and
@@ -41,7 +41,7 @@ Mortaro describes: `Spite.Class` (`.name`, `.namespace`, `.attributes`, `.functi
 `library/spite/`. `Spite.Class.instances` is every class (D49). But it is run-time only: `.value` is a boxed
 `Anything?`, and a walk over `.attributes` cannot use an attribute's class as a type.
 
-**Metaprogramming** ([metaprogramming.md](../metaprogramming.md)) is where the typed work happens, and it is built
+**Metaprogramming** ([metaprogramming.md](../../docs/metaprogramming.md)) is where the typed work happens, and it is built
 on `Symbol` parameters instead:
 
 | Mechanism | Syntax | Used for |

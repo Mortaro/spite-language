@@ -337,7 +337,7 @@ compiler out once for each.
 ## When a foreign call faults
 
 C can do what Spite cannot: read through a null pointer, write past an array, run out of stack. When it does, the
-program still says so ([D244](decisions.md)): it prints a `spite.fault` line naming the library the fault is in
+program still says so ([D244](../design/decisions.md)): it prints a `spite.fault` line naming the library the fault is in
 (`at=fixture.dll+0x1029`), the last foreign function the thread called and the line of Spite that called it
 (`foreign=read_integer_at	library=...	from=native_fault_foreign.spite:13`), and then the Spite functions on the
 stack. Each foreign call names itself before it goes in, which costs one store; how to read the whole report is in
@@ -350,7 +350,7 @@ declared in Spite as a `func` with a signature and no body, which the compiler m
 reopening ([compiler.md](compiler.md#inspect-merged-classes)). `library/dynamic_library.spite` holds the rest:
 the `singleton` line, `file_name` and `handle`, the constructor and `drop()`. This is a stopgap: D147 and D168
 decide that nothing the compiler supplies stays hidden or ties Spite to C, so these bodies are to become Spite over
-the few operations each backend lowers ([D178](decisions.md)) -- **not built** for these three.
+the few operations each backend lowers ([D178](../design/decisions.md)) -- **not built** for these three.
 
 **Not built yet:** the naming rule and the calls as reopenable Spite (`missing_function` and
 `missing_attribute`), a naming rule of your own, reading a header's types through reflection, and C's variadic
@@ -361,9 +361,9 @@ functions
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Foreign libraries  **[partial]**
 
@@ -374,7 +374,7 @@ C's writes coming back; argument widths; and a program-stopping message naming t
 Spite function that wanted it, when either is missing (`conformance/stage6/foreign_library`,
 `diagnostics/foreign_library_mistakes`, `diagnostics/foreign_call_mistakes`).
 
-**Decided, not built** ([D272](decisions.md), Mortaro; the design proposed by Claude, unconfirmed): a status a
+**Decided, not built** ([D272](../design/decisions.md), Mortaro; the design proposed by Claude, unconfirmed): a status a
 foreign function answers is handled while compiling. With a header, a function whose C return type is a C `enum`
 answers a Spite enum made from that enum's values; the result must be used, cannot be compared with a number, and
 cannot be the condition of a `crash` or `assert`; it is read with a `switch` naming every value, with no `_:`
@@ -501,7 +501,7 @@ func drop() {
 
 In this design `_open`/`_call`/`_resolve`/`_close` are the only operations below Spite; everything above them is
 ordinary Spite, and `--final-classes` prints the whole class with every generated binding, as
-[Decided by Mortaro, being implemented](open_questions.md#decided-by-mortaro-being-implemented--planned) item 2
+[Decided by Mortaro, being implemented](../design/open_questions.md#decided-by-mortaro-being-implemented--planned) item 2
 requires of all reflection. D147 and D178 go further: loading a library is to be plain Spite calling the
 operating system, with no compiler-supplied C at all.
 

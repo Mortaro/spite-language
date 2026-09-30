@@ -6,7 +6,7 @@ everything else is built on. The compiler keeps only the syntax: `[1, 2, 3]`, `l
 those two files to see exactly what a list does; write your own container the same way
 ([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)).
 
-Being ordinary classes, they cost what their code costs and nothing more ([D177](decisions.md)): a list is one heap
+Being ordinary classes, they cost what their code costs and nothing more ([D177](../design/decisions.md)): a list is one heap
 buffer of its elements, a program compiles only the members it calls, and one that never makes a `Dictionary`
 carries none of it. Nothing runs behind them -- no collector, no iterator objects, no registry of templates.
 
@@ -29,7 +29,7 @@ var empty = List<String>()
 | `insert(index, value)` | | an index out of range is clamped to the nearest end |
 | `list[index]` | `T?` | may not be there, so it is narrowed ([failure.md](failure.md#reading-with--answers-t)) |
 | `list[index] = value` | | the explicit form is `set_at(index, value)`; an index out of range halts, naming the line (D244) |
-| `get_at(index)` | `T?` | what `list[index]` calls, so it answers the same `T?`, `null` out of range ([D226](decisions.md)) |
+| `get_at(index)` | `T?` | what `list[index]` calls, so it answers the same `T?`, `null` out of range ([D226](../design/decisions.md)) |
 | `remove_at(index)` | | an index out of range halts |
 | `remove_swapping(index)` | | moves the last element into `index` instead of moving every later one down (name provisional); an index out of range halts |
 | `remove_where(test)` / `remove_where_<member>()` | | removes every element the test is true for, in one pass, keeping the rest in order ([below](#removing-many-at-once)) |
@@ -143,10 +143,10 @@ text.
 
 A `List` of objects holds references: each element is an object somewhere on the heap, and walking the list
 follows one pointer per element. A `Vector<T>` (`library/vector.spite`) holds objects themselves, one after another
-in one block of memory, the way the processor's cache likes to read them ([D154](decisions.md),
-[D203](decisions.md)). An item has no header and no reference count of its own; appending one copies its
+in one block of memory, the way the processor's cache likes to read them ([D154](../design/decisions.md),
+[D203](../design/decisions.md)). An item has no header and no reference count of its own; appending one copies its
 attributes into the block. Numbers, `Boolean`, enums and `Memory.Address` are already flat in a `List`, so a list
-of them is always a `List`: `Vector<Integer>` is an error naming `List<Integer>` ([D225](decisions.md)).
+of them is always a `List`: `Vector<Integer>` is an error naming `List<Integer>` ([D225](../design/decisions.md)).
 
 ```gdscript title=vector_basics/velocity.spite
 var across = 0.0
@@ -185,9 +185,9 @@ func VectorBasics() {
 8 2 0.5
 ```
 
-`velocities[0]` answers a `Velocity?`, like every `[]` ([D225](decisions.md)): `null` when there is no item
+`velocities[0]` answers a `Velocity?`, like every `[]` ([D225](../design/decisions.md)): `null` when there is no item
 there. `crash velocities[0]` narrows it, and then it is not a copy: it is the item inside the vector,
-**borrowed** ([D204](decisions.md)), so `first.down = 2.0` writes the vector's own item. `slow` is still `0.5`, because `append` copied it in. The member
+**borrowed** ([D204](../design/decisions.md)), so `first.down = 2.0` writes the vector's own item. `slow` is still `0.5`, because `append` copied it in. The member
 templates run on the items in place the same way, and a chain of them is one loop, as on a list.
 
 | Member | Result | Notes |
@@ -237,13 +237,13 @@ may move the items of 'velocities', so 'first' is not read after it
 The rules for what a borrowed item may do, and what they cost, are in
 [memory.md](memory.md#borrowed-items-of-a-vectort--implemented). Items of several vectors can travel together as
 a **row**, an object literal a system takes as a `type` for one call, which is how an engine joins its component
-columns ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call), [D206](decisions.md)).
+columns ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call), [D206](../design/decisions.md)).
 
 ## `Items<T>`: the storage chosen for you
 
 A generic class that keeps values of a type it does not know -- an engine's `Column<$component_type>` -- cannot
 say `Vector` or `List` without knowing whether the type fits a `Vector`. `Items<T>` (`library/items.spite`, the
-name provisional) answers that while compiling ([D218](decisions.md)): when `T.fits_vector()` its items are
+name provisional) answers that while compiling ([D218](../design/decisions.md)): when `T.fits_vector()` its items are
 inline and borrowed, exactly as a `Vector`'s; otherwise they are references, as a `List`'s. The members are the
 same either way, so one class serves both:
 
@@ -560,7 +560,7 @@ func TemplateMistake() {
 but 'count_' needs it to return Boolean (to add up a numeric member use 'sum_stars')
 ```
 
-**A `while` that only does what a template does is an error naming the template** ([D171](decisions.md)): a
+**A `while` that only does what a template does is an error naming the template** ([D171](../design/decisions.md)): a
 counter walking a list from `0` to its `count()`, doing nothing with each element but what one template does
 with one of its members, or what `each`, `map`, `filter`, `count`, `sum`, `find`, `any` or `all` does with a
 function passed the element -- on a list of anything, numbers and text included. Loops that need the index, pass
@@ -594,7 +594,7 @@ this 'while' walks every element of 'items' only to add up 'price': write 'var t
 
 ## Member templates over an enum value
 
-**Decided, not built** ([D295](decisions.md)). When the element has a member typed with a named enum, the
+**Decided, not built** ([D295](../design/decisions.md)). When the element has a member typed with a named enum, the
 templates that ask a yes-or-no question also take one of that enum's values as their name: `filter_<value>()` keeps
 the elements whose member is that value. A listing does not need one helper per kind of thing it lists; it is
 filtered by its kind:
@@ -755,7 +755,7 @@ func double_of(weight: Float): Float {
 A `Vector` and an `Items` take no passed function: their items are classes, borrowed and never passed on
 (`velocities.each(f)` is an error naming a member template instead), or text (`names.each(f)` on a
 `Vector<String>` says to keep the text in a `List<String>`). Numbers, `Boolean` and enums were the one exception
-until [D225](decisions.md) made a list of them always a `List`.
+until [D225](../design/decisions.md) made a list of them always a `List`.
 
 ## Chains run as one loop
 
@@ -845,7 +845,7 @@ one loop.
 ([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)); everything else is written in the file. A
 build with `--repl` or `--repl-port` compiles every template that fits every element class of a list the loop
 can reach, so `monsters.sum_health()` can be typed at the prompt; that is the one build where templates nobody
-calls are in the program ([D143](decisions.md)). A private member (`_name`) of the element gets none: a template is
+calls are in the program ([D143](../design/decisions.md)). A private member (`_name`) of the element gets none: a template is
 `List`'s code, and a private name is read only inside its own class
 ([classes_and_files.md](classes_and_files.md#private-names)), so `List<Parallel<Integer>>` has no `each__join`
 in any build.
@@ -927,9 +927,9 @@ write 'member: Symbol<$element_type>' to name a member of the element
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Standard library metaprogramming  **[partial]**
 

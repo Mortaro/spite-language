@@ -11,7 +11,7 @@ Reading a program's structure at run time -- `.class`, `.attributes`, `.function
 [reflection.md](reflection.md). The standard library's member templates (`filter_<member>()`,
 `sum_<member>()`, ...) are Symbol codegen written in Spite, in [collections.md](collections.md). They look only at
 the element: a function of the calling class is passed as a value, `people.each(say_hello)`, never found by name
-([D148](decisions.md), [collections.md](collections.md#passing-a-function-for-each-element)).
+([D148](../design/decisions.md), [collections.md](collections.md#passing-a-function-for-each-element)).
 
 ## Symbol codegen, step by step
 
@@ -213,7 +213,7 @@ assigns `left` at once; anywhere else `null` belongs to `T?` alone (D236), and `
 the default of whatever `$left_type` is bound to.
 
 Only a class has codegen values. A function never lists its own (`func pick<$value_type>(...)` is an error), and
-there are no generic functions to write instead ([D123](decisions.md)): a function that takes any class takes a
+there are no generic functions to write instead ([D123](../design/decisions.md)): a function that takes any class takes a
 `type`, such as the built-in empty `Anything` ([reflection.md](reflection.md#an-attributes-value)), or it belongs to a
 generic class. The exact forms and error texts are in [Codegen values](#codegen-values---implemented).
 
@@ -421,7 +421,7 @@ something else
 A class test on a value folds the same way inside a generic. In `Detector<Label>`, `item == Health` can never be
 true, so it is `false` and its branch is removed from that copy, while `Detector<Health>` keeps it. Outside a
 generic the same never-true test is an error, since there it is always a mistake; inside one, code a particular
-copy cannot use is what tree shaking is for ([D167](decisions.md), [control_flow.md](control_flow.md#value--class)).
+copy cannot use is what tree shaking is for ([D167](../design/decisions.md), [control_flow.md](control_flow.md#value--class)).
 
 ```gdscript title=generic_never_true/detector.spite
 generic $item_type
@@ -494,7 +494,7 @@ a column of String
 A `Vector` keeps its items inline, so only a class of known size can be one
 ([collections.md](collections.md#vectort--implemented)). `$component_type.fits_vector()` asks that while
 compiling, like `has_function`, so a generic keeps a class that fits in a `Vector` and any other as references in
-a `List`, and never makes the `Vector` it could not ([D217](decisions.md)):
+a `List`, and never makes the `Vector` it could not ([D217](../design/decisions.md)):
 
 ```gdscript title=fits_vector_doc/store.spite
 generic $component_type
@@ -652,7 +652,7 @@ is decided while compiling, so the name it asks for is written as a literal
 The compiler already knows, since it compiles exactly those functions into state machines, so the answer is a
 constant like `has_function`'s, and only the branch taken is compiled. An engine uses it to start a system that
 does IO as a `Concurrent` it polls between frames, and to call every other system directly, while each system is
-written as straight-line code ([D209](decisions.md); the spelling is proposed, unconfirmed):
+written as straight-line code ([D209](../design/decisions.md); the spelling is proposed, unconfirmed):
 
 ```gdscript title=waiting_question/loader.spite
 var console = Console()
@@ -721,7 +721,7 @@ object its parameter number 1 (counted from 0) is given, or anything reached thr
 object, or the parameter handed to another function that does any of these -- followed through every call, however
 deep, recursion included -- all count; reading does not, and neither does giving the parameter's name a new object
 (`quitting = Quitting()`). The answer is a constant, like `function_waits`'s, so only the branch taken is compiled
-([D261](decisions.md); the name is provisional). An engine asks it of a system it will run on a copy of its row:
+([D261](../design/decisions.md); the name is provisional). An engine asks it of a system it will run on a copy of its row:
 
 ```gdscript title=writes_question/quitting.spite
 var requested = false
@@ -836,7 +836,7 @@ A runner that treats a one-row system differently from a system of several rows 
 function takes. `phase.argument_count()`, inside a walk over the functions a pattern matches, is the number the
 function walked takes, and `$target_type.argument_count("update_each")` asks it of a named function. Both are
 constants, like `has_function`, so a comparison with them decides an `if` while compiling and only the branch taken
-is compiled ([D219](decisions.md); the name is provisional). Below, `Caller<Fetch>` never compiles
+is compiled ([D219](../design/decisions.md); the name is provisional). Below, `Caller<Fetch>` never compiles
 `target.phase_each(hero)`, which would pass one argument to a function of two:
 
 ```gdscript title=argument_count_doc/hero.spite
@@ -1236,7 +1236,7 @@ This is tree shaking over the program's own model, not dead-code elimination lef
 
 An inspectable build -- `--development`, `--hot-reload`, `--repl` or `--repl-port` -- keeps every function and
 class the program generated instead of only the ones reachable from `main`, so live reload has all of them to
-swap and the REPL can reach them ([D143](decisions.md), [compiler.md](compiler.md#development-builds-and-tree-shaking)).
+swap and the REPL can reach them ([D143](../design/decisions.md), [compiler.md](compiler.md#development-builds-and-tree-shaking)).
 What is decided while compiling is decided there too: templates are still generated only for the names called,
 and [conditions on codegen values](#codegen-values---implemented) still fold. Every optimisation the compiler
 makes on its own, and the builds it applies in, is listed in [optimizations.md](optimizations.md).
@@ -1245,9 +1245,9 @@ makes on its own, and the builds it applies in, is listed in [optimizations.md](
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Symbol codegen  **[implemented]**
 
@@ -1359,7 +1359,7 @@ camelCase key with them ([json.md](json.md#a-camelcase-or-pascalcase-key)).
   attribute, so 'count_attribute' has to return nothing" (`diagnostics/every_attribute`). It replaces the
   compile-time `for instance.attributes`, which went with `for`. Over another class's attributes it calls only
   the ones that class lets others read: a private `_` attribute is skipped rather than being the private error
-  (proposed by Claude, unconfirmed). **Decided, not built ([D278](decisions.md), Mortaro): a walk sees every
+  (proposed by Claude, unconfirmed). **Decided, not built ([D278](../design/decisions.md), Mortaro): a walk sees every
   attribute, private ones included**, since a walk that skips some silently builds an incomplete copy, column or
   layout. The walk may read and write a private attribute through the walked symbol (`value.attributes[attribute]`);
   naming `_x` outside its class stays the private error. **A plural over nothing is an empty function**, not a missing one: over a class

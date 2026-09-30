@@ -7,17 +7,17 @@ the compiler does the rest, and the program means exactly what its source says.
 
 Two rules decide what belongs here.
 
-**Zero runtime, and everything tree-shakeable** ([D177](decisions.md)). A program that does not use
+**Zero runtime, and everything tree-shakeable** ([D177](../design/decisions.md)). A program that does not use
 a feature carries none of it. Nothing needs a scheduler, an interpreter or a registry shipped beside the program:
 the work is done at compile time instead. REPL, live reload and debugging features may cost something while the
-program runs, but only in the builds that ask for them ([D143](decisions.md)).
+program runs, but only in the builds that ask for them ([D143](../design/decisions.md)).
 
-**Hidden optimisations are good, hidden costs are bad** ([D36](decisions.md)). Code that runs faster
+**Hidden optimisations are good, hidden costs are bad** ([D36](../design/decisions.md)). Code that runs faster
 than you expect is a free win, so the compiler optimises silently and never asks you to mark anything. Code that
 runs *slower* than you expect is the only real surprise, so every cost that remains is written down on this page,
 under the optimisation it belongs to.
 
-**Internals stay ordinary objects where you inspect them** ([D143](decisions.md)). A `--repl`,
+**Internals stay ordinary objects where you inspect them** ([D143](../design/decisions.md)). A `--repl`,
 `--repl-port`, `--hot-reload` or `--development` build is an *inspectable* build: nothing is tree-shaken, and
 the standard library's internals -- `Memory`, `Build`, `TypedMemory<T>` -- are ordinary objects that reflection
 (`.instances`, `.attributes`) sees. Every other build, ordinary or `--optimized`, is a production build, and only
@@ -30,7 +30,7 @@ singleton's constructor runs, the order in which a fused chain calls your member
 statement where a `Concurrent` waits, and speed. Apart from those orders, which only code with a visible effect can
 show, no optimisation changes what a program prints or computes.
 
-The checks the compiler makes are not on this page: a wider right operand ([D162](decisions.md)), a proof a call
+The checks the compiler makes are not on this page: a wider right operand ([D162](../design/decisions.md)), a proof a call
 may have undone, an unread name. They are rules of the language, on the pages that teach them, and they cost
 nothing at run time because they emit nothing.
 
@@ -112,11 +112,11 @@ Measured with `--c-source`, before and after classes were shaken too (the execut
 
 **When.** Production builds only. An inspectable build -- `--repl`, `--repl-port`, `--hot-reload` or
 `--development` -- keeps everything, so live reload has every function to swap and the REPL can reach every
-internal ([D143](decisions.md), [compiler.md](compiler.md#development-builds-and-tree-shaking)).
+internal ([D143](../design/decisions.md), [compiler.md](compiler.md#development-builds-and-tree-shaking)).
 
 **What you notice.** Nothing, except that `--c-source` writes less. A function nobody calls, outside a generic class, is still
-compiled and checked, so a mistake in it is still reported ([D140](decisions.md)) -- it just is not in the
-binary. **Built** (the tree shaker and `--development` rows of the [decision log](decisions.md),
+compiled and checked, so a mistake in it is still reported ([D140](../design/decisions.md)) -- it just is not in the
+binary. **Built** (the tree shaker and `--development` rows of the [decision log](../design/decisions.md),
 2026-09-24; classes, slots and statics 2026-09-25, proposed by Claude, unconfirmed). `check.sh` holds it: the C of
 `examples/hello` must carry no struct, allocate or singleton slot of those library classes.
 
@@ -135,19 +135,19 @@ is generated. The branch not taken is not in the program at all -- not skipped a
 even use things that would not compile for this build. That covers:
 
 - a field of [`Build`](programs.md#compile-time-settings-build): every `Build` field is a constant of the built
-  program, set by a flag or taken from its declared default ([D84, D85](decisions.md));
+  program, set by a flag or taken from its declared default ([D84, D85](../design/decisions.md));
 - a codegen value, `if $is_magic { }`, and a test on a codegen type, `if $value_type == List { }`
   ([metaprogramming.md](metaprogramming.md#tree-shaking));
 - a class test the value's type already answers, `if item == $wanted_type`, and one that can never be true for one
   instantiation of a generic, which folds to `false` there instead of being an error
-  ([D167](decisions.md));
-- `$system_type.has_function("run_each")` ([D114](decisions.md));
-- `$system_type.function_waits("update_each")` ([D209](decisions.md)), answered from the functions the compiler
+  ([D167](../design/decisions.md));
+- `$system_type.has_function("run_each")` ([D114](../design/decisions.md));
+- `$system_type.function_waits("update_each")` ([D209](../design/decisions.md)), answered from the functions the compiler
   turns into state machines;
-- `phase.argument_count()` and `$system_type.argument_count("update_each")` ([D219](decisions.md)), a whole
+- `phase.argument_count()` and `$system_type.argument_count("update_each")` ([D219](../design/decisions.md)), a whole
   number compared with `==`, `!=`, `<`, `<=`, `>` or `>=`, so a runner compiles only the branch that fits a
   system's arity;
-- `$component_type.fits_vector()` and `attribute.class.fits_vector()` ([D217](decisions.md)), which is how
+- `$component_type.fits_vector()` and `attribute.class.fits_vector()` ([D217](../design/decisions.md)), which is how
   `Items<T>` picks inline or reference storage ([below](#an-items-storage-is-chosen-while-compiling));
 - a test on a codegen value's own codegen values, `$list_type.element_type == Float`,
   `$map_type.value_type == Item`, `$holder_type.held_type == String`, to any depth, in every branch of an
@@ -168,7 +168,7 @@ of its block not compiled ([metaprogramming.md](metaprogramming.md#codegen-value
 or a class test on a value (`item == $wanted_type`), in an `assert` or `crash` is not folded: it is tested at run
 time, where the C compiler usually removes the test, since a `Build` field is a constant of the program. So a
 `crash` on a `Build` field that is false halts when it runs, rather than being the compile error a folded `crash`
-is ([D250](decisions.md); still open in [failure.md](failure.md#nothing-fails-silently--the-rule)).
+is ([D250](../design/decisions.md); still open in [failure.md](failure.md#nothing-fails-silently--the-rule)).
 
 A function of a generic class is then compiled for one instantiation only when code that survived folding names
 it, so a helper reached only from a removed branch is never checked against a type it cannot work with.
@@ -237,11 +237,11 @@ instantiation. **Built** ([Codegen values](metaprogramming.md#codegen-values---i
 ### Reflection, symbols and registries only where read
 
 **What it does.** Reflection is decided at compile time, so the compiler knows exactly what a program reads and
-emits only that ([D42, D57](decisions.md)): a class object's `.attributes`, `.functions` and
+emits only that ([D42, D57](../design/decisions.md)): a class object's `.attributes`, `.functions` and
 `.namespace`, `value.attributes`, `value.memory`, `attribute.value`, the per-class `Person.instances` registry (a
 class is only tracked when something asks for its instances), `Spite.Class.instances`, and a class's `to_debug()`.
 A symbol literal is an entry of a table the compiler writes with only the symbols the program uses; it is
-constant text, so storing and comparing symbols allocates nothing ([D70](decisions.md)). A Symbol
+constant text, so storing and comparing symbols allocates nothing ([D70](../design/decisions.md)). A Symbol
 codegen template exists only for the names a program calls: a program that never calls `sum_price()` has no
 `sum_price`. An enum's reflection is the same kind of template (D180): `Symbol<Phase>` and a name pattern's hole
 become one call per value, with `phase.value` the constant itself, so no table of an enum's values, names or
@@ -256,7 +256,7 @@ exit, so `--debug-memory` does not count it. **Built.**
 
 **What it does.** `teams.filter_is_active().map_lead().sum_age()` reads as three steps, and that is what it means,
 but the compiler writes it as one loop over `teams` with no list in between: each element is tested, mapped and
-added before the next one is read ([D105](decisions.md)).
+added before the next one is read ([D105](../design/decisions.md)).
 
 **When.** A template called directly on a `filter_` or `map_` call, on a `List` or `Dictionary`; the steps in the
 middle are `filter_` and `map_` (to a member that is a class), and the last may be any template. A list you name
@@ -357,20 +357,20 @@ abc a
 ```
 
 **What you notice.** Fewer allocations and a faster loop. Nothing else: build text the obvious way. **Built**
-(the "appending to a text the variable alone holds" row of the [decision log](decisions.md);
+(the "appending to a text the variable alone holds" row of the [decision log](../design/decisions.md);
 [values_and_types.md](values_and_types.md)).
 
 ### The compiler places memory
 
 **What it does.** A program has one way to ask for raw memory, `heap.allocate(bytes)` on `Memory.Heap()`, and one
-way to give it back, `heap.free(address)`. Where the bytes live is the compiler's choice ([D108](decisions.md),
+way to give it back, `heap.free(address)`. Where the bytes live is the compiler's choice ([D108](../design/decisions.md),
 [Placement](memory.md#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)):
 
 - **Register:** a number's own memory (`var _memory = Memory.Bytes(4)` in `library/integer.spite`) is its C
   scalar. A number is never an object.
 - **Frame:** an allocation a function frees itself, in the same block, whose address it only reads and writes
   through, copies, compares, turns into `text`, hands to a `TypedMemory` or lends to a function of its own class
-  proven to keep nothing ([D211](decisions.md)) -- or, in `library/`, lends to a function of a `DynamicLibrary`
+  proven to keep nothing ([D211](../design/decisions.md)) -- or, in `library/`, lends to a function of a `DynamicLibrary`
   the class holds, the operating system call that fills it -- never stores, returns, resizes or passes anywhere
   else -- gets a slot in the function's own frame: 256 bytes, or exactly a literal size up to 256. A larger size at run time
   still goes to the heap, and the program's text is the same either way.
@@ -429,7 +429,7 @@ yourself: there is no second way to allocate, so there is no address to keep pas
 ### Reading an address is one machine operation
 
 **What it does.** `address.read_long(16)`, `address.write_float(8, value)` and the other reads, writes and
-atomics of `Memory.Address` are primitives of the language, like `+` ([D178](decisions.md)): the
+atomics of `Memory.Address` are primitives of the language, like `+` ([D178](../design/decisions.md)): the
 compiler writes each one where it is called, as the single load, store or atomic instruction, with no call and
 no check. `copy_to` and `compare_bytes` are written the same way, as the C library's copy and comparison.
 
@@ -443,7 +443,7 @@ reads its memory this way.
 **What it does.** `var spark = Particle("spark", 1.5)` followed by `spark.memory.allocator = arena` reads as
 though it made the particle on the heap and then moved it. The compiler makes it in `arena` from the start: the
 two lines become one construction that asks the arena for the memory, with nothing allocated twice and nothing
-decided while the program runs ([D152](decisions.md), [memory.md](memory.md#choosing-an-allocator-memoryallocator)).
+decided while the program runs ([D152](../design/decisions.md), [memory.md](memory.md#choosing-an-allocator-memoryallocator)).
 The same holds for `var kept = ash.copy()` followed by `kept.memory.allocator = arena`.
 
 **When.** Always, for the line right after the one that makes the object; anywhere else setting the allocator is
@@ -457,7 +457,7 @@ no other class changes. Setting `Memory.Heap()` is the default and costs nothing
 ### Singletons: made on first use, never counted
 
 **What it does.** A singleton is made the first time something asks for it, not when the program starts, so a
-program pays only for the singletons it reaches. It is never reference counted ([D142](decisions.md)):
+program pays only for the singletons it reaches. It is never reference counted ([D142](../design/decisions.md)):
 fetching one is a load from a static slot, with no count to raise or lower, so threads sharing it never contend on
 it (two threads fetching one 20 million times each took 0.8 s counted and 0.04 s not). At exit every singleton is
 destroyed in reverse creation order, its `drop()` running then, and every `DynamicLibrary` after all of them.
@@ -521,7 +521,7 @@ greeter dropped after 2 greetings
 
 **What you notice.** A singleton's constructor runs at its first use, which is only visible if it prints. A
 `drop()` that fetches a singleton made after its own (so already destroyed) halts with a message saying to keep
-that singleton in an attribute ([D141](decisions.md),
+that singleton in an attribute ([D141](../design/decisions.md),
 [classes_and_files.md](classes_and_files.md#singletons)). `--debug-memory` still names an object a program leaked,
 even one that points at a singleton. **Built** (D8, D142, D141).
 
@@ -532,7 +532,7 @@ element type), and `Build`, whose attributes are all settings folded into the pr
 never allocated, never counted, never freed. `Memory.Heap()` costs nothing, and every program allocates once
 fewer for each.
 
-**When.** Production builds only ([D143](decisions.md)). In an inspectable build -- `--repl`,
+**When.** Production builds only ([D143](../design/decisions.md)). In an inspectable build -- `--repl`,
 `--repl-port`, `--hot-reload` or `--development` -- each is an ordinary singleton: allocated at first use, one of
 its class's `.instances`, and destroyed at exit. Since it holds nothing, it may be made again if something
 destroyed after it asks for it at exit, so the order of teardown never matters for it.
@@ -590,7 +590,7 @@ thread" row; [concurrency.md](concurrency.md)).
 **What it does.** A number, `Boolean`, enum value, `Symbol` or `String` is a plain value everywhere the compiler
 can see its type. It is put in a box -- one small object, released like any other -- only where it has to travel as
 a `type` shape (a `Printable`, a `Debuggable`, an empty `type` that accepts anything) and be called through it
-([D109, D164](decisions.md)). A written text's box is part of the program and allocates nothing
+([D109, D164](../design/decisions.md)). A written text's box is part of the program and allocates nothing
 ([short text](#short-text-lives-inside-the-string)). Class instances are objects already and are never boxed.
 
 **When.** Passing a plain value where a shape is wanted, reading `attribute.value` of a number or text
@@ -608,7 +608,7 @@ row, and D164's `attribute.value`, filled only in a program that reads it).
 reads its list -- `count()`, `is_empty()`, `[index]`, `get_at`, `first`, `last`, `contains`, `join`, or
 passing it to a function of its own class that only reads it too -- the list and its items are in the caller's
 frame: no allocation for the list or its items, and its elements (the boxes above) are released after the call
-([D211](decisions.md)). A function that stores, returns, grows or passes on its list anywhere else gets a list on
+([D211](../design/decisions.md)). A function that stores, returns, grows or passes on its list anywhere else gets a list on
 the heap as before, and so does a function of a `--hot-reload` build's own classes, which can be swapped.
 
 **What you notice.** Two allocations fewer per such call under `--debug-memory`: `text_building` allocates 19 times
@@ -621,7 +621,7 @@ the heap as before, and so does a function of a `--hot-reload` build's own class
 can wait (`Program.sleep`, `Console.read_line`, `File.read`/`write`/`append`, `Socket.accept_client`/`read_line`/`read_bytes`)
 exist only in a program that makes a `Concurrent` (itself, or through [reads in a row](#reads-in-a-row-overlap)) or
 is built with `--repl-port` or `--hot-reload`. Every other program's waits are the plain system calls. Even in a program that has the scheduler, a wait with no `Concurrent` alive and
-no REPL listening makes the plain blocking call, because that is faster ([D99](decisions.md)): you
+no REPL listening makes the plain blocking call, because that is faster ([D99](../design/decisions.md)): you
 never choose between blocking and waiting, and you never see which one ran.
 
 **When.** Decided per program, from what it uses. **What you notice.** Nothing. **Built**, on compile-time state
@@ -630,7 +630,7 @@ machines ([below](#hidden-asyncawait-as-compile-time-state-machines)). [concurre
 ### Hidden async/await as compile-time state machines
 
 **What it does.** Waiting on IO is written as an ordinary call and the compiler turns it into a point where other
-work runs ([D35, D99](decisions.md)). [D176](decisions.md) asks for that to be done at
+work runs ([D35, D99](../design/decisions.md)). [D176](../design/decisions.md) asks for that to be done at
 compile time, with no stacks to switch, and that is how it is built: every function that can reach a wait from
 inside a `Concurrent` is compiled a second time as a **state machine**
 (`bootstrap/source/generation/state_machine.spite`, and the `emit_state_machines` part of the generator):
@@ -682,7 +682,7 @@ functions, no event loop and no helper threads; its waits are the plain system c
 - The compiler itself makes no `Concurrent`, so compiling it is unchanged (about 1.7 seconds either way); its own C
   grew by 161 kB, the transform's code.
 
-**Built** (2026-09-25, [D176](decisions.md)); the fibers that came before it, and each system's code
+**Built** (2026-09-25, [D176](../design/decisions.md)); the fibers that came before it, and each system's code
 for creating and switching them, are gone. Proposed by Claude, unconfirmed: the reading order above, and which
 waits fall back to running the loop in place.
 
@@ -690,7 +690,7 @@ waits fall back to running the loop in place.
 
 **What it does.** Two or more `var name = file.read()` (or `socket.read_line()`) written one after another, none
 naming a variable an earlier one declared, are started together: every read but the last becomes a `Concurrent`,
-and all of them are joined before the next statement ([D134](decisions.md),
+and all of them are joined before the next statement ([D134](../design/decisions.md),
 [concurrency.md](concurrency.md#reads-in-a-row-overlap), which has the exact shape).
 
 **When.** Every build, wherever the shape appears. A statement between two reads, a typed `var`, or a name
@@ -721,12 +721,12 @@ ask for it:
   `live_allocations()` ([Allocation is the C library's](#allocation-is-the-c-librarys-counted-only-where-read)).
 
 - `--repl-port` and `--hot-reload`: a check point at the end of every pass of every loop in the program's own
-  code ([D174](decisions.md)), so a program that never waits still answers. It is one relaxed load of a flag
-  the REPL's thread and the file watcher raise when they have something ([D211](decisions.md)); only then does
+  code ([D174](../design/decisions.md)), so a program that never waits still answers. It is one relaxed load of a flag
+  the REPL's thread and the file watcher raise when they have something ([D211](../design/decisions.md)); only then does
   the pass call `Scheduler.check_point()`. Measured on a loop of 400 000 000 passes in a `--repl-port` build: 1 566 ms
   when every pass called it, 106 ms with the flag.
 
-**When.** Only in those builds ([D143](decisions.md), [D112](decisions.md)). This is
+**When.** Only in those builds ([D143](../design/decisions.md), [D112](../design/decisions.md)). This is
 not an optimisation an inspectable build turns off: it is the inspecting itself, present only where it is asked
 for.
 **What you notice.** Nothing in an ordinary build: its C is byte for byte the same with or without the check
@@ -782,7 +782,7 @@ own.
 ### The thread pool only where a `Parallel` is made
 
 **What it does.** `ThreadPool` is a singleton made the first time a `Parallel` (or a `parallel_each_` pass) needs
-it, and it starts its worker threads then, once ([D135](decisions.md), [D191](decisions.md)).
+it, and it starts its worker threads then, once ([D135](../design/decisions.md), [D191](../design/decisions.md)).
 A program that never makes one starts no thread and allocates nothing for it; its functions are tree-shaken with
 the rest. `ThreadLocal` asks the system for its per-thread slot only when one is made, and `Lock` likewise;
 its `get()` never locks, and only a thread's `set` does
@@ -795,12 +795,12 @@ its `get()` never locks, and only a thread's `set` does
 
 **What it does.** In a program that makes a `Parallel`, every singleton of the program's own that can change after
 it is made gets a lock of its own, taken around every one of its functions that touches what can change
-([D183](decisions.md); which functions, below).
+([D183](../design/decisions.md); which functions, below).
 It can change when one of its functions assigns one of its attributes outside its constructor, when code in
 another class assigns one (`registry.last = name`), or when it holds a list, a dictionary, a function value, or an
 object of a class that can change -- an object whose class never assigns its attributes after its constructor,
 and holds nothing that can change either, is as read-only as a number, so a `Rules` holding a `Limits` made once
-takes no lock. This is the fallback of [D184](decisions.md): the compiler takes it only when none of
+takes no lock. This is the fallback of [D184](../design/decisions.md): the compiler takes it only when none of
 the cheaper forms in the next section is proven safe for that singleton. The check that its functions hand out
 nothing they own is not built.
 
@@ -835,10 +835,10 @@ How the lock is kept cheap:
   (`var last = registry.last`) takes it too, around the one load (and the count of what it reads), since D211.
 - **A singleton is never counted.** Fetching one (`var registry = Registry()` in a function) is one load, and
   letting go of it is nothing: a singleton's retain and release compile to nothing
-  ([D142](decisions.md)), in generic singletons too.
+  ([D142](../design/decisions.md)), in generic singletons too.
 
 **When.** Only in programs that make a `Parallel`, run a `parallel_each_` pass or make a `ForeignCallback` (C may
-call one from a thread of its own, [D234](decisions.md)), and only for a singleton that such a thread can reach; in any other program a write from another class is a plain store. **What you notice.** An
+call one from a thread of its own, [D234](../design/decisions.md)), and only for a singleton that such a thread can reach; in any other program a write from another class is a plain store. **What you notice.** An
 uncontended lock per call to such a singleton (two atomic operations), and waiting when two threads call it at
 once. `conformance/stage6/singleton_lock_calls` holds these points from its C in `check.sh`: `Registry` is
 locked, pads its lock, calls itself unlocked and locks the write `registry.last = ...` and the read of
@@ -851,7 +851,7 @@ touches no changing state 2026-09-26, proposed by Claude, unconfirmed).
 
 **What it does.** For each singleton of the program's own that can change after it is made, the compiler picks
 the cheapest form that is as safe as the lock, from what that singleton's functions actually do
-([D184](decisions.md)). You write nothing; the source is the same in every form. Three forms are
+([D184](../design/decisions.md)). You write nothing; the source is the same in every form. Three forms are
 built, tried in this order:
 
 1. **Nothing, because no `Parallel` reaches it.** The compiler walks the program's calls from every function a
@@ -890,7 +890,7 @@ all.
 **What you notice.** Nothing in what a program prints or computes, and no waiting on a counter two threads bump at
 once. What a lock gave and these forms keep: each function of the singleton is still one indivisible step. A
 singleton whose attribute another class assigns is locked instead (its write takes the lock, above); reading a
-singleton's attribute directly from another class takes the singleton's form too ([D211](decisions.md)): in a
+singleton's attribute directly from another class takes the singleton's form too ([D211](../design/decisions.md)): in a
 program where a `Parallel` reaches it, `registry.last` read from another class takes its lock, an atomic
 counter's attribute is read with one atomic load, and a singleton that never changes is read plainly. `counter.hits
 = counter.hits + 1` from outside is still a read and a write, two steps. **Built** (2026-09-25; proposed by
@@ -902,7 +902,7 @@ Claude, unconfirmed: which forms, their order, and the one-touch rule; the reads
 counts every task from the moment it is handed out until it has run (`spite_tasks_in_flight`, one add and one
 subtract per task), and when the count is zero -- before the first `Parallel`, after the last one has been read,
 between an engine's stages -- only the program's own thread runs the program, so the function runs without the
-lock ([D267](decisions.md); proposed by Claude, unconfirmed). It notes on a small stack of its thread's that it
+lock ([D267](../design/decisions.md); proposed by Claude, unconfirmed). It notes on a small stack of its thread's that it
 skipped this singleton's lock, and if it starts a task itself before it returns, the pool takes every lock the
 thread skipped before the task is counted, and the function lets it go when it returns: so the task finds the
 singleton locked exactly as it would have, and nothing it can see differs.
@@ -932,7 +932,7 @@ a `memcpy` in the machine code today, and what is left is its allocation (about 
 no longer takes the lock itself. It takes the readers' side: it adds one to a count of its own thread's (one of 32
 counts, each on a cache line of its own), checks that no function that writes holds the lock, reads, and takes the
 one away. A function that writes takes the lock as before and then waits until every count is zero, so it never
-runs beside a reader, and readers never run beside it ([D266](decisions.md); proposed by Claude, unconfirmed). Readers
+runs beside a reader, and readers never run beside it ([D266](../design/decisions.md); proposed by Claude, unconfirmed). Readers
 on different threads touch no line in common, so eight systems reading one column per row no longer hand a cache
 line from core to core on every call.
 
@@ -968,7 +968,7 @@ singleton's state whole, never half-way through a write. **Built** (2026-09-26).
 **What it does.** A `while` that calls functions of one locked singleton many times -- a worker removing rows through
 `columns.remove_row(entity)`, a system adding to a tally -- takes that singleton's lock once around the whole loop
 and calls the functions' unlocked bodies inside it, instead of taking and letting go of the lock on every call
-([D265](decisions.md); proposed by Claude, unconfirmed). One of those per call is two atomic operations when no
+([D265](../design/decisions.md); proposed by Claude, unconfirmed). One of those per call is two atomic operations when no
 other thread wants the lock, and when other threads do, every call hands the lock's cache line from core to core.
 
 **When.** In a program that makes a `Parallel`, for a `while` in any class but the singleton itself when all of this
@@ -1006,7 +1006,7 @@ count go when the callee returns: two atomic operations on the object's header i
 the argument is a name the caller already holds for the whole call -- one of its own parameters, or a local it
 owns -- the count adds nothing: nothing the call runs can reassign the caller's name. So the call goes to a copy of
 the function, `<name>___held_<positions>`, in which those parameters are not released at its end, and the caller
-passes them as they are ([D270](decisions.md)). SlopEngine's `run_positions(..., rows)` calling
+passes them as they are ([D270](../design/decisions.md)). SlopEngine's `run_positions(..., rows)` calling
 `matcher.match_into(entity, rows)`, which hands `found` on to `find_row(index, entity, found)` for every column,
 counts nothing per entity now: each is a `___held_` copy passing its own parameter on to the next.
 
@@ -1028,11 +1028,11 @@ over). **Built** (2026-09-28; proposed by Claude, unconfirmed).
 
 **What it does.** Reading an attribute of a singleton from another class -- `Column<Heat>().values[place]`,
 `column.values.count()` -- counted the attribute's object for the expression and, in a program where a `Parallel`
-reaches the singleton, took its lock or readers' side around the read ([D211](decisions.md)). When the attribute
+reaches the singleton, took its lock or readers' side around the read ([D211](../design/decisions.md)). When the attribute
 holds an object (a class, list or dictionary, not text or a number) that nothing assigns after the singleton is
 made -- no function of the singleton outside its constructor and no other class assigns it -- the object stays the
 singleton's for the rest of the program, so the read is the attribute's address: no count and no lock
-([D271](decisions.md)). What is then done with the object is unchanged: a call on it takes whatever that object's
+([D271](../design/decisions.md)). What is then done with the object is unchanged: a call on it takes whatever that object's
 functions take, and keeping it in a name or an attribute counts it there. This also takes the lock out of a loop
 that only reads through such an attribute, since there is none left to hoist.
 
@@ -1051,7 +1051,7 @@ Two readings of the call effects became more exact on the way, since both proofs
 call to a template of the same class (`fill_attributes(row, found)`, `run_phases_each()`) is now followed into its
 template, so what the template's lines call -- a reference column's `at` -- counts as reached from the caller, from
 a `Parallel` included; before, it was reached by nothing, so such a column could take no lock at all while pool
-work called it (a bug under [D244](decisions.md)). And an attribute read through a `type`
+work called it (a bug under [D244](../design/decisions.md)). And an attribute read through a `type`
 (`moving.trail.lefts.append(...)`) is known to be the class the `type` declares for it, and assigning an attribute
 that holds a plain value in every class of the program (`moving.position.left = ...`) lets go of nothing, so a
 system writing its components' numbers no longer counts as letting go of objects.
@@ -1059,9 +1059,9 @@ system writing its components' numbers no longer counts as letting go of objects
 ### The fault handler is in every program
 
 **What it is.** The one piece of C nothing tree-shakes: a program can meet a native fault -- a null read inside a
-foreign library, a stack overflow -- whatever it uses, and [D244](decisions.md) makes a silent end a bug, so every
+foreign library, a stack overflow -- whatever it uses, and [D244](../design/decisions.md) makes a silent end a bug, so every
 program installs a handler that reports it ([failure.md](failure.md#what-a-native-fault-reports)). It is fixed
-code, not a runtime system ([D177](decisions.md)): nothing runs until a fault, and it is written once, after every
+code, not a runtime system ([D177](../design/decisions.md)): nothing runs until a fault, and it is written once, after every
 other function, from what tree shaking kept.
 
 **What it costs**, measured on x64 Windows with the C compiler `check.sh` uses:
@@ -1079,7 +1079,7 @@ other function, from what tree shaking kept.
 - **One store per foreign call**: each call writes a pointer to a fixed text, naming what it calls and from where,
   into a thread-local before it goes in, in every build. A loop of 300 000 000 calls into a one-line C function
   measured 1.33 ns a call with the store and 1.33 ns without (thread-local or not; best of seven runs each), so it
-  is not kept to inspectable builds ([D214](decisions.md)).
+  is not kept to inspectable builds ([D214](../design/decisions.md)).
 - **Frame pointers**, which the stack walk needs on Linux and macOS, are kept only where they are free or asked
   for: a build without `--optimized` has them anyway, and an inspectable build is compiled with
   `-fno-omit-frame-pointer` there. The compiler compiling itself at `-O2` took 1 847-1 879 ms without them and
@@ -1096,7 +1096,7 @@ kilobytes larger. **Built.**
 
 **What it is.** A symbol whose text is 15 bytes or fewer is written into the symbol table as an inline `String`
 -- its bytes inside the 16-byte value, the form any short text built at run time takes -- rather than as a pointer
-to constant text ([D70](decisions.md)). Reading its bytes follows no pointer, and the executable holds no separate
+to constant text ([D70](../design/decisions.md)). Reading its bytes follows no pointer, and the executable holds no separate
 copy of the text.
 
 **When it applies.** Every symbol literal and every reflection name of 15 bytes or fewer, in every build. Longer
@@ -1108,7 +1108,7 @@ shows it: `static SpiteString spite_symbol_4 = { (int64_t)0x00000065756c6176ULL,
 ### Crash text out of the binary
 
 **What it is.** A `crash` or `assert` site's condition text lives only in the `<output>.crashes` map written
-beside the executable ([D32](decisions.md), [D297](decisions.md)): no build writes it into the program. An
+beside the executable ([D32](../design/decisions.md), [D297](../design/decisions.md)): no build writes it into the program. An
 `--optimized` build also leaves out each site's place, class and function, so a site is its 8-digit id and the
 values its report prints; other builds keep the place, so a local run needs no lookup.
 
@@ -1123,35 +1123,35 @@ and `spite.assert<TAB>id` in an optimised build, and `grep <id> program.crashes`
 All **built**, and none of them needs anything from you:
 
 - `join` writes every piece once into one buffer instead of copying the text so far at each step.
-- Converting text to text, in `join` on a `List<String>`, is folded away ([D58](decisions.md)).
+- Converting text to text, in `join` on a `List<String>`, is folded away ([D58](../design/decisions.md)).
 - A `T?` of a class, list or text is the reference itself, with `null` as the absent case: no wrapper object.
 - A generic singleton has one static slot per set of codegen values, so `Column<Health>()` is found without any
   lookup.
 - A function passed to a template by name, `names.each(say_hello)` or `people.map(greeter.label)`, is not made into
   a function value: the template is written once for that function and its owner, so the call allocates nothing
-  and calls it directly ([D148](decisions.md),
+  and calls it directly ([D148](../design/decisions.md),
   [collections.md](collections.md#passing-a-function-for-each-element)). Only a function held in a variable is
   called through its `Spite.Function`.
 - An `assert` in `library/` writes nothing into the crash trace, decided when compiling, so a library guard costs
-  what an `if` costs ([D189](decisions.md)). What you notice: a crash report lists only the failed
+  what an `if` costs ([D189](../design/decisions.md)). What you notice: a crash report lists only the failed
   asserts of the program and its `load`-ed packages ([failure.md](failure.md#what-a-crash-reports)).
 - A program with no `crash` left after tree shaking writes nothing into the crash trace at all: the trace exists
   only to be printed by a crash, so each `assert` of such a program compiles to its test and its `return`, and
-  the trace's 32 entries are not in the program ([D177](decisions.md)). A program that can crash records
+  the trace's 32 entries are not in the program ([D177](../design/decisions.md)). A program that can crash records
   exactly as before.
 - An attribute written through a local or a parameter, `item.index = 293`, is written through that local,
   `(item_)->index_ = 293;`, with no temporary holding the reference first: a local cannot change while the value
   is worked out. An object that is any other expression is still evaluated once into a temporary. Nothing a
   program can observe changes; the C is shorter, by about one line in twenty for a folder of data records.
 - A foreign library is closed at exit only if the function that opens it is in the program, so a library nothing
-  opens leaves neither its handle nor the code to close it in the program ([D177](decisions.md)). `Console` still
+  opens leaves neither its handle nor the code to close it in the program ([D177](../design/decisions.md)). `Console` still
   opens the C library when it is made, since D144 binds its `DynamicLibrary` as an attribute: a program that only
   prints opens it too.
 
 ### Proofs that survive a call
 
 **Built.** A proof -- `assert target`, `crash list[index]`, a bound in a `while` -- lets the reads after it skip
-the null test and the narrowing ([D169](decisions.md)). A call between the proof and the read keeps
+the null test and the narrowing ([D169](../design/decisions.md)). A call between the proof and the read keeps
 it unless the compiler, following the called function and what it calls, finds that the call may assign an
 attribute the proof reads through or shrink a list it reads; so no check is repeated after a call that provably
 cannot, and no `const` keyword is needed. To know which function a call reaches, it reads the class of the value
@@ -1208,7 +1208,7 @@ by Claude, unconfirmed; `Spite.Function` and `Spite.Attribute` since the third s
 
 ### A function value describes its arguments when asked
 
-**What it does.** A function value is its own reflection object ([D39](decisions.md)), with `.arguments`, a list of
+**What it does.** A function value is its own reflection object ([D39](../design/decisions.md)), with `.arguments`, a list of
 `Spite.Argument`s. That list used to be filled when the value was made -- two objects per argument, and each
 argument's class -- though almost no program reads it. Now the value carries a pointer to a function the compiler
 wrote for it, and `.arguments` fills the list the first time it is read (under a lock in a program with threads,
@@ -1261,7 +1261,7 @@ frame and copied from there: the same digits the library's `to_string()` writes,
 reopens `Integer` or `Long` with a `to_string()` of its own keeps calling it.
 
 **When.** Every build, for whole numbers of those two classes. A number cast to text on its own (`var key: String =
-index`, [D223](decisions.md)) still makes one text, since that text is the result.
+index`, [D223](../design/decisions.md)) still makes one text, since that text is the result.
 
 **What you notice.** Fewer allocations: `conformance/stage6/text_building` went from 39 to 35, and
 `benchmarks/text_building` from 5 500 225 to 800 267. **Built** (2026-09-25; proposed by Claude, unconfirmed).
@@ -1279,7 +1279,7 @@ that reads either pays for both: a usable-size lookup and an atomic add per allo
 through its allocation table instead, and only that build's C has the table.
 
 **When.** Every build but `--debug-memory`. An inspectable build (`--development`, `--hot-reload`, `--repl`) is
-not shaken, so it counts ([D143](decisions.md)).
+not shaken, so it counts ([D143](../design/decisions.md)).
 
 **What you notice.** Nothing: `live_allocations()` answers the same wherever it is called. `examples/hello`'s C
 went from 1 356 lines to 762 with this, the crash trace and the foreign library changes in
@@ -1389,7 +1389,7 @@ the end of the row's block. **What you notice.** No allocation per row for a fra
 registered with `--debug-memory`'s table, like the row itself, and is not in `.instances`. **Built** (2026-09-26;
 proposed by Claude, unconfirmed).
 
-**A reference column's element is lent to the row** ([D269](decisions.md)). When that counted attribute is the
+**A reference column's element is lent to the row** ([D269](../design/decisions.md)). When that counted attribute is the
 result of a function that only returns an element of its singleton's `List` -- a reference column's `at(row)`,
 `crash references[row]` then `return references[row]` (D225 makes the read a `T?`, so the `crash` is needed), with a whole-number
 parameter as the index and a list attribute that nothing assigns after the singleton is made -- and nothing the
@@ -1402,7 +1402,7 @@ nor anything they call, may let go of an object, remove from or replace into a l
 value (the proof of [a list's templates](#a-lists-templates-read-its-elements-without-counting-them), stricter);
 no class of the program whose objects can be let go while it runs may have a `drop()` that reaches the column. In
 a program with threads the element is also kept from other threads' writes for the rest of the block: the block
-takes the column's readers' side ([D266](decisions.md)) or its lock once, where a call would have taken it once
+takes the column's readers' side ([D266](../design/decisions.md)) or its lock once, where a call would have taken it once
 anyway, and only when what the block runs reaches no singleton at all and waits for nothing (the conditions of
 [a counted loop](#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once)), so holding it cannot deadlock;
 otherwise the row calls the ordinary function and counts the element, as before. Which of the three it is is
@@ -1490,7 +1490,7 @@ where a proof already bounds the operands, as a proven divisor leaves out its ze
 **What it does.** A `String` is sixteen bytes wherever it is kept -- a local, an attribute, a list's element, a
 parameter -- and text of up to 15 bytes of UTF-8 is kept in those sixteen bytes themselves: no allocation, no
 reference count, and no pointer to follow to read it, so a name in a component column is read where the column
-already is in the CPU cache ([D203](decisions.md)). Longer text is one block on the heap -- its count, its capacity
+already is in the CPU cache ([D203](../design/decisions.md)). Longer text is one block on the heap -- its count, its capacity
 and its characters, with a 0 after them for C -- that the sixteen bytes point at, next to the length; it used to be
 two, the `String` object and its characters. A written text (`"hello"`) is part of the program as before, whatever
 its length: the sixteen bytes point at it, and nothing is counted or freed.
@@ -1552,7 +1552,7 @@ only the transcendental functions can differ, by at most that last bit. **Built.
 ### A binary schema is a constant
 
 **What it does.** `BinaryWriter<T>.schema()` and `BinaryReader<T>.schema()` ([json.md](json.md#the-schema-hash),
-[D215](decisions.md)) are worked out while compiling: the compiler writes the attribute walk of `T` as text, hashes
+[D215](../design/decisions.md)) are worked out while compiling: the compiler writes the attribute walk of `T` as text, hashes
 it with FNV-1a, and the C gets a macro that is the number, with the text beside it in a comment. **When.** Every
 build, for each `T` a writer or reader is made for and whose `schema()` is called; nothing is emitted otherwise.
 **What you notice.** Nothing: no walk runs and nothing is allocated when a program asks. **Built.**
@@ -1561,7 +1561,7 @@ build, for each `T` a writer or reader is made for and whose `schema()` is calle
 
 **What it does.** `Float.bits()`, `Double.bits()`, `UnsignedInteger.bits_as_float()`, `Long.bits_as_double()` and
 `UnsignedLong.bits_as_double()` are C macros over a union of the two types
-([D215](decisions.md), [values_and_types.md](values_and_types.md#rules-in-full)): the call is written where it is made
+([D215](../design/decisions.md), [values_and_types.md](values_and_types.md#rules-in-full)): the call is written where it is made
 and the value's bits are read as the other type, with no memory written and read back and nothing allocated. Before,
 each went through a 4- or 8-byte block that the frame slot kept off the heap, so they allocated nothing then either,
 but the C held a block, a write and a read for the C compiler to see through.
@@ -1617,12 +1617,12 @@ and 256 in constant data; a bigger list is made on the heap as before.
 **What you notice.** Two allocations fewer per such list under `--debug-memory` (more for a literal of more than
 four items, which grew its buffer while it was filled): `conformance/stage6/text_building` allocates 17 times
 (19 before), `plain_items` 100 (102). The compiler has 115 such lists, 52 of them constant.
-**Built** (2026-09-26, the first part of [D222](decisions.md); proposed by Claude, unconfirmed).
+**Built** (2026-09-26, the first part of [D222](../design/decisions.md); proposed by Claude, unconfirmed).
 
 ### A loop over plain values reads its count once and its items unchecked
 
 **What it does.** A `while index < values.count()` over a `List` of numbers or `Boolean` (the only list that holds
-them since [D225](decisions.md)) -- `values` a local or a parameter named bare, not an attribute or any other expression -- is written as the plain C loop a C compiler can turn into vector instructions (SIMD), when the compiler can prove three things:
+them since [D225](../design/decisions.md)) -- `values` a local or a parameter named bare, not an attribute or any other expression -- is written as the plain C loop a C compiler can turn into vector instructions (SIMD), when the compiler can prove three things:
 
 - **The counter stays in range.** `index` is a local `Integer` (not a parameter, and not a `Long` or other
   width) whose every assignment in the function is a whole-number
@@ -1651,7 +1651,7 @@ so a body with an `assert` or `crash` is not (its crash report would be written 
 **What the C compiler then does.** An element-by-element loop (a map in place, into another list, a filter's test)
 and a whole-number sum are vectorised, which clang's `-Rpass=loop-vectorize` confirms. A `Float` or `Double`
 **sum** is not, and must not be: adding in a different order changes the last bits of the answer, and an
-optimisation may not change what a program computes ([D36](decisions.md)). The compiler adds no `restrict`, since
+optimisation may not change what a program computes ([D36](../design/decisions.md)). The compiler adds no `restrict`, since
 two names may hold the same list and the C compiler checks for overlap once, before the loop, itself; and no
 alignment claim, which nothing proves.
 
@@ -1662,13 +1662,13 @@ from.get_at(index) * 1.5 + 0.25` over two `List<Float>` 668-697 before, 181-207 
 still worked out in `double` precision in the C, as it always was, which halves the vector width: in `float` the
 two loops would take about 100 and 70 µs, but some results would change in their last bits, so that is a question
 for Mortaro and is not done (`mortaros_missing_decisions.md`, item 210). **Built** (2026-09-26, the second part of
-[D222](decisions.md); proposed by Claude, unconfirmed).
+[D222](../design/decisions.md); proposed by Claude, unconfirmed).
 
 ### A proven read tests only its bounds
 
-**What it does.** Every `[]` answers a `T?` ([D225](decisions.md)), and a read the compiler proves -- a loop bound
+**What it does.** Every `[]` answers a `T?` ([D225](../design/decisions.md)), and a read the compiler proves -- a loop bound
 `index < list.count()`, a proven count, a list literal's indices, D169's call effects, a bound past the index
-(`at + 2 < list.count()`) or a count kept in a `var` ([D277](decisions.md)) -- needs nothing written. It
+(`at + 2 < list.count()`) or a count kept in a `var` ([D277](../design/decisions.md)) -- needs nothing written. It
 also costs no presence test of the `T?`: the compiler reads the element through the collection's `get_at` and takes
 the value directly, with one branch the C compiler is told is never taken, which halts naming the read if the index
 was outside the list after all (a bound proves only the top of an index, so a counter that went negative is
@@ -1686,7 +1686,7 @@ proposed by Claude, unconfirmed).
 
 ### A walked `crash` line's read is the row's read
 
-**What it does.** Every `[]` answers a `T?` ([D225](decisions.md)), so a walked row's template states each read with
+**What it does.** Every `[]` answers a `T?` ([D225](../design/decisions.md)), so a walked row's template states each read with
 a `crash` line before the fill ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call)): `var stored_row =
 rows[attribute.index]`, `crash Column<attribute.class>().values[stored_row]`, then `row.attributes[attribute] =
 Column<attribute.class>().values[stored_row]`. Written out plainly that would read each item twice --
@@ -1707,10 +1707,10 @@ unconfirmed).
 
 ### Objects that never leave their function live in the frame
 
-**What it does.** Every class is passed by reference ([D149](decisions.md)), so `var moved = position +
+**What it does.** Every class is passed by reference ([D149](../design/decisions.md)), so `var moved = position +
 velocity.scaled(delta)` reads as two new objects. When the compiler can prove an object never outlives the call
 that made it, it is not made on the heap at all: it gets a slot in the function's own frame, the way a buffer
-([D108](decisions.md), [D211](decisions.md)) and a list ([D222](decisions.md)) already do. Four places use it:
+([D108](../design/decisions.md), [D211](../design/decisions.md)) and a list ([D222](../design/decisions.md)) already do. Four places use it:
 
 - **A local.** `var name = <a fresh object>` gets a frame slot when nothing after it in its block lets the object
   go: it is only read and written through its attributes, handed as the receiver or as an argument to functions
@@ -1724,7 +1724,7 @@ that made it, it is not made on the heap at all: it gets a slot in the function'
   in a text's hole other than as `{name.attribute}`.
 - **A result, into the caller's slot.** A function whose every `return` gives a fresh object -- `return
   Vector3(...)`, a local that lives in the frame, or another such call -- gets a second, hidden version that writes
-  its answer into a slot its caller passes, a calling convention chosen per call site ([D36](decisions.md): both
+  its answer into a slot its caller passes, a calling convention chosen per call site ([D36](../design/decisions.md): both
   versions may exist, and neither is visible). So `var moved = velocity.scaled(delta)`, whose `moved` stays in the
   frame, calls the hidden version with `moved`'s slot, and nothing is allocated. `Matrix4.multiply`, which builds
   its product in a local and returns it, becomes the same.
@@ -1739,7 +1739,7 @@ that made it, it is not made on the heap at all: it gets a slot in the function'
   `conformance/stage6/frame_objects` pins it: two such copies change `heap.live_allocations()` by 0 (by 2 before).
 
 **Which objects.** An instance of a class whose attributes are all numbers, `Boolean`s, enum values or singletons
-([D144](decisions.md) binds a singleton as an attribute, and it is never counted) -- `Vector3`, `Matrix4`,
+([D144](../design/decisions.md) binds a singleton as an attribute, and it is never counted) -- `Vector3`, `Matrix4`,
 `Quaternion`, a program's own `Velocity`, SlopEngine's `Math.Matrix4` -- with no `drop()`, that is not a singleton and whose
 constructor keeps nothing, and whose class is not read with `.instances` anywhere in the program. What "keeps
 nothing" means is proven from the source of each function, parameter by parameter and for the object it is called
@@ -1773,7 +1773,7 @@ rest (2 098 allocations before, 86 after). A frame object passed by name to a pr
 that parameter is not counted at all: the call goes to the function's `___held_` copy
 ([below](#an-argument-its-caller-holds-is-passed-without-counting), D270). Passed anywhere else -- a library
 function, one that assigns the parameter, an inspectable or resumable build -- it is counted up and down as any
-object is (atomically in a program that starts threads), and the count is never read. **Built** (2026-09-26, extending D108/D211 placement to objects under [D149](decisions.md);
+object is (atomically in a program that starts threads), and the count is never read. **Built** (2026-09-26, extending D108/D211 placement to objects under [D149](../design/decisions.md);
 proposed by Claude, unconfirmed, decided under D205/D214).
 
 ### The C is compiled in parallel units, and cached
@@ -1804,8 +1804,8 @@ Decided by Mortaro, not built yet. When one is built, it moves up to **Built** i
 ### Thread safety for singletons, the rest of the plan
 
 A singleton reached from a `Parallel` is made thread-safe by the compiler, with no keyword
-([D183](decisions.md)), and the compiler picks the cheapest form that is safe for what that singleton's
-functions actually do ([D184](decisions.md)). Built (above): nothing for read-only state or a
+([D183](../design/decisions.md)), and the compiler picks the cheapest form that is safe for what that singleton's
+functions actually do ([D184](../design/decisions.md)). Built (above): nothing for read-only state or a
 singleton no `Parallel` reaches, atomics for counters and flags, the lock as the fallback, and its readers' side
 for functions that only read (D266). Not built yet: state
 that is only appended to (a log, a command queue) gets a buffer per thread merged in order; state each thread
@@ -1817,7 +1817,7 @@ You will write nothing.
 ### Copies that cost nothing
 
 Every class is passed by reference and `copy()` gives an independent one; that is the whole API, and the compiler
-optimises behind it ([D149](decisions.md)): a copy used only once is passed by value instead of
+optimises behind it ([D149](../design/decisions.md)): a copy used only once is passed by value instead of
 allocated; a copy that is never changed shares the original, when that is cheaper; an object that never escapes
 its function is laid out inline or in registers; and reference counting is left out wherever ownership is
 provable. You keep writing `copy()` where you mean an independent object. (D152's allocator set right after
@@ -1830,7 +1830,7 @@ callee never assigns the parameter, D270.)
 
 ### Identical functions are folded into one
 
-[D296](decisions.md) (decided by Mortaro, 2026-09-30): two versions of one dependency are two different libraries
+[D296](../design/decisions.md) (decided by Mortaro, 2026-09-30): two versions of one dependency are two different libraries
 ([packages.md](packages.md#two-versions-of-one-repository)), and what that duplicates must cost nothing. So the
 compiler folds every generated C function whose code is exactly identical to another's into one: the same
 statements over the same types, once the function's own name and the names of the functions it calls (themselves
@@ -1854,7 +1854,7 @@ folded first) are set aside. Every call and every function value then goes to th
 
 ### Other planned optimisations
 
-- **A list's buffer in its list's allocator** ([D154](decisions.md)): a `List` given an allocator is made there,
+- **A list's buffer in its list's allocator** ([D154](../design/decisions.md)): a `List` given an allocator is made there,
   but its buffer of references still comes from the heap, and so does a `Vector<T>`'s block of items
   ([memory.md](memory.md#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-a-vectors-block-planned)).
 - **An appended item made in place**: `var slow = Velocity(1.0, 0.5)` and then `velocities.append(slow)` makes an
@@ -1862,12 +1862,12 @@ folded first) are set aside. Every call and every function value then goes to th
   allocates once per item for a moment ([collections.md](collections.md#vectort--implemented)). Writing the
   constructor's attributes straight into the block, when the object is used for nothing else, would make filling
   it allocate only when the block grows.
-- **A build report of what could not be optimised** ([D36](decisions.md)): not "400 copies elided"
+- **A build report of what could not be optimised** ([D36](../design/decisions.md)): not "400 copies elided"
   but "3 copies could not be elided, and the callee that writes the field", so every line is actionable.
 
 ## Adding one
 
 Every optimisation the compiler starts making on its own is added to this page in the same change, with what it
-does, when, whether it is built, and anything a user could observe ([D185](decisions.md),
-[D102](decisions.md)). An optimisation with a cost that cannot be removed says so here; one that
+does, when, whether it is built, and anything a user could observe ([D185](../design/decisions.md),
+[D102](../design/decisions.md)). An optimisation with a cost that cannot be removed says so here; one that
 contradicts the rules on another page is recorded in `mortaros_missing_decisions.md` for Mortaro.

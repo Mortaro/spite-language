@@ -10,8 +10,8 @@ no garbage collector and no pause.
 
 What that costs while the program runs is a count in every object and one addition or subtraction each time a
 reference is kept or let go -- plain arithmetic, atomic only in a program that starts a thread -- and nothing
-else: no collector, no runtime to ship ([D177](decisions.md)). A singleton is not counted at all
-([D142](decisions.md)), and a number, a `Boolean` or an enum value is never an object.
+else: no collector, no runtime to ship ([D177](../design/decisions.md)). A singleton is not counted at all
+([D142](../design/decisions.md)), and a number, a `Boolean` or an enum value is never an object.
 
 ## Do: know that sharing is visible
 
@@ -84,7 +84,7 @@ function value, or past a line that may grow or shrink the vector -- and each of
 which makes an independent object ([the rules](#borrowed-items-of-a-vectort--implemented)).
 
 Only a class is lent: numbers, `Boolean`s and enums are kept in a `List`, never a `Vector`
-([D225](decisions.md)), and reading one gives a number of its own. `velocities[index]`, like every `[]`, answers a
+([D225](../design/decisions.md)), and reading one gives a number of its own. `velocities[index]`, like every `[]`, answers a
 `T?`, so an item is lent once the read is narrowed -- by `crash velocities[index]`, or by a proof such as the loop
 bound `index < velocities.count()`.
 
@@ -92,7 +92,7 @@ bound `index < velocities.count()`.
 
 An engine keeps each component in its own `Vector` and hands a system one entity's components at a time. The
 row is an object literal of borrowed items, and the system takes it as a `type`
-([D206](decisions.md)):
+([D206](../design/decisions.md)):
 
 ```gdscript title=vector_row_doc/position.spite
 var left = 0.0
@@ -147,7 +147,7 @@ not append to or remove from a vector the row borrows from, directly or through 
 
 A generic runner does not know the attributes of the `type` it is given, so it cannot write the literal. It fills
 the row with a `Symbol` walk instead, and a local of the `type` declared `= null` and filled by the walk on the
-next line is a row exactly like the literal ([D212](decisions.md)):
+next line is a row exactly like the literal ([D212](../design/decisions.md)):
 
 ```gdscript title=walked_row_doc/position.spite
 var left = 0.0
@@ -220,7 +220,7 @@ func WalkedRowDoc() {
 5
 ```
 
-Every `[]` answers a `T?` ([D225](decisions.md)) and a row's attributes are items, so the template states each
+Every `[]` answers a `T?` ([D225](../design/decisions.md)) and a row's attributes are items, so the template states each
 read with a `crash` line before the fill: nothing the walk knows proves that `index` is inside each column. The
 compiler writes the walk out where it is called: for `Runner<Moving>` the two lines become `crash
 columns.position[index]`, `crash columns.velocity[index]` and `var row: Moving = {position:
@@ -232,11 +232,11 @@ An engine that adds and removes components all the time keeps each one in a **sp
 `Column<Position>` whose `Vector` is packed, so each entity sits at a different place in each column. The runner
 works out those places first, one per attribute, and the walk's line reads each attribute from its own column at
 its own place: `Column<attribute.class>().values[stored_row]`, after `var stored_row = found[attribute.index]`,
-where `attribute.index` is the attribute's place in the `type` ([D217](decisions.md)), with one `crash` line for the
+where `attribute.index` is the attribute's place in the `type` ([D217](../design/decisions.md)), with one `crash` line for the
 place and one for the item (an index never holds another `[]` read, D285).
 A generic singleton made with no arguments is the same object every time, so `Column<Position>()` starts a path
 that `crash` narrows like a name. The places are numbers in a `List`, so they may come from any `List<Integer>`
--- the runner's own, or another object's, `fill_attributes(row, matcher.rows)` ([D221](decisions.md)). A class that cannot be a `Vector` item stays a reference
+-- the runner's own, or another object's, `fill_attributes(row, matcher.rows)` ([D221](../design/decisions.md)). A class that cannot be a `Vector` item stays a reference
 in a `List`, `attribute.class.fits_vector()` choosing while compiling, and the row may hold it beside the borrowed
 items, as it may hold an `Entity` made from the id:
 
@@ -412,7 +412,7 @@ borrowed, so only their vectors are checked for a resize during the call.
 
 Two column classes, and a choice in every line that reaches them, are only there because a `Vector<Trail>` cannot
 be made. An [`Items<T>`](collections.md#itemst-the-storage-chosen-for-you) makes that choice itself, inline when
-the class fits and by reference when it does not ([D218](decisions.md)), so one `Column<$component_type>` holding
+the class fits and by reference when it does not ([D218](../design/decisions.md)), so one `Column<$component_type>` holding
 `var values = Items<$component_type>()` serves every component, and the fill template needs no `fits_vector()`:
 
 ```gdscript
@@ -442,7 +442,7 @@ The template's line is the walked row's line, read per argument: `argument.index
 `Column<argument.class>().values[stored_row]`, after `var stored_row = rows[argument.index]`, is that component's
 item. The plural stands for exactly
 one call the compiler writes, so its results may be borrowed items for that call and no longer
-([D220](decisions.md)):
+([D220](../design/decisions.md)):
 
 ```gdscript title=lent_arguments_doc/position.spite
 var left = 0.0
@@ -528,7 +528,7 @@ The template may also fill a whole walked row for an argument that is a `type`
 
 A singleton lives until the program ends, so an item of its `Items` or `Vector` can be handed to a caller: a
 function that returns `column.values[row]`, read straight from a singleton's storage, **lends** the stored item,
-and the caller writes it in place ([D230](decisions.md)):
+and the caller writes it in place ([D230](../design/decisions.md)):
 
 ```gdscript title=lent_result_doc/column.spite
 singleton
@@ -583,7 +583,7 @@ parameters folded first, so one `of` may lend a fitting class's item and hand ba
 A borrowed item -- a name read from a `Vector` or `Items`, `velocities[index]` itself, a row's attribute, an item
 lent to the caller -- may be passed as an ordinary argument. It is **lent for the call**: the function reads and
 writes the caller's own item and may lend it on to the functions it calls, and when the call returns the borrow is
-the caller's again ([D257](decisions.md)):
+the caller's again ([D257](../design/decisions.md)):
 
 ```gdscript title=lent_call_doc/mouse.spite
 var left = 0
@@ -718,7 +718,7 @@ total 6
 ## Cycles leak
 
 Two objects that hold each other, directly or through several hops, keep each other's count above zero, so
-neither is ever freed. The back reference is written with `Weak<T>` instead ([D197](decisions.md)): it holds a
+neither is ever freed. The back reference is written with `Weak<T>` instead ([D197](../design/decisions.md)): it holds a
 `T` without counting it, and `get()` answers a `T?` that is `null` once the object is freed, so the usual
 narrowing does the rest. A parent that owns its children and a child that knows its parent is the common case:
 
@@ -778,14 +778,14 @@ the heap held. The table exists only in a `--debug-memory` build ([what it recor
 ## `Memory` is the floor, and you can build on it
 
 Memory is its own namespace, because it is the most basic thing a program has and the most dangerous
-([D151](decisions.md)). It holds two kinds of class:
+([D151](../design/decisions.md)). It holds two kinds of class:
 
 - **`Memory.Address` is a place in memory** (`library/memory/address.spite`). It is a number, eight bytes, kept
   in a register like a `Long` and cast to and from one by the ordinary casting rule, so `address + 16` is the
   address sixteen bytes on. What makes it an address is what it answers: `read_long(offset)`,
   `write_float(offset, value)` and the rest read and write the value at `address + offset`.
 - **An allocator is who owns memory**: `Memory.Heap()` is the one every object uses unless told otherwise
-  ([D152](decisions.md)). It hands out addresses and takes them back; `Memory.Arena` is another
+  ([D152](../design/decisions.md)). It hands out addresses and takes them back; `Memory.Arena` is another
   ([below](#choosing-an-allocator-memoryallocator)).
 
 Every type in the standard library is Spite over these two: `String`, `List<T>` and `Dictionary<T>` keep their
@@ -806,7 +806,7 @@ var _length: Long = 0
 
 Sixteen bytes, kept wherever the `String` is -- in a local, an attribute, a list's element -- and never an object
 of their own. `_bytes` is where its characters are, with a 0 after the last one for C, and `_length` is how many
-there are. Where the characters live is the compiler's choice ([D203](decisions.md)): text of up to 15 bytes is
+there are. Where the characters live is the compiler's choice ([D203](../design/decisions.md)): text of up to 15 bytes is
 kept in those sixteen bytes themselves, so it allocates nothing and is never counted; longer text is one block the
 heap hands out, with its reference count and capacity in front of the characters; and a written text (`"hello"`)
 points at the characters the program already carries, which are never counted or freed. Everything else is Spite
@@ -965,7 +965,7 @@ constant 5 true
 ### Choosing an allocator: `.memory.allocator`
 
 Every object is made on `Memory.Heap` unless its program says otherwise, and it says so on the line right after
-the object is made ([D152](decisions.md)):
+the object is made ([D152](../design/decisions.md)):
 
 ```gdscript
 var spark = Particle("spark", 1.5)
@@ -982,11 +982,11 @@ an arena holds the arena, so the arena cannot go while anything made in it is al
 - **Only right after it is made.** A constructor, `List<T>()` or `.copy()` on one line, and the allocator on the
   next. To move an object that was already used, copy it and set the copy's allocator, as `kept` does below.
 - **Only an object.** A number or a `String` is placed by the compiler, not by an allocator.
-- **A list holds references** ([D154](decisions.md)): giving a `List` an allocator places the list itself there,
+- **A list holds references** ([D154](../design/decisions.md)): giving a `List` an allocator places the list itself there,
   and each element lives wherever it was made. A `Vector` holds its items inline
   ([collections.md](collections.md#vectort-items-inline)); giving one an allocator places the vector object, and
   its block of items stays on the heap for now.
-- **It costs nothing where it is not used** ([D177](decisions.md)): only a class some line gives an allocator
+- **It costs nothing where it is not used** ([D177](../design/decisions.md)): only a class some line gives an allocator
   grows, by sixteen bytes per object.
 
 The exact rules, the errors and what is not built yet are in
@@ -1032,9 +1032,9 @@ The one heap allocation is the arena's first block; both particles are inside it
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Memory  **[implemented]**
 
@@ -1049,7 +1049,7 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
   an element being removed from a container releases it (drops the count). When a release brings the count to
   zero: the class's own `drop()` function runs first, if it declared one, then every attribute that itself needs
   releasing is released, then the object is freed. A singleton is never counted: fetching and letting go of one
-  does nothing, and it is destroyed at exit ([D142](decisions.md),
+  does nothing, and it is destroyed at exit ([D142](../design/decisions.md),
   [classes_and_files.md](classes_and_files.md#singletons)).
 - **Run-time cost (D177).** A count in every object's header and one addition or subtraction per retain and
   release. The counts are atomic only in a program that can share an object between threads (one that makes a
@@ -1062,10 +1062,10 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
 - **Identity vs equality.** `==` on two class instances calls `equals` if the class defines one ([Operators](functions_and_operators.md#operators--implemented));
   otherwise it compares **identity** -- are these two references the same object.
   A union compares identity the same way. A comparison releases whatever operand it produced itself -- an item
-  read with `[]`, a call's result -- so `kept[index] == shape` holds nothing afterwards ([D258](decisions.md)).
+  read with `[]`, a call's result -- so `kept[index] == shape` holds nothing afterwards ([D258](../design/decisions.md)).
   `String` always compares by content, never by identity (sharing a `String`'s buffer is unobservable, since it is
   immutable, and so is its absence: text of up to 15 bytes has no buffer to share, each holder keeping it in its
-  own sixteen bytes, [D203](decisions.md)).
+  own sixteen bytes, [D203](../design/decisions.md)).
 - **`copy()`/`deep_copy()`** (names **proposed by Claude, unconfirmed**). Every non-scalar value has both:
   `copy()` is shallow -- a fresh object, its own attributes/elements the exact same references the source had
   (retained, not duplicated; a `String` field needs no special handling either way, since it is immutable).
@@ -1142,7 +1142,7 @@ and `section`, one of `'heap'`, `'stack'` or `'constant'`. A class instance or a
 (`'stack'` for an object the compiler placed in the frame, [Placement](#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)), a
 `String` with its characters (`'constant'` for a literal, whose characters are part of the program; for text made
 while the program runs, `'heap'` when it is longer than 15 bytes and lives in a block, and otherwise wherever the
-value itself is, since the characters are in it: `'stack'` in a local, `'heap'` in an attribute, [D203](decisions.md)),
+value itself is, since the characters are in it: `'stack'` in a local, `'heap'` in an attribute, [D203](../design/decisions.md)),
 and a number held in a local with the local itself (`'stack'`). A class with an attribute of its own named `memory` answers that
 attribute instead. `.memory` is built only where a program reads it, so it costs nothing anywhere else (D152); the
 same object is where an allocator is set ([below](#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-a-vectors-block-planned)).
@@ -1223,7 +1223,7 @@ is the same whichever it makes:
   is larger, and makes the `free` a no-op for the slot. A loop body is a block like any other, so the slot is
   reused on every pass. So `Long.to_string()` and `upper_case()` of a
   short text allocate only the `String` they return -- which is nothing when it is 15 bytes or fewer.
-- **In the value:** text of up to 15 bytes is kept in the sixteen bytes of the `String` itself ([D203](decisions.md),
+- **In the value:** text of up to 15 bytes is kept in the sixteen bytes of the `String` itself ([D203](../design/decisions.md),
   [optimizations.md](optimizations.md#short-text-lives-inside-the-string)).
 - **Constant:** a `String` literal's characters are part of the program (its `.memory.section` is `'constant'`).
 - **Frame, for objects** (proposed by Claude, unconfirmed; decided under D205/D214): an instance of a class of only

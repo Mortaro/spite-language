@@ -12,7 +12,7 @@
 > member reaches only its own element. Reads written one after another overlap without being asked.
 > A program asks while compiling which functions can wait (`$system_type.function_waits("update_each")`), and an
 > engine keeps `Concurrent`s out of its stages with `Scheduler().resume_only_when_asked()` and
-> `Scheduler().run_ready()` between frames ([D209](decisions.md)).
+> `Scheduler().run_ready()` between frames ([D209](../design/decisions.md)).
 > A singleton of the program's own that a `Parallel` reaches is made thread-safe by the compiler, in the cheapest
 > form it can prove safe. A program that uses none of this carries none of it ([what it costs](#what-it-costs)).
 > Windows runs all of it; the Linux and macOS folders are held to compiling. **Not built:** HTTP, cancelling a
@@ -134,7 +134,7 @@ a program that has two such reads pays for the scheduler, as one that writes `Co
 ### What the compiler does at a wait
 
 A `Concurrent` is a **state machine** the compiler writes while compiling
-([D176](decisions.md)). Every function that can reach a wait -- `nap` above, and whatever `nap` calls
+([D176](../design/decisions.md)). Every function that can reach a wait -- `nap` above, and whatever `nap` calls
 that waits -- is compiled a second time as a resumable version: its locals and parameters live in a small frame on
 the heap instead of on the C stack, and every wait inside it is a numbered point the function can return from and
 later jump back to. Starting a `Concurrent` makes that frame and runs it to its first wait; when the wait is over,
@@ -252,7 +252,7 @@ It is the same on every system: it reads a flag the worker sets when the functio
 
 A `Concurrent` moves on wherever the program waits: a `program.sleep` on the program's thread, a read outside any
 `Concurrent`, reading a `Parallel`. That suits a tool, and not a game: a state machine that resumes in the middle
-of a stage sees the world half updated. So an engine says where they resume ([D209](decisions.md); both spellings
+of a stage sees the world half updated. So an engine says where they resume ([D209](../design/decisions.md); both spellings
 are proposed by Claude, unconfirmed):
 
 - `Scheduler().resume_only_when_asked()` makes every other wait on the program's thread leave the `Concurrent`s
@@ -356,7 +356,7 @@ func ParallelTour() {
 program's own thread keeps that one -- the first time a `Parallel` is made, and never another: a thousand
 `Parallel`s a second reuse the same threads, and a program that makes none starts none. There is one pool per
 program, and any code -- an engine system, an asset loader, a library class -- hands work to it the same way, by
-`Parallel(function)` ([D191](decisions.md)): no submission starts a thread of its own, and there is no second pool
+`Parallel(function)` ([D191](../design/decisions.md)): no submission starts a thread of its own, and there is no second pool
 to make or pass around. The workers take work in the order it was started. Reading a `Parallel` that no worker has
 picked up yet runs it on the reading thread instead of waiting behind the queue, so a `Parallel` started from
 inside another one cannot wait for a worker that is busy waiting for it. At exit the pool finishes what is queued
@@ -422,7 +422,7 @@ func count_two() {
 ```
 
 A lock of your own is rarely needed for a singleton: one of the program's own that a `Parallel` reaches is made
-safe by the compiler ([D183, D184](decisions.md)). `HitCounter` below only counts, so each `record()` becomes one
+safe by the compiler ([D183, D184](../design/decisions.md)). `HitCounter` below only counts, so each `record()` becomes one
 atomic add, with no lock and nothing written in the source:
 
 ```gdscript title=shared_counter/hit_counter.spite
@@ -594,7 +594,7 @@ A program that makes a `Parallel` (or a `Concurrent`, or a `ForeignCallback` C m
 the plain, cheaper counts. `Parallel(work)` is checked while compiling (D179; the reading proposed by Claude, unconfirmed): the function it
 runs, and every function of the same class that function calls by name, may read and write only the attributes of
 its own instance that hold values -- numbers, `Boolean`, enums, text -- its locals and parameters, singletons (which
-[D183](decisions.md) makes safe) and a `Lock`, `ThreadLocal` or `Atomic`, which are made to be shared. An attribute holding a
+[D183](../design/decisions.md) makes safe) and a `Lock`, `ThreadLocal` or `Atomic`, which are made to be shared. An attribute holding a
 list, a dictionary or another object is an error naming it, since another thread may hold the same object:
 `'Parallel(tally.count_up)' runs 'record' on another thread, so it may reach only the attributes of its own
 'Tally' that hold values, its locals and singletons (D179): 'marks' holds a List<Integer>, which another thread may
@@ -602,7 +602,7 @@ share` (`diagnostics/parallel_function_reach`, where the maker kept `tally.marks
 needs a local, or give the work an object of its own whose attributes are values, as each `Summer` above is. The
 check is the one `parallel_each_` uses, and costs nothing at run time.
 
-An object made for the work and **handed over** may keep more ([D207](decisions.md)): when it is made on its own
+An object made for the work and **handed over** may keep more ([D207](../design/decisions.md)): when it is made on its own
 line in the same block as the `Parallel(...)`, nothing else is given it before, and the code that made it never
 touches it again, its task may keep lists of values and objects it made itself. A `Crafter` can collect its recipe
 ids as a `List<Integer>` and its names as a `List<String>`, with no text joined to smuggle them across:
@@ -695,7 +695,7 @@ the particles moved 5997000
 compiler reads the member -- and every function of the element's class it calls -- and allows only the element's
 own attributes that hold a value (a number, a `Boolean`, text, an enum or a `Symbol`), any singleton and the
 member's locals. A singleton of the program's own that can change is made safe for you in a program that uses
-`Parallel` ([D183, D184](decisions.md)) -- nothing when it is read-only, atomics when it only counts or flags, a
+`Parallel` ([D183, D184](../design/decisions.md)) -- nothing when it is read-only, atomics when it only counts or flags, a
 lock otherwise ([optimizations.md](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form)) -- so a
 `Parallel` or a pass may call it while the program's thread does too, and you write nothing. An attribute holding another object
 may be shared by several elements, so reading it is an error that names it:
@@ -804,13 +804,13 @@ $ spite connect 4000 --command="exit"
 ```
 
 A build without those flags has no check points at all, and its C is byte for byte what it would be if check
-points did not exist ([D174](decisions.md)). The standard library's own loops have none either, so a command waits
+points did not exist ([D174](../design/decisions.md)). The standard library's own loops have none either, so a command waits
 for a library call to return.
 
 ## What it costs
 
 Everything on this page is chosen per program, from what the program uses, and a program that uses none of it
-carries none of it ([D177](decisions.md)); the compiler's side of each is on
+carries none of it ([D177](../design/decisions.md)); the compiler's side of each is on
 [optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-used).
 
 | The program | Carries at run time |
@@ -823,15 +823,15 @@ carries none of it ([D177](decisions.md)); the compiler's side of each is on
 | is built with `--repl-port` or `--hot-reload` | the scheduler, and one check-point call at the end of every pass of every loop of its own code; nothing of either in any other build |
 
 What is never there: a stack per `Concurrent`, a stack switch, a runtime that a WebAssembly build could not carry
-([D176](decisions.md)).
+([D176](../design/decisions.md)).
 
 ## Rules in full
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 <a id="concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows-names-and-mechanism-proposed-by-claude-unconfirmed"></a>
 

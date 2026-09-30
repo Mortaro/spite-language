@@ -95,7 +95,7 @@ power Integer 3
 
 `class`, `attributes`, `functions`, `instances` and `memory` belong to reflection on every class, so a class
 cannot declare an attribute or a function of its own by those names, nor a `get_` or `set_` function that would be
-read as one ([D246](decisions.md), decided by Claude under D205; the list proposed by Claude, unconfirmed). One
+read as one ([D246](../design/decisions.md), decided by Claude under D205; the list proposed by Claude, unconfirmed). One
 named `attributes` would otherwise hide the real list from everything that walks a class -- `JsonReader` would read
 every key as a key the class does not have. The error names what the member means and a name to use instead:
 
@@ -371,7 +371,7 @@ empty and `has_function` asked of it is `false`. `function_waits` asked of it st
 functions described with no instance behind them, which nothing can call and only `function_waits` reads
 (`conformance/stage6/entry_function_waits`).
 
-Which singletons are objects at all depends on the build ([D143](decisions.md)): in a `--development`,
+Which singletons are objects at all depends on the build ([D143](../design/decisions.md)): in a `--development`,
 `--hot-reload`, `--repl` or `--repl-port` build a singleton that holds nothing, such as `Build`, is an ordinary
 object you can find in its `.instances`; in every other build it is one static object that `.instances` does not
 list ([optimizations.md](optimizations.md#singletons-that-hold-nothing-are-static-objects)).
@@ -454,9 +454,9 @@ answers, for the whole program -- a foot you are allowed to shoot, and one that 
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Metaprogramming
 
@@ -532,7 +532,7 @@ declared one (the standard library's allocator attribute is `heap`).
 
 **What `.functions` contains** (proposed by Claude, unconfirmed): the functions a class declares, plus the
 Symbol-codegen instances that were actually generated for it -- because those are functions of the class in the
-program as built, and `--final-classes` already prints them ([Decided by Mortaro, being implemented](open_questions.md#decided-by-mortaro-being-implemented--planned) item 9). Reflection describes the
+program as built, and `--final-classes` already prints them ([Decided by Mortaro, being implemented](../design/open_questions.md#decided-by-mortaro-being-implemented--planned) item 9). Reflection describes the
 program that exists, not the source as written, which is the same rule D42 applies everywhere else.
 
 **A constructor is not one of them.** It does not answer on an instance, it makes one, so putting it in

@@ -5,7 +5,7 @@ never warns: it errors or it is fine. A file that does not parse is reported as
 `path:line:column: message`; once everything parses, every error of the program comes in one run as
 `path:line: error: message (in Class.function)`. Every compile first rewrites your files into the one style
 (`formatted path` is printed), so what you read back may differ from what you wrote.
-The other pages are the reference, each ending in its rules in full ([README.md](README.md)); this page is the
+The other pages are the reference, each ending in its rules in full ([README.md](../docs/README.md)); this page is the
 working set.
 
 Code blocks are fenced as `gdscript` only so GitHub colours them: GitHub has no Spite highlighter yet. Every
@@ -31,7 +31,7 @@ bash check.sh                           the compiler still compiles itself, and 
 in, read any value by its path (`World().player.health`, `describe Monster`, `memory`), and set a breakpoint with
 `break monster.spite:42`: the program stops before that line, `locals` and any path through them answer what is in
 scope there, and `continue` goes on (`clear` removes it). Every answer is one JSON line, so an agent can script it.
-The commands are in [repl.md](repl.md#breakpoints).
+The commands are in [repl.md](../docs/repl.md#breakpoints).
 
 A program lives in its own folder, and `spite game` runs it: `launcher/launcher.spite` loads `library/`, then the
 target system's folder of it, then `game/`, whose every sub folder is a
@@ -300,7 +300,7 @@ func is_alive(): Boolean {
   `crash $component_type.fits_vector()` halts every call in an instance whose type does not fit.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
-  built or planned, and what it could ever change that you see, is in [optimizations.md](optimizations.md).
+  built or planned, and what it could ever change that you see, is in [optimizations.md](../docs/optimizations.md).
 - On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Boolean` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
   `each_<member>()` (a function). A member is an attribute or a function that takes nothing. A member that does
@@ -354,7 +354,7 @@ func is_alive(): Boolean {
   compiler can know, a `crash` naming its cause where only the run can. Never let a caller get a default it cannot
   tell from a real answer, lose a write, skip a step, leak or hang. When a function cannot answer, its result says
   so (`T?`, or an empty list), or it returns a value you chose on purpose, or it crashes because a caller broke the
-  rule ([failure.md](failure.md#nothing-fails-silently)).
+  rule ([failure.md](../docs/failure.md#nothing-fails-silently)).
 - `crash` and `assert` take a condition and never a message (D297): the report names the file and line and shows
   the values there. Never add a clause only to get text printed (`crash found or name == ""`).
 - `Monster?` is a value that may be `null`. It must be narrowed before use: `if target { }` (with `else`),
@@ -368,7 +368,7 @@ func is_alive(): Boolean {
   before it. A call that cannot change it keeps the proof. Calling a function value keeps no proof about
   attributes or lists.
 - Every proof the compiler makes -- narrowing, proven `[]` reads, a proven divisor, frame objects, borrowed items,
-  singleton locks -- is listed in [proofs.md](proofs.md), with when it does **not** apply. Read its "Which proofs
+  singleton locks -- is listed in [proofs.md](../docs/proofs.md), with when it does **not** apply. Read its "Which proofs
   apply to my code" first: where a proof does not hold, you write the check yourself.
 - A `switch` is over a union or a `T?` and covers every member; `_:` as the last case answers for the rest, and
   two cases doing the same thing are an error: write it once as `_:`. A `switch` over an enum, a whole number or
@@ -425,9 +425,9 @@ func is_alive(): Boolean {
   Spite: `at=` names the library and offset, `foreign=` the last C function this thread called, and `from=` the
   Spite line that called it -- start there. `stack-overflow` with `repeated=` on a frame is a recursion that never
   stops. The line in `path:line` is where the function starts, not the faulting line
-  ([failure.md](failure.md#what-a-native-fault-reports)).
+  ([failure.md](../docs/failure.md#what-a-native-fault-reports)).
 - A test is a function named `test_...` that takes nothing and crashes when wrong, in a class of its own (the entry
-  class's functions are not found). `tests/tests.spite` finds them all by itself ([testing.md](testing.md)).
+  class's functions are not found). `tests/tests.spite` finds them all by itself ([testing.md](../docs/testing.md)).
 
 ## Metaprogramming
 
@@ -525,7 +525,7 @@ in for what the function returns and reading it is the wait (there is no `.wait(
 handle.finished_value()`, then `if found { }`), and dropping the handle waits for it. A `parallel_each_<member>()`
 member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock`, a `ThreadLocal` or an `Atomic<T>` (a shared whole number or `Boolean`: `read`, `write`, `add`, `exchange`, `compare_and_swap`); anything else is an error naming the attribute. One exception: `var crafter = Crafter(first)` then `var run = Parallel(crafter.craft)` hands the object over, so its task may keep lists of values (`List<Integer>`, `List<String>`) and objects of its own that it made itself; touching `crafter` after that line is `'crafter' was handed to 'Parallel(crafter.craft)', which keeps its 'recipe_ids' on another thread, so it is not used after that line`. Keep a list of ids as a `List<Integer>`, never as comma-joined text. A singleton a `Parallel` reaches locks each of its functions that touch its state, so never make and wait for a `Parallel` inside such a function when the work calls back into the same singleton: `'Columns.despawn_all' waits for 'Parallel(remover.run)' while it holds Columns's lock, ...` -- start and read the `Parallel` from a class that is not that singleton. Many calls to one singleton from a counted loop (`while index < count { columns.remove_row(index); index = index + 1 }`, nothing else locked or waited on in it) take its lock once for the whole loop, so such a loop is the cheap way to call a singleton many times; keep other singletons and waits out of it. A singleton's function that only reads (a lookup such as `at(row)`: locals, reads of lists, text and numbers, no calls out) runs beside other readers on other threads and waits only for writers, so keep lookups in small functions of their own, apart from the ones that change the singleton. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
-run ([concurrency.md](concurrency.md)).
+run ([concurrency.md](../docs/concurrency.md)).
 `$system_type.function_waits("update_each")` is decided while compiling like `has_function` (and
 `system.class.function_waits(...)` in a `Symbol<...>` walk): `true` when the function can reach a wait, so an engine
 starts it as a `Concurrent` and polls `finished`, and calls it directly otherwise; `klass.function_waits(name)` asks
@@ -537,7 +537,7 @@ between frames, or where one's value is read or its handle dropped. A loop polli
 function, or anything it calls, writes what its parameter number 1 (from 0) is given or anything reached through it
 (`true` too where it cannot tell, such as a call through a function value); an engine writes `crash not
 $system_type.function_writes_parameter("last_each", 1)` to make a system that breaks its rule a compile error that
-names the writing line ([metaprogramming.md](metaprogramming.md#asking-whether-a-function-writes-a-parameter)).
+names the writing line ([metaprogramming.md](../docs/metaprogramming.md#asking-whether-a-function-writes-a-parameter)).
 `JsonWriter(value).write(): String` writes JSON and `JsonReader<T>(text).read(): T?` reads it
 (`read_or_crash(): T` halts instead), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`;
 `read` skips unknown keys, keeps defaults for missing ones, reads a camelCase or PascalCase key (`buyPrice`,
@@ -554,7 +554,7 @@ different classes, write `writer.schema()` (a `Long` the compiler works out from
 the start of a file or connection and compare it with `reader.schema()` before reading. Attributes named `_...` are left out
 of both. A union, a `type` (`Anything` included) or a function value anywhere in what they see is a compile error at
 the line that makes the writer or reader (`JsonWriter cannot write 'Owner': 'Owner.pet' is the union Pet, ...`):
-keep what they see to the kinds above ([json.md](json.md)). `Json` no longer exists: it is the two classes above.
+keep what they see to the kinds above ([json.md](../docs/json.md)). `Json` no longer exists: it is the two classes above.
 Measure with `clock.elapsed_nanoseconds()`, the monotonic clock: a `Long`, no allocation, subtract two readings.
 Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(since_1970)` with
 `var since_1970 = Duration(1710054000, 'seconds')`.
@@ -565,7 +565,7 @@ reads a local reading: `var zones = TimeZones()`, `zones.find("America/New_York"
 `zones.fixed_offset(duration)`, then `zone.to_local(instant)`, `zone.to_text(instant)` and
 `zone.to_instant(local, 'compatible')` (or `'earlier'`/`'later'`, always written). `TimeText()` reads ISO 8601
 (`read_instant(text): Instant?`, `read_date`, `read_duration`, ...) and `to_string()` writes it. `Date(2023, 2,
-29)` halts, so read outside text with `TimeText`, which answers `null` ([time.md](time.md)).
+29)` halts, so read outside text with `TimeText`, which answers `null` ([time.md](../docs/time.md)).
 `DynamicLibrary("ucrtbase.dll", 'identity', "")` calls a native library's functions as members
 (`c_runtime.strlen(text)`, `_as_long`/`_as_double`/`_as_text` for wider results); the standard library's
 `library/windows/`, `linux/` and `mac/` folders reopen the classes each system changes (docs/foreign_libraries.md).
@@ -661,7 +661,7 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 | `text[0]` | `text is not indexed with [ ]` | `text.character_at(0)`, or `text.slice(start, end)` |
 | `// comment`, `/* comment */` | `Spite has no '//' or '/* */' comments` | nothing, or `# docs/page.md#section` on its own line outside a function |
 | `;` at the end of a line | `';' is not something Spite reads` | nothing |
-| `var memory = Memory()` | `this class has no function 'Memory'` | `var heap = Memory.Heap()` (inside a container of your own; see [memory.md](memory.md)) |
+| `var memory = Memory()` | `this class has no function 'Memory'` | `var heap = Memory.Heap()` (inside a container of your own; see [memory.md](../docs/memory.md)) |
 | `--repl_port=4000` | `'--repl_port' is written '--repl-port'` | kebab-case flags; the `Build` field behind it stays `repl_port` |
 | `spite game -- --player-name=ada` | `'--player-name' is written '--player_name'` (when the program runs) | a program's own setting is spelled like its field: `-- --player_name=ada` |
 | `spite game/game.spite` | `'game/game.spite' is a file, and a program is named by its folder` | `spite game` |

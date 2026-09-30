@@ -1,4 +1,4 @@
-// D222 feasibility (docs/proposals/one_list.md): the layouts one automatic List could pick, written by hand in C
+// D222 feasibility (design/proposals/one_list.md): the layouts one automatic List could pick, written by hand in C
 // so each costs only what the layout costs. Not Spite and not run by check.sh; build and run it by hand:
 //   clang -O2 benchmarks/one_list/layouts.c -o layouts.exe && ./layouts.exe
 //   clang -O2 -ffast-math ...   to see what reassociating a float sum would buy

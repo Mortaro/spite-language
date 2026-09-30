@@ -11,13 +11,13 @@ not parse as a number reads as `0`.
 reopen the classes each system does differently, and the launcher loads the one the program is compiled for
 ([foreign_libraries.md](foreign_libraries.md#each-operating-system-reopens-what-it-changes)).
 
-**A program carries only the classes it uses** ([D177](decisions.md)). The library is part of every program's
+**A program carries only the classes it uses** ([D177](../design/decisions.md)). The library is part of every program's
 source, but a production build keeps only the C that `main` can reach: a program that never makes a `Watcher`,
 a `Socket`, a `Process` or a `ThreadPool` has none of their code, and none of the operating-system functions only
 they call is looked up when the program starts ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)).
 What a class costs when it is used is what its Spite does, and each section below says where that is more than a
 call. An inspectable build (`--repl`, `--repl-port`, `--hot-reload`, `--development`) keeps everything, so the
-REPL can look at any of it ([D143](decisions.md)).
+REPL can look at any of it ([D143](../design/decisions.md)).
 
 ## What is in it
 
@@ -60,7 +60,7 @@ program has no reason to call.
 ## What belongs in the standard library
 
 Anything that no company owns belongs here: a protocol, a file format, an algorithm, a piece of maths
-([D294](decisions.md)). HTTP, TLS, SHA-256 and HMAC, Argon2, secure random bytes, base64 and gzip are standard,
+([D294](../design/decisions.md)). HTTP, TLS, SHA-256 and HMAC, Argon2, secure random bytes, base64 and gzip are standard,
 and the library grows to cover them as programs need them. A client for a branded product -- a database such as
 MongoDB or Postgres, a vendor's API -- is never standard: it is a package, kept by Mortaro or someone he hands it
 to, and a program loads it pinned to a commit like any other repository
@@ -81,7 +81,7 @@ with `+` ([values_and_types.md](values_and_types.md#string)). `==`, `!=`, `<` an
 No member of a `String` halts: an index past the end answers `""` or `0`, a range is clamped to the text, and a
 search that finds nothing answers `-1`. Reading a number is the one that can find nothing to answer, so
 `to_integer()` and the other `to_<type>()` readings answer a `T?`: `null` when the text is not a number that fits
-the type ([D244](decisions.md)). Assigning text to a number calls the matching one, so it is allowed only into a
+the type ([D244](../design/decisions.md)). Assigning text to a number calls the matching one, so it is allowed only into a
 `T?`: `var age: Integer? = "42"` is `42`, and `var age: Integer = "42"` is an error naming `to_integer()`. Every member, with what it answers at
 the edges, is in [the rules below](#string--implemented).
 
@@ -260,7 +260,7 @@ way ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-
 |---|---|---|
 | `path` | `String` | |
 | `entries()` | `List<Directory.Entry>` | every folder and file inside it, as `Directory` and `File` values |
-| `folders()` / `files()` | `List<String>` | names only, sorted by a merge sort (`n log n`), so a folder of thousands of files lists quickly; **decided to go** ([D295](decisions.md), not built): `entries().filter_folders()` and `entries().filter_files()` replace them |
+| `folders()` / `files()` | `List<String>` | names only, sorted by a merge sort (`n log n`), so a folder of thousands of files lists quickly; **decided to go** ([D295](../design/decisions.md), not built): `entries().filter_folders()` and `entries().filter_files()` replace them |
 | `exists()` / `create()` | `Boolean` | |
 
 ```gdscript title=directory_tasks/directory_tasks.spite entry
@@ -282,7 +282,7 @@ has hello true
 ```
 
 `files()` and `folders()` answer names, not paths; `entries()` answers values you can walk. **Decided, not built
-([D295](decisions.md)):** `files()` and `folders()` go, because a listing is filtered by its kind rather than
+([D295](../design/decisions.md)):** `files()` and `folders()` go, because a listing is filtered by its kind rather than
 answered by one helper per kind: each entry answers a `kind` of `'files'` or `'folders'`, so
 `directory.entries().filter_files()` is the files and `directory.entries().filter_folders()` the folders
 ([member templates over an enum value](collections.md#member-templates-over-an-enum-value)). Until it is built,
@@ -621,7 +621,7 @@ waited at least 4 ms: true
 
 `Socket()` is a TCP connection over IPv4, the same on Windows (winsock), Linux and macOS. `--repl-port` and
 `spite connect` are written with it, and so is a game server. It is public library surface
-([D126](decisions.md)); the names below are proposed by Claude, unconfirmed.
+([D126](../design/decisions.md)); the names below are proposed by Claude, unconfirmed.
 
 | Member | Does |
 |---|---|
@@ -644,7 +644,7 @@ work runs meanwhile ([concurrency.md](concurrency.md#what-the-compiler-does-at-a
 wait and are plain calls, for a loop that polls every connection once a tick -- a game server, which has its own
 frame to keep. Resolving a host name and connecting always wait in place.
 
-**A closed peer is an answer, not a failure** ([D199](decisions.md)). `read_line()` answers `null` when the
+**A closed peer is an answer, not a failure** ([D199](../design/decisions.md)). `read_line()` answers `null` when the
 connection ended before a whole line; `read_line_now()` answers `null` for that and when no whole line has arrived
 yet, and `read_bytes_now` answers `0` both for "nothing yet" and for "closed". `closed` is what tells them apart
 (proposed by Claude, unconfirmed, over a count of `-1`), so a count stays a count:
@@ -728,9 +728,9 @@ the fill of its memory, both private to the class.
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../design/decisions.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../design/decisions.md).
 
 ### Standard library  **[partial]**
 
@@ -922,7 +922,7 @@ the ordinary shape error, naming the function: `'Pet' does not fit type 'Printab
 'Printable'`), so it is printed with `debug`, or joined first (`diagnostics/print_without_to_string`,
 `conformance/stage6/printable_values`). Mortaro wrote the member as `to_string: Spite.Function<String>`; a `type`
 writes a required function as `to_string(): String` today, and which form a shape uses is
-[open question 11](open_questions.md). What stays the compiler's is only the floor: `_write_output(text)`,
+[open question 11](../design/open_questions.md). What stays the compiler's is only the floor: `_write_output(text)`,
 `_write_error(text)` and `flush()` are declared nowhere in Spite, and the compiler supplies their C (`fwrite` and
 `fflush`), as it does `Memory.Heap`'s. D147 wants even these as Spite over a few named primitives; not built.
 

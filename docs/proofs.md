@@ -4,15 +4,15 @@ A **proof** is a fact the compiler establishes while compiling: that a `T?` hold
 range, that an object never leaves its function, that no other thread can reach a singleton. With the fact in hand
 the compiler does one of four things: it **accepts** code it would otherwise refuse, it **drops** a check it would
 otherwise emit, it **chooses cheaper code**, or it **refuses** code that would go wrong. Every proof is worked out
-while compiling and emits nothing of its own ([D177](decisions.md)); what a proof costs, if anything, is the check it
+while compiling and emits nothing of its own ([D177](../design/decisions.md)); what a proof costs, if anything, is the check it
 leaves in place when it does not hold.
 
 This page is the catalogue of every such proof, built, partial or planned (Mortaro, 2026-09-28: "all the proofs the
-compiler does should be well documented in our docs", [D276](decisions.md)). It is a catalogue, not a second home
+compiler does should be well documented in our docs", [D276](../design/decisions.md)). It is a catalogue, not a second home
 for the rules: each entry says in a few lines what the proof is, and links the page that teaches it and states it in
-full. Where an entry and that page differ, the page decides ([D193](decisions.md)).
+full. Where an entry and that page differ, the page decides ([D193](../design/decisions.md)).
 
-**Why the fallback matters most.** A proof that does not apply never fails silently ([D244](decisions.md)): either
+**Why the fallback matters most.** A proof that does not apply never fails silently ([D244](../design/decisions.md)): either
 the compiler refuses the code and says what to write, or it keeps the run-time check. So each entry ends with
 **Falls back**: what happens when the proof does not hold, and what you write yourself. That is the part to read
 before relying on a proof.
@@ -220,7 +220,7 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 
 ### Proving what is proven is an error
 
-- **Status.** Built ([D279](decisions.md), Mortaro: every fact the compiler holds).
+- **Status.** Built ([D279](../design/decisions.md), Mortaro: every fact the compiler holds).
 - **Proves.** A check adds nothing, because the value is already narrowed, the read or divisor already proven, the
   class already known or the condition already checked.
 - **Rule.** Each is refused in an `assert`, `crash`, `if` or `while` condition, naming where it was proven:
@@ -1037,7 +1037,7 @@ into a narrower name, which wraps; and two threads writing one number attribute 
 ## Adding a proof
 
 A change that makes the compiler prove something new, or changes what an existing proof accepts, drops or refuses,
-updates this page in the same commit ([D276](decisions.md)): the entry, its fallback, its status, and the program
+updates this page in the same commit ([D276](../design/decisions.md)): the entry, its fallback, its status, and the program
 that shows it. The rule itself goes on the page that teaches that part of the language, and a proof that is also an
 optimisation is described on [optimizations.md](optimizations.md) too (D185). A proof that contradicts a rule on
 another page is recorded in `mortaros_missing_decisions.md` for Mortaro.
