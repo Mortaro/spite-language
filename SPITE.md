@@ -88,10 +88,10 @@ bundler story in Ruby. Same spite as bring-your-own-runtime: it fragments what s
 
 ## Code style
 
-**Em dashes, anywhere.** "Absolutely no emdashes in the entire codebase for spite/slop/theseus. I really hate
-emdashes, my grandmother was killed by an emdash when I was a child, even though she is still alive." This covers
-the `—` character and the ` -- ` stand-in written in prose, in code, comments, docs and commit messages across
-SpiteLanguage, SlopEngine and SlopTheseus (command-line flags like `--optimized` are not dashes).
+**Em dashes, anywhere.** "Absolutely no emdashes in the entire codebase. I really hate emdashes, my grandmother
+was killed by an emdash when I was a child, even though she is still alive." This covers the `—` character and the
+` -- ` stand-in written in prose, in code, comments, docs and commit messages, here and in every package Mortaro
+maintains (command-line flags like `--optimized` are not dashes).
 *Instead:* end the sentence, or use a colon, a comma or parentheses.
 
 **Docs that talk to agents.** `docs/` is documentation for people learning Spite: no notes to AI writers, no
@@ -99,9 +99,9 @@ implementation status, no decision bookkeeping in the middle of a page. Each pag
 thing to learn.
 *Instead:* agent guidance, decisions, proposals, open questions and implementation status live outside `docs/`.
 
-**Naming a third-party package inside the language.** SlopEngine and Sword of Theseus are packages built on Spite,
-third-party even though Mortaro maintains them. The Spite repository never mentions them: not in docs, examples,
-tests, benchmarks, diagnostics, comments or decision rows.
+**Naming a third-party package inside the language.** Packages built on Spite are third-party, even the ones
+Mortaro maintains himself. The Spite repository never mentions them by name: not in docs, examples, tests,
+benchmarks, diagnostics, comments or decision rows.
 *Instead:* write examples, tests and benchmarks in Spite's own terms. A need found through a package is recorded
 as the language need it is, without naming the package.
 
