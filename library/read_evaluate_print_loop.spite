@@ -1073,7 +1073,9 @@ func range_bytes(target: String): Answer {
         return failure(usage)
     }
     if byte_count < 1 or byte_count > inspector.most_bytes() {
-        return failure("'bytes' reads from 1 to {inspector.most_bytes()} bytes at a time, and {byte_count} is not in that range")
+        return failure(
+            "'bytes' reads from 1 to {inspector.most_bytes()} bytes at a time, and {byte_count} is not in that range",
+        )
     }
     var address_text = inspector.address_text(address)
     var hex = inspector.hex_at(address, byte_count)
