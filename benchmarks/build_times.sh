@@ -1,10 +1,10 @@
 #!/bin/bash
 # Compile time at scale: how long building an executable takes, from one C file and from translation units
-# compiled in parallel and cached (docs/compiler.md#translation-units). Not part of check.sh. Run from anywhere:
+# compiled in parallel and cached (docs/compiler.md#translation-units-the-c-compiled-in-parallel-and-cached). Not part of check.sh. Run from anywhere:
 #   bash benchmarks/build_times.sh [compiler] [program folder ...]
 # With no program named it times the compiler itself (bootstrap) and a generated program of about 200 000 lines
-# (written to .spite/build_times/synthetic by the awk below); name another folder -- a copy of a SlopEngine
-# example, say -- to time that too. Every build is timed four ways, with and without --optimized:
+# (written to .spite/build_times/synthetic by the awk below); name another folder (a copy of an engine's
+# example, say) to time that too. Every build is timed four ways, with and without --optimized:
 #   one file   --translation-units=1, the whole C in one file and one C compiler process, as before
 #   cold       translation units, with the object cache emptied first
 #   warm       the same build again: every unit's object is found in the cache, only the link runs
@@ -67,7 +67,7 @@ milliseconds() {
 
 # One function body is changed by turning the last `+ 1` of a file into `+ 2`: nothing is added, so only the unit
 # holding that function (and the link) should be compiled again. EDIT_FILE names the file to edit, for a program
-# whose own folder has no such line (a SlopEngine example, whose engine is loaded from ../../slop).
+# whose own folder has no such line (an engine's example, whose engine is loaded from ../../engine).
 edited=""
 edit_one_function() {
     local wanted

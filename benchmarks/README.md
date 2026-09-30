@@ -12,6 +12,12 @@ builds the program once more with `--debug-memory` to print how many allocations
 defaults to `.spite/spite_development.exe`, the one `check.sh` last built. Times are wall-clock milliseconds
 on Mortaro's Windows machine and move by 10-20% from run to run; the allocation counts are exact.
 
+**Measure only production builds.** REPL and live-reload builds are slower on purpose (every function in a slot,
+breakpoints, live inspection), and a `--debug-memory` build counts every allocation, so a time taken from any of
+them describes the tooling, not the program. Every timing here comes from C built with `clang -O2`, with no REPL
+and no hot reload ([docs/compiler.md](../docs/compiler.md#measure-only-a-production-build)); `--debug-memory` is used only
+for the allocation counts.
+
 | Benchmark | What it leans on |
 |---|---|
 | `fused_chain` | 100 000 objects walked 300 times by fused `filter_`/`map_`/`sum_`/`count_` chains |
@@ -27,20 +33,20 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `vector_rows` | 200 000 entities with position and velocity, half with health and regeneration, `Move` and `Regenerate` systems taking a `type` row per entity for 20 ticks: once from four `Vector` columns as rows of borrowed items (D206), once from four `List` columns through a reused row object; prints the microseconds per tick of both |
 | `sparse_rows` | 200 000 entities kept in sparse sets (a generic singleton `Column<T>` per component, each entity at a different place in each), position and velocity for all, health and regeneration for half, `Move` and `Regenerate` taking a walked row per entity for 20 ticks: once with `Vector` columns and rows filled by D217's walk (borrowed items, an `Entity` made in the frame), once with every column a `List` of references and a row object reused across the tick; prints the microseconds per tick of both |
 | `items_storage` | 200 000 `Velocity` items (they fit a `Vector`) in a `Vector` and an `Items`, and 200 000 `Trail` objects (they hold a `List`) in a `List` and an `Items` sharing the same objects: filling, 100 ticks of `each_integrate()` and a fused `filter_moving().sum_across()`, and 100 ticks of 200 000 `[]` reads and writes at scattered places; three rounds, each printing microseconds per tick of all four |
-| `matched_rows` | SlopEngine's walked-row shape: 200 000 entities in sparse sets over `Vector` columns, `Move` and `Regenerate` taking a walked row per entity for 20 ticks, each entity's places found by a `Matcher<$row_type>` object into its own `List<Integer>` (a `Vector<Integer>` before D225): once passing `matcher.rows` straight to the walk (D221), once copying the places into the runner's vector first, as a runner had to before; three rounds, each printing microseconds per tick of both |
+| `matched_rows` | A game engine's walked-row shape: 200 000 entities in sparse sets over `Vector` columns, `Move` and `Regenerate` taking a walked row per entity for 20 ticks, each entity's places found by a `Matcher<$row_type>` object into its own `List<Integer>` (a `Vector<Integer>` before D225): once passing `matcher.rows` straight to the walk (D221), once copying the places into the runner's vector first, as a runner had to before; three rounds, each printing microseconds per tick of both |
 | `lent_arguments` | 200 000 entities in sparse sets over `Items` columns, systems taking their components as arguments (`Move(position, velocity)`, `Regenerate(health, regeneration)`, `Drift(velocity)`), 20 ticks: once with `system.phase_each(made_arguments(found))` passing borrowed items (D220), once copying each argument out of its column, passing it and storing it back; three rounds, each printing microseconds per tick of both. Measured 6.9 ms against 34.3 ms a tick (best of five, `clang -O2`) |
-| `bulk_removal` | 200 000 `Velocity` items in an `Items` with a `List<Integer>` of their entities beside them, half and then nine in ten of them removed four ways, best of nine each: a `remove_swapping` per removed row walking the rows, one per entity of a despawn list (SlopEngine's shape), `remove_where` on both columns, and a pass of `swap` and `truncate` by a mask (D263); prints the microseconds of each |
-| `singleton_locks` | SlopEngine's per-column shape: eight `Parallel` workers each making 100 000 calls in a counted loop, once to a generic singleton `Column<T>` of its own and once to one `Shared` singleton for all, and the same 800 000 calls on one thread; best of seven, in microseconds. Measures D183's per-call lock and D265's one lock per counted loop (2.3 ms against 0.35 ms per column, 51 ms against 0.6 ms shared) |
-| `singleton_reads` | SlopEngine's reference-column shape: eight `Parallel` systems each reading all 15 000 rows of one generic singleton `Column<Transform>` through `at(row)` per row, 20 ticks with a write between them; prints the best tick and the nanoseconds per row read. Measures D266's readers' side (202 ns to 6 ns a row) |
+| `bulk_removal` | 200 000 `Velocity` items in an `Items` with a `List<Integer>` of their entities beside them, half and then nine in ten of them removed four ways, best of nine each: a `remove_swapping` per removed row walking the rows, one per entity of a despawn list (a game engine's shape), `remove_where` on both columns, and a pass of `swap` and `truncate` by a mask (D263); prints the microseconds of each |
+| `singleton_locks` | A game engine's per-column shape: eight `Parallel` workers each making 100 000 calls in a counted loop, once to a generic singleton `Column<T>` of its own and once to one `Shared` singleton for all, and the same 800 000 calls on one thread; best of seven, in microseconds. Measures D183's per-call lock and D265's one lock per counted loop (2.3 ms against 0.35 ms per column, 51 ms against 0.6 ms shared) |
+| `singleton_reads` | A game engine's reference-column shape: eight `Parallel` systems each reading all 15 000 rows of one generic singleton `Column<Transform>` through `at(row)` per row, 20 ticks with a write between them; prints the best tick and the nanoseconds per row read. Measures D266's readers' side (202 ns to 6 ns a row) |
 | `singleton_unshared` | 10 000 000 calls to a locked singleton's function on the program's own thread after the program's one `Parallel` has been read, best of five; prints nanoseconds per call. Measures D267: 19 ns with the lock, 9 ns with no task in flight (4 ns with no lock at all, by hand) |
-| `lent_elements` | SlopEngine's `stream_bench` shape: 100 000 rows of an inline component (an `Items` column) and a reference component (a `List` column read through `at(row)`), walked rows run in a `Parallel`, one system reading the reference and one not; best of twenty ticks, nanoseconds per row. Measures D269 with D270 and D271: 83 to 14 ns reading it, 35 to 9 ns not |
+| `lent_elements` | A game engine's `stream_bench` shape: 100 000 rows of an inline component (an `Items` column) and a reference component (a `List` column read through `at(row)`), walked rows run in a `Parallel`, one system reading the reference and one not; best of twenty ticks, nanoseconds per row. Measures D269 with D270 and D271: 83 to 14 ns reading it, 35 to 9 ns not |
 | `held_arguments` | a `Vector` passed on through two calls (`match_into`, then `find_row` per column) for each of a million entities, in a `Parallel` so counts are atomic; best of seven, nanoseconds per entity. Measures D270: 18 to 13 ns |
 | `singleton_attributes` | a million items read through a column singleton's `values` attribute in a `Parallel`; best of seven, nanoseconds per 1 000 reads. Measures D271: 6 000 to 3 200 ns |
-| `stress` | SlopEngine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
-| `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../docs/standard_library.md#system-classes--implemented)) |
+| `stress` | A game engine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
+| `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../docs/standard_library.md#system-classes)) |
 | `game_maths` | a million `position + velocity.scaled(delta)` steps on `Vector3`, 200 000 `Matrix4` products and a million `transform_point`s, printing microseconds; each answer is a new object, so the allocation count is the point. `game_maths.c` beside it is the same program in C with plain structs, built and run by hand (`clang -O2 benchmarks/game_maths/game_maths.c`), the number "as fast as C" is measured against |
 | `half_precision` | ten million `Float.to_half_precision()` and `half_precision_to_float()` round trips, over the bit views `Float.bits()` and `UnsignedInteger.bits_as_float()` (D215); prints the milliseconds. Before the bit views were C unions: 482 ms at `-O0`, 13 ms from `-O1`; after: 416 ms and 13 ms; 15 allocations either way, none per conversion |
-| `maths_stopgaps` | two million passes of sine, cosine, arc tangent, square root, floor and a power of two on a `Float`, first through the pure-Spite stopgaps SlopEngine wrote while Spite had no maths (`slop/math/scalar.spite`, copied in as `stopgap_scalar.spite`), then through the number classes' own maths functions; prints the milliseconds of each and the largest error of the stopgap `sine` over one turn |
+| `maths_stopgaps` | two million passes of sine, cosine, arc tangent, square root, floor and a power of two on a `Float`, first through the pure-Spite stopgaps a game engine wrote while Spite had no maths (`engine/math/scalar.spite`, copied in as `stopgap_scalar.spite`), then through the number classes' own maths functions; prints the milliseconds of each and the largest error of the stopgap `sine` over one turn |
 | `plain_loops` | a million `Float`s and `Integer`s: `into[index] = from[index] * 1.5 + 0.25` over two `List<Float>`, the same in place over one `List<Float>` (a `Vector<Float>` before D225, printed as `Vector scale` then and `in place` now), a `Float` sum and an `Integer` sum, each a plain `while` over `count()`; three rounds, each printing microseconds per pass of all four. The loops the C compiler vectorises once the count is read once and the items unchecked ([optimizations.md](../docs/optimizations.md#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked)) |
 
 ## Spite against C
@@ -49,7 +55,7 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 writes it: `Vector3` maths with the vectors held by value, an array of particle structs stepped in place, an
 open-addressing hash table keyed by integers, text built in a growable buffer, and the same quicksort on an `int32`
 array. Each program times its own work with the same clock and prints the microseconds on its error output, so
-starting the process -- slow and noisy on Windows -- is not counted, and both must print the same answer.
+starting the process (slow and noisy on Windows) is not counted, and both must print the same answer.
 
 ```
 bash benchmarks/versus_c/run.sh [compiler] [program ...]
@@ -106,7 +112,7 @@ runs exactly as fast as one file at `-O3`, so ThinLTO gets back the inlining acr
 
 ## Compile time at scale
 
-`build_times.sh` times building an executable -- the whole `spite` command, the Spite compile to C included -- from
+`build_times.sh` times building an executable (the whole `spite` command, the Spite compile to C included) from
 one C file and from [translation units](../docs/compiler.md#translation-units-the-c-compiled-in-parallel-and-cached):
 cold (the object cache emptied), warm (built again, nothing changed) and after editing one function's body.
 
@@ -115,8 +121,8 @@ bash benchmarks/build_times.sh [compiler] [program ...]
 ```
 
 Wall-clock milliseconds on Mortaro's machine (32 logical processors, clang 19.1.5, other sessions compiling at
-the same time), the compiler itself built `--optimized`. `kal_character` is SlopEngine's biggest example (14 MB of
-C), built from a copy, with its edit in `slop/column.spite`; the synthetic program is 209 206 lines in 401 files
+the same time), the compiler itself built `--optimized`. `kal_character` is a game engine's biggest example (14 MB of
+C), built from a copy, with its edit in `engine/column.spite`; the synthetic program is 209 206 lines in 401 files
 (400 classes of 30 small functions), written by the script:
 
 | program | C | build | one file | cold | warm | one edit |
@@ -130,7 +136,7 @@ C), built from a copy, with its edit in `slop/column.spite`; the synthetic progr
 
 A default build is one file whatever the size (its "cold", "warm" and "edit" are the same build again, and their
 spread is the machine's noise): splitting the compiler's C at `-O0` made a cold build slower, since every unit
-reads the whole 1 MB header and `-O0` spends its time reading -- forced to 4, 8, 16 and 32 units it took 6.4-11.5,
+reads the whole 1 MB header and `-O0` spends its time reading. Forced to 4, 8, 16 and 32 units it took 6.4-11.5,
 9.8-10.2, 9.7-14.7 and 15.9-29.9 s against 6.1-6.3 s from one file. An `--optimized` build is split: the compiler
 cold in 14.5 s instead of 37.7 (forced to 4, 8, 16 and 32 units: 23-26, 13-22, 23-26 and 27-32 s, so eight is the
 size rule's choice for it), and a warm or one-edit build is then the Spite compile plus ThinLTO's link, which
@@ -186,7 +192,7 @@ Each step is one commit; `before` is the compiler before it. Best of nine interl
 
 Only `fused_chain` walks a list of objects through a template, and it is the one that moved; the rest is noise.
 Compiling the compiler (`spite bootstrap --run=false --c-source`, the compiler built with `clang -O1`, best of
-seven): 2 352 ms before this work, 2 198 ms after step 1, 1 953 ms after step 2 -- finding a class by its name
+seven): 2 352 ms before this work, 2 198 ms after step 1, 1 953 ms after step 2. Finding a class by its name
 or its C name was a walk over every class, and is now one dictionary lookup.
 
 ### Step 3: numbers written into text in place, freed small objects kept for reuse, a cheaper dictionary hash, and the replaced defaults of `Spite.Function` and `Spite.Attribute`
@@ -218,20 +224,20 @@ raises and lowers the component's count, which none of these steps removes.
 | stress, counts atomic (`SPITE_THREADS`, as in a program that makes a `Parallel`) | 162 | 129 | 150 049 | 150 049 |
 
 In a program without threads a retain is one plain add and `stress` spends its time filling rows and spawning, so
-nothing moves; with atomic counts, as SlopEngine has whenever it runs systems in parallel, the ticks are a fifth
+nothing moves; with atomic counts, as a game engine has whenever it runs systems in parallel, the ticks are a fifth
 faster. The second row is the same two C files built with `-DSPITE_THREADS` prepended.
 
 ### Taken out again: freed small blocks kept for reuse (step 3)
 
-Mortaro's rule for step 3's small-block reuse was to keep it only if it is a measured gain for SlopEngine. It was
-measured on a copy of SlopEngine: each program's C written once by the compiler, then built with `clang -O2`
-twice -- as written (reuse) and with `SPITE_MALLOC`, `SPITE_REALLOC` and `SPITE_FREE` defined as the C library's
-`malloc`, `realloc` and `free` (plain, what every build now does) -- and run interleaved, nine times each. SlopEngine
+Mortaro's rule for step 3's small-block reuse was to keep it only if it is a measured gain for a game engine. It was
+measured on a copy of a game engine: each program's C written once by the compiler, then built with `clang -O2`
+twice, as written (reuse) and with `SPITE_MALLOC`, `SPITE_REALLOC` and `SPITE_FREE` defined as the C library's
+`malloc`, `realloc` and `free` (plain, what every build now does), and run interleaved, nine times each. A game engine
 runs systems in parallel, so these programs count references atomically. Best of nine; the medians agree, and the
 ordinary machine noise is 2-5% (the UI tests and `flex_layout` also have occasional runs 250 ms slower on both
 sides).
 
-| SlopEngine program | reuse | plain |
+| game engine program | reuse | plain |
 |---|---|---|
 | `stress`, average tick, parallel | 42.9 ms | 41.9 ms |
 | `stress`, average tick, single-threaded (`--parallel=false`) | 49.0 ms | 50.9 ms |
@@ -241,7 +247,7 @@ sides).
 | `click_counter_test`, whole run (Vulkan, validation on) | 1 008 ms | 1 020 ms |
 | `text_field_test`, whole run | 827 ms | 820 ms |
 
-Three rounds agreed: the parallel tick, which is what SlopEngine runs, was 1-3% slower with reuse every time; the
+Three rounds agreed: the parallel tick, which is what a game engine runs, was 1-3% slower with reuse every time; the
 single-threaded tick 0-4% faster; only spawning (11%) and `flex_layout` (about 3 ms) were clearly faster, both
 one-off work. Not a clear gain on the engine, so it is gone, with up to 2 MB it kept per thread. The benchmarks
 here, the same way (best of nine, same C, only the allocator differs), are where it had helped:
@@ -274,11 +280,11 @@ made one after another, so they sit close together on the heap, which is the bes
 12 bytes per item where the list reads an 8-byte reference and then a 20-byte object somewhere else. The 200 149
 allocations are filling: the 200 000 `Velocity` objects the list holds, each also copied into the vector's block,
 which grows by doubling (a vector filled on its own would make each object only to copy it and let it go, which a
-planned optimisation in [optimizations.md](../docs/optimizations.md#other-planned-optimisations) removes).
+planned optimisation in [optimizations.md](../docs/optimizations.md#other-optimisations) removes).
 
-Shaped like SlopEngine's `examples/stress` (200 000 bodies, `Move` adding velocity to position and `Regenerate`
+Shaped like a game engine's `examples/stress` (200 000 bodies, `Move` adding velocity to position and `Regenerate`
 adding to health, 20 ticks, one thread), with each component in its own column indexed by row: 1.0 ms per tick with
-four `Vector` columns against 5.9 ms with four `List` columns (whose objects were made interleaved). SlopEngine's own
+four `Vector` columns against 5.9 ms with four `List` columns (whose objects were made interleaved). That engine's own
 column code could not be moved to `Vector` as it is: its `Row` keeps each component in an attribute of a `type` row
 for the whole system call, which is exactly the keeping a borrowed item may not do (D204); its stress example runs at
 51 ms per tick on the same machine.
@@ -331,7 +337,7 @@ item in it was an error), so its program has the copying runner in both places:
 
 | compiler | walk over `matcher.rows`, µs per tick | places copied first, µs per tick |
 |---|---|---|
-| before (`c1edb49`) | -- | 8 012-8 391 |
+| before (`c1edb49`) | none | 8 012-8 391 |
 | after | 6 701-6 943 | 8 038-8 352 |
 
 The copy was a loop of `append`s per entity through a vector the runner kept; reading the places where they are
@@ -378,7 +384,7 @@ allocation counts are exact.
 Compiling the compiler: 1 372 ms before, 1 295 ms after (best of five, interleaved). Of the 4.7 million texts it
 makes compiling itself, 68% are 15 bytes or fewer.
 
-SlopEngine, from a copy, each example built `--optimized` with `clang -O2` (best of five whole runs) and once more
+Each example of a game engine, from a copy, built `--optimized` with `clang -O2` (best of five whole runs) and once more
 with `--debug-memory` for the count:
 
 | example | before ms | after ms | before allocations | after allocations |
@@ -409,7 +415,7 @@ does one half at a time.
 The binary side allocates three times per object: the `BinaryWriter`, its cursor, and the object read back; its
 walk is a singleton that holds nothing, so it allocates nothing itself.
 
-### Maths functions against SlopEngine's stopgaps
+### Maths functions against a game engine's stopgaps
 
 `maths_stopgaps`, built with `clang -O2` by the compiler that added the maths functions, best of seven runs on
 Mortaro's Windows machine (the C library is the Universal C Runtime's). Both passes add up the same six results
@@ -427,7 +433,7 @@ last place.
 ### Game maths (D213)
 
 `game_maths`, `clang -O2`, best of five on Mortaro's machine, with `--debug-memory` for the count: 3 200 067
-allocations, which is one per answer -- two per vector step, one per matrix product and one per `transform_point`.
+allocations: one per answer, so two per vector step, one per matrix product and one per `transform_point`.
 
 | pass | milliseconds |
 |---|---|
@@ -445,7 +451,7 @@ the C column is `game_maths.c`, the same passes with `Vector3` and `Matrix4` as 
 | a million `position + velocity.scaled(delta)` | 34 748 | 656 | 660 |
 | 200 000 `Matrix4` products | 8 049 | 1 502 | 935 |
 | a million `Matrix4.transform_point` | 709 | 665 | 667 |
-| allocations, whole program | 3 200 046 | 37 | -- |
+| allocations, whole program | 3 200 046 | 37 | none |
 
 The whole of `run.sh`, the compiler before and after, prints the same answers and the same allocation counts for
 every benchmark but two: `game_maths` (3 200 046 → 37) and `small_allocations` (9 004 007 → 3 004 007: each pass's
@@ -463,7 +469,7 @@ around each call.
 A dictionary given whole-number keys stores and hashes the numbers ([collections.md](../docs/collections.md#keyed-by-numbers),
 [optimizations.md](../docs/optimizations.md#a-dictionary-keyed-by-numbers-hashes-the-numbers)). `clang -O2` on
 Mortaro's Windows machine, best of five runs of `number_keys` (100 000 entries, a million lookups), the same source
-compiled before D224 -- where `dictionary[index]` quietly turned the number into text -- and after:
+compiled before D224 (when `dictionary[index]` quietly turned the number into text) and after:
 
 | step | before ms | after ms |
 |---|---|---|
