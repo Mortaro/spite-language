@@ -329,8 +329,7 @@ loads `../../../../spite_truetype@41c09e2/truetype` from `plugins/slop_ui_plugin
 package fetched from a URL names the repositories it loads by URL, since a path on its author's machine means
 nothing on yours. An ordinary `load` in a fetched package stays inside that package's repository: one that leaves
 it is an error, since the copy holds only its own commit's files. **Two pins of one repository** at different
-commits are an error naming both lines: the two versions would reopen each other's classes, the worst possible
-merge, so the human picks one.
+commits are an error naming both lines today; that rule is decided to go ([below](#two-versions-of-one-repository)).
 
 This program loads a folder of the language's own repository as it was at a commit. The documentation's programs
 are written out into `.spite/docs/<name>/` of that repository and compiled from there, so `../../..` is the
@@ -349,6 +348,17 @@ func PinnedWidgets() {
 ```output
 gadget x3
 ```
+
+### Two versions of one repository
+
+**Decided, not built** ([D296](decisions.md)). Two pins of one repository at different commits are two different
+libraries. Nothing unifies them, nothing compares what differs between them, and it is not an error: a game that
+pins `slop_engine@6c7dca9` and a plugin that pins `slop_engine@41c09e2` each compile against the engine they
+pinned, its classes are not the other's, and a value of one version's class is not accepted where the other's is
+expected. What that duplicates costs nothing: the compiler folds every generated C function that is exactly
+identical to another into one ([optimizations.md](optimizations.md#identical-functions-are-folded-into-one)), so
+the functions two versions share unchanged are in the executable once. Until it is built, two pins of one
+repository at different commits are an error naming both `load` lines.
 
 ## Files beside a package's source
 
@@ -587,8 +597,16 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
     fetched from a URL it is "... fetched from a URL, and names a repository by a path on this machine". An
     ordinary `load` in a copy whose folder leaves the copy is "'load "<text>"' is written in
     <repository>@<commit> and leaves that repository".
-  - **Two pins of one repository** (the same absolute path, or the same URL) that resolve to different commits are
-    an error at the second: "'load "<text>"' pins <repository> at <commit>, and <file>:<line> ('load "..."') pins
+  - **Two versions of one repository are two libraries** (D296, decided by Mortaro, 2026-09-30; **not built**):
+    two pins of one repository that resolve to different commits are never unified and never an error. Each
+    version's classes are its own, as if the two repositories were unrelated: a package's names resolve to the
+    classes of the version it pinned, a value of one version's class is not the other's type, a singleton of one
+    version is not the other's, and a reopening reopens the version its root pinned. Proposed by Claude,
+    unconfirmed: both versions keep their dotted names in their own sources, and where one root must name both (a
+    program pinning two commits of one repository directly) that is still an error, since a name there could mean
+    either; `--final-classes` prints each version into its own folder. The duplicate code costs nothing because
+    identical C functions are folded into one ([optimizations.md](optimizations.md#identical-functions-are-folded-into-one)).
+    **As built** (D38's first rule, which D296 replaces), such pins are an error at the second: "'load "<text>"' pins <repository> at <commit>, and <file>:<line> ('load "..."') pins
     it at another commit: two commits of one repository would reopen each other's classes, so pin the same commit
     in both" (D38's version mismatch). Two spellings of one commit share nothing but agree.
   - Compile time only (D177): a git load costs what a folder load costs at run time, nothing
@@ -605,7 +623,7 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   was reopening that class, so in --final-classes it should show the actual content of that class"). The members
   whose bodies the compiler supplies -- `Console`'s raw writes, `Memory.Heap`'s allocation and `Memory.Address`'s
   reads, writes and atomics (D178), `DynamicLibrary`'s opening and symbol lookup, `TypedMemory`'s typed slots, a
-  number's `from_type` and bit operations, the REPL's hooks on `Spite.Attribute`/`Spite.Function`, `HotReload`'s
+  number's casts (`from_type` as built; the source's `to_<type>()` once D275/D293 are built) and bit operations, the REPL's hooks on `Spite.Attribute`/`Spite.Function`, `HotReload`'s
   build facts, a `Concurrent`'s state machine (D176), `ThreadPool`'s entry address and `Scheduler`'s step -- are
   declarations the compiler merges into their classes right after `library/` (and its operating system's
   folder), exactly as a later root merges a file, so a program can still reopen them. Nothing is registered by
@@ -615,7 +633,7 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   borrows the shape a `type` already uses for a member without a body. Anywhere the compiler supplies nothing by
   that name, a bodiless `func` is an error ("give it a body"), so it is not a way to declare anything else. The
   compiler's own reopening is Spite source in `bootstrap/source/generation/prelude.spite`, beside the C each body
-  is; a body the compiler writes per instantiation (`TypedMemory<Integer>`, `Float.from_integer`) is written by the
+  is; a body the compiler writes per instantiation (`TypedMemory<Integer>`, a number cast) is written by the
   generator. Supplied names skip the naming lint (`read_integer` names the type `Integer`), as conversions already did.
   **D147 (decided by Mortaro) rejects this as the end state**: no hidden code, no bodiless supplied functions and
   nothing tying Spite to C, so every supplied body is to become explicit Spite -- a library function called from a

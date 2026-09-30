@@ -832,12 +832,23 @@ positive
 
 `crash` is allowed in a constructor, which is where a program that cannot start says so.
 
+**`crash` never takes a message, and neither does `assert`** ([D297](decisions.md)). There is no text to write
+after the condition: the report points at the line of code and shows the values there, and an AI reading it opens
+that line and reads the data, which says more than a sentence about them would and cannot drift from the code. Do
+not smuggle text into a condition to have it printed (`crash found or bone_name == ""`): the report shows the
+values in scope without it.
+
 A `crash` the compiler can decide is not left for the run: one whose condition asks only what is known while
 compiling (a codegen value, `has_function`, `fits_vector`, ...) and is false, in a function the program reaches,
 is a compile error at the `crash`, since the program would halt there every time
 ([metaprogramming.md](metaprogramming.md#codegen-values---implemented)).
 
 ### What a crash reports
+
+**Decided, not built ([D297](decisions.md)):** a report is the place of the crash and the memory that matters
+there -- its file and line, and the values in scope, read through the reflection any program has
+([reflection.md](reflection.md)) -- and it stops repeating the condition, which is on the line it names. What
+follows is the report as built today.
 
 A crash flushes what the program printed, writes one tab-separated line to the error stream and exits with
 status 1. The line starts `spite.crash` and carries the site's id, its place, its class and function, the
@@ -1477,6 +1488,24 @@ decided by Mortaro): it reports its enclosing context, and the formatter rewrite
 user` narrows a `T?` exactly as `assert user` does, but never returns.
 
 Absence is fine -> `assert`. Absence is a bug -> `crash`. Absence is meaningful -> `if value { } else { }`.
+
+D297 (decided by Mortaro, 2026-09-30, answering `mortaros_missing_decisions.md` item 218): **`crash` never takes a
+message, and neither does `assert`.** There is no syntax for one and none will be added: a report points at the
+code and shows the memory, so the reader reads the source line and the data instead of prose about them. **The
+report, decided and not built:** the crash line names the site (id, `path:line`, class, function) and carries the
+values that matter there, read through the same reflection metaprogramming gives a program (D282) rather than
+through text the compiler builds per site: the condition's operands as today, and -- proposed by Claude,
+unconfirmed -- the function's parameters and locals in scope and the attributes of the object it runs on, each as
+one `name=value` field written the way the REPL's `bytes` and `to_debug()` write values, bounded (a list's count and
+its first items, not all of it). Mortaro on the condition's text: "probably not -- location + memory is enough", so
+the report line stops carrying the condition; the `.crashes` map, which costs the executable nothing, keeps it for
+`grep` (proposed by Claude, unconfirmed). A condition written only to put text into the report (`crash
+bone_matrix_is_finite or bone_name == ""`) then has no reason to exist: the values in scope are reported without
+it. As built, a crash reports its condition and the condition's operands only, so such conditions still work;
+counted on 2026-09-30: none in the compiler's sources, two in `library/` (`JsonReader.read_or_crash`'s
+`crash failure == ""` and `JsonWriter.written_decimal`'s `crash unwritable == ""`, which hold the explanation in a
+variable), one in `conformance/stage6/crash_compound` (which tests the compound report on purpose), and six in
+SlopEngine.
 
 #### What a crash reports
 

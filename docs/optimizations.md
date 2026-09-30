@@ -1794,6 +1794,30 @@ including a `copy()` of one.) Not built yet: frame objects of classes that hold 
 the attribute is never shared. (Leaving out the count on a frame object passed to a function is built where the
 callee never assigns the parameter, D270.)
 
+### Identical functions are folded into one
+
+[D296](decisions.md) (decided by Mortaro, 2026-09-30): two versions of one dependency are two different libraries
+([packages.md](packages.md#two-versions-of-one-repository)), and what that duplicates must cost nothing. So the
+compiler folds every generated C function whose code is exactly identical to another's into one: the same
+statements over the same types, once the function's own name and the names of the functions it calls (themselves
+folded first) are set aside. Every call and every function value then goes to the one that is kept.
+
+- **When it applies**: to every generated function, whoever wrote it -- two versions of one package, two template
+  instances that came out the same (`Column<Position>` and `Column<Velocity>` over two layouts of the same size), two
+  classes with the same helper. Functions that differ in one byte of code, in a type's layout or in a constant are
+  not identical and are both kept.
+- **How** (proposed by Claude, unconfirmed): a hash of each function's C with its own name and the names of the
+  functions it calls replaced by the kept name of their fold group, worked out callee first, and a full comparison
+  of the text for functions whose hashes match, so a collision can never merge two different functions. It runs
+  on the C the compiler writes, in every build, rather than relying on the linker's `--icf=all` or `/OPT:ICF`,
+  which only some linkers and only optimised builds do.
+- **What you could notice**: nothing a program can observe. A folded function has one address, so two function
+  values of folded functions compare equal where they compared unequal before (proposed by Claude, unconfirmed:
+  folding keeps a function apart when the program compares its values), and a native fault's `spite.frame` line or a debugger
+  names the kept function, which may be the other version's or the other instance's. `--final-classes` is
+  unchanged: it prints Spite, not C.
+- **Cost**: compile time only, one hash per function; the executable gets smaller.
+
 ### Other planned optimisations
 
 - **A list's buffer in its list's allocator** ([D154](decisions.md)): a `List` given an allocator is made there,

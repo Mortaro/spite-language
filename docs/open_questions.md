@@ -124,7 +124,9 @@ these five are what is left, with where each stands today.
       signature; the header form spreads it over lines. Acceptable, since D67 fixes where the lines go.
     - **The example's `var opened = $sub_type`** reads as assigning a class to a variable. Claude assumes
       `var opened: $sub_type` was meant.
-13. **How casting works, so a class can define its own casts, and how to name a variable's class as a type**
+13. **(Answered by D275 and D293: a conversion is the source's `to_<type>()`, never a `from_` function, and a class
+    becomes castable by defining `to_<type>()`; [values_and_types.md](values_and_types.md#numbers-are-classes-and-this--implemented).)**
+    **How casting works, so a class can define its own casts, and how to name a variable's class as a type**
     (Mortaro, 2026-09-23: "a thing for you to ask me later"). Example shape: `func from_type(type: Symbol, value:
     type.class)`. Not argued yet; waiting to be asked. D59 (arguments cast to their parameter type) is where it
     will first matter.
@@ -148,7 +150,9 @@ these five are what is left, with where each stands today.
     `while` for the rest. This pairs with D64: an index read is where `[]` becomes `T?`, and removing the
     index loops removes almost all of the narrowing D64 would otherwise demand. What the templates still lack
     for the compiler's own loops: the index inside the body, and stopping early.
-16. **Two versions of one dependency** (Mortaro, 2026-09-23). When two packages load the same git dependency at
+16. **(Answered by D296: two versions are two different libraries, never unified and never an error, and the
+    compiler folds identical C functions into one so the duplicate costs nothing;
+    [packages.md](packages.md#two-versions-of-one-repository).)** **Two versions of one dependency** (Mortaro, 2026-09-23). When two packages load the same git dependency at
     different commits and the difference changes nothing either package uses, the compiler should just use one,
     without asking. When the versions differ in members that are used, the compiler treats them as two packages
     in two namespaces, so both keep working, and a command lists these splits for whoever wants to unify them --

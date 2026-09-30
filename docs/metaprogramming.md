@@ -1347,6 +1347,11 @@ camelCase key with them ([json.md](json.md#a-camelcase-or-pascalcase-key)).
   and the functions it requires with no arguments; `row.attributes[attribute]` is the shape's own read, write or
   call, answered from the value's class at run time like any read through a `type`, and the plural walks the
   type's attributes in its order (`conformance/stage6/shape_attributes`).
+- **An enum value fills the hole of a yes-or-no member template** (D295, decided by Mortaro; **not built**). A
+  `Symbol<$element_type>` template in the standard library whose member must answer `Boolean` (`filter_`,
+  `count_`, `any_`, `all_`, `remove_where_`) also answers a name that is no member of the element but a value of
+  the enum one of its members is typed with: `entries.filter_files()` reads `entry.kind == 'files'`. A name that
+  matches both a member and an enum value, or the values of two members' enums, is an error, never a choice; the full rule is in [collections.md](collections.md#member-templates-over-an-enum-value--planned).
 - **The plural calls it for every attribute.** `show_attributes(label, lines)`, for a template `show_attribute`
   whose symbol is `attribute`, calls `show_<name>(label, lines)` once per attribute, in declaration order. It is
   an ordinary generated function whose body is those calls, so it is typed, visible and shaken like any other,

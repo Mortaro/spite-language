@@ -53,6 +53,19 @@ The other files of `library/` are the machinery these are built from -- `Schedul
 `JsonCursor`, `BinaryFormat`, the time-zone readers -- ordinary classes a program can read and the REPL can inspect, which a
 program has no reason to call.
 
+## What belongs in the standard library
+
+Anything that no company owns belongs here: a protocol, a file format, an algorithm, a piece of maths
+([D294](decisions.md)). HTTP, TLS, SHA-256 and HMAC, Argon2, secure random bytes, base64 and gzip are standard,
+and the library grows to cover them as programs need them. A client for a branded product -- a database such as
+MongoDB or Postgres, a vendor's API -- is never standard: it is a package, kept by Mortaro or someone he hands it
+to, and a program loads it pinned to a commit like any other repository
+([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)). `library/windows/`, `library/linux/` and
+`library/mac/` are not brand packages: they are how a standard class is written for one system.
+
+Decided, not built yet: HTTP, WebSocket and UDP over `Socket`, TLS, SHA-256 and HMAC, Argon2id, secure random
+bytes, base64 and base64url, and gzip.
+
 ## `String`
 
 Immutable. Text of up to 15 bytes is kept inside the `String` value itself and allocates nothing; longer text is
@@ -242,7 +255,7 @@ way ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-
 |---|---|---|
 | `path` | `String` | |
 | `entries()` | `List<Directory.Entry>` | every folder and file inside it, as `Directory` and `File` values |
-| `folders()` / `files()` | `List<String>` | names only, sorted by a merge sort (`n log n`), so a folder of thousands of files lists quickly |
+| `folders()` / `files()` | `List<String>` | names only, sorted by a merge sort (`n log n`), so a folder of thousands of files lists quickly; **decided to go** ([D295](decisions.md), not built): `entries().filter_folders()` and `entries().filter_files()` replace them |
 | `exists()` / `create()` | `Boolean` | |
 
 ```gdscript title=directory_tasks/directory_tasks.spite entry
@@ -263,7 +276,12 @@ exists true
 has hello true
 ```
 
-`files()` and `folders()` answer names, not paths; `entries()` answers values you can walk.
+`files()` and `folders()` answer names, not paths; `entries()` answers values you can walk. **Decided, not built
+([D295](decisions.md)):** `files()` and `folders()` go, because a listing is filtered by its kind rather than
+answered by one helper per kind: each entry answers a `kind` of `'files'` or `'folders'`, so
+`directory.entries().filter_files()` is the files and `directory.entries().filter_folders()` the folders
+([member templates over an enum value](collections.md#member-templates-over-an-enum-value)). Until it is built,
+the program above is how a folder is found by name.
 
 ## Walk a directory tree
 
@@ -656,6 +674,15 @@ D1 (decided by Mortaro, 2026-09-19): every value below is reference counted, exa
 `String`/`List<T>`/`Dictionary<T>` is freed the moment its last reference goes, not by a single-owner
 convention. See [Memory](memory.md#memory--implemented) for the retain/release rules and the cycle caveat.
 
+D294 (decided by Mortaro): **what no company owns is standard; what is built on a branded product is a package.**
+A protocol, a file format, an algorithm or maths that no company owns belongs in `library/`, and the library grows
+to cover it when a program needs it (HTTP, TLS, SHA-256/HMAC, Argon2, secure random bytes, base64, gzip; D213 did
+the same for games' maths). A client for a branded product (a database such as MongoDB or Postgres, a vendor's
+API or service) is never added to `library/`: it is a package, maintained by Mortaro or someone he delegates to,
+loaded pinned to a commit (D38). An operating system's folder is how a standard class is written for that system
+(D80), not a brand package. Nothing in `library/` breaks the rule today. **[the networking, hashing, password,
+random, base64 and compression classes are not built]**
+
 D14 and D177: every class here is Spite in `library/`, compiled with the program, and tree-shaken like the
 program's own code, so a program carries only what it reaches ([Pure Spite](#pure-spite-dissolving-the-runtime--partial)
 says what is still the compiler's).
@@ -792,7 +819,7 @@ each member answers is in the section of this page that teaches it.
 |---|---|
 | `File(path)` | `path`, `to_string(): String` (the path), `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes (names proposed): `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?`, `map(): MappedFile?` -- [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
 | `MappedFile` | made by `File.map()` (decided by Claude under D205; the names provisional under D214): a read-only mapping of the whole file -- `CreateFileMappingA`/`MapViewOfFile` on Windows, `mmap` with `PROT_READ` and `MAP_PRIVATE` on Linux and macOS, the file itself closed once mapped -- undone by `drop()` (`UnmapViewOfFile`, `munmap`). `size(): Long`; `get_at(position): Byte?` (`mapped[position]`), `read_short`, `read_integer`, `read_long`, `read_float`, `read_double` (each `(position): T?`) and `text(position, count): String?` answer `null` unless every byte they would read is inside the file, so a bad offset read from the file cannot read outside it; a read inside is one load from the mapping. An empty file maps to a `MappedFile` of size 0, since the operating systems refuse to map nothing. `conformance/stage6/mapped_files`; Linux and macOS are held to compiling -- [A file larger than memory](#a-file-larger-than-memory-map-it) |
-| `Directory(path)` | `path`, `entries(): List<Directory.Entry>` (D93, below), `files(): List<String>`, `folders(): List<String>`, `exists(): Boolean`, `create(): Boolean` -- [List a directory](#list-a-directory) |
+| `Directory(path)` | `path`, `entries(): List<Directory.Entry>` (D93, below), `files(): List<String>`, `folders(): List<String>` (both to go, D295), `exists(): Boolean`, `create(): Boolean` -- [List a directory](#list-a-directory) |
 | `Process(command, arguments)` | `working_directory`, `environment_variables` (names proposed), `run(): Integer`, `output(): String`, `run_attached(): Integer` (proposed) -- [Run a process](#run-a-process). Each argument reaches the child whole: single-quoted for the shell on Linux and macOS, and quoted by the `CommandLineToArgvW` rules on Windows, a `key=value` argument quoting only its value (`-script="a b"`). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
 | `Program()` | a singleton (D121): `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String` (proposed), `live_allocations(): Integer` -- [Program](#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |
 | `Clock()` | a singleton (names proposed): `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant` (D127; it replaced `unix_milliseconds(): Long`); `elapsed_nanoseconds()` is the monotonic clock, with a nanosecond unit and no allocation per reading (decided by Claude under D205 and D214) -- [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed) |
@@ -905,9 +932,14 @@ What follows is Claude's reading (proposed by Claude, unconfirmed):
   and `Path` would claim a text value it is not.
 - **Folders come first, then files, each sorted by name**; `.` and `..` are never listed. It is the order
   `folders()` then `files()` already give, so the three agree.
-- **`files()` and `folders()` stay**: they answer names rather than values, which is what the compiler's own
-  discovery wants, and each is one line over the same listing. With `entries()` they are redundant, and the
-  proposal is to remove them once nothing in the repository reads names alone.
+- **`files()` and `folders()` go** (D295, decided by Mortaro, 2026-09-30; **not built**): a helper that answers one
+  kind of a listing is a second way to filter it, so the listing is filtered by its kind instead,
+  `directory.entries().filter_files()`, through the member templates over an enum value
+  ([collections.md](collections.md#member-templates-over-an-enum-value--planned)). Proposed by Claude, unconfirmed:
+  `Directory.Entry` stays the union of `Directory` and `File`, and both answer `kind(): Directory.Kind`, an enum of
+  `'files'` and `'folders'` (the value names provisional under D214), which is the member every class of the union
+  answers with one enum type that the template reads. The compiler's discovery, the Linux and macOS watchers and
+  `scripts/docs_corpus` move to it before the two helpers are removed.
 - Each operating system's folder lists a directory its own way (D80), through `entry_names(want_folders)`, since
   `entries()` is the public listing and Spite has no overloading.
 - `--final-classes` prints `Directory` back out with its `union Entry`, which compiles because a union declared

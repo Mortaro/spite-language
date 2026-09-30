@@ -16,7 +16,9 @@ a message we have no action to take about them." Bubbling an error up for a deve
 "masturbatory" — it does not help, it just makes code defensive.
 *Instead:* three outcomes and no others (D24). A compile error for anything the compiler can know, `assert` when
 the program should keep running, `crash` when it should halt. `T?` is the only runtime failure value and
-carries no reason. If a distinction is actionable it is data — an enum or a union — not an error.
+carries no reason. If a distinction is actionable it is data — an enum or a union — not an error. A crash carries
+no message either (D297): its report points at the line of code and shows the memory there, which an AI reads
+instead of prose someone wrote about it.
 
 **`async`/`await` colouring.** The JS and C# pollution: the callee declares itself async, which infects every
 caller transitively and changes every return type.

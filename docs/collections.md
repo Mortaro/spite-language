@@ -592,6 +592,37 @@ func TemplateLoopError() {
 this 'while' walks every element of 'items' only to add up 'price': write 'var total = items.sum_price()'
 ```
 
+## Member templates over an enum value
+
+**Decided, not built** ([D295](decisions.md)). When the element has a member typed with a named enum, the
+templates that ask a yes-or-no question also take one of that enum's values as their name: `filter_<value>()` keeps
+the elements whose member is that value. A listing does not need one helper per kind of thing it lists; it is
+filtered by its kind:
+
+```gdscript
+enum Stage {
+    'draft'
+    'published'
+    'archived'
+}
+
+var title = ""
+var stage: Stage = 'draft'
+```
+
+```gdscript
+var published = posts.filter_published()
+var drafts = posts.count_draft()
+var anything_archived = posts.any_archived()
+posts.remove_where_archived()
+```
+
+`posts.filter_published()` means exactly `posts.filter_stage_is_published()` would, had `Post` a
+`func stage_is_published(): Boolean { return stage == 'published' }`: one loop, one comparison of two small
+integers per element, and a chain of them fuses like any other ([below](#chains-run-as-one-loop)). This is how a
+directory lists only its files: `directory.entries().filter_files()`, where each entry's `kind` is `'files'` or
+`'folders'`, and why `Directory` has no `files()` of its own ([standard_library.md](standard_library.md#list-a-directory)).
+
 ## Passing a function for each element
 
 A template sees only the element and the list: `names.each_say_hello()` looks for a member `say_hello` of each
@@ -1002,6 +1033,38 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
   templates. A function that needs more than the element (`print_statement(statement, depth)`) keeps its `while`.
 
 `conformance/stage6/passed_functions`, `diagnostics/passed_functions`.
+
+### Member templates over an enum value  **[planned]**
+
+D295 (decided by Mortaro, 2026-09-30; the rule's details below proposed by Claude, unconfirmed): **the templates
+that ask a yes-or-no question of each element also work on a named enum's values.**
+
+- **Which templates.** `filter_`, `count_`, `any_`, `all_` and `remove_where_` -- the ones whose member must
+  "take nothing, return `Boolean`" in [the table](#member-templates-loops-you-do-not-write). The others already
+  take a member and compare or read it (`find_by_kind('files')`, `map_kind()`, `sort_by_kind()`), so an enum value
+  adds nothing to them, and `sum_<value>` or `each_<value>` is the ordinary "no member" error.
+- **How the name is read.** For `list.filter_<name>()` over elements of class `T`: when `T` has a member named
+  `<name>`, it is that member, exactly as today. Otherwise the compiler looks at `T`'s members typed with a named
+  enum -- attributes and functions taking no arguments, non-nullable -- and at the values each enum lists. Exactly
+  one such member whose enum lists `<name>` makes the template read `element.<member> == '<name>'`, and nothing
+  else changes: same result type, same fusion, same order, same cost as a `Boolean` member, one comparison of two
+  small integers. A reopened enum's added values count ([packages.md](packages.md#reopening-an-enum-adds-values)).
+- **A union element** is read through a member every class of the union answers, with the same enum type; a
+  member only some of them answer is not a candidate.
+- **Errors, never a guess** (D244). No member and no enum value: the usual error, which then also says no enum of
+  `T`'s members lists `<name>`. Two or more members whose enums list `<name>`: "'filter_<name>' could read '<a>' or
+  '<b>', whose enums both list '<name>': write the comparison as a Boolean member of <T>, or pass a function". A
+  member named `<name>` that is also a value of such an enum: an error naming both, since which one is read must
+  not depend on what else the class declares.
+- **Helpers that answer one kind of a listing go** (D295). A function that answers the part of a listing of one
+  kind -- `Directory.files()`, `Directory.folders()` -- is a second way to write `entries().filter_<kind>()`, and is
+  removed once the templates take enum values. To move: `Directory.files()` and `Directory.folders()` and their
+  callers (the compiler's discovery in `bootstrap/source/discovery/program_discovery.spite` and `git_load.spite`,
+  `library/linux/watcher.spite`, `library/mac/watcher.spite`, `scripts/docs_corpus`, the example under [List a
+  directory](standard_library.md#list-a-directory)). `Spite.Namespace`'s `.classes` and `.namespaces` are the same
+  shape (one node's children split by kind) and are listed for Mortaro to decide.
+- **Tree shaking and run time.** Resolved while compiling; nothing exists at run time that a `Boolean` member's
+  template would not have, and an enum no template reads costs nothing.
 
 ### List<T> additions  **[implemented]**
 

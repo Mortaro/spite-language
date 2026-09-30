@@ -347,6 +347,8 @@ func is_alive(): Boolean {
   tell from a real answer, lose a write, skip a step, leak or hang. When a function cannot answer, its result says
   so (`T?`, or an empty list), or it returns a value you chose on purpose, or it crashes because a caller broke the
   rule ([failure.md](failure.md#nothing-fails-silently)).
+- `crash` and `assert` take a condition and never a message (D297): the report names the file and line and shows
+  the values there. Never add a clause only to get text printed (`crash found or name == ""`).
 - `Monster?` is a value that may be `null`. It must be narrowed before use: `if target { }` (with `else`),
   `assert target`, `crash target`, `while target { }`, or `switch target { Monster: ... Null: ... }`. One
   `assert a.b.c` narrows the whole path. `null` is never compared against: `value == null` is an error.

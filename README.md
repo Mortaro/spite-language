@@ -117,7 +117,7 @@ The docs say, heading by heading, what is implemented, partial or planned; in sh
 | Area | Status |
 |---|---|
 | Files as classes, `singleton` and `generic $name` header lines, enforced file order | implemented |
-| Values, numbers as classes (`this`, `from_type` casts), `T?` narrowing, `assert` and `crash` | implemented |
+| Values, numbers as classes (`this`, casts by assignment), `T?` narrowing, `assert` and `crash` | implemented |
 | Functions as values, variadic `...args: List<T>`, operators as functions | implemented |
 | Enums, unions, shapes (`type`), `value == Class` tests | implemented |
 | Metaprogramming: `Symbol` templates, `Symbol<Class>`, compile-time type tests, fused member-template chains | implemented |
