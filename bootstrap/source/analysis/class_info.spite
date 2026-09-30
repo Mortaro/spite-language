@@ -12,7 +12,6 @@ var is_generic_template = false
 var is_container = false
 var is_instantiated = false
 var memory_bytes = 0
-var memory_binding = ""
 var memory_path = ""
 var memory_line = 0
 var struct_position = -1

@@ -1,5 +1,4 @@
-var heap = Memory.Heap()
-var _memory = heap.allocate(8)
+var _memory = Memory.Bytes(8)
 
 func text(length: Long): String
 
