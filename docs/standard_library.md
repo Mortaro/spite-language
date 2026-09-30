@@ -776,12 +776,31 @@ allocation counts.
 | `trim()` / `upper_case()` / `lower_case()` | `String` | |
 | `split(separator)` | `List<String>` | an empty separator splits into single characters |
 | `lines()` | `List<String>` | splits on `\n` |
+| `pluralize()` / `singularize()` | `String` | the English plural or singular of the last word, by the rules below |
 | `to_tiny()` / `to_short()` / `to_integer()` / `to_long()` | `Tiny?` / `Short?` / `Integer?` / `Long?` | digits with an optional `+` or `-`, spaces around them allowed; `null` for anything else (`"12abc"`, `""`) or a number the type cannot hold |
 | `to_byte()` / `to_unsigned_short()` / `to_unsigned_integer()` / `to_unsigned_long()` | `Byte?` / `UnsignedShort?` / `UnsignedInteger?` / `UnsignedLong?` | the same, and `null` for a negative number |
 | `to_float()` / `to_double()` | `Float?` / `Double?` | digits with an optional sign, `.` and exponent (`-1.5e2`, `.5`), spaces around them allowed; `null` for anything else (`"1e"`, `"nan"`) |
 | `sum(other)` / `equals(other)` / `less_than(other)` / `greater_than(other)` | `String` / `Boolean` | the explicit call form of `+`/`==`/`<`/`>` |
 | `to_string()` / `to_debug()` | `String` | the text itself / the text quoted, with `"`, `\` and a line feed escaped ([`Console.debug`](#console)) |
 | `to_bytes()` | `List<Byte>` | the text's bytes, one per byte of its UTF-8, for [hashing, encoding and compressing](#bytes-base64-compression-hashes-and-passwords) |
+
+**`pluralize()` and `singularize()` inflect English the way Rails' ActiveSupport does**, so a
+name and its collection read as a pair: `"active_quest".pluralize()` is `"active_quests"`, and
+`"map_names".singularize()` is `"map_name"`. Only the last word changes: the text after the last `_` or space, or
+from the last capital that follows a lower-case letter (`"ActiveQuest"` → `"ActiveQuests"`). The word is inflected
+in lower case and handed back in the case it came in: `"Person"` → `"People"`, `"ACTIVE_QUEST"` →
+`"ACTIVE_QUESTS"`. In order, a whole last word that is **uncountable** stays as it is (`data`, `equipment`,
+`information`, `rice`, `money`, `species`, `series`, `fish`, `sheep`, `jeans`, `police`); an **irregular** one
+swaps with its pair (`person`/`people`, `man`/`men`, `woman`/`women`, `child`/`children`, `sex`/`sexes`,
+`move`/`moves`, `zombie`/`zombies`); otherwise the first of ActiveSupport's ending rules that matches applies
+(`box` → `boxes`, `enemy` → `enemies`, `wolf` → `wolves`, `knife` → `knives`, `analysis` → `analyses`, `medium`
+→ `media`, `index` → `indices`, `matrix` → `matrices`, `vertex` → `vertices`, `mouse` → `mice`, `ox` → `oxen`,
+`octopus` → `octopi`, `quiz` → `quizzes`, `status` → `statuses`), and a word no rule names takes or loses an `s`.
+A word already in the asked number is left alone (`"quests".pluralize()` is `"quests"`, `"people".pluralize()` is
+`"people"`), and `""` answers `""`. The rules are ActiveSupport's own, oddities included (`"potato".pluralize()` is
+`"potatos"`: only `buffalo` and `tomato` take `-oes`). They are ordinary Spite in `library/string.spite`, so the
+compiler, itself a Spite program, can call them while compiling; a user program has no compile-time call of its own.
+They are functions, like `upper_case()`, because a `String` has no attributes for a getter to answer.
 
 #### Maths
 
