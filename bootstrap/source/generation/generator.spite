@@ -40,6 +40,9 @@ var namespaces_known = List<String>()
 var namespaces_known_for = -1
 var folded_by_reflection = false
 var source_paths_used = false
+var scanning_parameter = false
+var declaring_reflected_value = false
+var scanned_body = List<Syntax.Statements.Statement>()
 var conversion_names = Dictionary<String>()
 var foreign_library_files = List<String>()
 var foreign_library_namings = List<String>()
@@ -1112,6 +1115,9 @@ func constant_condition(
     var reflected_answer = reflected_condition(expression, scope, class_information)
     if reflected_answer == true or reflected_answer == false {
         return reflected_answer
+    }
+    if bound_value_present(expression, scope, class_information) {
+        return true
     }
     var asked = function_question(expression, class_information)
     if asked == true or asked == false {
@@ -32821,6 +32827,9 @@ func folded_check(
     class_information: Analysis.ClassInfo,
 ): Boolean? {
     var reflected_answer = reflected_condition(assertion, scope, class_information)
+    if bound_value_present(assertion, scope, class_information) {
+        reflected_answer = true
+    }
     folded_by_reflection = reflected_answer == true or reflected_answer == false
     if folded_by_reflection {
         var checked_path = operand_text(assertion)
@@ -40726,6 +40735,7 @@ func specialised_call(
     assert waits_for_constants(class_information, function)
     var constants = reflected_arguments(function, arguments_ast, scope, class_information)
     assert not constants.is_empty()
+    assert keeps_constants(function, constants)
     var specialised = specialised_function(class_information, function, constants)
     var passed = specialised_arguments(arguments_ast, constants)
     return generate_own_function_call(specialised.name, passed, scope, class_information)
@@ -40758,6 +40768,9 @@ func walk_fits(listed: Reflected, function: Analysis.FunctionInfo): Boolean {
     crash function.parameters[0]
     var parameter = function.parameters[0]
     var parameter_type = parameter.get_type()
+    if is_reflection_type(parameter_type) and parameter_needs_value(function, parameter.name) {
+        return false
+    }
     var index = 0
     while index < listed.elements.count() {
         var element = listed.elements[index]
@@ -41011,7 +41024,7 @@ func constant_local(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    if declaration.type_reference {
+    if declaration.type_reference or declaring_reflected_value {
         return false
     }
     crash declaration.value
@@ -41026,6 +41039,7 @@ func constant_local(
     if not constant_kind or reassigned_in(reflected_body, declaration.name) {
         return false
     }
+    scanned_body = reflected_body
     if statements_need_value(reflected_body, declaration.name) {
         return false
     }
@@ -41042,7 +41056,7 @@ func reflected_identifier(
 ): ExpressionResult {
     var origin = binding_origin(identifier.name)
     if origin {
-        return generate_expression(origin, scope, class_information)
+        return held_reflected_value(identifier.name, origin, scope, class_information)
     }
     var folded = folded_reflection(identifier, scope, class_information)
     if folded {
@@ -41293,11 +41307,12 @@ func expression_needs_value(expression: Syntax.Expressions.Expression, name: Str
         Syntax.Expressions.IdentifierExpression: return expression.name == name
         Syntax.Expressions.MemberExpression: {
             crash expression.object
-            if expression.name == "value" and mentions_in(expression.object, name) {
+            if expression.name == "value" and not scanning_parameter and mentions_in(expression.object, name) {
                 return true
             }
             if is_identifier_named(expression.object, name) {
-                return not reflection_word(expression.name)
+                var typed_value = scanning_parameter and expression.name == "value"
+                return not reflection_word(expression.name) and not typed_value
             }
             return expression_needs_value(expression.object, name)
         }
@@ -41342,12 +41357,15 @@ func list_literal_needs_value(literal: Syntax.Expressions.ListLiteralExpression,
 }
 
 func call_needs_value(call: Syntax.Expressions.CallExpression, name: String): Boolean {
-    if expressions_need_value(call.arguments, name) {
+    crash call.callee
+    if arguments_need_value(call, name) {
         return true
     }
-    crash call.callee
     var member = shape.as_member(call.callee)
     if not member {
+        if is_identifier_named(call.callee, name) {
+            return false
+        }
         return expression_needs_value(call.callee, name)
     }
     crash member.object
@@ -41355,7 +41373,7 @@ func call_needs_value(call: Syntax.Expressions.CallExpression, name: String): Bo
         return expression_needs_value(member.object, name)
     }
     var folding = ["each", "map", "count", "is_empty", "first", "last", "filter"]
-    if folding.contains(member.name) {
+    if folding.contains(member.name) or reflection_word(member.name) {
         return false
     }
     var prefix = member_template_prefix(member.name)
@@ -41369,10 +41387,10 @@ func declaration_needs_value(declaration: Syntax.Statements.VariableDeclaration,
     }
     var mentioned = List<String>()
     collect_mentioned_names(declaration.value, mentioned)
-    if not mentioned.contains(name) or declaration.name == name or answers_plain_value(declaration.value) {
+    if not mentioned.contains(name) or declaration.name == name or not answers_reflection(declaration.value) {
         return false
     }
-    return statements_need_value(reflected_body, declaration.name)
+    return statements_need_value(scanned_body, declaration.name)
 }
 
 func names_symbol_parameter(named: Syntax.Types.NamedType): Boolean {
@@ -41633,4 +41651,140 @@ func rooted_in_parameter(expression: Syntax.Expressions.Expression): Boolean {
         return false
     }
     return true
+}
+
+func parameter_needs_value(function: Analysis.FunctionInfo, name: String): Boolean {
+    var saved_body = scanned_body
+    scanned_body = function.body
+    scanning_parameter = true
+    var needs = statements_need_value(function.body, name)
+    scanning_parameter = false
+    scanned_body = saved_body
+    return needs
+}
+
+func keeps_constants(function: Analysis.FunctionInfo, constants: List<Reflected>): Boolean {
+    var index = 0
+    while index < constants.count() and index < function.parameters.count() {
+        var constant = constants[index]
+        var parameter = function.parameters[index]
+        if not constant.kind.is_empty() and parameter_needs_value(function, parameter.name) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func bound_value_present(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var member = shape.as_member(expression)
+    if not member {
+        return false
+    }
+    crash member.object
+    if member.name != "value" or not rooted_in_parameter(member.object) {
+        return false
+    }
+    var attribute = reflected(member.object, scope, class_information)
+    if not attribute {
+        return false
+    }
+    if attribute.kind != "attribute" or not attribute.bound {
+        return false
+    }
+    crash attribute.described_type
+    if type_shape.as_nullable(attribute.described_type) {
+        return false
+    }
+    return true
+}
+
+func arguments_need_value(call: Syntax.Expressions.CallExpression, name: String): Boolean {
+    crash call.callee
+    var index = 0
+    while index < call.arguments.count() {
+        var argument = call.arguments[index]
+        var passed_on = is_identifier_named(argument, name) and passes_reflection(call.callee, index)
+        if not passed_on and expression_needs_value(argument, name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func passes_reflection(callee: Syntax.Expressions.Expression, position: Integer): Boolean {
+    var called = shape.as_identifier(callee)
+    if not called or not current_class {
+        return false
+    }
+    var function = current_class.find_function(called.name)
+    if not function {
+        return false
+    }
+    if position >= function.parameters.count() {
+        return false
+    }
+    var parameter = function.parameters[position]
+    var parameter_type = parameter.get_type()
+    return is_reflection_type(parameter_type)
+}
+
+func answers_reflection(expression: Syntax.Expressions.Expression): Boolean {
+    var object_words = [
+        "attributes"
+        "functions"
+        "classes"
+        "namespaces"
+        "every_class"
+        "values"
+        "arguments"
+        "namespace"
+        "parent"
+        "owner"
+        "function"
+        "returns"
+        "element_type"
+        "value_type"
+        "instances"
+        "class"
+    ]
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return true
+        Syntax.Expressions.IndexExpression: return true
+        Syntax.Expressions.MemberExpression: return object_words.contains(expression.name)
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            var called = shape.as_member(expression.callee)
+            if not called {
+                return false
+            }
+            var selecting = ["first", "last", "filter"]
+            return selecting.contains(called.name) or called.name.starts_with("filter_") or called.name.starts_with("find_by_")
+        }
+        _: return false
+    }
+}
+
+func held_reflected_value(
+    name: String,
+    origin: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var hidden = "{name}_at_run_time"
+    var held: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(hidden)
+    if not scope.lookup_type(hidden) {
+        var declaration = Syntax.Statements.VariableDeclaration(hidden, null, origin)
+        declaration.line = current_line
+        declaring_reflected_value = true
+        generate_variable_declaration(declaration, scope, class_information)
+        declaring_reflected_value = false
+    }
+    scope.mark_used(hidden)
+    return generate_expression(held, scope, class_information)
 }
