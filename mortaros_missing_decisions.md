@@ -14,7 +14,27 @@ Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection re
 answered by D314.
 
 Third pass, after D318-D325: 229 answered by D318 (on the reflection branch), 230 by D319, 227 by D320 and
-D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330. Rewritten: 238 (D324), 36 (D319).
+D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330, 208 by D332. Rewritten: 238 (D324), 36 (D319).
+
+Fourth pass, 2026-09-30, by the principles (the user of Spite is an AI, so the language decides and "leave it to
+the user" is never an answer; everything monomorphizes; get-only attributes; renames by map; REPL and hot-reload
+builds favour information over speed): answered 2026-09-30, rows pending: 225 (same-package pins are two loads in
+load order), 234 (identical code folded by the compiler), 36 (`type Number`), 202 and 204 (confirmed as proposed,
+maths constants as get-only attributes such as `Float.pi`), 205 (`x`, `y`, `z`, `w`), 166's names
+(`FileSystemWatcher()`, `watch_for_changes(Directory or File)`). 79 by D322's principle (the REPL shows the fuller
+`to_debug()`). Narrowed: 161. Moved to "Confirm quickly": 166 (quiet period only), 197, 212, 215.
+
+## Confirm quickly
+
+Each has one answer the principle "the user is an AI, the language decides" implies. Yes, or reopen.
+
+197. **A flush per printed line** (5x to a file): the language chooses, with no per-program buffer setting (for
+     example per line to a terminal, buffered to a file, always flushed at exit and at a crash).
+166. **The file watcher's quiet period** (`FileSystemWatcher`): fixed by the language at 100 ms, not an argument.
+212. **`--run=false` and a stale executable** (D244): never leave one. The build writes a fresh executable or
+     deletes the old one; "teach `--executable --run=false`" is out.
+215. **`tune_for_this_machine` and `translation_units`**: not settings; the compiler chooses tuning and the number
+     of units (a default build stays unsplit, as measured), so the names go.
 
 ## Blocking now
 
@@ -31,9 +51,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
      plural across `library/`, conformance and the game engine package.
 213. **The default build's `-O` level**: `-O0` (fast to build, 3-7x slower to run), `-O1`, or units at `-O1`?
      (`--hot-reload` is already `-O3` by D299.) Blocks: the game port's iteration speed.
-212. **Should `--run=false` alone build the executable?** Today it only checks, leaving a stale executable to run
-     (D244). Options: keep and teach `--executable --run=false`; make checking its own flag or command; delete the
-     stale executable. Blocks: the ports' build scripts.
 222. **A foreign status enum** (D272, not built): a C function returning a C `enum` answers a Spite enum made from
      the header, must be used, and is read by a `switch`. May that switch have `_:`? Options: never; `_:` that may
      not `crash`/`assert`; freely. Recommend never (each outcome a written line). Blocks: D272, the game engine's Vulkan
@@ -51,7 +68,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
 175. **A class reading its own allocator** (`memory.allocator` inside a class), so a list's buffer follows its arena.
 155. **A dedicated thread for work that blocks forever** (a game engine's window loop): `Thread(function)`, or a marker
      on `Parallel`?
-208. **How a list that falls back to references is reported** (8.1 against 35-40 ms a tick), with no warnings?
 209. **Should a `List` own its items, so a kept reference is weak (`T?`)**, or stay an explicit `Weak<T>`?
 
 ## Silent today (D244)
@@ -99,45 +115,27 @@ These hold up the D316/D317 migration, the game engine package or the game port.
      scope and the attributes of `this`, at most 12 values, text cut at 80 bytes, objects left out, and no condition
      text on the line (the `.crashes` map keeps it). Right set?
 219. **Confirm D263-D267** and the names `remove_where`, `truncate`, `swap`.
-225. **One package pinning two commits of one repository** (D296): both versions' classes share dotted names there.
-     Keep it an error (proposed), or a way to name each (`load ... as Name`)? Recommend the error.
-234. **Identical code folding** (D296's second half; the duplicate C of two versions stays until it lands).
-     Options: (a) fold functions whose C is literally identical, in the compiler, every build (as
-     [optimizations.md](docs/optimizations.md#identical-functions-are-folded-into-one) proposes); (b) also fold
-     across types of equal layout (`Column<Position>`/`Column<Velocity>`); (c) the linker's ICF (`/OPT:ICF`,
-     `--icf=all`), no compiler work, optimised builds only. Recommended by the orchestrator: (c).
-
 ## Taste (names, syntax, how it reads)
 
-36. **Telling a number class apart**: a walk tests for a number with ten comparisons because a union cannot hold
-    number classes (D319's generated JSON no longer needs it; other walks do). Options: (a) a get-only
-    `.is_number` beside `.is_list`/`.is_enum` (D317); (b) unions of number classes. Recommend (a).
 220. **A `Dictionary`'s `[]` is `get`/`set`**: under D315 nobody calls them by name, so rename them `get_at`/`set_at`
      so every `[]` is one function pair? Recommend yes (D205: no syntax).
 221. **A walked row states its reads** with a `crash` line per read, or the walked read halts on its own?
 105. **Naming a root class that a nearer one shadows**: a root qualifier (`Root.Plugin`), or fall through only for
      a self-reference? Nothing is built.
 161. **Where an enum reopening's values go**: appended in merge order, so a program's own values come before a
-     loaded engine's. Let a reopening say where, and should the program's come last?
+     loaded engine's. Should the program's come last instead? (A reopening choosing its place is out: the language
+     decides, and D302 already fixes each value's number.)
 9. **The floor**: what stays C, and how `--final-classes` shows it
    ([standard_library.md](docs/standard_library.md#pure-spite-dissolving-the-runtime)).
 39. **The C left in `main`** (`argv`, `_setmode`, releasing singletons, the `--debug-memory` report): moving it into
     Spite needs a way to receive `argv` and to run code after the program ends.
 76. **Enums declaring more than `to_string()`/`to_debug()`**, the way a number's class does.
-79. **The REPL showing values through `to_debug()`** (quoted text, full nesting) instead of its own display.
 134. **How outputs are chosen**: `Boolean` fields of `Build` (`run` defaulting to `true`), "name any output and get
      only those", or one `--outputs=` list?
 138. **Two ways to format**: a compile formats the program, `spite format <path>` formats anything. Keep both?
-166. **The watcher's name and members**: `Watcher`, `PathWatcher`, `FileSystem.Watcher`? `wait_for_changes()`
-     public? The 100 ms quiet period a constructor argument?
 171. **Who may read and write an address**: any function of a standard-library class, including one a program adds
      by reopening it, or only files under `library/`?
 183. **A capped `ShortText<32>`**, or is D203's 15-byte inline text enough?
-202. **The reader and writer names**: `append_to(bytes)`, `read_memory(address, count)`, `position`, `remaining()`,
-     no `read_or_crash()` for bytes.
-204. **The maths names**: `arc_tangent_over`, `logarithm`, `euler_number`, `largest`/`smallest`, constants as
-     `Float.pi()`; whether `minimum`/`maximum` pass not-a-number on; maths as primitives each backend lowers.
-205. **`x_value`...`w_value`** on vectors and quaternions, or `x`, `y`, `z`, `w` as on `Vector2`?
 217. **Should unsigned arithmetic that does not fit halt too**, with explicit wrapping functions for hashes? And
      `-fwrapv` for production builds?
 
@@ -146,7 +144,5 @@ These hold up the D316/D317 migration, the game engine package or the game port.
 214. **`--optimized` at `-O3` or `-O2`**: the measurements pick no clear winner (D205).
 178. **A wait inside an expression runs before the rest of its statement.** Keep, or move the statement's earlier
      parts into temporaries so the written order holds (more frame fields per wait)?
-197. **A flush per printed line** costs 5x to a file. Keep for every program, or let a program keep the buffer?
 210. **Is `Float` arithmetic rounded to `Float` after each operation?** 2-3x faster loops, but printed last bits
      change, so not D205.
-215. **The names `tune_for_this_machine` and `translation_units`**; a default build is not split (measured slower).

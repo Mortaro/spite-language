@@ -89,7 +89,7 @@ func writes(key: String, slot: String): Boolean {
 }
 
 func reason_of(key: String, slot: String): String {
-    var found = reasons.get("{key}#{slot}")
+    var found = reasons["{key}#{slot}"]
     crash found
     return found
 }

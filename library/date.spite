@@ -139,7 +139,7 @@ func less_than(other: Date): Boolean {
 }
 
 func greater_than(other: Date): Boolean {
-    return other.less_than(this)
+    return other < this
 }
 
 func to_string(): String {

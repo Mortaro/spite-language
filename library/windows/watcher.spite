@@ -197,7 +197,7 @@ func close_watch(watching: Integer) {
     heap.free(transferred)
     kernel.CloseHandle(handle)
     kernel.CloseHandle(event)
-    handles.set_at(watching, -1)
+    handles[watching] = -1
 }
 
 func drop() {
