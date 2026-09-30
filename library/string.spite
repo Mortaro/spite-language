@@ -337,3 +337,286 @@ func to_float(): Float? {
     assert value
     return value
 }
+
+func pluralize(): String {
+    return _inflected(true)
+}
+
+func singularize(): String {
+    return _inflected(false)
+}
+
+func _inflected(to_plural: Boolean): String {
+    var own_length = length()
+    var start = _last_word_start()
+    var head = slice(0, start)
+    var word = slice(start, own_length)
+    var lower = word.lower_case()
+    var changed = _singular_word(lower)
+    if to_plural {
+        changed = _plural_word(lower)
+    }
+    return head + _cased_like(word, changed)
+}
+
+func _last_word_start(): Integer {
+    var index = length() - 1
+    while index > 0 {
+        var code = code_at(index)
+        if code == 95 or code == 32 {
+            return index + 1
+        }
+        var previous = code_at(index - 1)
+        if code >= 65 and code <= 90 and previous >= 97 and previous <= 122 {
+            return index
+        }
+        index = index - 1
+    }
+    return 0
+}
+
+func _cased_like(original: String, changed: String): String {
+    var shouted = original.upper_case()
+    var quiet = original.lower_case()
+    if original.length() > 1 and original == shouted and shouted != quiet {
+        return changed.upper_case()
+    }
+    var first = original.code_at(0)
+    if first >= 65 and first <= 90 {
+        var head = changed.slice(0, 1).upper_case()
+        var changed_length = changed.length()
+        return head + changed.slice(1, changed_length)
+    }
+    return changed
+}
+
+func _is_uncountable(word: String): Boolean {
+    return word == "data" or word == "equipment" or word == "information" or word == "rice" or word == "money" or word == "species" or word == "series" or word == "fish" or word == "sheep" or word == "jeans" or word == "police"
+}
+
+func _irregular(word: String, to_plural: Boolean): String {
+    var found = _irregular_pair(word, "person", "people", to_plural)
+    if found.is_empty() {
+        found = _irregular_pair(word, "man", "men", to_plural)
+    }
+    if found.is_empty() {
+        found = _irregular_pair(word, "woman", "women", to_plural)
+    }
+    if found.is_empty() {
+        found = _irregular_pair(word, "child", "children", to_plural)
+    }
+    if found.is_empty() {
+        found = _irregular_pair(word, "sex", "sexes", to_plural)
+    }
+    if found.is_empty() {
+        found = _irregular_pair(word, "move", "moves", to_plural)
+    }
+    if found.is_empty() {
+        found = _irregular_pair(word, "zombie", "zombies", to_plural)
+    }
+    return found
+}
+
+func _irregular_pair(word: String, singular: String, plural: String, to_plural: Boolean): String {
+    if word != singular and word != plural {
+        return ""
+    }
+    if to_plural {
+        return plural
+    }
+    return singular
+}
+
+func _cut(word: String, count: Integer): String {
+    var kept = word.length() - count
+    return word.slice(0, kept)
+}
+
+func _code_before(word: String, suffix_length: Integer): Integer {
+    var position = word.length() - suffix_length - 1
+    if position < 0 {
+        return -1
+    }
+    return word.code_at(position)
+}
+
+func _is_vowel_or_y(code: Integer): Boolean {
+    return code == 97 or code == 101 or code == 105 or code == 111 or code == 117 or code == 121
+}
+
+func _plural_word(word: String): String {
+    if word.is_empty() or _is_uncountable(word) {
+        return word
+    }
+    var irregular = _irregular(word, true)
+    if not irregular.is_empty() {
+        return irregular
+    }
+    if word.ends_with("quiz") {
+        return "{word}zes"
+    }
+    if word == "oxen" or word == "mice" or word == "lice" {
+        return word
+    }
+    if word == "ox" {
+        return "oxen"
+    }
+    if word == "mouse" or word == "louse" {
+        return _ending(word, 4, "ice")
+    }
+    if word.ends_with("ix") or word.ends_with("ex") {
+        var stem = _cut(word, 2)
+        if stem.ends_with("matr") or stem.ends_with("vert") or stem.ends_with("ind") {
+            return "{stem}ices"
+        }
+    }
+    if word.ends_with("x") or word.ends_with("ch") or word.ends_with("ss") or word.ends_with("sh") {
+        return "{word}es"
+    }
+    if word.ends_with("y") {
+        var before_y = _code_before(word, 1)
+        if before_y >= 0 and not _is_vowel_or_y(before_y) or word.ends_with("quy") {
+            return _ending(word, 1, "ies")
+        }
+    }
+    if word.ends_with("hive") {
+        return "{word}s"
+    }
+    if word.ends_with("fe") {
+        var before_fe = _code_before(word, 2)
+        if before_fe >= 0 and before_fe != 102 {
+            return _ending(word, 2, "ves")
+        }
+    }
+    if word.ends_with("lf") or word.ends_with("rf") {
+        return _ending(word, 1, "ves")
+    }
+    if word.ends_with("sis") {
+        return _ending(word, 2, "es")
+    }
+    if word.ends_with("ta") or word.ends_with("ia") {
+        return word
+    }
+    if word.ends_with("tum") or word.ends_with("ium") {
+        return _ending(word, 2, "a")
+    }
+    if word.ends_with("buffalo") or word.ends_with("tomato") {
+        return "{word}es"
+    }
+    if word.ends_with("bus") or word.ends_with("alias") or word.ends_with("status") {
+        return "{word}es"
+    }
+    if word.ends_with("octopi") or word.ends_with("viri") {
+        return word
+    }
+    if word.ends_with("octopus") or word.ends_with("virus") {
+        return _ending(word, 2, "i")
+    }
+    if word == "axis" or word == "testis" {
+        return _ending(word, 2, "es")
+    }
+    if word.ends_with("s") {
+        return word
+    }
+    return "{word}s"
+}
+
+func _singular_word(word: String): String {
+    if word.is_empty() or _is_uncountable(word) {
+        return word
+    }
+    var irregular = _irregular(word, false)
+    if not irregular.is_empty() {
+        return irregular
+    }
+    if word.ends_with("databases") {
+        return _cut(word, 1)
+    }
+    if word.ends_with("quizzes") {
+        return _cut(word, 3)
+    }
+    if word.ends_with("matrices") {
+        return _ending(word, 4, "ix")
+    }
+    if word.ends_with("vertices") or word.ends_with("indices") {
+        return _ending(word, 4, "ex")
+    }
+    if word == "oxen" {
+        return "ox"
+    }
+    if word.ends_with("aliases") or word.ends_with("statuses") {
+        return _cut(word, 2)
+    }
+    if word.ends_with("alias") or word.ends_with("status") or word.ends_with("octopus") or word.ends_with("virus") {
+        return word
+    }
+    if word.ends_with("octopi") or word.ends_with("viri") {
+        return _ending(word, 1, "us")
+    }
+    if word == "axis" or word == "axes" {
+        return "axis"
+    }
+    if word.ends_with("crisis") or word.ends_with("testis") or word.ends_with("crises") or word.ends_with("testes") {
+        return _ending(word, 2, "is")
+    }
+    if word.ends_with("shoes") {
+        return _cut(word, 1)
+    }
+    if word.ends_with("oes") or word.ends_with("buses") {
+        return _cut(word, 2)
+    }
+    if word.ends_with("bus") {
+        return word
+    }
+    if word == "mice" or word == "lice" {
+        return _ending(word, 3, "ouse")
+    }
+    if word.ends_with("xes") or word.ends_with("ches") or word.ends_with("sses") or word.ends_with("shes") {
+        return _cut(word, 2)
+    }
+    if word.ends_with("movies") {
+        return _cut(word, 1)
+    }
+    if word.ends_with("series") {
+        return word
+    }
+    if word.ends_with("ies") {
+        var before_ies = _code_before(word, 3)
+        if before_ies >= 0 and not _is_vowel_or_y(before_ies) or word.ends_with("quies") {
+            return _ending(word, 3, "y")
+        }
+    }
+    if word.ends_with("lves") or word.ends_with("rves") {
+        return _ending(word, 3, "f")
+    }
+    if word.ends_with("tives") or word.ends_with("hives") {
+        return _cut(word, 1)
+    }
+    if word.ends_with("ves") {
+        var before_ves = _code_before(word, 3)
+        if before_ves >= 0 and before_ves != 102 {
+            return _ending(word, 3, "fe")
+        }
+    }
+    if word.ends_with("sis") or word.ends_with("ses") {
+        var stem = _cut(word, 3)
+        if stem.ends_with("analy") or stem.ends_with("ba") or stem.ends_with("diagno") or stem.ends_with("parenthe") or stem.ends_with("progno") or stem.ends_with("synop") or stem.ends_with("the") {
+            return "{stem}sis"
+        }
+    }
+    if word.ends_with("ta") or word.ends_with("ia") {
+        return _ending(word, 1, "um")
+    }
+    if word.ends_with("news") or word.ends_with("ss") {
+        return word
+    }
+    if word.ends_with("s") {
+        return _cut(word, 1)
+    }
+    return word
+}
+
+func _ending(word: String, count: Integer, ending: String): String {
+    var kept = _cut(word, count)
+    return "{kept}{ending}"
+}
