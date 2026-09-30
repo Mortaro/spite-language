@@ -708,7 +708,6 @@ func generate(
             var class_type = class_type_of(looped_class)
             ensure_reflect_function(class_type)
         }
-        emit_loop_singletons()
     }
     var settle = 0
     while settle < 4 {
@@ -717,6 +716,9 @@ func generate(
         emit_functions_function_bodies()
         emit_pending_functions()
         settle = settle + 1
+    }
+    if read_evaluate_print_loop and not reload_host {
+        emit_loop_singletons()
     }
     settle_shape_members()
     emit_shape_bodies()
@@ -31895,6 +31897,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
     if is_hot_class(information) {
         initialize_name = "{information.c_name}___init___hot"
         add_hot_initialize_slot(information)
+        if read_evaluate_print_loop {
+            ensure_byte_count_function(information)
+        }
     }
     initialize_lines.append("void {initialize_name}({information.c_name}* self) \{")
     var field_index = 0
@@ -37365,7 +37370,8 @@ func emit_loop_singletons() {
     var index = 0
     while index < singleton_classes.count() {
         var information = singleton_classes[index]
-        if not is_library_class(information) or information.codegen_types.is_empty() {
+        var described = information.qualified_dotted == "Environment" or information.qualified_dotted == "Build"
+        if not is_library_class(information) or described {
             var listed = listed_singleton(information, list_name)
             lines.append(listed)
         }

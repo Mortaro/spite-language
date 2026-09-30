@@ -2,22 +2,11 @@ entities 2
 spite> console: Console = Console {...}
 world: World = World {...}
 spite> to_debug(): String
-spite> Memory.Heap()
-Build()
-Console()
-TimeText() not made yet
-Program()
-Scheduler()
-Reload()
-TimeZones() not made yet
-HotReload()
-Memory.Inspector()
-Clock() not made yet
+spite> Build()
 World()
 Tick()
 Column<Position>()
 Ui.Panel()
-NumberText() not made yet
 InteractiveSingletons
 Position
 spite> World { positions: List<Position>(2), tick: Tick {...}, column: Column {...}, panel: Panel {...} }

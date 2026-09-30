@@ -726,8 +726,10 @@ the entry class's own Spite name). Built:
   of `ReadEvaluatePrintLoop`: `singletons()`, a `Spite.Attribute` for each singleton the program binds, named by
   its qualified name and linked to the instance when it has been made (read from the singleton's static slot
   with an acquiring load, never through its constructor), without a value when it has not; and `class_names()`,
-  the program's own classes that are not singletons. The standard library's generic singletons (`TypedMemory<T>`,
-  `InlineMemory<T>`) are left out. Any other build writes them as an empty list and empty text, and nothing calls
+  the program's own classes that are not singletons. Of the standard library's singletons only `Environment` and
+  `Build` are listed: the rest (`Console`, `Scheduler`, `TypedMemory<T>`, ...) are the language's own machinery,
+  and describing them would drag most of the library's classes into the build's reflection, which a reload that
+  compiles only the changed classes would then have to reproduce. Any other build writes them as an empty list and empty text, and nothing calls
   them, so they are shaken out with the rest of the loop: a normal build carries none of it (D143, D177).
 - **`bytes`: native memory** (D291, decided by Claude under D205, implementing D281 and D282; the command's name
   provisional under D214).  **[implemented]** `bytes <path>` answers one JSON object: for a value the path holds
