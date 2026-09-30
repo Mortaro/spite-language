@@ -559,7 +559,7 @@ remaining member, which an `else` cannot.
 A statement written after a `return` in the same block could never run, so it is an error rather than a step
 skipped without a word (D244):
 
-```gdscript title=after_return_error/after_return_error.spite entry
+```gdscript title=after_return_error/after_return_error.spite entry error
 var console = Console()
 
 func AfterReturnError() {

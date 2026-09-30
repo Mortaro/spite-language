@@ -399,7 +399,7 @@ func drop(_reason: Integer) {
     open = false
 }
 ```
-```gdscript title=drop_with_parameter/drop_with_parameter.spite entry
+```gdscript title=drop_with_parameter/drop_with_parameter.spite entry error
 var console = Console()
 
 func DropWithParameter() {
