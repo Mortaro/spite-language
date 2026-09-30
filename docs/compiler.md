@@ -301,6 +301,12 @@ each of the program's own files whose formatted text differs from what is on dis
 formatted file. Nothing turns this off, and a file the formatter refuses stops the compile: a program is never
 compiled from text that is not in the one style ([the rules](#formatting-before-compiling-and-spite-format)).
 
+**A file edited during the compile is never overwritten.** Just before writing a formatted file, the compiler reads it
+again; if it no longer holds the text the compile read -- another editor or agent changed it meanwhile -- it is left
+as it is now, `<path> changed while it was being compiled` is printed, and the program is read again from disk. A
+file whose formatting does not change is never written, so its modification time never moves. (`spite format`
+refuses such a file the same way: format it again.)
+
 ```bash
 spite format game library/list.spite    # format a folder's files and one file, compiling nothing
 spite format --check game                # rewrite nothing: list every file that would change, and fail

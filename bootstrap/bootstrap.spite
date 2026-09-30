@@ -243,6 +243,12 @@ func formatted_program_file(discovery: Discovery.DiscoveryResult, path: String):
     if formatted == content {
         return 'unchanged'
     }
+    if changed_since_read(path, content) {
+        console.error(
+            "{path} changed while it was being compiled, so it is compiled again as it is now and not reformatted",
+        )
+        return 'rewrote'
+    }
     if not File(path).write(formatted) {
         console.error("error: could not write the formatted '{path}'")
         return 'refused'
@@ -1384,12 +1390,23 @@ func formatted_file(path: String, only_check: Boolean): Boolean {
         console.print(path)
         return false
     }
+    if changed_since_read(path, content) {
+        console.error(
+            "error: '{path}' changed while it was being formatted, so it was left as it is now: format it again",
+        )
+        return false
+    }
     if not File(path).write(formatted) {
         console.error("error: could not write '{path}'")
         return false
     }
     console.error("formatted {path}")
     return true
+}
+
+func changed_since_read(path: String, content: String): Boolean {
+    var on_disk = File(path).read()
+    return on_disk != content
 }
 
 func port_number(text: String): Integer {
