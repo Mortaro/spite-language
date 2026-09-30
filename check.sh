@@ -745,10 +745,8 @@ for printed_program in conformance/stage3/interpolation conformance/stage6/symbo
   printed="$work/final/$printed_name"   # a program is a folder named like its entry file (D89)
   "$work/generation_two.exe" "$printed_program" --run=false --final-classes="$printed" > /dev/null 2>&1 || {
     echo "FAILED: --final-classes could not write $printed_program out"; exit 1; }
-  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '
-' | grep -v '^allocations: ')
-  if [ "$printed_output" != "$(tr -d '
-' < "$printed_program/expected_output.txt")" ]; then
+  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '' | grep -v '^allocations: ')
+  if [ "$printed_output" != "$(tr -d '' < "$printed_program/expected_output.txt")" ]; then
     echo "FAILED: the printed $printed_name does not run like the one it was printed from"; echo "$printed_output" | head -6; exit 1
   fi
 done
