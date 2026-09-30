@@ -233,7 +233,7 @@ singleton is not "one object of this class" but "one object per value of its arg
 instance's name. Two bindings with the same values are the same object, and a write through one is seen through
 the other; bindings with different values share nothing but the class.
 
-```gdscript title=argument_singleton/channel.spite
+```gdscript title=radio/channel.spite
 singleton
 
 var number = 0
@@ -243,7 +243,7 @@ func Channel(channel_number: Integer) {
     number = channel_number
 }
 ```
-```gdscript title=argument_singleton/radio.spite entry
+```gdscript title=radio/radio.spite entry
 var console = Console()
 var news = Channel(1)
 var music = Channel(2)
