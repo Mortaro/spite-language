@@ -7,3 +7,4 @@ Crate {} 'wing' Object { x: 1, y: 2 }
 Node { value: 1, next: Node { value: 2, next: Node {...} } }
 Player { name: "hero", health: 10, scores: [3, 7], bag: {"gold": 2}, partner: Player { name: "side\nkick \"two\"", health: 10, scores: [], bag: {}, partner: null, mood: 'calm', weather: 'sunny' }, mood: 'calm', weather: 'sunny' }
 4 'rainy' "hi"
+Doors { opened: {"front": true, "back": false} }

@@ -46,4 +46,8 @@ func DebugValues() {
     var seen = weather.to_debug()
     var quoted = greeting.to_debug()
     console.print(counted, seen, quoted)
+    var doors = Doors()
+    doors.opened["front"] = true
+    doors.opened["back"] = false
+    console.debug(doors)
 }

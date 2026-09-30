@@ -33,8 +33,8 @@ func text(value: $value_type): String {
         var values = value.values()
         var entries = List<String>()
         var index = 0
-        while index < keys.count() {
-            crash values[index]
+        while index < values.count() {
+            crash index < keys.count()
             var key = keys[index]
             var quoted_key = key.to_debug()
             var entry = values[index]
