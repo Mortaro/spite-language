@@ -258,10 +258,7 @@ func number_members(stem: String): List<String> {
         type_name = "{type_name}{word.slice(0, 1).upper_case()}{word.slice(1, word_length)}"
         index = index + 1
     }
-    var members = [
-        "func from_type(type: Symbol, value: type.class): {type_name}"
-        "written per type by the generator: a C cast"
-    ]
+    var members = ["func to_type(type: Symbol): type.class", "written per type by the generator: a C cast"]
     var whole_numbers = [
         "tiny"
         "short"
@@ -440,7 +437,7 @@ func heap_members(): List<String> {
 
 func address_members(): List<String> {
     var members = [
-        "func from_type(type: Symbol, value: type.class): Memory.Address"
+        "func to_type(type: Symbol): type.class"
         "written per type by the generator: a C cast"
         "func copy_to(target: Memory.Address, bytes: Long)"
         "written by the generator: one machine operation"

@@ -623,7 +623,7 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   was reopening that class, so in --final-classes it should show the actual content of that class"). The members
   whose bodies the compiler supplies -- `Console`'s raw writes, `Memory.Heap`'s allocation and `Memory.Address`'s
   reads, writes and atomics (D178), `DynamicLibrary`'s opening and symbol lookup, `TypedMemory`'s typed slots, a
-  number's casts (`from_type` as built; the source's `to_<type>()` once D275/D293 are built) and bit operations, the REPL's hooks on `Spite.Attribute`/`Spite.Function`, `HotReload`'s
+  number's casts (the source's `to_<type>()`, D293) and bit operations, the REPL's hooks on `Spite.Attribute`/`Spite.Function`, `HotReload`'s
   build facts, a `Concurrent`'s state machine (D176), `ThreadPool`'s entry address and `Scheduler`'s step -- are
   declarations the compiler merges into their classes right after `library/` (and its operating system's
   folder), exactly as a later root merges a file, so a program can still reopen them. Nothing is registered by

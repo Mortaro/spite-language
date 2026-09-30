@@ -1,0 +1,6 @@
+var console = Console()
+
+func FromConversion() {
+    var made = Celsius()
+    console.print(made.value)
+}

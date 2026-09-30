@@ -5893,8 +5893,8 @@ func instantiate_template(
     function.symbol_range = range_text(template)
     if not declaration.has_body {
         function.has_body = false
-        function.supplied_body = "#define {function.c_name}(self, value) (({c_type_name(return_type)})(value))"
-        if declaration.name != "from_type" {
+        function.supplied_body = "#define {function.c_name}(self) (({c_type_name(return_type)})(self))"
+        if declaration.name != "to_type" {
             report(
                 "'{information.simple_name}.{declaration.name}' has no body, and only a function whose body the compiler supplies is written without one: give it a body",
             )
@@ -6202,6 +6202,9 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     }
     var parameter_count = parameters.count()
     report_reserved_signature(declaration, parameter_count, return_type, information)
+    if declaration.name.starts_with("from_") {
+        report_from_declaration(declaration, information)
+    }
     function.line = declaration.line
     function.end_line = declaration.end_line
     if is_constructor {
@@ -6222,6 +6225,17 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         existing = existing + 1
     }
     information.declared_functions.append(function)
+}
+
+# ../docs/values_and_types.md#numbers-are-classes-and-this--implemented
+func report_from_declaration(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo) {
+    var saved_line = current_line
+    current_line = declaration.line
+    var target_words = snake_words(information.simple_name)
+    report(
+        "'{information.simple_name}.{declaration.name}' makes a {information.simple_name} from another value, and a conversion belongs to the value converted (D293): declare 'to_{target_words}()' on the class it converts from, or take the value in the constructor",
+    )
+    current_line = saved_line
 }
 
 # ../docs/functions_and_operators.md#functions-the-compiler-calls-by-name
@@ -7797,7 +7811,7 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
             if conversion.is_empty() {
                 return "(({c_type_name(to)})({code}))"
             }
-            return "{conversion}(0, {code})"
+            return "{conversion}({code})"
         }
         report_mismatch(from, to, code)
         return code
@@ -7815,13 +7829,13 @@ func numeric_conversion(from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         return conversion_names[key]
     }
     var conversion_name = ""
-    var to_scalar = type_shape.as_scalar(to)
-    crash to_scalar
-    var target_class = value_class_of(to_scalar.kind)
-    if target_class {
-        var source_words = words_of(from_label)
-        var source_name = source_words.join("_")
-        var conversion = find_or_instantiate_function(target_class, "from_{source_name}")
+    var from_scalar = type_shape.as_scalar(from)
+    crash from_scalar
+    var source_class = value_class_of(from_scalar.kind)
+    if source_class {
+        var target_words = words_of(to_label)
+        var target_name = target_words.join("_")
+        var conversion = find_or_instantiate_function(source_class, "to_{target_name}")
         if conversion {
             conversion_name = conversion.c_name
             conversion_names[key] = conversion_name
@@ -12132,7 +12146,7 @@ func report_not_a_number_constant(information: Analysis.ClassInfo, name: String,
         constants = "pi(), tau(), euler_number(), infinity(), not_a_number(), largest() and smallest()"
     }
     var class_name = information.qualified_dotted
-    if name.starts_with("from_") and function {
+    if name.starts_with("from_") {
         report_cast_by_name(information, name)
         return
     }
@@ -12152,17 +12166,8 @@ func report_cast_by_name(information: Analysis.ClassInfo, name: String) {
     var source_name = joined_case_spelling(source_words, true)
     var target_words = snake_words(information.simple_name)
     var assignment = "'var converted: {class_name} = value'"
-    var source = find_class_by_qualified(source_name)
-    if source {
-        if source.find_function("to_{target_words}") {
-            report(
-                "'{class_name}.{name}()' is not a function a program calls: a conversion belongs to the value converted (D275), so write 'value.to_{target_words}()', or cast by assignment: {assignment}",
-            )
-            return
-        }
-    }
     report(
-        "'{class_name}.{name}()' is not a function a program calls: a conversion belongs to the value converted (D275), and {with_article(source_name)} has no 'to_{target_words}()' yet, so cast by assignment: {assignment}, or pass the value where {with_article(class_name)} is expected",
+        "there is no '{class_name}.{name}()': a conversion belongs to the value converted (D293), so write 'value.to_{target_words}()' on {with_article(source_name)}, or cast by assignment: {assignment}",
     )
 }
 
