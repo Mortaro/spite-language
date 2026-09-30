@@ -48,7 +48,7 @@ func less_than(other: Time): Boolean {
 }
 
 func greater_than(other: Time): Boolean {
-    return other.less_than(this)
+    return other < this
 }
 
 func to_string(): String {

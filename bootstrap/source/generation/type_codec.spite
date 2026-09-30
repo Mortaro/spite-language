@@ -27,14 +27,14 @@ func write_type(spite_type: Analysis.SpiteType, written: List<String>) {
         Analysis.Types.EnumType: write_enum(spite_type, written)
         Analysis.Types.NullableType: {
             written.append("N")
-            var inner = spite_type.get_inner()
+            var inner = spite_type.inner
             write_type(inner, written)
         }
         Analysis.Types.ListType: {
             written.append("L")
             var variadic = spite_type.is_variadic.to_string()
             written.append(variadic)
-            var element = spite_type.get_element()
+            var element = spite_type.element
             write_type(element, written)
         }
         Analysis.Types.DictionaryType: write_dictionary(spite_type, written)
@@ -60,9 +60,9 @@ func write_dictionary(dictionary: Analysis.Types.DictionaryType, written: List<S
     written.append("D")
     var site = escaped(dictionary.site)
     written.append(site)
-    var element = dictionary.get_element()
+    var element = dictionary.element
     write_type(element, written)
-    var key = dictionary.get_key()
+    var key = dictionary.key
     write_type(key, written)
 }
 

@@ -22,14 +22,14 @@ func study(class_files: List<Discovery.DiscoveredClass>, studying_generator: Gen
     index = 0
     while index < class_files.count() {
         var discovered = class_files[index]
-        var file = discovered.get_file()
+        var file = discovered.file
         record_fields(file.statements, discovered.qualified_dotted)
         index = index + 1
     }
     var class_index = 0
     while class_index < class_files.count() {
         var discovered = class_files[class_index]
-        var file = discovered.get_file()
+        var file = discovered.file
         study_class(file.statements, discovered.qualified_dotted)
         class_index = class_index + 1
     }
@@ -70,11 +70,11 @@ func type_identity(path: List<String>, from_class: String): String {
 }
 
 func effects_of(class_name: String, name: String): List<String> {
-    var own = by_function.get("{class_name}#{name}")
+    var own = by_function["{class_name}#{name}"]
     if own {
         return own.keys
     }
-    var any = by_function.get("*#{name}")
+    var any = by_function["*#{name}"]
     if any {
         return any.keys
     }
@@ -82,9 +82,8 @@ func effects_of(class_name: String, name: String): List<String> {
 }
 
 func effects_of_key(key: String): List<String> {
-    var effects = by_function.get(key)
-    if effects {
-        return effects.keys
+    if by_function[key] {
+        return by_function[key].keys
     }
     return List<String>()
 }
@@ -102,7 +101,7 @@ func effects_key(class_name: String, name: String): String {
 }
 
 func variadic_position_of(key: String): Integer {
-    var effects = by_function.get(key)
+    var effects = by_function[key]
     if not effects or effects.functions_studied != 1 {
         return -2
     }
@@ -110,7 +109,7 @@ func variadic_position_of(key: String): Integer {
 }
 
 func resolved_effects(key: String, classes: DispatchClasses, visiting: List<String>): List<String> {
-    var effects = by_function.get(key)
+    var effects = by_function[key]
     if not effects {
         return List<String>()
     }
@@ -152,13 +151,12 @@ func resolved_call_keys(
     if not dispatched.is_empty() {
         return dispatched_keys(call.callee, dispatched)
     }
-    var callee = by_function.get(callee_key)
-    crash callee
-    var passed = passed_classes(call, callee, classes)
+    crash by_function[callee_key]
+    var passed = passed_classes(call, by_function[callee_key], classes)
     if passed.any_known() {
         return resolved_effects(callee_key, passed, visiting)
     }
-    return callee.keys
+    return by_function[callee_key].keys
 }
 
 func dispatched_classes(call: EffectCall, caller: FunctionEffects, classes: DispatchClasses): String {
@@ -186,9 +184,8 @@ func dispatched_keys(name: String, dispatched: String): List<String> {
     var index = 0
     while index < class_list.count() {
         var dispatched_key = resolved_key("{class_list[index]}#{name}")
-        var dispatched_effects = by_function.get(dispatched_key)
-        if dispatched_effects {
-            dispatched_effects.keys.each(gathered.add)
+        if by_function[dispatched_key] {
+            by_function[dispatched_key].keys.each(gathered.add)
         }
         index = index + 1
     }
@@ -219,7 +216,7 @@ func passed_classes(call: EffectCall, callee: FunctionEffects, classes: Dispatch
 }
 
 func list_kept_through(key: String, position: Integer, seen: List<String>): Boolean {
-    var effects = by_function.get(key)
+    var effects = by_function[key]
     if not effects or effects.functions_studied != 1 {
         return false
     }
@@ -255,9 +252,8 @@ func handed_list_kept(call: EffectCall, argument_index: Integer, seen: List<Stri
     if call.callee_class == "*" or not by_function.has(callee_key) {
         return false
     }
-    var callee = by_function.get(callee_key)
-    crash callee
-    if callee.variadic_position >= 0 and argument_index >= callee.variadic_position {
+    crash by_function[callee_key]
+    if by_function[callee_key].variadic_position >= 0 and argument_index >= by_function[callee_key].variadic_position {
         return false
     }
     return list_kept_through(callee_key, argument_index, seen)
@@ -307,7 +303,7 @@ func record_type_fields(declared_type: Syntax.Statements.TypeDeclaration, class_
             if field_class.is_empty() {
                 field_class = "*"
             }
-            var recorded = type_field_classes.get(key)
+            var recorded = type_field_classes[key]
             if recorded and recorded != field_class {
                 field_class = "*"
             }
@@ -498,26 +494,24 @@ func last_name(expression: Syntax.Expressions.Expression): String {
 
 func effects_named(class_name: String, name: String): FunctionEffects {
     var key = "{class_name}#{name}"
-    var known = by_function.get(key)
-    if known {
-        return known
+    if by_function[key] {
+        return by_function[key]
     }
     var created = FunctionEffects(key)
     by_function.set(key, created)
     function_keys.append(key)
     var any_key = "*#{name}"
-    var any = by_function.get(any_key)
+    var any = by_function[any_key]
     if not any {
         var gathered = FunctionEffects(any_key)
         by_function.set(any_key, gathered)
         function_keys.append(any_key)
     }
-    var gathering = by_function.get(any_key)
-    crash gathering
+    crash by_function[any_key]
     var no_arguments = List<String>()
     var passed_through = EffectCall(class_name, name, no_arguments)
     passed_through.passes_parameters = true
-    gathering.calls.append(passed_through)
+    by_function[any_key].calls.append(passed_through)
     return created
 }
 
@@ -554,22 +548,21 @@ func study_class(statements: List<Syntax.Statements.Statement>, class_name: Stri
 func settle() {
     var index = 0
     while index < function_keys.count() {
-        var effects = by_function.get(function_keys[index])
-        crash effects
-        effects.own_keys = effects.keys.copy()
-        link_calls(effects)
+        var function_key = function_keys[index]
+        crash by_function[function_key]
+        by_function[function_key].own_keys = by_function[function_key].keys.copy()
+        link_calls(by_function[function_key])
         index = index + 1
     }
     var waiting = function_keys.copy()
     while not waiting.is_empty() {
         var key = waiting.remove_last()
         crash key
-        var changed = by_function.get(key)
-        crash changed
-        changed.waiting = false
-        var fresh = changed.fresh_keys
-        changed.fresh_keys = List<String>()
-        pass_to_callers(changed, fresh, waiting)
+        crash by_function[key]
+        by_function[key].waiting = false
+        var fresh = by_function[key].fresh_keys
+        by_function[key].fresh_keys = List<String>()
+        pass_to_callers(by_function[key], fresh, waiting)
     }
 }
 
@@ -578,16 +571,16 @@ func link_calls(effects: FunctionEffects) {
     while call_index < effects.calls.count() {
         var call = effects.calls[call_index]
         call.caller = effects.key
-        var callee = by_function.get("{call.callee_class}#{call.callee}")
+        var callee = by_function["{call.callee_class}#{call.callee}"]
         if not callee {
-            callee = by_function.get("*#{call.callee}")
+            callee = by_function["*#{call.callee}"]
         }
         if not callee {
             var singular = singular_template(call.callee_class, call.callee)
             if not singular.is_empty() {
                 call.callee = singular
                 call.arguments.prepend("fresh")
-                callee = by_function.get("{call.callee_class}#{singular}")
+                callee = by_function["{call.callee_class}#{singular}"]
             }
         }
         if callee {
@@ -619,14 +612,13 @@ func pass_to_callers(changed: FunctionEffects, fresh: List<String>, waiting: Lis
     var call_index = 0
     while call_index < changed.incoming.count() {
         var call = changed.incoming[call_index]
-        var caller = by_function.get(call.caller)
-        crash caller
+        crash by_function[call.caller]
         var key_index = 0
         while key_index < fresh.count() {
             var translated = call.translated(fresh[key_index])
-            if not translated.is_empty() and caller.add(translated) and not caller.waiting {
-                caller.waiting = true
-                waiting.append(caller.key)
+            if not translated.is_empty() and by_function[call.caller].add(translated) and not by_function[call.caller].waiting {
+                by_function[call.caller].waiting = true
+                waiting.append(by_function[call.caller].key)
             }
             key_index = key_index + 1
         }
@@ -638,10 +630,10 @@ func thread_reached_classes(): Dictionary<Boolean> {
     var entries = List<String>()
     var index = 0
     while index < function_keys.count() {
-        var effects = by_function.get(function_keys[index])
-        crash effects
-        add_taken_entries(effects, entries)
-        add_parallel_each_entries(effects, entries)
+        var function_key = function_keys[index]
+        crash by_function[function_key]
+        add_taken_entries(by_function[function_key], entries)
+        add_parallel_each_entries(by_function[function_key], entries)
         index = index + 1
     }
     return reached_classes(entries)
@@ -651,10 +643,10 @@ func thread_reached_functions(): Dictionary<Boolean> {
     var entries = List<String>()
     var index = 0
     while index < function_keys.count() {
-        var effects = by_function.get(function_keys[index])
-        crash effects
-        add_taken_entries(effects, entries)
-        add_parallel_each_entries(effects, entries)
+        var function_key = function_keys[index]
+        crash by_function[function_key]
+        add_taken_entries(by_function[function_key], entries)
+        add_parallel_each_entries(by_function[function_key], entries)
         index = index + 1
     }
     var seen = Dictionary<Boolean>()
@@ -664,9 +656,8 @@ func thread_reached_functions(): Dictionary<Boolean> {
         crash key
         if not seen.has(key) {
             seen.set(key, true)
-            var effects = by_function.get(key)
-            if effects {
-                add_callees(effects, waiting)
+            if by_function[key] {
+                add_callees(by_function[key], waiting)
             }
         }
     }
@@ -679,11 +670,10 @@ func writes_from_reached(class_name: String, reached: Dictionary<Boolean>): Bool
         var key = function_keys[index]
         var hash = key.index_of("#")
         var writer_class = key.slice(0, hash)
-        var effects = by_function.get(key)
-        crash effects
+        crash by_function[key]
         if writer_class != class_name and reached.has(key) {
             var names = List<String>()
-            add_outside_writes(effects, class_name, names)
+            add_outside_writes(by_function[key], class_name, names)
             if not names.is_empty() {
                 return true
             }
@@ -767,9 +757,8 @@ func reached_classes(entries: List<String>): Dictionary<Boolean> {
             var hash = key.index_of("#")
             var reached_class = key.slice(0, hash)
             classes.set(reached_class, true)
-            var effects = by_function.get(key)
-            if effects {
-                add_callees(effects, waiting)
+            if by_function[key] {
+                add_callees(by_function[key], waiting)
             }
         }
     }
@@ -784,9 +773,8 @@ func reached_functions(entries: List<String>): Dictionary<Boolean> {
         crash key
         if not seen.has(key) {
             seen.set(key, true)
-            var effects = by_function.get(key)
-            if effects {
-                add_placed_callees(effects, waiting)
+            if by_function[key] {
+                add_placed_callees(by_function[key], waiting)
             }
         }
     }
@@ -832,7 +820,7 @@ func add_template_members(callee: String, waiting: List<String>) {
 }
 
 func calls_back_into(class_name: String, name: String): Boolean {
-    var effects = by_function.get("{class_name}#{name}")
+    var effects = by_function["{class_name}#{name}"]
     if effects {
         return reaches_own_class(effects, class_name)
     }
@@ -871,11 +859,10 @@ func reached_accesses(entries: List<String>): List<String> {
         crash key
         if not seen.has(key) {
             seen.set(key, true)
-            var effects = by_function.get(key)
-            if effects {
-                effects.member_reads.each(accesses.append)
-                effects.member_writes.each(accesses.append)
-                add_callees(effects, waiting)
+            if by_function[key] {
+                by_function[key].member_reads.each(accesses.append)
+                by_function[key].member_writes.each(accesses.append)
+                add_callees(by_function[key], waiting)
             }
         }
     }
@@ -887,9 +874,9 @@ func assigned_after_construction(class_name: String, name: String): Boolean {
     var any = "field:*#{name}"
     var index = 0
     while index < function_keys.count() {
-        var effects = by_function.get(function_keys[index])
-        crash effects
-        if effects.own_keys.contains(own) or effects.own_keys.contains(any) {
+        var function_key = function_keys[index]
+        crash by_function[function_key]
+        if by_function[function_key].own_keys.contains(own) or by_function[function_key].own_keys.contains(any) {
             return true
         }
         index = index + 1
@@ -904,10 +891,9 @@ func writes_from_outside(class_name: String): List<String> {
         var key = function_keys[index]
         var hash = key.index_of("#")
         var writer_class = key.slice(0, hash)
-        var effects = by_function.get(key)
-        crash effects
+        crash by_function[key]
         if writer_class != class_name and writer_class != "*" {
-            add_outside_writes(effects, class_name, names)
+            add_outside_writes(by_function[key], class_name, names)
         }
         index = index + 1
     }

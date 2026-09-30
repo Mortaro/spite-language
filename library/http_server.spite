@@ -110,10 +110,9 @@ func _write_response(client: Socket, response: HttpResponse) {
     var index = 0
     while index < names.count() {
         var name = names[index]
-        var value = response.headers.get(name)
-        crash value
+        crash response.headers[name]
         if name != "content-length" and name != "connection" {
-            head = "{head}{name}: {value}\r\n"
+            head = "{head}{name}: {response.headers[name]}\r\n"
         }
         index = index + 1
     }
