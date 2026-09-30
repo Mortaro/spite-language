@@ -1260,7 +1260,7 @@ attribute.class`, `): attribute.class`), it is the attribute's actual type; writ
 call the `to_string()` of a value whose class declares one (D109's reading of printable, applied to text;
 proposed by Claude, unconfirmed; `conformance/stage6/class_text`).
 
-```person.spite
+```gdscript person.spite
 func set_attribute(attribute: Symbol, value: attribute.class) {
     attributes[attribute] = value
 }
@@ -1707,7 +1707,7 @@ chosen by `has_function`), `conformance/stage6/system_folder` (`system/` and `ui
 D87 (decided by Mortaro, superseding D9's constructor list): **a class declares each codegen value on a `generic`
 line of its own, at the top of the file**, "instead of constructor":
 
-```weapon.spite
+```gdscript weapon.spite
 generic $damage_type
 generic $is_magic
 

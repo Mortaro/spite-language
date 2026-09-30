@@ -1,6 +1,6 @@
 # Control flow
 
-```
+```gdscript
 if condition { } else if other_condition { } else { }
 if nullable_value { } else { }     # nullable_value is its plain type inside the first block
 while condition { }
@@ -562,7 +562,7 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 
 ### Control flow  **[implemented]**
 
-```
+```gdscript
 if condition { } else { }
 if nullable_value { } else { }     # runs with nullable_value unwrapped in place when it is not null; else when it is
 while condition { }

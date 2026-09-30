@@ -330,7 +330,7 @@ a program reads its run-time settings through Environment() (declared in its env
 '--'), what its build decided through Build(), and the raw command line through Arguments(), anywhere`
 (`diagnostics/entry_constructor_arguments`).
 
-```kal.spite
+```gdscript kal.spite
 var console = Console()
 
 func Kal() {

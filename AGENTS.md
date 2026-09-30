@@ -52,7 +52,7 @@ runs once:
 ```
 git config core.hooksPath scripts/hooks
 ```
-```
+
 ## Changing a Spite program: a worktree is a folder that loads it
 
 To propose a change to a Spite program (SlopEngine, an example, anything written in Spite), do not edit it in

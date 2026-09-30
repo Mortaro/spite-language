@@ -683,7 +683,7 @@ way. `Spite.Attribute.class` and `Spite.Argument.class` are real `Spite.Class` o
   `Spite.Class`](#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)), so it has attributes of its
   own -- the declarations -- while an instance has their values:
 
-```
+```gdscript
 weapon.attributes['damage']    # the value held in that field
 Weapon.attributes['damage']    # the Spite.Attribute that describes the field
 ```

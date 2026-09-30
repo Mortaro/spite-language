@@ -427,7 +427,7 @@ func sum_positives(a: Float, b: Float): Float? {
 D17 (decided by Mortaro, 2026-09-19): a function is a first-class value. Naming one inside a class passes it
 together with the instance doing the passing, so it runs exactly as that instance would have run it:
 
-```
+```gdscript
 logger.log(pretty_print)         # passes this instance's pretty_print
 ```
 

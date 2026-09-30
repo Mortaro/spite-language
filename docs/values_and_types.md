@@ -1008,7 +1008,7 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
 An `enum`, `type` or `union` declaration takes no `=` and always breaks lines, one entry per line, no commas
 (D47). `=` means assignment and nothing else. Writing `enum Job = {` is a parse error naming the fix.
 
-```player.spite
+```gdscript player.spite
 enum Job {
     'knight'
     'magician'

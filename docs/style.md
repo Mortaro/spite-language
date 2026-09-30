@@ -183,7 +183,7 @@ class's or `String`'s storage, and `Build` and `Environment` settings.
 A comment is one line, outside functions and declaration bodies, and it holds nothing but a link to a heading in
 a markdown file:
 
-```
+```gdscript
 # notes.md#why-this-program-exists
 func Game() {
 ```
@@ -445,7 +445,7 @@ cannot be auto-fixed are their own subsection below.
 
 Decided by Mortaro (D77, D78, 2026-09-24), from the tokenizer's `flush()`:
 
-```
+```gdscript
 tokens.append(Token('number', source.slice(token_start, end_index)))    # error: slice() is passed as an argument
 ```
 
@@ -575,7 +575,7 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
 
 **A comment is one line, and it is nothing but a link to a markdown section** (D34, decided by Mortaro, 2026-09-20):
 
-```
+```gdscript
 # notes.md#why-this-exists
 func Game() {
 ```

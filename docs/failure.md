@@ -1134,7 +1134,7 @@ the rest of the function only to check existence -- is a compile error, because 
 `assert` instead (a narrowing `if` with an `else`, D3, already handles the missing case explicitly, so the no-
 else lint never applies to it):
 
-```
+```gdscript
 # error: rewrite this with assert
 func read_first_line(file: File): String {
     var content = file.read()
@@ -1196,7 +1196,7 @@ nothing" error (`conformance/stage6/leaving_if`). Compile time only: the emitted
 nullable structure would otherwise need one `assert` per hop, and a thousand asserts is not a language, it is a
 tax:
 
-```
+```gdscript
 assert class.namespace.namespace
 console.print(class.namespace.namespace.name)
 ```
@@ -1477,7 +1477,7 @@ leaves the constructor, and a constructor is setup, not logic: take already reso
 D30 (decided by Mortaro): `crash` is a keyword, so the compiler takes its context from the program rather than
 from a message string. **It mirrors `assert` exactly** -- same polarity, same shape, different severity:
 
-```
+```gdscript
 assert database.connect()        # falsey: return the default, keep going
 crash  database.connect()        # falsey: halt
 ```

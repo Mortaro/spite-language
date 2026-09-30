@@ -414,7 +414,7 @@ keyword, no per-symbol binding string, no generated-binding step and no hand-wri
 is an ordinary standard library class, and its Symbol codegen ([Symbol codegen](metaprogramming.md#symbol-codegen--implemented)) resolves every foreign function,
 constant and type at compile time.
 
-```mouse.spite
+```gdscript mouse.spite
 var user32 = DynamicLibrary("user32.dll", 'windows', "windows.h")
 
 func move_to(x_position: Integer, y_position: Integer): Boolean {
@@ -450,7 +450,7 @@ templates (`find_by_file_name`, `sort_by_handle`) read the attribute (proposed b
 `DynamicLibrary(file_name, naming, header)`. Every argument must be a literal, because the compiler reads them
 during codegen. The class as D4 designs it -- **planned**; what is built follows it:
 
-```dynamic_library.spite
+```gdscript dynamic_library.spite
 enum Naming {
     'identity'
     'windows'
@@ -534,7 +534,7 @@ A `type` ([Types](values_and_types.md#types)) whose fields are all scalars is a 
 address, never as a Spite heap object. There is no annotation -- the value's type comes from the `var`'s own
 annotation or from the parameter it feeds, exactly like any other object literal matched by shape.
 
-```mouse.spite
+```gdscript mouse.spite
 type Input {
     kind: UnsignedInteger
     padding: UnsignedInteger

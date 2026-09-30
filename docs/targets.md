@@ -49,7 +49,7 @@ D13 (decided by Mortaro, 2026-09-19): **a function's first parameter decides whi
 There is no annotation, no naming convention and no compiler trick -- the framework reads it off the signature
 with ordinary compile-time reflection ([Reflection objects](reflection.md#reflection-objects--partial)).
 
-```user_repository.spite
+```gdscript user_repository.spite
 func find_user_by_id(context: ServerContext, id: Integer): User { }
 
 func load_users(context: ClientContext) { }
@@ -120,7 +120,7 @@ D18 (decided by Mortaro, 2026-09-19): there is no JSX and no trailing block. Mar
 literals, with as many children as the call has arguments. That costs no new feature, because a Symbol codegen
 function is generated per call site:
 
-```
+```gdscript
 html.div({ class: "card" }, html.h1(title), TodoForm({ on_done: add_todo }))
 ```
 

@@ -260,7 +260,7 @@ func LoadParenthesesError() {
 A `load` under an `if` is decided while compiling. The condition may read `Build` fields, text, whole numbers,
 `true` and `false`, joined by `==`, `!=`, `and`, `or` and `not`, and only the branch it picks is loaded:
 
-```
+```gdscript
 var build = Build()
 
 func Engine() {
@@ -286,7 +286,7 @@ A dependency is a repository and a commit, written in the `load` line itself (D3
 manager, no registry, no lockfile and no fetch step: the ordinary compile fetches what a `load` names, and the pin
 lives in the source, which is already versioned.
 
-```
+```gdscript
 func Game() {
     load "github.com/mortaro/slop_engine@6c7dca9/slop"
     load "../slop_audio@b41e0d2/plugins/slop_ogg_plugin"

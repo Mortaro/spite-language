@@ -523,7 +523,7 @@ answered from the line; declaring `func is_singleton()` in any class but `Spite.
 line: `a class says it is a singleton with a 'singleton' line at the top of its file, not with a function:
 delete 'is_singleton()' and write 'singleton' as the file's first line` (`diagnostics/singleton_function`).
 
-```console.spite
+```gdscript console.spite
 singleton
 
 var heap = Memory.Heap()
@@ -555,7 +555,7 @@ var heap = Memory.Heap()
   as a statement of its own is an error naming the fix (`diagnostics/inline_singleton`,
   `diagnostics/inline_singleton_attribute`):
 
-  ```
+  ```gdscript
   console.print(Build().target_operating_system)
   # error: 'Build' is a singleton: bind it once beside the attributes, 'var build = Build()', and use
   # 'build.target_operating_system'
