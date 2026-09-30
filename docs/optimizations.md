@@ -1364,7 +1364,11 @@ compiling (`attribute.class == Entity`, `attribute.class.fits_vector()`), `attri
 constant, and `Column<attribute.class>()` is the one singleton for that class, so nothing is looked up by name or
 place at run time. An attribute made by a construction of a class that could be a `Vector` item and holds nothing
 counted (`Entity(entity)`) is **made in the frame**: a struct beside the row, its defaults set and its
-constructor run on it, never allocated and never counted, living exactly as long as the row. Any other counted
+constructor run on it, never allocated and never counted, living exactly as long as the row. The same holds for a
+`var` in the template that later lines set or call functions of (`var own = Entity()`, `own.id = entity`,
+then the attribute is `own`) when nothing those lines run uses `this` as a value: it is made in the frame before the
+row ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call); `conformance/stage6/walked_row_locals` pins the
+allocations). Any other counted
 attribute, such as a reference read from a reference column, is counted once when the row is made and let go at
 the end of the row's block. **What you notice.** No allocation per row for a frame-made attribute
 (`conformance/stage6/sparse_rows` pins its count), and `benchmarks/sparse_rows`: 200 000 entities, two systems,

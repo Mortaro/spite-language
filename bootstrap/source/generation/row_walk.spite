@@ -4,6 +4,7 @@ var parameters = List<String>()
 var arguments = List<Syntax.Expressions.Expression>()
 var local_names = List<String>()
 var local_values = List<Syntax.Expressions.Expression>()
+var made_locals = List<String>()
 
 func RowWalk(
     walked_symbol: String,
@@ -42,7 +43,12 @@ func bind_local(name: String, value: Syntax.Expressions.Expression) {
     local_values.append(value)
 }
 
+func make_local(name: String) {
+    made_locals.append(name)
+}
+
 func clear_locals() {
     local_names.clear()
     local_values.clear()
+    made_locals.clear()
 }

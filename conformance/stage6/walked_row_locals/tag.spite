@@ -1,0 +1,10 @@
+var id = 0
+
+func set_id(value: Integer) {
+    crash value >= 0
+    id = value
+}
+
+func raise(amount: Integer) {
+    id = id + amount
+}
