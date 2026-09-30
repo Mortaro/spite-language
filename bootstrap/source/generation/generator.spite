@@ -258,7 +258,9 @@ var lent_parameter_names = List<String>()
 var lent_parameter_caller = ""
 var argument_expected_type: Analysis.SpiteType? = null
 var walked_row_filled = false
-var walked_checks = List<Syntax.Expressions.Expression>()
+var walked_checks = List<Syntax.Statements.Statement>()
+var walked_local_count = 0
+var framed_walked_locals = List<String>()
 var walked_check_texts = List<String>()
 var walked_read_paths = List<String>()
 var walked_read_results = List<ExpressionResult>()
@@ -16066,10 +16068,12 @@ func find_setter(
     attribute_name: String,
     calling_class: Analysis.ClassInfo,
 ): Analysis.FunctionInfo? {
-    assert target_class.find_field(attribute_name)
     var setter_name = "set_{attribute_name}"
     assert target_class.c_name != calling_class.c_name or current_function != setter_name
-    var setter = find_or_instantiate_function(target_class, setter_name)
+    var setter = target_class.find_function(setter_name)
+    if target_class.find_field(attribute_name) {
+        setter = find_or_instantiate_function(target_class, setter_name)
+    }
     if setter {
         if setter.parameters.count() == 1 {
             return setter
@@ -20471,6 +20475,7 @@ func lends_walked_row(
     walk_refused_attribute = ""
     walk_partial = null
     walked_checks.clear()
+    framed_walked_locals.clear()
     var literal = walked_row_literal(declaration, scope, class_information)
     if refused_row(scope, class_information) {
         report(
@@ -21602,10 +21607,12 @@ func walked_field(
     var folded = folded_template_body(filling, scope, class_information)
     if folded {
         var steps = walked_steps(folded, attribute, walk)
-        var assigned = walked_assignment(steps)
+        var assigned = walked_assignment(steps, walk)
         if assigned {
             filled = walked_assigned_value(assigned, attribute, walk)
+            var first_step = walked_checks.count()
             walk_checks(steps, attribute, walk)
+            frame_walked_locals(first_step, filled, scope, class_information)
         }
         walk.clear_locals()
     }
@@ -21624,8 +21631,17 @@ func walked_steps(
     attribute: Syntax.Statements.FieldDeclaration,
     walk: RowWalk,
 ): List<Syntax.Statements.Statement> {
-    var steps = List<Syntax.Statements.Statement>()
+    var written = List<String>()
     var index = 0
+    while index < folded.count() - 1 {
+        var root = written_root(folded[index])
+        if not root.is_empty() {
+            written.append(root)
+        }
+        index = index + 1
+    }
+    var steps = List<Syntax.Statements.Statement>()
+    index = 0
     while index < folded.count() {
         var statement = folded[index]
         var local = shape.as_variable_declaration(statement)
@@ -21636,6 +21652,9 @@ func walked_steps(
             }
         }
         if local and bound {
+            if written.contains(local.name) {
+                bound = made_walked_local(local, bound, walk, steps)
+            }
             walk.bind_local(local.name, bound)
         } else {
             steps.append(statement)
@@ -21645,17 +21664,87 @@ func walked_steps(
     return steps
 }
 
-func walked_assignment(folded: List<Syntax.Statements.Statement>): Syntax.Statements.AssignmentStatement? {
+func made_walked_local(
+    local: Syntax.Statements.VariableDeclaration,
+    value: Syntax.Expressions.Expression,
+    walk: RowWalk,
+    steps: List<Syntax.Statements.Statement>,
+): Syntax.Expressions.Expression {
+    walked_local_count = walked_local_count + 1
+    var made_name = "{local.name}__walked_{walked_local_count}"
+    var made = Syntax.Statements.VariableDeclaration(made_name, local.type_reference, value)
+    made.line = local.line
+    made.source_path = local.source_path
+    steps.append(made)
+    walk.make_local(local.name)
+    var named: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(made_name)
+    return named
+}
+
+func written_root(statement: Syntax.Statements.Statement): String {
+    switch statement {
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            return assigned_root(statement.target)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            if not shape.as_call(statement.value) {
+                return ""
+            }
+            return assigned_root(statement.value)
+        }
+        _: return ""
+    }
+}
+
+func assigned_root(target: Syntax.Expressions.Expression): String {
+    switch target {
+        Syntax.Expressions.CallExpression: {
+            crash target.callee
+            if not shape.as_member(target.callee) {
+                return ""
+            }
+            return assigned_root(target.callee)
+        }
+        Syntax.Expressions.IdentifierExpression: return target.name
+        Syntax.Expressions.MemberExpression: {
+            crash target.object
+            return assigned_root(target.object)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash target.object
+            return assigned_root(target.object)
+        }
+        _: return ""
+    }
+}
+
+func walked_assignment(
+    folded: List<Syntax.Statements.Statement>,
+    walk: RowWalk,
+): Syntax.Statements.AssignmentStatement? {
     var last = folded.last()
     assert last
     var index = 0
     while index < folded.count() - 1 {
-        var check = shape.as_assert_statement(folded[index])
-        assert check
-        assert check.is_crash
+        var statement = folded[index]
+        assert walked_step_allowed(statement, walk)
         index = index + 1
     }
     return shape.as_assignment_statement(last)
+}
+
+func walked_step_allowed(statement: Syntax.Statements.Statement, walk: RowWalk): Boolean {
+    var check = shape.as_assert_statement(statement)
+    if check {
+        return check.is_crash
+    }
+    if shape.as_variable_declaration(statement) {
+        return true
+    }
+    var root = written_root(statement)
+    return walk.made_locals.contains(root)
 }
 
 func walk_checks(
@@ -21665,12 +21754,39 @@ func walk_checks(
 ) {
     var index = 0
     while index < folded.count() - 1 {
-        var check = shape.as_assert_statement(folded[index])
-        crash check
-        crash check.value
-        var walked = walked_value(check.value, attribute, walk)
-        crash walked
-        walked_checks.append(walked)
+        var statement = folded[index]
+        var made = shape.as_variable_declaration(statement)
+        var written = shape.as_assignment_statement(statement)
+        var called = shape.as_expression_statement(statement)
+        if made {
+            walked_checks.append(statement)
+        } else if called {
+            crash called.value
+            var walked_call = walked_value(called.value, attribute, walk)
+            crash walked_call
+            var walked_call_step = Syntax.Statements.ExpressionStatement(walked_call)
+            walked_call_step.line = called.line
+            walked_checks.append(walked_call_step)
+        } else if written {
+            crash written.target
+            crash written.value
+            var walked_target = walked_value(written.target, attribute, walk)
+            crash walked_target
+            var walked_written = walked_value(written.value, attribute, walk)
+            crash walked_written
+            var walked_step = Syntax.Statements.AssignmentStatement(walked_target, walked_written)
+            walked_step.line = written.line
+            walked_checks.append(walked_step)
+        } else {
+            var check = shape.as_assert_statement(statement)
+            crash check
+            crash check.value
+            var walked = walked_value(check.value, attribute, walk)
+            crash walked
+            var walked_check = Syntax.Statements.AssertStatement(walked)
+            walked_check.is_crash = true
+            walked_checks.append(walked_check)
+        }
         index = index + 1
     }
 }
@@ -21683,16 +21799,192 @@ func emit_walked_checks(scope: Scope, class_information: Analysis.ClassInfo) {
     var printer = Syntax.SourcePrinter()
     var index = 0
     while index < walked_checks.count() {
-        var check = Syntax.Statements.AssertStatement(walked_checks[index])
-        check.is_crash = true
-        check.condition_text = printer.source_expression(walked_checks[index])
-        check.line = current_line
-        if not emit_cached_check(check, scope, class_information, walking) {
-            generate_assert_statement(check, scope, class_information, walking)
+        var step = walked_checks[index]
+        var made = shape.as_variable_declaration(step)
+        var written = shape.as_assignment_statement(step)
+        var called = shape.as_expression_statement(step)
+        if made {
+            emit_walked_local(made, scope, class_information)
+        } else if called {
+            generate_expression_statement(called, scope, class_information)
+        } else if written {
+            generate_assignment(written, scope, class_information)
+        } else {
+            var check = shape.as_assert_statement(step)
+            crash check
+            crash check.value
+            check.condition_text = printer.source_expression(check.value)
+            check.line = current_line
+            if not emit_cached_check(check, scope, class_information, walking) {
+                generate_assert_statement(check, scope, class_information, walking)
+            }
         }
         index = index + 1
     }
     walked_checks.clear()
+    framed_walked_locals.clear()
+}
+
+func frame_walked_locals(
+    first_step: Integer,
+    filled: Syntax.Expressions.Expression?,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var index = first_step
+    while index < walked_checks.count() {
+        var made = shape.as_variable_declaration(walked_checks[index])
+        if made {
+            if walked_local_fits_frame(made, index, first_step, filled, scope, class_information) {
+                framed_walked_locals.append(made.name)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func walked_local_fits_frame(
+    made: Syntax.Statements.VariableDeclaration,
+    made_index: Integer,
+    first_step: Integer,
+    filled: Syntax.Expressions.Expression?,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash made.value
+    if not filled or not is_identifier_named(filled, made.name) or not shape.as_call(made.value) {
+        return false
+    }
+    var made_type = infer_declared_type(made.type_reference, made.value, scope, class_information)
+    var made_class = class_behind(made_type)
+    if not made_class {
+        return false
+    }
+    var index = first_step
+    while index < walked_checks.count() {
+        var step = walked_checks[index]
+        if index != made_index and not step_fits_frame(step, made.name, made_class, class_information) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func step_fits_frame(
+    step: Syntax.Statements.Statement,
+    name: String,
+    made_class: Analysis.ClassInfo,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var root = written_root(step)
+    if root != name {
+        var mentioned = List<String>()
+        collect_statement_names(step, mentioned)
+        return not mentioned.contains(name)
+    }
+    var mentioned_in_value = List<String>()
+    var member: Syntax.Expressions.MemberExpression? = null
+    var called: Analysis.FunctionInfo? = null
+    var written = shape.as_assignment_statement(step)
+    var call_statement = shape.as_expression_statement(step)
+    if written {
+        crash written.target
+        collect_optional_names(written.value, mentioned_in_value)
+        member = shape.as_member(written.target)
+        if member {
+            called = find_setter(made_class, member.name, class_information)
+        }
+    } else if call_statement {
+        crash call_statement.value
+        var call = shape.as_call(call_statement.value)
+        crash call
+        collect_each_mentioned_name(call.arguments, mentioned_in_value)
+        crash call.callee
+        member = shape.as_member(call.callee)
+        if member {
+            called = find_or_instantiate_function(made_class, member.name)
+            if not called {
+                return false
+            }
+        }
+    }
+    if not member or mentioned_in_value.contains(name) {
+        return false
+    }
+    crash member.object
+    if not is_identifier_named(member.object, name) {
+        return false
+    }
+    if called {
+        return not function_keeps_this(called, made_class, 0)
+    }
+    return true
+}
+
+func function_keeps_this(function: Analysis.FunctionInfo, owner: Analysis.ClassInfo, depth: Integer): Boolean {
+    if depth > 8 or block_uses_this(function.body, owner) {
+        return true
+    }
+    var expressions = List<Syntax.Expressions.Expression>()
+    collect_block_expressions(function.body, expressions)
+    var calls = List<Syntax.Expressions.Expression>()
+    var index = 0
+    while index < expressions.count() {
+        collect_expression_calls(expressions[index], calls)
+        index = index + 1
+    }
+    index = 0
+    while index < calls.count() {
+        var call = shape.as_call(calls[index])
+        crash call
+        crash call.callee
+        var own_name = ""
+        var bare = shape.as_identifier(call.callee)
+        if bare {
+            own_name = bare.name
+        }
+        var member = shape.as_member(call.callee)
+        if member and is_member_of_this(call.callee) {
+            own_name = member.name
+        }
+        var own_function = owner.find_function(own_name)
+        if own_function {
+            if function_keeps_this(own_function, owner, depth + 1) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func emit_walked_local(
+    made: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    crash made.value
+    var template_local = made.name.split("__walked_")[0]
+    crash template_local
+    var declared_type = infer_declared_type(made.type_reference, made.value, scope, class_information)
+    if framed_walked_locals.contains(made.name) {
+        var framed = made_in_frame(made.value, true, scope, class_information)
+        if framed {
+            builder.add_user("{c_type_name(declared_type)} {c_value_name(made.name)} = {framed.code};")
+            scope.declare(made.name, declared_type)
+            return
+        }
+    }
+    borrow_site = "local:{template_local}"
+    var value_code = coerce_for_store(made.value, declared_type, scope, class_information)
+    borrow_site = ""
+    builder.add_user("{c_type_name(declared_type)} {c_value_name(made.name)} = {value_code};")
+    if type_needs_drop(declared_type) {
+        scope.declare_owned(made.name, declared_type)
+    } else {
+        scope.declare(made.name, declared_type)
+    }
 }
 
 func emit_cached_check(

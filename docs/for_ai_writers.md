@@ -437,7 +437,8 @@ func is_alive(): Boolean {
   and a class that breaks one fails the build.
 - A getter with no setter makes a read-only attribute: `get_fahrenheit()` answers `.fahrenheit`, and assigning
   it is an error.
-- `person.age = 1` calls `set_age(1)` and `person.age` calls `get_age()` when the class has them.
+- `person.age = 1` calls `set_age(1)` and `person.age` calls `get_age()` when the class has them, with or without
+  an attribute named `age` (`get_id()` and `set_id(value)` over a private `_id` make a checked `.id`).
 - Operators are functions a class may define: `sum`, `subtract`, `multiply`, `divide`, `remainder`, `equals`,
   `less_than`, `greater_than`, `negate`, `get_at(index)`, `set_at(index, value)`. Without `equals`, `==` compares
   identity. `a[x]` calls `get_at(x)`, which must answer a `T?` (`func get_at(index: Integer): Integer?`, `null` when
