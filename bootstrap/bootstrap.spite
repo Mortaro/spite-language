@@ -184,18 +184,28 @@ func discovered_program(entry_path: String): Discovery.DiscoveryResult? {
         console.error("error: could not read '{entry_path}'")
         return null
     }
-    var discoverer = Discovery.ProgramDiscovery()
-    discoverer.language_folder = language_folder
-    discoverer.working_folder = working_folder()
-    discoverer.supplied_settings = supplied_settings.copy()
-    discoverer.bare_settings = bare_settings
+    var discoverer = discoverer_for_program()
     var discovery = discoverer.discover(entry_path, content)
+    if not discovery.has_error and not discovery.versions.versioned.is_empty() {
+        var versioned_discoverer = discoverer_for_program()
+        versioned_discoverer.earlier = discovery.versions
+        discovery = versioned_discoverer.discover(entry_path, content)
+    }
     if discovery.has_error {
         report_error(discovery.error_message)
         return null
     }
     build_values = discovery.build_values
     return discovery
+}
+
+func discoverer_for_program(): Discovery.ProgramDiscovery {
+    var discoverer = Discovery.ProgramDiscovery()
+    discoverer.language_folder = language_folder
+    discoverer.working_folder = working_folder()
+    discoverer.supplied_settings = supplied_settings.copy()
+    discoverer.bare_settings = bare_settings
+    return discoverer
 }
 
 func formatted_program_files(discovery: Discovery.DiscoveryResult): Formatting {

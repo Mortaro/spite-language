@@ -384,7 +384,9 @@ the namespace folders it belongs to. It is useful after a `load` or a reopening:
 that won, so reopening stops being invisible. What it writes is a program, not a report: running the printed
 entry file runs the same program, which `check.sh` proves on every run. `Build` is printed with the defaults it
 was declared with (the program's own `build.spite` included), not the values this build folded, so running the
-printed program takes its flags again.
+printed program takes its flags again. A repository loaded at two commits is printed once per version, each in
+a folder named by the repository and the commit (`slop_engine_6c7dca9/`), since the versions are two libraries
+([packages.md](packages.md#two-versions-of-one-repository)).
 
 What is written is what the program **ends up with**, not what was written down: the classes come from the
 generator after it has run, so a class the generator never made is not there, a generic template is not there,
