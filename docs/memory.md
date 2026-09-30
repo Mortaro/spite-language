@@ -812,17 +812,17 @@ text from bytes (`Memory.Address.text`), joining two texts (`sum`), counting a b
 in place, which fills the sixteen bytes first and moves the text into a block once it passes 15 bytes -- and only
 when nothing else holds that block.
 
-`library/integer.spite` starts with the memory an `Integer` is:
+`library/integer.spite` starts with the size of an `Integer` (D235):
 
 ```gdscript
-var heap = Memory.Heap()
-var _memory = heap.allocate(4)
+var _memory = Memory.Bytes(4)
 ```
 
-Four bytes, allocated like everything else, and placed by the compiler: a number's memory is a register (or
-wherever the C compiler keeps an `int32_t`), so there is no address behind `this` and nothing to free. The heap
-is bound to `heap` first, as every singleton is ([classes_and_files.md](classes_and_files.md#singletons)); that
-binding is never a field of the number. Every number file says the same with its own width (`Long` 8, `Short` 2,
+Four bytes, and nothing is allocated: `Memory.Bytes(4)` says only how big the value is, which is true wherever it
+lives. The compiler places it -- a number's memory is a register (or wherever the C compiler keeps an `int32_t`), a
+local on the stack, an attribute inside an object, or a box only when it is passed as a shape -- so there is no
+address behind `this` and nothing to free. `Memory.Bytes` is not a class and is not called: it is how a value
+class states its size, and it is read only there. Every number file says the same with its own width (`Long` 8, `Short` 2,
 `Byte` 1, `Boolean` 1, `Double` 8, `Memory.Address` 8, ...), the compiler checks it against the C type it emits,
 and `count.memory.bytes` reads it. Inside a number, `this` is the value itself, not `_memory`.
 
@@ -1178,9 +1178,11 @@ same object is where an allocator is set ([below](#allocators-memoryallocator--i
   shared instance per type (a singleton that holds nothing), and it is what `library/list.spite` uses for its
   elements. Its three value functions use the address the way a read does, so a frame-placed allocation may be
   handed to them.
-- **A number's storage** is two ordinary lines at the top of its file, `var heap = Memory.Heap()` and
-  `var _memory = heap.allocate(4)` (D145's two lines, in D178's names; the `heap` binding is never a field of the
-  number, D110). The size must be the C type's: `'Integer' declares 8 bytes of memory, and the compiler lays it out as
+- **A number's storage** is one line at the top of its file, `var _memory = Memory.Bytes(4)` (D235, replacing
+  D145's `var heap = Memory.Heap()` and `var _memory = heap.allocate(4)`, which said "allocate" where nothing is
+  allocated). The bytes are written out, and any other spelling is `a value states its size as 'var _memory =
+  Memory.Bytes(bytes)', with the bytes written out: ...` (`diagnostics/number_memory_spelling`). The size must be
+  the C type's: `'Integer' declares 8 bytes of memory, and the compiler lays it out as
   int32_t, which is 4` (`diagnostics/number_memory`). Inside a number `this` is the value, and reading `_memory` is
   `'_memory' is the memory Integer is kept in, and the compiler keeps the value itself there: write 'this'`
   (`diagnostics/number_memory_read`). `count.memory.bytes` reads the size.
@@ -1198,8 +1200,8 @@ compiler decides best use placement." A program has one way to ask for raw memor
 (D151), and one way to give it back, `free`; where the bytes live is the compiler's choice, and the program's text
 is the same whichever it makes:
 
-- **Register:** a number's own memory, declared in its file as `var heap = Memory.Heap()` and then
-  `var _memory = heap.allocate(4)` (for `Integer`; the `heap` binding is never a field, D110). The wrapper is flattened: a number is its C scalar, and `this` is the value.
+- **Register:** a number's own memory, whose size its file states as `var _memory = Memory.Bytes(4)` (for
+  `Integer`, D235). The wrapper is flattened: a number is its C scalar, and `this` is the value.
 - **Frame:** `var name = heap.allocate(bytes)` in a function, when a later statement of the same block
   is `heap.free(name)` and every other use of `name` reads or writes through it (`name.read_long(offset)`, also
   as `(name + offset)`), copies or compares with it (`copy_to`, `compare_bytes`), turns it into `text`, or hands
