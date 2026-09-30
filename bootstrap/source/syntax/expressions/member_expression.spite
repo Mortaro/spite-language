@@ -1,5 +1,6 @@
 var object: Expression? = null
 var name = ""
+var written = false
 
 func MemberExpression(object_expression: Expression, member_name: String) {
     object = object_expression

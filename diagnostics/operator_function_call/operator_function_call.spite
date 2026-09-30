@@ -1,0 +1,20 @@
+var console = Console()
+
+func OperatorFunctionCall() {
+    var point = Point()
+    point.set_height(4)
+    var height = point.get_height()
+    var other = Point()
+    var same = point.equals(other)
+    var flipped = point.negate()
+    var shelf = [1, 2]
+    shelf.set_at(0, 3)
+    var first = shelf.get_at(0)
+    var ages = Dictionary<Integer>()
+    var found = ages.get("ann")
+    var reader = point.get_height
+    var read = reader.call_function()
+    crash first
+    crash found
+    console.print(height, same, flipped.height, first, found, read)
+}

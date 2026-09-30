@@ -1,0 +1,7 @@
+diagnostics/operator_function_call/operator_function_call.spite:5: error: 'set_height' is what writing 'height' calls: write 'point.height = 4' (in OperatorFunctionCall.OperatorFunctionCall)
+diagnostics/operator_function_call/operator_function_call.spite:6: error: 'get_height' is what reading 'height' calls: write 'point.height' (in OperatorFunctionCall.OperatorFunctionCall)
+diagnostics/operator_function_call/operator_function_call.spite:8: error: 'equals' is what '==' calls: write 'point == other', or 'point != other' for 'not point.equals(other)' (in OperatorFunctionCall.OperatorFunctionCall)
+diagnostics/operator_function_call/operator_function_call.spite:9: error: 'negate' is what '-' calls: write '-point' (in OperatorFunctionCall.OperatorFunctionCall)
+diagnostics/operator_function_call/operator_function_call.spite:11: error: 'set_at' is what '[] =' calls: write 'shelf[0] = 3' (in OperatorFunctionCall.OperatorFunctionCall)
+diagnostics/operator_function_call/operator_function_call.spite:12: error: 'get_at' is what '[]' calls: write 'shelf[0]' (in OperatorFunctionCall.OperatorFunctionCall)
+diagnostics/operator_function_call/operator_function_call.spite:14: error: 'get' is what '[]' calls on a Dictionary: write 'ages["ann"]' (in OperatorFunctionCall.OperatorFunctionCall)

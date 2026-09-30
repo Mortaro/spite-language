@@ -361,14 +361,35 @@ way and a reader never wonders whether `get_x()` and `.x` differ:
 | `a.less_than(b)` / `a.greater_than(b)` | `a < b` / `a > b` |
 | `a.negate()` | `-a` |
 
-```gdscript
-var total = wallet.sum(found)
-# error: 'sum' is what '+' calls: write 'wallet + found'
+```gdscript title=operator_by_name/money.spite
+var cents = 0
+
+func Money(starting_cents: Integer) {
+    cents = starting_cents
+}
+
+func sum(other: Money): Money {
+    return Money(cents + other.cents)
+}
+```
+```gdscript title=operator_by_name/operator_by_name.spite entry error
+var console = Console()
+
+func OperatorByName() {
+    var wallet = Money(150)
+    var found = Money(50)
+    var total = wallet.sum(found)
+    console.print(total.cents)
+}
+```
+```diagnostic
+'sum' is what '+' calls: write 'wallet + found'
 ```
 
 **The one exception is the function used as a value**, where no operator can stand in: `run_callback(point.get_x)`
 hands over the function itself, so it is written by name. Declaring the function stays as it is: `func
-get_x()`, `func sum(other)`, `func get_at(index)` are how a class offers the operator.
+get_x()`, `func sum(other)`, `func get_at(index)` are how a class offers the operator. A getter or setter named
+after a keyword, such as `get_type()`, is still called by name, because `thing.type` cannot be written.
 
 ## One name, one function
 
@@ -552,7 +573,7 @@ This is the language's first **variadic** generic. `List<T>` and the rest take a
 - Because `Spite.Function` is an ordinary standard library class, `call_function` can be reopened ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading))
   to trace or count every callback in a program. That is the foot, and it is yours to shoot.
 
-The indirection is paid only where it was already accepted. An ordinary call, `person.set_age(2)`, is a
+The indirection is paid only where it was already accepted. An ordinary call, `person.grow(2)`, is a
 direct call and never builds a `Spite.Function`; only a function used *as a value* goes through
 `call_function()`. A function passed *by name* to a list's
 `each`, `map`, `filter` and the rest is not a value either: the element loop is instantiated for it and calls it
@@ -667,7 +688,10 @@ written instead. The only exception is the function used as a value (`run_callba
 [Functions are values](#functions-are-values)), since no operator can be passed. A call with no receiver inside the class's own functions (`get_x()`) is not covered, since a bare `x` there is
 the raw field and no shortcut reaches the getter; nor is `get_attribute(attribute)`/`set_attribute`, which
 Symbol codegen offers per attribute rather than as one operator. This also settles `get_x()` against `.x`: there
-is one spelling.
+is one spelling. A union receiver is covered when every member offers the operator. The shortcut must be one the
+language can write: a getter or setter named after a keyword (`get_type()`, `set_type(value)`) is called by name,
+since `.type` does not parse, and an `equals` that `==` would not call (an `equals` whose parameter is not a class,
+where `==` compares identity) is called by name too.
 
 For a user class or union, `a + b` compiles to `a.sum(b)` when the class defines (an exact function, or Symbol
 codegen answers) `sum`; a union duck-types the same way a method call already does (every member must define

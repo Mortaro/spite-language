@@ -11138,10 +11138,9 @@ func singleton_with_arguments(
         return ""
     }
     var display_name = "{singleton_display_name(target_class)}({texts.join(", ")})"
-    var slot = singleton_argument_slots.get(display_name)
     var slot_number = singleton_argument_slots.count()
-    if slot {
-        slot_number = slot
+    if singleton_argument_slots[display_name] {
+        slot_number = singleton_argument_slots[display_name]
     } else {
         singleton_argument_slots[display_name] = slot_number
     }
@@ -12468,6 +12467,9 @@ func generate_method_call(
         var matched = Syntax.Expressions.MemberExpression(object_ast, bound_function_name)
         return generate_method_call(matched, object_ast, arguments_ast, scope, class_information)
     }
+    if member.written {
+        report_operator_function_call(member, object_ast, arguments_ast, scope, class_information)
+    }
     forget_indices_if_shrinking(member.name, object_ast, scope)
     var counted_call = counted_method(member, object_ast, arguments_ast, scope, class_information)
     if counted_call {
@@ -12754,6 +12756,189 @@ func generate_method_call(
     lend_item(called, target_class, member.name, object_ast)
     lend_result(called, target_class, function)
     return called
+}
+
+func may_call_an_operator(name: String, argument_count: Integer): Boolean {
+    switch name {
+        "get_at": return argument_count == 1
+        "set_at": return argument_count == 2
+        "get": return argument_count == 1
+        "negate": return argument_count == 0
+        _: {
+            var operators = [
+                "sum"
+                "subtract"
+                "multiply"
+                "divide"
+                "remainder"
+                "equals"
+                "less_than"
+                "greater_than"
+            ]
+            if operators.contains(name) {
+                return argument_count == 1
+            }
+            if name.length() <= 4 {
+                return false
+            }
+            if name.starts_with("get_") {
+                return argument_count == 0
+            }
+            if name.starts_with("set_") {
+                return argument_count == 1
+            }
+            return false
+        }
+    }
+}
+
+func operator_written_for(name: String, receiver: String, arguments: List<String>): String {
+    if name == "negate" {
+        return "'negate' is what '-' calls: write '-{receiver}'"
+    }
+    if name.starts_with("get_") and name != "get_at" {
+        var name_length = name.length()
+        var attribute = name.slice(4, name_length)
+        return "'{name}' is what reading '{attribute}' calls: write '{receiver}.{attribute}'"
+    }
+    var first = arguments.first()
+    crash first
+    switch name {
+        "get_at": return "'get_at' is what '[]' calls: write '{receiver}[{first}]'"
+        "set_at": {
+            var second = arguments.last()
+            crash second
+            return "'set_at' is what '[] =' calls: write '{receiver}[{first}] = {second}'"
+        }
+        "get": return "'get' is what '[]' calls on a Dictionary: write '{receiver}[{first}]'"
+        "sum": return "'sum' is what '+' calls: write '{receiver} + {first}'"
+        "subtract": return "'subtract' is what '-' calls: write '{receiver} - {first}'"
+        "multiply": return "'multiply' is what '*' calls: write '{receiver} * {first}'"
+        "divide": return "'divide' is what '/' calls: write '{receiver} / {first}'"
+        "remainder": return "'remainder' is what '%' calls: write '{receiver} % {first}'"
+        "equals": return "'equals' is what '==' calls: write '{receiver} == {first}', or '{receiver} != {first}' for 'not {receiver}.equals({first})'"
+        "less_than": return "'less_than' is what '<' calls: write '{receiver} < {first}'"
+        "greater_than": return "'greater_than' is what '>' calls: write '{receiver} > {first}'"
+        _: {
+            var name_length = name.length()
+            var attribute = name.slice(4, name_length)
+            return "'{name}' is what writing '{attribute}' calls: write '{receiver}.{attribute} = {first}'"
+        }
+    }
+}
+
+func report_operator_function_call(
+    member: Syntax.Expressions.MemberExpression,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var name = member.name
+    var argument_count = arguments_ast.count()
+    assert may_call_an_operator(name, argument_count)
+    assert not try_resolve_static_path(object_ast, class_information.qualified_dotted)
+    if name.starts_with("get_") or name.starts_with("set_") {
+        var name_length = name.length()
+        var attribute = name.slice(4, name_length)
+        assert Syntax.Lexer("").keyword_kind(attribute) == 'identifier'
+    }
+    var saved_counter = temporary_counter
+    var probe = generate_expression(object_ast, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var receiver_type = probe.get_type()
+    assert operator_stands_in(name, receiver_type, arguments_ast, scope, class_information)
+    var printer = Syntax.SourcePrinter()
+    var receiver = printer.source_receiver(object_ast)
+    var arguments = arguments_ast.map(printer.source_expression)
+    var message = operator_written_for(name, receiver, arguments)
+    report(message)
+}
+
+func operator_stands_in(
+    name: String,
+    receiver_type: Analysis.SpiteType,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if type_shape.as_dictionary(receiver_type) {
+        return name == "get"
+    }
+    if type_shape.as_list(receiver_type) {
+        return name == "get_at" or name == "set_at"
+    }
+    if type_shape.as_string(receiver_type) {
+        return name == "sum" or name == "equals" or name == "less_than" or name == "greater_than"
+    }
+    if name == "get" {
+        return false
+    }
+    var receiver_union = type_shape.as_union(receiver_type)
+    if receiver_union {
+        var union_information = find_union_by_c_name(receiver_union.c_name)
+        if not union_information {
+            return false
+        }
+        if union_information.members.is_empty() {
+            return false
+        }
+        var index = 0
+        while index < union_information.members.count() {
+            var member_class = union_information.members[index]
+            if not class_offers_operator(member_class, name, arguments_ast, scope, class_information) {
+                return false
+            }
+            index = index + 1
+        }
+        return true
+    }
+    var class_ref = type_shape.as_class_ref(receiver_type)
+    if not class_ref {
+        return false
+    }
+    var target_class = find_class_by_c_name(class_ref.c_name)
+    if not target_class {
+        return false
+    }
+    return class_offers_operator(target_class, name, arguments_ast, scope, class_information)
+}
+
+func class_offers_operator(
+    target_class: Analysis.ClassInfo,
+    name: String,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if target_class.c_name == class_information.c_name and current_function == name {
+        return false
+    }
+    var function = find_or_instantiate_function(target_class, name)
+    if not function {
+        return false
+    }
+    var wanted = arguments_ast.count()
+    if function.parameters.count() != wanted {
+        return false
+    }
+    var first_parameter = function.parameters.first()
+    if not first_parameter {
+        return true
+    }
+    var first_parameter_type = first_parameter.get_type()
+    var passed_function = type_shape.as_class_ref(first_parameter_type)
+    if passed_function {
+        if passed_function.has_signature {
+            return false
+        }
+    }
+    var first_argument = arguments_ast.first()
+    crash first_argument
+    if name == "equals" {
+        return not compares_identity_instead(function, target_class, first_argument, scope, class_information)
+    }
+    return true
 }
 
 func spread_template(
