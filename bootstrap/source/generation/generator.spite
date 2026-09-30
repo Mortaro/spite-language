@@ -221,6 +221,11 @@ var nullable_scalar_labels = List<String>()
 var has_error = false
 var error_message = ""
 var error_lines = List<String>()
+var errors_reported = 0
+var reported_lines = Dictionary<Boolean>()
+var own_errors_hidden = 0
+var package_error_lines = List<String>()
+var hidden_package_errors = Dictionary<Integer>()
 var statement_poisoned = false
 var poisoned_names = List<String>()
 var current_function = ""
@@ -381,13 +386,113 @@ func report(message: String) {
         shown_line = fallback_line()
     }
     var line = "{current_path}:{shown_line}: error: {message} (in {current_owner}.{current_function})"
-    assert not error_lines.contains(line)
-    if error_lines.count() == 25 {
-        error_lines.append("too many errors: stopping at 25")
+    assert not reported_lines.has(line)
+    reported_lines.set(line, true)
+    errors_reported = errors_reported + 1
+    var package = error_package(current_path)
+    if package.is_empty() {
+        list_own_error(line)
+    } else {
+        list_package_error(line, package)
     }
-    assert not (error_lines.count() > 25)
-    error_lines.append(line)
-    error_message = error_lines.join("\n")
+    error_message = listed_errors()
+}
+
+func list_own_error(line: String) {
+    if error_lines.count() < 25 {
+        error_lines.append(line)
+    } else {
+        own_errors_hidden = own_errors_hidden + 1
+    }
+}
+
+func list_package_error(line: String, package: String) {
+    if package_error_lines.count() < 25 {
+        package_error_lines.append(line)
+        return
+    }
+    if hidden_package_errors[package] {
+        hidden_package_errors.set(package, hidden_package_errors[package] + 1)
+    } else {
+        hidden_package_errors.set(package, 1)
+    }
+}
+
+# ../docs/compiler.md#how-many-errors-are-listed
+func listed_errors(): String {
+    var shown = error_lines.copy()
+    if own_errors_hidden > 0 {
+        shown.append("and {own_errors_hidden} more in the program")
+    }
+    var index = 0
+    while index < package_error_lines.count() {
+        shown.append(package_error_lines[index])
+        index = index + 1
+    }
+    var packages = hidden_package_errors.keys()
+    index = 0
+    while index < packages.count() {
+        var package = packages[index]
+        crash hidden_package_errors[package]
+        shown.append("and {hidden_package_errors[package]} more in {package}")
+        index = index + 1
+    }
+    return shown.join("\n")
+}
+
+func error_package(path: String): String {
+    var entry_class = find_class_by_c_name(entry_class_c_name)
+    if not entry_class or path.is_empty() {
+        return ""
+    }
+    var slashed = path.replace("\\", "/")
+    var base = working_folder.replace("\\", "/")
+    var language = language_folder.replace("\\", "/")
+    var joined = "{base}/{slashed}"
+    if slashed.starts_with("library/") or slashed.starts_with("launcher/") {
+        joined = "{language}/{slashed}"
+    }
+    if slashed.starts_with("/") or slashed.slice(1, 2) == ":" {
+        joined = slashed
+    }
+    var folder = normalized_folder(joined)
+    var program_folder = absolute_source_folder(entry_class)
+    if folder == program_folder or folder.starts_with("{program_folder}/") {
+        return ""
+    }
+    var library_root = normalized_folder("{language}/library/")
+    if folder == library_root or folder.starts_with("{library_root}/") {
+        return "library"
+    }
+    var launcher_root = normalized_folder("{language}/launcher/")
+    if folder == launcher_root or folder.starts_with("{launcher_root}/") {
+        return "launcher"
+    }
+    var best_root = ""
+    var index = 0
+    while index < loaded_folders.count() {
+        var loaded = loaded_folders[index].replace("\\", "/")
+        var loaded_path = loaded
+        if not loaded.starts_with("/") and loaded.slice(1, 2) != ":" {
+            loaded_path = "{base}/{loaded}"
+        }
+        var loaded_root = normalized_folder("{loaded_path}/")
+        var holds = folder == loaded_root or folder.starts_with("{loaded_root}/")
+        if holds and loaded_root.length() > best_root.length() {
+            best_root = loaded_root
+        }
+        index = index + 1
+    }
+    if best_root.is_empty() {
+        best_root = folder
+    }
+    var working_root = normalized_folder("{base}/")
+    if best_root.starts_with("{working_root}/") {
+        var start = working_root.length() + 1
+        var end = best_root.length()
+        return best_root.slice(start, end)
+    }
+    return best_root
 }
 
 func allocate_class_id(debug_name: String): Integer {
@@ -4546,9 +4651,9 @@ func resolve_field(
         return
     }
     var field_type = infer_declared_type(declaration.type_reference, declaration.value, scope, information)
-    var errors_before = error_lines.count()
+    var errors_before = errors_reported
     report_function_shape_default(declaration, field_type, information, file_statements)
-    if error_lines.count() == errors_before and not constructor_assigns(information.simple_name, declaration.name, file_statements) {
+    if errors_reported == errors_before and not constructor_assigns(information.simple_name, declaration.name, file_statements) {
         report_null_default(declaration, field_type, "attribute")
     }
     var default_code = coerce_for_store(declaration.value, field_type, scope, information)
@@ -31518,7 +31623,7 @@ func generate_statement(
         statement_poisoned = true
         mark_each_used(mentioned, scope)
     }
-    var errors_before = error_lines.count()
+    var errors_before = errors_reported
     var waits_before = wait_mark_counters.count()
     var ended_in_return = generate_statement_kind(statement, scope, class_information, function_information)
     if ended_in_return {
@@ -31528,7 +31633,7 @@ func generate_statement(
         drop_unread_waits(waits_before)
     }
     var declared = shape.as_variable_declaration(statement)
-    if declared and error_lines.count() > errors_before {
+    if declared and errors_reported > errors_before {
         scope.mark_used(declared.name)
     }
     if declared and statement_poisoned {

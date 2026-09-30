@@ -432,6 +432,10 @@ its folder, a folder with no entry file, an entry constructor that takes argumen
 that is off, a flag with an underscore, and a `--name=value` before `--` that names no `Build` field are errors
 too, each naming the fix; their texts are [below](#naming-a-program).
 
+A program's own errors come first. When a package it loads is broken too -- the engine halfway through a
+migration, say -- its errors are listed after the program's, so they never hide the program's own; how many of each
+are listed is [below](#how-many-errors-are-listed).
+
 ## Rules in full
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
@@ -637,6 +641,16 @@ rewriting off for the compiler it starts (`MSYS2_ARG_CONV_EXCL="*"`), so every a
 argument of `spite connect` -- arrives exactly as typed. On Linux and macOS nothing is rewritten and nothing
 changes. `check.sh` runs `conformance/stage6/launcher_arguments` through `bin/spite` with `--prefixes=/Game/Legacy/`,
 `/usr/share` and `a b` after `--`.
+
+### How many errors are listed
+
+(A94, a request from the Theseus port; proposed by Claude, unconfirmed.) Every error is `<path>:<line>: error:
+<message> (in <Class>.<function>)`, each listed once. The errors in files under the program's own folder come first,
+at most 25, followed by `and N more in the program` when there were more. Then come the errors in the packages it
+loads -- the standard library, the launcher and every loaded folder -- at most 25 of them together, in the order they
+were found, followed by one `and N more in <package>` per package that had more, the package named by its folder, relative to the folder `spite` was run from when it is
+inside it (`library` and `launcher` for the language's own). A package whose errors fill the list therefore never
+hides one in the program.
 
 ### Formatting before compiling, and `spite format`
 
