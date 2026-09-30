@@ -1,0 +1,32 @@
+var _sockets = DynamicLibrary("ws2_32.dll", 'identity', "")
+
+func _open_handle(): Long {
+    return _sockets.socket_as_long(2, 2, 17)
+}
+
+func _bind(address: Memory.Address): Boolean {
+    return _sockets.bind(handle, address, 16) == 0
+}
+
+func _send(address: Memory.Address, buffer: Memory.Address, count: Integer): Integer {
+    return _sockets.sendto(handle, buffer, count, 0, address, 16)
+}
+
+func _receive_from(buffer: Memory.Address, count: Integer, sender: Memory.Address): Integer {
+    var length_slot = sender + 16
+    return _sockets.recvfrom(handle, buffer, count, 0, sender, length_slot)
+}
+
+func _ready_now(): Boolean {
+    var watched = heap.allocate(16)
+    watched.write_long(0, handle)
+    watched.write_short(8, 768)
+    watched.write_short(10, 0)
+    var ready = _sockets.WSAPoll(watched, 1, 0)
+    heap.free(watched)
+    return ready > 0
+}
+
+func _close_handle() {
+    _sockets.closesocket(handle)
+}

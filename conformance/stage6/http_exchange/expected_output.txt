@@ -1,0 +1,4 @@
+/hello: 200 OK, type none, body 'hello there'
+/echo: 201 Created, type application/json, body '{"name": "ada"}'
+/nowhere: 404 Not Found, type none, body ''
+served 3

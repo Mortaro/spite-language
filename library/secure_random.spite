@@ -1,0 +1,12 @@
+singleton
+
+func bytes(count: Integer): List<Byte> {
+    crash count >= 0
+    var filled = List<Byte>()
+    filled.reserve(count)
+    if count > 0 {
+        _fill(filled.items, count)
+    }
+    filled.item_count = count
+    return filled
+}

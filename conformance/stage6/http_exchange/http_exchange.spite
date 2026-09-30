@@ -1,0 +1,71 @@
+var console = Console()
+var server = HttpServer()
+var client = HttpClient()
+
+func HttpExchange() {
+    crash server.listen_locally(47911)
+    var serving = Concurrent(serve_three)
+    var hello = Concurrent(ask_hello)
+    var echoed = Concurrent(ask_echo)
+    var missing = Concurrent(ask_missing)
+    console.print(hello)
+    console.print(echoed)
+    console.print(missing)
+    console.print("served", serving)
+    server.close()
+}
+
+func serve_three(): Integer {
+    var served = 0
+    while served < 3 {
+        var request = server.next_request()
+        crash request
+        var response = HttpResponse()
+        if request.path == "/hello" {
+            response.body = "hello there"
+        } else if request.path == "/echo" and request.method == "POST" {
+            var kind = request.header("Content-Type")
+            crash kind
+            response.set_header("Content-Type", kind)
+            response.body = request.body
+            response.status = 201
+        } else {
+            response.status = 404
+        }
+        server.respond(request, response)
+        served = served + 1
+    }
+    return served
+}
+
+func ask_hello(): String {
+    var request = HttpRequest()
+    request.path = "/hello"
+    return ask(request)
+}
+
+func ask_echo(): String {
+    var request = HttpRequest()
+    request.method = "POST"
+    request.path = "/echo"
+    request.set_header("Content-Type", "application/json")
+    request.body = "\{\"name\": \"ada\"}"
+    return ask(request)
+}
+
+func ask_missing(): String {
+    var request = HttpRequest()
+    request.path = "/nowhere"
+    return ask(request)
+}
+
+func ask(request: HttpRequest): String {
+    var response = client.send("127.0.0.1", 47911, request)
+    crash response
+    var kind = response.header("content-type")
+    var shown_kind = "none"
+    if kind {
+        shown_kind = kind
+    }
+    return "{request.path}: {response.status} {response.reason()}, type {shown_kind}, body '{response.body}'"
+}

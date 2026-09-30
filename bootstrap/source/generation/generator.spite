@@ -16883,12 +16883,12 @@ func bounded_item(got: ExpressionResult, read_path: String): ExpressionResult {
     return bounded
 }
 
-func reaches_list_storage(): Boolean {
-    return current_owner == "BinaryOutput" or current_owner == "BinaryReader"
-}
-
-func library_list_field(list_type: Analysis.SpiteType, name: String): Analysis.FieldInfo? {
-    assert current_path.starts_with("library/") or reaches_list_storage()
+func library_list_field(
+    list_type: Analysis.SpiteType,
+    name: String,
+    class_information: Analysis.ClassInfo,
+): Analysis.FieldInfo? {
+    assert current_path.starts_with("library/") or is_library_class(class_information)
     var listed = type_shape.as_list(list_type)
     assert listed
     var element = listed.get_element()
@@ -19239,7 +19239,7 @@ func generate_member_read_raw(
             return string_field
         }
     }
-    var list_field = library_list_field(object_result_type, member.name)
+    var list_field = library_list_field(object_result_type, member.name, class_information)
     if list_field {
         var list_field_type = list_field.get_type()
         return ExpressionResult("({object_result.code})->{c_value_name(member.name)}", list_field_type)
@@ -25012,7 +25012,7 @@ func generate_store(
             report("cannot assign to '{member.name}' through this value")
             return
         }
-        var written_field = library_list_field(object_result_type, member.name)
+        var written_field = library_list_field(object_result_type, member.name, class_information)
         if written_field {
             var written_field_type = written_field.get_type()
             var stored = coerce_for_store(assignment.value, written_field_type, scope, class_information)

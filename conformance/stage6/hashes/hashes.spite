@@ -1,0 +1,71 @@
+var console = Console()
+var argon2 = Argon2()
+var random = SecureRandom()
+var sha256 = Sha256()
+var digits = "0123456789abcdef"
+
+func Hashes() {
+    var samples = ["", "abc", "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"]
+    var index = 0
+    while index < samples.count() {
+        var sample = samples[index]
+        var bytes = sample.to_bytes()
+        var digest = sha256.hash(bytes)
+        var shown = hex(digest)
+        console.print(shown)
+        index = index + 1
+    }
+    var million = List<Byte>()
+    while million.count() < 1000000 {
+        million.append(97)
+    }
+    var big = sha256.hash(million)
+    var big_shown = hex(big)
+    console.print(big_shown)
+    var key_text = "key"
+    var key = key_text.to_bytes()
+    var message_text = "The quick brown fox jumps over the lazy dog"
+    var message = message_text.to_bytes()
+    var mac = sha256.hmac(key, message)
+    var mac_shown = hex(mac)
+    console.print(mac_shown)
+    var long_key = List<Byte>()
+    while long_key.count() < 131 {
+        long_key.append(170)
+    }
+    var test_text = "Test Using Larger Than Block-Size Key - Hash Key First"
+    var test = test_text.to_bytes()
+    var long_mac = sha256.hmac(long_key, test)
+    var long_shown = hex(long_mac)
+    console.print(long_shown)
+    var first = random.bytes(32)
+    var second = random.bytes(32)
+    var first_count = first.count()
+    var differ = hex(first) != hex(second)
+    console.print("32 secure random bytes, twice: {first_count} bytes, different: {differ}")
+    var reference = "$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc"
+    var matches = argon2.verify("password", reference)
+    var wrong = argon2.verify("Password", reference)
+    var malformed = argon2.verify("password", "$argon2id$v=19$m=65536")
+    console.print("reference hash: {matches == true}, wrong password: {wrong == false}")
+    if malformed != true and malformed != false {
+        console.print("a text that is not a PHC string is no answer")
+    }
+    var stored = argon2.hash("correct horse")
+    var prefix = stored.slice(0, 31)
+    var round_trip = argon2.verify("correct horse", stored)
+    console.print("{prefix} verifies: {round_trip == true}")
+}
+
+func hex(bytes: List<Byte>): String {
+    var text = ""
+    var index = 0
+    while index < bytes.count() {
+        var value: Integer = bytes[index]
+        var high = digits.character_at(value / 16)
+        var low = digits.character_at(value % 16)
+        text = text + high + low
+        index = index + 1
+    }
+    return text
+}

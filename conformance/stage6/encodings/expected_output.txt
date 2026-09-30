@@ -1,0 +1,17 @@
+'': '', url '', back ''
+'f': 'Zg==', url 'Zg', back 'Zg=='
+'fo': 'Zm8=', url 'Zm8', back 'Zm8='
+'foo': 'Zm9v', url 'Zm9v', back 'Zm9v'
+'foob': 'Zm9vYg==', url 'Zm9vYg', back 'Zm9vYg=='
+'fooba': 'Zm9vYmE=', url 'Zm9vYmE', back 'Zm9vYmE='
+'foobar': 'Zm9vYmFy', url 'Zm9vYmFy', back 'Zm9vYmFy'
+standard +/+/, url -_-_
+'Zm9v!' is not base64
+'Zg' needs its padding in standard base64
+base64url '-_-_Zg' is 251,255,191,102
+zlib: 104,101,108,108,111,32,104,101,108,108,111,32,104,101,108,108,111,32,104,101,108,108,111
+zlib: 
+gzip: 104,101,108,108,111
+100000 repeating bytes pack into 176 and come back: true
+gzip with a wrong size is refused
+a truncated zlib stream is refused

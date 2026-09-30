@@ -1,0 +1,15 @@
+var _library = DynamicLibrary("libSystem.dylib", 'identity', "")
+
+func _fill(address: Memory.Address, count: Integer) {
+    var filled = 0
+    while filled < count {
+        var at = address + filled
+        var wanted = count - filled
+        if wanted > 256 {
+            wanted = 256
+        }
+        var status = _library.getentropy(at, wanted)
+        crash status == 0
+        filled = filled + wanted
+    }
+}

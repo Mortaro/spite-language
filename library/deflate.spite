@@ -1,0 +1,965 @@
+var heap = Memory.Heap()
+var _window = 32768
+var _hash_size = 32768
+var _chain_limit = 24
+var _block_symbols = 65536
+var _length_bases = [
+    3
+    4
+    5
+    6
+    7
+    8
+    9
+    10
+    11
+    13
+    15
+    17
+    19
+    23
+    27
+    31
+    35
+    43
+    51
+    59
+    67
+    83
+    99
+    115
+    131
+    163
+    195
+    227
+    258
+]
+var _length_extra = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0]
+var _distance_bases = [
+    1
+    2
+    3
+    4
+    5
+    7
+    9
+    13
+    17
+    25
+    33
+    49
+    65
+    97
+    129
+    193
+    257
+    385
+    513
+    769
+    1025
+    1537
+    2049
+    3073
+    4097
+    6145
+    8193
+    12289
+    16385
+    24577
+]
+var _distance_extra = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13]
+var _code_length_order = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]
+
+var _bit_buffer: Long = 0
+var _bit_count = 0
+
+var _source: Memory.Address = 0
+var _source_length = 0
+var _scratch: Memory.Address = 0
+var _head: Memory.Address = 0
+var _previous: Memory.Address = 0
+var _literal_frequencies: Memory.Address = 0
+var _distance_frequencies: Memory.Address = 0
+var _literal_lengths: Memory.Address = 0
+var _literal_codes: Memory.Address = 0
+var _distance_lengths: Memory.Address = 0
+var _distance_codes: Memory.Address = 0
+var _run_frequencies: Memory.Address = 0
+var _run_lengths: Memory.Address = 0
+var _run_codes: Memory.Address = 0
+var _all_lengths: Memory.Address = 0
+var _runs: Memory.Address = 0
+var _run_extras: Memory.Address = 0
+var _run_count = 0
+var _symbols = List<Integer>()
+var _extras = List<Integer>()
+var _output = List<Byte>()
+
+var _input: Memory.Address = 0
+var _input_length = 0
+var _position = 0
+var _failed = false
+var _result = List<Byte>()
+var _tables: Memory.Address = 0
+var _literal_table: Memory.Address = 0
+var _distance_table: Memory.Address = 0
+var _length_table: Memory.Address = 0
+var _table_lengths: Memory.Address = 0
+var _literal_mask: Long = 0
+var _distance_mask: Long = 0
+var _length_mask: Long = 0
+
+func compress(bytes: List<Byte>): List<Byte> {
+    _source = bytes.items
+    _source_length = bytes.item_count
+    _scratch = heap.allocate(280000)
+    _head = _scratch
+    _previous = _scratch + 131072
+    _literal_frequencies = _scratch + 262144
+    _distance_frequencies = _literal_frequencies + 1200
+    _literal_lengths = _distance_frequencies + 200
+    _literal_codes = _literal_lengths + 1200
+    _distance_lengths = _literal_codes + 1200
+    _distance_codes = _distance_lengths + 200
+    _run_frequencies = _distance_codes + 200
+    _run_lengths = _run_frequencies + 100
+    _run_codes = _run_lengths + 100
+    _all_lengths = _run_codes + 100
+    _runs = _all_lengths + 1300
+    _run_extras = _runs + 1300
+    _fill(_head, _hash_size, -1)
+    _fill(_previous, _window, -1)
+    _output = List<Byte>()
+    _output.reserve(_source_length / 2 + 64)
+    _bit_buffer = 0
+    _bit_count = 0
+    _start_block()
+    var position = 0
+    while position < _source_length {
+        position = _step(position)
+        if _symbols.item_count >= _block_symbols {
+            _add_symbol(256, 0)
+            _write_block(false)
+            _start_block()
+        }
+    }
+    _add_symbol(256, 0)
+    _write_block(true)
+    _flush()
+    heap.free(_scratch)
+    _scratch = 0
+    _source = 0
+    _symbols = List<Integer>()
+    _extras = List<Integer>()
+    var result = _output
+    _output = List<Byte>()
+    return result
+}
+
+func decompress(bytes: List<Byte>): List<Byte>? {
+    _input = bytes.items
+    _input_length = bytes.item_count
+    _position = 0
+    _bit_buffer = 0
+    _bit_count = 0
+    _failed = false
+    _result = List<Byte>()
+    _result.reserve(_input_length * 2 + 64)
+    _tables = heap.allocate(270000)
+    _literal_table = _tables
+    _distance_table = _tables + 131072
+    _length_table = _tables + 262144
+    _table_lengths = _length_table + 512
+    _inflate_blocks()
+    heap.free(_tables)
+    _tables = 0
+    _input = 0
+    var result = _result
+    _result = List<Byte>()
+    assert not _failed
+    return result
+}
+
+func _entry(table: List<Integer>, index: Integer): Integer {
+    crash table[index]
+    return table[index]
+}
+
+func _fill(address: Memory.Address, filled_count: Integer, value: Integer) {
+    var index = 0
+    while index < filled_count {
+        address.write_integer(index * 4, value)
+        index = index + 1
+    }
+}
+
+func _increment(address: Memory.Address, index: Integer) {
+    var value = address.read_integer(index * 4)
+    address.write_integer(index * 4, value + 1)
+}
+
+func _start_block() {
+    _symbols.clear()
+    _extras.clear()
+    _fill(_literal_frequencies, 286, 0)
+    _fill(_distance_frequencies, 30, 0)
+}
+
+func _step(position: Integer): Integer {
+    var best_length = 0
+    var best_distance = 0
+    if position + 2 < _source_length {
+        var limit = _source_length - position
+        if limit > 258 {
+            limit = 258
+        }
+        var hash = _hash_at(position)
+        var candidate = _head.read_integer(hash * 4)
+        var tries = 0
+        while candidate >= 0 and position - candidate <= _window and tries < _chain_limit and best_length < limit {
+            var matched = _match_length(candidate, position, limit)
+            if matched > best_length {
+                best_length = matched
+                best_distance = position - candidate
+            }
+            var slot = candidate.bits_and(_window - 1)
+            candidate = _previous.read_integer(slot * 4)
+            tries = tries + 1
+        }
+        _insert(position, hash)
+    }
+    if best_length >= 3 {
+        _add_match(best_length, best_distance)
+        _insert_range(position + 1, position + best_length)
+        return position + best_length
+    }
+    var literal: Integer = _source.read_byte(position)
+    _add_symbol(literal, 0)
+    return position + 1
+}
+
+func _hash_at(position: Integer): Integer {
+    var first: Integer = _source.read_byte(position)
+    var second: Integer = _source.read_byte(position + 1)
+    var third: Integer = _source.read_byte(position + 2)
+    var middle = second.shifted_left(5)
+    var mixed = first.shifted_left(10).bits_exclusive_or(middle).bits_exclusive_or(third)
+    return mixed.bits_and(_hash_size - 1)
+}
+
+func _insert(position: Integer, hash: Integer) {
+    var slot = position.bits_and(_window - 1)
+    var older = _head.read_integer(hash * 4)
+    _previous.write_integer(slot * 4, older)
+    _head.write_integer(hash * 4, position)
+}
+
+func _insert_range(from: Integer, to: Integer) {
+    var position = from
+    while position < to and position + 2 < _source_length {
+        var hash = _hash_at(position)
+        _insert(position, hash)
+        position = position + 1
+    }
+}
+
+func _match_length(candidate: Integer, position: Integer, limit: Integer): Integer {
+    var matched = 0
+    while matched < limit and _source.read_byte(candidate + matched) == _source.read_byte(position + matched) {
+        matched = matched + 1
+    }
+    return matched
+}
+
+func _add_symbol(symbol: Integer, extra: Integer) {
+    _symbols.append(symbol)
+    _extras.append(extra)
+    _increment(_literal_frequencies, symbol)
+}
+
+func _add_match(match_length: Integer, distance: Integer) {
+    var length_code = _code_for(_length_bases, match_length)
+    var length_base = _entry(_length_bases, length_code)
+    _add_symbol(257 + length_code, match_length - length_base)
+    var distance_code = _code_for(_distance_bases, distance)
+    var distance_base = _entry(_distance_bases, distance_code)
+    _symbols.append(distance_code)
+    _extras.append(distance - distance_base)
+    _increment(_distance_frequencies, distance_code)
+}
+
+func _code_for(bases: List<Integer>, value: Integer): Integer {
+    var code = 0
+    var next = 1
+    var total = bases.count()
+    while next < total and value >= _entry(bases, next) {
+        code = next
+        next = next + 1
+    }
+    return code
+}
+
+func _write_block(last: Boolean) {
+    _build_code(_literal_frequencies, 286, 15, _literal_lengths, _literal_codes)
+    if _distance_frequencies.read_integer(0) == 0 {
+        _distance_frequencies.write_integer(0, 1)
+    }
+    if _distance_frequencies.read_integer(4) == 0 {
+        _distance_frequencies.write_integer(4, 1)
+    }
+    _build_code(_distance_frequencies, 30, 15, _distance_lengths, _distance_codes)
+    var final_bit = 0
+    if last {
+        final_bit = 1
+    }
+    _write_bits(final_bit, 1)
+    _write_bits(2, 2)
+    _write_code_lengths()
+    _write_symbols()
+}
+
+func _write_symbols() {
+    var symbols = _symbols.items
+    var extras = _extras.items
+    var total = _symbols.item_count
+    var index = 0
+    while index < total {
+        var symbol = symbols.read_integer(index * 4)
+        _write_symbol_code(_literal_lengths, _literal_codes, symbol)
+        index = index + 1
+        if symbol > 256 {
+            var length_code = symbol - 257
+            var length_bits = _entry(_length_extra, length_code)
+            var length_more = extras.read_integer((index - 1) * 4)
+            _write_bits(length_more, length_bits)
+            var distance_code = symbols.read_integer(index * 4)
+            _write_symbol_code(_distance_lengths, _distance_codes, distance_code)
+            var distance_bits = _entry(_distance_extra, distance_code)
+            var distance_more = extras.read_integer(index * 4)
+            _write_bits(distance_more, distance_bits)
+            index = index + 1
+        }
+    }
+}
+
+func _write_symbol_code(lengths: Memory.Address, codes: Memory.Address, symbol: Integer) {
+    var code = codes.read_integer(symbol * 4)
+    var bits = lengths.read_integer(symbol * 4)
+    _write_code(code, bits)
+}
+
+func _write_code_lengths() {
+    var literal_count = _trimmed_count(_literal_lengths, 286, 257)
+    var distance_count = _trimmed_count(_distance_lengths, 30, 1)
+    var index = 0
+    while index < literal_count {
+        var value = _literal_lengths.read_integer(index * 4)
+        _all_lengths.write_integer(index * 4, value)
+        index = index + 1
+    }
+    index = 0
+    while index < distance_count {
+        var value = _distance_lengths.read_integer(index * 4)
+        _all_lengths.write_integer((literal_count + index) * 4, value)
+        index = index + 1
+    }
+    _run_length(literal_count + distance_count)
+    _fill(_run_frequencies, 19, 0)
+    index = 0
+    while index < _run_count {
+        var run = _runs.read_integer(index * 4)
+        _increment(_run_frequencies, run)
+        index = index + 1
+    }
+    _build_code(_run_frequencies, 19, 7, _run_lengths, _run_codes)
+    var order_count = 19
+    while order_count > 4 and _order_length(order_count - 1) == 0 {
+        order_count = order_count - 1
+    }
+    _write_bits(literal_count - 257, 5)
+    _write_bits(distance_count - 1, 5)
+    _write_bits(order_count - 4, 4)
+    index = 0
+    while index < order_count {
+        var bits = _order_length(index)
+        _write_bits(bits, 3)
+        index = index + 1
+    }
+    index = 0
+    while index < _run_count {
+        var symbol = _runs.read_integer(index * 4)
+        var extra = _run_extras.read_integer(index * 4)
+        _write_symbol_code(_run_lengths, _run_codes, symbol)
+        if symbol == 16 {
+            _write_bits(extra, 2)
+        } else if symbol == 17 {
+            _write_bits(extra, 3)
+        } else if symbol == 18 {
+            _write_bits(extra, 7)
+        }
+        index = index + 1
+    }
+}
+
+func _order_length(position: Integer): Integer {
+    var symbol = _entry(_code_length_order, position)
+    return _run_lengths.read_integer(symbol * 4)
+}
+
+func _trimmed_count(lengths: Memory.Address, total: Integer, minimum: Integer): Integer {
+    var kept = total
+    while kept > minimum and lengths.read_integer((kept - 1) * 4) == 0 {
+        kept = kept - 1
+    }
+    return kept
+}
+
+func _run_length(total: Integer) {
+    _run_count = 0
+    var index = 0
+    while index < total {
+        var value = _all_lengths.read_integer(index * 4)
+        var repeat = 1
+        while index + repeat < total and _all_lengths.read_integer((index + repeat) * 4) == value {
+            repeat = repeat + 1
+        }
+        index = index + _emit_run(value, repeat)
+    }
+}
+
+func _add_run(symbol: Integer, extra: Integer) {
+    _runs.write_integer(_run_count * 4, symbol)
+    _run_extras.write_integer(_run_count * 4, extra)
+    _run_count = _run_count + 1
+}
+
+func _emit_run(value: Integer, repeat: Integer): Integer {
+    if value == 0 and repeat >= 11 {
+        var zeros = repeat.minimum(138)
+        _add_run(18, zeros - 11)
+        return zeros
+    } else if value == 0 and repeat >= 3 {
+        _add_run(17, repeat - 3)
+        return repeat
+    } else if repeat >= 4 {
+        _add_run(value, 0)
+        var copies = (repeat - 1).minimum(6)
+        _add_run(16, copies - 3)
+        return copies + 1
+    }
+    _add_run(value, 0)
+    return 1
+}
+
+func _build_code(
+    frequencies: Memory.Address,
+    symbol_count: Integer,
+    limit: Integer,
+    lengths: Memory.Address,
+    codes: Memory.Address,
+) {
+    _fill(lengths, symbol_count, 0)
+    _fill(codes, symbol_count, 0)
+    var used = List<Integer>()
+    var index = 0
+    while index < symbol_count {
+        if frequencies.read_integer(index * 4) > 0 {
+            used.append(index)
+        }
+        index = index + 1
+    }
+    var used_count = used.count()
+    if used_count == 1 {
+        var only = _entry(used, 0)
+        lengths.write_integer(only * 4, 1)
+        var partner = 0
+        if only == 0 {
+            partner = 1
+        }
+        lengths.write_integer(partner * 4, 1)
+    } else if used_count > 1 {
+        _tree_lengths(frequencies, used, limit, lengths)
+    }
+    _assign_codes(lengths, symbol_count, limit, codes)
+}
+
+func _tree_lengths(frequencies: Memory.Address, used: List<Integer>, limit: Integer, lengths: Memory.Address) {
+    var leaves = used.count()
+    var nodes = leaves * 2
+    var block = heap.allocate(nodes * 16)
+    var weights = block
+    var parents = block + nodes * 8
+    var alive = parents + nodes * 4
+    var leaf = 0
+    while leaf < leaves {
+        var symbol = used.items.read_integer(leaf * 4)
+        var weight: Long = frequencies.read_integer(symbol * 4)
+        weights.write_long(leaf * 8, weight)
+        parents.write_integer(leaf * 4, -1)
+        alive.write_integer(leaf * 4, leaf)
+        leaf = leaf + 1
+    }
+    var alive_count = leaves
+    var node_count = leaves
+    while alive_count > 1 {
+        var first = _take_lightest(alive, alive_count, weights)
+        alive_count = alive_count - 1
+        var second = _take_lightest(alive, alive_count, weights)
+        alive_count = alive_count - 1
+        var first_weight = weights.read_long(first * 8)
+        var second_weight = weights.read_long(second * 8)
+        weights.write_long(node_count * 8, first_weight + second_weight)
+        parents.write_integer(node_count * 4, -1)
+        parents.write_integer(first * 4, node_count)
+        parents.write_integer(second * 4, node_count)
+        alive.write_integer(alive_count * 4, node_count)
+        alive_count = alive_count + 1
+        node_count = node_count + 1
+    }
+    leaf = 0
+    while leaf < leaves {
+        var depth = 0
+        var node = parents.read_integer(leaf * 4)
+        while node >= 0 {
+            depth = depth + 1
+            node = parents.read_integer(node * 4)
+        }
+        if depth > limit {
+            depth = limit
+        }
+        var symbol = used.items.read_integer(leaf * 4)
+        lengths.write_integer(symbol * 4, depth)
+        leaf = leaf + 1
+    }
+    heap.free(block)
+    _fit_kraft(used, limit, lengths)
+}
+
+func _take_lightest(alive: Memory.Address, alive_count: Integer, weights: Memory.Address): Integer {
+    var best = 0
+    var first_node = alive.read_integer(0)
+    var best_weight = weights.read_long(first_node * 8)
+    var position = 1
+    while position < alive_count {
+        var node = alive.read_integer(position * 4)
+        var weight = weights.read_long(node * 8)
+        if weight < best_weight {
+            best = position
+            best_weight = weight
+        }
+        position = position + 1
+    }
+    var chosen = alive.read_integer(best * 4)
+    var last = alive.read_integer((alive_count - 1) * 4)
+    alive.write_integer(best * 4, last)
+    return chosen
+}
+
+func _fit_kraft(used: List<Integer>, limit: Integer, lengths: Memory.Address) {
+    var one: Long = 1
+    var capacity = one.shifted_left(limit)
+    var kraft: Long = 0
+    var leaves = used.count()
+    var leaf = 0
+    while leaf < leaves {
+        var symbol = used.items.read_integer(leaf * 4)
+        var depth = lengths.read_integer(symbol * 4)
+        kraft = kraft + one.shifted_left(limit - depth)
+        leaf = leaf + 1
+    }
+    while kraft > capacity {
+        var best = -1
+        var best_depth = 0
+        leaf = 0
+        while leaf < leaves {
+            var symbol = used.items.read_integer(leaf * 4)
+            var depth = lengths.read_integer(symbol * 4)
+            if depth < limit and depth > best_depth {
+                best = symbol
+                best_depth = depth
+            }
+            leaf = leaf + 1
+        }
+        crash best >= 0
+        lengths.write_integer(best * 4, best_depth + 1)
+        kraft = kraft - one.shifted_left(limit - best_depth - 1)
+    }
+    while kraft < capacity {
+        var spare = capacity - kraft
+        var best = -1
+        var best_depth = 1
+        leaf = 0
+        while leaf < leaves {
+            var symbol = used.items.read_integer(leaf * 4)
+            var depth = lengths.read_integer(symbol * 4)
+            if depth > best_depth and one.shifted_left(limit - depth) <= spare {
+                best = symbol
+                best_depth = depth
+            }
+            leaf = leaf + 1
+        }
+        assert best >= 0
+        lengths.write_integer(best * 4, best_depth - 1)
+        kraft = kraft + one.shifted_left(limit - best_depth)
+    }
+}
+
+func _assign_codes(lengths: Memory.Address, symbol_count: Integer, limit: Integer, codes: Memory.Address) {
+    var counts = List<Integer>()
+    var next = List<Integer>()
+    var index = 0
+    while index <= limit {
+        counts.append(0)
+        next.append(0)
+        index = index + 1
+    }
+    index = 0
+    while index < symbol_count {
+        var bits = lengths.read_integer(index * 4)
+        _increment(counts.items, bits)
+        index = index + 1
+    }
+    counts.set_at(0, 0)
+    var code = 0
+    var bits = 1
+    while bits <= limit {
+        var shorter = counts.items.read_integer((bits - 1) * 4)
+        code = (code + shorter).shifted_left(1)
+        next.items.write_integer(bits * 4, code)
+        bits = bits + 1
+    }
+    index = 0
+    while index < symbol_count {
+        var length = lengths.read_integer(index * 4)
+        if length > 0 {
+            var assigned = next.items.read_integer(length * 4)
+            codes.write_integer(index * 4, assigned)
+            next.items.write_integer(length * 4, assigned + 1)
+        }
+        index = index + 1
+    }
+}
+
+func _write_bits(value: Integer, bits: Integer) {
+    var wide: Long = value
+    var shifted = wide.shifted_left(_bit_count)
+    _bit_buffer = _bit_buffer.bits_or(shifted)
+    _bit_count = _bit_count + bits
+    while _bit_count >= 8 {
+        var low: Byte = _bit_buffer.bits_and(255)
+        _output.append(low)
+        _bit_buffer = _bit_buffer.shifted_right(8)
+        _bit_count = _bit_count - 8
+    }
+}
+
+func _write_code(code: Integer, bits: Integer) {
+    var reversed = 0
+    var bit = 0
+    while bit < bits {
+        var set = code.shifted_right(bits - 1 - bit).bits_and(1)
+        var placed = set.shifted_left(bit)
+        reversed = reversed.bits_or(placed)
+        bit = bit + 1
+    }
+    _write_bits(reversed, bits)
+}
+
+func _flush() {
+    while _bit_count > 0 {
+        var low: Byte = _bit_buffer.bits_and(255)
+        _output.append(low)
+        _bit_buffer = _bit_buffer.shifted_right(8)
+        _bit_count = _bit_count - 8
+    }
+    _bit_count = 0
+    _bit_buffer = 0
+}
+
+func _fail_when(condition: Boolean) {
+    if condition {
+        _failed = true
+    }
+}
+
+func _overrun(): Boolean {
+    var position: Long = _position
+    var limit: Long = _input_length
+    return position * 8 - _bit_count > limit * 8
+}
+
+func _refill() {
+    while _bit_count < 56 {
+        var next: Long = 0
+        if _position < _input_length {
+            next = _input.read_byte(_position)
+        }
+        var placed = next.shifted_left(_bit_count)
+        _bit_buffer = _bit_buffer.bits_or(placed)
+        _bit_count = _bit_count + 8
+        _position = _position + 1
+    }
+}
+
+func _read_bits(bits: Integer): Integer {
+    _refill()
+    var one: Long = 1
+    var mask = one.shifted_left(bits) - 1
+    var value: Integer = _bit_buffer.bits_and(mask)
+    _bit_buffer = _bit_buffer.shifted_right(bits)
+    _bit_count = _bit_count - bits
+    return value
+}
+
+func _decode_symbol(table: Memory.Address, mask: Long): Integer {
+    _refill()
+    var index = _bit_buffer.bits_and(mask)
+    var entry = table.read_integer(index * 4)
+    var bits = entry.bits_and(15)
+    if bits == 0 {
+        _failed = true
+        return 0
+    }
+    _bit_buffer = _bit_buffer.shifted_right(bits)
+    _bit_count = _bit_count - bits
+    return entry.shifted_right(4)
+}
+
+func _inflate_blocks() {
+    var last = 0
+    while last == 0 and not _failed {
+        last = _read_bits(1)
+        var kind = _read_bits(2)
+        if kind == 0 {
+            _copy_stored()
+        } else if kind == 1 {
+            _build_fixed_tables()
+            _decode_symbols()
+        } else if kind == 2 {
+            _read_dynamic_tables()
+            _decode_symbols()
+        } else {
+            _failed = true
+        }
+        var overrun = _overrun()
+        _fail_when(overrun)
+    }
+    assert not _failed
+    _rewind_to_byte()
+    _fail_when(_position != _input_length)
+}
+
+func _rewind_to_byte() {
+    var dropped = _bit_count.bits_and(7)
+    _bit_count = _bit_count - dropped
+    _position = _position - _bit_count / 8
+    _bit_count = 0
+    _bit_buffer = 0
+}
+
+func _ensure_room(added: Integer) {
+    _result.reserve(_result.item_count + added)
+}
+
+func _copy_stored() {
+    _rewind_to_byte()
+    _fail_when(_position + 4 > _input_length)
+    assert not _failed
+    var low: Integer = _input.read_byte(_position)
+    var high: Integer = _input.read_byte(_position + 1)
+    var complement_low: Integer = _input.read_byte(_position + 2)
+    var complement_high: Integer = _input.read_byte(_position + 3)
+    var size = high * 256 + low
+    var complement = complement_high * 256 + complement_low
+    _position = _position + 4
+    _fail_when(size + complement != 65535 or _position + size > _input_length)
+    assert not _failed
+    _ensure_room(size)
+    (_input + _position).copy_to(_result.items + _result.item_count, size)
+    _result.item_count = _result.item_count + size
+    _position = _position + size
+}
+
+func _decode_symbols() {
+    assert not _failed
+    var symbol = 0
+    while symbol != 256 and not _failed {
+        symbol = _decode_symbol(_literal_table, _literal_mask)
+        assert not _failed
+        if symbol < 256 {
+            _ensure_room(1)
+            _result.items.write_byte(_result.item_count, symbol)
+            _result.item_count = _result.item_count + 1
+        } else if symbol > 256 {
+            _copy_match(symbol)
+        }
+        var overrun = _overrun()
+        _fail_when(overrun)
+    }
+}
+
+func _copy_match(symbol: Integer) {
+    var index = symbol - 257
+    _fail_when(index >= 29)
+    assert not _failed
+    var length_bits = _entry(_length_extra, index)
+    var length_base = _entry(_length_bases, index)
+    var extra = _read_bits(length_bits)
+    var match_length = length_base + extra
+    var distance_symbol = _decode_symbol(_distance_table, _distance_mask)
+    _fail_when(distance_symbol >= 30)
+    assert not _failed
+    var distance_bits = _entry(_distance_extra, distance_symbol)
+    var distance_base = _entry(_distance_bases, distance_symbol)
+    var distance_more = _read_bits(distance_bits)
+    var distance = distance_base + distance_more
+    _fail_when(distance > _result.item_count)
+    assert not _failed
+    _ensure_room(match_length)
+    var items = _result.items
+    var at = _result.item_count
+    var from = at - distance
+    if distance >= match_length {
+        (items + from).copy_to(items + at, match_length)
+    } else {
+        var copied = 0
+        while copied < match_length {
+            var value = items.read_byte(from + copied)
+            items.write_byte(at + copied, value)
+            copied = copied + 1
+        }
+    }
+    _result.item_count = at + match_length
+}
+
+func _build_fixed_tables() {
+    var index = 0
+    while index < 320 {
+        var bits = 5
+        if index < 144 {
+            bits = 8
+        } else if index < 256 {
+            bits = 9
+        } else if index < 280 {
+            bits = 7
+        } else if index < 288 {
+            bits = 8
+        }
+        _table_lengths.write_integer(index * 4, bits)
+        index = index + 1
+    }
+    _literal_mask = _build_table(_literal_table, 0, 288)
+    _distance_mask = _build_table(_distance_table, 288, 32)
+}
+
+func _read_dynamic_tables() {
+    var literal_count = _read_bits(5) + 257
+    var distance_count = _read_bits(5) + 1
+    var code_length_count = _read_bits(4) + 4
+    _fail_when(literal_count > 286 or distance_count > 30)
+    _fill(_table_lengths, 19, 0)
+    var index = 0
+    while index < code_length_count {
+        var slot = _entry(_code_length_order, index)
+        var bits = _read_bits(3)
+        _table_lengths.write_integer(slot * 4, bits)
+        index = index + 1
+    }
+    _length_mask = _build_table(_length_table, 0, 19)
+    _fail_when(_length_mask < 0)
+    var total = literal_count + distance_count
+    var filled = 0
+    while filled < total and not _failed {
+        var symbol = _decode_symbol(_length_table, _length_mask)
+        var value = 0
+        var repeat = 1
+        if symbol < 16 {
+            value = symbol
+        } else if symbol == 16 {
+            _fail_when(filled == 0)
+            if filled > 0 {
+                value = _table_lengths.read_integer((filled - 1) * 4 + 1024)
+            }
+            repeat = _read_bits(2) + 3
+        } else if symbol == 17 {
+            repeat = _read_bits(3) + 3
+        } else {
+            repeat = _read_bits(7) + 11
+        }
+        var overrun = _overrun()
+        _fail_when(filled + repeat > total or overrun)
+        if not _failed {
+            _fill(_table_lengths + 1024 + filled * 4, repeat, value)
+            filled = filled + repeat
+        }
+    }
+    assert not _failed
+    var end_bits = _table_lengths.read_integer(1024 + 256 * 4)
+    _fail_when(end_bits == 0)
+    _literal_mask = _build_table(_literal_table, 256, literal_count)
+    _distance_mask = _build_table(_distance_table, 256 + literal_count, distance_count)
+    _fail_when(_literal_mask < 0 or _distance_mask < 0)
+}
+
+func _build_table(table: Memory.Address, first: Integer, symbol_count: Integer): Long {
+    var counts = List<Integer>()
+    var next = List<Integer>()
+    while counts.count() < 16 {
+        counts.append(0)
+        next.append(0)
+    }
+    var maximum = 1
+    var symbol = 0
+    while symbol < symbol_count {
+        var bits = _table_lengths.read_integer((first + symbol) * 4)
+        _increment(counts.items, bits)
+        if bits > maximum {
+            maximum = bits
+        }
+        symbol = symbol + 1
+    }
+    var code = 0
+    var available = 1
+    var bits = 1
+    while bits < 16 {
+        var counted = counts.items.read_integer(bits * 4)
+        available = available * 2 - counted
+        if available < 0 {
+            return -1
+        }
+        next.items.write_integer(bits * 4, code)
+        code = (code + counted) * 2
+        bits = bits + 1
+    }
+    var one: Long = 1
+    var size = one.shifted_left(maximum)
+    var slot: Long = 0
+    while slot < size {
+        table.write_integer(slot * 4, 0)
+        slot = slot + 1
+    }
+    symbol = 0
+    while symbol < symbol_count {
+        var length = _table_lengths.read_integer((first + symbol) * 4)
+        if length > 0 {
+            var assigned = next.items.read_integer(length * 4)
+            next.items.write_integer(length * 4, assigned + 1)
+            var reversed = 0
+            var step = 0
+            while step < length {
+                var low = assigned.shifted_right(step).bits_and(1)
+                reversed = reversed.shifted_left(1).bits_or(low)
+                step = step + 1
+            }
+            var entry = symbol.shifted_left(4).bits_or(length)
+            var stride = one.shifted_left(length)
+            var place: Long = reversed
+            while place < size {
+                table.write_integer(place * 4, entry)
+                place = place + stride
+            }
+        }
+        symbol = symbol + 1
+    }
+    return size - 1
+}

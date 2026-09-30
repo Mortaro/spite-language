@@ -921,14 +921,14 @@ for operating_system in windows linux mac; do
       echo "FAILED: the C of $system_program written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
   done
   # The compiler only talks lines on 127.0.0.1, so programs that resolve names and move bytes, waiting and not, are too.
-  for socket_program in socket_bytes socket_waits; do
+  for socket_program in socket_bytes socket_waits datagrams hashes; do
     "$work/generation_two.exe" conformance/stage6/$socket_program --run=false --c-source --c-path="$work/${socket_program}_$operating_system.c" --target-operating-system=$operating_system || {
       echo "FAILED: $socket_program does not compile with library/$operating_system"; exit 1; }
     "$CC_BIN" -fsyntax-only -w "$work/${socket_program}_$operating_system.c" 2> "$work/c_errors.txt" || {
       echo "FAILED: the C of $socket_program written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
   done
 done
-echo "operating systems: the compiler, a time zone program, a file watching program, a clock program, a mapped file program and a socket program compile with the windows, linux and mac library folders"
+echo "operating systems: the compiler, a time zone program, a file watching program, a clock program, a mapped file program, socket and UDP programs and a secure random program compile with the windows, linux and mac library folders"
 
 # bin/spite passes a program's own arguments through untouched: Git for Windows' bash would rewrite ones that look
 # like POSIX paths (`/Game/Legacy/` into `C:/Program Files/Git/Game/Legacy/`) on their way to a Windows program.
