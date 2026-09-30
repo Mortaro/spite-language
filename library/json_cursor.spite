@@ -1,6 +1,7 @@
 var text = ""
 var position = 0
-var failure = ""
+var expected = ""
+var crashes = false
 var matched = false
 var heap = Memory.Heap()
 
@@ -9,12 +10,13 @@ func JsonCursor(starting_text: String) {
 }
 
 func failed(): Boolean {
-    return not failure.is_empty()
+    return not expected.is_empty()
 }
 
-func fail(expected: String) {
-    if failure.is_empty() {
-        failure = "expected {expected} at character {position}"
+func fail(wanted: String) {
+    crash not crashes
+    if expected.is_empty() {
+        expected = wanted
     }
 }
 
@@ -36,20 +38,20 @@ func skip_space() {
     }
 }
 
-func consume(expected: String): Boolean {
+func consume(token: String): Boolean {
     skip_space()
-    var end = position + expected.length()
+    var end = position + token.length()
     var found = text.slice(position, end)
-    if found == expected {
+    if found == token {
         position = end
         return true
     }
     return false
 }
 
-func expect(expected: String) {
-    if not consume(expected) {
-        fail("'{expected}'")
+func expect(token: String) {
+    if not consume(token) {
+        fail("'{token}'")
     }
 }
 
@@ -99,7 +101,7 @@ func read_text(): String {
     var pieces = List<String>()
     var start = position
     var closed = false
-    while not closed and position < text.length() and failure.is_empty() {
+    while not closed and position < text.length() and expected.is_empty() {
         var code = text.code_at(position)
         if code == 34 {
             var last_run = text.slice(start, position)
@@ -259,7 +261,7 @@ func skip_value() {
 func skip_members() {
     expect("\{")
     var more = not consume("}")
-    while more and failure.is_empty() {
+    while more and expected.is_empty() {
         read_text()
         expect(":")
         skip_value()
@@ -273,7 +275,7 @@ func skip_members() {
 func skip_elements() {
     expect("[")
     var more = not consume("]")
-    while more and failure.is_empty() {
+    while more and expected.is_empty() {
         skip_value()
         more = consume(",")
         if not more {

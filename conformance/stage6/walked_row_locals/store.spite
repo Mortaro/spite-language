@@ -1,0 +1,5 @@
+singleton
+
+generic $item_type
+
+var values = Items<$item_type>()

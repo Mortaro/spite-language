@@ -393,10 +393,11 @@ func is_alive(): Boolean {
     it: `if not found { return -1 }` narrows `found`, `if index >= names.count() { return "" }` proves
     `names[index]`;
   - absence is a bug: `crash condition` halts with
-    `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition<TAB>name=value...`, followed by the
+    `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>name=value...`, followed by the
     asserts that failed before it. Every name and call the condition read is there with its value, whatever its
     shape: `crash record or cooked.count() > 2` reports `record is null	cooked.count()=1`; a part an `and` or `or`
-    skipped is left out. A bare `crash` marks a branch that cannot happen (`crash false` is formatted to it).
+    skipped is left out. Then come the other texts, numbers and enums in scope (parameters, locals, the object's
+    attributes). The condition is not on the line: open the line it names, or `grep <id> program.crashes`. A bare `crash` marks a branch that cannot happen (`crash false` is formatted to it).
     A failed narrowing names what is absent instead of a value: `clip.keys[start + 9] is missing: index 11990,
     count 11500`, `scores[key] is missing: key "bea"`, `rig.skeleton is null`. Read it as an index past the end or
     a key never set, not as a zero. A failed `assert` prints nothing as it fails; it shows up only in a crash's
@@ -438,7 +439,8 @@ func is_alive(): Boolean {
   and a class that breaks one fails the build.
 - A getter with no setter makes a read-only attribute: `get_fahrenheit()` answers `.fahrenheit`, and assigning
   it is an error.
-- `person.age = 1` calls `set_age(1)` and `person.age` calls `get_age()` when the class has them.
+- `person.age = 1` calls `set_age(1)` and `person.age` calls `get_age()` when the class has them, with or without
+  an attribute named `age` (`get_id()` and `set_id(value)` over a private `_id` make a checked `.id`).
 - Operators are functions a class may define: `sum`, `subtract`, `multiply`, `divide`, `remainder`, `equals`,
   `less_than`, `greater_than`, `negate`, `get_at(index)`, `set_at(index, value)`. Without `equals`, `==` compares
   identity. `a[x]` calls `get_at(x)`, which must answer a `T?` (`func get_at(index: Integer): Integer?`, `null` when
@@ -535,7 +537,7 @@ names the writing line ([metaprogramming.md](metaprogramming.md#asking-whether-a
 `BuyPrice`) into its snake_case attribute (`buy_price`) when no attribute has the key's exact name, so never
 rename attributes to match foreign JSON, and is `null` on a value of the wrong kind; a `Symbol`
 reads back only as a name the program already uses. Writing a `Float` or `Double` that is infinity or not-a-number
-to JSON crashes naming the attribute (`'Order.price' is infinity, which JSON cannot hold`): check the number first
+to JSON crashes showing the value and the attribute (`shown=inf	path=Order.price`): check the number first
 if `null` is wanted. **Between Spite programs, and for files a Spite program reads back, use bytes instead**:
 `BinaryWriter(value).write(): List<Byte>` (or `append_to(bytes)` to add to a buffer you have) and
 `BinaryReader<T>(bytes).read(): T?`, which reads the next value each call and is `null` on bytes that are not a `T`;

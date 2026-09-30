@@ -32,6 +32,9 @@ func ThreadLocalGrowth() {
 func joins_and_reads(): Boolean {
     var worker = pool.worker_index()
     var mine = "worker {worker}"
+    if worker < 0 {
+        mine = "main"
+    }
     var existing = markers.get()
     if not existing {
         markers.set(mine)

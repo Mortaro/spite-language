@@ -1090,6 +1090,19 @@ other function, from what tree shaking kept.
 **When.** Every build. **What you notice.** A fault prints a report instead of nothing, and the program is a few
 kilobytes larger. **Built.**
 
+### Crash text out of the binary
+
+**What it is.** A `crash` or `assert` site's condition text lives only in the `<output>.crashes` map written
+beside the executable ([D32](decisions.md), [D297](decisions.md)): no build writes it into the program. An
+`--optimized` build also leaves out each site's place, class and function, so a site is its 8-digit id and the
+values its report prints; other builds keep the place, so a local run needs no lookup.
+
+**When it applies.** Every `crash` and every program `assert` (a library `assert` records nothing, D189).
+
+**What a user can observe.** The report lines ([failure.md](failure.md#what-a-crash-reports)): `spite.crash<TAB>id`
+and `spite.assert<TAB>id` in an optimised build, and `grep <id> program.crashes` gives the rest.
+`conformance/stage6/trace_asserts_optimized`.
+
 ### Smaller ones
 
 All **built**, and none of them needs anything from you:
@@ -1347,7 +1360,11 @@ compiling (`attribute.class == Entity`, `attribute.class.fits_vector()`), `attri
 constant, and `Column<attribute.class>()` is the one singleton for that class, so nothing is looked up by name or
 place at run time. An attribute made by a construction of a class that could be a `Vector` item and holds nothing
 counted (`Entity(entity)`) is **made in the frame**: a struct beside the row, its defaults set and its
-constructor run on it, never allocated and never counted, living exactly as long as the row. Any other counted
+constructor run on it, never allocated and never counted, living exactly as long as the row. The same holds for a
+`var` in the template that later lines set or call functions of (`var own = Entity()`, `own.id = entity`,
+then the attribute is `own`) when nothing those lines run uses `this` as a value: it is made in the frame before the
+row ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call); `conformance/stage6/walked_row_locals` pins the
+allocations). Any other counted
 attribute, such as a reference read from a reference column, is counted once when the row is made and let go at
 the end of the row's block. **What you notice.** No allocation per row for a frame-made attribute
 (`conformance/stage6/sparse_rows` pins its count), and `benchmarks/sparse_rows`: 200 000 entities, two systems,
@@ -1830,9 +1847,6 @@ folded first) are set aside. Every call and every function value then goes to th
   it allocate only when the block grows.
 - **Short symbols inline** ([D70](decisions.md)): a short symbol held as a small inline string rather
   than a pointer into the symbol table.
-- **Crash text out of the binary** ([D32](decisions.md)): a `crash` or `assert` site's source text
-  lives only in the `<output>.crashes` map written beside the executable, and an optimised build carries just the id.
-  The map is written today, but the binary still carries the text.
 - **A build report of what could not be optimised** ([D36](decisions.md)): not "400 copies elided"
   but "3 copies could not be elided, and the callee that writes the field", so every line is actionable.
 

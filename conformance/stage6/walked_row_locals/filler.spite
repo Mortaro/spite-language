@@ -1,0 +1,21 @@
+generic $row_type
+
+var console = Console()
+
+func fill(index: Integer) {
+    var row: $row_type = null
+    fill_attributes(row, index)
+    console.print("tag", row.tag.id, "across", row.point.across)
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, index: Integer) {
+    if attribute.class == Tag {
+        var own = Tag()
+        own.id = index
+        own.raise(100)
+        row.attributes[attribute] = own
+    } else {
+        crash Store<attribute.class>().values[index]
+        row.attributes[attribute] = Store<attribute.class>().values[index]
+    }
+}

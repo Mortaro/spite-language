@@ -133,6 +133,20 @@ func mark_used(name: String) {
     parent.mark_used(name)
 }
 
+func visible_names(names: List<String>) {
+    if parent {
+        parent.visible_names(names)
+    }
+    var index = 0
+    while index < entry_names.count() {
+        var name = entry_names[index]
+        if not name.starts_with("spite_") and not names.contains(name) {
+            names.append(name)
+        }
+        index = index + 1
+    }
+}
+
 func forget_owned(name: String) {
     var index = owned.count() - 1
     while index >= 0 {

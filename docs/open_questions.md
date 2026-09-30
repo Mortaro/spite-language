@@ -156,10 +156,8 @@ these five are what is left, with where each stands today.
     without asking. When the versions differ in members that are used, the compiler treats them as two packages
     in two namespaces, so both keep working, and a command lists these splits for whoever wants to unify them --
     "not actually broken, just annoying". Belongs to D38 (a dependency is a git URL plus a commit in `load`),
-    which is built since D283/D289 with D38's own rule: two pins of one repository at different commits are an
-    error naming both `load` lines ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)). Using
-    one version when nothing used differs, and splitting into two namespaces when something does, is still open
-    and starts here.
+    which is built since D283/D289; D296's two libraries are built too
+    ([packages.md](packages.md#two-versions-of-one-repository)).
 17. **(Answered by D83/D88: `this` where a class names itself.)** **A syntax for `this`** (Mortaro, 2026-09-23): to be discussed when something needs it. Today bare names
     reach attributes and `class` is the instance's class, so nothing does yet.
 18. **(Answered by D89, and finished by D130: a `.spite` file path is an error naming the folder form.)** **The entry file is always the file named after its folder** (Mortaro, 2026-09-23, asked to be argued for).

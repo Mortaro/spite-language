@@ -329,7 +329,7 @@ loads `../../../../spite_truetype@41c09e2/truetype` from `plugins/slop_ui_plugin
 package fetched from a URL names the repositories it loads by URL, since a path on its author's machine means
 nothing on yours. An ordinary `load` in a fetched package stays inside that package's repository: one that leaves
 it is an error, since the copy holds only its own commit's files. **Two pins of one repository** at different
-commits are an error naming both lines today; that rule is decided to go ([below](#two-versions-of-one-repository)).
+commits are two libraries ([below](#two-versions-of-one-repository)).
 
 This program loads a folder of the language's own repository as it was at a commit. The documentation's programs
 are written out into `.spite/docs/<name>/` of that repository and compiled from there, so `../../..` is the
@@ -351,14 +351,41 @@ gadget x3
 
 ### Two versions of one repository
 
-**Decided, not built** ([D296](decisions.md)). Two pins of one repository at different commits are two different
-libraries. Nothing unifies them, nothing compares what differs between them, and it is not an error: a game that
-pins `slop_engine@6c7dca9` and a plugin that pins `slop_engine@41c09e2` each compile against the engine they
-pinned, its classes are not the other's, and a value of one version's class is not accepted where the other's is
-expected. What that duplicates costs nothing: the compiler folds every generated C function that is exactly
-identical to another into one ([optimizations.md](optimizations.md#identical-functions-are-folded-into-one)), so
-the functions two versions share unchanged are in the executable once. Until it is built, two pins of one
-repository at different commits are an error naming both `load` lines.
+Two pins of one repository at different commits are two different libraries ([D296](decisions.md)). Nothing
+unifies them, nothing compares what differs between them, and it is not an error: a game that pins
+`slop_engine@6c7dca9` and a plugin that pins `slop_engine@41c09e2` each compile against the engine they pinned.
+
+```gdscript
+func Game() {
+    load "../slop_engine@6c7dca9/slop"
+    load "../slop_minimap@b41e0d2/minimap"
+}
+```
+```gdscript
+func Minimap() {
+    load "../../slop_engine@41c09e2/slop"
+}
+```
+
+A **package** here is a repository at a commit, or the program itself: the program's folder and every folder it
+loads without a pin belong to the program, and every folder of a pinned copy belongs to that copy. A name written
+in a package means the classes of the version that package pinned, so `Renderer` in the game is the engine at
+`6c7dca9` and `Renderer` in the minimap is the engine at `41c09e2`. Each version's classes are its own: a value of
+one version's `Renderer` is not accepted where the other's is needed, and a singleton of one is not the other's.
+A reopening reopens the version its package pinned, so a game's `mods/renderer.spite` changes the engine the game
+loads and leaves the minimap's alone. A class of the standard library that a version reopens is still the one
+class, as it is for any two packages.
+
+A package may pin a repository only once. Two pins of one repository at different commits in one package are an
+error naming both lines, since a name there could mean either version (item 225 of
+`mortaros_missing_decisions.md` asks whether one package should be able to name both). A package that pins
+neither version and names a class that only the versions have is an error listing each version and the line that
+pinned it, and so is a package that reopens such a class: it loads the version it means.
+
+Messages, reflection and `--final-classes` spell a version's class with the version first, the repository's name
+and the commit (`slop_engine_6c7dca9.Renderer`), and `--final-classes` prints each version into a folder of that
+name. The code the versions share unchanged is written twice until identical code folding is built
+([optimizations.md](optimizations.md#identical-functions-are-folded-into-one)).
 
 ## Files beside a package's source
 
@@ -597,18 +624,25 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
     fetched from a URL it is "... fetched from a URL, and names a repository by a path on this machine". An
     ordinary `load` in a copy whose folder leaves the copy is "'load "<text>"' is written in
     <repository>@<commit> and leaves that repository".
-  - **Two versions of one repository are two libraries** (D296, decided by Mortaro, 2026-09-30; **not built**):
-    two pins of one repository that resolve to different commits are never unified and never an error. Each
-    version's classes are its own, as if the two repositories were unrelated: a package's names resolve to the
-    classes of the version it pinned, a value of one version's class is not the other's type, a singleton of one
-    version is not the other's, and a reopening reopens the version its root pinned. Proposed by Claude,
-    unconfirmed: both versions keep their dotted names in their own sources, and where one root must name both (a
-    program pinning two commits of one repository directly) that is still an error, since a name there could mean
-    either; `--final-classes` prints each version into its own folder. The duplicate code costs nothing because
-    identical C functions are folded into one ([optimizations.md](optimizations.md#identical-functions-are-folded-into-one)).
-    **As built** (D38's first rule, which D296 replaces), such pins are an error at the second: "'load "<text>"' pins <repository> at <commit>, and <file>:<line> ('load "..."') pins
-    it at another commit: two commits of one repository would reopen each other's classes, so pin the same commit
-    in both" (D38's version mismatch). Two spellings of one commit share nothing but agree.
+  - **Two versions of one repository are two libraries** (D296, decided by Mortaro, 2026-09-30; built as
+    proposed by Claude, unconfirmed): two pins of one repository that resolve to different commits are never
+    unified and never an error. A package is a pinned copy (every folder of it), or the program (its own folder
+    and every folder it loads without a pin). Each version's classes are its own: a name written in a package
+    resolves, at each step of the namespace walk, first as it does without versions and then in each version the
+    package pinned; a value of one version's class is not the other's type, a singleton of one version is not
+    the other's, and a file outside a version that has the dotted name of one of its classes reopens the version
+    its package pinned. A class of the standard library a version reopens stays the one class. **One package
+    pinning two commits** of one repository is an error at the second: "'load "<text>"' pins <repository> at
+    <commit>, and <file>:<line> ('load "..."') pins it at another commit in the same package: both versions'
+    classes would have the same names there, so one package pins one commit of a repository" (item 225 is open).
+    A name, or a reopening, that only the versions hold in a package that pinned none of them is an error listing
+    every version as "<repository>@<commit>, pinned by <file>:<line> ('load "..."')". A version's classes are
+    spelled `<repository name>_<commit>.<dotted name>` in messages, reflection and `--final-classes`, which
+    prints each version into its own folder; the commit is 7 digits, more when two versions share them. Two
+    spellings of one commit share nothing but agree. Built by discovering the program twice when a repository is
+    pinned at two commits: the first pass learns which package pins what, the second puts each version's
+    classes under its own name. The duplicate code costs nothing once identical C functions are folded into one
+    ([optimizations.md](optimizations.md#identical-functions-are-folded-into-one)).
   - Compile time only (D177): a git load costs what a folder load costs at run time, nothing
     (`check.sh` builds a program from a local repository pinned to a commit that is no longer its `HEAD`, from a
     second compile with no git work, with `--hot-reload`, and fails it on an unknown commit, without git on the
