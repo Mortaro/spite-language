@@ -14,7 +14,7 @@ Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection re
 answered by D314.
 
 Third pass, after D318-D325: 229 answered by D318 (on the reflection branch), 230 by D319, 227 by D320 and
-D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330. Rewritten: 238 (D324), 36 (D319).
+D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330, 208 by D332. Rewritten: 238 (D324), 36 (D319).
 
 ## Blocking now
 
@@ -51,7 +51,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
 175. **A class reading its own allocator** (`memory.allocator` inside a class), so a list's buffer follows its arena.
 155. **A dedicated thread for work that blocks forever** (a game engine's window loop): `Thread(function)`, or a marker
      on `Parallel`?
-208. **How a list that falls back to references is reported** (8.1 against 35-40 ms a tick), with no warnings?
 209. **Should a `List` own its items, so a kept reference is weak (`T?`)**, or stay an explicit `Weak<T>`?
 
 ## Silent today (D244)
