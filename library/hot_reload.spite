@@ -27,6 +27,7 @@ var program = Program()
 var compiled_files = Dictionary<String>()
 var settled_for_request = false
 var breakpoints = List<String>()
+var prompts = 0
 var settle_problem: String? = null
 
 func start() {
@@ -173,6 +174,26 @@ func reload() {
     assert installed_stamp < requested_stamp
     answered = true
     answer = "nothing changed since the code the program runs"
+}
+
+func compile_prompt(code: String, answering: Boolean): String {
+    compiling.lock()
+    prompts = prompts + 1
+    var name = "prompt_run_{prompts}"
+    var text = "func {name}() \{\n    {code}\n}\n"
+    if answering {
+        name = "prompt_answer_{prompts}"
+        text = "func {name}(): String \{\n    var prompt_value: String = {code}\n    return prompt_value\n}\n"
+    }
+    var running = program_file()
+    var base = running_base(running)
+    File("{base}.reload_prompt").write(text)
+    compiling.unlock()
+    compile_for_request()
+    compiling.lock()
+    File("{base}.reload_prompt").write("")
+    compiling.unlock()
+    return name
 }
 
 func change_breakpoints(request: String, adding: Boolean) {
@@ -366,6 +387,7 @@ func restart_state() {
     File("{base}.reload_files").write(built)
     File("{base}.reload_baseline").write("")
     File("{base}.reload_breaks").write("")
+    File("{base}.reload_prompt").write("")
 }
 
 func running_base(running: String): String {

@@ -17,8 +17,8 @@
 > assignment takes `null` into a `T?`, a literal into a list or dictionary element, and another path's instance
 > (`follower = leader`); a path walks into a union's active member.
 > A reload swaps in a change to an enum's values, each held value keeping its meaning.
-> **Not built yet:** code typed at the prompt, and a generic class's function on an instance nothing holds --
-> [the list](#repl-and-live-reload--partial).
+> With `--hot-reload`, `eval <expression>` and `run <statement>` compile code typed at the prompt into the
+> running program and run it once ([below](#code-typed-at-the-prompt)).
 >
 > ```text
 > spite> monsters[0]
@@ -351,6 +351,29 @@ command answers as usual, and `continue` lets the program go on. `breaks` lists 
 `clear ticker.spite:16`) removes them, compiling the code again without the stop. A call made at the prompt that
 reaches a breakpoint answers `stopped at ... while answering` at once, and prints what it returned on the error
 output once it goes on. `check.sh` stops a ticking loop, reads its locals and lets it go.
+
+## Code typed at the prompt
+
+In a program built with `--hot-reload` and `--repl-port`, `eval` compiles an expression into the running program
+and answers its value as text, and `run` compiles a statement and runs it:
+
+```text
+$ spite connect 4000 --command="eval stock.count() + 40"
+{"ok":true,"value":"41","type":"String"}
+
+$ spite connect 4000 --command="eval Lookup().of(12)"
+{"ok":true,"value":"22","type":"String"}
+
+$ spite connect 4000 --command="run stock.append(9)"
+{"ok":true,"value":"","type":"Nothing"}
+```
+
+The code is compiled as the body of a new function of the entry class -- `prompt_answer_<n>(): String` for
+`eval`, whose value becomes text as it would in `var text: String = value`, and `prompt_run_<n>()` for `run` --
+swapped in by a reload and called once, so it reads and changes what the entry class reaches, makes objects
+(`Lookup().of(12)` makes a `Lookup` the program never held), and calls any function, a generic class's included.
+A value that does not become text, and code that does not compile, answer the compiler's error, and the program
+keeps its code. The function stays until the next reload, which compiles the entry file again without it.
 
 ## Live reload: `--hot-reload`
 
@@ -729,9 +752,8 @@ singletons by name, assignment of a literal, calls with literal arguments and pa
 `conformance/stage6/interactive_singletons`), `--repl-port` with
 `spite connect` over `Socket`, answered where the program waits and at each loop's check point (D37, D174), and
 live reload on Windows, with the Linux and macOS folders held to compiling (`conformance/stage6/interactive_inspection`
-for D301). **Not built:** calling a generic class's function on an instance nothing holds (`Lookup<Position>().of(12)`, below);
-compiling new Spite code typed at the prompt; and reloading a change to whether a class fits an `Items`' own
-memory.
+for D301), and code typed at the prompt (D305). **Not built:** reloading a change to whether a class fits an
+`Items`' own memory.
 
 #### Reflection in a REPL build  **[implemented]**
 
@@ -825,8 +847,8 @@ the entry class's own Spite name). Built:
   folder), a singleton any program can call on `value.memory`'s address (`conformance/stage6/memory_inspector`).
   A program that never inspects carries none of it; the attribute's five hidden numbers are set only where a
   REPL build links it.
-- **Generic functions beyond the instances the program holds** (the plan, proposed by Claude, unconfirmed; not
-  built). The prompt calls what the build compiled: a generic class's functions on an instance some path reaches,
+- **Generic functions beyond the instances the program holds** (built as D305's `eval`; what follows was the
+  plan). The prompt calls what the build compiled: a generic class's functions on an instance some path reaches,
   or on a generic singleton (`Column<Position>().values[0]`). An expression the build never compiled --
   `Lookup<Position>().of(12)`, which makes a `Lookup` -- needs code the program lacks. In a `--hot-reload` build
   the reload machinery already compiles the whole program and writes a library of what changed; the prompt would
@@ -859,7 +881,15 @@ the entry class's own Spite name). Built:
   is `no function 'nope' in program: 'functions' lists them`.
 
 **Not built** (the design, kept for when it is): `Dictionary<T>`'s `keys()` and `has(key)` at the prompt, and
-making an object at the prompt (`follower = Circle(3)`), which is code typed at the prompt.
+assigning an object made at the prompt (`follower = Circle(3)`; `run follower = Circle(3)` does it).
+
+- **`eval` and `run`** (D305, decided by Claude under D205, implementing D282; the names provisional under D214)
+  answer in a program built with both `--hot-reload` and `--repl-port`, and everywhere else with `'eval ...'
+  answers in a program built with --hot-reload and --repl-port: ...`. The running program writes the function
+  beside its executable (`<program>.reload_prompt`) and reloads; the compiler reads the entry file with that text
+  after it -- so its lines keep their numbers -- and never formats it into the file on disk. The entry file's hash
+  then differs from the file, so the next reload compiles it again without the function, which the answer names
+  as removed. The REPL calls the function through reflection like any function the prompt calls.
 
 **Built by D301** (decided by Claude under D205, implementing D282; the command names and the three members
 provisional under D214):

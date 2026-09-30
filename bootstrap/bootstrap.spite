@@ -26,6 +26,7 @@ var reload_generator: Generation.Generator? = null
 var reload_baseline = ""
 var reload_host_text = ""
 var breakpoint_sites = List<String>()
+var prompt_code = ""
 var breakpoint_requests = List<String>()
 
 func Bootstrap() {
@@ -184,6 +185,15 @@ func discovered_program(entry_path: String): Discovery.DiscoveryResult? {
         console.error("error: could not read '{entry_path}'")
         return null
     }
+    var running_program = supplied_settings["executable_path"]
+    if reloading and running_program {
+        var running_base = without_executable_extension(running_program)
+        var prompted = File("{running_base}.reload_prompt").read()
+        if prompted and not prompted.is_empty() {
+            prompt_code = prompted
+            content = "{content}\n{prompt_code}"
+        }
+    }
     var discoverer = discoverer_for_program()
     var discovery = discoverer.discover(entry_path, content)
     if not discovery.has_error and not discovery.versions.versioned.is_empty() {
@@ -210,6 +220,9 @@ func discoverer_for_program(): Discovery.ProgramDiscovery {
 
 func formatted_program_files(discovery: Discovery.DiscoveryResult): Formatting {
     var outcome = 'unchanged'
+    if not prompt_code.is_empty() {
+        return outcome
+    }
     var index = 0
     while index < discovery.program_paths.count() {
         var path = discovery.program_paths[index]

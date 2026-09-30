@@ -822,12 +822,16 @@ sleep 0.2
 after=$(break_ask total)
 [ "$before" != "$after" ] || break_fail "the loop did not go on after continue: total stayed $after"
 break_expect 'continue' '{"ok":false,"error":"the program is not stopped at a breakpoint: '"'"'break hero.spite:12'"'"' sets one"}'
-break_expect 'stopped = true' '{"ok":true,"value":"true","type":"Boolean"}'
+# Code typed at the prompt is compiled into the running program and run once (docs/repl.md#code-typed-at-the-prompt).
+break_expect 'eval 20 + 22' '{"ok":true,"value":"42","type":"String"}'
+case "$(break_ask 'eval nope + 1')" in *"unknown identifier 'nope'"*) ;; *) break_fail "eval of an unknown name did not fail naming it" ;; esac
+break_expect 'run stopped = true' '{"ok":true,"value":"","type":"Nothing"}'
+break_expect 'stopped' '{"ok":true,"value":"true","type":"Boolean"}'
 break_expect 'exit' '{"ok":true,"value":"","type":""}'
 for attempt in $(seq 1 50); do kill -0 $ticker 2>/dev/null || break; sleep 0.2; done
 kill -0 $ticker 2>/dev/null && break_fail "the program kept running after exit"
 wait $ticker || break_fail "the program ended with exit code $?"
-echo "breakpoints: a breakpoint compiled into a running loop stopped it with its locals readable, and it went on once cleared"
+echo "breakpoints: a breakpoint compiled into a running loop stopped it with its locals readable, it went on once cleared, and code typed at the prompt ran in the program"
 
 # A reload compiles only the classes of the changed files (docs/repl.md#how-it-works), from what the running
 # program's manifest says about the rest. SPITE_RELOAD_CHECK makes a reload of the file it names compile both

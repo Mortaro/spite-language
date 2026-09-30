@@ -23,6 +23,7 @@ var paused_site = ""
 var paused_locals = List<Spite.Attribute>()
 var pausing = Lock()
 var answer_depth = 0
+var prompt_function = ""
 var early_at_depth = 0
 
 func step(program: Spite.Attribute): Boolean {
@@ -142,6 +143,13 @@ func compile_before_reload(command: String) {
         hot_reload.change_breakpoints(request, true)
         hot_reload.compile_for_request()
     }
+    if command.starts_with("eval ") or command.starts_with("run ") {
+        var space = command.index_of(" ")
+        var command_length = command.length()
+        var code = command.slice(space + 1, command_length).trim()
+        var answering = command.starts_with("eval ")
+        prompt_function = hot_reload.compile_prompt(code, answering)
+    }
     if command == "clear" or command.starts_with("clear ") {
         var clear_length = command.length()
         var cleared = command.slice(5, clear_length).trim()
@@ -232,7 +240,7 @@ func failure(text: String): Answer {
 func answer(command: String, program: Spite.Attribute): Answer {
     if command == "help" {
         return success(
-            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), bytes of a path or 'bytes 0x1f2a40 64', describe a class, enums, memory, break file:line, breaks, clear, continue, locals, where, reload, last_reload, wait_reload, help, exit",
+            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), bytes of a path or 'bytes 0x1f2a40 64', describe a class, enums, memory, break file:line, breaks, clear, continue, locals, where, eval an expression, run a statement, reload, last_reload, wait_reload, help, exit",
             "",
         )
     }
@@ -241,6 +249,9 @@ func answer(command: String, program: Spite.Attribute): Answer {
     }
     if command.starts_with("break ") or command == "breaks" or command == "clear" or command.starts_with("clear ") {
         return breakpoint_command(command)
+    }
+    if command.starts_with("eval ") or command.starts_with("run ") {
+        return prompt_code(command, program)
     }
     if command == "continue" or command == "locals" or command == "where" {
         return paused_command(command)
@@ -358,6 +369,32 @@ func breakpoint_command(command: String): Answer {
         return failure(hot_reload.answer)
     }
     return success("cleared: {hot_reload.answer}", "")
+}
+
+func prompt_code(command: String, program: Spite.Attribute): Answer {
+    if not build.hot_reload or build.repl_port == 0 {
+        return failure(
+            "'{command}' answers in a program built with --hot-reload and --repl-port: the code is compiled into the running program, which the remote REPL then calls",
+        )
+    }
+    hot_reload.reload()
+    if not hot_reload.answered {
+        return failure(hot_reload.answer)
+    }
+    var function = function_named(program, prompt_function)
+    if not function {
+        return failure("the code compiled, but the running program has no '{prompt_function}' to call: send it again")
+    }
+    var no_arguments = List<String>()
+    var result = call_found(function, no_arguments)
+    if not result {
+        return failure(unresolved)
+    }
+    if result.class.name == "Nothing" {
+        return success("", "Nothing")
+    }
+    var shown_text = shown(result, false)
+    return success(shown_text, "String")
 }
 
 func paused_command(command: String): Answer {
