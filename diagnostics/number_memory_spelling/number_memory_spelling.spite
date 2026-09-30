@@ -1,0 +1,7 @@
+var console = Console()
+
+func NumberMemorySpelling() {
+    var count = 21
+    var doubled = count.doubled()
+    console.print(doubled)
+}
