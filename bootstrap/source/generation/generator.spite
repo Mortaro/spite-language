@@ -32754,7 +32754,7 @@ func site_symbol(key: String, text: String): String {
     }
     var symbol = "spite_site_{site_symbols.count()}"
     site_symbols[key] = symbol
-    builder.add_typedef("static const char {symbol}[] = \"{text}\";")
+    builder.add_typedef("#define {symbol} \"{text}\"")
     return symbol
 }
 

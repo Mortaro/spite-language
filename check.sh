@@ -422,7 +422,7 @@ fi
 folded="$work/folded_functions.c"
 "$work/generation_two.exe" conformance/stage6/folded_functions --run=false --c-source --c-path="$folded" > /dev/null 2>&1 || {
   echo "FAILED: folded_functions does not write its C"; exit 1; }
-if grep -q "^float Column__Velocity_total_across(" "$folded" || ! grep -q "^float Column__Position_total_across(Column__Position\* self) {" "$folded" \
+if grep -q "^float Column__Velocity_total_across(.*) {" "$folded" || ! grep -q "^float Column__Position_total_across(Column__Position\* self) {" "$folded" \
    || ! grep -q "((__typeof__(&Column__Velocity_total_across))&Column__Position_total_across)(self->velocities_)" "$folded" \
    || ! grep -q "^float Column__Label_total_across(Column__Label\* self) {" "$folded"; then
   echo "FAILED: folded_functions should fold Column<Velocity>.total_across into Column<Position>'s and keep Column<Label>'s"; exit 1

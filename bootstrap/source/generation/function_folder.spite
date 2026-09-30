@@ -123,7 +123,10 @@ func learn_structs(text: String) {
     while position < struct_bodies.count() {
         var start = references.count()
         reference_starts.append(start)
-        var key = struct_key(struct_bodies[position], references)
+        var key = ""
+        if not struct_bodies[position].contains("\{") and not struct_bodies[position].contains("}") {
+            key = struct_key(struct_bodies[position], references)
+        }
         keys.append(key)
         position = position + 1
     }
@@ -489,11 +492,13 @@ func replaced_start(text: String, name_start: Integer, name: String): Integer {
     while index >= 0 and text.code_at(index) == 32 {
         index = index - 1
     }
-    var single = index == 0 or text.code_at(index - 1) != 38
-    if index >= 0 and text.code_at(index) == 38 and single {
-        return index
+    if index < 0 or text.code_at(index) != 38 {
+        return name_start
     }
-    return name_start
+    if index > 0 and text.code_at(index - 1) == 38 {
+        return name_start
+    }
+    return index
 }
 
 func quoted_end(text: String, start: Integer): Integer {
