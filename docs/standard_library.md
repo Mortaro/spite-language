@@ -794,7 +794,7 @@ allocation counts.
 | `trim()` / `upper_case()` / `lower_case()` | `String` | |
 | `split(separator)` | `List<String>` | an empty separator splits into single characters |
 | `lines()` | `List<String>` | splits on `\n` |
-| `pluralize()` / `singularize()` | `String` | the English plural or singular of the last word, by the rules below ([D318](decisions.md)) |
+| `pluralize()` / `singularize()` | `String` | the English plural or singular of the last word, by the rules below ([D328](decisions.md)) |
 | `to_tiny()` / `to_short()` / `to_integer()` / `to_long()` | `Tiny?` / `Short?` / `Integer?` / `Long?` | digits with an optional `+` or `-`, spaces around them allowed; `null` for anything else (`"12abc"`, `""`) or a number the type cannot hold |
 | `to_byte()` / `to_unsigned_short()` / `to_unsigned_integer()` / `to_unsigned_long()` | `Byte?` / `UnsignedShort?` / `UnsignedInteger?` / `UnsignedLong?` | the same, and `null` for a negative number |
 | `to_float()` / `to_double()` | `Float?` / `Double?` | digits with an optional sign, `.` and exponent (`-1.5e2`, `.5`), spaces around them allowed; `null` for anything else (`"1e"`, `"nan"`) |
@@ -802,7 +802,7 @@ allocation counts.
 | `to_string()` / `to_debug()` | `String` | the text itself / the text quoted, with `"`, `\` and a line feed escaped ([`Console.debug`](#console)) |
 | `to_bytes()` | `List<Byte>` | the text's bytes, one per byte of its UTF-8, for [hashing, encoding and compressing](#bytes-base64-compression-hashes-and-passwords) (proposed by Claude, unconfirmed) |
 
-**`pluralize()` and `singularize()` inflect English the way Rails' ActiveSupport does** ([D318](decisions.md)), so a
+**`pluralize()` and `singularize()` inflect English the way Rails' ActiveSupport does** ([D328](decisions.md)), so a
 name and its collection read as a pair: `"active_quest".pluralize()` is `"active_quests"`, and
 `"map_names".singularize()` is `"map_name"`. Only the last word changes: the text after the last `_` or space, or
 from the last capital that follows a lower-case letter (`"ActiveQuest"` → `"ActiveQuests"`). The word is inflected
