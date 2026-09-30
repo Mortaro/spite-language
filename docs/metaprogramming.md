@@ -49,7 +49,7 @@ func set_name(new_name: String) {
 }
 ```
 
-`age` is reached through that pair of templates: calling `set_age`/`get_age` from outside the class
+`age` is reached through that pair of templates: writing and reading `person.age` from outside the class
 instantiates `set_attribute`/`get_attribute` with `attribute` bound to the `'age'` symbol. `set_name` is an
 exact function, and an exact function always wins over a template, but only for that one direction of that
 one name: writing `person.name` goes through `set_name`, while reading it still goes through the
@@ -60,8 +60,7 @@ var console = Console()
 
 func SymbolCodegen() {
     var person = Person(20, "ann")
-    var person_age = person.get_age()
-    person.set_age(person_age + 1)
+    person.age = person.age + 1
     console.print("age", person.age)
     person.name = "bea"
     console.print("name", person.name)
@@ -72,7 +71,7 @@ age 21
 name BEA
 ```
 
-`set_age` and `get_age` are generated on demand by those two calls, and `get_name` by the read of `person.name`;
+`set_age` and `get_age` are generated on demand by the write and the read of `person.age`, and `get_name` by the read of `person.name`;
 no other instance exists. The exact rules are in [Symbol codegen](#symbol-codegen).
 
 ### Another class's attributes, and all of them at once

@@ -184,7 +184,7 @@ func test_a_bad_enum_index_reads_nothing() {
     var ship = Ship()
     var writer = BinaryWriter(ship)
     var bytes = writer.write()
-    bytes.set_at(13, 7)
+    bytes[13] = 7
     var reader = BinaryReader<Ship>(bytes)
     var read = reader.read()
     crash not read

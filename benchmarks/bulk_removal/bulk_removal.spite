@@ -91,7 +91,7 @@ func swap_remove_each() {
             var last = entities.remove_last()
             crash last
             if row < entities.count() {
-                entities.set_at(row, last)
+                entities[row] = last
             }
         } else {
             row = row + 1
@@ -109,8 +109,8 @@ func swap_remove_listed() {
         var last = entities.remove_last()
         crash last
         if row < entities.count() {
-            entities.set_at(row, last)
-            rows.set_at(last, row)
+            entities[row] = last
+            rows[last] = row
         }
         index = index + 1
     }

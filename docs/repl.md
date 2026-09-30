@@ -531,9 +531,8 @@ func walked(): Float {
     var total = 0.0
     var index = 0
     while index < steps.count() {
-        var step = steps.get_at(index)
-        crash step
-        total = total + step.distance
+        crash steps[index]
+        total = total + steps[index].distance
         index = index + 1
     }
     return total

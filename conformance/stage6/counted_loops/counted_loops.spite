@@ -132,7 +132,7 @@ func clamp_into(from: List<Integer>, into: List<Integer>) {
         if value < 0 {
             value = 0
         }
-        into.set_at(index, value)
+        into[index] = value
         index = index + 1
     }
 }

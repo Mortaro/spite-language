@@ -44,7 +44,7 @@ func culling() {
     camera.set_look_at(eye, target, up)
     var view_projection = projection * camera
     var frustum = Frustum()
-    frustum.set_from_view_projection(view_projection)
+    frustum.from_view_projection = view_projection
     var ahead = Vector3(0.0, 0.0, 0.0)
     var behind = Vector3(0.0, 0.0, 20.0)
     var aside = Vector3(30.0, 0.0, 0.0)

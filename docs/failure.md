@@ -828,9 +828,8 @@ func CrashGuard() {
 }
 
 func full_name_length(key: String): Integer {
-    var name = names.get(key)
-    crash name
-    return name.length()
+    crash names[key]
+    return names[key].length()
 }
 
 func describe(value: Integer): String {

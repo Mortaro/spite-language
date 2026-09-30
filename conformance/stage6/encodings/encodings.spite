@@ -44,7 +44,7 @@ func Encodings() {
     var damaged: Byte = 1
     crash zipped[last]
     damaged = damaged + zipped[last]
-    zipped.set_at(last, damaged)
+    zipped[last] = damaged
     var refused = gzip.decompress(zipped)
     if not refused {
         console.print("gzip with a wrong size is refused")

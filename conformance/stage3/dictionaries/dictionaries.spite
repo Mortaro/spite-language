@@ -12,12 +12,10 @@ func Dictionaries() {
     var has_ada = ages.has("ada")
     var has_bob = ages.has("bob")
     console.print(ages_count, has_ada, has_bob, ages["ada"], ages["bob"] == 0)
-    var found = ages.get("grace")
-    if found {
-        console.print("grace is", found)
+    if ages["grace"] {
+        console.print("grace is", ages["grace"])
     }
-    var missing = ages.get("nobody")
-    if missing {
+    if ages["nobody"] {
         console.print("unexpected")
     } else {
         console.print("nobody is missing")
@@ -44,9 +42,8 @@ func Dictionaries() {
     pets.set("rex", dog)
     var cat = Animal("cat")
     pets.set("tom", cat)
-    var rex = pets.get("rex")
-    if rex {
-        console.print(rex.kind)
+    if pets["rex"] {
+        console.print(pets["rex"].kind)
     }
     crash pets["tom"]
     var pet_values_count = pets.values().count()
@@ -58,9 +55,8 @@ func Dictionaries() {
 }
 
 func lookup(key: String): String {
-    var label = labels.get(key)
-    if label {
-        return "found {label}"
+    if labels[key] {
+        return "found {labels[key]}"
     }
     return "no {key}"
 }

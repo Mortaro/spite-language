@@ -2,18 +2,18 @@ var console = Console()
 
 func SymbolCodegen() {
     var person = Person("Ada", 36)
-    person.set_age(37)
-    person.set_name("Ada Lovelace")
-    var person_name = person.get_name()
-    var person_age = person.get_age()
+    person.age = 37
+    person.name = "Ada Lovelace"
+    var person_name = person.name
+    var person_age = person.age
     console.print(person_name, person_age)
     var describe_age = person.describe_age()
     var describe_name = person.describe_name()
     console.print(describe_age, describe_name)
-    person.set_tags(["math", "engines"])
-    var joined_tags = person.get_tags().join("+")
+    person.tags = ["math", "engines"]
+    var joined_tags = person.tags.join("+")
     console.print(joined_tags)
     person.birthday()
-    person_age = person.get_age()
+    person_age = person.age
     console.print(person_age)
 }

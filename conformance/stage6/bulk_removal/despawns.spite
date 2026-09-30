@@ -4,7 +4,7 @@ func mark(entity: Integer) {
     while marks.count() <= entity {
         marks.append(false)
     }
-    marks.set_at(entity, true)
+    marks[entity] = true
 }
 
 func marked(entity: Integer): Boolean {
