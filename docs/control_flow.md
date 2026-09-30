@@ -380,8 +380,10 @@ The same goes for an `else if` chain. Two such `if`s stay as they are.
 
 A class name on the right of `==` or `!=` asks what class a value is: `creature == Fish` is true when `creature`
 is a `Fish`. A `T?` that is null is no class, so the test is false. Naming a class that cannot be a member of the
-value's union is an error, since the answer could only be `false`. `if value == Class { }` narrows the value
-inside the block, the way a switch case does:
+value's union is an error, since the answer could only be `false`, and so is testing a value whose own type already
+answers -- a plain `Cat` tested for `Cat` or `Fish`, or a union already narrowed to `Fish` tested again -- outside
+a generic class (D279, [proofs.md](proofs.md#proving-what-is-proven-is-an-error)). `if value == Class { }` narrows
+the value inside the block, the way a switch case does:
 
 ```gdscript title=class_test_doc/cat.spite
 func sound(): String {
