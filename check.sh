@@ -582,27 +582,17 @@ case "$reloaded" in
   '{"ok":true,"value":"rebuilt HotCounter","type":""}'|'{"ok":true,"value":"nothing changed since the code the program runs","type":""}') ;;
   *) hot_fail "reload answered $reloaded" ;;
 esac
-expect 'last_reload' '{"ok":true,"value":"rebuilt HotCounter","type":""}'
+expect 'wait_reload' '{"ok":true,"value":"rebuilt HotCounter","type":""}'
 expect 'greeting()' '{"ok":true,"value":"welcome back, visit 42","type":"String"}'
 sed -i 's/{name} roars/{name} roars louder/' "$hot_folder/monster.spite"
-watched=""
-for attempt in $(seq 1 150); do   # the watcher settles, then the program rebuilds at its next wait: up to 30 seconds
-  watched=$(ask last_reload)
-  [ "$watched" == '{"ok":true,"value":"rebuilt Monster","type":""}' ] && break
-  sleep 0.2
-done
+watched=$(ask wait_reload)   # answers once the watcher has swapped in every save it sees
 [ "$watched" == '{"ok":true,"value":"rebuilt Monster","type":""}' ] || hot_fail "the watcher did not rebuild Monster alone: $watched"
 expect 'monster.roar()' '{"ok":true,"value":"Goblin roars louder","type":"String"}'
 expect 'greeting()' '{"ok":true,"value":"welcome back, visit 42","type":"String"}'
 # A function a reload adds is listed and callable at the prompt: reflection follows the reload (D211).
 printf '\nfunc growl(): String {\n    return "{name} growls"\n}\n' >> "$hot_folder/monster.spite"
-grown=""
-for attempt in $(seq 1 150); do
-  ask reload > /dev/null
-  grown=$(ask 'monster.growl()')
-  [ "$grown" == '{"ok":true,"value":"Goblin growls","type":"String"}' ] && break
-  sleep 0.2
-done
+ask wait_reload > /dev/null
+grown=$(ask 'monster.growl()')
 [ "$grown" == '{"ok":true,"value":"Goblin growls","type":"String"}' ] || hot_fail "a function added by a reload was not callable: $grown"
 # A file that holds none of the program's classes -- here a reopening of Environment -- cannot be swapped in, and a
 # reload says so rather than answering that nothing changed (D244); once it is gone, nothing has changed again.
@@ -635,9 +625,9 @@ party=$!
 party_fail() { kill $party 2>/dev/null; echo "FAILED moving objects: $1"; head -5 "$work/live_party/output.txt"; exit 1; }
 party_ask() { timeout 120 "$work/generation_two.exe" connect $party_port --command="$1" 2>&1 | tr -d '\r'; }
 party_expect() { local answer; answer=$(party_ask "$1"); [ "$answer" == "$2" ] || party_fail "'$1' answered $answer, not $2"; }
-party_reload() {   # the watcher may swap the save in first: then last_reload holds the answer
+party_reload() {   # the watcher may swap the save in first: then wait_reload answers what it swapped in
   local answer; answer=$(party_ask reload)
-  case "$answer" in *"nothing changed since the code the program runs"*) answer=$(party_ask last_reload) ;; esac
+  case "$answer" in *"nothing changed since the code the program runs"*) answer=$(party_ask wait_reload) ;; esac
   case "$answer" in *"$1"*) ;; *) party_fail "a reload answered $answer, without $1" ;; esac
 }
 listening=false

@@ -23,12 +23,18 @@ var answered = false
 var answer = ""
 var reported = false
 var swaps = Reload()
+var program = Program()
+var compiled_files = Dictionary<String>()
+var settled_for_request = false
+var settle_problem: String? = null
 
 func start() {
     folder = build.program
     restart_state()
-    ready = heap.allocate(8)
+    ready = heap.allocate(16)
     ready.write_long(0, 0)
+    ready.write_long(8, 0)
+    compiled_files = files_seen()
     scheduler.start()
     scheduler.serving = true
     scheduler.reloads = install_if_ready
@@ -69,6 +75,8 @@ func compile_for_request() {
 
 func compile_changes(): Long {
     compiling.lock()
+    ready.write_long_atomically(8, 1)
+    var seen = files_seen()
     var arguments = build_arguments().split("\n")
     var running = program_file()
     arguments.prepend("reload")
@@ -85,6 +93,10 @@ func compile_changes(): Long {
         publish_unchanged()
     }
     var stamp = published
+    handing.lock()
+    compiled_files = seen
+    handing.unlock()
+    ready.write_long_atomically(8, 0)
     compiling.unlock()
     scheduler.signal()
     return stamp
@@ -157,6 +169,98 @@ func reload() {
     assert installed_stamp < requested_stamp
     answered = true
     answer = "nothing changed since the code the program runs"
+}
+
+func settle(): String? {
+    var waited = 0
+    while not settled() {
+        if waited >= 600000 {
+            return "the watcher has not swapped in the saved files after 10 minutes: 'reload' compiles them now"
+        }
+        program.sleep(50)
+        waited = waited + 50
+    }
+    return null
+}
+
+func settled(): Boolean {
+    if ready.read_long_atomically(8) == 1 {
+        return false
+    }
+    var seen = files_seen()
+    var same = true
+    handing.lock()
+    var paths = seen.keys()
+    var index = 0
+    while index < paths.count() {
+        var path = paths[index]
+        var compiled = compiled_files[path]
+        if compiled and compiled != seen[path] {
+            same = false
+        }
+        index = index + 1
+    }
+    handing.unlock()
+    return same
+}
+
+func files_seen(): Dictionary<String> {
+    var running = program_file()
+    var base = running_base(running)
+    var state = File("{base}.reload_files").read()
+    crash state
+    var seen = Dictionary<String>()
+    var lines = state.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index].trim()
+        if line.starts_with("file ") {
+            var line_length = line.length()
+            var after_hash = line.slice(5, line_length).index_of(" ")
+            if after_hash > 0 {
+                var path = line.slice(6 + after_hash, line_length)
+                seen[path] = file_stamp(path)
+            }
+        }
+        index = index + 1
+    }
+    return seen
+}
+
+func file_stamp(path: String): String {
+    var file = File(path)
+    if not file.exists() {
+        return "gone"
+    }
+    var size = file.size()
+    var modified = file.modified()
+    if not size or not modified {
+        return "unreadable"
+    }
+    return "{size} {modified}"
+}
+
+func settle_for_request() {
+    settle_problem = settle()
+    settled_for_request = true
+}
+
+func wait_for_watcher() {
+    if not settled_for_request {
+        settle_problem = settle()
+    }
+    settled_for_request = false
+    var problem = settle_problem
+    if problem {
+        answered = false
+        answer = problem
+        return
+    }
+    if ready.read_long_atomically(0) == 1 {
+        install_ready()
+    }
+    answered = succeeded
+    answer = last
 }
 
 func install_ready() {

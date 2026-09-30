@@ -35501,13 +35501,17 @@ func slotted_support(text: String, owner: String, display: String): String {
     if returned == "void" {
         result = ""
     }
-    builder.add_support("{signature} \{\n{result}{name}___slot({arguments});\n}")
+    builder.add_support("{signature} \{\n{result}{slot_read(name)}({arguments});\n}")
     hot_slot_names.append(name)
     hot_slot_owners.append(owner)
     hot_slot_displays.append(display)
     var text_length = text.length()
     var rest = text.slice(line_end, text_length)
     return "{hot_signature} \{{rest}"
+}
+
+func slot_read(name: String): String {
+    return "__atomic_load_n(&{name}___slot, __ATOMIC_ACQUIRE)"
 }
 
 func argument_names(parameters: String): String {
@@ -35593,7 +35597,7 @@ func add_hot_slot(information: Analysis.ClassInfo, function: Analysis.FunctionIn
         returned = ""
     }
     builder.add_user(
-        "{function_signature(information, function)} \{\n{returned}{function.c_name}___slot({arguments.join(", ")});\n}",
+        "{function_signature(information, function)} \{\n{returned}{slot_read(function.c_name)}({arguments.join(", ")});\n}",
     )
     hot_slot_names.append(function.c_name)
     hot_slot_owners.append(information.c_name)
@@ -35646,7 +35650,7 @@ func add_hot_functions_slot(information: Analysis.ClassInfo, list_name: String) 
         "static {list_name}* (*{functions_name}___slot)({information.c_name}* self) = {functions_name}___hot;",
     )
     builder.add_support(
-        "{list_name}* {functions_name}({information.c_name}* self) \{\nreturn {functions_name}___slot(self);\n}",
+        "{list_name}* {functions_name}({information.c_name}* self) \{\nreturn {slot_read(functions_name)}(self);\n}",
     )
     hot_slot_names.append(functions_name)
     hot_slot_owners.append(information.c_name)
@@ -35660,7 +35664,7 @@ func add_hot_initialize_slot(information: Analysis.ClassInfo) {
         initialize_name,
         "static void (*{initialize_name}___slot)({information.c_name}* self) = {initialize_name}___hot;",
     )
-    builder.add_support("void {initialize_name}({information.c_name}* self) \{\n{initialize_name}___slot(self);\n}")
+    builder.add_support("void {initialize_name}({information.c_name}* self) \{\n{slot_read(initialize_name)}(self);\n}")
     hot_slot_names.append(initialize_name)
     hot_slot_owners.append(information.c_name)
     hot_slot_displays.append("{information.qualified_dotted}'s attribute defaults")
@@ -37509,7 +37513,7 @@ func ensure_byte_count_function(information: Analysis.ClassInfo): String {
     }
     builder.add_prototype("int64_t {name}___hot(void);")
     builder.add_slot(name, "static int64_t (*{name}___slot)(void) = {name}___hot;")
-    builder.add_support("int64_t {name}(void) \{\nreturn {name}___slot();\n}")
+    builder.add_support("int64_t {name}(void) \{\nreturn {slot_read(name)}();\n}")
     builder.add_support("int64_t {name}___hot(void) \{\n{body}\n}")
     hot_slot_names.append(name)
     hot_slot_owners.append(information.c_name)

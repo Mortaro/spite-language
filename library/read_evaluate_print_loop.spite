@@ -127,6 +127,9 @@ func compile_before_reload(command: String) {
     if command == "reload" {
         hot_reload.compile_for_request()
     }
+    if command == "wait_reload" {
+        hot_reload.settle_for_request()
+    }
 }
 
 func answer_pending() {
@@ -201,11 +204,11 @@ func failure(text: String): Answer {
 func answer(command: String, program: Spite.Attribute): Answer {
     if command == "help" {
         return success(
-            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), bytes of a path or 'bytes 0x1f2a40 64', reload, last_reload, help, exit",
+            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), bytes of a path or 'bytes 0x1f2a40 64', reload, last_reload, wait_reload, help, exit",
             "",
         )
     }
-    if command == "reload" or command == "last_reload" {
+    if command == "reload" or command == "last_reload" or command == "wait_reload" {
         return reloaded(command)
     }
     if command == "classes" {
@@ -636,6 +639,13 @@ func reloaded(command: String): Answer {
     if build.hot_reload {
         if command == "reload" {
             hot_reload.reload()
+            if hot_reload.answered {
+                return success(hot_reload.answer, "")
+            }
+            return failure(hot_reload.answer)
+        }
+        if command == "wait_reload" {
+            hot_reload.wait_for_watcher()
             if hot_reload.answered {
                 return success(hot_reload.answer, "")
             }

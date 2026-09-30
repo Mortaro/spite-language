@@ -765,7 +765,9 @@ that keeps a program class's objects in its own memory is listed the same way, a
 too. Every function that reads a program class's attributes without being its own -- its allocation, release,
 copy and deep copy, the REPL's reflection and assignment, a union's dispatch, the functions of a standard-library
 template made for it (`List<Monster>`, `Items<Step>`) -- is called through a slot, one indirect call, like the
-class's own functions. Each class has a table of its layout. Until a reload changes a class's attributes, reading
+class's own functions. A slot is read with an acquiring atomic load, so the `-O3` the build is compiled at (A74)
+can neither fold a call through it to the function the build started with nor hoist the read out of a loop. Each
+class has a table of its layout. Until a reload changes a class's attributes, reading
 one is a plain load (`<Class>___fields(object)` is the object); after, the class's code tests whether the object
 moved first.
 

@@ -147,8 +147,8 @@ The commands are the ones `--repl` answers:
   `set_<attribute>` when the class declares one, answering the value read back afterwards.
 - `attributes`, `functions` (of the program, or of any path: `functions World()`), `classes` (the singletons the
   prompt can bind, then the program's other classes), `help`, `exit`.
-- `reload` and `last_reload`, which answer in a `--hot-reload` build ([Live reload](#live-reload---hot-reload)) and
-  fail everywhere else with `'reload' answers in a program built with --hot-reload, which swaps its code while it
+- `reload`, `last_reload` and `wait_reload`, which answer in a `--hot-reload` build
+  ([Live reload](#live-reload---hot-reload)) and fail everywhere else with `'reload' answers in a program built with --hot-reload, which swaps its code while it
   runs, and this one was not`.
 
 ## A worked debugging session
@@ -327,10 +327,13 @@ spite game --hot-reload --repl-port=4000
 
 It works with or without a REPL. Without one, each swap is reported on the program's error output (`spite: rebuilt
 Monster`); with `--repl` or `--repl-port`, `reload` swaps in what changed right away and answers what it rebuilt, and
-`last_reload` answers what the last swap did, which is how you learn about one the file watcher made. A program
+`last_reload` answers what the last swap did, which is how you learn about one the file watcher made.
+`wait_reload` waits for the watcher: it answers once every save of the program's files has been compiled and
+swapped in (or refused), with what `last_reload` would then say, so a tool that saves a file never polls. A program
 built without `--hot-reload` has none of this -- no watcher, no swapping, and `reload` answers that it was not
 built for it. `--hot-reload` keeps every function (it implies `--development`), since a new version of a class
-may call one nothing called before.
+may call one nothing called before, and it is compiled at `--optimized`'s level, so a program that cooks assets or
+simulates between saves runs at release speed.
 
 ```gdscript title=hot_counter/monster.spite
 var name = ""
@@ -380,7 +383,7 @@ $ spite connect 4000 --command="greeting()"
 {"ok":true,"value":"welcome back, visit 42","type":"String"}
 
 # monster.spite: roar() now returns "{name} roars louder", and nothing is sent: the watcher sees the save
-$ spite connect 4000 --command="last_reload"
+$ spite connect 4000 --command="wait_reload"
 {"ok":true,"value":"rebuilt Monster","type":""}
 
 $ spite connect 4000 --command="monster.roar()"
@@ -392,7 +395,8 @@ $ spite connect 4000 --command="exit"
 
 `visits` kept the 42 set before the first reload, and the second reload rebuilt `Monster` alone. When the watcher
 has already swapped a save in, `reload` finds nothing left to do and answers `nothing changed since the code the
-program runs`. For an AI: edit the file, send `reload`, and read `last_reload` if the answer says nothing changed.
+program runs`. For an AI: edit the file and send `reload`; or save and send `wait_reload`, which answers once the
+watcher has swapped the save in.
 
 ### What a reload can change
 
@@ -669,7 +673,7 @@ A REPL that inspects and drives the *running* program, local (`--repl`) and remo
 reload (`--hot-reload`, D111, D112). The REPL is Spite, `library/read_evaluate_print_loop.spite` (D72), walking the
 program through reflection; nothing of it is in a build that did not ask for it (D177, D143). **Built:** paths,
 singletons by name, assignment of a literal, calls with literal arguments and paths through what they answer,
-`attributes`, `functions`, `classes`, `help`, `exit`, `reload` and `last_reload`
+`attributes`, `functions`, `classes`, `help`, `exit`, `reload`, `last_reload` and `wait_reload`
 (`conformance/stage6/interactive_loop`, `conformance/stage6/interactive_paths`,
 `conformance/stage6/interactive_singletons`), `--repl-port` with
 `spite connect` over `Socket`, answered where the program waits and at each loop's check point (D37, D174), and
@@ -774,7 +778,7 @@ the entry class's own Spite name). Built:
   its class and `drop()` runs only when a value is released, so the prompt neither lists nor calls either:
   `'_swap' is private to values, and the prompt calls what code outside the class may call`. `classes` (D286) answers the singletons the prompt
   can bind, `World()` a line with `not made yet` after one the program has not made, then the program's other
-  classes a line each. Then `help`, `exit`, and `reload` and `last_reload`
+  classes a line each. Then `help`, `exit`, and `reload`, `last_reload` and `wait_reload`
   ([Live reload and 6b](#live-reload-and-6b--implemented-on-windows-the-mechanism-and-the-rules-below-proposed-by-claude-unconfirmed)).
 - Printing a class instance shows `ClassName { attribute: value, ... }` one level deep: a nested class attribute
   prints as `ClassName {...}`; a list or dictionary prints as `List<T>(count)`/`Dictionary<T>(count)` regardless
@@ -886,11 +890,27 @@ session against a copy of the program it edits.
   requiring it, since a new version of a class may call a function nothing called before. It works without a REPL:
   the watcher still swaps, and each swap or refusal is one line on the program's error output (`spite: rebuilt
   Monster`); an explicit rebuild needs `--repl` or `--repl-port`, whose `reload` swaps in what changed and answers
-  what it rebuilt, and whose `last_reload` answers what the last swap (the watcher's included) did. A build without
+  what it rebuilt, whose `last_reload` answers what the last swap (the watcher's included) did, and whose
+  `wait_reload` answers the same once the watcher is done (below). A build without
   it has no slots, no watcher and no reload code: `reload` answers `'reload' answers in a program built with
   --hot-reload, which swaps its code while it runs, and this one was not`, from a branch folded on the `Build`
   constant. As with `--repl-port`, a `--hot-reload` build swaps where the program waits and at each loop's check
   point (D174). `spite program --hot-reload` runs the program attached to the terminal, like a REPL build.
+- **A `--hot-reload` build is optimised** (A74; the level proposed by Claude, unconfirmed). Its executable and
+  every reload library are compiled at `--optimized`'s level (`-O3`) whether or not `--optimized` is given, so a
+  program that cooks or simulates between saves runs at release speed and swapped-in code as fast as the code it
+  replaces. It is one C file, so it has no link-time optimisation, and it keeps every run-time check of an
+  inspectable build. Every call of a function a reload can replace still goes through its slot: the slot is read
+  with an acquiring atomic load, which the C compiler may neither fold to the function the build started with nor
+  hoist out of a loop, and a reload writes it with a sequentially consistent store.
+- **`wait_reload` waits for the watcher** (asked for by `check.sh`, whose live-reload step polled `last_reload`;
+  the name proposed by Claude, unconfirmed). It answers once the watcher is not compiling, and every file the
+  running code was compiled from has the size and modification time it had when the last reload (the watcher's or
+  `reload`'s) started compiling; then it swaps in what that compile made, if nothing has yet, and answers what
+  `last_reload` would. Over `--repl-port` the waiting is done by the connection's thread, so the program keeps
+  running meanwhile. A file new since the last compile is seen only through the watcher's event. It never hangs
+  (D244): after ten minutes it answers `the watcher has not swapped in the saved files after 10 minutes: 'reload'
+  compiles them now`.
 - **A `Concurrent` does not overlap in a `--hot-reload` build** (proposed by Claude, unconfirmed). A program
   function, called through its slot, is not compiled into a state machine (D176), so a `Concurrent` of one runs to
   its end when it is made, before the line
