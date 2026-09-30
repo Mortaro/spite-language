@@ -233,8 +233,7 @@ singleton is not "one object of this class" but "one object per value of its arg
 instance's name. Two bindings with the same values are the same object, and a write through one is seen through
 the other; bindings with different values share nothing but the class.
 
-```gdscript
-# channel.spite
+```gdscript title=radio/channel.spite
 singleton
 
 var number = 0
@@ -244,8 +243,7 @@ func Channel(channel_number: Integer) {
     number = channel_number
 }
 ```
-```gdscript
-# radio.spite (entry)
+```gdscript title=radio/radio.spite entry
 var console = Console()
 var news = Channel(1)
 var music = Channel(2)
@@ -268,9 +266,13 @@ true false 2 1
 list. The constructor runs once per argument values, the first time those values are asked for, and each instance
 lives until the program ends like any singleton.
 
-`DynamicLibrary` follows the rule: one library per file, naming rule and header
-([foreign_libraries.md](foreign_libraries.md)), and it is the first case of the rule rather than an exception. A
-generic singleton follows the same pattern with codegen values, next.
+**The arguments are literals** the compiler reads while compiling: strings, numbers (a leading minus
+included), `true`, `false` and enum values. Each distinct argument list is its own instance, made once and found
+again without looking anything up at run time. Anything else is an error that names the rule:
+`var registry = Registry(starting_name)` is "'starting_name' is not a literal: a singleton's arguments are literals
+the compiler reads, because each distinct argument list is its own instance of 'Registry', made the first time it
+is asked for" (`diagnostics/singleton_arguments`). `DynamicLibrary` follows the same rule: one library per file,
+naming rule and header ([foreign_libraries.md](foreign_libraries.md)).
 
 A singleton with `generic` lines has one instance per set of codegen values, the way `DynamicLibrary` has one
 per argument list: `Column<Health>()` is the same object everywhere, and `Column<Label>()` is a second one. This
@@ -580,8 +582,11 @@ var heap = Memory.Heap()
   constructor runs once per argument values, on first use; each instance is a root until exit, like any
   singleton. `DynamicLibrary` is this rule's first case, not an exception: `DynamicLibrary("user32.dll",
   'windows', "windows.h")` is one object however many classes ask for it, and `"gdi32.dll"` is a second one.
-  The arguments are literals the compiler reads while
-  compiling, so each distinct list is its own static slot and nothing is looked up at run time.
+  The arguments are literals the compiler reads while compiling (strings, numbers, `true`, `false`, enum
+  values), so each distinct list is its own static slot and nothing is looked up at run time; any other
+  argument is "'starting_name' is not a literal: a singleton's arguments are literals the compiler reads, because
+  each distinct argument list is its own instance of 'Registry', made the first time it is asked for"
+  (`diagnostics/singleton_arguments`).
 - **A generic singleton has one instance per set of codegen values**: `Column<Health>()` is one object wherever it
   is called and `Column<Label>()` is another (`conformance/stage6/generic_singletons`).
 - **A singleton is bound as an attribute, never a local**: every singleton a class uses is visible at the

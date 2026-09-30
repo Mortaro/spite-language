@@ -1,1 +1,1 @@
-diagnostics/singleton_arguments/singleton_arguments.spite:2: error: 'Registry' is a singleton, so its constructor takes no arguments: there is one instance, made the first time it is asked for (in SingletonArguments.)
+diagnostics/singleton_arguments/singleton_arguments.spite:3: error: 'starting_name' is not a literal: a singleton's arguments are literals the compiler reads, because each distinct argument list is its own instance of 'Registry', made the first time it is asked for (in SingletonArguments.)

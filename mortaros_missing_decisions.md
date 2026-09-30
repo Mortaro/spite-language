@@ -13,8 +13,8 @@ Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection re
 10, 36, 89, 109, 220, 222. Added: 227-239. Earlier: 64, 71, 34, 21, 22, 5, 218 answered; 187 merged into 153; 46
 answered by D314.
 
-Third pass, after D318-D325: 229 answered by D318 (on the reflection branch), 230 by D319, 227's JSON part by
-D320, 231 by D321, 232 by D322, 89 by D326, 216 by D327. Rewritten: 227 (the reload's rename only), 238 (D324), 36 (D319).
+Third pass, after D318-D325: 229 answered by D318 (on the reflection branch), 230 by D319, 227 by D320 and
+D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327. Rewritten: 238 (D324), 36 (D319).
 
 ## Blocking now
 
@@ -26,10 +26,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
      `argument.is_mutated` already covers. And the marker attributes `Resource.World`/`Resource.MainThread`: keep
      them as attributes the runner reads, or a class-level marker? D205, as D261 was. Recommend (a) now, (b) when
      `Changed<T>` needs it. Blocks: the game engine's `Changed<T>` and field skipping, the game port's L6.
-227. **Renaming for a reload** (D280's `renamed_from_<attribute>`, the name-building twin of the `json_key_` that
-     D320 replaced with a map): (a) the same kind of map, keyed by attribute objects, given to the reload (from
-     `build.spite` or the class); (b) keep the name template (D316 allows a template that changes a function's
-     name). Recommend (a), one way for every rename (D320). Blocks: D280's attribute migration.
 228. **Predicates in the plural rule** (proposal 12.2): `monsters.map_is_alive()` keeps the predicate's own name,
      or `map_` over a predicate is an error pointing at `filter_`/`count_`? Blocks: renaming `map_<member>` to the
      plural across `library/`, conformance and the game engine package.

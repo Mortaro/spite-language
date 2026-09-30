@@ -8,10 +8,8 @@ when a page gains a rule that is not built yet, add it here.
 ## [classes_and_files.md](../docs/classes_and_files.md)
 
 ### One instance per argument values
-- NOT BUILT: a singleton constructed with arguments is a different instance per argument values, for every singleton. Today the compiler refuses arguments on every singleton except `DynamicLibrary` (`diagnostics/singleton_arguments`: `'Registry' is a singleton, so its constructor takes no arguments: there is one instance, made the first time it is asked for`). That error goes when the rule is built.
-- The `channel.spite` / `radio.spite` example in this section therefore does not compile and is an untitled block.
-- `DynamicLibrary` already follows the rule (one library per file, naming rule and header).
-- Unconfirmed (proposed by Claude): the arguments are literals the compiler reads while compiling, so each distinct list is its own static slot; built for `DynamicLibrary` only.
+- Unconfirmed (proposed by Claude), built that way: the arguments are literals the compiler reads while compiling (strings, numbers, `true`, `false`, enum values), so each distinct list is its own static slot; any other argument is an error (`diagnostics/singleton_arguments`).
+- The REPL prompt still refuses a singleton with arguments (`'World' is a singleton, so it takes no arguments`), so an instance such as `Channel(1)` cannot be reached from the prompt yet.
 
 ### Singleton rules
 - Unconfirmed, proposed by Claude, now stated as rules on the page: a generic singleton has one instance per set of codegen values; local-binding exception covers every value class plus `List`, `Vector`, `Dictionary` and generic singletons whose codegen values come from the function's own codegen or Symbol; unchecked uncalled functions for inline singletons; teardown "made" means constructor finished; circle error texts; once-per-thread first-fetch lock; empty singletons may be made again at exit; reopening may add the `singleton` line.
@@ -634,10 +632,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### What a reload can change
 - Changes to whether a class fits an `Items`' own memory are refused (naming the class). Decided direction: nothing may need a restart, so moving these is to be built.
-- The rows for library code, `environment.spite`, `build.spite` and a deleted file are built (D329); how settings are read again after a reload was proposed by Claude, unconfirmed.
+- The rows for library code, `environment.spite`, `build.spite` and a deleted file are built (D330); how settings are read again after a reload was proposed by Claude, unconfirmed.
 
 ### Nothing needs a restart
-- Decided (Mortaro, D280): nothing needs a restart; every refusal is a gap to close. Built: step 1 (attributes move), step 2 (dependents rebuilt through a whole-program compile, every function slotted, D329), step 3 (enums keep their numbers), step 4 (`environment.spite`, `build.spite`, D329), and a change to a value class's functions. Not built: moving objects of a class that starts or stops fitting an `Items`' own memory.
+- Decided (Mortaro, D280): nothing needs a restart; every refusal is a gap to close. Built: step 1 (attributes move), step 2 (dependents rebuilt through a whole-program compile, every function slotted, D330), step 3 (enums keep their numbers), step 4 (`environment.spite`, `build.spite`, D330), and a change to a value class's functions. Not built: moving objects of a class that starts or stops fitting an `Items`' own memory.
 - The rules of step 1 were proposed by Claude and are unconfirmed by Mortaro; the enum rule (D302) was decided by Claude under D205, not by Mortaro.
 
 ### Command language
