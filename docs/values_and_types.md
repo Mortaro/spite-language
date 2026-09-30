@@ -429,8 +429,9 @@ text from the program's table of names -- reflection answers class and function 
 text anywhere text is expected. At run time an enum value is a small integer and a `Symbol` a pointer into a table
 holding only the symbols the program uses ([the rules](#enums--implemented)).
 
-Text becomes an enum value by assignment, the way it becomes a number: the value spelled that way, or the enum's
-first value when there is none, as `"x"` becomes `0` for an `Integer`. Compare the text back to tell the two apart:
+Text becomes an enum value by assignment: the value spelled that way. Text that spells none of its values halts
+the program, naming the text, the enum and the line -- `spite: 'brunch' names no value of Course, at ...` -- where
+it used to become the enum's first value without a word (D244):
 
 ```gdscript title=enum_from_text/enum_from_text.spite entry
 enum Course {
@@ -442,20 +443,19 @@ enum Course {
 var console = Console()
 
 func EnumFromText() {
-    var names = ["dessert", "brunch"]
+    var names = ["dessert", "soup"]
     var index = 0
     while index < names.count() {
         var name = names[index]
         var course: Course = name
-        var known = course.to_string() == name
-        console.print(name, course, known)
+        console.print(name, course)
         index = index + 1
     }
 }
 ```
 ```output
-dessert dessert true
-brunch starter false
+dessert dessert
+soup soup
 ```
 
 ### Walking an enum's values
@@ -848,8 +848,9 @@ statement of a function body as written, before it is generated, so it costs not
 attribute's default is not checked.
 
 **Text casts to an enum by its name** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24):
-`var course: Recipe.Course = name` is the value spelled `name`, or the enum's first value when none is, exactly as
-text that does not parse becomes `0` for an `Integer`. Compare `course.to_string() == name` to tell the two apart. **[implemented]**
+`var course: Recipe.Course = name` is the value spelled `name`; text that spells none of its values halts with
+"spite: '<text>' names no value of <Enum>, at <path>:<line> in <Class>.<function>" (a D244 fix, proposed by Claude,
+unconfirmed; `conformance/stage6/enum_text_unknown`), where it used to become the first value. **[implemented]**
 
 #### Numeric types  **[implemented, PROVISIONAL]**
 

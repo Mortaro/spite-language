@@ -1,0 +1,15 @@
+enum Mood {
+    'happy'
+    'sad'
+}
+
+var console = Console()
+
+func EnumTextUnknown() {
+    var said = "sad"
+    var mood: Mood = said
+    console.print(mood)
+    var typo = "hapy"
+    var wrong: Mood = typo
+    console.print(wrong)
+}

@@ -1,0 +1,2 @@
+spite: 'hapy' names no value of Mood, at conformance/stage6/enum_text_unknown/enum_text_unknown.spite:13 in EnumTextUnknown.EnumTextUnknown
+sad
