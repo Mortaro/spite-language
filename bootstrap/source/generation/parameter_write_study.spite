@@ -550,7 +550,7 @@ func names_a_class(name: String): Boolean {
 func class_of(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var inner = nullable.get_inner()
+        var inner = nullable.inner
         return class_of(inner)
     }
     assert not type_shape.as_union(spite_type)
@@ -639,11 +639,11 @@ func element_type(indexed: Syntax.Expressions.IndexExpression): Analysis.SpiteTy
     assert object_type
     var listed = type_shape.as_list(object_type)
     if listed {
-        return listed.get_element()
+        return listed.element
     }
     var keyed = type_shape.as_dictionary(object_type)
     if keyed {
-        return keyed.get_element()
+        return keyed.element
     }
     var container = class_of(object_type)
     assert container
@@ -670,7 +670,7 @@ func plain_value(expression: Syntax.Expressions.Expression): Boolean {
 func plain_type(spite_type: Analysis.SpiteType): Boolean {
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
-        var inner = nullable.get_inner()
+        var inner = nullable.inner
         return plain_type(inner)
     }
     var scalar = type_shape.as_scalar(spite_type)

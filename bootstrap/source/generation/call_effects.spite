@@ -14,7 +14,7 @@ func study(class_files: List<Discovery.DiscoveredClass>) {
     var index = 0
     while index < class_files.count() {
         var discovered = class_files[index]
-        var file = discovered.get_file()
+        var file = discovered.file
         class_names.set(discovered.simple_name, true)
         record_fields(file.statements, discovered.simple_name)
         index = index + 1
@@ -22,7 +22,7 @@ func study(class_files: List<Discovery.DiscoveredClass>) {
     var class_index = 0
     while class_index < class_files.count() {
         var discovered = class_files[class_index]
-        var file = discovered.get_file()
+        var file = discovered.file
         study_class(file.statements, discovered.simple_name)
         class_index = class_index + 1
     }
