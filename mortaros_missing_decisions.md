@@ -127,8 +127,8 @@ These hold up the D316/D317 migration, the game engine package or the game port.
 134. **How outputs are chosen**: `Boolean` fields of `Build` (`run` defaulting to `true`), "name any output and get
      only those", or one `--outputs=` list?
 138. **Two ways to format**: a compile formats the program, `spite format <path>` formats anything. Keep both?
-166. **The watcher's name and members**: `Watcher`, `PathWatcher`, `FileSystem.Watcher`? `wait_for_changes()`
-     public? The 100 ms quiet period a constructor argument?
+166. **The rest of `FileSystemWatcher`** (its name and `watch_for_changes` are D333): `wait_for_changes()` public?
+     The 100 ms quiet period: fixed, or set somehow (the constructor takes no arguments)?
 171. **Who may read and write an address**: any function of a standard-library class, including one a program adds
      by reopening it, or only files under `library/`?
 183. **A capped `ShortText<32>`**, or is D203's 15-byte inline text enough?

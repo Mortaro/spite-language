@@ -12,7 +12,7 @@ reopen the classes each system does differently, and the launcher loads the one 
 ([foreign_libraries.md](foreign_libraries.md#each-operating-system-reopens-what-it-changes)).
 
 **A program carries only the classes it uses.** The library is part of every program's
-source, but a production build keeps only the C that `main` can reach: a program that never makes a `Watcher`,
+source, but a production build keeps only the C that `main` can reach: a program that never makes a `FileSystemWatcher`,
 a `Socket`, a `Process` or a `ThreadPool` has none of their code, and none of the operating-system functions only
 they call is looked up when the program starts ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)).
 What a class costs when it is used is what its Spite does, and each section below says where that is more than a
@@ -29,7 +29,7 @@ REPL can look at any of it.
 | `List<T>`, `Dictionary<T>` | containers, and the member templates | [collections.md](collections.md) |
 | `Console` | the terminal: print, read a line | [below](#console) |
 | `File`, `Directory` | files and folders | [below](#read-and-write-a-file) |
-| `Watcher` | the paths that changed under a file or a folder, told by the operating system | [below](#watch-files-and-folders) |
+| `FileSystemWatcher` | the paths that changed under a file or a folder, told by the operating system | [below](#watch-files-and-folders) |
 | `Process` | run another program | [below](#run-a-process) |
 | `Program` | this program: exit, sleep, environment variables, its own path | [below](#program) |
 | `Clock` | elapsed time for measuring, and the wall clock | [below](#clock) |
@@ -328,20 +328,23 @@ Folders come first, then files, each sorted by name, and `.` and `..` are never 
 
 ## Watch files and folders
 
-`Watcher()` is told by the operating system which paths changed, so nothing reads the disk over and over:
+`FileSystemWatcher()` is told by the operating system which paths changed, so nothing reads the disk over and over.
+Making one takes no arguments and starts nothing: no thread and no job exist until something is watched. One watcher
+watches any number of files and folders, and `watch_for_changes` takes either, so a folder or a file a program
+already holds is passed as it is.
 
 | Member | Result | Notes |
 |---|---|---|
-| `watch(path)` | `Boolean` | a file, or a folder with everything below it; `false` when there is nothing there to watch |
+| `watch_for_changes(target: Directory or File)` | `Boolean` | a `File`, or a `Directory` with everything below it; `false` when there is nothing there to watch |
 | `changes()` | `List<String>` | never waits: the paths changed since the last call, each once, or none |
 | `wait_for_changes()` | | blocks this thread until `changes()` has something to answer |
 
 A change is reported once the watcher has seen none for 100 ms, so a burst (a save that writes a file in pieces,
 a checkout that touches a hundred) comes back as one list, each path once, in the order they first changed.
-Each path is the watched path joined with what is below it, with `/` between. A folder is reported when it is
-created, removed or renamed, not when what is inside it changes: the files inside are reported instead. The
-100 ms are counted from when the watcher sees the change, which is in a call, so a program that calls `changes()`
-once a frame sees a save about 100 ms after it happened.
+Each path is the `path` of the watched `Directory` or `File` joined with what is below it, with `/` between. A
+folder is reported when it is created, removed or renamed, not when what is inside it changes: the files inside
+are reported instead. The 100 ms are counted from when the watcher sees the change, which is in a call, so a
+program that calls `changes()` once a frame sees a save about 100 ms after it happened.
 
 ```gdscript title=watch_folder/watch_folder.spite entry
 var console = Console()
@@ -350,8 +353,8 @@ var program = Program()
 func WatchFolder() {
     var folder = Directory(".spite/documentation_watch")
     folder.create()
-    var watcher = Watcher()
-    watcher.watch(folder.path)
+    var watcher = FileSystemWatcher()
+    watcher.watch_for_changes(folder)
     File("{folder.path}/level.txt").write("three goblins")
     var changed = watcher.changes()
     var tries = 0
@@ -380,7 +383,7 @@ included, until something changes.
 Each system's folder asks its own kernel: `ReadDirectoryChangesW` on the folder, with its sub-folders, on Windows;
 an `inotify` watch on each folder on Linux, adding one for each new folder; and a `kqueue` entry on each file and
 folder on macOS, adding new files when their folder changes. A file is watched through its folder on Windows and
-Linux, so a save that replaces the file is still seen. Nothing of it is in a program that never calls `Watcher()`:
+Linux, so a save that replaces the file is still seen. Nothing of it is in a program that never calls `FileSystemWatcher()`:
 not the code, and not the lookups of the system's functions ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)).
 
 ## Run a process
@@ -888,7 +891,7 @@ library through `DynamicLibrary`. What each member answers is in the section of 
 | `Program()` | a singleton: `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String`, `live_allocations(): Integer`; see [Program](#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |
 | `Clock()` | a singleton: `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant`; `elapsed_nanoseconds()` is the monotonic clock, with a nanosecond unit and no allocation per reading; see [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation) |
 | `Console()` | a singleton: `print(...values)`, `write(...values)`, `error(...values)`, `debug(...values)`, `flush()`, `read_line(): String?`; see [Console](#console), and below |
-| `Watcher()` | `watch(path): Boolean`, `changes(): List<String>`, `wait_for_changes()`; see [Watch files and folders](#watch-files-and-folders), which is the rule. `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload)) |
+| `FileSystemWatcher()` | `watch_for_changes(target: Directory or File): Boolean`, `changes(): List<String>`, `wait_for_changes()`; see [Watch files and folders](#watch-files-and-folders), which is the rule. `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload)) |
 | `Socket()` | public library surface: `listen_locally(port): Boolean`, `listen_everywhere(port): Boolean`, `listen_at(host, port): Boolean`, `connect_locally(port): Boolean`, `connect(host, port): Boolean`, `accept_client(): Socket?`, `read_line(): String?`, `read_bytes(address, count): Integer`, `write_line(text): Boolean`, `write_bytes(address, count): Boolean`, the calls that never wait `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer` and `write_bytes_now(address, count): Integer`, `closed: Boolean`, `close()`: TCP over IPv4 on every system ([Socket](#socket), and below); `--repl-port` and `spite connect` use `listen_locally` and `connect_locally` ([REPL and live reload](repl.md#repl-and-live-reload)) |
 | `Concurrent(function)`, `Parallel(function)` | the handle stands in for what the function returned, and reading it is the wait; `finished: Boolean` never waits; dropping the handle waits for it; there is no `wait()` and no `join()`; see [concurrency.md](concurrency.md) |
 | `ThreadPool()` | the singleton every `Parallel` runs on: `size(): Integer` worker threads, `worker_index(): Integer` (`-1` off the pool); see [The thread pool](concurrency.md#the-thread-pool) |
@@ -1046,7 +1049,7 @@ and atomics at an address, are language primitives each backend lowers.
 | Part | How |
 |---|---|
 | `String`, `List<T>`, `Dictionary<T>`, number to text (`library/number_text.spite`) | over `Memory.Heap` and `TypedMemory<T>`. The syntax stays the compiler's (`[]`, list literals, `List<T>()`), mapped onto these classes' functions, and per element type the compiler still writes four one-line functions a generic class cannot, plus `deep_copy`; the member templates are Spite in `library/list.spite` ([collections.md](collections.md#standard-library-metaprogramming)) |
-| `File`, `Directory`, `Process`, `Program`, `Console.read_line`, `Clock`, `Socket`, `Watcher`, `ThreadPool`, `Lock`, `ThreadSlot`, the time-zone database | written once in `library/`; each operating system's folder reopens the class with the few functions that call its own library (`ucrtbase.dll`/`kernel32.dll`, `libc.so.6`, `libSystem.dylib`) through `DynamicLibrary` |
+| `File`, `Directory`, `Process`, `Program`, `Console.read_line`, `Clock`, `Socket`, `FileSystemWatcher`, `ThreadPool`, `Lock`, `ThreadSlot`, the time-zone database | written once in `library/`; each operating system's folder reopens the class with the few functions that call its own library (`ucrtbase.dll`/`kernel32.dll`, `libc.so.6`, `libSystem.dylib`) through `DynamicLibrary` |
 | `--debug-memory`'s live table | `AllocationTable` (`library/allocation_table.spite`), an open-addressing set of live addresses with each object's class id beside it, which prints the leak report; the compiler emits only the small functions `SPITE_MALLOC`, `SPITE_REALLOC` and `SPITE_FREE` call under `--debug-memory` |
 | the REPL, live reload, the event loop | `ReadEvaluatePrintLoop`, `HotReload` and `Scheduler`, over reflection tables the compiler generates |
 | printing, `to_debug()`, JSON and bytes | `Console`, `Spite.Debug<T>`, `Spite.DebugInstance<T>`, `JsonWriter<T>`, `JsonReader<T>`, `BinaryWriter<T>` and `BinaryReader<T>` ([json.md](json.md)) |

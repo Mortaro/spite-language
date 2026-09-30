@@ -1,14 +1,18 @@
+union Target {
+    Directory
+    File
+}
+
 var heap = Memory.Heap()
 var clock = Clock()
 var pending = List<String>()
 var last_change: Long = 0
 
-func watch(path: String): Boolean {
-    var folder = Directory(path)
-    if folder.exists() {
-        return watch_folder(path)
+func watch_for_changes(target: Target): Boolean {
+    switch target {
+        Directory: return watch_folder(target.path)
+        File: return watch_file(target.path)
     }
-    return watch_file(path)
 }
 
 func changes(): List<String> {

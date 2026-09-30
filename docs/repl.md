@@ -670,7 +670,7 @@ worked out while compiling, so the check folds away with the branch it guards.
   with the operating system's loader, the one `DynamicLibrary` uses, hands it the addresses of the program's
   functions, and re-points the slots. Nothing runs halfway through a step. The library is compiled on a helper
   thread while the program keeps running, so a game keeps drawing frames while its code is rebuilt.
-- **The watcher is the standard library's [`Watcher`](standard_library.md#watch-files-and-folders)**, the one any
+- **The watcher is the standard library's [`FileSystemWatcher`](standard_library.md#watch-files-and-folders)**, the one any
   program can use, started on a thread of its own: `ReadDirectoryChangesW` on Windows, `inotify` on Linux and
   `kqueue` on macOS, with no polling. The thread sits in `wait_for_changes()`, which the operating system wakes;
   a burst of changes is waited out until 100 ms pass without one, so a save that writes a file in pieces reloads
@@ -1081,7 +1081,7 @@ own. [Live reload](#live-reload---hot-reload) above teaches it; this section hol
 - **What a reload refuses.** A file that does not compile is refused, with the compiler's error, and
   the program keeps all of its code, so a save caught half-written is harmless.
 - **Watching.** `HotReload` (`library/hot_reload.spite`) watches through the standard library's
-  `Watcher` ([System classes](standard_library.md#system-classes)), the one watcher any program uses:
+  `FileSystemWatcher` ([System classes](standard_library.md#system-classes)), the one watcher any program uses:
   `ReadDirectoryChangesW` with overlapped I/O from `kernel32.dll` on Windows, `inotify` and `poll` from `libc.so.6`
   on Linux, and `kqueue`/`kevent` on each folder and file from `libSystem.dylib` on macOS, with no polling. On a
   thread of its own, it calls `wait_for_changes()`, which returns once 100 ms pass without a change, then compiles
