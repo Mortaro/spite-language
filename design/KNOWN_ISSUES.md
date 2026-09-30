@@ -1,6 +1,6 @@
 # Known issues
 
-Where the compiler falls short of the [documentation](README.md) today, or does something a careful reader would not
+Where the compiler falls short of the [documentation](../docs/README.md) today, or does something a careful reader would not
 expect. Each runnable repro below pins the current behaviour, so when an issue is fixed, `check.sh` fails here and
 this page gets updated in the same change. Features that are decided but simply not built yet are named on the
 page that describes them, not here.

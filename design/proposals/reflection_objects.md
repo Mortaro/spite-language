@@ -26,14 +26,14 @@ in [section 8](#8-what-mortaro-settled-on-the-first-review); the rest is propose
 
 The one new rule that makes this work without giving up zero run time is **constant reflection**
 ([section 4](#4-the-crucial-part-nothing-is-looked-up-at-run-time)): a reflection object the compiler knows is a
-compile-time constant, a list of them is unrolled, and a function handed one is compiled once for it -- exactly what
+compile-time constant, a list of them is unrolled, and a function handed one is compiled once for it: exactly what
 a template instance is today, reached through an ordinary call instead of a spelled name.
 
 ## 1. What exists today
 
 Two systems grew side by side and never met.
 
-**Reflection** ([reflection.md](../reflection.md), D6, D11, D12, D41, D49, D57) already has the object model
+**Reflection** ([reflection.md](../../docs/reflection.md), D6, D11, D12, D41, D49, D57) already has the object model
 Mortaro describes: `Spite.Class` (`.name`, `.namespace`, `.attributes`, `.functions`, `.instances`,
 `is_singleton()`, `has_function(name)`...), `Spite.Function` (`.name`, `.arguments`, `.returns`,
 `call_function()`), `Spite.Argument`, `Spite.Attribute` (`.name`, `.class`, `.value: Anything?`) and
@@ -41,16 +41,16 @@ Mortaro describes: `Spite.Class` (`.name`, `.namespace`, `.attributes`, `.functi
 `library/spite/`. `Spite.Class.instances` is every class (D49). But it is run-time only: `.value` is a boxed
 `Anything?`, and a walk over `.attributes` cannot use an attribute's class as a type.
 
-**Metaprogramming** ([metaprogramming.md](../metaprogramming.md)) is where the typed work happens, and it is built
+**Metaprogramming** ([metaprogramming.md](../../docs/metaprogramming.md)) is where the typed work happens, and it is built
 on `Symbol` parameters instead:
 
 | Mechanism | Syntax | Used for |
 |---|---|---|
 | Symbol codegen | `func get_attribute(attribute: Symbol): attribute.class`, called `get_age()` | getters, setters, casts, user name templates |
 | Another class's members | `attribute: Symbol<Label>`, `label.attributes[attribute]` | typed per-attribute code |
-| The plural | `show_attributes(label, lines)` calls the singular once per attribute | every attribute walk (JSON, binary, debug, SlopEngine rows, packs, rules) |
+| The plural | `show_attributes(label, lines)` calls the singular once per attribute | every attribute walk (JSON, binary, debug, the engine package rows, packs, rules) |
 | Member templates | `member: Symbol<$element_type>` in `List`, `Vector`, `Items` | `filter_`, `sum_`, `map_`... |
-| Argument walk (D114) | `argument: Symbol<$T.run_each>`, plural as an argument list `run_each(made_arguments())` | SlopEngine's runner and stream |
+| Argument walk (D114) | `argument: Symbol<$T.run_each>`, plural as an argument list `run_each(made_arguments())` | the engine package's runner and stream |
 | Name pattern (D116, D180) | `phase: Symbol<$T.phase_each>`, hole matched against `enum Phase` | systems placed by name |
 | Folder walk (D115) | `system: Symbol<System>`, every folder named `system` | finding systems, components, recipes, assets |
 | Every class (D287) | `kind: Symbol<Spite.Class>` | ECS rule checks, inspection |
@@ -62,7 +62,7 @@ on `Symbol` parameters instead:
 
 Counted in `.spite` files, lines (build output and vendored packages left out):
 
-| | library | compiler | conformance + diagnostics | benchmarks | SlopEngine `slop/` | SlopEngine `plugins/` | SlopEngine `examples/` |
+| | library | compiler | conformance + diagnostics | benchmarks | engine package `engine/` | engine package `plugins/` | engine package `examples/` |
 |---|---|---|---|---|---|---|---|
 | `Symbol<` parameters | 36 | 5 | 79 | 23 | 56 | 4 | 2 |
 | `.attributes`/`.functions`/`.classes` | 42 | 16 | 65 | 11 | 18 | 0 | 0 |
@@ -74,9 +74,9 @@ By mechanism:
 - **Member templates** (stay): 24 of the library's 36 `Symbol<` lines (`list.spite`, `vector.spite`,
   `items.spite`).
 - **Attribute walks through the plural** (go): the library's other 12 (`json_writer`, `json_reader`,
-  `binary_format`, `spite/debug_instance`); SlopEngine's `component_rule`, `row` (4), `pack` (2), `link` (4),
+  `binary_format`, `spite/debug_instance`); the engine package's `component_rule`, `row` (4), `pack` (2), `link` (4),
   `field_count`, `link_count`, `spawn_bundle`, `runner.classify_attribute`.
-- **Argument and name-pattern walks** (go): SlopEngine's `runner.spite` (about 30 templates) and `stream.spite` (3),
+- **Argument and name-pattern walks** (go): the engine package's `runner.spite` (about 30 templates) and `stream.spite` (3),
   `examples/template_wait_check`.
 - **Folder walks** (go): `Symbol<Component>` in `app.spite` and the network plugin's `send`, `receive` (2) and
   `forget_arrived`; `Symbol<System>` in `app.spite`; `Symbol<Asset>`, `Symbol<Recipe>` in `recipes/`;
@@ -100,7 +100,7 @@ get-only attribute, and that their collections are ordinary lists.
 | `Spite.Attribute` | `.name`, `.class`, **`.index`**, **`.owner`**, **`.camel_case_name`, `.pascal_case_name`**, and `.value` only when bound ([below](#an-attributes-value-bound-like-a-function)) |
 
 **Every collection is an ordinary `List`**, so everything a list has works: `[]` by name answering `T?` (a list of
-reflection objects keys by `.name`), `count()`, `each`, `map`, `filter`, and every member template --
+reflection objects keys by `.name`), `count()`, `each`, `map`, `filter`, and every member template:
 `Monster.attributes.map_names()`, `Shop.classes.filter_is_singleton()`, `namespace.classes.map_names()`.
 
 **A reflection object answers its name's text functions.** Its `.name` is a `Symbol`, which answers every `String`
@@ -137,7 +137,7 @@ becomes a collection indexed or filtered instead:** `has_function("run_each")` i
 `T?`), `argument_count("f")` is `functions['f'].arguments.count()`, `function_writes_parameter("f", i)` is
 `functions['f'].arguments[i].is_mutated`, `any_attribute_fits_vector(Entity)` is
 `attributes.filter_is_fixed_size()` asked as the program needs. `arguments[i]` and `attributes['name']` stay
-indexing. What remains a function is what acts rather than answers -- `call_function()`, `call_with(...)` -- and
+indexing. What remains a function is what acts rather than answers (`call_function()`, `call_with(...)`), and
 `List`'s own `count()`.
 
 ### An attribute's value, bound like a function
@@ -145,8 +145,8 @@ indexing. What remains a function is what acts rather than answers -- `call_func
 A function named on an instance is a bound `Spite.Function` (D17). An attribute does the same: **`Monster.attributes`
 describes declarations, `troll.attributes` holds attributes bound to `troll`** (D11 already says so). A bound
 attribute's `.value` is readable and writable: `attribute.value = 3`. And an unbound attribute indexes an instance,
-`troll.attributes[attribute]`, which is how a walk over a class's attributes reaches one instance's values -- the
-form templates use today, now taking a `Spite.Attribute` instead of a `Symbol`. D88's "read-only" stays for
+`troll.attributes[attribute]`, which is how a walk over a class's attributes reaches one instance's values (the
+form templates use today), now taking a `Spite.Attribute` instead of a `Symbol`. D88's "read-only" stays for
 everything describing the program (`.name`, `.class`); `.value` describes the instance.
 
 ### The name templates that stay
@@ -175,7 +175,7 @@ A reflection object is a **constant** when the compiler knows which one it is:
    `filter`, `map` or member template applied to one);
 5. **a parameter of a reflection type (`Spite.Class`, `Spite.Attribute`, `Spite.Function`, `Spite.Argument`,
    `Spite.Namespace`, or an enum) in a call whose argument is a constant.** The function is compiled once for each
-   constant it is called with -- a *specialisation* -- and inside it the parameter is a constant.
+   constant it is called with (a *specialisation*), and inside it the parameter is a constant.
 
 Rule 5 is today's template instance, reached through a call instead of a spelled name: `show_attribute_for_health`
 in `--final-classes` is the same function it is now. It is what D237 already says for `attribute.class` inside a
@@ -189,7 +189,7 @@ What folds:
   in the generated code, each call a specialisation. `filter`, `map` and member templates over a constant list
   fold to a constant list. No list exists at run time.
 - **A constant class or attribute class is usable as a type**: `Column<component>()`,
-  `var value: attribute.class = ...`, `): argument.class` -- as `Column<component.class>()` is today.
+  `var value: attribute.class = ...`, `): argument.class`, like `Column<component.class>()` today.
 - **`troll.attributes[attribute]` with a constant `attribute`** is a plain typed field read or write (a getter
   call where one exists), exactly what the template reads today; a bound attribute's `.value` is typed
   `attribute.class`.
@@ -198,7 +198,7 @@ What folds:
   today, and a walk that reaches it only in a branch it rules out never compiles it. A misspelled constant name
   reached unconditionally is a compile error naming what the class does have (D244).
 - **An empty constant list walks nothing**, as the plural does, but `crash components.count() > 0` now folds and
-  says so -- the loud answer item 99 lacked.
+  says so, which is the loud answer item 99 lacked.
 
 ### What is not constant
 
@@ -212,7 +212,7 @@ in a `--repl`/`--repl-port`/`--development` build (D143). There `.value` is `Any
 call that made it run-time:
 
 ```diagnostic
-'attribute' is not known while compiling here -- it comes from 'value.attributes' through the type 'Anything' in describe() -- so 'attribute.class' cannot be a type; walk 'Gadget.attributes' instead, or read 'attribute.value'
+'attribute' is not known while compiling here (it comes from 'value.attributes' through the type 'Anything' in describe()), so 'attribute.class' cannot be a type; walk 'Gadget.attributes' instead, or read 'attribute.value'
 ```
 
 So one function body serves both worlds: called with constants it is typed and unrolled, and a REPL user calling
@@ -377,7 +377,7 @@ func made(argument: Spite.Argument): argument.class {
 is a constant *sequence*, not a `List`: it may only be passed to `call_with`, which becomes one direct typed call,
 `target.run_each(made_for_hero(), made_for_pet())`.
 
-### SlopEngine's runner: systems placed by their functions' names
+### The engine package's runner: systems placed by their functions' names
 
 Before:
 
@@ -415,14 +415,14 @@ func prepare(argument: Spite.Argument) {
 
 The pattern hole and its enum rule (D180) are gone, and so is the member that changed meaning inside a pattern
 template (item 100): the runner selects the functions that end in `_each` and asks the enum which value the rest of
-the name is. Every step folds -- `filter_ends_with` over constant names, `without_suffix` on a constant name, and
-`find_by_name` over `Phase.values` -- so a `count_each` that names no phase is skipped while compiling, as today.
+the name is. Every step folds (`filter_ends_with` over constant names, `without_suffix` on a constant name, and
+`find_by_name` over `Phase.values`), so a `count_each` that names no phase is skipped while compiling, as today.
 Running is the same selection: `function.is_resumable` replaces `function_waits("<phase>_each")`,
 `function.arguments.count()` replaces `phase.argument_count()`, and `function.call_with(...)` replaces
 `system.phase_each(clocked_arguments(rows, entity))`. `without_suffix` is a new `String` function beside
 `ends_with`.
 
-### SlopEngine's component rule
+### The engine package's component rule
 
 Before:
 
@@ -527,8 +527,8 @@ func member(attribute: Spite.Attribute): String {
 
 `shown.class` is `$value_type`, a constant, so `shown.attributes` is a constant list of bound attributes and
 `attribute.value` is typed. The key override (D273) used to build the function's name from the attribute's; it now
-selects the `json_key_` functions and pairs one with the attribute. `find_by_suffix(name)` -- the element whose name
-is the prefix followed by exactly `name` -- is not yet a spelling anyone chose ([section 9](#9-open-questions)). The
+selects the `json_key_` functions and pairs one with the attribute. `find_by_suffix(name)` (the element whose name
+is the prefix followed by exactly `name`) is not yet a spelling anyone chose ([section 9](#9-open-questions)). The
 same function called from the REPL on an `Anything` still writes JSON, through the run-time path.
 
 ### Every class in the program
@@ -602,7 +602,7 @@ D278 (private attributes are in `.attributes` for the class's own walks).
    both; collections.md's `map_` and the member-template rules; values_and_types.md's enum walk; for_ai_writers.md;
    README.
 
-**SlopEngine:** 17 files, 62 `Symbol<` lines, plus every `map_<member>` call. `runner.spite` is most of it (about 30
+**The engine package:** 17 files, 62 `Symbol<` lines, plus every `map_<member>` call. `runner.spite` is most of it (about 30
 argument and phase templates become `each` over `function.arguments`), then `row`, `stream`, `link`, `pack`, `app`,
 `component_rule`, the network plugin's three systems, `recipes/`, `spawn_bundle`, `field_count`, `link_count`.
 Mechanical once the compiler accepts both forms.

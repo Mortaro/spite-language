@@ -1,6 +1,6 @@
 #!/bin/bash
 # "As fast as C" as a number: each program here has a C twin, twin.c, doing the same work the way a C programmer
-# writes it. Both are built for release -- the Spite program with --optimized, its twin with the same -O3 -- both
+# writes it. Both are built for release (the Spite program with --optimized, its twin with the same -O3), both
 # must print the same answer, and each times its own work with the same clock and prints the microseconds on its
 # error output, so starting a process (slow and noisy on Windows) is not counted. The best of seven interleaved runs
 # of each is reported with the ratio Spite/C: 1.00 is as fast as C, 2.00 takes twice as long. Not part of check.sh,

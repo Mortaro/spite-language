@@ -88,7 +88,7 @@ func is_commit(text: String): Boolean {
 }
 
 func form(): String {
-    return "A git load is 'load \"<repository>@<commit>\"' or 'load \"<repository>@<commit>/<folder inside it>\"', the repository a URL (github.com/mortaro/engine, https://..., ssh://..., file://...) or a folder on this machine by a path starting with ./, ../, / or a drive letter (../slop_engine), and the commit 7 to 40 lowercase hexadecimal digits"
+    return "A git load is 'load \"<repository>@<commit>\"' or 'load \"<repository>@<commit>/<folder inside it>\"', the repository a URL (github.com/mortaro/engine, https://..., ssh://..., file://...) or a folder on this machine by a path starting with ./, ../, / or a drive letter (../engine), and the commit 7 to 40 lowercase hexadecimal digits"
 }
 
 func folder_of(text: String, file_folder: String, site: String, library: String): String? {

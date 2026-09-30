@@ -5,11 +5,11 @@ never warns: it errors or it is fine. A file that does not parse is reported as
 `path:line:column: message`; once everything parses, every error of the program comes in one run as
 `path:line: error: message (in Class.function)`. Every compile first rewrites your files into the one style
 (`formatted path` is printed), so what you read back may differ from what you wrote.
-The other pages are the reference, each ending in its rules in full ([README.md](README.md)); this page is the
+The other pages are the reference, each ending in its rules in full ([README.md](../docs/README.md)); this page is the
 working set.
 
 Code blocks are fenced as `gdscript` only so GitHub colours them: GitHub has no Spite highlighter yet. Every
-one of them is Spite, not GDScript -- write `.spite` files.
+one of them is Spite, not GDScript: write `.spite` files.
 
 ## Run it
 
@@ -21,7 +21,7 @@ spite program --repl-port=4000          serve the REPL; spite connect 4000 --com
 spite program --c-source --run=false    write .spite/build/program/program.c instead (--c-path= puts it elsewhere)
 spite program --run=false               only compile: the errors, if any (writes no executable)
 spite program --executable --run=false  build .spite/build/program/program.exe without running it
-spite program -- --serve=true           the program's own arguments, read by Environment (snake_case after --)
+spite program -- --serve=true           the program's own arguments, read by Environment (snake_case after '--')
 spite format game                       format files without compiling them (every compile formats first anyway)
 bash check.sh                           the compiler still compiles itself, and every corpus passes
 ```
@@ -31,13 +31,13 @@ bash check.sh                           the compiler still compiles itself, and 
 in, read any value by its path (`World().player.health`, `describe Monster`, `memory`), and set a breakpoint with
 `break monster.spite:42`: the program stops before that line, `locals` and any path through them answer what is in
 scope there, and `continue` goes on (`clear` removes it). Every answer is one JSON line, so an agent can script it.
-The commands are in [repl.md](repl.md#breakpoints).
+The commands are in [repl.md](../docs/repl.md#breakpoints).
 
 A program lives in its own folder, and `spite game` runs it: `launcher/launcher.spite` loads `library/`, then the
 target system's folder of it, then `game/`, whose every sub folder is a
 namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
 folder's own class). `load "folder"` inside a function loads another package (the path is relative to the file,
-or absolute: `load "D:/Projects/engine/slop"`); a file at the same namespace path
+or absolute: `load "D:/Projects/engine/core"`); a file at the same namespace path
 reopens the class: same-named functions and attributes replace, the rest are added, and an enum declared again
 gains the values it lists. `Build` is the exception: a field the program's own `build.spite` declares keeps the
 program's value over a loaded package's (a flag, then the program, then the package). A package opens the files
@@ -91,11 +91,11 @@ func is_alive(): Boolean {
 - One function per name, no overloading (`'Shop' declares 'price' twice`): an argument is cast to the
   parameter's type. The last parameter may be
   `...values: List<Type>`, and the caller writes the values one by one (passing a whole list there is an error).
-- A call is never passed straight into another call: compute it first into a named `var` and pass the name --
+- A call is never passed straight into another call: compute it first into a named `var` and pass the name,
   `var token_text = source.slice(start, end)`. The error: `'text.slice(0, 1)' is called inside an argument of
   'console.print': compute it first into a named 'var' and pass the name`. The holes of a text are not
   arguments: `"{names.count()} names"` is fine.
-- A constructor is not an argument either, on any line: make the object on a line of its own and pass its name --
+- A constructor is not an argument either, on any line: make the object on a line of its own and pass its name,
   `var token = Token("number", token_text)`, then `tokens.append(token)`. The error:
   `'Bundle.CounterButton(screen.id)' is constructed inside an argument of 'world.create_entity_from_bundle': a
   constructor call is never an argument, so make it first on a line of its own, 'var counter_button =
@@ -126,13 +126,13 @@ func is_alive(): Boolean {
   a parameter only that branch reads is not unused in the other instantiations.
 - An attribute nothing reads is an error too (`the attribute 'world' is never read: remove it`). A private `_name` attribute is checked too.
   Assigning it is not reading it. A public attribute of a folder the program `load`s is not checked, since
-  code the program does not load may read it -- except a singleton binding (`var world = World()`), which is an
-  error unread anywhere: a class that needs the singleton binds it itself. A Symbol template counts only when it reads the value,
-  `x.attributes[attribute]`: an attribute kept as a marker that a walk inspects through `attribute.name` or
+  code the program does not load may read it, except a singleton binding (`var world = World()`), which is an
+  error unread anywhere: a class that needs the singleton binds it itself. A Symbol template counts only when it reads the value
+  (`x.attributes[attribute]`). An attribute kept as a marker that a walk inspects through `attribute.name` or
   `attribute.class` is unused, so say what the marker means some other way. A function nobody calls still
   reads what it names.
-- The words other languages use for things Spite writes differently -- `none`, `nil`, `undefined`, `self`,
-  `new`, `import`, `require`, `elif` -- are errors wherever they appear, naming the Spite form, so none of them
+- The words other languages use for things Spite writes differently (`none`, `nil`, `undefined`, `self`,
+  `new`, `import`, `require`, `elif`) are errors wherever they appear, naming the Spite form, so none of them
   can name a variable or a parameter either: `var none: Long = 0` says to write `null`. Pick another name
   (`no_handle`, `empty`). `load` is reserved too: it always loads a package, so a function that loads something
   says what (`load_texture`).
@@ -146,7 +146,7 @@ func is_alive(): Boolean {
   `max` are still errors, as abbreviations.)
 - A function body holds no empty lines: the blank line is where a second function wants to be, so name the part
   below it and call it. The formatter (and so every compile) deletes one you write. An `if` whose only statement is a bare `return`
-  is an error too -- that is a precondition, and a precondition is written `assert condition`.
+  is an error too: that is a precondition, and a precondition is written `assert condition`.
 - A comment is one line, outside functions, and nothing but a link to a markdown heading:
   `# notes.md#why-this-exists` (relative to the entry file's folder; the file and the heading must exist).
   Anything else, including `//` and `/* */`, is an error. If the code already says it, do not write it.
@@ -188,19 +188,19 @@ func is_alive(): Boolean {
 - `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
   `last` (both a `T?`, `null` on an empty list, like `[]`: `var first = names.first()` then `crash first`), `count`, `contains` (elements that are numbers, `Boolean`, `String`
   or an enum only: on a list of a class use `any(f)` or `find_by_<member>`), `is_empty`, `clear`, `reverse`,
-  `join` (text, numbers, `Boolean` and enum values all join), never `add` or `pop`, `list[index]` (a `T?`: out of range gives nothing -- `crash names[index]` narrows it like a path,
+  `join` (text, numbers, `Boolean` and enum values all join), never `add` or `pop`. `list[index]` is a `T?` (out of range gives nothing), and `crash names[index]` narrows it like a path,
   and so does `crash glyphs[code - 32]`, or any index with no call in it, with no copy into a local first;
   `crash names.count() == 3` (or `>= 3`, or `> 2`) proves `names[0]` to `names[2]`, so does
   `var names = ["a", "b", "c"]`, `crash not names.is_empty()` proves `names[0]` (a list's, never a dictionary's),
   and `while index < names.count()` proves `names[index]` in the loop body, so a `crash names[index]` inside that
   loop is an error saying so: delete it). `get_at(index)` is the same function as `[]` and answers the same `T?`;
-  write `names[index]`, which proofs can narrow. Every `[]` answers a `T?` -- a `Vector`'s and an `Items`' too. A
+  write `names[index]`, which proofs can narrow. Every `[]` answers a `T?`; a `Vector`'s and an `Items`' too. A
   list of numbers, `Boolean`, enums or `Memory.Address` is always a `List` (`Vector<Integer>` is an error naming
   `List<Integer>`); it has `remove_swapping(index)` and `reserve(count)` too.
   `Dictionary<T>` (insertion order): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`,
   `values`, `dictionary["key"]` (a `T?`, like `list[index]`: `inventory["shield"] == 0` is false for an absent
   key). Keys are text or whole numbers, decided from the keys you give it: key by the number itself
-  (`created_layouts[entity]`), never by text made from it -- no `"{entity}"` -- and `keys()` answers the numbers.
+  (`created_layouts[entity]`), never by text made from it (no `"{entity}"`). `keys()` answers the numbers.
   One dictionary never takes both kinds (a compile error naming both places). A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
   'Printable'`; print `list.join(", ")`, or `console.debug(list)`.
 - A chain of templates, `teams.filter_active().map_lead().sum_age()`, runs as one loop with no list in between.
@@ -248,14 +248,14 @@ func is_alive(): Boolean {
   generic singleton, after a `crash` line for each read (the places arrive as the parameter `rows`): `crash
   rows[attribute.index]`, `var stored_row = rows[attribute.index]`, `crash
   Column<attribute.class>().values[stored_row]`, then `row.attributes[attribute] =
-  Column<attribute.class>().values[stored_row]` -- an index never holds another `[]` read (D285). Choose
+  Column<attribute.class>().values[stored_row]`. An index never holds another `[]` read (D285). Choose
   per attribute with an `if` on `attribute.class == Entity` or `attribute.class.fits_vector()` (both decided while
   compiling), each branch one such line: `Entity(entity)` is made in the frame, a reference column's value
   (`ReferenceColumn<attribute.class>().at(rows[attribute.index])`, after `crash rows[attribute.index]`) is counted
   for the row (D217). Keep the index
   expression to parameters, `attribute.index` and whole numbers; work anything else out before the walk. The
   places may live in another object: pass its list straight in (`fill_attributes(row, matcher.rows)`) or read
-  `matcher.rows[attribute.index]` into the line's `var` -- its items are numbers in a `List` -- and never copy them into a
+  `matcher.rows[attribute.index]` into the line's `var` (its items are numbers in a `List`), and never copy them into a
   list of the runner's first.
 - In a generic class that keeps values of a type it does not know (an engine's `Column<$component_type>`), use
   `Items<$component_type>()` (D218, name provisional): inline and borrowed like a `Vector` when the type fits
@@ -300,19 +300,19 @@ func is_alive(): Boolean {
   `crash $component_type.fits_vector()` halts every call in an instance whose type does not fit.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
-  built or planned, and what it could ever change that you see, is in [optimizations.md](optimizations.md).
+  built or planned, and what it could ever change that you see, is in [optimizations.md](../docs/optimizations.md).
 - On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Boolean` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
   `each_<member>()` (a function). A member is an attribute or a function that takes nothing. A member that does
   not fit is an error naming what the template needs: `count_stars()` on a number member says `but 'count_' needs
   it to return Boolean (to add up a numeric member use 'sum_stars')`, and `each_size()` on an attribute says
   `'each_' needs it to be a function`.
-- A `while` that only walks a list doing what one of these does -- `var index = 0`, `while index <
-  items.count()`, `total = total + items[index].price`, `index = index + 1` -- is an error naming
+- A `while` that only walks a list doing what one of these does (`var index = 0`, `while index <
+  items.count()`, `total = total + items[index].price`, `index = index + 1`) is an error naming
   `items.sum_price()`: `this 'while' walks every element of 'items' only to add up 'price': write 'var total =
-  items.sum_price()'`. The same goes for a `while` that only passes each element to one function of yours --
+  items.sum_price()'`. The same goes for a `while` that only passes each element to one function of yours:
   `say_hello(names[index])` is `names.each(say_hello)`, and likewise `map`, `filter`, `count`, `sum`, `find`,
-  `any` and `all` -- on a list of anything, numbers and text included. Keep `while` for loops that need the index,
+  `any` and `all`, on a list of anything, numbers and text included. Keep `while` for loops that need the index,
   pass more than the element, or walk state.
 - A template sees only the element and the list, never your class: `names.each_say_hello()` looks for a member
   `say_hello` of each name, and says `a template reads a member of each element, never a function of this class,
@@ -342,8 +342,8 @@ func is_alive(): Boolean {
 - `union Enemy { Player Monster }`, written one member per line: `switch enemy { Player: ... Monster: { ... } }`
   must cover every member and narrows `enemy` inside each case; a function or attribute every member has can be
   used on the union directly.
-- A `type` declares a shape -- `label: String` and `render(Integer): String`, one per line, a required function
-  naming the *types* it takes and never the names -- and accepts any class, or
+- A `type` declares a shape (`label: String` and `render(Integer): String`, one per line, a required function
+  naming the *types* it takes and never the names) and accepts any class, or
   object literal `{ label: "x" }`, with those attributes and functions.
 - `Anything` is the built-in empty `type`, the counterpart of `Nothing`: `component: Anything` and
   `List<Anything>()` accept any object (a number is boxed). Never declare an empty `type` of your own.
@@ -354,21 +354,21 @@ func is_alive(): Boolean {
   compiler can know, a `crash` naming its cause where only the run can. Never let a caller get a default it cannot
   tell from a real answer, lose a write, skip a step, leak or hang. When a function cannot answer, its result says
   so (`T?`, or an empty list), or it returns a value you chose on purpose, or it crashes because a caller broke the
-  rule ([failure.md](failure.md#nothing-fails-silently)).
+  rule ([failure.md](../docs/failure.md#nothing-fails-silently)).
 - `crash` and `assert` take a condition and never a message (D297): the report names the file and line and shows
   the values there. Never add a clause only to get text printed (`crash found or name == ""`).
 - `Monster?` is a value that may be `null`. It must be narrowed before use: `if target { }` (with `else`),
   `assert target`, `crash target`, `while target { }`, or `switch target { Monster: ... Null: ... }`. One
   `assert a.b.c` narrows the whole path. `null` is never compared against: `value == null` is an error.
-  Narrow the name or the path itself -- `assert target`, `assert target.weapon` -- never a local copied from it,
+  Narrow the name or the path itself (`assert target`, `assert target.weapon`), never a local copied from it,
   which is an error. Comparing needs no narrowing: `target.name == "rat"` needs `target` narrowed, but
   `maybe_name == "rat"` is simply false when it is null.
 - A call between a proof and a read undoes the proof when the called code (followed all the way down) may assign
   an attribute the proof reads or shrink a list it reads; prove it again after such a call, or read what you need
   before it. A call that cannot change it keeps the proof. Calling a function value keeps no proof about
   attributes or lists.
-- Every proof the compiler makes -- narrowing, proven `[]` reads, a proven divisor, frame objects, borrowed items,
-  singleton locks -- is listed in [proofs.md](proofs.md), with when it does **not** apply. Read its "Which proofs
+- Every proof the compiler makes (narrowing, proven `[]` reads, a proven divisor, frame objects, borrowed items,
+  singleton locks) is listed in [proofs.md](../docs/proofs.md), with when it does **not** apply. Read its "Which proofs
   apply to my code" first: where a proof does not hold, you write the check yourself.
 - A `switch` is over a union or a `T?` and covers every member; `_:` as the last case answers for the rest, and
   two cases doing the same thing are an error: write it once as `_:`. A `switch` over an enum, a whole number or
@@ -387,8 +387,8 @@ func is_alive(): Boolean {
   first, or compare it `== true`.
 - There are no exceptions and no error values. Three outcomes only:
   - the compiler can know it: a compile error;
-  - absence is fine: `assert condition` stops the function and answers "nothing" -- it returns, answers `null`
-    from a `T?`, or an empty `List`/`Dictionary`/`Vector`/`Items` -- and is allowed only there, never in a
+  - absence is fine: `assert condition` stops the function and answers "nothing": it returns, answers `null`
+    from a `T?`, or an empty `List`/`Dictionary`/`Vector`/`Items`. It is allowed only there, never in a
     constructor (`'assert' is not allowed in a constructor`: take resolved values, or `crash`). In a function
     returning a number, `Boolean`, `String`, enum or object it is an error, since its default would pass for a real
     answer (`this 'assert' would answer a default Integer (0) that a caller cannot tell from a real one: return a
@@ -419,15 +419,15 @@ func is_alive(): Boolean {
   with no 'else') it reaches its end without a 'return'`). An `if`/`else` whose branches both return, a `switch`
   whose cases all return and a `while true` end the path; an `if` with no `else` and any other `while` do not, so
   write the last `return` after them, `return null` included.
-- A native fault -- a null read or an illegal instruction inside a foreign library, a stack overflow -- is never
+- A native fault (a null read or an illegal instruction inside a foreign library, a stack overflow) is never
   silent either: the program prints `spite.fault<TAB>kind<TAB>path:line<TAB>Class<TAB>function<TAB>...`, then
   `spite.frame` lines, innermost Spite function first, and ends. `-	-	-` in the place means the fault is outside
   Spite: `at=` names the library and offset, `foreign=` the last C function this thread called, and `from=` the
-  Spite line that called it -- start there. `stack-overflow` with `repeated=` on a frame is a recursion that never
+  Spite line that called it (start there). `stack-overflow` with `repeated=` on a frame is a recursion that never
   stops. The line in `path:line` is where the function starts, not the faulting line
-  ([failure.md](failure.md#what-a-native-fault-reports)).
+  ([failure.md](../docs/failure.md#what-a-native-fault-reports)).
 - A test is a function named `test_...` that takes nothing and crashes when wrong, in a class of its own (the entry
-  class's functions are not found). `tests/tests.spite` finds them all by itself ([testing.md](testing.md)).
+  class's functions are not found). `tests/tests.spite` finds them all by itself ([testing.md](../docs/testing.md)).
 
 ## Metaprogramming
 
@@ -437,10 +437,10 @@ func is_alive(): Boolean {
 - `attribute: Symbol<Label>` ranges over another class's members, read as `label.attributes[attribute]`, and the
   plural (`show_attributes(label)` for `show_attribute`) calls the template once per attribute, in order.
 - In a generic class, `if $value_type == List { }` (also `Dictionary`, `Null` for any `T?`, `Symbol` for any enum or `Symbol`, `Enum` for an enum only,
-  or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds -- and is
-  tested the same way, `else if $value_type.element_type == Float`, in any branch of a chain. Only
-  what the taken branch reaches is compiled -- helper functions, and the code after a chain whose branch returns
-  -- so keep one generic class with a helper per kind, not one class per kind.
+  or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds. It is
+  tested the same way (`else if $value_type.element_type == Float`) in any branch of a chain. Only
+  what the taken branch reaches is compiled (helper functions, and the code after a chain whose branch returns),
+  so keep one generic class with a helper per kind, not one class per kind.
 - `assert`/`crash` on such a condition folds too, and a `crash` that folds to false in a function the program calls
   is a compile error naming the instance (`Slot<List<String>>`): write a library's rules as `crash $row_type.has_function("update_each")`
   and a class that breaks one fails the build.
@@ -465,14 +465,13 @@ func is_alive(): Boolean {
   value comes from `--serve=true` after `--` on the command line (spelled with the field's own underscores:
   `-- --player_name=x`), else the `SERVE` environment variable, else the default. Given before the `--` it is an
   error saying so.
-- Build settings: reopen `Build` in `build.spite` the same way. A `Build` field is decided when compiling --
-  `spite game --serve=true`, else its default -- and is a constant in the program, so `if build.serve { }`
+- Build settings: reopen `Build` in `build.spite` the same way. A `Build` field is decided when compiling (`spite game --serve=true`, else its default) and is a constant in the program, so `if build.serve { }`
   keeps only one branch. The compiler's own options (`optimized`, `debug_memory`, `run`, `c_source`, ...) and
   `build.target_operating_system` are `Build` fields too. A flag is kebab-case (`--debug-memory`) and sets the
   snake_case field; an unknown flag is an error. There is no `format` option: every compile formats.
-- Reflection: `value.class` (a `Spite.Class`: `.name`, `.namespace` (a `Spite.Namespace?` -- narrow it before
+- Reflection: `value.class` (a `Spite.Class`: `.name`, `.namespace` (a `Spite.Namespace?`; narrow it before
   reading its members: `assert value.class.namespace` narrows the path itself and its prefixes for the rest of
-  the block -- `.name_with_namespaces`, `.parent`, `.classes`,
+  the block; its members are `.name_with_namespaces`, `.parent`, `.classes`,
   `.namespaces`), `.functions`), `value.attributes`
   (`.name`, `.class`, `.value`: the value itself, an `Anything?` whose text is `.value.to_string()`), `value.functions` (`.name`, `.arguments`, `.returns`, `call_function()` for
   functions that take nothing and return `Nothing`), a function named without calling it (`shouter.shout`, a
@@ -480,8 +479,8 @@ func is_alive(): Boolean {
   `Spite.Class.instances` (every class of the program and the packages it loads, not the standard library's). `class`, bare inside a class's function, is the class
   of the instance it answers on, and a class name reads its own class object: `Monster.name` is `"Monster"`.
 - A class whose file starts with a `singleton` line has one instance: `Journal()` always returns it, and its
-  constructor takes no arguments. A singleton is bound as an attribute -- `var journal = Journal()` beside the
-  others -- and used through the name: `Journal().record(entry)`, `Build().program`, `keep(Console())` and
+  constructor takes no arguments. A singleton is bound as an attribute (`var journal = Journal()` beside the
+  others) and used through the name. `Journal().record(entry)`, `Build().program`, `keep(Console())` and
   `return Console()` are errors (`'Console' is a singleton: bind it once beside the attributes`), and so are a
   binding nothing reads, even in a loaded package, and a binding inside a function (`'Build' is a singleton, bound
   here as a local`). One of the program's own that a `Parallel` reaches is made thread-safe by the
@@ -504,7 +503,7 @@ func is_alive(): Boolean {
 `Console()` (`print`, `write`, `error`, `debug`, `read_line(): String?`; each value printed is its `to_string()`, so
 a class prints once it declares `func to_string(): String`, and `debug` shows any value's state, a class as
 `Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`map(): MappedFile?` for a file too big to read: `size()`, `mapped[position]`, `read_long(position)`, ... each a `T?`; `read(): String?`, `write`,
-`append`, `exists`, `remove`), `Directory(path)` (`path`, `entries(): List<Directory.Entry>` -- each a `Directory` or a `File`, switched on --,
+`append`, `exists`, `remove`), `Directory(path)` (`path`, `entries(): List<Directory.Entry>` (each entry a `Directory` or a `File`, switched on),
 `files`, `folders`, `exists`, `create`),
 `Process(command, arguments)` (`run(): Integer`, `output()`: standard output only; each argument reaches the child whole, `-key=value with spaces` as `-key="value with spaces"` on Windows; `working_directory` and `environment_variables["NAME"] = "value"` set for the child alone), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere, bound once
@@ -514,18 +513,18 @@ happens; `write` waits for the next line end or `flush()`.
 `Socket()` is TCP over IPv4 on every system: `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host,
 port)`, `connect_locally(port)`, `connect(host, port)`, then lines (`read_line(): String?`, `write_line(text)`) or
 bytes at a `Memory.Address` (`read_bytes(address, count): Integer`, `write_bytes(address, count)`), which wait.
-A loop that must not wait -- a game server's tick -- calls `accept_client_now(): Socket?`, `read_line_now():
+A loop that must not wait (a game server's tick) calls `accept_client_now(): Socket?`, `read_line_now():
 String?`, `read_bytes_now(address, count): Integer` (`0` is nothing yet) and `write_bytes_now(address, count):
 Integer` (how many the system took). A peer that hung up is not an error: `socket.closed` turns `true`, reads
-answer `0` or `null` and writes send nothing -- check `closed`, never a count of `-1`.
+answer `0` or `null` and writes send nothing. Check `closed`, never a count of `-1`.
 `Concurrent(function)` runs a function as a compile-time state machine and `Parallel(function)` on the thread pool: the handle stands
 in for what the function returns and reading it is the wait (there is no `.wait()`: `an Integer has no function
 'wait'`), `finished` answers without waiting, `finished_value(): T?` is the value once finished and `null` before
 (never a wait, so a system that only collects finished work keeps `function_waits` false: `var found =
 handle.finished_value()`, then `if found { }`), and dropping the handle waits for it. A `parallel_each_<member>()`
-member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock`, a `ThreadLocal` or an `Atomic<T>` (a shared whole number or `Boolean`: `read`, `write`, `add`, `exchange`, `compare_and_swap`); anything else is an error naming the attribute. One exception: `var crafter = Crafter(first)` then `var run = Parallel(crafter.craft)` hands the object over, so its task may keep lists of values (`List<Integer>`, `List<String>`) and objects of its own that it made itself; touching `crafter` after that line is `'crafter' was handed to 'Parallel(crafter.craft)', which keeps its 'recipe_ids' on another thread, so it is not used after that line`. Keep a list of ids as a `List<Integer>`, never as comma-joined text. A singleton a `Parallel` reaches locks each of its functions that touch its state, so never make and wait for a `Parallel` inside such a function when the work calls back into the same singleton: `'Columns.despawn_all' waits for 'Parallel(remover.run)' while it holds Columns's lock, ...` -- start and read the `Parallel` from a class that is not that singleton. Many calls to one singleton from a counted loop (`while index < count { columns.remove_row(index); index = index + 1 }`, nothing else locked or waited on in it) take its lock once for the whole loop, so such a loop is the cheap way to call a singleton many times; keep other singletons and waits out of it. A singleton's function that only reads (a lookup such as `at(row)`: locals, reads of lists, text and numbers, no calls out) runs beside other readers on other threads and waits only for writers, so keep lookups in small functions of their own, apart from the ones that change the singleton. There is no `async`/`await`: a function
+member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock`, a `ThreadLocal` or an `Atomic<T>` (a shared whole number or `Boolean`: `read`, `write`, `add`, `exchange`, `compare_and_swap`); anything else is an error naming the attribute. One exception: `var crafter = Crafter(first)` then `var run = Parallel(crafter.craft)` hands the object over, so its task may keep lists of values (`List<Integer>`, `List<String>`) and objects of its own that it made itself; touching `crafter` after that line is `'crafter' was handed to 'Parallel(crafter.craft)', which keeps its 'recipe_ids' on another thread, so it is not used after that line`. Keep a list of ids as a `List<Integer>`, never as comma-joined text. A singleton a `Parallel` reaches locks each of its functions that touch its state, so never make and wait for a `Parallel` inside such a function when the work calls back into the same singleton: `'Columns.despawn_all' waits for 'Parallel(remover.run)' while it holds Columns's lock, ...`. Start and read the `Parallel` from a class that is not that singleton. Many calls to one singleton from a counted loop (`while index < count { columns.remove_row(index); index = index + 1 }`, nothing else locked or waited on in it) take its lock once for the whole loop, so such a loop is the cheap way to call a singleton many times; keep other singletons and waits out of it. A singleton's function that only reads (a lookup such as `at(row)`: locals, reads of lists, text and numbers, no calls out) runs beside other readers on other threads and waits only for writers, so keep lookups in small functions of their own, apart from the ones that change the singleton. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
-run ([concurrency.md](concurrency.md)).
+run ([concurrency.md](../docs/concurrency.md)).
 `$system_type.function_waits("update_each")` is decided while compiling like `has_function` (and
 `system.class.function_waits(...)` in a `Symbol<...>` walk): `true` when the function can reach a wait, so an engine
 starts it as a `Concurrent` and polls `finished`, and calls it directly otherwise; `klass.function_waits(name)` asks
@@ -537,7 +536,7 @@ between frames, or where one's value is read or its handle dropped. A loop polli
 function, or anything it calls, writes what its parameter number 1 (from 0) is given or anything reached through it
 (`true` too where it cannot tell, such as a call through a function value); an engine writes `crash not
 $system_type.function_writes_parameter("last_each", 1)` to make a system that breaks its rule a compile error that
-names the writing line ([metaprogramming.md](metaprogramming.md#asking-whether-a-function-writes-a-parameter)).
+names the writing line ([metaprogramming.md](../docs/metaprogramming.md#asking-whether-a-function-writes-a-parameter)).
 `JsonWriter(value).write(): String` writes JSON and `JsonReader<T>(text).read(): T?` reads it
 (`read_or_crash(): T` halts instead), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`;
 `read` skips unknown keys, keeps defaults for missing ones, reads a camelCase or PascalCase key (`buyPrice`,
@@ -554,7 +553,7 @@ different classes, write `writer.schema()` (a `Long` the compiler works out from
 the start of a file or connection and compare it with `reader.schema()` before reading. Attributes named `_...` are left out
 of both. A union, a `type` (`Anything` included) or a function value anywhere in what they see is a compile error at
 the line that makes the writer or reader (`JsonWriter cannot write 'Owner': 'Owner.pet' is the union Pet, ...`):
-keep what they see to the kinds above ([json.md](json.md)). `Json` no longer exists: it is the two classes above.
+keep what they see to the kinds above ([json.md](../docs/json.md)). `Json` no longer exists: it is the two classes above.
 Measure with `clock.elapsed_nanoseconds()`, the monotonic clock: a `Long`, no allocation, subtract two readings.
 Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(since_1970)` with
 `var since_1970 = Duration(1710054000, 'seconds')`.
@@ -565,7 +564,7 @@ reads a local reading: `var zones = TimeZones()`, `zones.find("America/New_York"
 `zones.fixed_offset(duration)`, then `zone.to_local(instant)`, `zone.to_text(instant)` and
 `zone.to_instant(local, 'compatible')` (or `'earlier'`/`'later'`, always written). `TimeText()` reads ISO 8601
 (`read_instant(text): Instant?`, `read_date`, `read_duration`, ...) and `to_string()` writes it. `Date(2023, 2,
-29)` halts, so read outside text with `TimeText`, which answers `null` ([time.md](time.md)).
+29)` halts, so read outside text with `TimeText`, which answers `null` ([time.md](../docs/time.md)).
 `DynamicLibrary("ucrtbase.dll", 'identity', "")` calls a native library's functions as members
 (`c_runtime.strlen(text)`, `_as_long`/`_as_double`/`_as_text` for wider results); the standard library's
 `library/windows/`, `linux/` and `mac/` folders reopen the classes each system changes (docs/foreign_libraries.md).
@@ -602,14 +601,14 @@ union), so use them rather than writing a value into memory to read its bytes.
 Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
 same name reopens it: `list.spite` adds a member template, `integer.spite` a function on every `Integer`.
 
-A statement is one line: anything after it on the same line -- after a `return` value, a call, or the `}` that
-closes an `if`, `while` or `switch` -- is a parse error (`'attribute' is left over after the end of the statement`),
+A statement is one line: anything after it on the same line (after a `return` value, a call, or the `}` that
+closes an `if`, `while` or `switch`) is a parse error (`'attribute' is left over after the end of the statement`),
 never a second statement.
 
 ## Habits from other languages that Spite rejects
 
-Almost every one of these is a compile error naming the Spite form -- the middle column is the start of what the
-compiler says -- so it will not pass silently; but each costs a round trip, and this table is cheaper to read than
+Almost every one of these is a compile error naming the Spite form (the middle column is the start of what the
+compiler says), so it will not pass silently; but each costs a round trip, and this table is cheaper to read than
 to rediscover. The rows marked *silent* compile, and do something you did not mean.
 
 | Written elsewhere | The compiler says | Written in Spite |
@@ -661,7 +660,7 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 | `text[0]` | `text is not indexed with [ ]` | `text.character_at(0)`, or `text.slice(start, end)` |
 | `// comment`, `/* comment */` | `Spite has no '//' or '/* */' comments` | nothing, or `# docs/page.md#section` on its own line outside a function |
 | `;` at the end of a line | `';' is not something Spite reads` | nothing |
-| `var memory = Memory()` | `this class has no function 'Memory'` | `var heap = Memory.Heap()` (inside a container of your own; see [memory.md](memory.md)) |
+| `var memory = Memory()` | `this class has no function 'Memory'` | `var heap = Memory.Heap()` (inside a container of your own; see [memory.md](../docs/memory.md)) |
 | `--repl_port=4000` | `'--repl_port' is written '--repl-port'` | kebab-case flags; the `Build` field behind it stays `repl_port` |
 | `spite game -- --player-name=ada` | `'--player-name' is written '--player_name'` (when the program runs) | a program's own setting is spelled like its field: `-- --player_name=ada` |
 | `spite game/game.spite` | `'game/game.spite' is a file, and a program is named by its folder` | `spite game` |

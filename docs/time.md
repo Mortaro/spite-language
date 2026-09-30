@@ -7,12 +7,8 @@ in that zone would read, and turns such a reading back into an `Instant`. The ca
 are separate: a `Duration` is an exact amount of time, and a `Period` is an amount of calendar (years, months,
 days), whose real length depends on where it is applied.
 
-The model is D127's and the type names are Mortaro's (D158, D160); the rest of the shape -- the members, the
-ambiguity rules, where the zones come from -- is proposed by Claude and waits on Mortaro
-([the rules in full](#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed)).
-
 All of it is library code, written in Spite, with nothing running behind it: a program that never names a time
-class carries none of it, and one that only measures with `Clock()` carries only that ([D177](decisions.md)).
+class carries none of it, and one that only measures with `Clock()` carries only that.
 Each value is an ordinary small object, and arithmetic makes a new one for its result, which lives wherever the
 compiler places it ([memory.md](memory.md#where-a-value-lives-memory)).
 
@@ -98,15 +94,14 @@ true true
 `Clock()` keeps its monotonic readings, `elapsed_nanoseconds()` and `elapsed_milliseconds()`, for measuring a
 frame or a request: the wall clock can jump when the machine's time is corrected, and a monotonic clock cannot. A
 reading is a `Long` of nanoseconds and allocates nothing, so a profiler can take one around every system of every
-frame; a `Duration` reading would be an object made per read, so the monotonic clock answers the number
-(D214: the faster of two similar ways).
+frame; a `Duration` reading would be an object made per read, so the monotonic clock answers the number.
 `now()` is the wall clock, and each system reads it its own way (`GetSystemTimeAsFileTime` on Windows,
 `clock_gettime` on Linux and macOS).
 
 ## Dates and periods
 
 `Date(year, month, day)` is a date in the proleptic Gregorian calendar, the one ISO 8601 uses, for any year
-(year 0 is 1 BC). A date that does not exist -- `Date(2023, 2, 29)` -- halts the program, since a program that
+(year 0 is 1 BC). A date that does not exist (`Date(2023, 2, 29)`) halts the program, since a program that
 builds one from its own numbers has a bug; text from outside is read with `TimeText` instead, which answers
 `null`. `Time(hour, minute, second, nanosecond)` is the same for a clock reading, and
 `DateTime(date, time)` joins the two.
@@ -150,7 +145,7 @@ are equal when their years, months and days are.
 `TimeZones()` is the database. `find(name)` answers the zone with an IANA name such as `"America/New_York"`,
 or `null` when the database has none by that name; `utc()` is UTC; `fixed_offset(offset)` is a zone that is
 always the same distance from UTC; `system()` is the zone the machine is set to, for showing times to the person
-at it -- and nothing uses it unless it is asked for by name, so a program never depends on the machine's zone by
+at it. Nothing uses it unless it is asked for by name, so a program never depends on the machine's zone by
 accident.
 
 What a zone answers:
@@ -276,9 +271,7 @@ with the system's own updates, and a program carries no copy of the database:
   `DynamicLibrary`). Windows' own registry zones are not used: they have Windows names, and less history.
 - **Linux and macOS** read the compiled database in `/usr/share/zoneinfo`, one TZif file per zone (RFC 8536),
   through `File` and parsed in Spite (`library/tzif_reader.spite`); `system()` follows `TZ`, then the
-  `/etc/localtime` link. This path is written but not yet run on Linux or macOS
-  ([the rules](#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed)
-  say how it is tested).
+  `/etc/localtime` link.
 
 What a zone costs when it runs: on Windows, `icu.dll` is loaded only by a program that asks for a named zone or
 `system()`, a zone holds an ICU calendar open until it is dropped, and each offset it answers is one call into
@@ -345,16 +338,16 @@ a local reading is not an instant
 2023 has no February 29
 ```
 
-## Not here yet
+## What time does not cover
 
-Calendars other than the ISO one, leap seconds (a leap second reads as the second before it, as everywhere
-else), formatting patterns and localized month names, and a zone's abbreviations (`EST`).
+There are no calendars other than the ISO one, no leap seconds (a leap second reads as the second before it, as
+everywhere else), no formatting patterns or localized month names, and no zone abbreviations (`EST`).
 
 ## Why this design
 
-D127 asked for the best date support there is, so that Spite never repeats JavaScript's `Date` -- a type that is
+The goal is the best date support there is, so that Spite never repeats JavaScript's `Date` (a type that is
 an instant and a local reading at once, whose months count from zero and whose replacement took most of a decade,
-with a wrapper library in every project meanwhile -- and for one stored format with zones only for presentation. Five
+with a wrapper library in every project meanwhile), with one stored format and zones only for presentation. Five
 modern designs were compared:
 
 - **JavaScript's `Temporal`** (the replacement for `Date`, in browsers from 2025) gets the split right:
@@ -362,8 +355,8 @@ modern designs were compared:
   text, and the `'compatible'`/`'earlier'`/`'later'`/`'reject'` choice for gaps and overlaps, which Spite copies.
   It gets two things wrong for Spite: its `Duration` holds years and months beside hours and nanoseconds, so
   whether a day is 24 hours depends on a `relativeTo` option; and `ZonedDateTime` makes an instant-plus-zone a
-  thing to store, which is the opposite of zones as presentation. Its surface -- non-ISO calendars, year-month
-  and month-day types, rounding options -- is several ways to do each thing.
+  thing to store, which is the opposite of zones as presentation. Its surface (non-ISO calendars, year-month
+  and month-day types, rounding options) is several ways to do each thing.
 - **Java's `java.time`** (JSR-310, from Joda-Time) has the separation Spite wants between `Duration` (exact
   seconds and nanoseconds) and `Period` (years, months, days), immutable values, and zone rules that answer
   transitions, read from the JDK's own copy of the database; its zone-less types are `LocalDate`, `LocalTime`
@@ -371,11 +364,11 @@ modern designs were compared:
   `OffsetDateTime` and `OffsetTime` besides, and it resolves a gap or an overlap by a default nobody chose at the
   call (`atZone`), with `ZoneId.systemDefault()` a line away.
 - **Rust's `jiff`** is Temporal in Rust: `Timestamp`, `civil::Date`/`Time`/`DateTime`, `Zoned`, `Span` and
-  `SignedDuration`, and it reads `/usr/share/zoneinfo` rather than shipping a copy -- the approach Spite copies
+  `SignedDuration`, and it reads `/usr/share/zoneinfo` rather than shipping a copy, the approach Spite copies
   for Linux and macOS. It keeps Temporal's two faults (`Span` mixes calendar and exact units; `Zoned` is a stored
   type). **`chrono`**, its predecessor, has `NaiveDate`/`NaiveDateTime` and a `LocalResult` that makes an
   ambiguous reading a value, but carries the zone as a type parameter, added month arithmetic late, and left the
-  database to competing crates -- the ecosystem split D127 was written against.
+  database to competing crates, the ecosystem split Spite's design avoids.
 - **.NET's NodaTime** (by Jon Skeet, written because `DateTime` has the same fault as JavaScript's `Date`) is the
   most principled: `Instant`, NodaTime's `LocalDate`/`LocalTime`/`LocalDateTime`, `Duration` apart from `Period`, a clock
   that is a service rather than a global, and gap and overlap resolution that is always explicit
@@ -391,10 +384,10 @@ modern designs were compared:
 three zone-less types, and a `Duration` that can never hold a day beside a `Period` that can never hold an hour.
 From Temporal: the ambiguity words, the ISO 8601 and RFC 9557 text, and printing an `Instant` in UTC with `Z`.
 From jiff: reading the operating system's database. What all of them have and Spite leaves out is a stored
-zoned type (`ZonedDateTime`, `Zoned`, `OffsetDateTime`): D127 makes a zone presentation, so an instant is stored
-and a zone is applied when it is shown, and the one conversion that needs a zone -- local reading to instant --
-names it and names its ambiguity rule every time. The zone-less types are plainly `Date`, `Time` and `DateTime`
-(D160), jiff's words, rather than NodaTime's and `java.time`'s `Local*` or Temporal's `Plain*`: a reader takes
+zoned type (`ZonedDateTime`, `Zoned`, `OffsetDateTime`): Spite makes a zone presentation, so an instant is stored
+and a zone is applied when it is shown, and the one conversion that needs a zone, local reading to instant,
+names it and names its ambiguity rule every time. The zone-less types are plainly `Date`, `Time` and `DateTime`,
+jiff's words, rather than NodaTime's and `java.time`'s `Local*` or Temporal's `Plain*`: a reader takes
 "local" to mean "has a zone", which is the confusion Temporal's `Plain` avoided, and a type that does carry a zone
 for presentation gets a prefix.
 
@@ -407,21 +400,18 @@ program that names a zone. The costs are a machine with no database, where `find
 ## Rules in full
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
-cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
-rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+cases, the exact error texts and the notes on how it is built. Where the teaching above and these rules disagree,
+the rules win.
 
-### Time: one stored instant, zones for presentation  **[implemented on Windows; the shape proposed by Claude, unconfirmed]**
+### Time: one stored instant, zones for presentation
 
-D127 (decided by Mortaro): the best date and time support there is, so that Spite never repeats JavaScript's
-`Date` and the wrappers it bred, with **one stored format -- an exact instant -- and time zones only a
+The aim is the best date and time support there is, so that Spite never repeats JavaScript's
+`Date` and the wrappers it bred, with **one stored format, an exact instant, and time zones only a
 presentation layer**, copied from the best modern design; [Why this design](#why-this-design) compares the
-candidates and argues the choice. The names are Mortaro's: `Instant`, `Duration` and `Period` (D158), and for a
-zone-less reading `Date`, `Time` and `DateTime` (D160), with no `Local` prefix (the old spellings are errors that
-name the new ones: `'LocalDate' is spelled 'Date'`). Everything else below is Claude's proposal, NodaTime's model
-with Temporal's vocabulary and no stored zoned type (proposed by Claude, unconfirmed; the constructors, `now()`
-and the lenient reading of text are still open as `mortaros_missing_decisions.md` items 118, 120 and 121).
+candidates and argues the choice. The names are `Instant`, `Duration` and `Period`, and for a
+zone-less reading `Date`, `Time` and `DateTime`, with no `Local` prefix (the old spellings are errors that
+name the new ones: `'LocalDate' is spelled 'Date'`). Everything else below is NodaTime's model
+with Temporal's vocabulary and no stored zoned type.
 
 | Class | What it is |
 |---|---|
@@ -445,23 +435,24 @@ and the lenient reading of text are still open as `mortaros_missing_decisions.md
   `java.time`'s `Period.between`. `Duration(1, 'days')` is `'days' is not a value of this enum`, and comparing
   two periods with `<` is `this operator on a 'Period' needs it to define 'less_than(other)'`.
 - **Every gap and overlap is resolved by a rule the call names**: `'compatible'` (a gap resolves after it, an
-  overlap to its first instant -- RFC 5545's rule, and `java.time`'s and `Temporal`'s default), `'earlier'` or
+  overlap to its first instant: RFC 5545's rule, and `java.time`'s and `Temporal`'s default), `'earlier'` or
   `'later'`. The zone finds the offsets a day either side of the reading and keeps the ones that map back to it:
   both for an overlap, neither for a gap.
 - **A value that cannot exist halts; text that cannot exist is `null`.** `Date(2023, 2, 29)` and
-  `Time(24, 0, 0, 0)` crash, since a program that builds one from its own numbers has a bug (D24); reading
+  `Time(24, 0, 0, 0)` crash, since a program that builds one from its own numbers has a bug; reading
   text answers `T?`. A leap second in text reads as the second before it.
 - **The database is the operating system's, and nothing is embedded.** Windows reads IANA zones through
   `icu.dll` (Windows 10 1903 and later), loaded only when a named zone is asked for
   (`library/windows/zone_calendar.spite`); Linux and macOS read the TZif files under `/usr/share/zoneinfo` in Spite
   (`library/tzif_reader.spite`: RFC 8536 versions 1 to 4 and the POSIX rule in the footer), and `system()` follows
-  `TZ`, then `/etc/localtime`. `read_tzif` is the same reader for a file a program brings. **The Linux and macOS
-  path is untested**: `check.sh` holds it to compiling (it writes `conformance/stage6/daylight_saving` for each
-  system), and `conformance/stage6/zone_files` runs the TZif reader on Windows over three files written for the
-  test and checked with Python's `zoneinfo`.
+  `TZ`, then `/etc/localtime`. `read_tzif` is the same reader for a file a program brings. `conformance/stage6/zone_files` runs the
+  TZif reader on Windows over three files written for the test and checked with Python's `zoneinfo`.
 - **Clock** keeps `elapsed_nanoseconds()` (the monotonic clock: a `Long` of nanoseconds, no allocation per reading) and `elapsed_milliseconds()` for measuring, and `now()` answers an
   `Instant`.
 
-Not built: calendars other than ISO 8601's, leap seconds, formatting patterns and localized names, zone
-abbreviations. `conformance/stage6/instant_arithmetic`, `calendar_math`, `daylight_saving`, `zone_files`,
-`fixed_offsets`, `time_text_round_trips` and `time_text_errors`; `docs/time.md`.
+The conformance programs are `conformance/stage6/instant_arithmetic`, `calendar_math`, `daylight_saving`,
+`zone_files`, `fixed_offsets`, `time_text_round_trips` and `time_text_errors`.
+
+---
+
+Next: [Game maths](game_maths.md), vectors, matrices and the maths a game loop needs.

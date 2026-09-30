@@ -1,5 +1,5 @@
-diagnostics/json_split/json_split.spite:5: error: there is no 'Json': it is two classes (D208), 'JsonWriter(value)' whose 'write()' makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?' (in JsonSplit.JsonSplit)
+diagnostics/json_split/json_split.spite:5: error: there is no 'Json': it is two classes, 'JsonWriter(value)' whose 'write()' makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?' (in JsonSplit.JsonSplit)
 diagnostics/json_split/json_split.spite:6: error: a Value has no function 'write' (in JsonSplit.JsonSplit)
-diagnostics/json_split/json_split.spite:7: error: there is no 'Json': it is two classes (D208), 'JsonWriter(value)' whose 'write()' makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?' (in JsonSplit.JsonSplit)
-diagnostics/json_split/json_split.spite:9: error: there is no 'Json': it is two classes (D208), 'JsonWriter(value)' whose 'write()' makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?' (in JsonSplit.JsonSplit)
+diagnostics/json_split/json_split.spite:7: error: there is no 'Json': it is two classes, 'JsonWriter(value)' whose 'write()' makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?' (in JsonSplit.JsonSplit)
+diagnostics/json_split/json_split.spite:9: error: there is no 'Json': it is two classes, 'JsonWriter(value)' whose 'write()' makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?' (in JsonSplit.JsonSplit)
 diagnostics/json_split/json_split.spite:4: error: 'scores' is never read: remove it (in JsonSplit.JsonSplit)

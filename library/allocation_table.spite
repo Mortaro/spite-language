@@ -112,7 +112,7 @@ func leaked_objects(class_id: Long): Long {
 func forget_live(address: Long, mistake: String) {
     var was_live = forget(address)
     if not was_live {
-        console.error("spite: --debug-memory: {mistake} -- an ownership bug")
+        console.error("spite: --debug-memory: {mistake} (an ownership bug)")
     }
     crash was_live
 }
