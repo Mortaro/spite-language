@@ -8,6 +8,10 @@ var git_found = false
 var verified = List<String>()
 var pins = Dictionary<String>()
 var pin_sites = Dictionary<String>()
+var versions = Versions()
+var earlier: Versions? = null
+var identities = Dictionary<String>()
+var full_commits = Dictionary<String>()
 var origins = Dictionary<String>()
 var displays = Dictionary<String>()
 var checkout_folders = List<String>()
@@ -87,7 +91,7 @@ func form(): String {
     return "A git load is 'load \"<repository>@<commit>\"' or 'load \"<repository>@<commit>/<folder inside it>\"', the repository a URL (github.com/mortaro/engine, https://..., ssh://..., file://...) or a folder on this machine by a path starting with ./, ../, / or a drive letter (../slop_engine), and the commit 7 to 40 lowercase hexadecimal digits"
 }
 
-func folder_of(text: String, file_folder: String, site: String): String? {
+func folder_of(text: String, file_folder: String, site: String, library: String): String? {
     problem = ""
     var at = last_at(text)
     crash at >= 0
@@ -139,7 +143,9 @@ func folder_of(text: String, file_folder: String, site: String): String? {
     var checkout = "{key_folder}/{commit}"
     var full_commit = checked_out(text, source, display, local, key_folder, commit)
     assert full_commit
-    assert pinned_once(text, identity, display, commit, full_commit, site)
+    assert pinned_once(text, identity, display, commit, full_commit, "{site} ('load \"{text}\"')", library)
+    identities[checkout] = identity
+    full_commits[checkout] = full_commit
     if not checkout_folders.contains("{checkout}/") {
         checkout_folders.append("{checkout}/")
         origins[checkout] = ""
@@ -236,19 +242,48 @@ func pinned_once(
     commit: String,
     full_commit: String,
     site: String,
+    library: String,
 ): Boolean {
-    if not pins.has(identity) {
-        pins[identity] = full_commit
-        pin_sites[identity] = "{site} ('load \"{text}\"')"
+    var key = "{library}\n{identity}"
+    versions.note_pin(library, identity, display, full_commit, site)
+    if not pins.has(key) {
+        pins[key] = full_commit
+        pin_sites[key] = site
         return true
     }
-    crash pins[identity]
-    if pins[identity] == full_commit {
+    crash pins[key]
+    if pins[key] == full_commit {
         return true
     }
-    crash pin_sites[identity]
-    problem = "'load \"{text}\"' pins {display} at {commit}, and {pin_sites[identity]} pins it at another commit: two commits of one repository would reopen each other's classes, so pin the same commit in both"
+    crash pin_sites[key]
+    problem = "'load \"{text}\"' pins {display} at {commit}, and {pin_sites[key]} pins it at another commit in the same package: both versions' classes would have the same names there, so one package pins one commit of a repository"
     return false
+}
+
+func is_versioned(identity: String): Boolean {
+    if versions.versioned.contains(identity) {
+        return true
+    }
+    if earlier {
+        return earlier.versioned.contains(identity)
+    }
+    return false
+}
+
+func version_prefix(checkout: String): String {
+    var identity = identities.get(checkout)
+    if not identity {
+        return ""
+    }
+    if not is_versioned(identity) {
+        return ""
+    }
+    crash full_commits[checkout]
+    var known = versions
+    if earlier {
+        known = earlier
+    }
+    return known.prefix_of(identity, full_commits[checkout])
 }
 
 func checked_out(

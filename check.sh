@@ -181,6 +181,56 @@ if command -v git > /dev/null 2>&1; then
   echo "$edited" | grep -q "is not what the commit $pinned of .*engine_repo holds: a checkout is read-only" || {
     echo "FAILED: a changed checkout is not an error"; echo "$edited" | head -5; exit 1; }
   echo "git load: a load pinned to a commit of a local repository is checked out into .spite/git/ once, and stays that commit"
+  # D296: two commits of one repository are two libraries. The program pins the engine at the first commit and a
+  # plugin repository pins it at the later one; each reads its own version, a mod folder the program loads reopens
+  # the program's version only, and one package pinning both commits is an error naming both lines.
+  rm -rf "$checkout" "$checkout.files"   # the edited copy above is fetched again
+  later=$(git -C "$engine_repository" rev-parse --short=7 HEAD)
+  plugin_repository="$pinned_work/plugin_repo"
+  mkdir -p "$plugin_repository/plugin" "$pinned_work/two_versions/mods" "$pinned_work/one_package_two_pins"
+  printf 'func Plugin() {
+    load "../../engine_repo@%s/slop"
+}
+
+func told(): String {
+    var greeter = Greeter()
+    return greeter.greeting()
+}
+' "$later" > "$plugin_repository/plugin/plugin.spite"
+  git -C "$plugin_repository" init -q && git -C "$plugin_repository" add plugin/plugin.spite     && git -C "$plugin_repository" -c user.email=check@spite.invalid -c user.name=check -c commit.gpgsign=false commit -q -m plugin
+  plugin_commit=$(git -C "$plugin_repository" rev-parse --short=7 HEAD)
+  printf 'var console = Console()
+
+func TwoVersions() {
+    load "../engine_repo@%s/slop"
+    load "../plugin_repo@%s/plugin"
+    load "mods"
+    var greeter = Greeter()
+    var said = greeter.greeting()
+    console.print(said)
+    var plugin = Plugin()
+    var told = plugin.told()
+    console.print(told)
+}
+' "$pinned" "$plugin_commit" > "$pinned_work/two_versions/two_versions.spite"
+  printf 'func greeting(): String {
+    return "the program modded its own version"
+}
+' > "$pinned_work/two_versions/mods/greeter.spite"
+  two_versions=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" two_versions < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '')
+  if [ "$two_versions" != "$(printf 'the program modded its own version
+hello from a later commit')" ]; then
+    echo "FAILED: two commits of one repository are not two libraries, each read by the package that pinned it"; echo "$two_versions" | head -5; exit 1
+  fi
+  printf 'func OnePackageTwoPins() {
+    load "../engine_repo@%s/slop"
+    load "../engine_repo@%s/slop"
+}
+' "$pinned" "$later" > "$pinned_work/one_package_two_pins/one_package_two_pins.spite"
+  two_pins=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" one_package_two_pins --run=false 2>&1 | tr -d '')
+  echo "$two_pins" | grep -q "^one_package_two_pins/one_package_two_pins.spite:3: error: .* pins it at another commit in the same package" || {
+    echo "FAILED: one package pinning two commits of one repository is not an error naming both lines"; echo "$two_pins" | head -5; exit 1; }
+  echo "git load: two commits of one repository are two libraries, and one package pins one commit"
 else
   echo "git load: SKIPPED, there is no git on the PATH to make a repository with"
 fi
