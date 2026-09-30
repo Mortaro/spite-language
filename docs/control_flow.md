@@ -554,6 +554,28 @@ this switch only asks what class 'creature' is: write 'return creature == Fish'
 Anything that would need an `else` stays a switch, and so does a switch with more cases: `_:` narrows to each
 remaining member, which an `else` cannot.
 
+## Nothing after a `return`
+
+A statement written after a `return` in the same block could never run, so it is an error rather than a step
+skipped without a word (D244):
+
+```gdscript title=after_return_error/after_return_error.spite entry
+var console = Console()
+
+func AfterReturnError() {
+    var doubled = double(4)
+    console.print(doubled)
+}
+
+func double(value: Integer): Integer {
+    return value * 2
+    console.print("doubled")
+}
+```
+```diagnostic
+this statement comes after a 'return', so it never runs: remove it
+```
+
 ## Rules in full
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge

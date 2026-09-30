@@ -24812,6 +24812,17 @@ func address_parameter_names(function: Analysis.FunctionInfo): List<String> {
     return names
 }
 
+# ../docs/control_flow.md#nothing-after-a-return
+func report_after_return(statements: List<Syntax.Statements.Statement>, index: Integer) {
+    assert index + 1 < statements.count()
+    assert shape.as_return_statement(statements[index])
+    var next = statements[index + 1]
+    var saved_line = current_line
+    current_line = statement_line(next)
+    report("this statement comes after a 'return', so it never runs: remove it")
+    current_line = saved_line
+}
+
 func generate_statement_list(
     statements: List<Syntax.Statements.Statement>,
     scope: Scope,
@@ -24854,6 +24865,7 @@ func generate_statement_list(
             overlapped_reads.append(read_name)
         }
         var folded_return = ended_in_return and (statements[index] == Syntax.Statements.IfStatement or statements[index] == Syntax.Statements.AssertStatement)
+        report_after_return(statements, index)
         index = index + 1
         if folded_return and index < statements.count() {
             undo_proofs_after_calls(scope, class_information)
@@ -28588,7 +28600,7 @@ func generate_switch_statement(
             member_index = member_index + 1
         }
         report(
-            "this switch over '{information.simple_name}' has no case for {missing.join(", ")}: every member is covered, so a member added later cannot be forgotten",
+            "this switch over '{information.simple_name}' has no case for {missing.join(", ")}: a switch over a union covers every member, so a member added later cannot be forgotten -- add the cases, or end with '_:' for the rest",
         )
     }
     if owns(subject, switch_statement.subject) {

@@ -1094,8 +1094,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs ([proo
 - **The guard lint sees only literal defaults** (D106). An `if` whose only statement returns `null`, `false`,
   `0`, `0.0`, `""` or nothing is caught; `if ... { return List<T>() }` in a function answering a `List` is not. And
   a function that lends a list element (D269) is not checked for a guard `assert` at all.
-- **The union `switch` message says the opposite of what it means**: "has no case for File: every member is
-  covered, so a member added later cannot be forgotten". The enum message is worded right.
 - **A frame buffer's uses are matched by name.** Placing an allocation in the frame accepts `read_value`,
   `write_value`, `release_value` and `swap_values` on any receiver, not only `TypedMemory`'s, so a program's own
   `write_value` that keeps the address would pass ([memory.md](memory.md#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)).
@@ -1106,7 +1104,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs ([proo
   where every other signed result that does not fit halts (D249).
 - **A `while true` that can never leave** ends its function's paths for the missing-`return` check, and nothing
   reports it outside a locked singleton function: a hang.
-- **Statements after a `return`** in the same block are compiled without a word: a skipped step.
 - **A wider value assigned, passed or returned into a narrower name** (`var small: Tiny = wide`) wraps in every
   build; only operators are checked (D162, D251).
 - **Two threads writing one number attribute of an instance they share** is not refused: the reach rules (D35,
