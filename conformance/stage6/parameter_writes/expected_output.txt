@@ -4,5 +4,6 @@ aliases: true shrinks: true text reads: false
 calls: true checked: false recursive: true ping: true
 lent: true reads: false false renames: false
 stores: true calls a value: true missing: false
+writes a singleton it holds: false directly: false
 a system that only reads can run on a snapshot
 the check holds, so nothing is left at run time

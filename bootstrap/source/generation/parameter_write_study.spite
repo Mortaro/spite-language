@@ -383,6 +383,13 @@ func apply(
             "at {path}:{line}: '{printed(call)}' calls {shown}, which writes the object it is called on",
         )
     }
+    if table_now.writes(key, "shared") {
+        var shared_reason = table_now.reason_of(key, "shared")
+        record_all(
+            "|shared|",
+            "at {path}:{line}: '{printed(call)}' calls {shown}, which writes a singleton {shared_reason}",
+        )
+    }
     var last_position = callee.parameters.count() - 1
     var index = 0
     while index < call.arguments.count() {
@@ -407,6 +414,7 @@ func undecided(call: Syntax.Expressions.CallExpression) {
     var studied = the_function()
     var reason = "at {path}:{line}: '{printed(call)}' calls a function value, which may write anything it reaches, so the question cannot be decided"
     record_all("|this|", reason)
+    record_all("|shared|", reason)
     var index = 0
     while index < studied.parameters.count() {
         record_all("|{index}|", reason)
@@ -690,6 +698,10 @@ func raw_roots(expression: Syntax.Expressions.Expression): String {
             if is_static_path(expression) {
                 return ""
             }
+            var member_field_type = member_type(expression)
+            if binds_singleton(member_field_type) {
+                return "|shared|"
+            }
             return raw_roots(expression.object)
         }
         Syntax.Expressions.IndexExpression: {
@@ -724,10 +736,29 @@ func named_roots(name: String): String {
         return "|this|"
     }
     var studied = the_owner()
-    if studied.find_field(name) {
+    var field = studied.find_field(name)
+    if field {
+        if binds_singleton(field.spite_type) {
+            return "|shared|"
+        }
         return "|this|"
     }
     return ""
+}
+
+func binds_singleton(field_type: Analysis.SpiteType?): Boolean {
+    if not field_type {
+        return false
+    }
+    var class_ref = type_shape.as_class_ref(field_type)
+    if not class_ref {
+        return false
+    }
+    var bound = tools().find_class_by_c_name(class_ref.c_name)
+    if not bound {
+        return false
+    }
+    return bound.is_singleton
 }
 
 func call_roots(call: Syntax.Expressions.CallExpression): String {
@@ -738,6 +769,9 @@ func call_roots(call: Syntax.Expressions.CallExpression): String {
         return united(receiver, handed)
     }
     if called_made {
+        if called_made.is_singleton {
+            return "|shared|"
+        }
         return ""
     }
     crash called_owner
@@ -758,6 +792,9 @@ func returned_roots(
     var gathered = ""
     if table_now.writes(key, "r:this") {
         gathered = receiver
+    }
+    if table_now.writes(key, "r:shared") {
+        gathered = united(gathered, "|shared|")
     }
     var last_position = callee.parameters.count() - 1
     var index = 0

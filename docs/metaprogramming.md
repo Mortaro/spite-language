@@ -1006,8 +1006,8 @@ folder for a package's (`ui/layout` for a class in `plugins/slop_ui_plugin/ui/la
 `load "../../plugins/slop_ui_plugin"`), and `library/` for the standard library's (`spite` for `Spite.Class`) --
 so a check can tell whose a class is without knowing where anything lives; `source_folder()` stays the absolute
 folder. **`kind.class.has_state()`** is `true` when some function of the class other than its constructor and
-`drop()` writes the class's own attributes, or anything reached through them, or when a singleton the class binds
-has state; it is the same study `function_writes_parameter` answers from ([below](#asking-whether-a-function-writes-a-parameter)),
+`drop()` writes the class's own attributes, or anything reached through them, or a singleton, or when a singleton
+the class binds has state; it is the same study `function_writes_parameter` answers from ([below](#asking-whether-a-function-writes-a-parameter)),
 asked of the object itself. Both are constants while compiling, so the walk costs nothing when the program runs,
 and a program that never walks carries nothing of it.
 
@@ -1436,7 +1436,8 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
   statically and a walked class, to `true` when a function of the class other than its constructor and `drop()`
   writes its own object -- an attribute set on it or on anything reached through it, a call that writes it -- by
   the study `function_writes_parameter` uses (D261, [proofs.md](proofs.md#whether-a-class-keeps-state)), or when an
-  attribute of the class holds a singleton that has state, followed through singletons however deep. An attribute
+  attribute of the class holds a singleton that has state, followed through singletons however deep, or when such a
+  function writes a singleton, through an attribute binding it or not (D292). An attribute
   written only by other classes' code does not count: that write is state of the class that makes it. It has no
   run-time form, and it takes nothing: `'$T.has_state()' is decided while compiling, and it takes nothing`.
 - **`$T.argument_class("update_each", 0)` is the class of a function's parameter, as a type** (D288, decided by
@@ -1512,6 +1513,11 @@ named for is an error (`diagnostics/hole_values`). Only the taken branch is comp
     neither is giving the parameter's name, or such a local, a new object (`p = Row()` and writes to that new
     object after it), and neither is copying a number, a `Boolean`, text or an enum out of it. Recursion, direct
     or mutual, is followed to a fixed point.
+  - **A singleton is nobody's parameter** (D292). An attribute that binds a singleton (`var world = World()`)
+    holds shared state, not the object's own, so a write to it, or to anything reached through it, is not a
+    write to the object that holds the attribute nor to the parameter that reached it: `row.entity.add_component(x)`,
+    where `Entity.add_component` only queues a command on `world`, does not write `row`. It is still a write --
+    `has_state()` counts it for the class whose code makes it.
   - **A call's result is what the callee returns** (D268). A call made by name to a function the compiler follows
     stands for only the objects that function can return: a function that returns an object it made
     (`var navigation = Navigation() ... return navigation`, or a constructor) gives a result that carries none of

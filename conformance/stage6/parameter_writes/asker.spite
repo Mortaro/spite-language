@@ -29,6 +29,9 @@ func report() {
     var calls_value = $system_type.function_writes_parameter("calls_value", 0)
     var missing = $system_type.function_writes_parameter("no_such_function", 0)
     console.print("stores:", stores, "calls a value:", calls_value, "missing:", missing)
+    var queues = $system_type.function_writes_parameter("queues", 0)
+    var queues_directly = $system_type.function_writes_parameter("queues_directly", 0)
+    console.print("writes a singleton it holds:", queues, "directly:", queues_directly)
     if $system_type.function_writes_parameter("reads", 1) {
         console.print("never compiled")
     } else {

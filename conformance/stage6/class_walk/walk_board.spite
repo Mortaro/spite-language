@@ -1,0 +1,3 @@
+singleton
+
+var marks = List<Integer>()

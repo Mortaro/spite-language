@@ -1,0 +1,6 @@
+var board = WalkBoard()
+
+func scribble(): Integer {
+    board.marks.append(3)
+    return board.marks.count()
+}

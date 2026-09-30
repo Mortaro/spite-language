@@ -1217,6 +1217,11 @@ func class_has_state(owner: Analysis.ClassInfo, visited: List<String>): Boolean 
             writes_reasons.append("'{owner.simple_name}.{function.name}' writes its own attributes {why}")
             return true
         }
+        if studied and parameter_writes.writes(function.c_name, "shared") {
+            var shared_why = parameter_writes.reason_of(function.c_name, "shared")
+            writes_reasons.append("'{owner.simple_name}.{function.name}' writes a singleton {shared_why}")
+            return true
+        }
         index = index + 1
     }
     var field_index = 0

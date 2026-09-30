@@ -534,8 +534,9 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   through it.
 - **Rule.** `$T.function_writes_parameter("update_each", index)` folds. A write is an attribute or item set on what
   the parameter reaches, a call that writes its own object, passing it to a parameter that is written, or storing
-  it where a later write could reach it; reassigning the name and copying plain values out are not writes. It follows
-  a walked argument's `.index` and what a callee returns (D268).
+  it where a later write could reach it; reassigning the name and copying plain values out are not writes, and
+  neither is a write to a singleton reached through it, which is shared state (D292). It follows a walked
+  argument's `.index` and what a callee returns (D268).
 - **Buys.** An engine refuses a system whose writes a snapshot would lose, with `crash not ...`.
 - **Falls back.** Where it cannot decide -- a function value, dispatch through a union or `type`, a template, an
   unknown class -- the answer is `true`.
@@ -554,7 +555,8 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   state -- or that one does.
 - **Rule.** `$T.has_state()` folds, and so does `kind.class.has_state()` in a walk over `Symbol<Spite.Class>`. It
   asks the question of [Whether a function writes a parameter](#whether-a-function-writes-a-parameter) of each
-  function's own object, skipping the constructor and `drop()`, and follows the singletons the class binds.
+  function's own object, skipping the constructor and `drop()`, counts a function that writes a singleton (D292),
+  and follows the singletons the class binds.
 - **Buys.** An engine can refuse a system that keeps state between frames, for every system at once.
 - **Falls back.** As that question does: where the study cannot decide, the answer is `true`. The standard
   library counts like any code, so a class binding `Console` has state (reading a line writes its buffer).

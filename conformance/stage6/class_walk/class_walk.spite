@@ -4,13 +4,15 @@ var holder = WalkHolder()
 var plain = WalkPlain()
 var part = Parts.WalkPart()
 var watcher = WalkWatcher()
+var scribbler = WalkScribbler()
 
 func ClassWalk() {
     counter.count_up()
     holder.note()
     var doubled = plain.doubled(part.size)
     var seen = watcher.seen()
-    console.print("ran", counter.total, doubled, seen)
+    var marked = scribbler.scribble()
+    console.print("ran", counter.total, doubled, seen, marked)
     var part_class = part.class
     var part_folder = part_class.package_folder()
     console.print("at run time", part_folder)

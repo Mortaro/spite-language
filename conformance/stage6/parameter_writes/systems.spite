@@ -123,3 +123,11 @@ func calls_value(row: Row) {
 func announce(text: String) {
     console.print(text)
 }
+
+func queues(row: Row) {
+    row.counter.report_count()
+}
+
+func queues_directly(row: Row) {
+    row.counter.ledger.entries.append(row.health)
+}
