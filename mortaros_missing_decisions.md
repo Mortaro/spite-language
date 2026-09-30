@@ -101,11 +101,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
 219. **Confirm D263-D267** and the names `remove_where`, `truncate`, `swap`.
 225. **One package pinning two commits of one repository** (D296): both versions' classes share dotted names there.
      Keep it an error (proposed), or a way to name each (`load ... as Name`)? Recommend the error.
-234. **Identical code folding** (D296's second half; the duplicate C of two versions stays until it lands).
-     Options: (a) fold functions whose C is literally identical, in the compiler, every build (as
-     [optimizations.md](docs/optimizations.md#identical-functions-are-folded-into-one) proposes); (b) also fold
-     across types of equal layout (`Column<Position>`/`Column<Velocity>`); (c) the linker's ICF (`/OPT:ICF`,
-     `--icf=all`), no compiler work, optimised builds only. Recommended by the orchestrator: (c).
 
 ## Taste (names, syntax, how it reads)
 

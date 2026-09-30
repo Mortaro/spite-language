@@ -188,6 +188,7 @@ var namespace_objects_emitted = 0
 var crash_map_lines = List<String>()
 var site_ordinal = 0
 var current_site_id = ""
+var site_symbols = Dictionary<String>()
 var functions_function_classes = List<Analysis.ClassInfo>()
 var dictionary_names = List<String>()
 var number_key_sites = Dictionary<Analysis.SpiteType>()
@@ -923,6 +924,7 @@ func generate(
     }
     builder.shakes = not keeps_internals
     builder.hot_reload = hot_reload
+    builder.folds = not hot_reload and not read_evaluate_print_loop and not reload_host
     builder.debug_memory = debug_memory
     builder.constant_texts = constant_texts
     var rendered = ""
@@ -9551,7 +9553,7 @@ func checked_division(
     var c_type = c_type_name(left_type)
     var dividend = next_temporary()
     var divisor = next_temporary()
-    var where = escape_c_string("{current_path}:{current_line} in {current_owner}.{current_function}")
+    var where = located(current_path, current_line, current_owner, current_function)
     var operation = escape_c_string(written)
     var computed = "{dividend} {binary_operator_symbol(binary.operator)} {divisor}"
     if is_signed_kind(scalar.kind) and binary.operator == 'divide' {
@@ -9560,7 +9562,7 @@ func checked_division(
     if is_signed_kind(scalar.kind) and binary.operator == 'modulo' {
         computed = "{divisor} == -1 ? ({c_type})0 : {dividend} % {divisor}"
     }
-    return "(\{ {c_type} {dividend} = {left_code}; {c_type} {divisor} = {right_code}; if ({divisor} == 0) spite_divided_by_zero(\"{operation}\", \"{where}\"); ({c_type})({computed}); })"
+    return "(\{ {c_type} {dividend} = {left_code}; {c_type} {divisor} = {right_code}; if ({divisor} == 0) spite_divided_by_zero(\"{operation}\", {where}); ({c_type})({computed}); })"
 }
 
 func checked_overflow(
@@ -9590,7 +9592,7 @@ func checked_overflow(
     var left_value = next_temporary()
     var right_value = next_temporary()
     var result = next_temporary()
-    var where = escape_c_string("{current_path}:{current_line} in {current_owner}.{current_function}")
+    var where = located(current_path, current_line, current_owner, current_function)
     var operation = escape_c_string(written)
     var type_name = type_display_name(left_type)
     var builtin = "__builtin_add_overflow"
@@ -9600,7 +9602,7 @@ func checked_overflow(
     if binary.operator == 'multiply' {
         builtin = "__builtin_mul_overflow"
     }
-    return "(\{ {c_type} {left_value} = {left_code}; {c_type} {right_value} = {right_code}; {c_type} {result}; if ({builtin}({left_value}, {right_value}, &{result})) spite_overflowed(\"{operation}\", \"{with_article(type_name)}\", \"{binary_operator_symbol(binary.operator)}\", (int64_t){left_value}, (int64_t){right_value}, \"{where}\"); {result}; })"
+    return "(\{ {c_type} {left_value} = {left_code}; {c_type} {right_value} = {right_code}; {c_type} {result}; if ({builtin}({left_value}, {right_value}, &{result})) spite_overflowed(\"{operation}\", \"{with_article(type_name)}\", \"{binary_operator_symbol(binary.operator)}\", (int64_t){left_value}, (int64_t){right_value}, {where}); {result}; })"
 }
 
 func ensure_overflow_check() {
@@ -17276,10 +17278,10 @@ func bounded_item(got: ExpressionResult, read_path: String): ExpressionResult {
     var inner = nullable.get_inner()
     ensure_index_check()
     var temporary = next_temporary()
-    var where = escape_c_string("{current_path}:{current_line} in {current_owner}.{current_function}")
+    var where = located(current_path, current_line, current_owner, current_function)
     var read = escape_c_string(read_path)
     var declaration = "{c_type_name(got_type)} {temporary} = {got.code};"
-    var halt = "spite_outside_list(\"{read}\", \"{where}\");"
+    var halt = "spite_outside_list(\"{read}\", {where});"
     var code = "(\{ {declaration} if (__builtin_expect(!{temporary}.has_value, 0)) {halt} {temporary}.value; })"
     if type_is_reference(inner) {
         code = "(\{ {declaration} if (__builtin_expect(!({present_code(temporary, inner)}), 0)) {halt} {temporary}; })"
@@ -21714,10 +21716,8 @@ func lent_element_read(information: Analysis.ClassInfo, function: Analysis.Funct
     var printer = Syntax.SourcePrinter()
     var returned_text = printer.source_expression(returned)
     var read = escape_c_string(returned_text)
-    var where = escape_c_string(
-        "{function.source_path}:{function.line} in {information.qualified_dotted}.{function.name}",
-    )
-    return "((__builtin_expect({failed}, 0)) ? (spite_outside_list(\"{read}\", \"{where}\"), {item}) : {item})"
+    var where = located(function.source_path, function.line, information.qualified_dotted, function.name)
+    return "((__builtin_expect({failed}, 0)) ? (spite_outside_list(\"{read}\", {where}), {item}) : {item})"
 }
 
 func finish_lend_sites() {
@@ -32150,7 +32150,9 @@ func record_site(
     class_information: Analysis.ClassInfo,
 ) {
     site_ordinal = site_ordinal + 1
-    current_site_id = content_hash("{current_owner}/{function_name}/{site_ordinal}/{assert_statement.condition_text}")
+    current_site_id = content_hash(
+        "{version_free_owner(current_owner)}/{function_name}/{site_ordinal}/{assert_statement.condition_text}",
+    )
     var operands = List<String>()
     if not crash_parts.is_empty() {
         crash_map_lines.append(
@@ -32578,7 +32580,7 @@ func emit_folded_check(
     }
     site_ordinal = site_ordinal + 1
     current_site_id = content_hash(
-        "{current_owner}/{function_information.name}/{site_ordinal}/{assert_statement.condition_text}",
+        "{version_free_owner(current_owner)}/{function_information.name}/{site_ordinal}/{assert_statement.condition_text}",
     )
     crash_map_lines.append(
         "{current_site_id}\t{current_path}\t{current_line}\t0\t{current_owner}\t{function_information.name}\t{site_kind}\t{assert_statement.condition_text}\t",
@@ -32653,7 +32655,8 @@ func emit_check_failure(
     if assert_statement.is_crash {
         builder.add_user("spite_crash_begin();")
         builder.add_user("fflush(stdout);")
-        builder.add_user("fputs(\"spite.crash\\t{current_site_id}{report_place(function_information)}\", stderr);")
+        var crash_line = reported_site("spite.crash", "", function_information)
+        builder.add_user("fputs({crash_line}, stderr);")
         if guard {
             emit_missing_report(guard, scope, class_information)
         } else if with_operands {
@@ -32739,10 +32742,71 @@ func report_place(function_information: Analysis.FunctionInfo): String {
     return "{tab_text()}{escape_c_string(current_path)}:{current_line}{tab_text()}{current_owner}{tab_text()}{function_information.name}"
 }
 
+# ../docs/optimizations.md#identical-functions-are-folded-into-one
+func reported_site(kind: String, ending: String, function_information: Analysis.FunctionInfo): String {
+    var text = "{kind}{tab_text()}{current_site_id}{report_place(function_information)}{ending}"
+    var free_path = version_free_path(current_path)
+    var free_owner = version_free_owner(current_owner)
+    var key = "{kind}/{current_site_id}/{bare_crash_sites}/{free_path}:{current_line}/{free_owner}/{function_information.name}{ending}"
+    return site_symbol(key, text)
+}
+
+func located(path: String, line: Integer, owner: String, function_name: String): String {
+    var text = escape_c_string("{path}:{line} in {owner}.{function_name}")
+    var free_path = version_free_path(path)
+    var free_owner = version_free_owner(owner)
+    return site_symbol("{free_path}:{line} in {free_owner}.{function_name}", text)
+}
+
+func site_symbol(key: String, text: String): String {
+    var known = site_symbols.get(key)
+    if known {
+        return known
+    }
+    var symbol = "spite_site_{site_symbols.count()}"
+    site_symbols[key] = symbol
+    builder.add_typedef("static const char {symbol}[] = \"{text}\";")
+    return symbol
+}
+
+func version_free_owner(owner: String): String {
+    var dot = owner.index_of(".")
+    if dot <= 0 {
+        return owner
+    }
+    var first = owner.slice(0, dot)
+    if not version_notes.has(first) {
+        return owner
+    }
+    var owner_length = owner.length()
+    return owner.slice(dot + 1, owner_length)
+}
+
+func version_free_path(path: String): String {
+    var slashed = path.replace("\\", "/")
+    var marker = slashed.index_of(".spite/git/")
+    if marker < 0 {
+        return path
+    }
+    var slashed_length = slashed.length()
+    var checkout = slashed.slice(marker + 11, slashed_length)
+    var repository_end = checkout.index_of("/")
+    var checkout_length = checkout.length()
+    var commit_part = checkout.slice(repository_end + 1, checkout_length)
+    var commit_end = commit_part.index_of("/")
+    if repository_end < 0 or commit_end < 0 {
+        return path
+    }
+    var commit_length = commit_part.length()
+    var repository = checkout.slice(0, repository_end)
+    var inside = commit_part.slice(commit_end + 1, commit_length)
+    return "{repository}/{inside}"
+}
+
 func record_in_assert_trace(function_information: Analysis.FunctionInfo) {
-    builder.add_user(
-        "SPITE_TRACE_ASSERT({backslash_quote()}spite.assert{tab_text()}{current_site_id}{report_place(function_information)}{newline_text()}{backslash_quote()});",
-    )
+    var ending = newline_text()
+    var trace_line = reported_site("spite.assert", ending, function_information)
+    builder.add_user("SPITE_TRACE_ASSERT({trace_line});")
 }
 
 func generate_return_statement(

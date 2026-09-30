@@ -17,6 +17,8 @@ var shakes = true
 var threads = false
 var hot_reload = false
 var debug_memory = false
+var folds = false
+var folded_functions = 0
 var host = HotReloadLibrary()
 var constant_texts = Dictionary<String>()
 var faults = NativeFaults()
@@ -305,6 +307,12 @@ func render(): String {
         var unused_shaker = TreeShaker()
         main_function = guarded(main_function, unused_shaker, true)
         typedef_text = guarded_types(typedef_text, unused_shaker, true)
+    }
+    if folds {
+        var folder = FunctionFolder()
+        bodies = folder.fold(typedef_text, bodies, main_function)
+        main_function = folder.main_text
+        folded_functions = folder.folded_count
     }
     var defines = ""
     if threads {

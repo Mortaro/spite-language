@@ -183,7 +183,22 @@ if command -v git > /dev/null 2>&1; then
   commit_in() { git -C "$engine_repository" -c user.email=check@spite.invalid -c user.name=check -c commit.gpgsign=false commit -q "$@"; }
   git -C "$engine_repository" init -q
   printf 'func greeting(): String {\n    return "hello from the pinned commit"\n}\n' > "$engine_repository/engine/greeter.spite"
-  git -C "$engine_repository" add engine/greeter.spite && commit_in -m pinned
+  printf 'var names = List<String>()
+
+func longest(): String {
+    var best = ""
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if name.length() > best.length() {
+            best = name
+        }
+        index = index + 1
+    }
+    return best
+}
+' > "$engine_repository/engine/shelf.spite"
+  git -C "$engine_repository" add engine/greeter.spite engine/shelf.spite && commit_in -m pinned
   pinned=$(git -C "$engine_repository" rev-parse --short=7 HEAD)
   printf 'func greeting(): String {\n    return "hello from a later commit"\n}\n' > "$engine_repository/engine/greeter.spite"
   commit_in -am later
@@ -226,6 +241,12 @@ func told(): String {
     var greeter = Greeter()
     return greeter.greeting()
 }
+
+func stored(): String {
+    var shelf = Shelf()
+    shelf.names.append("the plugin shelf")
+    return shelf.longest()
+}
 ' "$later" > "$plugin_repository/plugin/plugin.spite"
   git -C "$plugin_repository" init -q && git -C "$plugin_repository" add plugin/plugin.spite     && git -C "$plugin_repository" -c user.email=check@spite.invalid -c user.name=check -c commit.gpgsign=false commit -q -m plugin
   plugin_commit=$(git -C "$plugin_repository" rev-parse --short=7 HEAD)
@@ -251,6 +272,28 @@ func TwoVersions() {
   if [ "$two_versions" != "$(printf 'the program modded its own version
 hello from a later commit')" ]; then
     echo "FAILED: two commits of one repository are not two libraries, each read by the package that pinned it"; echo "$two_versions" | head -5; exit 1
+  fi
+  # A function both versions hold unchanged is folded into one, crash sites included (D296).
+  mkdir -p "$pinned_work/folded_versions"
+  printf 'var console = Console()
+
+func FoldedVersions() {
+    load "../engine_repo@%s/engine"
+    load "../plugin_repo@%s/plugin"
+    var shelf = Shelf()
+    shelf.names.append("the program shelf")
+    var own = shelf.longest()
+    console.print(own)
+    var plugin = Plugin()
+    var stored = plugin.stored()
+    console.print(stored)
+}
+' "$pinned" "$plugin_commit" > "$pinned_work/folded_versions/folded_versions.spite"
+  folded_versions=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" folded_versions --c-source --c-path=folded_versions.c < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '\r')
+  if [ "$folded_versions" != "$(printf 'the program shelf\nthe plugin shelf')" ] \
+     || [ "$(grep -c "^SpiteString engine_repo_[0-9a-f]*_Shelf_longest(.*) {$" "$pinned_work/folded_versions.c")" != 1 ] \
+     || ! grep -q "((__typeof__(&engine_repo_[0-9a-f]*_Shelf_longest))&engine_repo_[0-9a-f]*_Shelf_longest)(" "$pinned_work/folded_versions.c"; then
+    echo "FAILED: a function two versions of one repository hold unchanged is not folded into one"; echo "$folded_versions" | head -5; exit 1
   fi
   printf 'func OnePackageTwoPins() {
     load "../engine_repo@%s/engine"
@@ -373,6 +416,16 @@ fi
 # Signed arithmetic is checked for overflow only in a --debug-memory or inspectable build: production is the plain operator.
 if grep -qE "__builtin_(add|sub|mul)_overflow|spite_overflowed" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C checks arithmetic for overflow in a production build"; exit 1
+fi
+# Identical functions are folded into one (D296): two instances of a generic over classes of the same layout keep
+# one function, called through a cast, and an instance over a class of another layout keeps its own.
+folded="$work/folded_functions.c"
+"$work/generation_two.exe" conformance/stage6/folded_functions --run=false --c-source --c-path="$folded" > /dev/null 2>&1 || {
+  echo "FAILED: folded_functions does not write its C"; exit 1; }
+if grep -q "^float Column__Velocity_total_across(" "$folded" || ! grep -q "^float Column__Position_total_across(Column__Position\* self) {" "$folded" \
+   || ! grep -q "((__typeof__(&Column__Velocity_total_across))&Column__Position_total_across)(self->velocities_)" "$folded" \
+   || ! grep -q "^float Column__Label_total_across(Column__Label\* self) {" "$folded"; then
+  echo "FAILED: folded_functions should fold Column<Velocity>.total_across into Column<Position>'s and keep Column<Label>'s"; exit 1
 fi
 # The maths functions are the C library's, and <math.h> is included only when one survives tree shaking (D177).
 if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then

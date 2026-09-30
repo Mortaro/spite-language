@@ -1,0 +1,632 @@
+var pieces = List<String>()
+var names = List<String>()
+var function_pieces = List<Integer>()
+var function_index = Dictionary<Integer>()
+var file_names = Dictionary<Boolean>()
+var literal_values = Dictionary<String>()
+var struct_index = Dictionary<Integer>()
+var struct_classes = List<Integer>()
+var headers = List<String>()
+var replacements = Dictionary<String>()
+var casts = Dictionary<Boolean>()
+var main_text = ""
+var last_header = ""
+var folded_count = 0
+var defined_names = Dictionary<Boolean>()
+
+# ../docs/optimizations.md#identical-functions-are-folded-into-one
+func fold(typedef_text: String, bodies: String, main_function: String): String {
+    main_text = main_function
+    learn_names(typedef_text)
+    learn_literals(typedef_text)
+    learn_structs(typedef_text)
+    split(bodies)
+    var keys = List<String>()
+    var references = List<Integer>()
+    var reference_starts = List<Integer>()
+    var index = 0
+    while index < function_pieces.count() {
+        var start = references.count()
+        reference_starts.append(start)
+        last_header = ""
+        var key = normalized(index, references)
+        keys.append(key)
+        headers.append(last_header)
+        index = index + 1
+    }
+    var end = references.count()
+    reference_starts.append(end)
+    var classes = refined(keys, references, reference_starts)
+    choose_kept(classes)
+    if replacements.count() == 0 {
+        return bodies
+    }
+    main_text = rewritten(main_function)
+    var kept_pieces = List<String>()
+    var position = 0
+    while position < pieces.count() {
+        crash names[position]
+        if not replacements.has(names[position]) {
+            var changed = rewritten(pieces[position])
+            kept_pieces.append(changed)
+        }
+        position = position + 1
+    }
+    return kept_pieces.join("\n")
+}
+
+func learn_names(text: String) {
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        if code == 34 or code == 39 {
+            index = quoted_end(text, index)
+        } else if code == 47 and text.code_at(index + 1) == 42 {
+            index = comment_end(text, index + 2)
+        } else if is_name_start(code) {
+            var end = name_end(text, index)
+            var name = text.slice(index, end)
+            file_names[name] = true
+            index = end
+        } else if is_digit(code) {
+            index = name_end(text, index)
+        } else {
+            index = index + 1
+        }
+    }
+}
+
+func learn_literals(text: String) {
+    var prefix = "static SpiteString spite_lit_"
+    var lines = text.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        var equals = line.index_of(" = ")
+        if line.starts_with("#define ") {
+            var defined_end = name_end(line, 8)
+            var defined = line.slice(8, defined_end)
+            defined_names[defined] = true
+        }
+        if line.starts_with(prefix) and line.ends_with(";") and equals > 0 {
+            var name = line.slice(19, equals)
+            var value_end = line.length() - 1
+            var value = line.slice(equals + 3, value_end)
+            literal_values[name] = value
+        }
+        index = index + 1
+    }
+}
+
+func learn_structs(text: String) {
+    var lines = text.split("\n")
+    var struct_bodies = List<String>()
+    var index = 0
+    while index < lines.count() {
+        var name = struct_name(lines[index])
+        index = index + 1
+        if not name.is_empty() and not struct_index.has(name) {
+            var fields = List<String>()
+            while index < lines.count() and lines[index] != "};" {
+                fields.append(lines[index])
+                index = index + 1
+            }
+            struct_index[name] = struct_bodies.count()
+            var joined = fields.join("\n")
+            struct_bodies.append(joined)
+        }
+    }
+    var keys = List<String>()
+    var references = List<Integer>()
+    var reference_starts = List<Integer>()
+    var position = 0
+    while position < struct_bodies.count() {
+        var start = references.count()
+        reference_starts.append(start)
+        var key = struct_key(struct_bodies[position], references)
+        keys.append(key)
+        position = position + 1
+    }
+    var end = references.count()
+    reference_starts.append(end)
+    struct_classes = refined(keys, references, reference_starts)
+}
+
+func struct_name(line: String): String {
+    if not line.starts_with("struct ") or not line.ends_with(" \{") {
+        return ""
+    }
+    var last = line.length() - 2
+    var name = line.slice(7, last)
+    if name.is_empty() or name.contains(" ") {
+        return ""
+    }
+    return name
+}
+
+func struct_key(body: String, references: List<Integer>): String {
+    var parts = List<String>()
+    var index = 0
+    while index < body.length() {
+        var code = body.code_at(index)
+        if is_name_start(code) {
+            var end = name_end(body, index)
+            var name = body.slice(index, end)
+            var token = struct_token(name, references)
+            parts.append(token)
+            index = end
+        } else if code == 10 or code == 13 or code == 32 or code == 9 {
+            index = index + 1
+        } else {
+            var end = token_end(body, index)
+            var token = body.slice(index, end)
+            parts.append(token)
+            index = end
+        }
+    }
+    return parts.join(" ")
+}
+
+func struct_token(name: String, references: List<Integer>): String {
+    var position = struct_index.get(name)
+    if position {
+        references.append(position)
+        return "@S"
+    }
+    return name
+}
+
+func token_end(text: String, start: Integer): Integer {
+    var code = text.code_at(start)
+    if is_digit(code) {
+        return name_end(text, start)
+    }
+    return start + 1
+}
+
+func split(bodies: String) {
+    var shaker = TreeShaker()
+    shaker.split_pieces(bodies)
+    var conditional_depth = 0
+    var index = 0
+    while index < shaker.pieces.count() {
+        var piece = shaker.pieces[index]
+        crash shaker.piece_names[index]
+        var name = shaker.piece_names[index]
+        if piece.starts_with("#if") {
+            conditional_depth = conditional_depth + 1
+        } else if piece.starts_with("#endif") {
+            conditional_depth = conditional_depth - 1
+        }
+        var defines = conditional_depth == 0 and defines_function(piece, name)
+        if defines and not function_index.has(name) {
+            var function = function_pieces.count()
+            function_index[name] = function
+            var position = pieces.count()
+            function_pieces.append(position)
+            names.append(name)
+        } else {
+            learn_names(piece)
+            names.append("")
+        }
+        pieces.append(piece)
+        index = index + 1
+    }
+}
+
+func normalized(function: Integer, references: List<Integer>): String {
+    crash function_pieces[function]
+    var position = function_pieces[function]
+    crash pieces[position]
+    crash names[position]
+    var own = names[position]
+    if file_names.has(own) {
+        return ""
+    }
+    return normalized_text(pieces[position], own, references)
+}
+
+func normalized_text(piece: String, own: String, references: List<Integer>): String {
+    var parts = List<String>()
+    var locals = Dictionary<Integer>()
+    var evaluated = List<Boolean>()
+    var opened = false
+    var index = 0
+    while index < piece.length() {
+        var code = piece.code_at(index)
+        var next = piece.code_at(index + 1)
+        if code == 10 or code == 13 or code == 32 or code == 9 {
+            index = index + 1
+        } else if code == 47 and next == 42 {
+            index = comment_end(piece, index + 2)
+        } else if code == 47 and next == 47 {
+            return ""
+        } else if code == 35 {
+            index = after_directive(piece, index, parts, evaluated)
+        } else if code == 34 or code == 39 {
+            var end = quoted_end(piece, index)
+            var quoted = piece.slice(index, end)
+            parts.append(quoted)
+            index = end
+        } else if is_name_start(code) {
+            var end = name_end(piece, index)
+            var name = piece.slice(index, end)
+            if opened and name == "static" {
+                return ""
+            }
+            var token = classified(name, own, references, locals)
+            parts.append(token)
+            index = end
+        } else {
+            if code == 123 and not opened {
+                opened = true
+                last_header = parts.join(" ")
+            }
+            var end = token_end(piece, index)
+            var token = piece.slice(index, end)
+            parts.append(token)
+            index = end
+        }
+    }
+    if not opened {
+        return ""
+    }
+    return parts.join(" ")
+}
+
+func classified(name: String, own: String, references: List<Integer>, locals: Dictionary<Integer>): String {
+    if name == own {
+        return "@0"
+    }
+    var called = function_index.get(name)
+    if called {
+        references.append(called)
+        return "@F"
+    }
+    var layout = struct_index.get(name)
+    if layout {
+        crash struct_classes[layout]
+        return "@S{struct_classes[layout]}"
+    }
+    var literal = literal_values.get(name)
+    if literal {
+        return "@L{literal}"
+    }
+    if file_names.has(name) {
+        return name
+    }
+    return local_token(name, locals)
+}
+
+func local_token(name: String, locals: Dictionary<Integer>): String {
+    var stem_end = numbered_stem_end(name)
+    if stem_end < 0 {
+        return name
+    }
+    var stem = name.slice(0, stem_end)
+    var name_length = name.length()
+    var suffix = name.slice(stem_end, name_length)
+    if not locals.has(stem) {
+        locals[stem] = locals.count()
+    }
+    crash locals[stem]
+    return "@v{locals[stem]}{suffix}"
+}
+
+func numbered_stem_end(name: String): Integer {
+    if not name.starts_with("spite_") {
+        return -1
+    }
+    var index = 6
+    while index < name.length() {
+        var code = name.code_at(index)
+        if is_digit(code) and name.code_at(index - 1) == 95 {
+            return name_end(name, index)
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func refined(keys: List<String>, references: List<Integer>, reference_starts: List<Integer>): List<Integer> {
+    var classes = List<Integer>()
+    var group_count = grouped(keys, classes)
+    var changed = true
+    while changed {
+        var refined_keys = List<String>()
+        var index = 0
+        while index < keys.count() {
+            var joined = ""
+            if not keys[index].is_empty() {
+                joined = refined_key(index, classes, references, reference_starts)
+            }
+            refined_keys.append(joined)
+            index = index + 1
+        }
+        var next_classes = List<Integer>()
+        var next_count = grouped(refined_keys, next_classes)
+        changed = next_count != group_count
+        group_count = next_count
+        classes = next_classes
+    }
+    return classes
+}
+
+func refined_key(
+    item: Integer,
+    classes: List<Integer>,
+    references: List<Integer>,
+    reference_starts: List<Integer>,
+): String {
+    var parts = List<String>()
+    crash classes[item]
+    var own_group = classes[item].to_string()
+    parts.append(own_group)
+    crash reference_starts[item]
+    crash reference_starts[item + 1]
+    var start = reference_starts[item]
+    while start < reference_starts[item + 1] {
+        crash references[start]
+        var called = references[start]
+        crash classes[called]
+        var called_group = classes[called].to_string()
+        parts.append(called_group)
+        start = start + 1
+    }
+    return parts.join(",")
+}
+
+func grouped(keys: List<String>, classes: List<Integer>): Integer {
+    var groups = Dictionary<Integer>()
+    var index = 0
+    while index < keys.count() {
+        var key = keys[index]
+        if key.is_empty() {
+            classes.append(-1 - index)
+        } else {
+            if not groups.has(key) {
+                groups[key] = groups.count()
+            }
+            crash groups[key]
+            classes.append(groups[key])
+        }
+        index = index + 1
+    }
+    return groups.count()
+}
+
+func choose_kept(classes: List<Integer>) {
+    var kept_by_group = Dictionary<Integer>()
+    var index = 0
+    while index < classes.count() {
+        var group_key = classes[index].to_string()
+        var kept = kept_by_group.get(group_key)
+        if classes[index] < 0 {
+            index = index + 1
+        } else if kept {
+            fold_into(index, kept)
+            index = index + 1
+        } else {
+            kept_by_group[group_key] = index
+            index = index + 1
+        }
+    }
+}
+
+func fold_into(folded: Integer, kept: Integer) {
+    crash function_pieces[folded]
+    crash function_pieces[kept]
+    var folded_position = function_pieces[folded]
+    var kept_position = function_pieces[kept]
+    crash names[folded_position]
+    crash names[kept_position]
+    crash pieces[folded_position]
+    crash pieces[kept_position]
+    crash headers[folded] == headers[kept]
+    var folded_name = names[folded_position]
+    var kept_name = names[kept_position]
+    folded_count = folded_count + 1
+    if written_alike(pieces[folded_position], folded_name, pieces[kept_position], kept_name) {
+        replacements[folded_name] = kept_name
+        return
+    }
+    replacements[folded_name] = "((__typeof__(&{folded_name}))&{kept_name})"
+    casts[folded_name] = true
+}
+
+func written_alike(folded_piece: String, folded_name: String, kept_piece: String, kept_name: String): Boolean {
+    var folded_brace = folded_piece.index_of("\{")
+    var kept_brace = kept_piece.index_of("\{")
+    var folded_signature = folded_piece.slice(0, folded_brace)
+    var kept_signature = kept_piece.slice(0, kept_brace)
+    var folded_rest = folded_signature.replace(folded_name, "@0")
+    var kept_rest = kept_signature.replace(kept_name, "@0")
+    return folded_rest == kept_rest
+}
+
+func rewritten(text: String): String {
+    var parts = List<String>()
+    var copied = 0
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        if code == 34 or code == 39 {
+            index = quoted_end(text, index)
+        } else if code == 47 and text.code_at(index + 1) == 42 {
+            index = comment_end(text, index + 2)
+        } else if is_name_start(code) {
+            var end = name_end(text, index)
+            var name = text.slice(index, end)
+            if replacements.has(name) {
+                var cut = replaced_start(text, index, name)
+                var before = text.slice(copied, cut)
+                parts.append(before)
+                crash replacements[name]
+                parts.append(replacements[name])
+                copied = end
+            }
+            index = end
+        } else if is_digit(code) {
+            index = name_end(text, index)
+        } else {
+            index = index + 1
+        }
+    }
+    if copied == 0 {
+        return text
+    }
+    var text_length = text.length()
+    var rest = text.slice(copied, text_length)
+    parts.append(rest)
+    return parts.join("")
+}
+
+func replaced_start(text: String, name_start: Integer, name: String): Integer {
+    if not casts.has(name) {
+        return name_start
+    }
+    var index = name_start - 1
+    while index >= 0 and text.code_at(index) == 32 {
+        index = index - 1
+    }
+    var single = index == 0 or text.code_at(index - 1) != 38
+    if index >= 0 and text.code_at(index) == 38 and single {
+        return index
+    }
+    return name_start
+}
+
+func quoted_end(text: String, start: Integer): Integer {
+    var quote = text.code_at(start)
+    var index = start + 1
+    while index < text.length() {
+        var code = text.code_at(index)
+        if code == 92 {
+            index = index + 2
+        } else if code == quote {
+            return index + 1
+        } else {
+            index = index + 1
+        }
+    }
+    return index
+}
+
+func comment_end(text: String, start: Integer): Integer {
+    var index = start
+    while index < text.length() {
+        if text.code_at(index) == 42 and text.code_at(index + 1) == 47 {
+            return index + 2
+        }
+        index = index + 1
+    }
+    return index
+}
+
+func name_end(text: String, start: Integer): Integer {
+    var index = start
+    while index < text.length() {
+        var code = text.code_at(index)
+        if not is_name_code(code) {
+            return index
+        }
+        index = index + 1
+    }
+    return index
+}
+
+func is_name_start(code: Integer): Boolean {
+    return code == 95 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
+
+func is_digit(code: Integer): Boolean {
+    return code >= 48 and code <= 57
+}
+
+func is_name_code(code: Integer): Boolean {
+    return is_name_start(code) or is_digit(code)
+}
+
+func defines_function(piece: String, name: String): Boolean {
+    if name.is_empty() or piece.starts_with("#") or piece.starts_with("typedef") {
+        return false
+    }
+    var first_line = piece
+    var first_end = piece.index_of("\n")
+    if first_end > 0 {
+        first_line = piece.slice(0, first_end)
+    }
+    var open = first_line.index_of("(")
+    var brace = first_line.index_of("\{")
+    var equals = first_line.index_of("=")
+    var keywords = ["if", "while", "for", "switch", "return", "sizeof", "struct", "union", "enum"]
+    if open <= 0 or brace < open or equals >= 0 and equals < open {
+        return false
+    }
+    return not keywords.contains(name)
+}
+
+func after_directive(piece: String, start: Integer, parts: List<String>, evaluated: List<Boolean>): Integer {
+    var end = line_end(piece, start)
+    var line = piece.slice(start, end)
+    var switch_name = class_switch(line)
+    if not switch_name.is_empty() and defined_names.has(switch_name) {
+        evaluated.append(true)
+        return end
+    }
+    if not switch_name.is_empty() {
+        return skipped_block(piece, end)
+    }
+    if line.starts_with("#if") {
+        evaluated.append(false)
+    }
+    if line.starts_with("#endif") and not evaluated.is_empty() {
+        var was_evaluated = evaluated.last() == true
+        evaluated.remove_last()
+        if was_evaluated {
+            return end
+        }
+    }
+    parts.append(line)
+    parts.append("@line")
+    return end
+}
+
+func class_switch(line: String): String {
+    var tracks = line.starts_with("#ifdef SPITE_TRACKS_")
+    var weak = line.starts_with("#ifdef SPITE_WEAK_")
+    if not tracks and not weak {
+        return ""
+    }
+    var switch_end = name_end(line, 7)
+    return line.slice(7, switch_end)
+}
+
+func skipped_block(piece: String, start: Integer): Integer {
+    var depth = 1
+    var index = start
+    while index < piece.length() {
+        index = index + 1
+        var end = line_end(piece, index)
+        var line = piece.slice(index, end)
+        if line.starts_with("#if") {
+            depth = depth + 1
+        }
+        if line.starts_with("#endif") {
+            depth = depth - 1
+        }
+        if depth == 0 {
+            return end
+        }
+        index = end
+    }
+    return index
+}
+
+func line_end(text: String, start: Integer): Integer {
+    var index = start
+    while index < text.length() and text.code_at(index) != 10 {
+        index = index + 1
+    }
+    return index
+}
