@@ -1041,6 +1041,10 @@ Also open: the proof that lets a `List` template lend its items without counting
 `drop()` functions that run when an object is let go, so a `drop()` that removes from the list being walked
 could free a lent item while it is in use. D269's lend of a list element checks `drop()`; the template proof
 should do the same.
+Also open: a reload that moves objects to new attributes ([repl.md](repl.md#changing-a-classs-attributes)) moves
+them while the program's own threads may run: the swap pauses the scheduler's tasks, not a thread the program
+started itself, so a thread reading an object of the class while it moves could read its old attributes. The move
+should wait for every thread to reach a point where it holds nothing, as the swap of code does for the main loop.
 Also open: the assert ring is written without atomics, so asserts failing on several threads at once can lose
 counts, and a crash's `spite.assert	earlier=<count>` line can then be lower than the number that failed. An atomic
 count would cost every failed `assert` a locked add; a per-thread ring would cost a crash nothing extra but cannot

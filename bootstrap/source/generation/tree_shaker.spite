@@ -283,10 +283,13 @@ func add_piece(lines: List<String>) {
 }
 
 func piece_name(line: String): String {
+    var trimmed = line.trim()
+    if not names_types and trimmed.ends_with("}") {
+        return one_line_defined_name(trimmed)
+    }
     if not names_types {
         return defined_name(line)
     }
-    var trimmed = line.trim()
     var trimmed_length = trimmed.length()
     if trimmed.starts_with("typedef struct ") and trimmed.ends_with(";") and trimmed.index_of("\{") < 0 {
         return name_before(trimmed, trimmed_length - 1)

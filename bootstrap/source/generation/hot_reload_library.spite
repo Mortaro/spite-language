@@ -4,6 +4,8 @@ var host_slots = Dictionary<String>()
 var host_classes = List<String>()
 var host_class_identities = List<String>()
 var host_layouts = Dictionary<String>()
+var host_fields = Dictionary<String>()
+var running_fields = Dictionary<String>()
 var host_key_sites = Dictionary<Analysis.SpiteType>()
 var host_facts = ProgramFacts()
 var host_variants = List<String>()
@@ -125,6 +127,50 @@ func host_manifest(
     return lines.join("\n")
 }
 
+func baseline_lines(
+    host_text: String,
+    typedefs: List<String>,
+    class_names: List<String>,
+    class_identities: List<String>,
+    constants: Dictionary<String>,
+): List<String> {
+    var lines = List<String>()
+    var host_lines = host_text.split("\n")
+    var index = 0
+    while index < host_lines.count() {
+        var line = host_lines[index]
+        if line.starts_with("function ") or line.starts_with("slot ") {
+            lines.append(line)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < class_names.count() and index < class_identities.count() {
+        lines.append("class {class_names[index]}\t{class_identities[index]}")
+        index = index + 1
+    }
+    index = 0
+    while index < program_shaker.pieces.count() {
+        var name = program_shaker.piece_names[index]
+        crash name
+        if not name.is_empty() {
+            var hash = piece_hash(program_shaker.pieces[index], constants)
+            lines.append("hash {name} {hash}")
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < typedefs.count() {
+        var written_typedef = typedefs[index]
+        var name = layout_name(written_typedef)
+        if not name.is_empty() {
+            lines.append("layout {name} {written_typedef.replace("\n", " ")}")
+        }
+        index = index + 1
+    }
+    return lines
+}
+
 func layout_name(text: String): String {
     if text.starts_with("struct ") {
         var words = text.split(" ")
@@ -173,6 +219,9 @@ func read_host_line(kind: String, rest: String) {
         var name = rest.slice(0, space)
         host_names.append(name)
         host_prototypes[name] = rest.slice(space + 1, rest_length)
+    } else if kind == "fields" and space > 0 {
+        var class_name = rest.slice(0, space)
+        host_fields[class_name] = rest.slice(space + 1, rest_length)
     } else if kind == "layout" and space > 0 {
         var name = rest.slice(0, space)
         host_layouts[name] = rest.slice(space + 1, rest_length)
@@ -241,6 +290,10 @@ func read_state(text: String) {
             var written_generation = words[1].to_integer()
             crash written_generation
             generation = written_generation
+        } else if words.count() >= 3 and words[0] == "fields" {
+            var line_length = line.length()
+            var signature_start = words[0].length() + words[1].length() + 2
+            running_fields[words[1]] = line.slice(signature_start, line_length)
         } else if words.count() >= 3 and words[0] == "file" {
             var line_length = line.length()
             var path_start = words[0].length() + words[1].length() + 2
@@ -281,13 +334,13 @@ func is_changed(path: String, hash: String): Boolean {
     return true
 }
 
-func layout_problem(typedefs: List<String>): String {
+func layout_problem(typedefs: List<String>, moving: List<String>): String {
     var changed = List<String>()
     var index = 0
     while index < typedefs.count() {
         var written_typedef = typedefs[index]
         var name = layout_name(written_typedef)
-        if host_layouts[name] {
+        if host_layouts[name] and not moving.contains(name) {
             var layout = written_typedef.replace("\n", " ")
             var class_name = name.replace("_", ".")
             if host_layouts[name] != layout {
@@ -542,7 +595,13 @@ func mentions_any(text: String, names: List<String>): Boolean {
     return false
 }
 
-func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<String>, rebuilt: List<String>): String {
+func library(
+    builder: CodeBuilder,
+    slot_names: List<String>,
+    slot_owners: List<String>,
+    rebuilt: List<String>,
+    local_only: List<String>,
+): String {
     var shaker = program_shaker
     var prototypes = program_prototypes
     var prototype_text = program_prototype_text
@@ -563,6 +622,16 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
             added.append(name)
         }
         index = index + 1
+    }
+    index = 0
+    while index < local_only.count() {
+        local_names[local_only[index]] = local_only[index]
+        index = index + 1
+    }
+    var migration_position = shaker.find_function("spite_migrate_all", 0, 17)
+    var migrates = migration_position >= 0
+    if migrates {
+        roots.append(migration_position)
     }
     var running_slots = host_slots.keys()
     index = 0
@@ -638,7 +707,7 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
         }
         index = index + 1
     }
-    var bind_code = bind_function(redirected)
+    var bind_code = bind_function(redirected, migrates)
     roots.append(bind_code)
     var root_text = roots.join("\n")
     var joined_typedefs = builder.typedefs.join("\n")
@@ -688,7 +757,7 @@ func counts_memory(name: String): Boolean {
     return name.starts_with("spite_debug_") or name.starts_with("spite_allocation_table")
 }
 
-func bind_function(redirected: List<String>): String {
+func bind_function(redirected: List<String>, migrates: Boolean): String {
     var lines = List<String>()
     lines.append("#ifdef _WIN32")
     lines.append("__declspec(dllexport)")
@@ -709,11 +778,21 @@ func bind_function(redirected: List<String>): String {
     }
     index = 0
     while index < installed.count() {
-        var name = installed[index]
-        lines.append("if (install(\"{name}\", (void*)&{name}___hot) == 0) return \"{name}\";")
+        var checked = installed[index]
+        lines.append("if (install(\"{checked}\", 0) == 0) return \"{checked}\";")
         index = index + 1
     }
-    lines.append("return 0;")
+    index = 0
+    while index < installed.count() {
+        var name = installed[index]
+        lines.append("install(\"{name}\", (void*)&{name}___hot);")
+        index = index + 1
+    }
+    if migrates {
+        lines.append("return spite_migrate_all();")
+    } else {
+        lines.append("return 0;")
+    }
     lines.append("}")
     return lines.join("\n")
 }

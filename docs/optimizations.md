@@ -743,7 +743,9 @@ call effects, the key kinds -- comes from the manifest the build wrote beside th
 ([repl.md](repl.md#how-it-works)). The library's C carries only the types and declarations its functions use.
 
 **When.** In every reload of a `--hot-reload` build, unless the changed code changes one of those facts (then the
-reload compiles the whole program, as before, and says why on the error output). **Built.**
+reload compiles the whole program, as before, and says why on the error output). A reload that compiled the whole
+program becomes the baseline the next one compares with, so the save after a change to a class's attributes is
+fast again ([repl.md](repl.md#how-it-works)). **Built.**
 
 **What you notice.** A changed system of SlopTheseus's server swaps in about 6 seconds after the save, where a whole compile
 took 20 to 30. Nothing else: what swaps in is what a whole compile writes, which `check.sh` compares file by
@@ -752,6 +754,28 @@ server) and spends about a second more writing it, and each class's `functions` 
 end of compiling when the class gained a function late ([reflection.md](reflection.md)). A fact a future change
 to the generator starts consulting across classes must be recorded in the manifest too, or checked by
 `SPITE_RELOAD_CHECK` -- a fast reload that misses one would swap in code compiled against a stale fact.
+
+### What a `--hot-reload` build carries so its objects can move
+
+**What it does.** Nothing faster: this is the price of [moving live objects to new
+attributes](repl.md#changing-a-classs-attributes) (D280), paid only in a `--hot-reload` build (D143). Each object
+of a program class carries two hidden words after its header, and each allocation and release of one adds it to
+or takes it from its class's list of live objects (a lock when the program has threads). An `Items` or `Vector`
+that keeps a program class's objects in its own memory is listed the same way, and its items carry the two words
+too. Every function that reads a program class's attributes without being its own -- its allocation, release,
+copy and deep copy, the REPL's reflection and assignment, a union's dispatch, the functions of a standard-library
+template made for it (`List<Monster>`, `Items<Step>`) -- is called through a slot, one indirect call, like the
+class's own functions. Each class has a table of its layout. Until a reload changes a class's attributes, reading
+one is a plain load (`<Class>___fields(object)` is the object); after, the class's code tests whether the object
+moved first.
+
+**When.** In every `--hot-reload` build; a normal build has none of it. **Built.**
+
+**What you notice.** Sixteen more bytes in each object of a program class and in each item of an `Items<T>` of one,
+an indirect call where a standard-library template made for a program class was a direct one, and a little work
+per allocation and release. A `--hot-reload` build of SlopTheseus's server behaves the same; nothing is visible
+to the program, since the hidden words are not attributes: reflection, `to_debug` and JSON see only the class's
+own.
 
 ### The thread pool only where a `Parallel` is made
 

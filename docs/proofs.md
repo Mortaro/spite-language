@@ -98,6 +98,7 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
 | [A `crash` that folds false is an error](#a-crash-that-folds-false-is-a-compile-error) | built | a certain halt becomes a build error | a run-time check |
 | [Tree shaking](#tree-shaking-what-main-can-reach) | built | smaller program | an inspectable build keeps all |
 | [A reload compiles only the changed classes](#a-reload-compiles-only-the-changed-classes) | built | a reload in seconds | the whole program is compiled |
+| [A reload reaches every object whose attributes it changes](#a-reload-reaches-every-object-whose-attributes-it-changes) | built | attributes change live | refused by name |
 | [Buffers in the frame](#a-buffer-freed-in-its-block-lives-in-the-frame) | built | no allocation | the heap |
 | [Frame objects](#objects-that-never-leave-their-function-live-in-the-frame) | built | no allocation | the heap |
 | [Local and variadic lists in the frame](#local-and-variadic-lists-in-the-frame) | built | no allocation | the heap |
@@ -606,6 +607,24 @@ A short guide for an AI writing Spite. Find what you are writing; the entries be
   it on every file of several programs; a fact the generator starts consulting across classes must be recorded too.
 - **See.** D111, D211, D244; [repl.md: How it works](repl.md#how-it-works), [optimizations.md: A reload compiles
   only the classes that changed](optimizations.md#a-reload-compiles-only-the-classes-that-changed).
+
+### A reload reaches every object whose attributes it changes
+
+- **Status.** Built.
+- **Proves.** After a reload changes a class's attributes, no code reads an object of the class with the old
+  layout, and every live object of it has moved.
+- **Rule.** A class's layout is its attributes' names and types and whether it fits an `Items`' own memory. Every
+  read of a program class's attributes, and every use of its size, is written through `<Class>___fields(object)` or
+  `sizeof(<Class>)`, so a whole compile finds each function whose C depends on a changed layout by those names, and
+  compiles and installs it; one the running program cannot re-point refuses the reload. Every object of a program
+  class, and every `Items` or `Vector` keeping them in its own memory, is in a list its allocation and release keep,
+  so the move reaches objects that only a running function's local holds.
+- **Buys.** A class's attributes change while the program runs, with no restart and no lost state (D280).
+- **Falls back.** Refused by name, the program keeping all its code: a function it cannot re-point, a class that
+  starts or stops fitting an `Items`' own memory, an enum whose values change.
+- **See.** D280, D143, D244; [repl.md: Changing a class's
+  attributes](repl.md#changing-a-classs-attributes), [optimizations.md: What a `--hot-reload` build carries so its
+  objects can move](optimizations.md#what-a---hot-reload-build-carries-so-its-objects-can-move).
 
 ## Memory
 

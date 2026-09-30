@@ -1,0 +1,58 @@
+singleton
+
+var build = Build()
+var swapped = 0
+var rebuilt_names: List<String>? = null
+var rebuilt_generations: List<Integer>? = null
+
+func generation(): Integer {
+    if build.hot_reload {
+        return swapped
+    }
+    return 0
+}
+
+func rebuilt_since(since: Integer): List<String> {
+    var rebuilt = List<String>()
+    if build.hot_reload and rebuilt_names and rebuilt_generations {
+        var index = 0
+        while index < rebuilt_names.count() and index < rebuilt_generations.count() {
+            var name = rebuilt_names[index]
+            var swapped_in = rebuilt_generations[index]
+            if swapped_in > since and not rebuilt.contains(name) {
+                rebuilt.append(name)
+            }
+            index = index + 1
+        }
+    }
+    return rebuilt
+}
+
+func note_swap(told: String) {
+    swapped = swapped + 1
+    var names = List<String>()
+    var generations = List<Integer>()
+    if rebuilt_names and rebuilt_generations {
+        names = rebuilt_names
+        generations = rebuilt_generations
+    }
+    var lines = told.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        if line.starts_with("rebuilt ") {
+            var line_length = line.length()
+            var rebuilt = line.slice(8, line_length).split(", ")
+            var name_index = 0
+            while name_index < rebuilt.count() {
+                var name = rebuilt[name_index]
+                names.append(name)
+                generations.append(swapped)
+                name_index = name_index + 1
+            }
+        }
+        index = index + 1
+    }
+    rebuilt_names = names
+    rebuilt_generations = generations
+}

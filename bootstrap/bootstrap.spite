@@ -18,10 +18,13 @@ var reloading = false
 var flag_error = ""
 var maximum_passes = 8
 var partial_host: Generation.HotReloadLibrary? = null
+var layout_host: Generation.HotReloadLibrary? = null
 var partial_paths = List<String>()
 var reload_code = ""
 var reload_rebuilt = List<String>()
 var reload_generator: Generation.Generator? = null
+var reload_baseline = ""
+var reload_host_text = ""
 
 func Bootstrap() {
     load "source"
@@ -366,6 +369,7 @@ func generator_pass(
     generator.another_pass_follows_a_change = pass < maximum_passes
     generator.renders_program = not reloading
     generator.reload_host = partial_host
+    generator.layout_host = layout_host
     generator.reload_changed_paths = partial_paths
     generator.seed_class_names(host_classes, host_identities)
     generator.number_key_sites = number_keys
@@ -958,6 +962,8 @@ func write_companions(output_path: String) {
     if is_on("hot_reload") {
         File("{base}.reload_host").write(last_hot_manifest)
         File("{base}.reload_files").write(last_hot_state)
+        File("{base}.reload_start").write(last_hot_state)
+        File("{base}.reload_baseline").write("")
     }
 }
 
@@ -1011,6 +1017,15 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
     var base = without_executable_extension(program_file)
     var host_text = File("{base}.reload_host").read()
     var state_text = File("{base}.reload_files").read()
+    var baseline_text = File("{base}.reload_baseline").read()
+    if host_text and baseline_text {
+        if not baseline_text.is_empty() {
+            host_text = baseline_text
+        }
+    }
+    if host_text {
+        reload_host_text = host_text
+    }
     if not host_text or not state_text or not is_on("hot_reload") {
         console.print(
             "error: 'spite reload' rebuilds what changed in a program built with --hot-reload, and '{program_file}' was not: build it with --hot-reload --executable --executable-path={program_file}",
@@ -1047,7 +1062,13 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
     }
     var next_generation = reload.generation + 1
     var state = hot_state(discovery, reload, next_generation)
+    crash reload_generator
+    var moved_lines = reload_generator.moved_state_lines()
+    if not moved_lines.is_empty() {
+        state = "{state}\n{moved_lines}"
+    }
     var library_base = "{base}_reload_{next_generation}"
+    File("{library_base}.baseline").write(reload_baseline)
     var library_path = "{library_base}.{library_extension()}"
     if not build_library(reload_code, "{library_base}.c", library_path) {
         program.exit(1)
@@ -1055,6 +1076,10 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
     }
     File("{library_base}.files").write(state)
     console.print("rebuilt {reload_rebuilt.join(", ")}")
+    if not reload_generator.migration_notes.is_empty() {
+        var notes = reload_generator.migration_notes.join("\n")
+        console.print(notes)
+    }
     if not reload.removed.is_empty() {
         console.print("removed {reload.removed.join(", ")}")
     }
@@ -1077,12 +1102,14 @@ func compile_reload(
     partial: Boolean,
 ): String {
     partial_host = null
+    layout_host = reload
     if partial {
         partial_host = reload
         partial_paths = changed_files
     }
     var generator = keyed_generator(discovery, reload.host_classes, reload.host_class_identities, reload.host_key_sites)
     partial_host = null
+    layout_host = null
     if generator.has_error {
         return generator.error_message
     }
@@ -1101,7 +1128,7 @@ func compile_reload(
     if not fixed.is_empty() {
         return "error: '{fixed.join("', '")}' changed, and a reload swaps only the functions of the program's own classes, which it holds none of (it reopens a class of the standard library, or sets how the program is built): restart the program to change it, or undo that change to reload the rest"
     }
-    var layout_problem = reload.layout_problem(generator.builder.typedefs)
+    var layout_problem = reload.layout_problem(generator.builder.typedefs, generator.migrating_classes)
     if not layout_problem.is_empty() {
         return "error: {layout_problem}"
     }
@@ -1119,6 +1146,10 @@ func compile_reload(
     reload_code = code
     reload_rebuilt = rebuilt
     reload_generator = generator
+    reload_baseline = ""
+    if not partial {
+        reload_baseline = generator.baseline_manifest(reload_host_text, reload)
+    }
     return ""
 }
 

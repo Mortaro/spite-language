@@ -620,6 +620,64 @@ kill -0 $served 2>/dev/null && hot_fail "the program kept running after exit"
 wait $served || hot_fail "the program ended with exit code $?"
 echo "live reload: an edited class was swapped in by reload and another by the watcher, keeping the program's state, and a new function answers at the prompt"
 
+# A reload moves live objects to their class's new attributes (docs/repl.md#changing-a-classs-attributes): docs/'s
+# live_party program runs from a copy that this step edits. A kept attribute keeps its value, a new one holds its
+# default, a renamed one keeps its value, a removed one is released -- in objects and in an Items' own memory -- and
+# a reload after a move still swaps in a change to a body. Every wait has a timeout.
+party_folder="$work/live_party/live_party"
+[ -d .spite/docs/live_party ] || { echo "FAILED moving objects: docs/repl.md has no live_party program"; exit 1; }
+mkdir -p "$work/live_party"; cp -r .spite/docs/live_party "$party_folder"
+party_port=$((port + 2))
+"$work/generation_two.exe" "$party_folder" --executable --run=false --hot-reload --repl-port=$party_port --executable-path="$work/live_party/live_party.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED moving objects: live_party does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/live_party/live_party.exe" > "$work/live_party/output.txt" 2>&1 < /dev/null &
+party=$!
+party_fail() { kill $party 2>/dev/null; echo "FAILED moving objects: $1"; head -5 "$work/live_party/output.txt"; exit 1; }
+party_ask() { timeout 120 "$work/generation_two.exe" connect $party_port --command="$1" 2>&1 | tr -d '\r'; }
+party_expect() { local answer; answer=$(party_ask "$1"); [ "$answer" == "$2" ] || party_fail "'$1' answered $answer, not $2"; }
+party_reload() {   # the watcher may swap the save in first: then last_reload holds the answer
+  local answer; answer=$(party_ask reload)
+  case "$answer" in *"nothing changed since the code the program runs"*) answer=$(party_ask last_reload) ;; esac
+  case "$answer" in *"$1"*) ;; *) party_fail "a reload answered $answer, without $1" ;; esac
+}
+listening=false
+for attempt in $(seq 1 100); do
+  timeout 10 "$work/generation_two.exe" connect $party_port --command=help > /dev/null 2>&1 && { listening=true; break; }
+  kill -0 $party 2>/dev/null || break
+  sleep 0.2
+done
+$listening || party_fail "the program never listened on $party_port"
+party_expect 'program.hero.level = 7' '{"ok":true,"value":"7","type":"Integer"}'
+sed -i 's/^var level = 1$/var level = 1\nvar health = 100/; s/at level {level}"/at level {level} with {health}"/' "$party_folder/hero.spite"
+sed -i 's/^var distance = 0.0$/var pace = 2.0\nvar distance = 0.0/' "$party_folder/step.spite"
+party_reload "moved every Step to its new attributes: pace is new and holds its default"
+party_expect 'describe()' '{"ok":true,"value":"Ann at level 7 with 100, walked 4","type":"String"}'
+sed -i 's/^var level = 1$/var rank = 1/; s/at level {level} with {health}"/at rank {rank} with {health}"/' "$party_folder/hero.spite"
+printf '\nfunc renamed_from_rank(): String {\n    return "level"\n}\n' >> "$party_folder/hero.spite"
+party_reload "moved every Hero to its new attributes: level is now rank"
+party_expect 'describe()' '{"ok":true,"value":"Ann at rank 7 with 100, walked 4","type":"String"}'
+sed -i '/^var health = 100$/d; s/at rank {rank} with {health}"/at rank {rank}"/' "$party_folder/hero.spite"
+party_reload "health is gone, and what it held was released"
+party_expect 'describe()' '{"ok":true,"value":"Ann at rank 7, walked 4","type":"String"}'
+sed -i 's/at rank {rank}"/ranked {rank}"/' "$party_folder/hero.spite"
+party_reload "rebuilt Hero"
+party_expect 'describe()' '{"ok":true,"value":"Ann ranked 7, walked 4","type":"String"}'
+party_expect 'exit' '{"ok":true,"value":"","type":""}'
+for attempt in $(seq 1 50); do kill -0 $party 2>/dev/null || break; sleep 0.2; done
+kill -0 $party 2>/dev/null && party_fail "the program kept running after exit"
+wait $party || party_fail "the program ended with exit code $?"
+# A whole reload's manifest is the running program's baseline, so the body edit after the moves compiled only its
+# class, and a fast reload against that baseline still matches a whole compile.
+wholes=$(grep -c "compiling the whole program" "$work/live_party/output.txt")
+[ "$wholes" == "3" ] || party_fail "the three attribute changes and the body edit compiled the whole program $wholes times, not 3"
+sed -i 's/ranked {rank}"/ranked {rank} again"/' "$party_folder/hero.spite"
+answer=$(SPITE_RELOAD_CHECK="$party_folder/hero.spite" "$work/generation_two.exe" reload "$party_folder" --hot-reload --repl-port=$party_port --executable-path="$work/live_party/live_party.exe" 2>&1 | tr -d '\r')
+case "$answer" in
+  "reload check: the fast reload matches a whole compile"*) ;;
+  *) echo "FAILED moving objects: a fast reload against the baseline answered: $answer" | head -c 600; echo; exit 1 ;;
+esac
+echo "moving objects: a reload moved live objects and an Items' own memory to new attributes, keeping, renaming and releasing them, and a body edit after compiled only its class, matching a whole compile"
+
 # A reload compiles only the classes of the changed files (docs/repl.md#how-it-works), from what the running
 # program's manifest says about the rest. SPITE_RELOAD_CHECK makes a reload of the file it names compile both
 # ways and compare what they write; a fast reload that differs from a whole compile is a bug. Every file of these

@@ -22,9 +22,11 @@ var last = "nothing has been reloaded yet"
 var answered = false
 var answer = ""
 var reported = false
+var swaps = Reload()
 
 func start() {
     folder = build.program
+    restart_state()
     ready = heap.allocate(8)
     ready.write_long(0, 0)
     scheduler.start()
@@ -202,16 +204,37 @@ func swap_in(library_path: String, state_path: String, told: String) {
     }
     var running = program_file()
     commit(running, state_path)
+    swaps.note_swap(told)
     tell(true, told)
 }
 
 func commit(running: String, state_path: String) {
     var state = File(state_path).read()
     assert state
-    var base = running
+    var base = running_base(running)
+    File("{base}.reload_files").write(state)
+    var state_length = state_path.length()
+    var library_base = state_path.slice(0, state_length - 6)
+    var baseline = File("{library_base}.baseline").read()
+    assert baseline
+    if not baseline.is_empty() {
+        File("{base}.reload_baseline").write(baseline)
+    }
+}
+
+func restart_state() {
+    var running = program_file()
+    var base = running_base(running)
+    var built = File("{base}.reload_start").read()
+    crash built
+    File("{base}.reload_files").write(built)
+    File("{base}.reload_baseline").write("")
+}
+
+func running_base(running: String): String {
     if running.ends_with(".exe") {
         var running_length = running.length()
-        base = running.slice(0, running_length - 4)
+        return running.slice(0, running_length - 4)
     }
-    File("{base}.reload_files").write(state)
+    return running
 }
