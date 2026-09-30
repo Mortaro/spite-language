@@ -14,7 +14,7 @@ Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection re
 answered by D314.
 
 Third pass, after D318-D325: 229 answered by D318 (on the reflection branch), 230 by D319, 227 by D320 and
-D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330. Rewritten: 238 (D324), 36 (D319).
+D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330, 36 by D331. Rewritten: 238 (D324).
 
 ## Blocking now
 
@@ -109,9 +109,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
 
 ## Taste (names, syntax, how it reads)
 
-36. **Telling a number class apart**: a walk tests for a number with ten comparisons because a union cannot hold
-    number classes (D319's generated JSON no longer needs it; other walks do). Options: (a) a get-only
-    `.is_number` beside `.is_list`/`.is_enum` (D317); (b) unions of number classes. Recommend (a).
 220. **A `Dictionary`'s `[]` is `get`/`set`**: under D315 nobody calls them by name, so rename them `get_at`/`set_at`
      so every `[]` is one function pair? Recommend yes (D205: no syntax).
 221. **A walked row states its reads** with a `crash` line per read, or the walked read halts on its own?
