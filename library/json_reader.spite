@@ -16,10 +16,9 @@ func read(): $value_type? {
 
 func read_or_crash(): $value_type {
     var cursor = JsonCursor(text)
+    cursor.crashes = true
     var parsed = parse(cursor)
     cursor.finish()
-    var failure = cursor.failure
-    crash failure == ""
     return parsed
 }
 
