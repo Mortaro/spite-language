@@ -1,1 +1,1 @@
-diagnostics/number_memory/integer.spite:2: error: 'Integer' declares 8 bytes of memory, and the compiler lays it out as int32_t, which is 4 (in Integer._memory)
+diagnostics/number_memory/integer.spite:1: error: 'Integer' declares 8 bytes of memory, and the compiler lays it out as int32_t, which is 4 (in Integer._memory)
