@@ -271,7 +271,7 @@ func is_versioned(identity: String): Boolean {
 }
 
 func version_prefix(checkout: String): String {
-    var identity = identities.get(checkout)
+    var identity = identities[checkout]
     if not identity {
         return ""
     }

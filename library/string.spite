@@ -45,7 +45,7 @@ func less_than(other: String): Boolean {
 }
 
 func greater_than(other: String): Boolean {
-    return other.less_than(this)
+    return other < this
 }
 
 func is_empty(): Boolean {

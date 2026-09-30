@@ -256,14 +256,12 @@ func join(other: Dictionary<String>) {
     var index = 0
     while index < names.count() {
         var name = names[index]
-        var theirs = other.get(name)
-        crash theirs
-        var ours = roots.get(name)
-        if ours {
-            var both = united(ours, theirs)
+        crash other[name]
+        if roots[name] {
+            var both = united(roots[name], other[name])
             roots.set(name, both)
         } else {
-            roots.set(name, theirs)
+            roots.set(name, other[name])
         }
         index = index + 1
     }
@@ -275,9 +273,8 @@ func described_roots(): String {
     var index = 0
     while index < names.count() {
         var name = names[index]
-        var held = roots.get(name)
-        crash held
-        pieces.append("{name}={held}")
+        crash roots[name]
+        pieces.append("{name}={roots[name]}")
         index = index + 1
     }
     return pieces.join(";")
@@ -448,9 +445,8 @@ func resolve_named_call(name: String, callee: Syntax.Expressions.Expression) {
     var studied = the_owner()
     if roots.has(name) {
         called_kind = "value"
-        var held = roots.get(name)
-        crash held
-        called_receiver = held
+        crash roots[name]
+        called_receiver = roots[name]
         return
     }
     var own = studied.find_function(name)
@@ -591,9 +587,8 @@ func binary_type(binary: Syntax.Expressions.BinaryExpression): Analysis.SpiteTyp
 }
 
 func named_type(name: String): Analysis.SpiteType? {
-    var local = types.get(name)
-    if local {
-        return local
+    if types[name] {
+        return types[name]
     }
     assert not roots.has(name)
     var studied = the_owner()
@@ -728,9 +723,8 @@ func raw_roots(expression: Syntax.Expressions.Expression): String {
 }
 
 func named_roots(name: String): String {
-    var held = roots.get(name)
-    if held {
-        return held
+    if roots[name] {
+        return roots[name]
     }
     if name == "this" {
         return "|this|"

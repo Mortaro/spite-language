@@ -3690,10 +3690,9 @@ func refresh_union_releases() {
     var index = 0
     while index < unions.count() {
         var information = unions[index]
-        var position = union_release_positions.get(information.c_name)
-        if position {
+        if union_release_positions[information.c_name] {
             var release_text = union_release_text(information)
-            builder.replace_support(position, release_text)
+            builder.replace_support(union_release_positions[information.c_name], release_text)
         }
         index = index + 1
     }
@@ -4310,13 +4309,12 @@ func boxed_text(code: String): String {
             "void spite_string_box_release(void* self) \{\nSpiteBox_SpiteString* box = (SpiteBox_SpiteString*)self;\nif (box->header.class_id < 0) return;\nif (SPITE_COUNT_DOWN(box->header.ref_count) > 0) return;\nSpiteString___release(box->value);\nSPITE_FREE(box);\n}",
         )
     }
-    var constant = constant_texts.get(code)
-    if constant {
+    if constant_texts[code] {
         var boxed_name = "{code}_box"
         if not constant_boxes.contains(boxed_name) {
             constant_boxes.append(boxed_name)
             builder.add_typedef(
-                "static SpiteBox_SpiteString {boxed_name} = \{ \{ 0, -1 }, SPITE_STATIC_STRING(\"{escape_c_string(constant)}\", {constant.length()}) };",
+                "static SpiteBox_SpiteString {boxed_name} = \{ \{ 0, -1 }, SPITE_STATIC_STRING(\"{escape_c_string(constant_texts[code])}\", {constant_texts[code].length()}) };",
             )
         }
         return "((void*)&{boxed_name})"
@@ -4564,15 +4562,15 @@ func removed_enum_values(information: Analysis.EnumInfo, numbers: Dictionary<Int
 
 func find_class_by_qualified(qualified: String): Analysis.ClassInfo? {
     index_new_classes()
-    var position = class_by_qualified.get(qualified)
-    assert position
+    assert class_by_qualified[qualified]
+    var position = class_by_qualified[qualified]
     return classes[position]
 }
 
 func find_class_by_c_name(c_name: String): Analysis.ClassInfo? {
     index_new_classes()
-    var position = class_by_c_name.get(c_name)
-    assert position
+    assert class_by_c_name[c_name]
+    var position = class_by_c_name[c_name]
     return classes[position]
 }
 
@@ -4646,9 +4644,9 @@ func find_class_in_versions(name: String, segments: List<String>): Analysis.Clas
         segments.remove_at(0)
     }
     var candidates = [own]
-    var pinned = pinned_versions_of.get(current_owner)
+    var pinned = pinned_versions_of[current_owner]
     if not own.is_empty() {
-        pinned = pinned_versions_in.get(own)
+        pinned = pinned_versions_in[own]
     }
     if pinned {
         var pinned_index = 0
@@ -5497,8 +5495,8 @@ func namespace_walk(template: Analysis.TemplateInfo): NamespaceWalk {
         var created = NamespaceWalk()
         namespace_walks.set(joined, created)
     }
-    var walk = namespace_walks.get(joined)
-    crash walk
+    crash namespace_walks[joined]
+    var walk = namespace_walks[joined]
     var grew = false
     while walk.scanned < classes.count() {
         var candidate = classes[walk.scanned]
@@ -5591,9 +5589,8 @@ func value_range_miss(
 }
 
 func class_member_name(candidate: Analysis.ClassInfo): String {
-    var known = class_member_names.get(candidate.qualified_dotted)
-    if known {
-        return known
+    if class_member_names[candidate.qualified_dotted] {
+        return class_member_names[candidate.qualified_dotted]
     }
     var member_name = member_name_of(candidate.qualified_dotted)
     class_member_names.set(candidate.qualified_dotted, member_name)
@@ -5777,10 +5774,10 @@ func describe_range_binding(
     }
     if kind == "namespace" {
         var walk = namespace_walk(template)
-        var last = walk.last_positions.get(instance.symbol_field_name)
-        if last {
-            crash walk.classes[last]
-            var named = walk.classes[last]
+        if walk.last_positions[instance.symbol_field_name] {
+            var last_position = walk.last_positions[instance.symbol_field_name]
+            crash walk.classes[last_position]
+            var named = walk.classes[last_position]
             instance.symbol_display_name = named.qualified_dotted
         }
     }
@@ -5793,9 +5790,8 @@ func attribute_position(
 ): Integer {
     if template.range and template_range_owner(information, template) == "namespace" {
         var walk = namespace_walk(template)
-        var first = walk.first_positions.get(member_name)
-        if first {
-            return first
+        if walk.first_positions[member_name] {
+            return walk.first_positions[member_name]
         }
         return -1
     }
@@ -5857,10 +5853,10 @@ func template_member_type(
         }
         if kind == "namespace" {
             var walk = namespace_walk(template)
-            var first = walk.first_positions.get(member_name)
-            assert first
-            crash walk.classes[first]
-            var named = walk.classes[first]
+            assert walk.first_positions[member_name]
+            var first_position = walk.first_positions[member_name]
+            crash walk.classes[first_position]
+            var named = walk.classes[first_position]
             return class_type_of(named)
         }
         var range_class = template_range_class(information, template)
@@ -8930,9 +8926,8 @@ func add_text_piece(join: TextJoin, code: String, owned: Boolean) {
         join.originals.append(code)
         return
     }
-    var constant = constant_texts.get(code)
-    if constant {
-        join.constant = "{join.constant}{constant}"
+    if constant_texts[code] {
+        join.constant = "{join.constant}{constant_texts[code]}"
         return
     }
     flush_constant_text(join)
@@ -10929,9 +10924,8 @@ func rest_only_reads(
 }
 
 func use_class_read_lists(class_information: Analysis.ClassInfo) {
-    var known = class_read_lists.get(class_information.c_name)
-    if known {
-        placement.read_lists = known.split("\n")
+    if class_read_lists[class_information.c_name] {
+        placement.read_lists = class_read_lists[class_information.c_name].split("\n")
         return
     }
     var names = List<String>()
@@ -11230,12 +11224,12 @@ func inferred_instance(
     var label = "{template.c_name}_"
     index = 0
     while index < template.codegen_names.count() {
-        var found = inferred.get(template.codegen_names[index])
-        assert found
-        types.append(found)
+        var codegen_name = template.codegen_names[index]
+        assert inferred[codegen_name]
+        types.append(inferred[codegen_name])
         codes.append("")
         texts.append("")
-        label = "{label}_{type_label(found)}"
+        label = "{label}_{type_label(inferred[codegen_name])}"
         index = index + 1
     }
     var existing = find_class_by_c_name(label)
@@ -12173,9 +12167,8 @@ func held_variant_name(
     variant.symbol_enum_c_name = original.symbol_enum_c_name
     variant.lent_sources = original.lent_sources
     variant.lent_parameters = original.lent_parameters.copy()
-    var lent_caller = lent_callers.get(function_c_name)
-    if lent_caller {
-        lent_callers.set(variant_c_name, lent_caller)
+    if lent_callers[function_c_name] {
+        lent_callers.set(variant_c_name, lent_callers[function_c_name])
     }
     var parameter_index = 0
     while parameter_index < original.parameters.count() {
@@ -20176,9 +20169,8 @@ func proof_dependencies(path: String, scope: Scope, class_information: Analysis.
     var constructed = constructed_root_of(path)
     var root_local = scope.unnarrowed_type(root)
     if not constructed.is_empty() {
-        var made_c_name = constructed_roots.get(constructed)
-        crash made_c_name
-        var made_type: Analysis.SpiteType = Analysis.Types.ClassRefType(made_c_name)
+        crash constructed_roots[constructed]
+        var made_type: Analysis.SpiteType = Analysis.Types.ClassRefType(constructed_roots[constructed])
         current = made_type
         position = constructed.length()
     } else if not root_local {
@@ -20584,10 +20576,10 @@ func items_choice(sources: String): String {
     var named = sources.split("' and '")
     var index = 0
     while index < named.count() {
-        var label = items_sources.get(named[index])
-        if label {
-            if not label.is_empty() {
-                return "'{label}' fits a Vector, so the items of '{named[index]}' are borrowed: "
+        var source_name = named[index]
+        if items_sources[source_name] {
+            if not items_sources[source_name].is_empty() {
+                return "'{items_sources[source_name]}' fits a Vector, so the items of '{named[index]}' are borrowed: "
             }
         }
         index = index + 1
@@ -20624,19 +20616,16 @@ func lend_result(result: ExpressionResult, target_class: Analysis.ClassInfo, fun
     result.borrowed_from = source
     var root_end = source.index_of("().")
     var root = source.slice(0, root_end + 2)
-    var singleton_c_name = lent_result_singletons.get(source)
-    crash singleton_c_name
-    constructed_roots.set(root, singleton_c_name)
-    var label = lent_result_labels.get(source)
-    crash label
-    items_sources.set(source, label)
+    crash lent_result_singletons[source]
+    constructed_roots.set(root, lent_result_singletons[source])
+    crash lent_result_labels[source]
+    items_sources.set(source, lent_result_labels[source])
 }
 
 func lent_result_source(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
     var key = "{information.c_name}.{function.name}"
-    var known = lent_results.get(key)
-    if known {
-        return known
+    if lent_results[key] {
+        return lent_results[key]
     }
     lent_results.set(key, "")
     var returns = List<Syntax.Expressions.Expression>()
@@ -24063,7 +24052,7 @@ func effect_resizes(
         if resized.starts_with("*#") {
             return true
         }
-        var resized_class = call_effects.field_classes.get(resized)
+        var resized_class = call_effects.field_classes[resized]
         if not resized_class {
             return false
         }
@@ -24082,12 +24071,12 @@ func element_may_be_source(resized: String, links: List<String>, local_root: Boo
     if local_root or holder.ends_with("[]") {
         return true
     }
-    var element_class = call_effects.element_classes.get(holder)
+    var element_class = call_effects.element_classes[holder]
     var vector_link = links.last()
     if not element_class or not vector_link {
         return true
     }
-    var source_class = call_effects.field_classes.get(vector_link)
+    var source_class = call_effects.field_classes[vector_link]
     if not source_class {
         return true
     }
@@ -24412,7 +24401,7 @@ func watch_strict_call(
     if key.is_empty() {
         return false
     }
-    var effects = call_effects.by_function.get(key)
+    var effects = call_effects.by_function[key]
     if not effects {
         return false
     }
@@ -33607,9 +33596,8 @@ func parameter_scope(function: Analysis.FunctionInfo): Scope {
     arguments_parameter_names.clear()
     lent_parameter_names = function.lent_parameters
     lent_parameter_caller = ""
-    var caller = lent_callers.get(function.c_name)
-    if caller {
-        lent_parameter_caller = caller
+    if lent_callers[function.c_name] {
+        lent_parameter_caller = lent_callers[function.c_name]
     }
     var parameter_index = 0
     while parameter_index < function.parameters.count() {
@@ -34825,9 +34813,8 @@ func report_joined_parallel(
     var index = 0
     while index < reached_keys.count() {
         var key = reached_keys[index]
-        var owner = locked_keys.get(key)
-        if owner {
-            if owner == information.simple_name {
+        if locked_keys[key] {
+            if locked_keys[key] == information.simple_name {
                 report_locked_wait(declared, information, function, site, key)
                 return
             }
@@ -37538,7 +37525,7 @@ func mentions_name(text: String, name: String): Boolean {
 
 func ensure_machine(callee: String): Boolean {
     if machine_names.has(callee) {
-        return machine_names.get(callee) == true
+        return machine_names[callee] == true
     }
     var queued = queue_machine(callee)
     machine_names.set(callee, queued)
@@ -38604,10 +38591,9 @@ func analysis_snapshot(): Dictionary<String> {
     var index = 0
     while index < call_effects.function_keys.count() {
         var key = call_effects.function_keys[index]
-        var effects = call_effects.by_function.get(key)
-        crash effects
-        snapshot["effects {key}"] = digest.distinct_digest(effects.keys)
-        note_outside_writes(key, effects, outside)
+        crash call_effects.by_function[key]
+        snapshot["effects {key}"] = digest.distinct_digest(call_effects.by_function[key].keys)
+        note_outside_writes(key, call_effects.by_function[key], outside)
         index = index + 1
     }
     var written_classes = outside.keys()

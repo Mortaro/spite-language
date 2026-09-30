@@ -400,13 +400,12 @@ func load_root(entry_path: String, entry_directory: String, root_name: String, l
     var from_repository = loads_from_repositories.is_git_load(root_name)
     var root_folder = "{entry_directory}/{root_name}"
     if from_repository {
-        var loading_library = library_of_file.get(entry_path)
-        crash loading_library
+        crash library_of_file[entry_path]
         var fetched = loads_from_repositories.folder_of(
             root_name,
             entry_directory,
             "{entry_path}:{line}",
-            loading_library,
+            library_of_file[entry_path],
         )
         if not fetched {
             has_error = true
@@ -443,9 +442,8 @@ func load_root(entry_path: String, entry_directory: String, root_name: String, l
     var empty_segments = List<String>()
     var no_skip: String? = null
     var no_exclusions = List<String>()
-    var loaded_by = library_of_file.get(entry_path)
-    crash loaded_by
-    current_library = loaded_by
+    crash library_of_file[entry_path]
+    current_library = library_of_file[entry_path]
     current_checkout = ""
     current_version = ""
     var checkout = loads_from_repositories.checkout_holding(root_folder)
@@ -1735,17 +1733,16 @@ func version_of(path: String, qualified: String): String {
     if walking_library or not earlier {
         return ""
     }
-    var defining = earlier.defined_by.get(qualified)
+    var defining = earlier.defined_by[qualified]
     if not defining {
         return ""
     }
-    var library = library_of_file.get(path)
-    crash library
+    crash library_of_file[path]
     var index = 0
     while index < defining.count() {
         var identity = defining[index]
         if earlier.versioned.contains(identity) {
-            var pinned = earlier.pinned_by(library, identity)
+            var pinned = earlier.pinned_by(library_of_file[path], identity)
             if pinned {
                 return earlier.prefix_of(identity, pinned)
             }
@@ -1778,12 +1775,11 @@ func note_pinned_versions() {
     while index < class_files.count() and not has_error {
         var discovered = class_files[index]
         var file = discovered.file
-        var library = library_of_file.get(file.path)
-        if library {
+        if library_of_file[file.path] {
             var pinned_index = 0
             while pinned_index < earlier.versioned.count() {
                 var identity = earlier.versioned[pinned_index]
-                var pinned = earlier.pinned_by(library, identity)
+                var pinned = earlier.pinned_by(library_of_file[file.path], identity)
                 if pinned {
                     var prefix = earlier.prefix_of(identity, pinned)
                     discovered.pinned_versions.append(prefix)
