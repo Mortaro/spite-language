@@ -134,6 +134,12 @@ func compile_before_reload(command: String) {
     if command == "reload" {
         hot_reload.compile_for_request()
     }
+    if command.starts_with("reload ") {
+        var renames = rename_map_text(command)
+        if not renames.is_empty() {
+            hot_reload.compile_with_renames(renames)
+        }
+    }
     if command == "wait_reload" {
         hot_reload.settle_for_request()
     }
@@ -240,12 +246,15 @@ func failure(text: String): Answer {
 func answer(command: String, program: Spite.Attribute): Answer {
     if command == "help" {
         return success(
-            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), bytes of a path or 'bytes 0x1f2a40 64', describe a class, enums, memory, break file:line, breaks, clear, continue, locals, where, eval an expression, run a statement, reload, last_reload, wait_reload, help, exit",
+            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), bytes of a path or 'bytes 0x1f2a40 64', describe a class, enums, memory, break file:line, breaks, clear, continue, locals, where, eval an expression, run a statement, reload, reload \{Hero.attributes['level']: \"rank\"} to keep a renamed attribute's values, last_reload, wait_reload, help, exit",
             "",
         )
     }
     if command == "reload" or command == "last_reload" or command == "wait_reload" {
         return reloaded(command)
+    }
+    if command.starts_with("reload ") {
+        return reloaded_with_renames(command)
     }
     if command.starts_with("break ") or command == "breaks" or command == "clear" or command.starts_with("clear ") {
         return breakpoint_command(command)
@@ -872,6 +881,73 @@ func reloaded(command: String): Answer {
     return failure(
         "'{command}' answers in a program built with --hot-reload, which swaps its code while it runs, and this one was not",
     )
+}
+
+func reloaded_with_renames(command: String): Answer {
+    if not build.hot_reload {
+        return reloaded("reload")
+    }
+    var renames = rename_map_text(command)
+    if renames.is_empty() {
+        return failure(
+            "'reload' takes a map from the running class's attributes to the new ones' names, as a serializer does: reload \{Hero.attributes['level']: \"rank\"}, or reload \{} to let what the gone attributes hold be released",
+        )
+    }
+    if not hot_reload.compiled_for_request {
+        hot_reload.compile_with_renames(renames)
+    }
+    return reloaded("reload")
+}
+
+func rename_map_text(command: String): String {
+    var command_length = command.length()
+    var map = command.slice(7, command_length).trim()
+    if not map.starts_with("\{") or not map.ends_with("}") {
+        return ""
+    }
+    var map_length = map.length()
+    var inside = map.slice(1, map_length - 1).trim()
+    var lines = List<String>()
+    lines.append("given")
+    if inside.is_empty() {
+        return lines.join("\n")
+    }
+    var entries = inside.split(",")
+    var index = 0
+    while index < entries.count() {
+        var entry = entries[index].trim()
+        var line = rename_line(entry)
+        if line.is_empty() {
+            return ""
+        }
+        lines.append(line)
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func rename_line(entry: String): String {
+    var marker = ".attributes['"
+    var at = entry.index_of(marker)
+    var close = entry.index_of("']")
+    var colon = entry.index_of(":")
+    if at <= 0 or close <= at or colon <= close {
+        return ""
+    }
+    var class_name = entry.slice(0, at).trim()
+    var marker_length = marker.length()
+    var old_name = entry.slice(at + marker_length, close)
+    var entry_length = entry.length()
+    var quoted = entry.slice(colon + 1, entry_length).trim()
+    var quoted_length = quoted.length()
+    if quoted_length < 3 or not quoted.starts_with("\"") or not quoted.ends_with("\"") {
+        return ""
+    }
+    var new_name = quoted.slice(1, quoted_length - 1)
+    if class_name.is_empty() or old_name.is_empty() or new_name.is_empty() {
+        return ""
+    }
+    return "{class_name} {old_name} {new_name}"
 }
 
 func assignment_at(command: String): Integer {
