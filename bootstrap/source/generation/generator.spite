@@ -143,6 +143,9 @@ var hot_slot_names = List<String>()
 var hot_slot_owners = List<String>()
 var hot_slot_displays = List<String>()
 var layout_host: HotReloadLibrary? = null
+var breakpoint_sites = List<String>()
+var matched_breakpoints = List<String>()
+var emitted_breakpoints = List<String>()
 var enum_typedefs = Dictionary<String>()
 var field_signatures = Dictionary<String>()
 var migrating_classes = List<String>()
@@ -31873,6 +31876,9 @@ func generate_statement(
     if statement.line == 0 {
         current_line = function_information.line
     }
+    if not breakpoint_sites.is_empty() {
+        emit_breakpoint(statement, scope, class_information, function_information)
+    }
     var saved_poisoned = statement_poisoned
     var mentioned = List<String>()
     if mentions_poisoned(statement, mentioned) {
@@ -31899,6 +31905,58 @@ func generate_statement(
     }
     statement_poisoned = saved_poisoned
     return ended_in_return
+}
+
+func emit_breakpoint(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    var source_path = function_information.source_path
+    if source_path.is_empty() {
+        source_path = class_information.source_path
+    }
+    var site = "{statement.line} {source_path}"
+    var emitted_key = "{site} {function_information.c_name}"
+    assert hot_reload and remote_loop_port > 0 and breakpoint_sites.contains(site)
+    assert not emitted_breakpoints.contains(emitted_key)
+    emitted_breakpoints.append(emitted_key)
+    if not matched_breakpoints.contains(site) {
+        matched_breakpoints.append(site)
+    }
+    var attribute_class = find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var attribute_type = class_type_of(attribute_class)
+    var list_name = ensure_list(attribute_type)
+    builder.add_prototype("void spite_breakpoint(SpiteString site, {list_name}* locals);")
+    var lines = List<String>()
+    lines.append("\{ {list_name}* spite_break_locals = {list_name}___make();")
+    if not class_information.is_value_class {
+        var self_type = class_type_of(class_information)
+        var reflect_self = ensure_reflect_function(self_type)
+        lines.append("{list_name}_append(spite_break_locals, {reflect_self}({ensure_symbol("self")}, self));")
+    }
+    var names = List<String>()
+    scope.visible_names(names)
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var local_type = scope.lookup_type(name)
+        crash local_type
+        var local_code = c_value_name(name)
+        var override = scope.lookup_override(name)
+        if override {
+            local_code = override
+        }
+        var reflect = ensure_reflect_function(local_type)
+        lines.append("{list_name}_append(spite_break_locals, {reflect}({ensure_symbol(name)}, {local_code}));")
+        index = index + 1
+    }
+    var shown_site = "{source_path}:{statement.line}"
+    lines.append("spite_breakpoint({owned_c_text(shown_site)}, spite_break_locals); }")
+    var joined_lines = lines.join(" ")
+    builder.add_user(joined_lines)
 }
 
 func mark_each_used(names: List<String>, scope: Scope) {
@@ -35033,6 +35091,16 @@ func remote_loop_start(entry_class: Analysis.ClassInfo, lines: List<String>) {
     builder.add_support(
         "static ReadEvaluatePrintLoop* spite_remote_loop = 0;\nstatic {entry_class.c_name}* spite_remote_program = 0;\nstatic void* spite_remote_loop_thread(void* unused) \{\n(void)unused;\nspite_fault_thread();\nReadEvaluatePrintLoop_serve(spite_remote_loop, spite_reflect_{entry_class.c_name}({program_symbol}, spite_remote_program));\nreturn 0;\n}",
     )
+    if hot_reload {
+        var attribute_class = find_class_by_c_name("Spite_Attribute")
+        crash attribute_class
+        var attribute_type = class_type_of(attribute_class)
+        var list_name = ensure_list(attribute_type)
+        builder.add_prototype("void spite_breakpoint(SpiteString site, {list_name}* locals);")
+        builder.add_support(
+            "void spite_breakpoint(SpiteString site, {list_name}* locals) \{\nif (spite_remote_loop == 0) \{ SpiteString___release(site); {list_name}___release(locals); return; }\nReadEvaluatePrintLoop_pause_at(spite_remote_loop, site, locals);\n}",
+        )
+    }
     lines.append("spite_remote_program = spite_entry_instance;")
     lines.append("spite_remote_loop = ReadEvaluatePrintLoop___make();")
     lines.append(

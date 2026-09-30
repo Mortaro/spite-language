@@ -26,6 +26,7 @@ var swaps = Reload()
 var program = Program()
 var compiled_files = Dictionary<String>()
 var settled_for_request = false
+var breakpoints = List<String>()
 var settle_problem: String? = null
 
 func start() {
@@ -79,6 +80,9 @@ func compile_changes(): Long {
     var seen = files_seen()
     var arguments = build_arguments().split("\n")
     var running = program_file()
+    var breaks_base = running_base(running)
+    var requested_breaks = breakpoints.join("\n")
+    File("{breaks_base}.reload_breaks").write(requested_breaks)
     arguments.prepend("reload")
     arguments.append("--executable-path={running}")
     var compiler_path = compiler()
@@ -169,6 +173,34 @@ func reload() {
     assert installed_stamp < requested_stamp
     answered = true
     answer = "nothing changed since the code the program runs"
+}
+
+func change_breakpoints(request: String, adding: Boolean) {
+    compiling.lock()
+    if adding {
+        if not breakpoints.contains(request) {
+            breakpoints.append(request)
+        }
+    } else if request.is_empty() {
+        breakpoints.clear()
+    } else {
+        var index = 0
+        while index < breakpoints.count() {
+            if breakpoints[index] == request {
+                breakpoints.remove_at(index)
+            } else {
+                index = index + 1
+            }
+        }
+    }
+    compiling.unlock()
+}
+
+func listed_breakpoints(): String {
+    compiling.lock()
+    var listed = breakpoints.join("\n")
+    compiling.unlock()
+    return listed
 }
 
 func settle(): String? {
@@ -333,6 +365,7 @@ func restart_state() {
     crash built
     File("{base}.reload_files").write(built)
     File("{base}.reload_baseline").write("")
+    File("{base}.reload_breaks").write("")
 }
 
 func running_base(running: String): String {

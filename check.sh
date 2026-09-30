@@ -708,6 +708,73 @@ wait $enum_program && enum_fail "a switch that met a removed value ended with ex
 grep -q "a switch over LiveEnum.Mood met the value 'angry', which a reload removed from it" "$work/live_enum/output.txt" || enum_fail "the halt did not name the removed value"
 echo "live enums: an enum gained and lost values while the program ran, every held value kept its meaning, and a switch that met the removed one halted naming it"
 
+# Breakpoints (docs/repl.md#breakpoints): a program that ticks in a loop runs with --hot-reload and --repl-port; a
+# breakpoint is compiled into it, the loop stops there with its locals readable, goes on, and the breakpoint is
+# cleared again. A prompt call that meets a breakpoint answers that it stopped. Every wait has a timeout.
+break_folder="$work/live_break/ticker"
+mkdir -p "$break_folder"
+cat > "$break_folder/ticker.spite" <<'SPITE'
+var console = Console()
+var program = Program()
+var total = 0
+var stopped = false
+
+func Ticker() {
+    console.print("ticking")
+    while not stopped {
+        tick(1)
+        program.sleep(20)
+    }
+}
+
+func tick(amount: Integer) {
+    var doubled = amount * 2
+    total = total + doubled
+}
+SPITE
+break_port=$((port + 4))
+"$work/generation_two.exe" "$break_folder" --executable --run=false --hot-reload --repl-port=$break_port --executable-path="$work/live_break/ticker.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED breakpoints: the ticker does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/live_break/ticker.exe" > "$work/live_break/output.txt" 2>&1 < /dev/null &
+ticker=$!
+break_fail() { kill $ticker 2>/dev/null; echo "FAILED breakpoints: $1"; head -5 "$work/live_break/output.txt"; exit 1; }
+break_ask() { timeout 120 "$work/generation_two.exe" connect $break_port --command="$1" 2>&1 | tr -d '\r'; }
+break_expect() { local answer; answer=$(break_ask "$1"); [ "$answer" == "$2" ] || break_fail "'$1' answered $answer, not $2"; }
+listening=false
+for attempt in $(seq 1 100); do
+  timeout 10 "$work/generation_two.exe" connect $break_port --command=help > /dev/null 2>&1 && { listening=true; break; }
+  kill -0 $ticker 2>/dev/null || break
+  sleep 0.2
+done
+$listening || break_fail "the program never listened on $break_port"
+break_expect 'break ticker.spite:3' '{"ok":false,"error":"the program keeps the code it runs: error: no statement starts on '"'"'ticker.spite:3'"'"': a breakpoint stops before a statement, so name the line a statement starts on"}'
+break_expect 'break ticker.spite:16' '{"ok":true,"value":"the program stops before ticker.spite:16: rebuilt Ticker","type":""}'
+where=""
+for attempt in $(seq 1 100); do   # the loop meets the breakpoint at its next tick
+  where=$(break_ask where)
+  case "$where" in *'ticker.spite:16"'*) break ;; esac
+  sleep 0.1
+done
+case "$where" in *'ticker.spite:16"'*) ;; *) break_fail "the loop never stopped at the breakpoint: $where" ;; esac
+break_expect 'doubled' '{"ok":true,"value":"2","type":"Integer"}'
+break_expect 'amount' '{"ok":true,"value":"1","type":"Integer"}'
+held=$(break_ask 'locals')
+case "$held" in '{"ok":true,"value":"self: Ticker = Ticker {...}\namount: Integer = 1\ndoubled: Integer = 2","type":""}') ;; *) break_fail "locals answered $held" ;; esac
+before=$(break_ask total)
+break_expect 'clear' '{"ok":true,"value":"cleared: rebuilt Ticker","type":""}'
+break_expect 'breaks' '{"ok":true,"value":"no breakpoint is set: '"'"'break hero.spite:12'"'"' sets one","type":""}'
+case "$(break_ask continue)" in *'"ok":true,"value":"continued from '*) ;; *) break_fail "continue did not go on" ;; esac
+sleep 0.2
+after=$(break_ask total)
+[ "$before" != "$after" ] || break_fail "the loop did not go on after continue: total stayed $after"
+break_expect 'continue' '{"ok":false,"error":"the program is not stopped at a breakpoint: '"'"'break hero.spite:12'"'"' sets one"}'
+break_expect 'stopped = true' '{"ok":true,"value":"true","type":"Boolean"}'
+break_expect 'exit' '{"ok":true,"value":"","type":""}'
+for attempt in $(seq 1 50); do kill -0 $ticker 2>/dev/null || break; sleep 0.2; done
+kill -0 $ticker 2>/dev/null && break_fail "the program kept running after exit"
+wait $ticker || break_fail "the program ended with exit code $?"
+echo "breakpoints: a breakpoint compiled into a running loop stopped it with its locals readable, and it went on once cleared"
+
 # A reload compiles only the classes of the changed files (docs/repl.md#how-it-works), from what the running
 # program's manifest says about the rest. SPITE_RELOAD_CHECK makes a reload of the file it names compile both
 # ways and compare what they write; a fast reload that differs from a whole compile is a bug. Every file of these

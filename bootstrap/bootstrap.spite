@@ -25,6 +25,8 @@ var reload_rebuilt = List<String>()
 var reload_generator: Generation.Generator? = null
 var reload_baseline = ""
 var reload_host_text = ""
+var breakpoint_sites = List<String>()
+var breakpoint_requests = List<String>()
 
 func Bootstrap() {
     load "source"
@@ -371,6 +373,7 @@ func generator_pass(
     generator.reload_host = partial_host
     generator.layout_host = layout_host
     generator.reload_changed_paths = partial_paths
+    generator.breakpoint_sites = breakpoint_sites
     generator.seed_class_names(host_classes, host_identities)
     generator.number_key_sites = number_keys
     generator.key_use_notes = notes
@@ -1040,6 +1043,13 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
     }
     var reload = read_reload(host_text, state_text)
     var changed_files = changed_paths(discovery, reload)
+    var breakpoint_problem = resolve_breakpoints(discovery, base)
+    if not breakpoint_problem.is_empty() {
+        console.print("error: {breakpoint_problem}")
+        program.exit(1)
+        return
+    }
+    add_breakpoint_files(discovery, reload, changed_files)
     var checked = program.environment("SPITE_RELOAD_CHECK")
     if checked {
         if checked != "1" and not changed_files.contains(checked) {
@@ -1065,9 +1075,22 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
         program.exit(1)
         return
     }
+    crash reload_generator
+    var unmatched = unmatched_breakpoints(reload_generator)
+    if not unmatched.is_empty() {
+        console.print(
+            "error: no statement starts on {unmatched}: a breakpoint stops before a statement, so name the line a statement starts on",
+        )
+        program.exit(1)
+        return
+    }
     var next_generation = reload.generation + 1
     var state = hot_state(discovery, reload, next_generation)
-    crash reload_generator
+    var break_index = 0
+    while break_index < breakpoint_sites.count() {
+        state = "{state}\nbreakpoint {breakpoint_sites[break_index]}"
+        break_index = break_index + 1
+    }
     var moved_lines = reload_generator.moved_state_lines()
     if not moved_lines.is_empty() {
         state = "{state}\n{moved_lines}"
@@ -1091,6 +1114,100 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
     console.print("library {library_path}")
     console.print("state {library_base}.files")
     program.exit(0)
+}
+
+func resolve_breakpoints(discovery: Discovery.DiscoveryResult, base: String): String {
+    var requested = File("{base}.reload_breaks").read()
+    if not requested {
+        return ""
+    }
+    var requests = requested.split("\n")
+    var index = 0
+    while index < requests.count() {
+        var request = requests[index].trim()
+        if not request.is_empty() {
+            var problem = resolve_breakpoint(discovery, request)
+            if not problem.is_empty() {
+                return problem
+            }
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func resolve_breakpoint(discovery: Discovery.DiscoveryResult, request: String): String {
+    var request_length = request.length()
+    var colon = request_length - 1
+    while colon > 0 and request.code_at(colon) != 58 {
+        colon = colon - 1
+    }
+    var line = request.slice(colon + 1, request_length).to_integer()
+    if colon <= 0 or not line or line <= 0 {
+        return "'{request}' names no line: a breakpoint is a file and a line, such as hero.spite:12"
+    }
+    var file = request.slice(0, colon).replace("\\", "/")
+    var found = List<String>()
+    var index = 0
+    while index < discovery.program_paths.count() {
+        var path = discovery.program_paths[index]
+        var normalized = path.replace("\\", "/")
+        if normalized == file or normalized.ends_with("/{file}") {
+            found.append(path)
+        }
+        index = index + 1
+    }
+    if found.is_empty() {
+        return "no file of the program is '{file}', so '{request}' cannot stop anything"
+    }
+    if found.count() > 1 {
+        return "'{file}' names more than one file of the program ({found.join(", ")}): write more of its path"
+    }
+    breakpoint_sites.append("{line} {found[0]}")
+    breakpoint_requests.append(request)
+    return ""
+}
+
+func add_breakpoint_files(
+    discovery: Discovery.DiscoveryResult,
+    reload: Generation.HotReloadLibrary,
+    changed_files: List<String>,
+) {
+    var running = reload.running_breakpoints
+    var same = running.count() == breakpoint_sites.count()
+    var index = 0
+    while index < breakpoint_sites.count() {
+        if not running.contains(breakpoint_sites[index]) {
+            same = false
+        }
+        index = index + 1
+    }
+    assert not same
+    var sites = breakpoint_sites.copy()
+    running.each(sites.append)
+    index = 0
+    while index < sites.count() {
+        var site = sites[index]
+        var space = site.index_of(" ")
+        var site_length = site.length()
+        var path = site.slice(space + 1, site_length)
+        if discovery.program_paths.contains(path) and not changed_files.contains(path) {
+            changed_files.append(path)
+        }
+        index = index + 1
+    }
+}
+
+func unmatched_breakpoints(generator: Generation.Generator): String {
+    var missing = List<String>()
+    var index = 0
+    while index < breakpoint_sites.count() and index < breakpoint_requests.count() {
+        if not generator.matched_breakpoints.contains(breakpoint_sites[index]) {
+            missing.append("'{breakpoint_requests[index]}'")
+        }
+        index = index + 1
+    }
+    return missing.join(" or ")
 }
 
 func read_reload(host_text: String, state_text: String): Generation.HotReloadLibrary {

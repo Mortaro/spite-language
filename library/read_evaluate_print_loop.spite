@@ -19,6 +19,11 @@ var handover: Memory.Address = 0
 var pending_command = ""
 var answered: Answer? = null
 var served: Spite.Attribute? = null
+var paused_site = ""
+var paused_locals = List<Spite.Attribute>()
+var pausing = Lock()
+var answer_depth = 0
+var early_at_depth = 0
 
 func step(program: Spite.Attribute): Boolean {
     console.write("spite> ")
@@ -43,9 +48,10 @@ func listen_in_background(port: Integer, entry: Long) {
         running_program.exit(1)
         return
     }
-    handover = heap.allocate(16)
+    handover = heap.allocate(24)
     handover.write_long(0, 0)
     handover.write_long(8, 0)
+    handover.write_long(16, 0)
     scheduler.start()
     scheduler.serving = true
     scheduler.commands = answer_pending
@@ -130,13 +136,35 @@ func compile_before_reload(command: String) {
     if command == "wait_reload" {
         hot_reload.settle_for_request()
     }
+    if command.starts_with("break ") {
+        var command_length = command.length()
+        var request = command.slice(6, command_length).trim()
+        hot_reload.change_breakpoints(request, true)
+        hot_reload.compile_for_request()
+    }
+    if command == "clear" or command.starts_with("clear ") {
+        var clear_length = command.length()
+        var cleared = command.slice(5, clear_length).trim()
+        hot_reload.change_breakpoints(cleared, false)
+        hot_reload.compile_for_request()
+    }
 }
 
 func answer_pending() {
     if handover.read_long_atomically(0) == 1 {
         handover.write_long_atomically(0, 3)
         crash served
-        answered = answer(pending_command, served)
+        var command = pending_command
+        answer_depth = answer_depth + 1
+        var depth = answer_depth
+        var command_answer = answer(command, served)
+        answer_depth = answer_depth - 1
+        if early_at_depth == depth {
+            early_at_depth = 0
+            console.error("spite: '{command}' finished after its breakpoint: {command_answer.text}")
+            return
+        }
+        answered = command_answer
         handover.write_long_atomically(0, 2)
         if pending_command == "exit" {
             while true {
@@ -204,12 +232,18 @@ func failure(text: String): Answer {
 func answer(command: String, program: Spite.Attribute): Answer {
     if command == "help" {
         return success(
-            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), bytes of a path or 'bytes 0x1f2a40 64', describe a class, enums, memory, reload, last_reload, wait_reload, help, exit",
+            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), bytes of a path or 'bytes 0x1f2a40 64', describe a class, enums, memory, break file:line, breaks, clear, continue, locals, where, reload, last_reload, wait_reload, help, exit",
             "",
         )
     }
     if command == "reload" or command == "last_reload" or command == "wait_reload" {
         return reloaded(command)
+    }
+    if command.starts_with("break ") or command == "breaks" or command == "clear" or command.starts_with("clear ") {
+        return breakpoint_command(command)
+    }
+    if command == "continue" or command == "locals" or command == "where" {
+        return paused_command(command)
     }
     if command == "classes" {
         var class_listing = listed_classes()
@@ -295,6 +329,76 @@ func listed_classes(): String {
         lines.append(names)
     }
     return lines.join("\n")
+}
+
+func breakpoint_command(command: String): Answer {
+    if not build.hot_reload or build.repl_port == 0 {
+        return failure(
+            "'{command}' answers in a program built with --hot-reload and --repl-port: a breakpoint is compiled into the code the program runs, and the program waits there for the remote REPL",
+        )
+    }
+    if command == "breaks" {
+        var listed = hot_reload.listed_breakpoints()
+        if listed.is_empty() {
+            return success("no breakpoint is set: 'break hero.spite:12' sets one", "")
+        }
+        return success(listed, "")
+    }
+    hot_reload.reload()
+    if command.starts_with("break ") {
+        var command_length = command.length()
+        var request = command.slice(6, command_length).trim()
+        if not hot_reload.answered {
+            hot_reload.change_breakpoints(request, false)
+            return failure(hot_reload.answer)
+        }
+        return success("the program stops before {request}: {hot_reload.answer}", "")
+    }
+    if not hot_reload.answered {
+        return failure(hot_reload.answer)
+    }
+    return success("cleared: {hot_reload.answer}", "")
+}
+
+func paused_command(command: String): Answer {
+    if handover == 0 or handover.read_long_atomically(16) == 0 {
+        return failure("the program is not stopped at a breakpoint: 'break hero.spite:12' sets one")
+    }
+    if command == "continue" {
+        handover.write_long_atomically(16, 0)
+        return success("continued from {paused_site}", "")
+    }
+    if command == "where" {
+        return success(paused_site, "")
+    }
+    if paused_locals.is_empty() {
+        return success("nothing is in scope at {paused_site}", "")
+    }
+    var listing = listed_attributes(paused_locals)
+    return success(listing, "")
+}
+
+func pause_at(site: String, locals: List<Spite.Attribute>) {
+    pausing.lock()
+    paused_site = site
+    paused_locals = locals
+    handover.write_long_atomically(16, 1)
+    console.error("spite: stopped at {site}: 'locals' lists what is in scope there, and 'continue' goes on")
+    var on_main_thread = scheduler.current_thread() == scheduler.scheduler_thread
+    if on_main_thread and handover.read_long_atomically(0) == 3 {
+        answered = success("stopped at {site} while answering: 'locals' lists what is in scope there, and 'continue' goes on", "")
+        early_at_depth = answer_depth
+        handover.write_long_atomically(0, 2)
+    }
+    while handover.read_long_atomically(16) == 1 {
+        if on_main_thread {
+            answer_pending()
+        }
+        pause_briefly()
+    }
+    paused_site = ""
+    paused_locals = List<Spite.Attribute>()
+    pausing.unlock()
 }
 
 func listed_enums(): Answer {
@@ -472,6 +576,14 @@ func root_of(parts: List<String>, program: Spite.Attribute): Spite.Attribute? {
     if parts[0] == "program" {
         consumed = 1
         return program
+    }
+    var local_index = 0
+    while local_index < paused_locals.count() {
+        if paused_locals[local_index].name == parts[0] {
+            consumed = 1
+            return paused_locals[local_index]
+        }
+        local_index = local_index + 1
     }
     var index = 0
     while index < parts.count() and not is_call(parts[index]) and not parts[index].starts_with("[") {

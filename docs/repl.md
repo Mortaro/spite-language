@@ -322,6 +322,36 @@ The first eight bytes of every object are its header, the reference count and th
 reads, and it never crashes the program it inspects: the bytes are copied through the operating system's checked
 read, and an address that is not readable answers `unreadable`. At most 4096 bytes are shown at a time.
 
+## Breakpoints
+
+A program built with `--hot-reload` and `--repl-port` can be stopped at a line while it runs (D242):
+
+```text
+$ spite connect 4000 --command="break ticker.spite:16"
+{"ok":true,"value":"the program stops before ticker.spite:16: rebuilt Ticker","type":""}
+
+$ spite connect 4000 --command="where"
+{"ok":true,"value":"game/ticker.spite:16","type":""}
+
+$ spite connect 4000 --command="locals"
+{"ok":true,"value":"self: Ticker = Ticker {...}\namount: Integer = 1\ndoubled: Integer = 2","type":""}
+
+$ spite connect 4000 --command="doubled"
+{"ok":true,"value":"2","type":"Integer"}
+
+$ spite connect 4000 --command="continue"
+{"ok":true,"value":"continued from game/ticker.spite:16","type":""}
+```
+
+`break <file>:<line>` compiles a stop into the function that line belongs to and swaps it in, the way a reload
+swaps in a saved file -- a program that never sets one carries nothing for it. The next time any code reaches the
+line, the program stops before it and waits for the prompt: `where` answers where it stopped, `locals` lists
+`self` and every local in scope there, a path may start at a local's name (`doubled`, `self.total`), every other
+command answers as usual, and `continue` lets the program go on. `breaks` lists the breakpoints and `clear` (or
+`clear ticker.spite:16`) removes them, compiling the code again without the stop. A call made at the prompt that
+reaches a breakpoint answers `stopped at ... while answering` at once, and prints what it returned on the error
+output once it goes on. `check.sh` stops a ticking loop, reads its locals and lets it go.
+
 ## Live reload: `--hot-reload`
 
 `--hot-reload` builds a program that can take new code while it runs. Save a file of the program, and the classes
@@ -755,6 +785,23 @@ the entry class's own Spite name). Built:
   and describing them would drag most of the library's classes into the build's reflection, which a reload that
   compiles only the changed classes would then have to reproduce. Any other build writes them as an empty list and empty text, and nothing calls
   them, so they are shaken out with the rest of the loop: a normal build carries none of it (D143, D177).
+- **Breakpoints** (D303, decided by Claude under D205, implementing D242; the command names provisional under
+  D214). `break <file>:<line>`, `breaks`, `clear` and `clear <file>:<line>` answer in a program built with both
+  `--hot-reload` and `--repl-port`, and everywhere else with `'break ...' answers in a program built with
+  --hot-reload and --repl-port: ...`. The file is a path of the program ending in what is written (`ticker.spite`,
+  `game/ticker.spite`); none or two such files are refused naming them, and a line no statement starts on is
+  `no statement starts on 'ticker.spite:3': a breakpoint stops before a statement, so name the line a statement
+  starts on`, the program keeping all of its code. How it is built: the running program writes the breakpoints
+  beside its executable (`<program>.reload_breaks`) and runs a reload; the compiler adds every file whose
+  breakpoints differ from the ones the running code has (kept in the reload state, `breakpoint <line> <path>`) to
+  the files it compiles, and before the statement starting on each line writes a call of `spite_breakpoint(site,
+  locals)` with `self` and every local in scope reflected as `Spite.Attribute`s; the executable's `spite_breakpoint`
+  hands them to `ReadEvaluatePrintLoop.pause_at`. So a build carries nothing for breakpoints until one is set, and
+  only the functions of the files holding one change. `pause_at` publishes the site and the locals and waits until
+  `continue`; on the main thread it answers the prompt itself while it waits, and on another thread the main
+  thread answers as usual (one thread stops at a time; another that reaches a breakpoint waits its turn).
+  `where`, `locals` and `continue` answer `the program is not stopped at a breakpoint: 'break hero.spite:12' sets
+  one` when it is not. Only the program's own classes can hold a breakpoint, since only their code is swapped.
 - **`bytes`: native memory** (D291, decided by Claude under D205, implementing D281 and D282; the command's name
   provisional under D214).  **[implemented]** `bytes <path>` answers one JSON object: for a value the path holds
   an object of (an instance, a list, a dictionary, a singleton), `class`, `address` (hexadecimal text), `bytes`

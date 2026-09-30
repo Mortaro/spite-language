@@ -20,6 +20,7 @@ var library_bodies = List<String>()
 var library_body_names = List<String>()
 var host_hashes = Dictionary<String>()
 var stale_pieces = List<String>()
+var running_breakpoints = List<String>()
 var host_snapshot = Dictionary<String>()
 var program_shaker = TreeShaker()
 var program_prototypes = Dictionary<String>()
@@ -294,6 +295,10 @@ func read_state(text: String) {
             var line_length = line.length()
             var signature_start = words[0].length() + words[1].length() + 2
             running_fields[words[1]] = line.slice(signature_start, line_length)
+        } else if words.count() >= 3 and words[0] == "breakpoint" {
+            var line_length = line.length()
+            var site = line.slice(11, line_length)
+            running_breakpoints.append(site)
         } else if words.count() >= 3 and words[0] == "file" {
             var line_length = line.length()
             var path_start = words[0].length() + words[1].length() + 2

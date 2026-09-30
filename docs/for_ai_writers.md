@@ -26,6 +26,13 @@ spite format game                       format files without compiling them (eve
 bash check.sh                           the compiler still compiles itself, and every corpus passes
 ```
 
+**Debug the running program instead of rebuilding and logging** (D242). Run it with
+`--hot-reload --repl-port=4000` and keep it running: save a file and send `wait_reload` to learn what was swapped
+in, read any value by its path (`World().player.health`, `describe Monster`, `memory`), and set a breakpoint with
+`break monster.spite:42`: the program stops before that line, `locals` and any path through them answer what is in
+scope there, and `continue` goes on (`clear` removes it). Every answer is one JSON line, so an agent can script it.
+The commands are in [repl.md](repl.md#breakpoints).
+
 A program lives in its own folder, and `spite game` runs it: `launcher/launcher.spite` loads `library/`, then the
 target system's folder of it, then `game/`, whose every sub folder is a
 namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
