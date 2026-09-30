@@ -1,0 +1,22 @@
+type Pair {
+    tag: Tag
+    point: Point
+}
+
+var store = Store<Point>()
+
+func WalkedRowLocals() {
+    var index = 0
+    while index < 3 {
+        var point = Point()
+        point.across = index * 7
+        store.values.append(point)
+        index = index + 1
+    }
+    var filler = Filler<Pair>()
+    index = 0
+    while index < 3 {
+        filler.fill(index)
+        index = index + 1
+    }
+}
