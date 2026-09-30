@@ -1,544 +1,121 @@
 # Decisions waiting on Mortaro
 
-Agents add here what only Mortaro can decide; Mortaro answers inline or in `mortaros_notes.md`, and an agent
-moves the answer into the docs (the page that teaches it, and a row of `docs/decisions.md`) and removes the
-item. Each item links to where the docs argue it.
+Only questions Mortaro still has to answer. An agent adds one here with a link to where the docs argue it; when he
+answers (inline or in `mortaros_notes.md`), the answer goes into the page that teaches it and a row of
+`docs/decisions.md`, and the item is deleted. Item numbers never change. "D244" marks an item where something can
+go wrong silently today; "D205" marks one Claude could decide itself (no syntax, safe, no slower).
+
+Cleaned 2026-09-30: answered by D280 (64), D287 (71), D293 (34), D294 (21), D295 (22), D296 (5), D297 (218);
+187 merged into 153.
 
 ## Start here
 
-Sorted 2026-09-28. Item numbers never change; the full items follow below. "D244" marks an item where something
-can go wrong silently today, which D244 calls a bug. "Claude could decide under D205" marks one whose safe
-answer adds no syntax and costs nothing; nobody has decided it yet.
-
-**Waiting in SlopEngine or the Theseus port** (their docs cite these; most urgent first):
-
-- **109** -- what a function reads and writes, per attribute. Theseus L6 and SlopEngine's `Changed<T>` and field
-  skipping need it. D209/D229/D261/D268 already answer waits, running in pieces and per-parameter writes. Performance;
-  Claude could decide under D205, as D261 was.
-- **6** (open question 8) -- an unrelated `get_x()` silently takes over reads of `.x`. It is on Theseus's list of
-  traps (L8, D10). D244; Claude could decide the stricter option under D205.
-- **213** -- the default build's `-O` level. Theseus left it for you to pick from the numbers. Performance.
-- **153** (with 187) -- kebab-case settings after `--`. SlopEngine lists it as open (INSIGHTS #32). Taste.
-- **218** -- a message on `crash`. SlopEngine wants it for D244 crashes and D261's engine refusals. Taste (syntax).
-- **21** -- what the standard library offers. Theseus L5 needs HTTP, TLS, SHA-256/HMAC, secure random, Argon2id,
-  base64url and gzip. Taste.
-- **212** -- whether `--run=false` builds the executable. Theseus ran a stale executable. D244. Taste.
-- **173** -- `Memory.Frame` and an arena `reset()`, and the rule that keeps frame-made objects from outliving the
-  frame. SlopEngine's frame allocations need it. Taste.
-- **175** -- a class reading its own allocator, so a list's buffer follows its arena. SlopEngine. Taste (syntax).
-- **208**, **209** -- the one-`List` study (D222): how a fallback to references is reported, and whether a kept
-  item is weak. SlopEngine's hot path. Taste.
-- **155** -- a dedicated OS thread (`Thread(function)`) for loops that block forever, e.g. SlopEngine's window
-  thread. Taste (new name).
-- **206** -- a walk nested inside a walk, for SlopEngine's relation systems (low priority; these copy for now).
-  Taste (new metaprogramming).
-
-**Taste: Mortaro's call** (names, syntax, how it reads):
-
-- **5** -- two versions of one dependency (needs D38 built).
-- **6** (open questions 9, 10, 11) -- `${` in text (D244; Claude could decide the error under D205),
-  `--final-classes` provenance, function-valued `type` members.
-- **9** -- the floor: what stays C, and how `--final-classes` shows it.
-- **10** -- confirm the old unconfirmed rows from 2026-09-23/24.
-- **22** -- `Directory.Entry`, and whether `files()`/`folders()` go.
-- **25** -- the metaprogramming forms serialisation needed, each a yes or no.
-- **34** -- `from_type` as a class-level form (`Float.from_int(count)`).
-- **36** -- unions of number classes.
-- **39** -- moving the C left in `main` into Spite.
-- **46** -- singletons with arguments: is `DynamicLibrary` the exception or the rule?
-- **64** -- live reload of a changed attribute or enum (more urgent since D242).
-- **68** -- the live reload names.
-- **71** -- finding `*_system` functions across the program (maybe stale since D115's folder walk).
-- **76** -- enums declaring more than `to_string()`/`to_debug()`.
-- **79** -- the REPL showing values through `to_debug()`.
-- **89** -- the name `source_folder()` (D228 built it).
-- **90** -- a loaded folder that is a program silently merges into the loader. D244.
-- **93** -- foreign calls converting silently through a header's prototype. D244.
-- **98**, **99**, **100**, **108** -- the D114-D116 template spellings as built (99: a misspelled plural walk does
-  nothing, D244).
-- **105** -- naming a root class a nearer one shadows.
-- **134**, **136**, **138** -- choosing outputs, where a run's executable goes, two ways to format.
-- **161** -- where an enum reopening's values go.
-- **166** -- the watcher's name and members.
-- **171** -- who may read and write an address.
-- **183** -- a capped `ShortText<32>`.
-- **187** -- the kebab-case stop-gap (follows 153).
-- **188** -- `$value_type == Enum`.
-- **202** -- the reader and writer names.
-- **204**, **205** -- the maths names, `Float.pi()` and `x_value`; 204 also asks whether `minimum`/`maximum`
-  pass a not-a-number through (a compare or two per call).
-- **211** -- `ForeignCallback` names and its two limits ((a) a call after the drop is not caught: D244).
-- **217** -- whether unsigned arithmetic halts on overflow too (and `-fwrapv`).
-- **219** -- confirm D263-D267 and the names `remove_where`, `truncate`, `swap`.
-
-**Performance: settle by measurement** (D214, the faster of two similar ways):
-
-- **178** -- a wait inside an expression runs first; keeping written order costs frame fields.
-- **179** -- waits that run the loop in place; two such waits can hang silently. D244; Claude could decide under
-  D205 to close the gaps where measured no slower.
-- **197** -- a flush per printed line (5x slower to a file); whether a program can keep the buffer.
-- **210** -- whether `Float` maths rounds after each operation (2-3x faster loops, but printed last bits change,
-  so not D205).
-- **214** -- `--optimized` at `-O3` or `-O2`; the numbers pick no clear winner. Claude could decide under D205.
-- **215** -- the build flag names are taste; not splitting a default build was measured. Claude could decide
-  that part under D205.
-- **216** -- cleaning the object cache. Claude could decide under D205.
-
-## Open questions still open in docs/open_questions.md
-
-5. **Open question 16: two versions of one dependency.** Needs D38 (git dependencies) first.
-6. **Open questions 8, 9, 10, 11**, the older ones: an unrelated `get_x()` intercepting `.x`, `${` in text,
-   where `--final-classes` shows provenance, and function-valued `type` members. (1, 3 and 6 are answered: D236,
-   D251, D136/D137.)
-
-## Proposals built and waiting for a yes or no
-
-9. **The floor** (section 15, "The floor, named"): what stays C, and D82's form for showing it in
-   `--final-classes`.
-10. **Rows marked "(proposed by Claude, unconfirmed)"** in the decision log from 2026-09-23 and 2026-09-24:
-    the tree shaker, `nan` printing as `nan`, the REPL's command names and output, `Environment`'s sources and
-    their order, the containers row, and the D91/D105 rows (a `List` template's symbol names the element's
-    member; how a chain fuses). (`Memory.address_of` and `take_text` are gone with the `Memory` namespace, D178;
-    `--operational_system` was superseded by D86.)
-
-## What the standard library offers
-
-21. **Go's standard library against Spite's**, package by package, with a suggested order of what to add:
-    [mortaros_go_standard_library_comparison.md](mortaros_go_standard_library_comparison.md). Its first
-    suggestions are built (bit functions D117, maths D204/D213, time and a clock D252, readers and writers D208);
-    still open are `Random`, HTTP, a database, hashes, TLS, base64 and gzip. The
-    Theseus port needs HTTP, TLS, SHA-256/HMAC, secure random bytes, Argon2id, base64url and gzip. D213 settled
-    games' maths as "fill every gap SlopEngine asks for"; should the rest follow the same rule?
-
-## From D93 and D95 (directories and JSON)
-
-22. **`Directory.Entry`** is the name of the union of `Directory` and `File` that `entries()` answers; folders
-    come first, then files, each sorted. Should `files()` and `folders()` go now that `entries()` exists (the
-    compiler's own discovery still reads names)? `docs/standard_library.md`, "System classes".
-25. **The metaprogramming `Json` needed** (`docs/values_and_types.md` and `docs/metaprogramming.md`): `attribute: Symbol<Label>` for a template
-    over another class's attributes; the plural (`show_attributes`) to call a template for every attribute;
-    `$value_type == List` / `Dictionary` / `Null` / `Symbol` as compile-time type tests; `$value_type.element_type`
-    to name what a container holds; text casting to an enum by name. Each is a new form, so each wants a yes or no.
-
-## From D82, D83, D88, D92, D98, D100 and D101 (the compiler's reopening, numbers, reflection, memory)
-
-34. **`from_type` is an instance function on the class cast to** (as D100 wrote it), so calling it by hand reads
-    `0.0.from_int(count)`; the compiler calls it for every number cast. A cast written in Spite inside a reopened
-    `from_type` would call itself, so a reopening can only replace it with the same C cast. A class-level form
-    (`Float.from_int(count)`, D6's class object) would read better.
-36. **Unions of numbers**: should a union admit number classes? `Json` tests for a number with ten
-    comparisons (`$value_type == Int or $value_type == Long or ...`) because it cannot today. With D83 every number is a class in
-    `library/`, so a union of number classes is no longer a union of names that are not classes.
-
-## Build, the launcher and the entry (D85, D86, D89, D97; `docs/programs.md` and `docs/compiler.md`)
-
-39. **The C left in `main`**: handing `argv` to `Arguments()`, binary standard output on Windows (`_setmode`), and,
-    after `Launcher` returns, releasing singletons and class objects and printing the `--debug-memory` report.
-    Moving them into Spite needs a way for Spite to receive `argv` and to run code after the program ends (a
-    `Launcher` that releases what the program left?) -- which is a language question.
-## Found while auditing docs/ against the manual (2026-09-24)
-
-Behaviour that does not match the manual. The language was not changed; each is pinned or noted in
-`docs/KNOWN_ISSUES.md` so a fix shows up there.
-
-46. **Singletons with arguments.** Section 8 ("Singletons") says one instance per distinct literal argument list;
-    the compiler rejects any singleton constructor with parameters (`diagnostics/singleton_arguments`) except
-    `DynamicLibrary`'s, which keeps the per-argument-list behaviour. Which is the rule, and is `DynamicLibrary` the
-    exception or the rule?
-## Live reload (D111, D112; `docs/repl.md`, "Live reload and 6b")
-
-64. **A changed attribute or enum is refused, with an error saying to restart.** D111 says a change rebuilds "what
-    depends on their layout", but instances already in memory have the old layout. Migrating them -- a new object
-    per instance, attributes copied by name, new ones taking their defaults -- needs every live instance and every
-    reference to each, which nothing finds today (`Class.instances` is not built, and references would have to be
-    re-pointed). Keep refusing, build migration (and how should references be found: a per-class instance list, or
-    one level of indirection per object in `--hot-reload` builds), or something else?
-68. **Names**: `reload` and `last_reload` at the prompt, `--mode=reload` for the compiler, and `rebuilt A, B` /
-    `removed A.f` / `nothing changed since the code the program runs` as answers. When the watcher swapped a save
-    in before `reload` arrived, `reload` answers `nothing changed`, and `last_reload` tells what happened. Keep?
-## From D114 (compile-time function reflection, for SlopEngine)
-
-71. **Finding every function named `*_system` across the program** -- the same reflection over the program's
-    classes. Not decided.
-
-## From D109 (printing through `to_string()`, `Console.debug`; `docs/functions_and_operators.md`, `docs/metaprogramming.md` and `docs/standard_library.md`)
-
-76. **An enum value answers `to_string()` and `to_debug()` and nothing else**, which is what lets it be
-    `Printable` and `Debuggable`. Should an enum be able to declare more, the way a number's class does (a file
-    per enum is not a thing yet)?
-79. **The REPL could show values with `to_debug()`**: today it shows `Player { name: hero, ... }` (text unquoted,
-    nested objects as `Name {...}`, lists as `List<String>(...)`) from `Spite.Attribute`'s text, and the
-    documented sessions depend on that. Switching means quoting text and nesting fully in every answer. Want it?
-## From the Vulkan renderer bugs (`docs/packages.md`, `docs/style.md`, `docs/compiler.md`, `docs/standard_library.md` and `docs/foreign_libraries.md`)
-
-89. **The name of a package's own folder.** Answered by D228: `$T.source_folder()` and
-    `class.source_folder()` fold to the absolute folder of the file that declares the class. Only the name is
-    left: `source_folder()` is provisional (D214). Keep it?
-90. **A loaded folder that is itself a program merges into the loader.** A test program that `load`s a game
-    folder, and has its own root `composition.spite` or `plugin.spite`, silently reopens the game's classes of
-    the same name (reopening, by design), which cost SlopEngine a debugging round. Master now makes reopening
-    the entry class an error; this is the same trap one level down. Proposal: a loaded folder that has an entry
-    file (a file named after the folder) keeps its root classes to itself, or merging with it must be asked for.
-    Related to item 82.
-93. **A foreign call with a header goes through the header's prototype.** C checks the count and converts each
-    argument; converting an integer to a pointer (a `Long` handle) is the one complaint silenced, so a `String`
-    passed where C wants an `int` is converted silently too. A C function returning `void` reads as `0`. Every
-    called function must be declared by the header, so a header that does not declare one is a C error at build
-    time. Without a header, integers cross as 64 bits. Fine, or should the header be required whenever a call
-    passes anything but a `Long`?
-## From D114, D115 and D116 (compile-time reflection over functions, folders and names; `docs/metaprogramming.md`)
-
-98. **The D114 spelling as built**: `$system_type.has_function('run_each')` (a member of `Spite.Class`, folded in
-    a condition, answering at run time elsewhere) and `argument: Symbol<$system_type.run_each>` over the
-    arguments. A template over arguments that returns a value has exactly one use for its plural:
-    `system.run_each(row_arguments())`, the whole argument list of that same function, which D77 would otherwise
-    forbid. Is that one exception to D77 acceptable, or would you rather the values be gathered some other way
-    (for example the template storing each value, and a separate `system.run_each(...)` spelled some other way)?
-99. **The D115 spelling as built**: `system: Symbol<System>` -- a range that names no class or type is read as
-    the end of a dotted namespace, so `System` finds `System.Heal` and `Ui.System.Interact`. Classes are walked in
-    order of their dotted names (not discovery order), and a range matching no folder walks nothing (it used to be
-    an error; SlopEngine's `Cook` needed a program with no recipes to compile), so a misspelled range walked by its
-    plural (`Symbol<Sytem>`) silently does nothing -- a single class named with a typo is still an error. Keep the
-    order and the empty walk? And should `Symbol<System>` also reach classes in folders below a `system/` folder
-    (`System.Combat.Hit`), which it does not today?
-100. **The D116 grammar as built**: one hole per pattern, spelled by the parameter's name being a word of the
-    function name in the range (`phase: Symbol<$system_type.phase_each>`), exactly as a template's own name is
-    spelled. Two readings came with it: `system.phase_each(...)` written inside that template calls the matched
-    function (the pattern as a member name), and a template over `$system_type.phase_each` called from inside
-    walks the matched function's arguments, its instances named `<name>_in_<function>`. Is a member name
-    changing meaning inside a template acceptable, or should the matched function be reached some other way?
-## From the SlopEngine regressions after item 85
-
-105. **Naming a root class that a nearer one shadows.** Inside `click_test/`, `Plugin()` finds `ClickTest.Plugin`
-    first (the walk goes from the class's own namespace outward), so a `ClickTest.Composition` that wants both the
-    game's root `Plugin` and its own `ClickTest.Plugin` cannot name the root one; SlopEngine renamed its own to
-    `TestPlugin`. The reporter's two options: (a) a root qualifier, some spelling that starts the walk at the whole
-    program (a leading `Root.` or `.`, say); or (b) fall through to the next match when the nearer class would be
-    a reference to the class itself (`var counter = Plugin()` written inside `ClickTest.Plugin`). (b) needs no
-    syntax but only covers the self-reference case, and a name then means different things in different files.
-    Nothing is built; which, if either?
-
-## From SlopEngine adopting D114-D116
-
-108. **Passing a template's symbol to a helper** (proposed by Claude, unconfirmed; `docs/metaprogramming.md`). A function
-    whose ranged `Symbol<...>` parameter is not a word of its own name, such as `run_combination(phase:
-    Symbol<$system_type.phase_each>, combination: Int)`, is now a template reached by passing it the calling
-    template's own symbol by name, `run_combination(phase, combination)`, and it is compiled once per symbol
-    (`run_combination_for_update`). Two readings came with it: whether a template is spelled by its name or
-    reached by a passed symbol now depends on whether the parameter's name is a word of the function's name, and
-    the passed symbol must be over exactly the same range text. Keep the rule, or would you rather the helper be
-    spelled some other way (a name with the hole, `run_phase_combination()`, reached from inside the template)?
-
-## Behind D118 (unused attributes), from SlopEngine
-
-109. **Should the compiler tell an engine what a function does?** SlopEngine marks systems with attributes nothing
-     reads -- `var world = Resource.World()` (it may spawn or despawn, so it runs alone in its stage) and
-     `var main_thread = Resource.MainThread()` (Win32 window procedures, Vulkan present) -- and its engine finds
-     them with a compile-time walk over each system's attributes. D118 keeps them legal because that walk counts
-     as a use. The session's guess at what you want, since your D118 example was exactly `var world =
-     Resource.World()`: the marker is noise, and the engine should learn "this system changes the world" from the
-     compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
-     compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
-     **Partly answered since:** D209 (`function_waits`), D229 (`function_runs_in_pieces`) and D261/D268
-     (`function_writes_parameter`) give an engine those facts per function and per parameter. Still open: the
-     same per attribute (which attributes of its arguments a system reads and writes), which lets SlopEngine skip
-     unread fields and add `Changed<T>` and is the Theseus port's L6, and what becomes of the marker attributes
-     (`Resource.World`, `Resource.MainThread`) once the compiler can answer "calls `Spawn`".
-
-## Outputs and paths (D128, D129, D130)
-
-134. **How outputs are chosen.** Built as `Bool` fields of `Build` -- `run` (default `true`), `executable`,
-     `c_source`, `format` (default `true`) -- plus `final_classes` as a folder (proposed by Claude, unconfirmed).
-     Because `run` defaults to `true`, asking for another output also runs the program unless `--run=false` is
-     given: `spite game --c-source --run=false` for the C alone. The alternatives: a program that names any output
-     on the command line gets only the outputs it named (shorter, but a flag then changes another flag's default),
-     or one list field, `--outputs=executable,c_source`. Keep the `Bool`s?
-138. **Two ways to format?** A compile formats the program's files (`format`, an output), and `spite format <path>`
-     formats files that need not be a program -- `library/`, which no program's compile formats. Keep both, or
-     make formatting the library the job of compiling `bootstrap` (which loads it)?
-
-## From building D194 (the file and folder watcher; `docs/standard_library.md`)
-
-166. **What is the watcher called, and are its members right?** Built as `Watcher` (`library/watcher.spite`, with
-     `library/<system>/watcher.spite`), proposed by Claude, unconfirmed. D194 asked for a better name than
-     `FileWatcher`, since it watches folders too. Alternatives: `Watcher` (short, but says nothing of files --
-     a game may want its own `Watcher`), `FileSystem.Watcher` (namespaced; there is no `FileSystem` namespace
-     yet, and `File` and `Directory` would not move into it), `PathWatcher` (says what it takes and what it
-     answers: paths), `Directory.Watcher` (reads as a folder only). The members are also proposed:
-     `watch(path): Bool`, `changes(): List<String>` (never waits; answers once no change has been seen for 100 ms)
-     and a third, `wait_for_changes()`, which blocks the calling thread in the operating system until `changes()`
-     has something -- added because `HotReload`'s thread must sleep in the kernel rather than poll `changes()`.
-     Keep `wait_for_changes()` public, and should the 100 ms be a constructor argument?
-
-## From D186-D188 (the load keyword and kebab-case flags)
-
-153. **Kebab-case for a program's run-time settings too?** D188 makes the compiler's flags kebab-case
-     (`--repl-port` sets `Build.repl_port`). A program's `Environment` settings are read after the `--` when the
-     program runs, and still match their field's spelling (`spite game -- --player-name=ada`). The compiler could
-     write the kebab form into the program as the text it matches (`"player-name"`), which costs nothing at run time
-     (D177). Make run-time settings kebab-case as well, so both sides of `--` read alike?
-## From SlopEngine on the thread pool
-
-155. **Work that blocks for the program's whole life needs its own thread, not a pool worker.** SlopEngine's
-     window thread runs the Win32 message loop forever (messages only reach the thread that made the window); on a
-     pool of cores-minus-one it pins a worker for good, and a few such loops on a four-core machine starve the
-     engine's stages. Proposal (Claude, unconfirmed): `Thread(function)` -- a dedicated OS thread, same handle
-     shape as `Parallel` (`finished`, the value joins on first use, dropping waits) -- for loops that block on the
-     operating system, with `Parallel` staying for work that computes. Alternative: a marker on `Parallel`
-     (`Parallel(window.run, 'dedicated')`). Which, and what name?
-## Found implementing D180 (enums an engine reopens and walks)
-
-161. **Where reopened values go.** They are appended in merge order, which puts the program's own folder before
-     every loaded folder, so a program's `schedule.spite` adding `'input'` to a loaded engine's `Phase` puts
-     `'input'` *first*, and a mod loaded after the engine puts it last. A value already present stays where it was
-     (so `--final-classes` output, which restates whole enums, still compiles); nothing removes or reorders one.
-     Should a reopening be able to say where its values go (before or after another value), and should the
-     program's own values come last instead?
-## Found building the `Memory` namespace (D178, D150, D151)
-
-171. **Who may read and write an address.** D178 says the reads and writes of `Memory.Address` are "usable only
-     from `library/`". Built as: a function of a class the standard library declares may call them, including a
-     function a program adds by reopening that class -- `--final-classes` prints every class it uses into the
-     program's own folder, and the printed program must still compile (check.sh runs it). Any other class gets
-     an error pointing at the standard library and `TypedMemory<T>`. `copy_to`, `compare_bytes`, `text` and
-     `terminated_text` are not reads or writes, so programs keep them. This also means a program such as
-     SlopEngine can no longer write a `Float` into a C struct with `write_float`; it uses `TypedMemory<Float>`.
-     Keep the reopening reading, or should only files under `library/` count (and `--final-classes` print the
-     standard library's classes some other way)?
-173. **`Memory.Arena` and `Memory.Frame`.** D151 names `Memory.Heap`, `Memory.Arena` and `Memory.Frame`. Built:
-     `Memory.Arena(block_bytes)` hands out memory from chained blocks and frees them all when the arena itself is
-     dropped; everything made in it holds it, so it cannot go while they live. Not built: a `reset()` that
-     reuses the blocks each frame, and `Memory.Frame`. Both need a safety rule first, the one question left
-     from the old allocators proposal (the rest became D149-D154): an object must not outlive a reset. Resetting
-     an arena is nearly free (one pointer goes back to the start), but anything still pointing into it then
-     reads memory that something else is being made in. The proposal (Claude, unconfirmed) makes that a compile
-     error, not a crash: an object made in the frame arena cannot be stored in an attribute, a component, a list
-     or anything else that outlives the frame, and the error says to `copy()` it out; a debug build could add a
-     generation check per arena as a backstop. Ring buffers (commands, events) are then an arena that wraps
-     around. Agree with that rule? Is `Memory.Frame` an arena the engine resets once per frame, or something
-     else -- a ring of two arenas, say? Until then, is an arena without `reset()` the right first step?
-175. **D154's list buffer (the `Vector<T>` name half is built, see the end).** A `List` placed in an arena
-     keeps its buffer of references on the
-     heap: for the buffer to follow, `library/list.spite` has to ask its own object for its allocator, and
-     Spite has no way yet for a class to read its own `.memory` (`this` only passes the object, D146). Proposal
-     (Claude): inside a class, `memory.allocator` reads the object's own allocator, the way a number's `this`
-     is its value. Also `examples/vectors` has a user class `Vector`, which a library `Vector<T>` would turn into
-     a reopening of the library's class. Name it `Vector<T>` anyway (the example renames its class), or another
-     name? Built as `Vector<T>` (`library/vector.spite`, D204's borrowed items): the user classes called `Vector`
-     in `examples/vectors`, `conformance/stage6/operators` and `benchmarks/small_allocations` are now
-     `Displacement`. The allocator half is not built: a vector's block of items is on the heap wherever the vector
-     object is placed, as a list's buffer is, until a class can read its own allocator.
-## Found building D176's state machines
-
-178. **A wait inside an expression runs before the rest of its statement.** Built as: in
-     `log.append("{name} read {file.read()}")` inside a `Concurrent`, the read happens first and `name` is read
-     after it, so the state machine can stop at a statement boundary (a C statement expression cannot be jumped
-     back into). Arguments of one call keep their written order otherwise. Keep, or should the compiler also move
-     every earlier part of the statement into temporaries first, so the written order holds exactly (more frame
-     fields per wait)?
-179. **Waits that run the loop in place instead of returning.** Inside a `Concurrent`, a wait in the right side of
-     `and`/`or`, one reached through a function value or a constructor, and dropping a `Concurrent` (join on drop)
-     are not points the state machine returns from: they run the event loop right there, which keeps every other
-     `Concurrent` going but holds this one (and anything under it on the C stack) until the wait is over. Two such
-     waits that each wait for the other would never end; nothing reports it. A `Concurrent` whose own function
-     cannot be a state machine -- a function value made in a standard-library class and stored before it reached
-     `Concurrent`, a shape's function, a singleton function that takes a lock for `Parallel` (D183), or any function
-     of a program class in a `--hot-reload` build, which is called through a swappable slot -- runs to its end when
-     it is started. Close each gap (a function value carrying its state machine's start, `and`/`or` lowered to
-     `if`, drops at scope end written as waits), or accept them as they are?
-## Data-oriented components (D203, from SlopEngine)
-
-183. **A fixed-size text for inline components.** With D203, text up to 15 bytes is inline (built: a `String` is
-     sixteen bytes; 22 would have made it twenty-four, see `docs/optimizations.md`), so `Vector<Name>` has a
-     fixed stride and only a longer name points out to the heap. Is that enough, or do you want a capped
-     `ShortText<32>` that refuses longer text?
-
-## Found fixing the docs pass's shortfalls
-
-187. **Kebab-case after `--` (item 153 still open).** Built as a stop-gap: a declared setting given kebab-case
-     stops the program naming the snake_case spelling. When 153 is decided this becomes either the accepted form
-     or stays the error.
-188. **`$value_type == Enum`.** Json needs to tell an enum from a plain `Symbol` (the text cast reads the one,
-     `Symbol(text)` the other), and `$value_type == Symbol` is true for both. Keep the new codegen word `Enum`, or
-     spell it another way?
-## `Socket` for game servers (from SlopEngine)
-
-197. **Every printed line is written out at once.** `print`, `error` and `debug` now flush, so a server's log
-     redirected to a file shows each line as it happens. Measured with `benchmarks/console_lines` (200 000 lines,
-     Windows): about 700 ms to a file against about 140 ms buffered until exit; the same to a pipe or the null
-     device. Nothing cheaper shows every line promptly without a thread. Keep it for every program, or should a
-     program be able to say it prints to a file nobody watches (a build setting, say) and keep the buffer?
-
-## `JsonWriter`/`JsonReader` and `BinaryWriter`/`BinaryReader` (D208)
-
-202. **The names.** Built (Claude, unconfirmed): `append_to(bytes)` for writing onto a buffer the program has,
-     `read_memory(address, count)` for reading a socket's buffer without a copy, `position` and `remaining()` on the
-     reader, and no `read_or_crash()` for bytes (JSON keeps it). Keep them?
-
-## The maths functions (for SlopEngine's skinning, animation and PBR)
-
-204. **The maths names, and constants answered by the class.** Built as proposed by Claude, unconfirmed
-     (`docs/standard_library.md#maths--implemented`): members of the number classes, `angle.sine()`, each the C
-     library's function written where it is called. To confirm or rename:
-     - `rise.arc_tangent_over(run)` for C's `atan2(rise, run)`. Other readings: `rise.arc_tangent_of(run)`, or
-       an `angle()` on a future vector type instead.
-     - `logarithm()` for the natural logarithm, beside `logarithm_base_2()` and `logarithm_base_10()`; or
-       `natural_logarithm()`.
-     - `euler_number()` for e, since a name is never one letter; `pi()` and `tau()` kept.
-     - `largest()` and `smallest()`: `Float.smallest()` is the most negative finite `Float`, like
-       `Integer.smallest()`, not C's `FLT_MIN` (the smallest positive normal one), which is not built.
-     - `exponential()`, `truncate()`, `ceiling()`, and `round()` rounding half away from zero (C's `round`).
-     - **Constants are functions the class object answers**, `Float.pi()`, the one thing a number class answers
-       on its name: `angle.pi()` is an error naming it. The other shapes were an attribute of the class object,
-       `Float.pi` (like `Spite.Class.instances`), or a singleton `Maths`, which the brief ruled out. Keep
-       `Float.pi()`?
-     - `minimum`, `maximum` and so `clamp` follow C's `fmin`/`fmax`: a not-a-number operand is ignored, so
-       `nan.clamp(0.0, 1.0)` is `0`. IEEE 754-2019's `minimum` passes not-a-number on instead, which D200's "wrong
-       maths should not look plausible" leans towards, at a compare or two more per call. Which?
-     - D147 wants a library function to become Spite that calls it; these are instead primitives each backend
-       lowers, D178's form, because a backend without a C library would bring its own maths anyway. Agreed?
-     - Folding them at compile time (`docs/optimizations.md`) makes the compiler itself call the C library's
-       maths, so building the seed on Linux now needs `-lm`.
-
-## Game maths (D213)
-
-205. **The parts of vectors and quaternions are `x_value`...`w_value`**, because a name is never one letter -- keep
-     them, or allow `x`, `y`, `z`, `w` on these classes as the field's own names (as D213 allows `Vector2`)? (The
-     allocations this item also asked about are gone: an answer that stays in its function lives in the frame,
-     built under D205/D214, [optimizations.md](docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame).)
-
-## Borrowed rows for systems of several row types (low priority, from SlopEngine)
-
-206. **A walk nested inside a walk.** D220 lends borrowed items into a plural's one call, but a system taking two
-     different `type` rows (`update_each(potion: PotionRow, target: HeroRow)`, SlopEngine's relation systems) needs
-     each argument's row filled by walking that row type's attributes -- a template ranging over
-     `Symbol<argument.class>` inside the walk over the arguments. That is a template whose range depends on another
-     template's symbol, which Spite does not have. Such systems are rare (combinations, relations) and work today by
-     copying. Add nested walks (new metaprogramming surface), or leave relation systems on the copy path?
-
-## From the one-List study (D222, docs/proposals/one_list.md)
-
-208. **How loudly a list that falls back to references is reported.** The study measured a hand-picked inline
-     column at 8.1 ms a tick and the same code falling back to references at 35-40 ms -- one kept item anywhere
-     causes it. Should the compiler report such a fallback (an error on a list marked as wanting inline? a line in a
-     build report? nothing?), given the language has no warnings?
-209. **Should a `List` own its items, so a kept reference to one is weak (`T?`, null once removed)?** It measured
-     +3% a tick in the stress program as a form of `Weak<T>`, but turning a kept `T` into a `T?` silently changes
-     D149's meaning and whether code compiles. Keep it as an explicit `Weak<T>` over a list item, or make it the rule?
-210. **Is a `Float` expression worked out in `float`, one operation at a time?** A decimal literal is a `Float`
-     ([values_and_types.md](docs/values_and_types.md)), but the C writes `1.5` as a C `double`, so
-     `x * 1.5 + 0.25` is computed in double precision and rounded to `Float` once, while `x * scale + offset` with
-     `Float` variables is rounded after each operation: the same maths gives a different last bit depending on
-     whether a number is written or named, and a folded constant (`f` suffix) follows the second rule. Writing
-     the literal as a C `float` puts every `Float` expression under the second rule and makes plain loops 2-3x
-     faster once vectorised
-     (`benchmarks/plain_loops`: 192 against about 100 µs for two `List<Float>`, 190 against about 70 µs for a
-     `Vector<Float>`), but it changes the last bits of some printed results, which D36 does not let an
-     optimisation do. Not built. Is `Float` arithmetic rounded to `Float` after each operation (then the literal
-     is a bug fix), or is double precision inside one expression the rule?
-
-
-## Callbacks from C (D231-D234)
-
-211. **The names, and two limits of the design.** Built under D205 with provisional names (D214):
-     `ForeignCallback(function, where_context)`, its literals `'no_context'`, `'context_first'` and
-     `'context_last'`, and its `address` and `context`
-     ([foreign_libraries.md](docs/foreign_libraries.md#calling-back-into-spite)). Two limits only you can weigh:
-     (a) a call C makes through a context after its `ForeignCallback` was dropped is not caught -- the owner's
-     `drop()` must unregister from C first; catching it would need a table of live contexts in every program
-     that makes one, and a lookup per call. (b) `'no_context'` takes only a function of a singleton, one
-     `ForeignCallback` per function at a time, so a window procedure lives on a singleton that finds the window by
-     its handle; a static slot per construction site would allow any object, checked only at run time. Keep both?
-
-
-## From the Theseus port (outputs)
-
-212. **Should `--run=false` alone build the executable?** Today every output off is "only check that it
-     compiles" ([compiler.md](docs/compiler.md#choose-the-outputs), Claude's reading of D128, unconfirmed): nothing
-     is written, so an executable an earlier build left in `.spite/build/` stays there, and running it runs the
-     old code. The Theseus exporter was caught by this. D128 and D129 do not say what "no output" means. Three
-     readings: (a) keep it, as the checking mode `check.sh` compiles every diagnostic with, and teach
-     `--executable --run=false` for "build, don't run" (what the docs now say); (b) `--run=false` alone builds the
-     executable, and checking only becomes its own flag or command (`spite check game`); (c) checking only also
-     deletes the executable in `.spite/build/`, so nothing stale is left to run. (a) is what is built.
-
-
-## Release builds and compile time (from the Theseus port; numbers in benchmarks/README.md)
-
-213. **The default build's optimisation level.** It is `-O0`, yours to change, and was left alone. Measured on
-     `benchmarks/versus_c` (the Spite programs' own C, microseconds): `-O0` is 3-7x slower than `-O2` on every
-     program (`vector_maths` 1 081 065 against 312 885, `number_dictionary` 725 624 against 109 304, `sorting`
-     496 780 against 164 525), and the compiler compiling itself takes 5 875 CPU ms built at `-O0` against 1 938 at
-     `-O1` and 1 656 at `-O2`. Building costs the other way: the compiler's 7.2 MB of C is 6-11 s from one file at
-     `-O0`, about 40 s at `-O1`/`-O2` and 38-51 s at `-O3` (14.5 s at `-O3` from eight units, cold). Keep `-O0`,
-     move to `-O1` (most of the speed, compile time several times `-O0`'s), or build the default from units at
-     `-O1` too?
-214. **`--optimized` is now `-O3` with link-time optimisation (proposed by Claude, unconfirmed), as asked for the
-     Theseus port.** Against the old `-O2`, `-O3` is a wash: `number_dictionary` 18% and `text_building` 13% faster,
-     `vector_maths` 3% and the compiler itself 6% slower, the rest equal. Split into units with ThinLTO it runs
-     exactly as fast as one file at `-O3` (1 766 CPU ms for the compiler either way), and builds 2.6-3.6x faster
-     cold. Keep `-O3`, or go back to `-O2` (under D214 the measurements do not pick a clear winner)?
-215. **The names: `tune_for_this_machine` (`--tune-for-this-machine`, `-march=native`/`-mcpu=native`, off by
-     default because the executable may not run on an older processor) and `translation_units`
-     (`--translation-units=N`; `0` chooses: one file in a default build, a power of two by size in an
-     `--optimized` one).** Both proposed by Claude, unconfirmed. Also: splitting a default build was measured and
-     made it slower (every unit reads the whole header again, and `-O0` spends its time reading), so `0` does not
-     split it -- agree?
-216. **The object cache (`.spite/objects`) is never cleaned.** Each unit's object is kept under the hash of
-     what it was compiled from; nothing deletes old ones, so it grows with every changed build of a big program
-     (tens of MB per `--optimized` build of the compiler). Delete the oldest past a size, delete everything older
-     than some days, or leave it to the user (`rm -rf .spite/objects`)?
-
-
-## From the Theseus MMO port (D249 onward)
-
-217. **Should unsigned arithmetic that does not fit halt too?** D249 checks `+`, `-` and `*` on the signed whole
-     numbers in development builds and leaves `Byte`, `UnsignedShort`, `UnsignedInteger` and `UnsignedLong`
-     modular, because every hash and noise function in `library/` wraps on purpose and is unsigned. Rust and Zig
-     check unsigned too and give hashes explicit wrapping operations; here that would be functions such as
-     `hash.wrapped_product(prime)` (names provisional). Keep unsigned modular, or check it and add the functions?
-     Also: a production build emits the plain C operator, and C leaves signed overflow undefined, so "wraps" holds
-     for what clang does today rather than by rule; `-fwrapv` would make it the rule at a small cost to loop
-     optimisation.
-
-## Crash messages (from SlopEngine, D244)
-
-218. **A message on `crash`.** Today a crash report prints the condition and the values in it; authors smuggle
-     context in with tricks like `crash record or never_cooked_id == ""`. Proposal (Claude, unconfirmed): an optional
-     text after a comma, `crash record, "never cooked: {id}"`, printed in the report beside the condition and its
-     values -- the most readable form for people and AI alike. It is new syntax, so it is yours: add it, spell it
-     differently, or keep crash reports to the condition and its values only?
-     Also wanted by D261: an engine refusing a system with `crash not $T.function_writes_parameter(...)` cannot say
-     why in its own words ("an IO system's row is a snapshot: change the world through commands").
-
-## Singleton lock costs (D263-D267, proposed by Claude, unconfirmed)
-
-219. **Confirm D263-D267** (the rows in docs/decisions.md; numbers in docs/optimizations.md). In short:
-     `remove_where`, `truncate` and `swap` remove many items in one pass (D263); waiting for a `Parallel` that calls
-     back into the singleton the waiter holds locked is a compile error (D264); a counted loop of calls into one
-     singleton takes its lock once (D265, 51 ms -> 0.5 ms); a singleton only read while `Parallel` work runs takes
-     only the readers' side of its lock (D266, 202 ns -> 5 ns a row); and a locked call skips its lock while no task
-     is in flight (D267, 19 ns -> 9 ns). None adds syntax; the names `remove_where`, `truncate` and `swap` are
-     provisional (D214). Keep them, or rename?
-
-## From building D225 and D226 (every `[]` answers `T?`)
-
-220. **Is a `Dictionary`'s `[]` its `get_at`?** D226 says `a[x]` calls `get_at(x)`. A `Dictionary` keeps `get(key)`
-     and `set(key, value)`, which already answer `T?` and are what its `[]` calls, so nothing a program sees
-     changed. Rename them to `get_at`/`set_at` so every `[]` is the same function (one name, and a program's own
-     keyed class looks like the library's), or keep `get`/`set` because a key is not a position?
-221. **How a walked row states its reads.** A walked row's attribute is an item, never a `T?`, and the walk cannot
-     prove that each place it read is inside its column. Built (proposed by Claude, unconfirmed): the template
-     leads with a `crash` line per read (`crash rows[attribute.index]`, `crash
-     Column<attribute.class>().values[rows[attribute.index]]`), walked per attribute and written before the row,
-     at no cost beyond D218's (the checked read is the row's read). The other reading is that a walked read halts
-     on its own, as D218's `Items[]` did, with no line written. Which?
-
-## Foreign status results (D272)
-
-222. **May a switch over a foreign status enum end with `_:`?** D272 makes a `VkResult`-style result a Spite enum
-     that must be switched on. The C header does not say which of `VkResult`'s ~40 values `vkQueuePresentKHR` can
-     answer, so a switch with no `_:` lists all of them. (a) No `_:`, ever: every outcome is a written line, and a
-     binding writes the long switch once per kind of call (proposed by Claude, the D244 reading); (b) `_:` allowed
-     but it may not `crash` or `assert`, so the rest must be handled, not halted on; (c) `_:` allowed freely, like
-     any enum switch.
+**Waiting in SlopEngine or the Theseus port** (most urgent first): 109, 6, 213, 153, 212, 173, 175, 208/209, 155,
+206, and 46 (answered in your inbox, waiting for your confirmation).
+
+**Taste** (names, syntax, how it reads): 6, 9, 10, 25, 36, 39, 76, 79, 89, 90, 93, 98-100, 105, 108, 134, 138, 161,
+166, 171, 183, 188, 202, 204, 205, 211, 217, 219, 220, 221, 222, 223, 224, 225, 226.
+
+**Performance, settle by measurement** (D214): 178, 179, 197, 210, 214, 215, 216.
+
+## The items
+
+6. **Open questions 8-11** ([open_questions.md](docs/open_questions.md#open-questions)): an unrelated `get_x()`
+   silently takes over reads of `.x` (D244; D205 could pick the stricter option; Theseus L8), `${` in text prints a
+   stray `$` (D244; D205 could make it an error), where `--final-classes` shows which root supplied a declaration,
+   and whether a `type`'s functions are written as function-valued attributes.
+9. **The floor**: what stays C, and how `--final-classes` shows it
+   ([standard_library.md](docs/standard_library.md#pure-spite-dissolving-the-runtime--partial)).
+10. **Confirm the rows marked "(proposed by Claude, unconfirmed)" from 2026-09-23/24**: the tree shaker, `nan`
+    printing as `nan`, the REPL's command names and output, `Environment`'s sources and their order, the containers
+    row, D91/D105 (a template's symbol names the element's member; how a chain fuses).
+25. **The metaprogramming forms `Json` needed**, built 2026-09-24, each a yes or no: `Symbol<Label>` over another
+    class, the plural walk, `$value_type == List`/`Dictionary`/`Null`/`Symbol`, `$value_type.element_type`, text
+    cast to an enum by name.
+36. **Unions of number classes**: `Json` tests for a number with ten comparisons because a union cannot hold them.
+39. **The C left in `main`** (`argv`, `_setmode`, releasing singletons, the `--debug-memory` report): moving it
+    into Spite needs a way to receive `argv` and to run code after the program ends.
+46. **Singletons with arguments.** The compiler refuses a singleton constructor with parameters except
+    `DynamicLibrary`'s. Your inbox note of 2026-09-30 answers it -- different arguments make different instances,
+    for every singleton -- and waits for your confirmation before it is recorded.
+76. **Enums declaring more than `to_string()`/`to_debug()`**, the way a number's class does.
+79. **The REPL showing values through `to_debug()`** (quoted text, full nesting) instead of its own display.
+89. **The name `source_folder()`** (D228; D287 added `package_folder()` beside it). Keep both names?
+90. **A loaded folder that is itself a program merges into the loader**, silently reopening the loader's classes
+    (D244). Proposal: a loaded folder with an entry file keeps its root classes to itself.
+93. **A foreign call with a header converts silently through the header's prototype** (a `String` where C wants an
+    `int`; a `void` result reads as `0`; D244). Fine, or require a header whenever a call passes anything but a
+    `Long`?
+98. **D114 as built**: the plural of a template over a function's arguments may be that function's whole argument
+    list (`system.run_each(row_arguments())`), one exception to D77. Acceptable?
+99. **D115 as built**: `Symbol<System>` walks classes in dotted-name order; a range matching nothing walks nothing,
+    so a misspelled plural does nothing (D244); `System.Combat.Hit` below `system/` is not reached. Keep?
+100. **D116 as built**: inside a pattern template, `system.phase_each(...)` calls the matched function. Is a member
+     name changing meaning there acceptable?
+105. **Naming a root class that a nearer one shadows**: a root qualifier (`Root.Plugin`), or fall through only for
+     a self-reference? Nothing is built.
+108. **Passing a template's symbol to a helper** (`run_combination(phase, combination)`): keep "a parameter whose
+     name is not a word of the function's name is reached by passing the symbol", or another spelling?
+109. **Which attributes a function reads and writes**, per attribute (D209/D229/D261/D268 answer waits, pieces
+     and per-parameter writes). SlopEngine's `Changed<T>` and field skipping and Theseus L6 need it; also what
+     becomes of the marker attributes `Resource.World`/`Resource.MainThread`. D205, as D261 was.
+134. **How outputs are chosen**: `Boolean` fields of `Build` (`run` defaulting to `true`), or "name any output and
+     get only those", or one `--outputs=` list?
+138. **Two ways to format**: a compile formats the program, `spite format <path>` formats anything. Keep both?
+153. **Kebab-case for a program's settings after `--`** too (`--player-name`)? Today a kebab-case setting is refused
+     and names the snake_case spelling (the old item 187's stop-gap).
+155. **A dedicated thread for work that blocks forever** (SlopEngine's window loop): `Thread(function)`, or a marker
+     on `Parallel`?
+161. **Where an enum reopening's values go**: appended in merge order, so a program's own values come before a
+     loaded engine's. Let a reopening say where, and should the program's come last?
+166. **The watcher's name and members**: `Watcher`, `PathWatcher`, `FileSystem.Watcher`?
+     `wait_for_changes()` public? The 100 ms quiet period a constructor argument?
+171. **Who may read and write an address**: any function of a standard-library class, including one a program adds
+     by reopening it, or only files under `library/`?
+173. **`Memory.Frame` and an arena's `reset()`**: an object made in the frame arena may not be stored anywhere that
+     outlives the frame (a compile error naming `copy()`; a debug generation check as backstop)? Is `Memory.Frame` an
+     arena reset once a frame, or a ring of two? Until then, is an arena without `reset()` right?
+175. **A class reading its own allocator** (`memory.allocator` inside a class), so a list's buffer follows its arena.
+178. **A wait inside an expression runs before the rest of its statement.** Keep, or move the statement's earlier
+     parts into temporaries so the written order holds (more frame fields per wait)?
+179. **Waits that run the event loop in place** (`and`/`or`, function values, join on drop) can hang each other
+     silently (D244). Close each gap, or accept them? D205 where measured no slower.
+183. **A capped `ShortText<32>`**, or is D203's 15-byte inline text enough?
+188. **`$value_type == Enum`** to tell an enum from a `Symbol`: keep the word `Enum`?
+197. **A flush per printed line** costs 5x to a file. Keep for every program, or let a program keep the buffer?
+202. **The reader and writer names**: `append_to(bytes)`, `read_memory(address, count)`, `position`,
+     `remaining()`, no `read_or_crash()` for bytes.
+204. **The maths names**: `arc_tangent_over`, `logarithm`, `euler_number`, `largest`/`smallest`, constants as
+     `Float.pi()`; whether `minimum`/`maximum` pass not-a-number on (a compare or two more); maths as primitives each
+     backend lowers.
+205. **`x_value`...`w_value`** on vectors and quaternions, or `x`, `y`, `z`, `w` as on `Vector2`?
+206. **A walk nested inside a walk**, for systems over two row types (relations copy for now).
+208. **How a list that falls back to references is reported** (8.1 against 35-40 ms a tick), with no warnings?
+209. **Should a `List` own its items, so a kept reference is weak (`T?`)**, or stay an explicit `Weak<T>`?
+210. **Is `Float` arithmetic rounded to `Float` after each operation?** 2-3x faster loops, but printed last bits
+     change, so not D205.
+211. **`ForeignCallback`'s names and two limits**: a call through a dropped context is not caught (D244); a
+     `'no_context'` callback must be a singleton's function.
+212. **Should `--run=false` alone build the executable?** Today it only checks, leaving a stale executable to run
+     (D244). Keep and teach `--executable --run=false`, make checking its own flag or command, or delete the stale
+     executable?
+213. **The default build's `-O` level**: `-O0` (fast to build, 3-7x slower to run), `-O1`, or units at `-O1`?
+214. **`--optimized` at `-O3` or `-O2`**: the measurements pick no clear winner (D205).
+215. **The names `tune_for_this_machine` and `translation_units`**; a default build is not split (measured slower).
+216. **Cleaning the object cache `.spite/objects`**: by size, by age, or leave it to the user? (D205)
+217. **Should unsigned arithmetic that does not fit halt too**, with explicit wrapping functions for hashes? And
+     `-fwrapv` for production builds?
+219. **Confirm D263-D267** and the names `remove_where`, `truncate`, `swap`.
+220. **A `Dictionary`'s `[]` is `get`/`set`**: rename them `get_at`/`set_at` so every `[]` is one function?
+221. **A walked row states its reads** with a `crash` line per read, or the walked read halts on its own?
+222. **A switch over a foreign status enum** (D272): no `_:` ever, `_:` that may not crash or assert, or `_:` freely?
+223. **`Spite.Namespace`'s `.classes` and `.namespaces`** are one node's children split by kind, the shape D295
+     removes from `Directory`. Keep them, or one list of children filtered by kind?
+224. **The shape D295 needs for `Directory.Entry`** (proposed): the union stays, and both `Directory` and `File`
+     answer `kind(): Directory.Kind` with the values `'files'` and `'folders'`, so `entries().filter_files()` reads.
+     Values named in the plural, or `'file'`/`'folder'` with another spelling of the filter?
+225. **One root pinning two commits of one repository directly** (D296): both versions' classes have the same dotted
+     names there, so it stays an error (proposed). Or a way to name each?
+226. **What a crash report shows** (D297): the proposal is the condition's operands, the parameters and locals in
+     scope and the attributes of the object the function runs on, bounded, and no condition text on the line (the
+     `.crashes` map keeps it). Right set, and is dropping the condition text confirmed?
