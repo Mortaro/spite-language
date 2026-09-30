@@ -51,6 +51,7 @@ func Arena() {
     console.print("health still standing:", standing)
     var troll = monsters.last()
     crash troll
+    show_name(troll)
     show_health(troll)
 }
 
@@ -60,15 +61,16 @@ func show_attribute(attribute: Symbol<Monster>, monster: Monster) {
 ```
 ```output
 health still standing: 42
+name = troll
 health = 30
 ```
 
 Nobody wrote `filter_alive` or `sum_health`. `List` has templates, `filter_<member>()` and `sum_<member>()`, and
 the compiler writes the two this program calls for `Monster`, then fuses the chain into one loop with no list in
-between. `show_health` is the same idea as `sum_health` turned on a class: `show_attribute` takes a
-`Symbol<Monster>`, so naming an attribute in place of `attribute` makes the compiler write a typed function for
-`health` (the plural, `show_attributes`, calls it for every attribute). Nothing is looked up while the program runs,
-and whatever it does not call is not in the executable
+between. `show_name` and `show_health` are the same idea turned on a class: `show_attribute` takes a
+`Symbol<Monster>`, so naming an attribute in place of `attribute` makes the compiler write a typed function for it,
+one for `name` and one for `health` (the plural, `show_attributes`, calls it for every attribute). Nothing is looked
+up while the program runs, and whatever it does not call is not in the executable
 ([docs/collections.md](docs/collections.md), [docs/metaprogramming.md](docs/metaprogramming.md)).
 
 ## Reading order
