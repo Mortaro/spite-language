@@ -69,3 +69,38 @@ func test_parsing_reads_a_sign_and_spaces_around_the_number() {
     crash "255".to_byte() == 255 and "-128".to_tiny() == -128
     crash "18446744073709551615".to_unsigned_long() == UnsignedLong.largest()
 }
+
+func test_pluralize_follows_english_rules() {
+    crash "quest".pluralize() == "quests"
+    crash "box".pluralize() == "boxes" and "match".pluralize() == "matches" and "class".pluralize() == "classes"
+    crash "enemy".pluralize() == "enemies" and "day".pluralize() == "days"
+    crash "wolf".pluralize() == "wolves" and "knife".pluralize() == "knives"
+    crash "analysis".pluralize() == "analyses" and "medium".pluralize() == "media" and "tomato".pluralize() == "tomatoes"
+    crash "quiz".pluralize() == "quizzes" and "bus".pluralize() == "buses" and "status".pluralize() == "statuses"
+    crash "quests".pluralize() == "quests" and "".pluralize() == ""
+}
+
+func test_pluralize_knows_irregulars_and_uncountables() {
+    crash "person".pluralize() == "people" and "child".pluralize() == "children" and "man".pluralize() == "men"
+    crash "index".pluralize() == "indices" and "matrix".pluralize() == "matrices" and "vertex".pluralize() == "vertices"
+    crash "mouse".pluralize() == "mice" and "ox".pluralize() == "oxen" and "octopus".pluralize() == "octopi"
+    crash "data".pluralize() == "data" and "equipment".pluralize() == "equipment" and "sheep".pluralize() == "sheep"
+    crash "people".pluralize() == "people"
+}
+
+func test_singularize_undoes_pluralize() {
+    crash "quests".singularize() == "quest" and "boxes".singularize() == "box" and "enemies".singularize() == "enemy"
+    crash "wolves".singularize() == "wolf" and "knives".singularize() == "knife" and "objectives".singularize() == "objective"
+    crash "analyses".singularize() == "analysis" and "media".singularize() == "medium" and "statuses".singularize() == "status"
+    crash "people".singularize() == "person" and "children".singularize() == "child" and "indices".singularize() == "index"
+    crash "matrices".singularize() == "matrix" and "mice".singularize() == "mouse" and "oxen".singularize() == "ox"
+    crash "data".singularize() == "data" and "information".singularize() == "information" and "news".singularize() == "news"
+    crash "quest".singularize() == "quest" and "class".singularize() == "class" and "".singularize() == ""
+}
+
+func test_compound_names_inflect_their_last_word() {
+    crash "active_quest".pluralize() == "active_quests" and "map_names".singularize() == "map_name"
+    crash "party_person".pluralize() == "party_people" and "loot_data".pluralize() == "loot_data"
+    crash "ActiveQuest".pluralize() == "ActiveQuests" and "Person".pluralize() == "People"
+    crash "ACTIVE_QUEST".pluralize() == "ACTIVE_QUESTS" and "Enemies".singularize() == "Enemy"
+}

@@ -726,12 +726,9 @@ first". It is built only where a program reads it. A class cannot have an attrib
 `memory` (D246, [below](#the-names-reflection-gives-every-object--implemented)). Choosing an object's allocator through `.memory.allocator` (D152, D153) is
 [memory.md](memory.md#choosing-an-allocator-memoryallocator)'s.
 
-#### Reflection known while compiling  **[partial]**
+#### Reflection known while compiling
 
-D316 and D317 (decided by Mortaro, 2026-09-30; the design is
-[proposals/reflection_objects.md](proposals/reflection_objects.md), its details proposed by Claude, unconfirmed).
-
-- **Every reflection member is a get-only attribute** (D317), read without `()`. The new ones are `.is_singleton`,
+- **Every reflection member is a get-only attribute**, read without `()`. The new ones are `.is_singleton`,
   `.is_stateful` (some function besides the constructor and `drop()` changes the object, or a bound singleton
   does), `.is_fixed_size` (the class has a size known while compiling, so a `Vector` can hold it inline),
   `.is_list`, `.is_dictionary`, `.is_optional`, `.is_enum`, `.element_type` (a list's element, or what an
@@ -780,7 +777,7 @@ D316 and D317 (decided by Mortaro, 2026-09-30; the design is
   to pass on here".
 - **`[]` with a literal name on a list of reflection objects** answers the member or `null`, read through
   `find_by_name` at run time.
-- **A template parameter is spelled `Spite.Attribute<Monster>`** (D317): `func show_attribute(attribute:
+- **A template parameter is spelled `Spite.Attribute<Monster>`**: `func show_attribute(attribute:
   Spite.Attribute<Monster>, monster: Monster)` answers `show_health(troll)` exactly as `Symbol<Monster>` does,
   and `Spite.Attribute<$element_type>` names a member of a list's elements.
 - The entry class describes no functions, as it does at run time

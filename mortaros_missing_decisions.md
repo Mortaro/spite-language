@@ -13,6 +13,9 @@ Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection re
 10, 36, 89, 109, 220, 222. Added: 227-239. Earlier: 64, 71, 34, 21, 22, 5, 218 answered; 187 merged into 153; 46
 answered by D314.
 
+Third pass, after D318-D325: 229 answered by D318 (on the reflection branch), 230 by D319, 227's JSON part by
+D320, 231 by D321, 232 by D322, 89 by D326, 216 by D327. Rewritten: 227 (the reload's rename only), 238 (D324), 36 (D319).
+
 ## Blocking now
 
 These hold up the D316/D317 migration, SlopEngine or the Theseus port.
@@ -23,35 +26,18 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
      `argument.is_mutated` already covers. And the marker attributes `Resource.World`/`Resource.MainThread`: keep
      them as attributes the runner reads, or a class-level marker? D205, as D261 was. Recommend (a) now, (b) when
      `Changed<T>` needs it. Blocks: SlopEngine's `Changed<T>` and field skipping, Theseus L6.
-227. **Pairing a function with an attribute by name** (D273's `json_key_<attribute>`, proposal 12.1): names are never
-     built (D317), so the writer must find the `json_key_` function for each attribute. Options: (a) select by
-     suffix, `functions.filter_starts_with("json_key_").find_by_suffix(attribute.name)`; (b) move the override off
-     names, one `json_key(attribute: Spite.Attribute): String` per class; (c) a marker on the attribute. Same shape
-     applies to D280's `renamed_from_<attribute>`. Blocks: rewriting `JsonWriter`/`JsonReader` and the reload's
-     rename rule.
+227. **Renaming for a reload** (D280's `renamed_from_<attribute>`, the name-building twin of the `json_key_` that
+     D320 replaced with a map): (a) the same kind of map, keyed by attribute objects, given to the reload (from
+     `build.spite` or the class); (b) keep the name template (D316 allows a template that changes a function's
+     name). Recommend (a), one way for every rename (D320). Blocks: D280's attribute migration.
 228. **Predicates in the plural rule** (proposal 12.2): `monsters.map_is_alive()` keeps the predicate's own name,
      or `map_` over a predicate is an error pointing at `filter_`/`count_`? Blocks: renaming `map_<member>` to the
      plural across `library/`, conformance and SlopEngine.
-230. **Private attributes in serializers** (D278): a walk sees `_` attributes. Should `Json` and `BinaryFormat`
-     write them? Options: (a) both write every attribute (a whole object round-trips); (b) `Json` writes only
-     public ones (a public shape), binary writes all (a layout copy); (c) neither, unless the class says so.
-     `to_debug()` leaves them out (D210 item 78). Recommend (b), read through a get-only `attribute.is_private`.
-     Blocks: the `JsonWriter` rewrite, Theseus saves and network payloads.
-231. **Bundles under D123 and D316**: `create_entity_from_bundle(bundle: Anything)` hands each attribute to
-     `add_component(component: Anything)`. With `bundle.attributes.each(add)` the bundle's class is not a constant
-     (it comes through `Anything`), so the walk is run-time and boxed. Options: (a) a function whose `Anything`
-     parameter is reflected is specialised per the caller's static class (proposal rule 5 extended; D123 forbids
-     written generics, not this); (b) keep the run-time walk for bundles; (c) bundles become a generic class the
-     engine walks at start-up. Recommend (a). Blocks: SlopEngine's bundle spawning without boxing.
 213. **The default build's `-O` level**: `-O0` (fast to build, 3-7x slower to run), `-O1`, or units at `-O1`?
      (`--hot-reload` is already `-O3` by D299.) Blocks: Theseus iteration speed.
 212. **Should `--run=false` alone build the executable?** Today it only checks, leaving a stale executable to run
      (D244). Options: keep and teach `--executable --run=false`; make checking its own flag or command; delete the
      stale executable. Blocks: the ports' build scripts.
-232. **D280 steps 2 and 4** (a change whose dependents cannot be swapped alone; a `Build` field change): (a) compile
-     the whole program into the reload library and re-point every slot, keeping the heap (the plan, and what D302,
-     D304 and D305 already do); (b) start the new executable and hand the state over; (c) refuse, naming the change.
-     Recommend (a). Blocks: "nothing needs a restart" for Theseus.
 222. **A foreign status enum** (D272, not built): a C function returning a C `enum` answers a Spite enum made from
      the header, must be used, and is read by a `switch`. May that switch have `_:`? Options: never; `_:` that may
      not `crash`/`assert`; freely. Recommend never (each outcome a written line). Blocks: D272, SlopEngine's Vulkan
@@ -106,9 +92,9 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
 10. **Confirm the rows marked "(proposed by Claude, unconfirmed)" from 2026-09-23/24**: the tree shaker, `nan`
     printing as `nan`, the REPL's command names and output, `Environment`'s sources and their order, the containers
     row, D105 (how a chain fuses). D91's member templates stay under D317 with `map_` in the plural (228).
-238. **Library class names proposed by Claude**: `Base64`, `Deflate`, `Zlib`, `Gzip`, `Sha256`, `SecureRandom`,
-     `Argon2`, `UdpSocket`, `HttpServer`, `HttpClient`, `HttpRequest`, `HttpResponse`, `Reload` (D290),
-     `Memory.Inspector` (D291). Keep, or spell the acronyms out as other names are (`Http`, `Udp`, `Sha`)?
+238. **Algorithm and format names in the library** (D324 settled `Http`/`Udp`): `Sha256`, `Argon2`, `Base64`,
+     `Zlib`, `Gzip`, and the rest Claude proposed (`Deflate`, `SecureRandom`, `Reload` (D290), `Memory.Inspector`
+     (D291)). Keep them, or spell them some other way? Blocks nothing yet; renames grow with their callers.
 237. **Turning `List<Byte>` back into text** (not built; only `library/` reads a list's items). `to_string()` is
      taken by the list's display and D309 fixes it to `String`. Options: (a) `bytes.to_utf8_text(): String?`,
      `null` for invalid UTF-8; (b) a `String` constructor taking bytes, halting on invalid UTF-8; (c) `to_string()`
@@ -130,11 +116,9 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
 
 ## Taste (names, syntax, how it reads)
 
-89. **`Spite.Class.source_folder` (absolute) and `.package_folder` (relative to the load's root)**, both get-only
-    attributes under D317: keep both names?
-36. **Telling a number class apart**: `Json` tests for a number with ten comparisons because a union cannot hold
-    number classes. Options: (a) a get-only `.is_number` beside `.is_list`/`.is_enum` (D317); (b) unions of number
-    classes. Recommend (a).
+36. **Telling a number class apart**: a walk tests for a number with ten comparisons because a union cannot hold
+    number classes (D319's generated JSON no longer needs it; other walks do). Options: (a) a get-only
+    `.is_number` beside `.is_list`/`.is_enum` (D317); (b) unions of number classes. Recommend (a).
 220. **A `Dictionary`'s `[]` is `get`/`set`**: under D315 nobody calls them by name, so rename them `get_at`/`set_at`
      so every `[]` is one function pair? Recommend yes (D205: no syntax).
 221. **A walked row states its reads** with a `crash` line per read, or the walked read halts on its own?
@@ -173,4 +157,3 @@ These hold up the D316/D317 migration, SlopEngine or the Theseus port.
 210. **Is `Float` arithmetic rounded to `Float` after each operation?** 2-3x faster loops, but printed last bits
      change, so not D205.
 215. **The names `tune_for_this_machine` and `translation_units`**; a default build is not split (measured slower).
-216. **Cleaning the object cache `.spite/objects`**: by size, by age, or leave it to the user? (D205)
