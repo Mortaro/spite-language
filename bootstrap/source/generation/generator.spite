@@ -40966,6 +40966,7 @@ func bound_attribute_read(
     assert member.name == "value"
     crash member.object
     assert worth_reflecting(member.object, scope)
+    assert rooted_in_parameter(member.object)
     var attribute = reflected(member.object, scope, class_information)
     assert attribute
     assert attribute.kind == "attribute"
@@ -41196,6 +41197,9 @@ func expression_needs_value(expression: Syntax.Expressions.Expression, name: Str
         Syntax.Expressions.IdentifierExpression: return expression.name == name
         Syntax.Expressions.MemberExpression: {
             crash expression.object
+            if expression.name == "value" and mentions_in(expression.object, name) {
+                return true
+            }
             if is_identifier_named(expression.object, name) {
                 return not reflection_word(expression.name)
             }
@@ -41510,4 +41514,27 @@ func add_class_folders(candidate: Analysis.ClassInfo, folders: List<String>) {
         }
         index = index + 1
     }
+}
+
+func mentions_in(expression: Syntax.Expressions.Expression, name: String): Boolean {
+    var mentioned = List<String>()
+    collect_mentioned_names(expression, mentioned)
+    return mentioned.contains(name)
+}
+
+func rooted_in_parameter(expression: Syntax.Expressions.Expression): Boolean {
+    var root = root_of(expression)
+    var root_name = shape.as_identifier(root)
+    if not root_name {
+        return false
+    }
+    var bound = reflected_binding(root_name.name)
+    if not bound {
+        return false
+    }
+    var origin = binding_origin(root_name.name)
+    if origin {
+        return false
+    }
+    return true
 }
