@@ -17,3 +17,7 @@ func environment(name: String): String? {
 func live_allocations(): Integer {
     return heap.live_allocations()
 }
+
+func live_bytes(): Long {
+    return heap.live_bytes()
+}

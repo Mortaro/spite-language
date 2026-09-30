@@ -146,6 +146,10 @@ var hot_slot_names = List<String>()
 var hot_slot_owners = List<String>()
 var hot_slot_displays = List<String>()
 var layout_host: HotReloadLibrary? = null
+var breakpoint_sites = List<String>()
+var matched_breakpoints = List<String>()
+var emitted_breakpoints = List<String>()
+var enum_typedefs = Dictionary<String>()
 var field_signatures = Dictionary<String>()
 var migrating_classes = List<String>()
 var changing_layouts = List<String>()
@@ -4457,14 +4461,31 @@ func emit_enums() {
         var name_lines = List<String>()
         name_lines.append("const char* {information.c_name}___name({information.c_name} value) \{")
         name_lines.append("switch (value) \{")
+        var numbers = enum_numbers(information)
         var value_index = 0
         while value_index < information.values.count() {
             var value_name = information.values[value_index]
-            typedef_lines.append("{information.c_name}_{value_name},")
+            if hot_reload {
+                crash numbers[value_name]
+                typedef_lines.append("{information.c_name}_{value_name} = {numbers[value_name]},")
+            } else {
+                typedef_lines.append("{information.c_name}_{value_name},")
+            }
             name_lines.append("case {information.c_name}_{value_name}: return \"{value_name}\";")
             value_index = value_index + 1
         }
+        var removed = removed_enum_values(information, numbers)
+        var removed_index = 0
+        while removed_index < removed.count() {
+            var removed_name = removed[removed_index]
+            crash numbers[removed_name]
+            typedef_lines.append("{information.c_name}_{removed_name} = {numbers[removed_name]},")
+            name_lines.append("case {information.c_name}_{removed_name}: return \"{removed_name}\";")
+            removed_index = removed_index + 1
+        }
         typedef_lines.append("} {information.c_name};")
+        var enum_typedef = typedef_lines.join("\n")
+        enum_typedefs[information.c_name] = enum_typedef.replace("\n", " ")
         name_lines.append("}")
         name_lines.append("return \"\";")
         name_lines.append("}")
@@ -4472,9 +4493,73 @@ func emit_enums() {
         builder.add_typedef(joined_typedef_lines)
         builder.add_prototype("const char* {information.c_name}___name({information.c_name} value);")
         var joined_name_lines = name_lines.join("\n")
+        var owner = enum_owner(information)
+        if owner {
+            note_support_slot(owner, "'s names of {information.simple_name}")
+        }
         builder.add_support(joined_name_lines)
         index = index + 1
     }
+}
+
+func enum_shown(c_name: String): String {
+    var index = 0
+    while index < enums.count() {
+        if enums[index].c_name == c_name {
+            return enum_display_name(enums[index])
+        }
+        index = index + 1
+    }
+    return c_name
+}
+
+func enum_owner(information: Analysis.EnumInfo): Analysis.ClassInfo? {
+    assert hot_reload and not information.owner_qualified.is_empty()
+    return find_class_by_qualified(information.owner_qualified)
+}
+
+func enum_numbers(information: Analysis.EnumInfo): Dictionary<Integer> {
+    var numbers = Dictionary<Integer>()
+    if layout_host {
+        numbers = layout_host.host_enum_numbers(information.c_name)
+    }
+    var next = 0
+    var known = numbers.keys()
+    var known_index = 0
+    while known_index < known.count() {
+        var known_name = known[known_index]
+        crash numbers[known_name]
+        if numbers[known_name] >= next {
+            next = numbers[known_name] + 1
+        }
+        known_index = known_index + 1
+    }
+    var index = 0
+    while index < information.values.count() {
+        var value_name = information.values[index]
+        if not numbers.has(value_name) {
+            numbers[value_name] = next
+            next = next + 1
+        }
+        index = index + 1
+    }
+    return numbers
+}
+
+func removed_enum_values(information: Analysis.EnumInfo, numbers: Dictionary<Integer>): List<String> {
+    var removed = List<String>()
+    if not hot_reload {
+        return removed
+    }
+    var names = numbers.keys()
+    var index = 0
+    while index < names.count() {
+        if not information.values.contains(names[index]) {
+            removed.append(names[index])
+        }
+        index = index + 1
+    }
+    return removed
 }
 
 func find_class_by_qualified(qualified: String): Analysis.ClassInfo? {
@@ -7793,6 +7878,12 @@ func emit_allocation_table() {
     lines.append("int64_t count = {table}_live_allocations(spite_table);")
     lines.append(leave)
     lines.append("return count;")
+    lines.append("}")
+    lines.append("int64_t spite_live_byte_count(void) \{")
+    lines.append(entered)
+    lines.append("int64_t bytes = {table}_live_bytes(spite_table);")
+    lines.append(leave)
+    lines.append("return bytes;")
     lines.append("}")
     lines.append("#endif")
     var joined_lines = lines.join("\n")
@@ -15829,7 +15920,7 @@ func emit_functions_function_bodies() {
 }
 
 func hidden_attribute_links_cleared(target: String): String {
-    return "{target}->spite_owner = 0; {target}->spite_release_owner = 0; {target}->spite_assign = 0; {target}->spite_held = 0; {target}->spite_release_held = 0; {target}->spite_held_attributes = 0; {target}->spite_held_functions = 0; {target}->spite_held_bytes = 0; {target}->spite_stored_address = 0; {target}->spite_stored_bytes = 0; {target}->spite_buffer_address = 0; {target}->spite_buffer_bytes = 0;"
+    return "{target}->spite_owner = 0; {target}->spite_release_owner = 0; {target}->spite_assign = 0; {target}->spite_store = 0; {target}->spite_held_class = 0; {target}->spite_held = 0; {target}->spite_release_held = 0; {target}->spite_held_attributes = 0; {target}->spite_held_functions = 0; {target}->spite_held_bytes = 0; {target}->spite_stored_address = 0; {target}->spite_stored_bytes = 0; {target}->spite_buffer_address = 0; {target}->spite_buffer_bytes = 0;"
 }
 
 func append_live_attributes(information: Analysis.ClassInfo, list_name: String, lines: List<String>) {
@@ -15846,10 +15937,16 @@ func append_live_attributes(information: Analysis.ClassInfo, list_name: String, 
             "spite_field->spite_stored_address = (int64_t)(intptr_t)&self->{c_value_name(field.name)}; spite_field->spite_stored_bytes = (int64_t)sizeof(self->{c_value_name(field.name)});",
         )
         var assign = ensure_assign_function(information, field)
-        if not assign.is_empty() {
+        var store = ensure_store_function(information, field)
+        if not assign.is_empty() or not store.is_empty() {
             lines.append("spite_field->spite_owner = {information.c_name}___retain(self);")
             lines.append("spite_field->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
+        }
+        if not assign.is_empty() {
             lines.append("spite_field->spite_assign = {assign};")
+        }
+        if not store.is_empty() {
+            lines.append("spite_field->spite_store = {store};")
         }
         lines.append("{list_name}_append(result, spite_field);")
         lines.append("}")
@@ -15927,11 +16024,39 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
             "reflected->spite_held_attributes = (void* (*)(void*)){ensure_dictionary_attributes_function(dictionary_type)};",
         )
     }
+    if read_evaluate_print_loop {
+        var union_lines = union_member_links(spite_type)
+        lines.append(union_lines)
+    }
     lines.append("return reflected;")
     lines.append("}")
     var joined_lines = lines.join("\n")
     builder.add_support(joined_lines)
     return function_c_name
+}
+
+func union_member_links(spite_type: Analysis.SpiteType): String {
+    var inner = expected_type_without_nullable(spite_type)
+    var union_type = type_shape.as_union(inner)
+    if not union_type {
+        return ""
+    }
+    var information = find_union_by_c_name(union_type.c_name)
+    crash information
+    var links = List<String>()
+    var index = 0
+    while index < information.members.count() {
+        var member = information.members[index]
+        var walkable = not member.is_value_class and not member.is_generic_template
+        if walkable and member.c_name != "SpiteString" and not boxed_value_types.has(member.c_name) {
+            var retained = "{member.c_name}___retain(({member.c_name}*)value)"
+            links.append(
+                "if (value != 0 && {class_id_test("value", member)}) \{ reflected->spite_held = {retained}; reflected->spite_release_held = (void (*)(void*)){member.c_name}___release; reflected->spite_held_attributes = (void* (*)(void*)){ensure_attributes_function(member)}; reflected->spite_held_functions = (void* (*)(void*)){ensure_functions_function(member)}; reflected->spite_held_bytes = {ensure_byte_count_function(member)}(); reflected->spite_held_class = (void* (*)(void)){ensure_class_object(member.simple_name, member.namespace_dotted, member.c_name)}; }",
+            )
+        }
+        index = index + 1
+    }
+    return links.join("\n")
 }
 
 func ensure_list_attributes_function(element: Analysis.SpiteType): String {
@@ -15949,9 +16074,28 @@ func ensure_list_attributes_function(element: Analysis.SpiteType): String {
     builder.add_prototype("{signature};")
     var reflect = ensure_reflect_function(element)
     builder.add_support(
-        "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->item_count_; spite_index = spite_index + 1) \{ Spite_Attribute* spite_item = {reflect}({long_text("spite_index")}, {list_item_code(element, "self", "spite_index")}); spite_item->spite_stored_address = (int64_t)(intptr_t)&{list_item_code(element, "self", "spite_index")}; spite_item->spite_stored_bytes = (int64_t)sizeof({c_type_name(element)}); {attributes_list}_append(result, spite_item); }\nreturn result;\n}",
+        "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->item_count_; spite_index = spite_index + 1) \{ Spite_Attribute* spite_item = {reflect}({long_text("spite_index")}, {list_item_code(element, "self", "spite_index")}); spite_item->spite_stored_address = (int64_t)(intptr_t)&{list_item_code(element, "self", "spite_index")}; spite_item->spite_stored_bytes = (int64_t)sizeof({c_type_name(element)}); {element_hooks(element, "spite_item", "self")}{attributes_list}_append(result, spite_item); }\nreturn result;\n}",
     )
     return function_c_name
+}
+
+func element_hooks(element: Analysis.SpiteType, target: String, owner: String): String {
+    if not read_evaluate_print_loop {
+        return ""
+    }
+    var assign = ensure_slot_assign_function(element)
+    var store = ensure_slot_store_function(element)
+    if assign.is_empty() and store.is_empty() {
+        return ""
+    }
+    var hooks = "{target}->spite_owner = {owner}; {target}->spite_release_owner = 0; "
+    if not assign.is_empty() {
+        hooks = "{hooks}{target}->spite_assign = {assign}; "
+    }
+    if not store.is_empty() {
+        hooks = "{hooks}{target}->spite_store = {store}; "
+    }
+    return hooks
 }
 
 func ensure_dictionary_attributes_function(dictionary: Analysis.Types.DictionaryType): String {
@@ -15977,7 +16121,7 @@ func ensure_dictionary_attributes_function(dictionary: Analysis.Types.Dictionary
     }
     var entry = list_item_code(element, "self->entry_values_", "spite_index")
     builder.add_support(
-        "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys_->item_count_; spite_index = spite_index + 1) {attributes_list}_append(result, {reflect}({key_text}, {entry}));\nreturn result;\n}",
+        "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys_->item_count_; spite_index = spite_index + 1) \{ Spite_Attribute* spite_item = {reflect}({key_text}, {entry}); spite_item->spite_stored_address = (int64_t)(intptr_t)&{entry}; spite_item->spite_stored_bytes = (int64_t)sizeof({c_type_name(element)}); {element_hooks(element, "spite_item", "self")}{attributes_list}_append(result, spite_item); }\nreturn result;\n}",
     )
     return function_c_name
 }
@@ -16017,47 +16161,168 @@ func scalar_from_text_lines(scalar_type: Analysis.SpiteType, text: String, targe
     return "\{ {c_type_name(parsed_type)} spite_parsed = {conversion.c_name}({text}); if (!spite_parsed.has_value) {failure} {converted} }"
 }
 
+func parsed_value_lines(spite_type: Analysis.SpiteType, text: String, target: String, failure: String): String {
+    switch spite_type {
+        Analysis.Types.StringType: return "{target} = SpiteString___retain({text});"
+        Analysis.Types.ScalarType: return scalar_from_text_lines(spite_type, text, target, failure)
+        Analysis.Types.EnumType: return enum_from_text_lines(spite_type, text, target, failure)
+        _: {}
+    }
+    var nullable = type_shape.as_nullable(spite_type)
+    if not nullable {
+        return ""
+    }
+    var inner = nullable.get_inner()
+    var null_test = "SPITE_STRING_IS_NULL({text})"
+    var c_type = c_type_name(spite_type)
+    if c_type.starts_with("Nullable_") {
+        var inner_lines = parsed_value_lines(inner, text, "{target}.value", failure)
+        if inner_lines.is_empty() {
+            return ""
+        }
+        return "if ({null_test}) \{ {target}.has_value = false; } else \{ {target}.has_value = true; {inner_lines} }"
+    }
+    if type_shape.as_string(inner) {
+        return "if ({null_test}) {target} = SPITE_STRING_NULL; else {target} = SpiteString___retain({text});"
+    }
+    return "if ({null_test}) {target} = 0; else {failure}"
+}
+
 func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.FieldInfo): String {
     var field_type = field.get_type()
     var function_c_name = "{information.c_name}___assign_{field.name}"
     var assigned_c = c_type_name(field_type)
+    var parsed = parsed_value_lines(field_type, "text", "assigned", "return false;")
+    if parsed.is_empty() {
+        return ""
+    }
     var lines = List<String>()
-    lines.append("bool {function_c_name}(void* owner, SpiteString text) \{")
+    lines.append("bool {function_c_name}(void* owner, void* slot, SpiteString text) \{")
     lines.append("{information.c_name}* self = ({information.c_name}*)owner;")
-    switch field_type {
-        Analysis.Types.StringType: lines.append("{assigned_c} assigned = SpiteString___retain(text);")
-        Analysis.Types.ScalarType: {
-            lines.append("{assigned_c} assigned;")
-            var from_text_lines = scalar_from_text_lines(field_type, "text", "assigned", "return false;")
-            lines.append(from_text_lines)
-        }
-        Analysis.Types.EnumType: {
-            lines.append("{assigned_c} assigned;")
-            var from_text_lines = enum_from_text_lines(field_type, "text", "assigned", "return false;")
-            lines.append(from_text_lines)
-        }
-        _: return ""
+    lines.append("(void)slot;")
+    if not type_shape.as_nullable(field_type) {
+        lines.append("if (SPITE_STRING_IS_NULL(text)) return false;")
     }
-    var setter = information.find_function("set_{field.name}")
-    var through_setter = false
-    if setter {
-        through_setter = setter.parameters.count() == 1
-        if through_setter {
-            lines.append("{setter.c_name}(self, assigned);")
-        }
-    }
-    if not through_setter {
-        var assigned_place = field_place("self", information, field.name)
-        if type_needs_drop(field_type) {
-            lines.append("{release_call(field_type, assigned_place)};")
-        }
-        lines.append("{assigned_place} = assigned;")
-    }
+    lines.append("{assigned_c} assigned;")
+    lines.append(parsed)
+    var written = field_written_lines(information, field, "assigned")
+    lines.append(written)
     lines.append("return true;")
     lines.append("}")
-    builder.add_prototype("bool {function_c_name}(void* owner, SpiteString text);")
+    builder.add_prototype("bool {function_c_name}(void* owner, void* slot, SpiteString text);")
     var joined_lines = lines.join("\n")
     note_support_slot(information, "'s assignment of {field.name}")
+    builder.add_support(joined_lines)
+    return function_c_name
+}
+
+func field_written_lines(information: Analysis.ClassInfo, field: Analysis.FieldInfo, value: String): String {
+    var field_type = field.get_type()
+    var setter = information.find_function("set_{field.name}")
+    if setter and setter.parameters.count() == 1 {
+        return "{setter.c_name}(self, {value});"
+    }
+    var assigned_place = field_place("self", information, field.name)
+    if type_needs_drop(field_type) {
+        return "{release_call(field_type, assigned_place)};\n{assigned_place} = {value};"
+    }
+    return "{assigned_place} = {value};"
+}
+
+func stored_class(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var inner = expected_type_without_nullable(spite_type)
+    var class_ref = type_shape.as_class_ref(inner)
+    assert class_ref
+    assert not class_ref.has_signature
+    var stored = find_class_by_c_name(class_ref.c_name)
+    assert stored
+    assert not stored.is_value_class and not stored.is_generic_template
+    return stored
+}
+
+func ensure_store_function(information: Analysis.ClassInfo, field: Analysis.FieldInfo): String {
+    if not read_evaluate_print_loop {
+        return ""
+    }
+    var field_type = field.get_type()
+    var stored = stored_class(field_type)
+    if not stored {
+        return ""
+    }
+    var function_c_name = "{information.c_name}___store_{field.name}"
+    var lines = List<String>()
+    lines.append("bool {function_c_name}(void* owner, void* slot, void* object) \{")
+    lines.append("{information.c_name}* self = ({information.c_name}*)owner;")
+    lines.append("(void)slot;")
+    lines.append("if (object == 0 || !{class_id_test("object", stored)}) return false;")
+    lines.append("{stored.c_name}* assigned = {stored.c_name}___retain(({stored.c_name}*)object);")
+    var written = field_written_lines(information, field, "assigned")
+    lines.append(written)
+    lines.append("return true;")
+    lines.append("}")
+    builder.add_prototype("bool {function_c_name}(void* owner, void* slot, void* object);")
+    var joined_lines = lines.join("\n")
+    note_support_slot(information, "'s assignment of {field.name}")
+    builder.add_support(joined_lines)
+    return function_c_name
+}
+
+func ensure_slot_assign_function(element: Analysis.SpiteType): String {
+    var function_c_name = "spite_assign_slot_{reflected_label(element)}"
+    if reflect_function_names.contains(function_c_name) {
+        return function_c_name
+    }
+    var element_c = c_type_name(element)
+    var parsed = parsed_value_lines(element, "text", "assigned", "return false;")
+    if parsed.is_empty() {
+        return ""
+    }
+    reflect_function_names.append(function_c_name)
+    var lines = List<String>()
+    lines.append("bool {function_c_name}(void* owner, void* slot, SpiteString text) \{")
+    lines.append("(void)owner;")
+    lines.append("if (slot == 0) return false;")
+    if not type_shape.as_nullable(element) {
+        lines.append("if (SPITE_STRING_IS_NULL(text)) return false;")
+    }
+    lines.append("{element_c} assigned;")
+    lines.append(parsed)
+    lines.append("{element_c}* place = ({element_c}*)slot;")
+    if type_needs_drop(element) {
+        lines.append("{release_call(element, "(*place)")};")
+    }
+    lines.append("*place = assigned;")
+    lines.append("return true;")
+    lines.append("}")
+    builder.add_prototype("bool {function_c_name}(void* owner, void* slot, SpiteString text);")
+    var joined_lines = lines.join("\n")
+    builder.add_support(joined_lines)
+    return function_c_name
+}
+
+func ensure_slot_store_function(element: Analysis.SpiteType): String {
+    var stored = stored_class(element)
+    if not stored {
+        return ""
+    }
+    var function_c_name = "spite_store_slot_{reflected_label(element)}"
+    if reflect_function_names.contains(function_c_name) {
+        return function_c_name
+    }
+    reflect_function_names.append(function_c_name)
+    var element_c = c_type_name(element)
+    var lines = List<String>()
+    lines.append("bool {function_c_name}(void* owner, void* slot, void* object) \{")
+    lines.append("(void)owner;")
+    lines.append("if (slot == 0 || object == 0 || !{class_id_test("object", stored)}) return false;")
+    lines.append("{element_c}* place = ({element_c}*)slot;")
+    lines.append("{stored.c_name}* assigned = {stored.c_name}___retain(({stored.c_name}*)object);")
+    lines.append("{release_call(element, "(*place)")};")
+    lines.append("*place = assigned;")
+    lines.append("return true;")
+    lines.append("}")
+    builder.add_prototype("bool {function_c_name}(void* owner, void* slot, void* object);")
+    var joined_lines = lines.join("\n")
     builder.add_support(joined_lines)
     return function_c_name
 }
@@ -29264,6 +29529,12 @@ func generate_value_switch(
         case_index = case_index + 1
     }
     report_value_coverage(switch_statement.subject, subject_type, covered, answers_the_rest)
+    var switched_enum = type_shape.as_enum(subject_type)
+    if hot_reload and switched_enum and chained and not answers_the_rest {
+        builder.add_user(
+            "else \{ fflush(stdout); fprintf(stderr, \"spite: a switch over {enum_shown(switched_enum.c_name)} met the value '%s', which a reload removed from it: restart the program, or put the value back\\n\", {switched_enum.c_name}___name({subject_temporary})); exit(1); }",
+        )
+    }
     if owns(subject, switch_statement.subject) {
         builder.add_user("{release_call(subject_type, subject_temporary)};")
     }
@@ -32443,6 +32714,9 @@ func generate_statement(
         current_line = function_information.line
     }
     report_reads_in_indices(statement)
+    if not breakpoint_sites.is_empty() {
+        emit_breakpoint(statement, scope, class_information, function_information)
+    }
     var saved_poisoned = statement_poisoned
     var mentioned = List<String>()
     if mentions_poisoned(statement, mentioned) {
@@ -32487,6 +32761,58 @@ func note_repeated_check(statement: Syntax.Statements.Statement, scope: Scope, c
     }
     scope.last_check_text = check.condition_text
     scope.last_check_line = statement.line
+}
+
+func emit_breakpoint(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    var source_path = function_information.source_path
+    if source_path.is_empty() {
+        source_path = class_information.source_path
+    }
+    var site = "{statement.line} {source_path}"
+    var emitted_key = "{site} {function_information.c_name}"
+    assert hot_reload and remote_loop_port > 0 and breakpoint_sites.contains(site)
+    assert not emitted_breakpoints.contains(emitted_key)
+    emitted_breakpoints.append(emitted_key)
+    if not matched_breakpoints.contains(site) {
+        matched_breakpoints.append(site)
+    }
+    var attribute_class = find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var attribute_type = class_type_of(attribute_class)
+    var list_name = ensure_list(attribute_type)
+    builder.add_prototype("void spite_breakpoint(SpiteString site, {list_name}* locals);")
+    var lines = List<String>()
+    lines.append("\{ {list_name}* spite_break_locals = {list_name}___make();")
+    if not class_information.is_value_class {
+        var self_type = class_type_of(class_information)
+        var reflect_self = ensure_reflect_function(self_type)
+        lines.append("{list_name}_append(spite_break_locals, {reflect_self}({ensure_symbol("self")}, self));")
+    }
+    var names = List<String>()
+    scope.visible_names(names)
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var local_type = scope.lookup_type(name)
+        crash local_type
+        var local_code = c_value_name(name)
+        var override = scope.lookup_override(name)
+        if override {
+            local_code = override
+        }
+        var reflect = ensure_reflect_function(local_type)
+        lines.append("{list_name}_append(spite_break_locals, {reflect}({ensure_symbol(name)}, {local_code}));")
+        index = index + 1
+    }
+    var shown_site = "{source_path}:{statement.line}"
+    lines.append("spite_breakpoint({owned_c_text(shown_site)}, spite_break_locals); }")
+    var joined_lines = lines.join(" ")
+    builder.add_user(joined_lines)
 }
 
 func mark_each_used(names: List<String>, scope: Scope) {
@@ -33284,7 +33610,9 @@ func emit_class(information: Analysis.ClassInfo) {
     if information.c_name == "Spite_Attribute" {
         struct_lines.append("void* spite_owner;")
         struct_lines.append("void (*spite_release_owner)(void*);")
-        struct_lines.append("bool (*spite_assign)(void*, SpiteString);")
+        struct_lines.append("bool (*spite_assign)(void*, void*, SpiteString);")
+        struct_lines.append("bool (*spite_store)(void*, void*, void*);")
+        struct_lines.append("void* (*spite_held_class)(void);")
         struct_lines.append("void* spite_held;")
         struct_lines.append("void (*spite_release_held)(void*);")
         struct_lines.append("void* (*spite_held_attributes)(void*);")
@@ -35619,6 +35947,16 @@ func remote_loop_start(entry_class: Analysis.ClassInfo, lines: List<String>) {
     builder.add_support(
         "static ReadEvaluatePrintLoop* spite_remote_loop = 0;\nstatic {entry_class.c_name}* spite_remote_program = 0;\nstatic void* spite_remote_loop_thread(void* unused) \{\n(void)unused;\nspite_fault_thread();\nReadEvaluatePrintLoop_serve(spite_remote_loop, spite_reflect_{entry_class.c_name}({program_symbol}, spite_remote_program));\nreturn 0;\n}",
     )
+    if hot_reload {
+        var attribute_class = find_class_by_c_name("Spite_Attribute")
+        crash attribute_class
+        var attribute_type = class_type_of(attribute_class)
+        var list_name = ensure_list(attribute_type)
+        builder.add_prototype("void spite_breakpoint(SpiteString site, {list_name}* locals);")
+        builder.add_support(
+            "void spite_breakpoint(SpiteString site, {list_name}* locals) \{\nif (spite_remote_loop == 0) \{ SpiteString___release(site); {list_name}___release(locals); return; }\nReadEvaluatePrintLoop_pause_at(spite_remote_loop, site, locals);\n}",
+        )
+    }
     lines.append("spite_remote_program = spite_entry_instance;")
     lines.append("spite_remote_loop = ReadEvaluatePrintLoop___make();")
     lines.append(
@@ -35797,6 +36135,7 @@ func field_place(object_code: String, owner: Analysis.ClassInfo, name: String): 
 
 func field_signature(information: Analysis.ClassInfo): String {
     var codec = TypeCodec()
+    codec.enums_by_name = true
     var parts = List<String>()
     var index = 0
     while index < information.fields.count() {
@@ -35979,6 +36318,7 @@ func inline_memory_item(c_name: String): Analysis.ClassInfo? {
 func layout_descriptor(information: Analysis.ClassInfo): String {
     var c_name = information.c_name
     var codec = TypeCodec()
+    codec.enums_by_name = true
     var facts = ProgramFacts()
     var entries = List<String>()
     var index = 0
@@ -36447,13 +36787,17 @@ func slotted_support(text: String, owner: String, display: String): String {
     if returned == "void" {
         result = ""
     }
-    builder.add_support("{signature} \{\n{result}{name}___slot({arguments});\n}")
+    builder.add_support("{signature} \{\n{result}{slot_read(name)}({arguments});\n}")
     hot_slot_names.append(name)
     hot_slot_owners.append(owner)
     hot_slot_displays.append(display)
     var text_length = text.length()
     var rest = text.slice(line_end, text_length)
     return "{hot_signature} \{{rest}"
+}
+
+func slot_read(name: String): String {
+    return "__atomic_load_n(&{name}___slot, __ATOMIC_ACQUIRE)"
 }
 
 func argument_names(parameters: String): String {
@@ -36539,7 +36883,7 @@ func add_hot_slot(information: Analysis.ClassInfo, function: Analysis.FunctionIn
         returned = ""
     }
     builder.add_user(
-        "{function_signature(information, function)} \{\n{returned}{function.c_name}___slot({arguments.join(", ")});\n}",
+        "{function_signature(information, function)} \{\n{returned}{slot_read(function.c_name)}({arguments.join(", ")});\n}",
     )
     hot_slot_names.append(function.c_name)
     hot_slot_owners.append(information.c_name)
@@ -36592,7 +36936,7 @@ func add_hot_functions_slot(information: Analysis.ClassInfo, list_name: String) 
         "static {list_name}* (*{functions_name}___slot)({information.c_name}* self) = {functions_name}___hot;",
     )
     builder.add_support(
-        "{list_name}* {functions_name}({information.c_name}* self) \{\nreturn {functions_name}___slot(self);\n}",
+        "{list_name}* {functions_name}({information.c_name}* self) \{\nreturn {slot_read(functions_name)}(self);\n}",
     )
     hot_slot_names.append(functions_name)
     hot_slot_owners.append(information.c_name)
@@ -36606,7 +36950,7 @@ func add_hot_initialize_slot(information: Analysis.ClassInfo) {
         initialize_name,
         "static void (*{initialize_name}___slot)({information.c_name}* self) = {initialize_name}___hot;",
     )
-    builder.add_support("void {initialize_name}({information.c_name}* self) \{\n{initialize_name}___slot(self);\n}")
+    builder.add_support("void {initialize_name}({information.c_name}* self) \{\n{slot_read(initialize_name)}(self);\n}")
     hot_slot_names.append(initialize_name)
     hot_slot_owners.append(information.c_name)
     hot_slot_displays.append("{information.qualified_dotted}'s attribute defaults")
@@ -37894,6 +38238,10 @@ func partial_problem(host: HotReloadLibrary): String {
     if partial_falls_short() {
         return "a function of a changed class has another parameter list or return type"
     }
+    var changed_enum = changed_enum_values(host)
+    if not changed_enum.is_empty() {
+        return "the values of {changed_enum} changed, and the code that names them is compiled again"
+    }
     var missing = missing_slot(host)
     if not missing.is_empty() {
         return "'{missing}' of a changed class is not made without compiling the whole program"
@@ -37917,6 +38265,20 @@ func partial_problem(host: HotReloadLibrary): String {
         return interface_problem
     }
     return changed_key_kind()
+}
+
+func changed_enum_values(host: HotReloadLibrary): String {
+    var index = 0
+    while index < enums.count() {
+        var information = enums[index]
+        var running = host.host_layouts[information.c_name]
+        var written = enum_typedefs[information.c_name]
+        if running and written and running != written {
+            return enum_display_name(information)
+        }
+        index = index + 1
+    }
+    return ""
 }
 
 func changed_interface(host: HotReloadLibrary, snapshot: Dictionary<String>): String {
@@ -38303,6 +38665,20 @@ func read_evaluate_print_loop_body(name: String): String {
         }
         return "return List_Spite_Attribute___make();"
     }
+    if name == "class_descriptions" {
+        if read_evaluate_print_loop {
+            builder.add_prototype("SpiteString spite_loop_class_descriptions(void);")
+            return "return spite_loop_class_descriptions();"
+        }
+        return "return spite_string_from_cstring_owned(\"\");"
+    }
+    if name == "enum_names" {
+        if read_evaluate_print_loop {
+            builder.add_prototype("SpiteString spite_loop_enum_names(void);")
+            return "return spite_loop_enum_names();"
+        }
+        return "return spite_string_from_cstring_owned(\"\");"
+    }
     if read_evaluate_print_loop {
         builder.add_prototype("SpiteString spite_loop_class_names(void);")
         return "return spite_loop_class_names();"
@@ -38331,6 +38707,7 @@ func emit_loop_singletons() {
     lines.append("return result;")
     lines.append("}")
     var joined_lines = lines.join("\n")
+    note_loop_table_slot("'s singletons")
     builder.add_support(joined_lines)
     var names = List<String>()
     index = 0
@@ -38342,17 +38719,129 @@ func emit_loop_singletons() {
         index = index + 1
     }
     var joined_names = names.join("\n")
+    note_loop_table_slot("'s classes")
     builder.add_support("SpiteString spite_loop_class_names(void) \{\nreturn {owned_c_text(joined_names)};\n}")
+    var enum_lines = List<String>()
+    index = 0
+    while index < enums.count() {
+        var information = enums[index]
+        var owner = find_class_by_qualified(information.owner_qualified)
+        if owner and is_listed_class(owner) {
+            var quoted = List<String>()
+            var value_index = 0
+            while value_index < information.values.count() {
+                quoted.append("'{information.values[value_index]}'")
+                value_index = value_index + 1
+            }
+            enum_lines.append("{enum_display_name(information)}: {quoted.join(", ")}")
+        }
+        index = index + 1
+    }
+    var joined_enums = enum_lines.join("\n")
+    note_loop_table_slot("'s enums")
+    builder.add_support("SpiteString spite_loop_enum_names(void) \{\nreturn {owned_c_text(joined_enums)};\n}")
+    var blocks = List<String>()
+    index = 0
+    while index < classes.count() {
+        if is_listed_class(classes[index]) {
+            var block = class_description(classes[index])
+            blocks.append(block)
+        }
+        index = index + 1
+    }
+    var joined_blocks = blocks.join("\n\n")
+    note_loop_table_slot("'s class descriptions")
+    builder.add_support("SpiteString spite_loop_class_descriptions(void) \{\nreturn {owned_c_text(joined_blocks)};\n}")
+}
+
+func class_description(information: Analysis.ClassInfo): String {
+    var lines = List<String>()
+    var display_name = singleton_display_name(information)
+    if information.is_singleton {
+        lines.append("{display_name}, a singleton")
+    } else {
+        lines.append(display_name)
+    }
+    if information.fields.is_empty() {
+        lines.append("attributes: none")
+    } else {
+        lines.append("attributes:")
+        var field_index = 0
+        while field_index < information.fields.count() {
+            var field = information.fields[field_index]
+            var field_type = field.get_type()
+            if not field.name.starts_with("_") {
+                lines.append("{field.name}: {type_display_name(field_type)}")
+            }
+            field_index = field_index + 1
+        }
+    }
+    var signatures = List<String>()
+    var function_index = 0
+    while function_index < information.declared_functions.count() {
+        var listed = information.declared_functions[function_index]
+        var public = not listed.name.starts_with("_") and listed.name != "drop"
+        if public and not listed.is_constructor and listed.symbol_name.is_empty() {
+            var signature = prompt_signature(listed)
+            if not signatures.contains(signature) {
+                signatures.append(signature)
+            }
+        }
+        function_index = function_index + 1
+    }
+    if signatures.is_empty() {
+        lines.append("functions: none")
+    } else {
+        lines.append("functions:")
+        var signature_index = 0
+        while signature_index < signatures.count() {
+            lines.append(signatures[signature_index])
+            signature_index = signature_index + 1
+        }
+    }
+    return lines.join("\n")
+}
+
+func prompt_signature(function: Analysis.FunctionInfo): String {
+    var parameters = List<String>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.get_type()
+        parameters.append("{parameter.name}: {type_display_name(parameter_type)}")
+        index = index + 1
+    }
+    var return_type = function.get_return_type()
+    var returned = "Nothing"
+    if not type_shape.is_void(return_type) {
+        returned = type_display_name(return_type)
+    }
+    return "{function.name}({parameters.join(", ")}): {returned}"
+}
+
+func note_loop_table_slot(what: String) {
+    assert hot_reload
+    var entry_class = find_class_by_c_name(entry_class_c_name)
+    crash entry_class
+    note_support_slot(entry_class, what)
 }
 
 func listed_singleton(information: Analysis.ClassInfo, list_name: String): String {
     var class_type = class_type_of(information)
     var reflect = ensure_reflect_function(class_type)
     var cache = "spite_singleton_{information.c_name}_cache"
+    var peek = "spite_singleton_{information.c_name}_peek"
+    if not singleton_names.contains(peek) {
+        singleton_names.append(peek)
+        builder.add_prototype("{information.c_name}* {peek}(void);")
+        builder.add_support(
+            "{information.c_name}* {peek}(void) \{\nreturn __atomic_load_n(&{cache}, __ATOMIC_ACQUIRE);\n}",
+        )
+    }
     var display_name = singleton_display_name(information)
     var named = ensure_symbol(display_name)
     var unmade = "Spite_Attribute___make({named}, {class_object_call(class_type)})"
-    return "\{ {information.c_name}* made = __atomic_load_n(&{cache}, __ATOMIC_ACQUIRE); {list_name}_append(result, made != 0 ? {reflect}({named}, made) : {unmade}); }"
+    return "\{ {information.c_name}* made = {peek}(); {list_name}_append(result, made != 0 ? {reflect}({named}, made) : {unmade}); }"
 }
 
 func package_folder(information: Analysis.ClassInfo): String {
@@ -38455,7 +38944,7 @@ func ensure_byte_count_function(information: Analysis.ClassInfo): String {
     }
     builder.add_prototype("int64_t {name}___hot(void);")
     builder.add_slot(name, "static int64_t (*{name}___slot)(void) = {name}___hot;")
-    builder.add_support("int64_t {name}(void) \{\nreturn {name}___slot();\n}")
+    builder.add_support("int64_t {name}(void) \{\nreturn {slot_read(name)}();\n}")
     builder.add_support("int64_t {name}___hot(void) \{\n{body}\n}")
     hot_slot_names.append(name)
     hot_slot_owners.append(information.c_name)

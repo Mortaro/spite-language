@@ -1,0 +1,24 @@
+enum Mood {
+    'calm'
+    'angry'
+}
+
+var console = Console()
+var mood: Mood = 'angry'
+var other: Mood = 'calm'
+
+func LiveEnum() {
+    var described = describe()
+    console.print(described)
+}
+
+func describe(): String {
+    return "{mood} and {other}"
+}
+
+func verdict(): String {
+    switch mood {
+        'calm': return "fine"
+        'angry': return "careful"
+    }
+}

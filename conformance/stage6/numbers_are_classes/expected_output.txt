@@ -3,4 +3,4 @@
 255 18446744073709551615 true
 42 -7
 first, second
-allocate resize free live_allocations
+allocate resize free live_allocations live_bytes

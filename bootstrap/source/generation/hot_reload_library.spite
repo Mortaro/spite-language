@@ -20,6 +20,7 @@ var library_bodies = List<String>()
 var library_body_names = List<String>()
 var host_hashes = Dictionary<String>()
 var stale_pieces = List<String>()
+var running_breakpoints = List<String>()
 var host_snapshot = Dictionary<String>()
 var program_shaker = TreeShaker()
 var program_prototypes = Dictionary<String>()
@@ -295,6 +296,10 @@ func read_state(text: String) {
             var signature_start = words[0].length() + words[1].length() + 2
             var class_name = words[1]
             running_fields[class_name] = line.slice(signature_start, line_length)
+        } else if words.count() >= 3 and words[0] == "breakpoint" {
+            var line_length = line.length()
+            var site = line.slice(11, line_length)
+            running_breakpoints.append(site)
         } else if words.count() >= 3 and words[0] == "file" {
             var line_length = line.length()
             var path_start = words[0].length() + words[1].length() + 2
@@ -335,13 +340,40 @@ func is_changed(path: String, hash: String): Boolean {
     return true
 }
 
+func host_enum_numbers(c_name: String): Dictionary<Integer> {
+    var numbers = Dictionary<Integer>()
+    var layout = host_layouts[c_name]
+    if not layout {
+        return numbers
+    }
+    var entries = layout.split(",")
+    var index = 0
+    while index < entries.count() {
+        var entry = entries[index].replace("typedef enum \{", "").trim()
+        var equals = entry.index_of(" = ")
+        var prefix = "{c_name}_"
+        if equals > 0 and entry.starts_with(prefix) {
+            var prefix_length = prefix.length()
+            var name = entry.slice(prefix_length, equals)
+            var entry_length = entry.length()
+            var number = entry.slice(equals + 3, entry_length).trim().to_integer()
+            if number {
+                numbers[name] = number
+            }
+        }
+        index = index + 1
+    }
+    return numbers
+}
+
 func layout_problem(typedefs: List<String>, moving: List<String>): String {
     var changed = List<String>()
     var index = 0
     while index < typedefs.count() {
         var written_typedef = typedefs[index]
         var name = layout_name(written_typedef)
-        if host_layouts[name] and not moving.contains(name) {
+        var stable_enum = written_typedef.starts_with("typedef enum")
+        if host_layouts[name] and not moving.contains(name) and not stable_enum {
             var layout = written_typedef.replace("\n", " ")
             var class_name = name.replace("_", ".")
             if host_layouts[name] != layout {
