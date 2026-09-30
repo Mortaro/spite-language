@@ -6,7 +6,7 @@ func IntegerOverflow() {
     var hash: UnsignedInteger = 4000000000
     var mixed = hash * 3
     console.print(fits, mixed)
-    var lowest = Long.smallest()
+    var lowest = Long.smallest
     var above = lowest + 1
     console.print(above)
     var total = scaled(2000000000, 2)

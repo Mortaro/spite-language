@@ -102,7 +102,7 @@ var console = Console()
 func GameRotationsBasics() {
     var turn = Quaternion()
     var axis = Vector3(0.0, 0.0, 1.0)
-    var quarter_turn = Float.pi() * 0.5
+    var quarter_turn = Float.pi * 0.5
     turn.set_axis_angle(axis, quarter_turn)
     var along = Vector3(1.0, 0.0, 0.0)
     var turned = turn.rotate(along)

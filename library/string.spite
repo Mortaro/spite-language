@@ -209,7 +209,7 @@ func to_long(): Long? {
     var value: Long = 0
     while index < length() and code_at(index) >= 48 and code_at(index) <= 57 {
         var digit: Long = code_at(index) - 48
-        assert value >= (Long.smallest() + digit) / 10
+        assert value >= (Long.smallest + digit) / 10
         value = value * 10 - digit
         index = index + 1
     }
@@ -217,43 +217,43 @@ func to_long(): Long? {
     if negative {
         return value
     }
-    assert value != Long.smallest()
+    assert value != Long.smallest
     return -value
 }
 
 func to_integer(): Integer? {
     var value = to_long()
-    assert value and value >= Integer.smallest() and value <= Integer.largest()
+    assert value and value >= Integer.smallest and value <= Integer.largest
     return value
 }
 
 func to_tiny(): Tiny? {
     var value = to_long()
-    assert value and value >= Tiny.smallest() and value <= Tiny.largest()
+    assert value and value >= Tiny.smallest and value <= Tiny.largest
     return value
 }
 
 func to_short(): Short? {
     var value = to_long()
-    assert value and value >= Short.smallest() and value <= Short.largest()
+    assert value and value >= Short.smallest and value <= Short.largest
     return value
 }
 
 func to_byte(): Byte? {
     var value = to_long()
-    assert value and value >= 0 and value <= Byte.largest()
+    assert value and value >= 0 and value <= Byte.largest
     return value
 }
 
 func to_unsigned_short(): UnsignedShort? {
     var value = to_long()
-    assert value and value >= 0 and value <= UnsignedShort.largest()
+    assert value and value >= 0 and value <= UnsignedShort.largest
     return value
 }
 
 func to_unsigned_integer(): UnsignedInteger? {
     var value = to_long()
-    assert value and value >= 0 and value <= UnsignedInteger.largest()
+    assert value and value >= 0 and value <= UnsignedInteger.largest
     return value
 }
 
@@ -266,7 +266,7 @@ func to_unsigned_long(): UnsignedLong? {
     var value: UnsignedLong = 0
     while index < length() and code_at(index) >= 48 and code_at(index) <= 57 {
         var digit: UnsignedLong = code_at(index) - 48
-        assert value <= (UnsignedLong.largest() - digit) / 10
+        assert value <= (UnsignedLong.largest - digit) / 10
         value = value * 10 + digit
         index = index + 1
     }

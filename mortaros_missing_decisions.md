@@ -14,7 +14,7 @@ Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection re
 answered by D314.
 
 Third pass, after D318-D325: 229 answered by D318 (on the reflection branch), 230 by D319, 227 by D320 and
-D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330, 208 by D332. Rewritten: 238 (D324), 36 (D319).
+D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330, 208 by D332, 202 and 204 by D333. Rewritten: 238 (D324), 36 (D319).
 
 ## Blocking now
 
@@ -132,10 +132,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
 171. **Who may read and write an address**: any function of a standard-library class, including one a program adds
      by reopening it, or only files under `library/`?
 183. **A capped `ShortText<32>`**, or is D203's 15-byte inline text enough?
-202. **The reader and writer names**: `append_to(bytes)`, `read_memory(address, count)`, `position`, `remaining()`,
-     no `read_or_crash()` for bytes.
-204. **The maths names**: `arc_tangent_over`, `logarithm`, `euler_number`, `largest`/`smallest`, constants as
-     `Float.pi()`; whether `minimum`/`maximum` pass not-a-number on; maths as primitives each backend lowers.
 205. **`x_value`...`w_value`** on vectors and quaternions, or `x`, `y`, `z`, `w` as on `Vector2`?
 217. **Should unsigned arithmetic that does not fit halt too**, with explicit wrapping functions for hashes? And
      `-fwrapv` for production builds?

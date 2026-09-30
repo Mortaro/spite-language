@@ -431,7 +431,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 - **Proves.** A maths function called on constants has one answer.
 - **Rule.** A maths member (`sine`, `square_root`, ...) whose receiver and arguments are literals, the number
-  classes' constants (`pi()`, `infinity()`, ...) or other folded calls is answered by the compiler's own C library.
+  classes' constants (`Float.pi`, `Double.infinity`, ...) or other folded calls is answered by the compiler's own C library.
 - **Buys.** No call, and no `math.h` when every call folds.
 - **Falls back.** A variable is never a constant: `angle.sine()` is a call. Plain arithmetic on literals is left
   to the C compiler.

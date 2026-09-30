@@ -8692,7 +8692,7 @@ func generate_identifier(
         )
     } else if identifier.name == "Math" or identifier.name == "Maths" {
         report(
-            "Spite has no '{identifier.name}': maths is a function of the number itself, like 'value.square_root()', and a constant is the number class's, like 'Float.pi()'",
+            "Spite has no '{identifier.name}': maths is a function of the number itself, like 'value.square_root()', and a constant is the number class's, like 'Float.pi'",
         )
     } else {
         report("unknown identifier '{identifier.name}'")
@@ -12395,14 +12395,8 @@ func finish_generic_call(
     return ExpressionResult("{function_c_name}({full_arguments.join(", ")})", return_type)
 }
 
-func generate_number_constant(
-    information: Analysis.ClassInfo,
-    name: String,
-    arguments_ast: List<Syntax.Expressions.Expression>,
-): ExpressionResult? {
-    var largest = find_or_instantiate_function(information, "largest")
-    assert largest
-    assert is_inline_supplied(largest)
+func generate_number_constant(information: Analysis.ClassInfo, name: String): ExpressionResult? {
+    assert is_number_class(information)
     var function = find_or_instantiate_function(information, name)
     var is_constant = false
     if function {
@@ -12412,19 +12406,32 @@ func generate_number_constant(
         report_not_a_number_constant(information, name, function)
         return void_result()
     }
-    crash function
-    if not arguments_ast.is_empty() {
-        report("'{information.qualified_dotted}.{name}()' is a constant, and takes no arguments")
-        return void_result()
+    var named = "{information.qualified_dotted}.{name}"
+    report("'{named}' is a constant, read as an attribute and never called: write '{named}'")
+    return void_result()
+}
+
+func is_number_class(information: Analysis.ClassInfo): Boolean {
+    var largest = find_or_instantiate_function(information, "largest")
+    if not largest {
+        return false
     }
+    return is_inline_supplied(largest)
+}
+
+func number_constant_read(information: Analysis.ClassInfo, name: String): ExpressionResult? {
+    assert maths.is_constant(name)
+    var function = find_or_instantiate_function(information, name)
+    assert function
+    assert is_inline_supplied(function)
     var constant_type = function.get_return_type()
     return ExpressionResult("{function.c_name}()", constant_type)
 }
 
 func report_not_a_number_constant(information: Analysis.ClassInfo, name: String, function: Analysis.FunctionInfo?) {
-    var constants = "largest() and smallest()"
+    var constants = "largest and smallest"
     if information.qualified_dotted == "Float" or information.qualified_dotted == "Double" {
-        constants = "pi(), tau(), euler_number(), infinity(), not_a_number(), largest() and smallest()"
+        constants = "pi, tau, euler_number, infinity, not_a_number, largest and smallest"
     }
     var class_name = information.qualified_dotted
     if name.starts_with("from_") {
@@ -12507,7 +12514,7 @@ func generate_method_call(
     }
     var static_receiver = try_resolve_static_path(object_ast, class_information.qualified_dotted)
     if static_receiver {
-        var number_constant = generate_number_constant(static_receiver, member.name, arguments_ast)
+        var number_constant = generate_number_constant(static_receiver, member.name)
         if number_constant {
             return number_constant
         }
@@ -12912,7 +12919,7 @@ func generate_value_method(
         if function {
             if maths.is_constant(name) and is_inline_supplied(function) {
                 report(
-                    "'{name}()' is a constant of the class {value_class.qualified_dotted}, not of a value: write '{value_class.qualified_dotted}.{name}()'",
+                    "'{name}' is a constant of the class {value_class.qualified_dotted}, not of a value: write '{value_class.qualified_dotted}.{name}'",
                 )
                 return void_result()
             }
@@ -19395,6 +19402,12 @@ func library_function_value(
     var function = find_or_instantiate_function(owner_class, member.name)
     assert function
     assert not function.is_constructor
+    if maths.is_constant(member.name) and is_inline_supplied(function) {
+        report(
+            "'{member.name}' is a constant of the class {owner_class.qualified_dotted}, not of a value: write '{owner_class.qualified_dotted}.{member.name}'",
+        )
+        return void_result()
+    }
     var container = container_class_of(object_type)
     if not container {
         report(
@@ -19485,6 +19498,19 @@ func generate_member_read_raw(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     crash member.object
+    if maths.is_constant(member.name) {
+        var constant_class = try_resolve_static_path(member.object, class_information.qualified_dotted)
+        if constant_class {
+            var constant_read = number_constant_read(constant_class, member.name)
+            if constant_read {
+                return constant_read
+            }
+            if is_number_class(constant_class) {
+                report_not_a_number_constant(constant_class, member.name, null)
+                return void_result()
+            }
+        }
+    }
     if member.name == "size" {
         var type_size = type_size_read(member, scope, class_information)
         if type_size {
@@ -25156,6 +25182,10 @@ func generate_assignment(
 ) {
     assert assignment.target
     assert assignment.value
+    if assigns_number_constant(assignment.target, class_information) {
+        mark_names_used_in(assignment.value, scope)
+        return
+    }
     var chosen_object = allocator_object_name(assignment.target)
     if not chosen_object.is_empty() {
         if not chosen_allocator_lines.contains("{current_path}:{assignment.line}") {
@@ -25180,6 +25210,27 @@ func generate_assignment(
         generate_store(assignment, scope, class_information)
     }
     forget_narrowing_under(assignment.target, assignment.value, scope, class_information)
+}
+
+func assigns_number_constant(target: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Boolean {
+    var member = shape.as_member(target)
+    if not member {
+        return false
+    }
+    if not maths.is_constant(member.name) {
+        return false
+    }
+    crash member.object
+    var constant_class = try_resolve_static_path(member.object, class_information.qualified_dotted)
+    if not constant_class {
+        return false
+    }
+    if not number_constant_read(constant_class, member.name) {
+        return false
+    }
+    var named = "{constant_class.qualified_dotted}.{member.name}"
+    report("'{named}' is a constant, and a constant is get-only: nothing can assign it")
+    return true
 }
 
 func narrowed_value_holder(override: String, declared: Analysis.SpiteType): String {
@@ -38074,20 +38125,23 @@ func folded_decimal(expression: Syntax.Expressions.Expression, class_information
         assert negated_operand
         return FoldedDecimal(-negated_operand.value, negated_operand.kind)
     }
+    var constant_member = shape.as_member(expression)
+    if constant_member {
+        crash constant_member.object
+        var constant_class = try_resolve_static_path(constant_member.object, class_information.qualified_dotted)
+        assert constant_class
+        var constant_kind = constant_class.qualified_dotted
+        assert constant_kind == "Float" or constant_kind == "Double"
+        assert maths.is_constant(constant_member.name)
+        var member_constant = maths.constant_value(constant_member.name, constant_kind == "Float")
+        return FoldedDecimal(member_constant, constant_kind)
+    }
     var call = shape.as_call(expression)
     assert call
     crash call.callee
     var member = shape.as_member(call.callee)
     assert member
     crash member.object
-    var static_receiver = try_resolve_static_path(member.object, class_information.qualified_dotted)
-    if static_receiver {
-        var kind = static_receiver.qualified_dotted
-        assert kind == "Float" or kind == "Double"
-        assert maths.is_constant(member.name) and call.arguments.is_empty()
-        var constant = maths.constant_value(member.name, kind == "Float")
-        return FoldedDecimal(constant, kind)
-    }
     assert maths.is_member(member.name) and not maths.is_constant(member.name) and not maths.is_predicate(member.name)
     return folded_maths_value(member.name, member.object, call.arguments, class_information)
 }

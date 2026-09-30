@@ -24,7 +24,7 @@ REPL can look at any of it.
 | Class | What it is | Page |
 |---|---|---|
 | `String` | immutable text | [below](#string) |
-| `Integer`, `Long`, `Float`, `Double`, `Boolean`, ... | numbers, as classes, with their maths (`square_root()`, `sine()`, `Float.pi()`, ...) | [values_and_types.md](values_and_types.md#numbers-are-classes), [maths](values_and_types.md#maths-functions) |
+| `Integer`, `Long`, `Float`, `Double`, `Boolean`, ... | numbers, as classes, with their maths (`square_root()`, `sine()`, `Float.pi`, ...) | [values_and_types.md](values_and_types.md#numbers-are-classes), [maths](values_and_types.md#maths-functions) |
 | `Nothing`, `Anything` | what a function returns when it returns nothing; the empty `type` every class fits | [functions_and_operators.md](functions_and_operators.md#calling-one) |
 | `List<T>`, `Dictionary<T>` | containers, and the member templates | [collections.md](collections.md) |
 | `Console` | the terminal: print, read a line | [below](#console) |
@@ -830,18 +830,21 @@ On every whole number, `Tiny` to `UnsignedLong`, answering the receiver's type:
 
 | Member | Answers |
 |---|---|
-| `absolute()` | the value without its sign; the smallest signed value wraps to itself, as its negation does (`Integer.smallest().absolute()` is -2147483648), and an unsigned value is itself |
+| `absolute()` | the value without its sign; the smallest signed value wraps to itself, as its negation does (`Integer.smallest.absolute()` is -2147483648), and an unsigned value is itself |
 | `minimum(other)`, `maximum(other)` | the smaller or larger, `other` cast first: a `Byte`'s `minimum(300)` compares with 44 |
 | `clamp(low, high)` | `value` held between `low` and `high`, with `high` winning when `low` is above it, as on a float |
 
-**Constants are answered by the class itself** (a class is an object): `Float.pi()`, `tau()`, `euler_number()`,
-`infinity()`, `not_a_number()`, `largest()` (the largest finite value) and `smallest()` (the most negative finite
-one) on `Float` and `Double`, and `largest()` and `smallest()` on each whole number (`UnsignedLong.largest()` is
-18446744073709551615, its `smallest()` 0). Each is the value itself in the C, written exactly (`0x1.921fb6p+1f`
-for `Float.pi()`, `INT32_MAX` for `Integer.largest()`). On a value, `angle.pi()` is "'pi()' is a constant of the
-class Float, not of a value: write 'Float.pi()'"; on the class, a function of a value is "'Float.square_root()'
+**Constants are get-only attributes of the class itself** (a class is an object): `Float.pi`, `tau`, `euler_number`,
+`infinity`, `not_a_number`, `largest` (the largest finite value) and `smallest` (the most negative finite
+one) on `Float` and `Double`, and `largest` and `smallest` on each whole number (`UnsignedLong.largest` is
+18446744073709551615, its `smallest` 0). They are read without parentheses, and nothing can assign one:
+`Float.pi = 3.0` is "'Float.pi' is a constant, and a constant is get-only: nothing can assign it", and
+`Float.pi()` is "'Float.pi' is a constant, read as an attribute and never called: write 'Float.pi'"
+(`diagnostics/maths_constant_assigned`). Each is the value itself in the C, written exactly (`0x1.921fb6p+1f`
+for `Float.pi`, `INT32_MAX` for `Integer.largest`). On a value, `angle.pi` is "'pi' is a constant of the
+class Float, not of a value: write 'Float.pi'"; on the class, a function of a value is "'Float.square_root()'
 calls a function of a value on the class: the class Float answers only its constants, ..." and a name that is
-neither is "the class Integer answers only its constants, largest() and smallest(), and 'pi' is not one of them"
+neither is "the class Integer answers only its constants, largest and smallest, and 'pi' is not one of them"
 (`diagnostics/maths_constant_on_value`).
 
 **Nothing here halts.** Floats keep infinity and not-a-number, so every edge answers the IEEE 754 value the
@@ -853,7 +856,7 @@ place, so no Spite changes with the backend). `--final-classes` prints them as b
 class, and `bootstrap/source/generation/maths_primitives.spite` is the one place that says what C each becomes:
 a macro written where it is called, so `angle.sine()` is `sinf(angle)` in the C, with no function of Spite's own
 around it, and a whole number's `clamp` is two comparisons in one statement. None has hand-written C in a `.spite`
-file of `library/`. A call whose operands are all constants, `(0.5).sine()` or `Float.pi().cosine()`, is worked out
+file of `library/`. A call whose operands are all constants, `(0.5).sine()` or `Float.pi.cosine()`, is worked out
 while compiling with the same C library function, so its answer is bit for bit the one the program would have
 computed ([optimizations.md](optimizations.md#maths-on-constants-is-worked-out-while-compiling);
 `conformance/stage6/maths_folding`).

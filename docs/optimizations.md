@@ -1477,7 +1477,7 @@ long text needs anyway (where its characters are, and how many).
 **What it does.** A maths function of a number class ([standard_library.md](standard_library.md#maths))
 whose operands are all constants is worked out by the compiler, and the C gets the answer: `(0.5).sine()` is
 `(0x1.eaee880000000p-2f)` in the C, not a call. A constant here is a decimal or whole literal, a negated one, a
-number class's constant (`Float.pi()`), or another folded call, so `Float.pi().sine()` and
+number class's constant (`Float.pi`), or another folded call, so `Float.pi.sine()` and
 `(2.0).square_root().square_root()` fold too. The answer is written as a hexadecimal float, which the C compiler
 reads back to exactly those bits, and infinity and not-a-number as `__builtin_inf()` and `__builtin_nan("0x...")`
 with the same sign and payload.
