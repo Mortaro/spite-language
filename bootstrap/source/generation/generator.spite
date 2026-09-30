@@ -45,7 +45,6 @@ var console_loop = false
 var remote_loop_port = 0
 var refused_serialiser = false
 var division_check_written = false
-var enum_text_check_written = false
 var overflow_check_written = false
 var index_check_written = false
 var unproven_read_code = ""
@@ -7894,12 +7893,7 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         var to_enum = type_shape.as_enum(to)
         if to_enum {
             crash to_enum.values.count() > 0
-            ensure_enum_text_check()
-            var where = escape_c_string("{current_path}:{current_line} in {current_owner}.{current_function}")
-            var shown_enum = type_display_name(to)
-            var enum_name = escape_c_string(shown_enum)
-            var unknown = "spite_enum_text_unknown(\"{enum_name}\", spite_enum_text, \"{where}\");"
-            var chosen_code = enum_from_text_lines(to_enum, "spite_enum_text", "spite_enum_value", unknown)
+            var chosen_code = enum_from_text_lines(to_enum, "spite_enum_text", "spite_enum_value", ";")
             return "(\{ SpiteString spite_enum_text = {code}; {to_enum.c_name} spite_enum_value = {to_enum.c_name}_{to_enum.values[0]}; {chosen_code} spite_enum_value; })"
         }
         if type_shape.as_scalar(to) {
@@ -9528,17 +9522,6 @@ func ensure_overflow_check() {
 
 func is_signed_kind(kind: Analysis.Types.NumericKind): Boolean {
     return kind == 'tiny_kind' or kind == 'short_kind' or kind == 'integer_kind' or kind == 'long_kind'
-}
-
-func ensure_enum_text_check() {
-    assert not enum_text_check_written
-    enum_text_check_written = true
-    builder.add_prototype(
-        "static void spite_enum_text_unknown(const char* enum_name, SpiteString text, const char* where);",
-    )
-    builder.add_support(
-        "static void spite_enum_text_unknown(const char* enum_name, SpiteString text, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '\");\nfwrite(spite_string_bytes(&text), 1, (size_t)spite_string_length(text), stderr);\nfprintf(stderr, \"' names no value of %s, at %s\\n\", enum_name, where);\nexit(1);\n}",
-    )
 }
 
 func ensure_division_check() {
