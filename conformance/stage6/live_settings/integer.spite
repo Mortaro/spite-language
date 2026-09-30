@@ -1,0 +1,3 @@
+func doubled(): Integer {
+    return this * 2
+}
