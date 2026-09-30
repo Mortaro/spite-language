@@ -416,6 +416,12 @@ What follows is how it is compiled:
 - **Run-time cost**: one pass over the command line and one environment lookup per declared field, once,
   when `Environment()` is first made. A program that never makes `Environment()` has none of its code: the
   class is tree-shaken with the rest of the unused library.
+- **A `--hot-reload` build reads the settings again after a reload**: a reload that changes
+  `environment.spite` moves `Environment` to its new attributes and reads every setting again, as when the program
+  starts, from the command line it was started with, then the environment, then the declared default. To read
+  the declared default again, the compiled reading passes the default itself in such a build
+  (`serve = boolean_setting("serve", false)`) rather than the field. See
+  [repl.md](repl.md#what-a-reload-can-change).
 
 ### Build settings: `Build`
 
@@ -430,6 +436,10 @@ with a literal default, and a program adds its own the same way it adds `Environ
   Either way the value is written into the program: `build.serve` compiles to `true`, a condition on it is decided
   while compiling, the branch not taken is never generated, and nothing is read when the program runs. The field
   still exists on the `Build` singleton with that value, for reflection.
+  **In a `--hot-reload` build**, a field the program or a package declares is read by the program's own code
+  from the `Build` singleton while it runs instead, and both branches of a condition on it are compiled, so a
+  reload that changes `build.spite` swaps the new value in; the standard library's reads of the compiler's own
+  options stay constants ([repl.md](repl.md#what-a-reload-can-change)).
 - **The program decides its own `Build`**: a field the program's own `build.spite` declares keeps the
   program's default even when a loaded package's `build.spite` declares the same field, although the package is
   merged later; this is the one exception to "a later root replaces" ([packages.md](packages.md#packages-namespaces-and-loading)).
