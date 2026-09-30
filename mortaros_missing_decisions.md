@@ -21,7 +21,7 @@ the user" is never an answer; everything monomorphizes; get-only attributes; ren
 builds favour information over speed): answered 2026-09-30, rows pending: 225 (same-package pins are two loads in
 load order), 234 (identical code folded by the compiler), 36 (`type Number`), 205 (`x`, `y`, `z`, `w`), 166's names
 (`FileSystemWatcher()`, `watch_for_changes(Directory or File)`). 79 by D322's principle (the REPL shows the fuller
-`to_debug()`). 202 and 204 by D333. Narrowed: 161. Moved to "Confirm quickly": 166 (quiet period only), 197, 212, 215.
+`to_debug()`). 202 and 204 by D334. Narrowed: 161. Moved to "Confirm quickly": 166 (quiet period only), 197, 212, 215.
 
 ## Confirm quickly
 

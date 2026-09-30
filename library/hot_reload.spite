@@ -196,6 +196,18 @@ func compile_prompt(code: String, answering: Boolean): String {
     return name
 }
 
+func compile_with_renames(renames: String) {
+    compiling.lock()
+    var running = program_file()
+    var base = running_base(running)
+    File("{base}.reload_renames").write(renames)
+    compiling.unlock()
+    compile_for_request()
+    compiling.lock()
+    File("{base}.reload_renames").write("")
+    compiling.unlock()
+}
+
 func change_breakpoints(request: String, adding: Boolean) {
     compiling.lock()
     if adding {
@@ -388,6 +400,7 @@ func restart_state() {
     File("{base}.reload_baseline").write("")
     File("{base}.reload_breaks").write("")
     File("{base}.reload_prompt").write("")
+    File("{base}.reload_renames").write("")
 }
 
 func running_base(running: String): String {
