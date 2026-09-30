@@ -1,2 +1,2 @@
-spite.crash	3f50dc9f	library/json_writer.spite:98	JsonWriter	written_decimal	unwritable == ""	unwritable='Order.price' is infinity, which JSON cannot hold
+spite.crash	3595b8e9	library/json_writer.spite:92	JsonWriter	written_decimal	shown=inf	value=inf	path=Order.price
 {"item":"tea","price":2.5}

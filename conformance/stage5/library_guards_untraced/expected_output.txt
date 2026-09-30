@@ -1,5 +1,5 @@
-spite.crash	694152b4	conformance/stage5/library_guards_untraced/library_guards_untraced.spite:20	LibraryGuardsUntraced	check	length > 9	length=5
-spite.assert	3391a913	conformance/stage5/library_guards_untraced/library_guards_untraced.spite:15	LibraryGuardsUntraced	announce	amount > 0
+spite.crash	694152b4	conformance/stage5/library_guards_untraced/library_guards_untraced.spite:20	LibraryGuardsUntraced	check	length=5
+spite.assert	3391a913	conformance/stage5/library_guards_untraced/library_guards_untraced.spite:15	LibraryGuardsUntraced	announce
 past the end: ''
 starts with help: false
 ends with low: false

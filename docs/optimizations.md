@@ -1090,6 +1090,19 @@ other function, from what tree shaking kept.
 **When.** Every build. **What you notice.** A fault prints a report instead of nothing, and the program is a few
 kilobytes larger. **Built.**
 
+### Crash text out of the binary
+
+**What it is.** A `crash` or `assert` site's condition text lives only in the `<output>.crashes` map written
+beside the executable ([D32](decisions.md), [D297](decisions.md)): no build writes it into the program. An
+`--optimized` build also leaves out each site's place, class and function, so a site is its 8-digit id and the
+values its report prints; other builds keep the place, so a local run needs no lookup.
+
+**When it applies.** Every `crash` and every program `assert` (a library `assert` records nothing, D189).
+
+**What a user can observe.** The report lines ([failure.md](failure.md#what-a-crash-reports)): `spite.crash<TAB>id`
+and `spite.assert<TAB>id` in an optimised build, and `grep <id> program.crashes` gives the rest.
+`conformance/stage6/trace_asserts_optimized`.
+
 ### Smaller ones
 
 All **built**, and none of them needs anything from you:
@@ -1834,9 +1847,6 @@ folded first) are set aside. Every call and every function value then goes to th
   it allocate only when the block grows.
 - **Short symbols inline** ([D70](decisions.md)): a short symbol held as a small inline string rather
   than a pointer into the symbol table.
-- **Crash text out of the binary** ([D32](decisions.md)): a `crash` or `assert` site's source text
-  lives only in the `<output>.crashes` map written beside the executable, and an optimised build carries just the id.
-  The map is written today, but the binary still carries the text.
 - **A build report of what could not be optimised** ([D36](decisions.md)): not "400 copies elided"
   but "3 copies could not be elided, and the callee that writes the field", so every line is actionable.
 

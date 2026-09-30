@@ -16,7 +16,9 @@ var deep_copy_names = List<String>()
 var terminal_if: Syntax.Statements.IfStatement? = null
 var leaving_statements = List<Syntax.Statements.Statement>()
 var trace_asserts = false
+var bare_crash_sites = false
 var crash_parts = List<CrashPart>()
+var crash_values_bounded = false
 var crash_capturing = false
 var crash_capture_counter = 0
 var falling_ends = List<String>()
@@ -655,7 +657,7 @@ func generate(
     var header_text = runtime_header_text.replace("/*spite_allocator*/", allocator)
     builder.add_typedef(header_text)
     builder.add_typedef(
-        "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic int32_t spite_crashing = 0;\nstatic void spite_crash_begin(void) \{\nif (__atomic_exchange_n(&spite_crashing, 1, __ATOMIC_ACQ_REL) != 0) \{ for (;;) \{ } }\n}\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_total = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE);\nint64_t spite_kept = spite_total < 32 ? spite_total : 32;\nfor (int64_t spite_index = spite_total - spite_kept; spite_index < spite_total; spite_index = spite_index + 1) \{ const char* spite_site = spite_assert_trace[spite_index % 32]; if (spite_site != 0) fputs(spite_site, stderr); }\nif (spite_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_total - 32)); }\n}",
+        "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic int32_t spite_crashing = 0;\nstatic inline void spite_crash_text(const char* spite_bytes, int64_t spite_length) \{\nint64_t spite_kept = spite_length > 80 ? 80 : spite_length;\nwhile (spite_kept > 0 && spite_kept < spite_length && (spite_bytes[spite_kept] & 0xC0) == 0x80) spite_kept = spite_kept - 1;\nfwrite(spite_bytes, 1, (size_t)spite_kept, stderr);\nif (spite_kept < spite_length) fprintf(stderr, \"...(%lld bytes)\", (long long)spite_length);\n}\nstatic void spite_crash_begin(void) \{\nif (__atomic_exchange_n(&spite_crashing, 1, __ATOMIC_ACQ_REL) != 0) \{ for (;;) \{ } }\n}\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_total = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE);\nint64_t spite_kept = spite_total < 32 ? spite_total : 32;\nfor (int64_t spite_index = spite_total - spite_kept; spite_index < spite_total; spite_index = spite_index + 1) \{ const char* spite_site = spite_assert_trace[spite_index % 32]; if (spite_site != 0) fputs(spite_site, stderr); }\nif (spite_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_total - 32)); }\n}",
     )
     var traced = "#define SPITE_TRACE_ASSERT(site) (spite_assert_trace[spite_assert_total % 32] = (site), spite_assert_total = spite_assert_total + 1)"
     var untraced = "#define SPITE_TRACE_ASSERT(site) ((void)0)"
@@ -17220,6 +17222,9 @@ func crash_operand_statement(
     var result_type = result.get_type()
     var temporary = next_temporary()
     var written = "fwrite(spite_string_bytes(&{temporary}), 1, (size_t)spite_string_length({temporary}), stderr);"
+    if crash_values_bounded {
+        written = "spite_crash_text(spite_string_bytes(&{temporary}), spite_string_length({temporary}));"
+    }
     if type_shape.as_string(result_type) {
         var release_line = ""
         if owns(result, expression_ast) {
@@ -30798,6 +30803,93 @@ func emit_crash_parts(scope: Scope, class_information: Analysis.ClassInfo) {
     }
 }
 
+func emit_scope_values(condition_text: String, scope: Scope, class_information: Analysis.ClassInfo) {
+    var names = List<String>()
+    scope.visible_names(names)
+    var shown = 0
+    var index = 0
+    while index < names.count() and shown < 12 {
+        var name = names[index]
+        var value_type = scope.lookup_type(name)
+        if value_type and not mentions_word(condition_text, name) and is_scope_value_type(value_type) {
+            var code = c_value_name(name)
+            var override = scope.lookup_override(name)
+            if override {
+                code = override
+            }
+            emit_scope_value(name, code, value_type, scope, class_information)
+            shown = shown + 1
+        }
+        index = index + 1
+    }
+    assert not class_information.is_value_class and class_information.c_name != "SpiteString"
+    var field_index = 0
+    while field_index < class_information.fields.count() and shown < 12 {
+        var field = class_information.fields[field_index]
+        var field_name = field.name
+        var field_type = field.get_type()
+        var hidden = names.contains(field_name) or mentions_word(condition_text, field_name)
+        var atomic = atomic_owner == class_information.c_name and atomic_fields.contains(field_name)
+        if not hidden and not atomic and field_name != "_namespace" and is_scope_value_type(field_type) {
+            var place = field_place("self", class_information, field_name)
+            emit_scope_value(field_name, place, field_type, scope, class_information)
+            shown = shown + 1
+        }
+        field_index = field_index + 1
+    }
+}
+
+func emit_scope_value(
+    label: String,
+    code: String,
+    value_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    crash_values_bounded = true
+    var named: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(label)
+    emit_shown_value(label, code, value_type, named, scope, class_information)
+    crash_values_bounded = false
+}
+
+func is_scope_value_type(spite_type: Analysis.SpiteType): Boolean {
+    var shown_type = spite_type
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        shown_type = nullable.get_inner()
+    }
+    return type_shape.as_string(shown_type) or type_shape.as_scalar(shown_type) or is_enum_type(shown_type)
+}
+
+func mentions_word(text: String, word: String): Boolean {
+    var text_length = text.length()
+    var word_length = word.length()
+    var at = 0
+    while at + word_length <= text_length {
+        var starts_word = true
+        if at > 0 {
+            var before = text.code_at(at - 1)
+            starts_word = not is_word_code(before)
+        }
+        if starts_word and text.slice(at, at + word_length) == word {
+            var ends_word = true
+            if at + word_length < text_length {
+                var after = text.code_at(at + word_length)
+                ends_word = not is_word_code(after)
+            }
+            if ends_word {
+                return true
+            }
+        }
+        at = at + 1
+    }
+    return false
+}
+
+func is_word_code(code: Integer): Boolean {
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
+
 func is_part_shown(part: CrashPart, scope: Scope, class_information: Analysis.ClassInfo): Boolean {
     if part.is_call {
         if part.captured_type {
@@ -31601,14 +31693,13 @@ func emit_check_failure(
     if assert_statement.is_crash {
         builder.add_user("spite_crash_begin();")
         builder.add_user("fflush(stdout);")
-        builder.add_user(
-            "fputs(\"spite.crash\\t{current_site_id}\\t{escape_c_string(current_path)}:{current_line}\\t{current_owner}\\t{function_information.name}\\t{escape_c_string(assert_statement.condition_text)}\", stderr);",
-        )
+        builder.add_user("fputs(\"spite.crash\\t{current_site_id}{report_place(function_information)}\", stderr);")
         if guard {
             emit_missing_report(guard, scope, class_information)
         } else if with_operands {
             emit_crash_parts(scope, class_information)
         }
+        emit_scope_values(assert_statement.condition_text, scope, class_information)
         builder.add_user("fputs(\"\\n\", stderr);")
         builder.add_user("spite_report_assert_trace();")
         builder.add_user("exit(1);")
@@ -31616,7 +31707,7 @@ func emit_check_failure(
         return
     }
     if not current_path.starts_with("library/") {
-        record_in_assert_trace(assert_statement, function_information)
+        record_in_assert_trace(function_information)
     }
     emit_scope_drops(scope, true)
     var function_information_return_type = function_information.get_return_type()
@@ -31681,12 +31772,16 @@ func is_symbol_class_read(expression: Syntax.Expressions.Expression): Boolean {
     return read.name == "class" and is_identifier_named(read.object, bound_symbol_name)
 }
 
-func record_in_assert_trace(
-    assert_statement: Syntax.Statements.AssertStatement,
-    function_information: Analysis.FunctionInfo,
-) {
+func report_place(function_information: Analysis.FunctionInfo): String {
+    if bare_crash_sites {
+        return ""
+    }
+    return "{tab_text()}{escape_c_string(current_path)}:{current_line}{tab_text()}{current_owner}{tab_text()}{function_information.name}"
+}
+
+func record_in_assert_trace(function_information: Analysis.FunctionInfo) {
     builder.add_user(
-        "SPITE_TRACE_ASSERT({backslash_quote()}spite.assert{tab_text()}{current_site_id}{tab_text()}{escape_c_string(current_path)}:{current_line}{tab_text()}{current_owner}{tab_text()}{function_information.name}{tab_text()}{escape_c_string(assert_statement.condition_text)}{newline_text()}{backslash_quote()});",
+        "SPITE_TRACE_ASSERT({backslash_quote()}spite.assert{tab_text()}{current_site_id}{report_place(function_information)}{newline_text()}{backslash_quote()});",
     )
 }
 
