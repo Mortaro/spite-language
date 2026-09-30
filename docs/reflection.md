@@ -776,7 +776,7 @@ own named `memory` ([below](#the-names-reflection-gives-every-object)). Choosing
 - **A template parameter is spelled `Spite.Attribute<Monster>`**: `func show_attribute(attribute:
   Spite.Attribute<Monster>, monster: Monster)` answers `show_health(troll)` exactly as `Symbol<Monster>` does,
   and `Spite.Attribute<$element_type>` names a member of a list's elements.
-- The entry class describes no functions, as it does at run time
+- The entry class's `.functions` is not a constant: it is answered at run time, with no functions
   ([above](#instances-and-every-class-in-the-program)).
 
 #### The names reflection gives every object
