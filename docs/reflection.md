@@ -21,12 +21,16 @@ a generic's type -- is constant data or folds while compiling. The whole list is
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)`, `function_waits(name)`, `argument_count(name)`, `source_folder()` |
-| `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)`, `waits()`, `argument_count()` |
-| `Spite.Argument` | `.name`, `.class: Spite.Class` |
-| `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: Anything?` (the value itself; `.value.to_string()` is its text) |
-| `Spite.Namespace` | `.name` (the segment), `.name_with_namespaces` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
+| `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `.values` (an enum's), `.is_singleton`, `.is_stateful`, `.is_fixed_size`, `.is_list`, `.is_dictionary`, `.is_optional`, `.is_enum`, `.element_type`, `.value_type`, `has_function(name)`, `function_waits(name)`, `argument_count(name)`, `source_folder()` |
+| `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `.is_resumable`, `.returned_literal`, `call_function()`, `name_fits(pattern)`, `waits()`, `argument_count()` |
+| `Spite.Argument` | `.name`, `.class: Spite.Class`, `.index`, `.is_mutated`, `.function` |
+| `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.index`, `.owner`, `.camel_case_name`, `.pascal_case_name`, `.is_singleton`, `.value: Anything?` (the value itself; `.value.to_string()` is its text) |
+| `Spite.Namespace` | `.name` (the segment), `.name_with_namespaces` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces`, `.every_class` |
 | `Spite.Memory` | `.address: Long`, `.bytes: Long`, `.section` (`'heap'`, `'stack'`, `'constant'`) -- see [memory.md](memory.md#where-a-value-lives-memory) |
+
+Every member is read as an attribute, with no `()`: what reflection answers is known while compiling, so it is
+not a search ([below](#reflection-known-while-compiling)). A question that takes something is a collection
+indexed or filtered instead: `Monster.functions['alive']` is the function or `null`.
 
 A name is a `Symbol`: text from the program's own table of symbols, which reads as text anywhere text is
 expected (every `String` function answers on it) and costs no allocation to pass around.
@@ -414,6 +418,218 @@ alive: rat, bat
 the program has Monster true
 ```
 
+## Reflection known while compiling
+
+Most reflection is asked of something the compiler can already identify: a class named in the code, the `$T` of a
+generic, `class`, a namespace. Such a reflection object is a **constant**, and so is everything read from it, so
+reflection is ordinary code that costs nothing at run time:
+
+- **A question folds.** `Monster.is_singleton`, `run_each.is_resumable` or `argument.is_mutated` is a `true` or a
+  `false` in the generated code, and an `if` on it keeps only the branch taken.
+- **`each` over a constant list is unrolled.** `Monster.attributes.each(show)` calls `show` once for `name` and
+  once for `health`; no list is made. `map` makes a list of what each call answers.
+- **A function handed a constant is compiled once for it.** Inside that copy the parameter is the constant
+  itself, so `attribute.class` is a type, `attribute.name` is text known while compiling, and
+  `monster.attributes[attribute]` is a plain read of the field.
+- **The attributes of an instance are bound to it.** `troll.attributes` lists the same attributes as
+  `Monster.attributes`, each holding `troll`, so `attribute.value` reads and writes `troll`'s field with its own
+  type.
+
+```gdscript title=constant_walks/monster.spite
+var name = "troll"
+var health = 10
+```
+```gdscript title=constant_walks/constant_walks.spite entry
+var console = Console()
+
+func ConstantWalks() {
+    Monster.attributes.each(describe)
+    var troll = Monster()
+    troll.attributes.each(heal)
+    var lines = troll.attributes.map(line)
+    var joined = lines.join(", ")
+    console.print(joined)
+}
+
+func describe(attribute: Spite.Attribute) {
+    var fresh: attribute.class = attribute.class()
+    console.print(attribute.index, attribute.name, attribute.class, "starts as '{fresh}'")
+}
+
+func heal(attribute: Spite.Attribute) {
+    if attribute.class == Integer {
+        attribute.value = attribute.value + 5
+    }
+}
+
+func line(attribute: Spite.Attribute): String {
+    return "{attribute.name}: {attribute.value}"
+}
+```
+```output
+0 name String starts as ''
+1 health Integer starts as '0'
+name: troll, health: 15
+```
+
+`describe` is compiled twice, once for `name` and once for `health`, and `heal` adds to `health` only: in the copy
+made for `name` the `if` is false while compiling. `--final-classes` shows the copies as `describe_for_name`,
+`describe_for_health` and so on.
+
+### Asking for a member by name, and selecting members
+
+Every collection a reflection object has is an ordinary `List`, so `[]` with a name answers the member or `null`,
+and every function and member template of a list works on it. A local that holds a constant is a constant too, as
+long as it is never assigned again. Functions and their arguments are walked the same way as attributes:
+
+```gdscript title=constant_selection/runner.spite
+var total = 0
+
+func update_each(amount: Integer, label: String) {
+    total = total + amount + label.length()
+}
+
+func render_each(scale: Float) {
+    if scale > 1.0 {
+        total = total + 1
+    }
+}
+
+func reset() {
+    total = 0
+}
+```
+```gdscript title=constant_selection/constant_selection.spite entry
+var console = Console()
+
+func ConstantSelection() {
+    var update = Runner.functions['update_each']
+    if update {
+        console.print(update.name, "changes its label:", update.arguments[1].is_mutated)
+    }
+    if not Runner.functions['draw_each'] {
+        console.print("no draw_each")
+    }
+    var walked = Runner.functions.filter(walks_each)
+    walked.each(describe)
+}
+
+func walks_each(function: Spite.Function): Boolean {
+    return function.name.ends_with("_each")
+}
+
+func describe(function: Spite.Function) {
+    var count = function.arguments.count()
+    console.print(function.name, "takes", count)
+    function.arguments.each(describe_argument)
+}
+
+func describe_argument(argument: Spite.Argument) {
+    var fresh = made(argument)
+    console.print(" ", argument.index, argument.name, argument.class, "'{fresh}'")
+}
+
+func made(argument: Spite.Argument): argument.class {
+    return argument.class()
+}
+```
+```output
+update_each changes its label: false
+no draw_each
+update_each takes 2
+  0 amount Integer '0'
+  1 label String ''
+render_each takes 1
+  0 scale Float '0'
+```
+
+`filter` keeps what a function answers `true` for, and that function is asked while compiling too. `made` answers
+`argument.class`, a different class for each argument, which is fine because it is compiled once for each.
+
+### Namespaces, enums and every class
+
+A namespace named in the code is its `Spite.Namespace`, and inside a function `namespace` is the namespace of its
+class (`null` at the root of a program). `Spite.Namespace.instances` is every namespace of the program and
+`Spite.Class.instances` every class, and an enum's `.values` lists its values in order:
+
+```gdscript title=constant_namespaces/part/wheel.spite
+var size = 3
+```
+```gdscript title=constant_namespaces/part/axle.spite
+var length = 7
+```
+```gdscript title=constant_namespaces/phase.spite
+enum Phase {
+    'start'
+    'update'
+    'finish'
+}
+```
+```gdscript title=constant_namespaces/constant_namespaces.spite entry
+var console = Console()
+
+func ConstantNamespaces() {
+    var parts = Spite.Namespace.instances.filter(holds_parts)
+    parts.each(make_every_class)
+    var count = Phase.values.count()
+    var last = Phase.values.find_by_name('finish')
+    console.print(count, "phases, the last is", last)
+}
+
+func holds_parts(namespace: Spite.Namespace): Boolean {
+    return namespace.name == 'Part'
+}
+
+func make_every_class(namespace: Spite.Namespace) {
+    namespace.classes.each(make)
+}
+
+func make(part: Spite.Class) {
+    var fresh = part()
+    var shown = fresh.to_debug()
+    console.print(part.name, shown)
+}
+```
+```output
+Axle Axle { length: 7 }
+Wheel Wheel { size: 3 }
+3 phases, the last is finish
+```
+
+A constant class is a type and makes its own instances: `part()` above is `Part.Axle()` in one copy and
+`Part.Wheel()` in the other, and `Column<part>()` would make a `Column<Part.Axle>`.
+
+### When reflection is only known at run time
+
+A value typed `Anything`, a reflection object kept in an attribute and read later, and everything typed at the
+REPL prompt are only known at run time. Reflection still answers them, from the tables the program builds for
+the classes such a read can reach, and there `attribute.value` is an `Anything?`. What needs a constant says so
+while compiling: a function whose result is typed by its reflection parameter cannot be handed a run-time object.
+
+```gdscript title=run_time_type/gadget.spite
+var power = 3
+```
+```gdscript title=run_time_type/run_time_type.spite entry error
+var console = Console()
+
+func RunTimeType() {
+    var gadget = Gadget()
+    var anything: Anything = gadget
+    var attributes = anything.attributes
+    var first = attributes.first()
+    crash first
+    var made = fresh(first)
+    console.print(made)
+}
+
+func fresh(attribute: Spite.Attribute): attribute.class {
+    return attribute.class()
+}
+```
+```diagnostic
+'fresh' answers a type read from a reflection object, so it is compiled once for each object the compiler can identify, and this call hands it one known only at run time: pass a class, attribute, function or argument named in the code, or walked from one
+```
+
 ## Reflection is read-only
 
 Every member above is a getter with no setter: `library/spite/class.spite` keeps its data in private fields
@@ -509,6 +725,66 @@ number computed on the spot is "only a named value has memory of its own: give t
 first". It is built only where a program reads it. A class cannot have an attribute or function of its own named
 `memory` (D246, [below](#the-names-reflection-gives-every-object--implemented)). Choosing an object's allocator through `.memory.allocator` (D152, D153) is
 [memory.md](memory.md#choosing-an-allocator-memoryallocator)'s.
+
+#### Reflection known while compiling  **[partial]**
+
+D316 and D317 (decided by Mortaro, 2026-09-30; the design is
+[proposals/reflection_objects.md](proposals/reflection_objects.md), its details proposed by Claude, unconfirmed).
+
+- **Every reflection member is a get-only attribute** (D317), read without `()`. The new ones are `.is_singleton`,
+  `.is_stateful` (some function besides the constructor and `drop()` changes the object, or a bound singleton
+  does), `.is_fixed_size` (the class has a size known while compiling, so a `Vector` can hold it inline),
+  `.is_list`, `.is_dictionary`, `.is_optional`, `.is_enum`, `.element_type` (a list's element, or what an
+  optional holds), `.value_type` (a dictionary's), `.values` (an enum's values, in order) and `.instances` on a
+  class; `.owner`, `.is_resumable` (it can reach a wait, so it is also compiled as a state machine) and
+  `.returned_literal` (the text literal it returns, an error when it returns anything else) on a function;
+  `.index`, `.is_mutated` (it changes the object passed there) and `.function` on an argument; `.index`, `.owner`,
+  `.camel_case_name`, `.pascal_case_name` and `.is_singleton` (its class is a singleton) on an attribute;
+  `.every_class` (this namespace and every one below it) on a namespace. `Spite.Namespace.instances` is every
+  namespace of the program's own classes, parents first, in the order the classes were found.
+- **A constant** is a reflection object the compiler can identify: a class, enum or namespace named in the code
+  (a name that is both an enum and a class is the enum), `$T`, `class` and `namespace` inside a function; `value.class`,
+  `value.attributes` and `value.functions` when `value` is a local, parameter or attribute whose declared type is
+  a class (not a `type`, a union, an optional or a reflection class); any member of a constant; `[]` on a constant
+  list with a literal name or number; `count()`, `is_empty()`, `first()`, `last()`, `filter(function)` and the
+  member templates `filter_`, `count_`, `any_`, `all_` and `find_by_` on a constant list; `ends_with`, `starts_with`,
+  `contains`, `without_prefix` and `without_suffix` on a constant name; `==`, `!=`, `and`, `or` and `not` of
+  constants; and a `var` initialised with a constant object or list and never assigned again, when the function
+  never needs its value at run time. A local the function does need at run time is an ordinary variable.
+  `filter(function)` asks a function whose body is one `return`, with its parameter bound to each element.
+- **What folds.** A question on a constant is `true` or `false` in the generated code, a count is a number and a
+  name is a literal. An `if`, `assert` or `crash` on a constant keeps only what runs, and one that always holds
+  is not an error. A constant enum list is a list literal, and a constant list of namespaces is built from the
+  namespace objects.
+- **`each(function)` and `map(function)` on a constant list are unrolled** when the function is one of the class's
+  own, takes one parameter, and every element fits it (a `Spite.Class`, `Spite.Namespace`, `Spite.Function`,
+  `Spite.Argument` or `Spite.Attribute` element for a parameter of that class, or an enum value). `each` is one
+  call per element; `map` is a list literal of them, typed by what the first call answers.
+- **A function of the class called with a constant for a reflection parameter is compiled once for it**, a
+  *specialisation* named `<function>_for_<member>` (a number is added when two would share a name). Inside it
+  the parameter is the constant: `attribute.class` and `argument.class` are types, `part()` makes an instance of
+  a constant class `part`, `monster.attributes[attribute]` reads and writes the field, and a function whose result
+  is typed by its reflection parameter (`func made(argument: Spite.Argument): argument.class`) answers that type.
+  A specialisation is not one of the class's `.functions`. The function itself is compiled only when something
+  calls it with a run-time object, or uses it as a value.
+- **A bound attribute** comes from `value.attributes`: `attribute.value` reads and writes `value`'s field, typed
+  as the field, and the specialisation takes `value` as a hidden argument. `.value` of an attribute that
+  describes a declaration (`Monster.attributes`) is an error naming `monster.attributes[attribute]`. Walking
+  another class's attributes skips its private ones.
+- **A run-time object** (a value typed `Anything`, a reflection object kept in an attribute, anything typed at the
+  REPL) is answered from the run-time tables. Handing one to a function whose result is typed by its reflection
+  parameter is the error shown [above](#when-reflection-is-only-known-at-run-time), and naming a type through a
+  reflection object that is not a constant is "'<path>' is not a class known while compiling, so it cannot be a
+  type here". Using a specialisation's parameter as a run-time value, which it does not have, is "'<name>' is a
+  reflection object known while compiling, so this function is compiled once for it, and it has no run-time value
+  to pass on here".
+- **`[]` with a literal name on a list of reflection objects** answers the member or `null`, read through
+  `find_by_name` at run time.
+- **A template parameter is spelled `Spite.Attribute<Monster>`** (D317): `func show_attribute(attribute:
+  Spite.Attribute<Monster>, monster: Monster)` answers `show_health(troll)` exactly as `Symbol<Monster>` does,
+  and `Spite.Attribute<$element_type>` names a member of a list's elements.
+- The entry class describes no functions, as it does at run time
+  ([above](#instances-and-every-class-in-the-program)).
 
 #### The names reflection gives every object  **[implemented]**
 

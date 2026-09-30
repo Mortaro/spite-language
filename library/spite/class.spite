@@ -32,6 +32,14 @@ func is_singleton(): Boolean {
     return _singleton
 }
 
+func get_is_singleton(): Boolean {
+    return _singleton
+}
+
+func get_is_fixed_size(): Boolean {
+    return _fits_vector
+}
+
 func has_function(name: String): Boolean {
     var found = false
     var index = 0

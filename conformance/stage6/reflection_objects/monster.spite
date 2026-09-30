@@ -1,0 +1,16 @@
+var name = "troll"
+var health = 10
+var console = Console()
+
+func alive(): Boolean {
+    return health > 0
+}
+
+func greeting(): String {
+    return "grr"
+}
+
+func hurt(amount: Integer, reason: String) {
+    health = health - amount
+    console.print(reason)
+}

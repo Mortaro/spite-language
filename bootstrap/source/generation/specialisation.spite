@@ -1,0 +1,8 @@
+# ../docs/reflection.md#reflection-known-while-compiling
+var c_name = ""
+var bindings = List<ReflectedBinding>()
+
+func Specialisation(starting_c_name: String, starting_bindings: List<ReflectedBinding>) {
+    c_name = starting_c_name
+    bindings = starting_bindings
+}

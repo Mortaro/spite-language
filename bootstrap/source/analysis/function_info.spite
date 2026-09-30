@@ -27,6 +27,7 @@ var lent_sources = ""
 var held_parameters = List<String>()
 var lent_element = ""
 var result_slot = false
+var specialisation_position = -1
 
 func FunctionInfo(
     starting_name: String,

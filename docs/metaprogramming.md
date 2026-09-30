@@ -13,6 +13,12 @@ Reading a program's structure at run time -- `.class`, `.attributes`, `.function
 the element: a function of the calling class is passed as a value, `people.each(say_hello)`, never found by name
 ([D148](decisions.md), [collections.md](collections.md#passing-a-function-for-each-element)).
 
+A template is for a function whose name says what it is given, like `show_health(troll)`. Walking a program's
+structure (every attribute of a class, the arguments of a function, the classes of a namespace) is reflection on
+objects the compiler already knows: `Monster.attributes.each(show)` calls `show` once for each attribute, compiled
+once for each, with nothing looked up at run time
+([reflection.md](reflection.md#reflection-known-while-compiling)).
+
 ## Symbol codegen, step by step
 
 A parameter of type `Symbol` whose name is a segment of its own function's name turns that function into a
@@ -78,7 +84,8 @@ no other instance exists. The exact rules are in [Symbol codegen](#symbol-codege
 ### Another class's attributes, and all of them at once
 
 A template can answer for the attributes of a class other than its own: write the class inside the `Symbol`,
-`attribute: Symbol<Label>`. Inside, `label.attributes[attribute]` is that attribute of the `Label` passed in,
+`attribute: Symbol<Label>`, or spell the parameter as what it is, `attribute: Spite.Attribute<Label>`; the two are
+the same. Inside, `label.attributes[attribute]` is that attribute of the `Label` passed in,
 for reading and for writing. Calling the template with the symbol's name made plural -- `show_attributes(...)`
 for `show_attribute` -- calls it once for every attribute, in the order they are declared, so the template has
 to return nothing. It is how a class walks another one attribute by attribute without a loop or reflection at
