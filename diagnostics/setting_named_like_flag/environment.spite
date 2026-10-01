@@ -1,0 +1,2 @@
+var player_name = ""
+var optimized = false

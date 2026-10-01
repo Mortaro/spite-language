@@ -1,0 +1,1 @@
+error: '--player_name' is written '--player-name': flags and settings are kebab-case on the command line, and the field they set is 'player_name'
