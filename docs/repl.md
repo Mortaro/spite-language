@@ -397,8 +397,9 @@ Monster`); with `--repl` or `--repl-port`, `reload` swaps in what changed right 
 swapped in (or refused), with what `last_reload` would then say, so a tool that saves a file never polls. A program
 built without `--hot-reload` has none of this: no watcher, no swapping, and `reload` answers that it was not
 built for it. `--hot-reload` keeps every function (it implies `--development`), since a new version of a class
-may call one nothing called before, and it is compiled at `--optimized`'s level, so a program that cooks assets or
-simulates between saves runs at release speed.
+may call one nothing called before, and it is compiled at `--optimized`'s level. It is still slower than a
+release build, since every call goes through a slot a reload can re-point: a `--hot-reload` build is for seeing
+and changing a running program, and speed is measured on release builds.
 
 ```gdscript title=hot_counter/monster.spite
 var name = ""
@@ -475,7 +476,10 @@ watcher has swapped the save in.
 | a class's attributes: added, removed, renamed or retyped | every live object of the class moves to the new attributes, components in an `Items`' own memory too ([below](#changing-a-classs-attributes)); the answer says what each class's objects kept |
 | an enum's values: added, removed or reordered | the whole program is compiled again, and every value a running object holds keeps its meaning; a `switch` that meets a value the reload removed halts naming it |
 | a file that does not compile | refused with the compiler's error, and the program keeps all of its code |
-| a file that declares none of the program's classes: `environment.spite`, `build.spite`, a reopening of a class of the standard library | refused: `'environment.spite' changed, and a reload swaps only the functions of the program's own classes, ...`, and the program keeps all of its code |
+| a function of a class the program reopens, a class of the standard library or a number (`func doubled(): Integer` in `integer.spite`) | the whole program is compiled again and every function whose code changed is swapped in, the standard library's and the compiler's helpers included |
+| `environment.spite`: a setting added, removed or given a new default | the whole program is compiled again, `Environment` moves to its new attributes, and every setting is read again the way it is when the program starts: from the command line it was started with, the environment, or the new default |
+| `build.spite`: a field added, removed or given a new default | the whole program is compiled again, and the program's code sees the new value: in a `--hot-reload` build a `Build` field the program declares is read while it runs |
+| a file deleted | the program is compiled without it, as for any other change |
 | a new class | its functions are compiled into the new code, and `classes` and `describe` see it: the REPL's tables of classes, singletons and enums are swapped in with the code |
 
 A refused reload leaves the program exactly as it was, so a save that caught a file half-written is harmless: the
@@ -559,19 +563,23 @@ $ spite connect 4000 --command="describe()"
 {"ok":true,"value":"Ann at level 7 with 100, walked 4","type":"String"}
 ```
 
-**A renamed attribute keeps its value** when the class says what it was called, with a function beside it in the same form as a JSON key's: `renamed_from_<attribute>()` returns the old name. Without one, a
-rename is a removed attribute and a new one, and the value is released.
+**A renamed attribute keeps its value** through a map given at the prompt, never in the program's code. A save
+where, in one class, an attribute is gone while another is new could be a rename or a removal and an addition,
+and a reload never guesses: it holds the change, swaps in nothing, and says what it holds. Rename `level` to
+`rank` in `hero.spite` and save:
 
-```gdscript
-var rank = 1
+```text
+$ spite connect 4000 --command="wait_reload"
+{"ok":false,"error":"...the reload of Hero is held, since it would lose data: level is gone and rank is new, ... reload {Hero.attributes['level']: \"rank\"}; to let what level holds be released: reload {}"}
 
-func renamed_from_rank(): String {
-    return "level"
-}
+$ spite connect 4000 --command="reload {Hero.attributes['level']: \"rank\"}"
+{"ok":true,"value":"rebuilt Hero, ...\nmoved every Hero to its new attributes: level is now rank","type":""}
 ```
 
-The reload answers `level is now rank`, and `rank` holds the 7 `level` held. The function does nothing once no
-object has the old name, so it can be deleted after the reload, or kept.
+The map pairs an attribute of the running class with the name of the new one, the same shape as a serializer's
+map of names ([json.md](json.md#a-key-that-is-not-an-attributes-name)), and applies to that one reload. `rank`
+holds the 7 `level` held. `reload {}` lets the old values go instead. An attribute of the map that the running
+class lacks, of another type than the new one, or one that the reload does not rename is refused by name.
 
 What it costs: a change to a class's attributes compiles the whole program, since every class that reads them is
 compiled again: about 40 seconds for a large game's server, against a few for a change to function bodies alone.
@@ -614,10 +622,10 @@ worked out while compiling, so the check folds away with the branch it guards.
 
 ### How it works
 
-- **One slot per function.** In a `--hot-reload` build, every function of the program's own classes (not the
-  standard library's) is called through a slot the program can re-point: the function the rest of the code calls
-  is a one-line forwarder to its slot. A normal build is untouched: direct calls, and tree shaking. The slot
-  costs about a nanosecond per call, one indirect call the C compiler cannot inline
+- **One slot per function.** In a `--hot-reload` build every function is called through a slot the program can
+  re-point: the program's own, the standard library's, and the helpers the compiler writes. The function the rest
+  of the code calls is a one-line forwarder to its slot. A normal build is untouched: direct calls, and tree
+  shaking. The slot costs about a nanosecond per call, one indirect call the C compiler cannot inline
   ([measured](#live-reload-in-detail)),
   and only in a `--hot-reload` build.
 - **Only what changed is compiled again.** The build writes two files beside the executable: `game.reload_host`,
@@ -641,10 +649,13 @@ worked out while compiling, so the check folds away with the branch it guards.
   them (or a parameter list, or the layout of a class), code in other classes compiled against the old one would
   be stale, so the reload compiles the whole program instead, and says why on the compiler's error output
   (`spite: compiling the whole program, since outside HotCounter changed`). A whole compile compares every function
-  it writes with the running program's: another program class whose C changed is rebuilt too, and a changed
-  function the program cannot swap (the standard library's, a helper the compiler writes) refuses the reload
-  with `the change reaches '<name>', which the running program cannot swap: restart the program to take the
-  change, or undo it`. Either way what swaps in is what compiling the whole program writes, which compiling a reload of every file both ways and comparing them checks (`SPITE_RELOAD_CHECK=<file>`).
+  it writes with the running program's, and every function whose C changed is swapped in, whatever class it
+  belongs to, a helper the compiler wrote included. Only a helper that keeps state of its own (a singleton's
+  cache, a table the program fills as it runs) has no slot, since a new copy would start empty: a change that
+  reaches one refuses the reload with `the change reaches '<name>', which the running program cannot swap:
+  restart the program to take the change, or undo it`. Either way what swaps in is what compiling the whole
+  program writes, which compiling a reload of every file both ways and comparing them checks
+  (`SPITE_RELOAD_CHECK=<file>`).
 - **A reload that compiled the whole program is the next one's baseline.** After it, every function the program
   runs is what that compile wrote, so the facts, the hashes and the class ids it compiled with describe the
   running program better than the build's do. It writes them beside its library (`game_reload_2.baseline`); when
@@ -694,9 +705,8 @@ No change to a program's code needs a restart. Every refusal in [What a reload c
 is a gap to close, not a rule. The steps, in the order a game meets them:
 1. **A class's attributes change**, [Changing a class's attributes](#changing-a-classs-attributes): the reload moves
    every live object to the new layout, copying kept attributes by name, giving new ones their defaults and
-   releasing removed ones; an `Items`' own memory moves the same way. A rename is written as a function beside the
-   attribute, `func renamed_from_<attribute>(): String { return "old_name" }`, the same form as
-   `json_key_<attribute>`, and may be deleted once the program has reloaded. The rules:
+   releasing removed ones; an `Items`' own memory moves the same way. A rename is given at the prompt, never in the
+   program's code: `reload {Hero.attributes['level']: "rank"}`. The rules:
    - A `--hot-reload` build gives each object of a program class two hidden words after its header, `spite_moved`
      (its attributes' block once they moved, else 0) and `spite_live` (its place in the class's list of live
      objects), reads every attribute through `<Class>___fields(object)`, and describes each class's layout --
@@ -708,18 +718,31 @@ is a gap to close, not a rule. The steps, in the order a game meets them:
      not swap is refused by name (`the change reaches ...`), and the program keeps all of its code.
    - The library installs every slot it replaces or none, then moves the objects: each live object of a changed
      class gets a new block, made with the new defaults, into which each attribute of the same name and type is
-     moved, or of the name `renamed_from_<attribute>()` gives, first. Every attribute of the old layout nothing
+     moved, or the attribute the reload's map pairs with it, first. Every attribute of the old layout nothing
      took is released after every object of every changed class has moved, so a release that reaches another
      moved object finds it moved. Objects made while moving (a new attribute's default) are made in the new layout
      and not moved again.
    - An attribute of a new type is a new attribute: it holds its default. The reload names every class it moved,
-     and for each what is new, gone, renamed or retyped (`moved every Hero to its new attributes: health is new and
-     holds its default`), in its answer and on the error output.
+     and for each what is new, gone, renamed or retyped. When, in one class, an attribute is gone while another is
+     new and the reload was given no map, the reload is held: nothing is swapped in, and the answer names both and
+     the map that would keep the values. `reload` with a map (`{}` included) compiles again with it; the map
+     applies to that compile only, and one naming an attribute the running class lacks, of another type, or one
+     the reload does not rename is refused.
+     The moves are named in the answer and on the error output (`moved every Hero to its new attributes: health is
+     new and holds its default`).
    - Once a class has moved, its code reads through the function for as long as the program runs. A class that
-     starts or stops fitting an `Items`' own memory is refused, and so is a change to a value class (`String` and
-     the numbers).
-2. **Dependents are rebuilt**: a change whose dependents cannot be swapped alone compiles the whole program into
-   the reload library and re-points every slot, keeping the heap, instead of refusing.
+     starts or stops fitting an `Items`' own memory is refused.
+2. **Dependents are rebuilt**: every function of a `--hot-reload` build has a slot, the standard library's, a
+   number's (a function a program adds to `Integer`) and the helpers the compiler writes included, so a change
+   whose dependents cannot be swapped alone compiles the whole program and swaps in every function whose C
+   changed, keeping the heap. A helper that keeps state of its own (a static variable: a singleton's cache, a list
+   of live objects, a foreign function loaded on first use) has no slot, since a new copy would start with its own
+   empty state; a change that reaches one is refused by name. The running program's command line, its check point
+   flag and its assert ring are shared with every reload library, so reloaded code reads the arguments the program
+   started with. The functions the scheduler turns into waits (`Program.sleep`, `Console.read_line_into` and the
+   like) keep their direct calls. A `--hot-reload` build is slower for it: every call of the standard library is
+   an indirect call the C compiler cannot inline. It exists to give information while the program runs, and
+   speed is measured on release builds.
 3. **Enums change**: in a `--hot-reload` build every enum value's number is fixed for as long as the program runs, so
    nothing held has to be re-mapped. The build numbers each enum's values in order and writes the numbers into its C
    (`Mood_calm = 0`); a reload gives every value the running program knows its number again and a new value the
@@ -732,8 +755,16 @@ is a gap to close, not a rule. The steps, in the order a game meets them:
    values and the REPL's tables are compiled again; an attribute of an enum type keeps its value, since a class's
    layout names an enum by its name, not its values. The number an enum value compiles to is a representation
    detail ([values_and_types.md](values_and_types.md)), so nothing else observes this.
-4. **`environment.spite` and `build.spite`**: a `Build` field is a constant folded into the code, so changing one is
-   step 2: the whole program recompiled with the new value and swapped in live.
+4. **`environment.spite` and `build.spite`**: in a `--hot-reload` build `Environment` and `Build` move to new
+   attributes like a class of the program, and a `Build` field that the program or a package declares is read by
+   the program's own code from the `Build` singleton while it runs, instead of being folded into it (the standard
+   library's own reads of the compiler's options stay folded). A change to either file, or a deleted file,
+   compiles the whole program. When a reload swaps in `Environment`'s reading of its settings or `Build`'s values,
+   the running singleton reads them again: `Build` takes the values the build gives, and every setting of
+   `Environment` is read as when the program starts, from the command line it was started with, then the
+   environment, then the declared default, so a setting added while the program runs finds a `--volume=7` given
+   at start. A new setting's answer says so: `volume is new and is read like every setting, from the command
+   line, the environment or its default`.
 
 All of it lives only in a `--hot-reload` build: a normal build carries none of it.
 
@@ -987,8 +1018,8 @@ own. [Live reload](#live-reload---hot-reload) above teaches it; this section hol
   constant. As with `--repl-port`, a `--hot-reload` build swaps where the program waits and at each loop's check
   point. `spite program --hot-reload` runs the program attached to the terminal, like a REPL build.
 - **A `--hot-reload` build is optimised.** Its executable and every reload library are compiled at `--optimized`'s
-  level (`-O3`) whether or not `--optimized` is given, so a program that cooks or simulates between saves runs at
-  release speed and swapped-in code as fast as the code it replaces. It is one C file, so it has no link-time
+  level (`-O3`) whether or not `--optimized` is given, so swapped-in code runs as fast as the code it replaces;
+  every call still goes through a slot, so the build is slower than a release build. It is one C file, so it has no link-time
   optimisation, and it keeps every run-time check of an inspectable build. Every call of a function a reload can
   replace still goes through its slot: the slot is read with an acquiring atomic load, which the C compiler may
   neither fold to the function the build started with nor hoist out of a loop, and a reload writes it with a
@@ -1004,11 +1035,12 @@ own. [Live reload](#live-reload---hot-reload) above teaches it; this section hol
   compiled into a state machine, so a `Concurrent` of one runs to its end when it is made, before the line
   after it: `var ringing = Concurrent(ring)` followed by `console.print("started")` prints what `ring` prints
   first. The program's results are the same; only the overlap is lost.
-- **The swap mechanism: one slot per function.** In a `--hot-reload` build every function of the program's own
-  classes (not `library/` or `launcher/`), and each such class's `_init` (its attribute defaults), is written as
-  `<name>_hot`, with a function pointer `<name>_slot` holding it, and `<name>` becomes a one-line forwarder through
-  the slot. Every call site, function value and REPL thunk still names `<name>`, so all of them follow a swap;
-  library functions stay direct calls. Any other build is unchanged: direct calls and tree shaking. The cost is one
+- **The swap mechanism: one slot per function.** In a `--hot-reload` build every function (the program's own,
+  the standard library's, and every helper the compiler writes that keeps no static state of its own) and each
+  program class's `_init` (its attribute defaults) is written as `<name>_hot`, with a function pointer
+  `<name>_slot` holding it, and `<name>` becomes a one-line forwarder through the slot. Every call site, function
+  value and REPL thunk still names `<name>`, so all of them follow a swap. The functions the scheduler turns into
+  waits keep their direct calls. Any other build is unchanged: direct calls and tree shaking. The cost is one
   indirect call that the C compiler cannot inline, about a nanosecond: 200 million calls to a one-line function
   took about 0.62 s instead of 0.44 s at `-O0` and 0.40 s instead of 0.18 s with `--optimized` (Windows, clang).
 - **What the build records.** Beside the executable, `<program>.reload_host` lists every function the executable
@@ -1041,16 +1073,14 @@ own. [Live reload](#live-reload---hot-reload) above teaches it; this section hol
   effects, the other whole-program studies, the functions that can wait, or the way a function takes its arguments;
   a dictionary's key kind; or the classes that fit a shape the changed code's C names. A whole compile compares the
   hash of every function's C with the manifest's, numbered names (`spite_temp_3`) and text constants compared by
-  what they hold: a function of another program class that changed is rebuilt with the changed ones, and any other
-  changed function refuses the reload. It writes no C for the whole program, only the library's, whose types and
+  what they hold: every changed function is rebuilt with the changed ones, and a changed helper that keeps static
+  state of its own, which has no slot, refuses the reload. A changed `static` function of the compiler's has no
+  slot either: every function that calls it is rebuilt instead, with a copy of it. It writes no C for the whole program, only the library's, whose types and
   prototypes are shaken to what its functions use. With `SPITE_RELOAD_CHECK=<file>` set, `spite reload` treats that
   file as changed, compiles the reload both ways, and prints whether the fast one writes what the whole one does.
-  **A changed file that declares none of the program's classes is refused**: a file reopening a class of the
-  standard library, as `environment.spite` reopens `Environment`, or `build.spite`, holds nothing a slot can swap, so
-  the reload answers `'<file>' changed, and a reload swaps only the functions of the
-  program's own classes, which it holds none of (it reopens a class of the standard library, or sets how the
-  program is built): restart the program to change it, or undo that change to reload the rest`, and the program
-  keeps all of its code. The rebuilt set is the
+  **A changed file that declares none of the program's classes compiles the whole program**: a file reopening a
+  class of the standard library, as `environment.spite` reopens `Environment`, `build.spite`, or a deleted file.
+  The rebuilt set is the
   classes the changed files declare, plus every class whose code calls a function of the set that the running
   program has with another prototype or does not have at all (the running caller would still call the old one),
   repeated until nothing is added. It writes C only for the rebuilt classes' functions and what they reach that the
