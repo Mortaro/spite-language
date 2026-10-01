@@ -22,7 +22,7 @@ func DocsCorpus() {
 }
 
 func read_every_page(documentation: Directory) {
-    var pages = documentation.files()
+    var pages = documentation.entries().filter_files().map_names()
     var page_index = 0
     while page_index < pages.count() {
         var page = pages[page_index]

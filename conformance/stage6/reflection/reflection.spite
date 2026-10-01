@@ -11,7 +11,7 @@ func Reflection() {
         console.print(attribute.name, attribute.class, "{text_of(attribute)}|")
         index = index + 1
     }
-    var joined_map_name = monster.attributes.map_name().join(",")
+    var joined_map_name = monster.attributes.map_names().join(",")
     console.print(joined_map_name)
     var kind_of_health = monster.kind_of_health()
     var kind_of_name = monster.kind_of_name()

@@ -18,7 +18,7 @@ func add_folder(path: String, report_files: Boolean): Boolean {
         return false
     }
     var directory = Directory(path)
-    var names = directory.files()
+    var names = directory.entries().filter_files().map_names()
     var file_index = 0
     while file_index < names.count() {
         var name = names[file_index]
@@ -29,7 +29,7 @@ func add_folder(path: String, report_files: Boolean): Boolean {
         }
         file_index = file_index + 1
     }
-    var inner = directory.folders()
+    var inner = directory.entries().filter_directories().map_names()
     var index = 0
     while index < inner.count() {
         var name = inner[index]
@@ -116,7 +116,7 @@ func note_event(descriptor: Long, flags: Integer) {
 
 func add_new_entries(path: String) {
     var directory = Directory(path)
-    var names = directory.files()
+    var names = directory.entries().filter_files().map_names()
     var file_index = 0
     while file_index < names.count() {
         var name = names[file_index]
@@ -127,7 +127,7 @@ func add_new_entries(path: String) {
         }
         file_index = file_index + 1
     }
-    var inner = directory.folders()
+    var inner = directory.entries().filter_directories().map_names()
     var index = 0
     while index < inner.count() {
         var name = inner[index]

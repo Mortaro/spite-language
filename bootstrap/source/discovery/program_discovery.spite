@@ -372,11 +372,11 @@ func holds_spite_files(folder: String): Boolean {
     if not directory.exists() {
         return false
     }
-    var files = directory.files()
+    var files = directory.entries().filter_files().map_names()
     if files.any(is_spite_file) {
         return true
     }
-    var folders = directory.folders()
+    var folders = directory.entries().filter_directories().map_names()
     var index = 0
     while index < folders.count() {
         if holds_spite_files("{folder}/{folders[index]}") {
@@ -736,7 +736,7 @@ func walk_directory(
     var folder_on_disk = on_disk(path)
     var directory = Directory(folder_on_disk)
     assert directory.exists()
-    var files = directory.files()
+    var files = directory.entries().filter_files().map_names()
     var file_index = 0
     while file_index < files.count() {
         var name = files[file_index]
@@ -755,7 +755,7 @@ func walk_directory(
         }
         file_index = file_index + 1
     }
-    var folders = directory.folders()
+    var folders = directory.entries().filter_directories().map_names()
     var folder_index = 0
     while folder_index < folders.count() {
         var folder_name = folders[folder_index]
@@ -785,7 +785,7 @@ func is_tool_folder(name: String): Boolean {
 func note_loads_inside(root_folder: String) {
     var directory = Directory(root_folder)
     assert directory.exists()
-    var files = directory.files()
+    var files = directory.entries().filter_files().map_names()
     var index = 0
     while index < files.count() {
         if files[index].ends_with(".spite") {
@@ -794,7 +794,7 @@ func note_loads_inside(root_folder: String) {
         }
         index = index + 1
     }
-    var folders = directory.folders()
+    var folders = directory.entries().filter_directories().map_names()
     index = 0
     while index < folders.count() {
         if not is_tool_folder(folders[index]) {

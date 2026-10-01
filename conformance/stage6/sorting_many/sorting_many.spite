@@ -23,7 +23,7 @@ func SortingMany() {
         file.write("")
         index = index + 1
     }
-    var names = folder.files()
+    var names = folder.entries().filter_files().map_names()
     var name_count = names.count()
     var ordered = in_order(names)
     console.print("listed", name_count, "files, in order:", ordered)

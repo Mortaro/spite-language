@@ -16,7 +16,7 @@ func ParallelEach() {
     particles.filter_awake().parallel_each_step()
     var after_filter = particles.sum_position()
     console.print("after a step of the awake ones only", after_filter)
-    var workers = particles.map_worker()
+    var workers = particles.map_workers()
     var distinct = List<Integer>()
     index = 0
     while index < workers.count() {

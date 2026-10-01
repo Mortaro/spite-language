@@ -695,10 +695,10 @@ which fits a list of anything, numbers and `String` included:
 | Body | The error names |
 |---|---|
 | `item.m()` | `list.each_m()` |
-| `result.append(item.m)`, or `var value = item.m` then `result.append(value)` | `var result = list.map_m()` |
+| `result.append(item.m)`, or `var value = item.m` then `result.append(value)` | `var result = list.map_ms()` |
 | `result.append(item)` | `var result = list.copy()` |
 | `if item.m { result.append(item) }` | `var result = list.filter_m()` |
-| `if item.m { result.append(item.n) }` | `var result = list.filter_m().map_n()` |
+| `if item.m { result.append(item.n) }` | `var result = list.filter_m().map_ns()` |
 | `if item.m { total = total + 1 }` | `var total = list.count_m()` |
 | `total = total + item.m` | `var total = list.sum_m()` |
 | `if item.m == value { return item }`, the loop followed by `return null` | `return list.find_by_m(value)` |
