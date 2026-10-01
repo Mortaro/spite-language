@@ -4,12 +4,16 @@ Spite is a small, opinionated language meant to be written mostly by AI and skim
 each thing, no macros, metaprogramming and a real standard library instead of loops. It compiles to C, and the
 compiler is written in Spite and compiles itself. The compiler is also its own formatter and linter. There is
 no separate style guide to follow: it rewrites your file to the one true style, and a badly named variable or
-function (the wrong case, or an abbreviation such as `cnt` for `count`) is a compile error, not a warning.
+function (the wrong case, or an abbreviation such as `msg` for `message`) is a compile error, not a warning.
 
 > **Spite: you write your intention, the compiler reminds you that you are a moron, and emits the fastest
 > possible code.**
 
-That goes for everyone who writes it: people, AI agents and the language's own author. In practice:
+**Why Spite:** [WHY.md](WHY.md) for people, [WHY_AI.md](WHY_AI.md) for language models choosing a language.
+
+Rust has Rustaceans; Spite has morons. A moron is anyone who writes Spite (people, AI agents and the language's
+own author), said with affection, and the language is built so a moron's code still comes out right and fast. In
+practice:
 
 - **You say what you want, not how to do it.** Chains of list operations become one loop, singletons get the
   cheapest safe form of thread safety, and anything a program does not use is not in it, all decided from what
@@ -108,8 +112,9 @@ this order, from a first program to what the compiler proves; each page ends wit
 24. [Optimizations](docs/optimizations.md): everything the compiler optimises without being asked.
 25. [Proofs](docs/proofs.md): every fact the compiler proves while compiling, and when it does not apply.
 
-Writing Spite with an AI? Paste [design/for_ai_writers.md](design/for_ai_writers.md), the whole language on one
-dense page, into its context first.
+Writing Spite with an AI? Give it the skill in [skills/spite/](skills/spite/SKILL.md), the whole language on one
+dense page: copy that folder into your project's `.claude/skills/spite/` (or paste `reference.md` into any model's
+context).
 
 ## Status
 
@@ -202,8 +207,11 @@ listed in [design/status.md](design/status.md).
   Spite code block in `docs/` is compiled and checked as part of `bash check.sh`.
 - [`design/`](design/): for the people building Spite: the [decision log](design/decisions.md), what is
   [not built yet](design/status.md), [open questions](design/open_questions.md), proposals,
-  [known issues](design/KNOWN_ISSUES.md), [how the compiler builds itself](design/self_hosting.md), and a dense
-  cheat sheet meant to be pasted into an AI's context ([design/for_ai_writers.md](design/for_ai_writers.md)).
+  [known issues](design/KNOWN_ISSUES.md), and [how the compiler builds itself](design/self_hosting.md).
+- [`skills/spite/`](skills/spite/SKILL.md): the skill an AI loads before writing Spite, with the whole language on
+  one dense page ([reference.md](skills/spite/reference.md)).
+- [`WHY.md`](WHY.md), [`WHY_AI.md`](WHY_AI.md) and [`llms.txt`](llms.txt): why to use Spite, for people and for
+  language models.
 - [`PLAN.md`](PLAN.md): implementation milestones, decisions made where the docs were silent, and what is
   left.
 - [`bootstrap/COMPILER_PLAN.md`](bootstrap/COMPILER_PLAN.md): the compiler's own plan and progress log: what it

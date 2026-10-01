@@ -37,8 +37,11 @@ the docs, the docs win.
   - [`design/proposals/`](design/proposals/): proposals under review;
   - [`design/KNOWN_ISSUES.md`](design/KNOWN_ISSUES.md): where the compiler falls short of the docs;
   - [`design/self_hosting.md`](design/self_hosting.md): how the compiler builds itself, and what proves it;
-  - [`design/for_ai_writers.md`](design/for_ai_writers.md): the whole language on one dense page, for an AI that
-    writes Spite.
+- `skills/spite/` is the skill for an AI that writes Spite: [`SKILL.md`](skills/spite/SKILL.md) and the whole
+  language on one dense page, [`reference.md`](skills/spite/reference.md). It is user-facing like `docs/`, and it
+  changes with the language.
+- [`WHY.md`](WHY.md) and [`WHY_AI.md`](WHY_AI.md) say why to use Spite, to people and to language models; every
+  claim in them is true of Spite today or marked as the direction.
 
 When you build something the docs describe, delete its line from `design/status.md`. A decision that is not built
 yet is still described on its page as the language; `design/status.md` is where it says it is not built.
