@@ -20,7 +20,7 @@ Fourth pass, 2026-09-30, by the principles (the moron, anyone who uses Spite, ne
 to the moron" is never an answer; everything monomorphizes; get-only attributes; renames by map; REPL and hot-reload
 builds favour information over speed): answered 2026-09-30, rows pending: 225 (same-package pins are two loads in
 load order), 234 (identical code folded by the compiler), 36 (`type Number`), 202 and 204 (confirmed as proposed,
-maths constants as get-only attributes such as `Float.pi`), 205 (`x`, `y`, `z`, `w`). 166's names by D336. 79 by D322's principle (the REPL shows the fuller
+maths constants as get-only attributes such as `Float.pi`), 205 (`x`, `y`, `z`, `w`). 166's names by D337. 79 by D322's principle (the REPL shows the fuller
 `to_debug()`). Narrowed: 161. Moved to "Confirm quickly": 166 (quiet period only), 197, 212, 215.
 
 Fifth pass, 2026-09-30: 109's first half by D335 (narrowed to the runner's markers), 225 by D334. Answered,
@@ -28,7 +28,7 @@ rows pending: 228 (`map_` over a predicate is an error pointing at `filter_`/`co
 function values and plain `List.map(function)` go), 213 (the default build compiles fastest; hot builds compile
 like it, reversing D299's `-O3`, so D299 leaves 239; run-speed-only passes are skipped unless measured to speed up
 the whole build), 153 (no `--` separator; settings kebab on the command line, snake in code; a name colliding with
-a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242.
+a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242. 155 by D336.
 
 ## Confirm quickly
 
@@ -63,8 +63,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
      outlives the frame (a compile error naming `copy()`, a debug generation check as backstop)? Is `Memory.Frame`
      an arena reset once a frame, or a ring of two? Until then, is an arena without `reset()` right?
 175. **A class reading its own allocator** (`memory.allocator` inside a class), so a list's buffer follows its arena.
-155. **A dedicated thread for work that blocks forever** (a game engine's window loop): `Thread(function)`, or a marker
-     on `Parallel`?
 209. **Should a `List` own its items, so a kept reference is weak (`T?`)**, or stay an explicit `Weak<T>`?
 
 ## Silent today (D244)
