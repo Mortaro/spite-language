@@ -248,8 +248,7 @@ func TwoVersions() {
     return "the program modded its own version"
 }
 ' > "$pinned_work/two_versions/mods/greeter.spite"
-  two_versions=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" two_versions < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '
-')
+  two_versions=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" two_versions < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '')
   if [ "$two_versions" != "$(printf 'the program modded its own version
 hello from a later commit')" ]; then
     echo "FAILED: two commits of one repository are not two libraries, each read by the package that pinned it"; echo "$two_versions" | head -5; exit 1
@@ -264,8 +263,7 @@ func OnePackageTwoPins() {
     console.print(said)
 }
 ' "$pinned" "$later" > "$pinned_work/one_package_two_pins/one_package_two_pins.spite"
-  two_pins=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" one_package_two_pins < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '
-')
+  two_pins=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" one_package_two_pins < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '')
   [ "$two_pins" = "hello from a later commit" ] || {
     echo "FAILED: one package pinning two commits of one repository does not read them as two loads, the later reopening the earlier"; echo "$two_pins" | head -5; exit 1; }
   mkdir -p "$pinned_work/mixed_pins"
@@ -275,8 +273,7 @@ func OnePackageTwoPins() {
     load "../plugin_repo@%s/plugin"
 }
 ' "$pinned" "$later" "$plugin_commit" > "$pinned_work/mixed_pins/mixed_pins.spite"
-  mixed=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" mixed_pins --run=false 2>&1 | tr -d '
-')
+  mixed=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" mixed_pins --run=false 2>&1 | tr -d '')
   echo "$mixed" | grep -q "error: .* reads that commit as part of the version from $pinned: a commit's files are read once, into one version" || {
     echo "FAILED: a commit one package reads alone and another reads into its version is not an error naming both"; echo "$mixed" | head -5; exit 1; }
   echo "git load: two commits of one repository are two libraries, and one package's two commits are two loads in order"
@@ -1060,10 +1057,8 @@ for printed_program in conformance/stage3/interpolation conformance/stage6/symbo
   printed="$work/final/$printed_name"   # a program is a folder named like its entry file (D89)
   "$work/generation_two.exe" "$printed_program" --run=false --final-classes="$printed" > /dev/null 2>&1 || {
     echo "FAILED: --final-classes could not write $printed_program out"; exit 1; }
-  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '
-' | grep -v '^allocations: ')
-  if [ "$printed_output" != "$(tr -d '
-' < "$printed_program/expected_output.txt")" ]; then
+  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '' | grep -v '^allocations: ')
+  if [ "$printed_output" != "$(tr -d '' < "$printed_program/expected_output.txt")" ]; then
     echo "FAILED: the printed $printed_name does not run like the one it was printed from"; echo "$printed_output" | head -6; exit 1
   fi
 done
