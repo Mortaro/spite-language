@@ -1,0 +1,6 @@
+var console = Console()
+var environment = Environment()
+
+func SettingValue() {
+    console.print(environment.volume)
+}

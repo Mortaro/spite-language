@@ -51,8 +51,8 @@ if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
 fi
 
 # Git for Windows' bash rewrites every argument that looks like a POSIX path when it starts a Windows program, so
-# `-- --prefixes=/Game/` would reach the program as `C:/Program Files/Git/Game/`. The launcher writes its own paths
-# as Windows paths and turns the rewriting off, so everything after `--` arrives exactly as it was typed.
+# `--prefixes=/Game/` would reach the program as `--prefixes=C:/Program Files/Git/Game/`. The launcher writes its own
+# paths as Windows paths and turns the rewriting off, so every other argument arrives exactly as it was typed.
 windows_paths=false
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) windows_paths=true; export MSYS2_ARG_CONV_EXCL="*" ;; esac
 
@@ -87,20 +87,24 @@ if [ "$1" == "format" ]; then
     exec "$binary" "${arguments[@]}"
 fi
 
-# `spite thing` is the common case: every output is a Build field (--c-source, --executable, --run=false, ...),
-# and anything starting with - is passed through.
+# `spite thing` is the common case: every output is a Build field (--c-source, --executable, --run=false, ...).
+# The first argument not starting with - is the program's folder; the compiler's three path flags are made
+# absolute, and every other argument (a program's settings, its other arguments) is passed through as typed.
 arguments=()
-passing=false
+folder_seen=false
 for argument in "$@"; do
-    if $passing; then arguments+=("$argument"); continue; fi
     case "$argument" in
-        --)                   passing=true; arguments+=("--") ;;
         --final-classes=*)    arguments+=("--final-classes=$(absolute "${argument#*=}")") ;;
         --executable-path=*)  arguments+=("--executable-path=$(absolute "${argument#*=}")") ;;
         --c-path=*)           arguments+=("--c-path=$(absolute "${argument#*=}")") ;;
-        -*=/*)                arguments+=("${argument%%=*}=$(native "${argument#*=}")") ;;
         -*)                   arguments+=("$argument") ;;
-        *)                    arguments+=("$(absolute "$argument")") ;;
+        *)
+            if $folder_seen; then
+                arguments+=("$argument")
+            else
+                folder_seen=true
+                arguments+=("$(absolute "$argument")")
+            fi ;;
     esac
 done
 

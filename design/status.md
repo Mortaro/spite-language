@@ -19,13 +19,13 @@ when a page gains a rule that is not built yet, add it here.
 
 ### Program settings: `Environment`
 
-- Open question (`mortaros_missing_decisions.md` item 153): whether a program's settings after `--` follow the
-  compiler's kebab-case spelling. Today a setting is spelled like its field (`--worker_count=4`), and a kebab-case
-  argument for a declared snake_case setting stops the program with an error, exit code 1
-  (`conformance/stage6/kebab_setting`). The page states only the present behaviour.
 - Unconfirmed (proposed by Claude, not decided by Mortaro), built as the page describes: the members of
   `Arguments()` (`count()`, `get(index)`, `.name`), the details of how a program is started (launcher, `main`), the
-  order of value sources and the error texts of the `Environment` settings.
+  order of value sources and the error texts of the `Environment` settings. From the kebab-case settings
+  decision: the arguments after the folder that are not flags go to the program; a flag naming no field of
+  `Build` or `Environment` stays a compile error, so a raw `--name=value` read only through `Arguments` reaches a
+  program only when it is run directly; `.player_name` on `Arguments` reads `--player-name`; a bare `Boolean`
+  setting; a setting's value checked while compiling; `--` an ordinary argument to a program run directly.
 
 ### Build settings: `Build`
 
@@ -649,10 +649,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Outputs, Flags and settings, and other rules (decision status removed)
 - Decided by Mortaro, recorded only as decisions: D143 (inspectable versus production builds), D188 (kebab-case flags), D190 (every compile formats first), D283 (outputs in `.spite/`, "the compiler shouldn't write intermediate files beside the source"), the default build's `-O0`.
-- Proposed by Claude and still unconfirmed by Mortaro (the page now states them as the rules): the spellings of the output fields (D128, D129); the `.spite/build/<path>` and `.spite/elsewhere/<name>_<number>` layout; `.spite/` never being part of a program (D283); `translation_units` (behaviour, name and the `0` rule, 768 KiB per unit, power of two, at most 64); `--tune-for-this-machine` (name); `optimized` as `-O3` with `-flto=thin`/`-flto=auto`; the readings of the flag rules (kebab form in messages, run-time settings after `--` keep their field spelling); where the compiler's flags end (first bare `--`); the inspectable-build readings; where a program runs; the launcher passing arguments untouched (`cygpath -m`, `MSYS2_ARG_CONV_EXCL`; fixes a bug found converting a game's data); how many errors are listed (A94, from a game port); the formatting readings of D190. D260 (unique `<name>_<number>.c` and the "C compiler reported success but no executable" error) was decided by Claude under D244.
-- Open question: whether a program's run-time settings after `--` should use the kebab spelling (mortaros_missing_decisions.md). Today they keep their field's own spelling (`-- --player_name=x`), and the kebab form of a declared setting is an error naming the field's spelling. The page states only that.
+- Proposed by Claude and still unconfirmed by Mortaro (the page now states them as the rules): the spellings of the output fields (D128, D129); the `.spite/build/<path>` and `.spite/elsewhere/<name>_<number>` layout; `.spite/` never being part of a program (D283); `translation_units` (behaviour, name and the `0` rule, 768 KiB per unit, power of two, at most 64); `--tune-for-this-machine` (name); `optimized` as `-O3` with `-flto=thin`/`-flto=auto`; the readings of the flag rules (kebab form in messages); the inspectable-build readings; where a program runs; the launcher passing arguments untouched (`cygpath -m`, `MSYS2_ARG_CONV_EXCL`; fixes a bug found converting a game's data); how many errors are listed (A94, from a game port); the formatting readings of D190. D260 (unique `<name>_<number>.c` and the "C compiler reported success but no executable" error) was decided by Claude under D244.
 - Removed the history that `.spite-cache/` was the name of `.spite/` before D283 (the compiler still skips an old `.spite-cache/` folder; the page now says "an old `.spite-cache/` folder, which can be deleted").
-- Removed check.sh mentions: it proves the fixpoint by comparing the single-file `--c-source` C; it runs every program of `conformance/`, `examples/` and the docs pages with `--debug-memory` and requires the allocation balance; it uses `--target-operating-system=linux` to hold the Linux folders to compiling; it proves the `--final-classes` output runs as the same program; it runs `conformance/stage6/working_directory` from another folder and a copy from inside it, and `conformance/stage6/launcher_arguments` through `bin/spite` with `--prefixes=/Game/Legacy/`, `/usr/share` and `a b` after `--`; it compiles the deliberately unformatted `diagnostics/` inputs from a copy so formatting lands on the copy; `.spite/` also holds check.sh's work folders in the language repository.
+- Removed check.sh mentions: it proves the fixpoint by comparing the single-file `--c-source` C; it runs every program of `conformance/`, `examples/` and the docs pages with `--debug-memory` and requires the allocation balance; it uses `--target-operating-system=linux` to hold the Linux folders to compiling; it proves the `--final-classes` output runs as the same program; it runs `conformance/stage6/working_directory` from another folder and a copy from inside it, and `conformance/stage6/launcher_arguments` through `bin/spite` with `--prefixes=/Game/Legacy/`, `/usr/share` and `a b` beside the compiler's flags; it compiles the deliberately unformatted `diagnostics/` inputs from a copy so formatting lands on the copy; `.spite/` also holds check.sh's work folders in the language repository.
 - Removed "the one the corpus runs" (the default `-O0` build is the one the corpus uses).
 
 ## [repl.md](../docs/repl.md)
