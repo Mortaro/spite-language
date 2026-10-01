@@ -26,6 +26,7 @@ var codegen_codes = List<String>()
 var codegen_texts = List<String>()
 var codegen_constraints = List<String>()
 var source_path = ""
+var source_paths = List<String>()
 var fields = List<FieldInfo>()
 var declared_functions = List<FunctionInfo>()
 var templates = List<TemplateInfo>()

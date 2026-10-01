@@ -3,7 +3,7 @@ var _namespace: Spite.Namespace? = null
 var _singleton = false
 var _fits_vector = false
 var _source_folder = ""
-var _package_folder = ""
+var _source_paths: List<String>? = null
 var _attributes = List<Spite.Attribute>()
 var _functions = List<Spite.Function>()
 var _unbound_functions: List<Spite.Function>? = null
@@ -28,8 +28,30 @@ func get_functions(): List<Spite.Function> {
     return _functions
 }
 
+func get_source_files(): List<File> {
+    var files = List<File>()
+    if not _source_paths {
+        return files
+    }
+    var index = 0
+    while index < _source_paths.count() {
+        var file = File(_source_paths[index])
+        files.append(file)
+        index = index + 1
+    }
+    return files
+}
+
 func is_singleton(): Boolean {
     return _singleton
+}
+
+func get_is_singleton(): Boolean {
+    return _singleton
+}
+
+func get_is_fixed_size(): Boolean {
+    return _fits_vector
 }
 
 func has_function(name: String): Boolean {
@@ -44,10 +66,6 @@ func has_function(name: String): Boolean {
 
 func source_folder(): String {
     return _source_folder
-}
-
-func package_folder(): String {
-    return _package_folder
 }
 
 func fits_vector(): Boolean {

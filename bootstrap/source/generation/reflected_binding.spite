@@ -1,0 +1,9 @@
+# ../docs/reflection.md#reflection-known-while-compiling
+var name = ""
+var value = Reflected("")
+var origin: Syntax.Expressions.Expression? = null
+
+func ReflectedBinding(starting_name: String, starting_value: Reflected) {
+    name = starting_name
+    value = starting_value
+}

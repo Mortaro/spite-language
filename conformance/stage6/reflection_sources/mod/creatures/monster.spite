@@ -1,0 +1,5 @@
+var armor = 2
+
+func harden() {
+    armor = armor + 1
+}

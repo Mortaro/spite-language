@@ -1,12 +1,12 @@
 ran 1 42 1 1
-at run time parts
-Console true ''
-Parts.WalkPart false 'parts'
-Spite.Class true 'spite'
-WalkBoard false ''
-WalkCounter true ''
-WalkHolder true ''
-WalkPlain false ''
-WalkScribbler true ''
-WalkTally true ''
-WalkWatcher true ''
+at run time walk_part.spite
+Console true 'console.spite'
+Parts.WalkPart false 'walk_part.spite'
+Spite.Class true 'class.spite'
+WalkBoard false 'walk_board.spite'
+WalkCounter true 'walk_counter.spite'
+WalkHolder true 'walk_holder.spite'
+WalkPlain false 'walk_plain.spite'
+WalkScribbler true 'walk_scribbler.spite'
+WalkTally true 'walk_tally.spite'
+WalkWatcher true 'walk_watcher.spite'
