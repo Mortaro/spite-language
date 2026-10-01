@@ -1,0 +1,37 @@
+var console = Console()
+
+func ShapeCopies() {
+    var gadget = Gadget(3)
+    var first = describe(gadget)
+    var second = describe(42)
+    var third = describe(true)
+    var level: Level = 'high'
+    var fourth = describe(level)
+    console.print(first, second, third, fourth)
+    var held = List<Anything>()
+    held.append(gadget)
+    var widget = Widget()
+    held.append(widget)
+    var index = 0
+    while index < held.count() {
+        var kind = kind_of(held[index])
+        console.print(kind)
+        index = index + 1
+    }
+}
+
+func describe(item: Printable): String {
+    var text = item.to_string()
+    var kind = kind_of(item)
+    return "{text}:{kind}"
+}
+
+func kind_of(item: Anything): String {
+    if item == Gadget {
+        return "gadget"
+    }
+    if item == Integer {
+        return "integer"
+    }
+    return "other"
+}
