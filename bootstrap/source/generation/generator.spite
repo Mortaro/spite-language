@@ -61,6 +61,7 @@ var remote_loop_port = 0
 var refused_serialiser = false
 var division_check_written = false
 var overflow_check_written = false
+var decimal_remainders_written = List<String>()
 var index_check_written = false
 var unproven_read_code = ""
 var unproven_read_path = ""
@@ -3461,10 +3462,7 @@ func built_in_operator_problem(
     if own_scalar.kind == 'boolean_kind' or own_scalar.kind == 'address_kind' {
         return missing
     }
-    var arithmetic = ["sum", "subtract", "multiply", "divide"]
-    if own_scalar.kind != 'float_kind' and own_scalar.kind != 'double_kind' {
-        arithmetic.append("remainder")
-    }
+    var arithmetic = ["sum", "subtract", "multiply", "divide", "remainder"]
     var comparison = ["less_than", "greater_than", "equals"]
     var is_arithmetic = arithmetic.contains(wanted.name)
     if not is_arithmetic and not comparison.contains(wanted.name) {
@@ -9707,6 +9705,10 @@ func generate_binary(
     if not guarded.is_empty() {
         code = guarded
     }
+    var decimal_remainder = decimal_remainder_macro(binary.operator, left_type)
+    if not decimal_remainder.is_empty() {
+        code = "{decimal_remainder}({left_code}, {right_code})"
+    }
     if comparing {
         if not held.is_empty() {
             code = "(\{ {held.join(" ")} bool spite_same = {code}; {releases.join(" ")} spite_same; })"
@@ -9821,6 +9823,29 @@ func ensure_overflow_check() {
 
 func is_signed_kind(kind: Analysis.Types.NumericKind): Boolean {
     return kind == 'tiny_kind' or kind == 'short_kind' or kind == 'integer_kind' or kind == 'long_kind'
+}
+
+func decimal_remainder_macro(operator: Syntax.Expressions.BinaryOperator, left_type: Analysis.SpiteType): String {
+    if operator != 'modulo' {
+        return ""
+    }
+    var scalar = type_shape.as_scalar(left_type)
+    if not scalar or not is_float_kind(scalar.kind) {
+        return ""
+    }
+    var name = "spite_double_remainder"
+    var library_function = "fmod"
+    if scalar.kind == 'float_kind' {
+        name = "spite_float_remainder"
+        library_function = "fmodf"
+    }
+    if not decimal_remainders_written.contains(name) {
+        decimal_remainders_written.append(name)
+        builder.add_shaken_macro(name)
+        builder.include_maths_library(name)
+        builder.add_typedef("#define {name}(left, right) {library_function}((left), (right))")
+    }
+    return name
 }
 
 func ensure_division_check() {

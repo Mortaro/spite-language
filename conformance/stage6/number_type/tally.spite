@@ -41,3 +41,7 @@ func span(values: List<$number_type>): Long {
     var difference = high - low
     return difference.to_long()
 }
+
+func leftover(value: $number_type, divisor: $number_type): $number_type {
+    return value % divisor
+}

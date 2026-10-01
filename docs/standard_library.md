@@ -866,7 +866,8 @@ computed ([optimizations.md](optimizations.md#maths-on-constants-is-worked-out-w
 `conformance/stage6/maths_folding`).
 
 **Tree-shaken, and nothing at run time.** A member a program never calls is not in its C; `<math.h>` is
-included only when a member that calls the C library survives tree shaking, and only then does a build on Linux or
+included only when a member that calls the C library, or a `%` on a `Float` or `Double` (`fmodf`, `fmod`),
+survives tree shaking, and only then does a build on Linux or
 macOS link it (`-lm`; Windows has it in the C runtime). A program that uses none of it, `examples/hello`, carries
 no `#include <math.h>`. There is no `fused_multiply_add`: without a processor flag telling the C compiler the
 machine has the instruction, `fmaf` is a slow exact routine in the C library, a cost a reader would not expect

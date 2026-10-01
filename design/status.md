@@ -53,8 +53,8 @@ when a page gains a rule that is not built yet, add it here.
 - Built: `type Number`, every number class fitting it, `$value_type == Number`, a generic constrained by it
   (`conformance/stage6/number_type`). NOT BUILT: a function taking `value: Number` is not yet compiled per number
   class (D321), so an operator on it is still the error the page states, and a number passed to it is boxed.
-- Unconfirmed proposals by Claude: the member list, and a `type`'s own name in a required signature standing for
-  the class that fits.
+- Unconfirmed proposals by Claude: the member list (`remainder` joined it once `%` on `Float` and `Double` compiled
+  to `fmodf`/`fmod`), and a `type`'s own name in a required signature standing for the class that fits.
 
 ### Numeric types (REPL and text reading)
 - No status facts removed beyond the above.
