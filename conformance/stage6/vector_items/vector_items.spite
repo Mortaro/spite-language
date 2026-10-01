@@ -34,7 +34,7 @@ func VectorItems() {
         probed.down = probed.down + probe_index
         probe_index = probe_index + 1
     }
-    var names = velocities.map_name()
+    var names = velocities.map_names()
     var name_count = names.count()
     crash names[0]
     console.print(name_count, names[0])
@@ -43,7 +43,7 @@ func VectorItems() {
     console.print("all", all_moving, "any", any_fast)
     var chained = velocities.filter_moving().sum_down()
     var chained_count = velocities.filter_moving().count_moving()
-    var chained_names = velocities.filter_moving().map_name()
+    var chained_names = velocities.filter_moving().map_names()
     var copied = velocities.filter_moving().filter_moving()
     var copied_count = copied.count()
     var chained_name_count = chained_names.count()

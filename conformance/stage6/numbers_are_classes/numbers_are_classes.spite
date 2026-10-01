@@ -20,8 +20,8 @@ func NumbersAreClasses() {
     first.append_to(registry)
     var second = Node("second")
     second.append_to(registry)
-    var labels = registry.map_label().join(", ")
+    var labels = registry.map_labels().join(", ")
     console.print(labels)
-    var heap_functions = Memory.Heap.functions.map_name().join(" ")
+    var heap_functions = Memory.Heap.functions.map_names().join(" ")
     console.print(heap_functions)
 }

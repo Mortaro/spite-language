@@ -23,7 +23,7 @@ func JsonKey() {
     var list_reader = JsonReader<List<MeshRecord>>("[\{\"min_lod\": 1}, \{\"min_lod\": 3}]")
     var meshes = list_reader.read()
     crash meshes
-    var levels = meshes.map_minimum_level_of_detail()
+    var levels = meshes.map_minimum_level_of_details()
     var joined = levels.join(" ")
     console.print(joined)
     var swapped_reader = JsonReader<Swapped>("\{\"left\": 1, \"right\": 2}")

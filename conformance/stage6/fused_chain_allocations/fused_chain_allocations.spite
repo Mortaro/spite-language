@@ -12,9 +12,9 @@ func FusedChainAllocations() {
     var round = 0
     while round < 1000 {
         var size = teams.filter_active().sum_size()
-        var counted = teams.filter_active().map_lead().count_retired()
-        var adult = teams.map_lead().filter_is_adult().any_retired()
-        var found = teams.filter_active().map_lead().filter_is_adult().find_by_name("dee")
+        var counted = teams.filter_active().map_leads().count_retired()
+        var adult = teams.map_leads().filter_is_adult().any_retired()
+        var found = teams.filter_active().map_leads().filter_is_adult().find_by_name("dee")
         if found {
             total = total + size + counted + found.age
         }

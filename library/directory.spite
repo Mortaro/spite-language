@@ -21,19 +21,14 @@ func get_name(): String {
     return path.slice(start, end)
 }
 
-func files(): List<String> {
-    var names = entry_names(false)
-    return sorted(names)
-}
-
-func folders(): List<String> {
-    var names = entry_names(true)
+func _sorted_names(want_folders: Boolean): List<String> {
+    var names = entry_names(want_folders)
     return sorted(names)
 }
 
 func entries(): List<Entry> {
     var result = List<Entry>()
-    var folder_names = folders()
+    var folder_names = _sorted_names(true)
     var index = 0
     while index < folder_names.count() {
         var folder_name = folder_names[index]
@@ -42,7 +37,7 @@ func entries(): List<Entry> {
         result.append(directory)
         index = index + 1
     }
-    var file_names = files()
+    var file_names = _sorted_names(false)
     index = 0
     while index < file_names.count() {
         var file_name = file_names[index]

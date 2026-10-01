@@ -24,6 +24,11 @@ func NumberType() {
     var byte_total = bytes.total(small)
     var byte_span = bytes.span(small)
     console.print("{byte_best} {byte_total} {byte_span}")
+    var whole_left = counts.leftover(17, 5)
+    var float_left = sizes.leftover(-7.5, 2.0)
+    var turn: Double = 730.5
+    var degrees = turn % 360.0
+    console.print("{whole_left} {float_left} {degrees}")
     describe_numbers()
     describe_others()
 }

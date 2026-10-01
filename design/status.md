@@ -60,8 +60,8 @@ when a page gains a rule that is not built yet, add it here.
 - NOT BUILT: an operator through a `type` that requires its function, on a class instance (not a number) whose
   class is known only at run time, in a function that runs as written: it halts with "was given a value of a class
   it is not compiled for" instead of calling the class's operator function.
-- Unconfirmed proposals by Claude: the member list, and a `type`'s own name in a required signature standing for
-  the class that fits.
+- Unconfirmed proposals by Claude: the member list (`remainder` joined it once `%` on `Float` and `Double` compiled
+  to `fmodf`/`fmod`), and a `type`'s own name in a required signature standing for the class that fits.
 
 ### Numeric types (REPL and text reading)
 - No status facts removed beyond the above.
@@ -91,6 +91,9 @@ for a design):
 
 - Reference cycles leak without a word unless the program runs with `--debug-memory`, which prints the allocation
   balance (memory.md, "Cycles leak").
+- A `--hot-reload` build's watcher thread keeps running while the singletons are destroyed at exit: `start()` now
+  waits until it is watching, so it no longer asks for `HotReload` after the teardown, but a file change landing
+  during the teardown would still run `compile_changes()` on the destroyed `HotReload`.
 - Signed arithmetic wraps in production builds and unsigned arithmetic wraps in every build (D249).
 - A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` never ends
   (concurrency.md, "Choosing where Concurrents resume").
@@ -99,14 +102,6 @@ for a design):
 - Text assigned to an enum that names none of its values becomes the enum's first value (values_and_types.md).
 - A Windows `__fastfail` (`0xC0000409`), or a corrupted heap on Linux and macOS (the C library's own message and
   `SIGABRT`), ends the program without Spite's report or frames ("What a native fault reports").
-- **A fast reload checked against the baseline a busy machine left** differs from a whole compile: `check.sh`'s
-  "moving objects" step (`docs/repl.md`'s `live_party`) fails on Linux about one run in three while other work loads
-  the machine, and passes alone. After the held rename the output reads `rebuilt Hero, Spite.DebugInstance` where a
-  quiet run rebuilds `Hero` alone, and the final `SPITE_RELOAD_CHECK` reports `rebuilt Hero against Hero, Build,
-  Spite.DebugInstance; only the whole compile writes spite_overflowed ...`: the watcher's reload and the prompt's
-  `reload` seem to race over the companion files (`.reload_baseline`, `.reload_files`). Not yet run down; seen with
-  gcc and clang. Repro: `bash check.sh` on a four-core Linux machine, or `job_moving_objects` alone beside four C
-  compiles.
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers
   `values[row].copy()`, the caller sets `layout.width` on it, and the copy dies. Proposed by Claude, unconfirmed: a
   compile error when an object only this function holds (escape analysis already proves a function's result fresh)
@@ -279,6 +274,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Naming and abbreviations: compile errors, not auto-fixed
 - Unconfirmed (proposed by Claude), stated on the page: the one-underscore-between-words rule (implemented 2026-09-24).
+- Unconfirmed (proposed by Claude), built: the second table of abbreviations (`cnt`, `buf`, `idxs`, ...), which the
+  `'windows'` naming rule does not read backwards because Win32 spells those words out in full.
 
 ## [memory.md](../docs/memory.md)
 
@@ -343,17 +340,18 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Reflection known while compiling (D316, D317, D318, D323, D326)
 - The pages (metaprogramming.md, reflection.md) now teach only the D316 model. Shown there as untitled snippets because
-  they do not compile yet: the plural `map_<members>()` of the library (the plural rule is built for a template
-  whose name holds its parameter in the plural, but `library/list.spite` still declares `map_member`, so
-  `map_name()` still compiles), `Spite.Namespace.enums`, `call_with`, a function taking `value: Number` (D321), the `map_is_alive()` error (#228,
+  they do not compile yet: `Spite.Namespace.enums`, `call_with`, a function taking `value: Number` (D321), the `map_is_alive()` error (#228,
   being built on its own branch), and a class's own `get_`/`set_` template spelled `attribute: Spite.Attribute<Person>`:
   inside `Person` it is "unknown identifier 'attributes'" (only `attribute: Symbol` reads `attributes[attribute]`
   today, and `this.attributes` is refused).
 - Still teaching the old forms, to migrate once the compiler reaches them: memory.md's titled engine programs
   (`Symbol<$row_type>` walks, `fill_attributes(...)` plurals, `Symbol<$system_type.phase_each>`), json.md's
   `write_attribute(attribute: Symbol<$value_type>, ...)` and `$value_type.has_function("json_key_{attribute.name}")`
-  (a name built from text, which D317 forbids: it needs a decided replacement), the library itself
-  (`library/list.spite` templates are still `member: Symbol<$element_type>`, `library/spite/*.spite` still declares
+  (a name built from text, which D317 forbids: D320's rename map replaces it, and a map keyed by attribute objects
+  needs a dictionary keyed by them, which no dictionary is yet), the library itself (`json_writer`, `json_reader`
+  and `binary_format` still walk with `Symbol<$value_type>` plurals: a walk function takes only the element, so
+  the output or the object being filled cannot reach it, and how it should is open;
+  `library/spite/*.spite` still declares
   `has_function`, `function_waits`, `argument_count`, `fits_vector`, `source_folder`, `name_fits`, `waits()`), the
   diagnostic "write 'member: Symbol<$element_type>'" (collections.md, `diagnostics/plain_symbol_on_list`), and
   `design/for_ai_writers.md`.
@@ -377,14 +375,20 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   added to the uncountable words, since metaprogramming.md reads `map_health` as `health`; the error texts.
   Not built: `String.Inflection`, the table a program reopens to add words (the compiler inflects with its own
   copy of `String`, so a program's words would not reach it either).
+- Built: the library's member templates take `member: Spite.Attribute<$element_type>` and collect with
+  `map_members`, and every `map_<member>` call in the repository is plural; a `List`, `Vector`, `Items` or
+  `Dictionary` template named with its parameter in the singular that answers `List<member.class>` is an error
+  naming the plural. `Spite.DebugInstance` still walks with a `Symbol<$value_type>` plural: walked with `each`, its
+  `Debug<attribute.class>()` is compiled unspecialised in `--hot-reload` and test builds, where it is "unknown type
+  'attribute.class'", and a function of a `Spite` class is never specialised. Proposed by Claude, unconfirmed: a member whose name is already its own plural
+  (`name_with_namespaces`, `bump_stars`) is collected by that name.
 - Built (D335): `function.accesses`, a constant dictionary of `Spite.Access` (`is_read`, `is_written`, `target`),
   attributes then arguments, following calls to the same class's functions (`conformance/stage6/function_accesses`,
   reflection.md's `access_report`). Proposed by Claude, unconfirmed: that order; calling a function on an attribute
   counts as reading it; a write through `this.f()` is followed but a read through it is not; the union's name
   `Spite.Access.Target`. Not built: `.accesses` on a run-time function object (it answers only on a constant).
 - Not built: `function.call_with(arguments.map(made))` (D317),
-  `Spite.Namespace.enums`, the library's `map_members` (the rule is built; `list.spite`, `vector.spite` and
-  `items.spite` and every `map_<member>` call still use the singular), and the
+  `Spite.Namespace.enums`, and the
   compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
   (`engine/renderer/renderer.spite` is `Engine.Renderer` beside the namespace `Engine.Renderer`) is exactly that
   pair, so the rule needs Mortaro to say whether the entry file is exempt.
@@ -487,22 +491,16 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   proposed by Claude and are unconfirmed by Mortaro.
 
 ### List a directory
-- Decided (D295, 2026-09-30), not built: `Directory.files()` and `Directory.folders()` go. A listing is filtered by
-  kind instead: `directory.entries().filter_files()` and `.filter_folders()`, through the member templates over an
-  enum value (collections.md, "member templates over an enum value", also not built). `Directory.Entry` stays the
-  union of `Directory` and `File`; both would answer `kind(): Directory.Kind`, an enum of `'files'` and `'folders'`
-  (value names provisional, proposed by Claude). The compiler's discovery, the Linux and macOS watchers and
-  `scripts/docs_corpus` must move to it before the two helpers are removed. Until then the page, and the titled
-  `directory_tasks` program, still use `folders()`; the page states no removal.
+- Built (D295, D330): `Directory.files()` and `Directory.folders()` are gone; a listing keeps one kind with
+  `entries().filter_files()` or `filter_directories()`, and the compiler's discovery, the watchers and
+  `scripts/docs_corpus` read names through `map_names()`.
 
 ### Read and write a file
 - `File.map()` and `MappedFile` names and members are proposed by Claude, unconfirmed (D205/D214). Linux and macOS
   mapping (`mmap`) is held to compiling only; only Windows runs.
 
 ### Watch files and folders
-- `watch_for_changes(target: Directory or File)` is declared over a union of the two classes in the watcher's own
-  file (`FileSystemWatcher.Target`), since the compiler has no inline union type; it becomes `Directory or File`
-  when that exists. The quiet period is still open (mortaros_missing_decisions.md 166).
+- The quiet period is still open (mortaros_missing_decisions.md 166).
 - Linux (`inotify`) and macOS (`kqueue`) watchers are held to compiling by check.sh; only Windows runs.
 
 ### Run a process
@@ -584,11 +582,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Whole section decided and NOT built: `filter_<value>`, `count_<value>`, `any_<value>`, `all_<value>` and
   `remove_where_<value>` over a named enum's values do not compile yet. The teaching section said "Decided, not
   built".
-- Not built, removed from the page (migration to do when it lands): remove `Directory.files()` and
-  `Directory.folders()` and move their callers to `entries().filter_files()` / `filter_folders()`: the compiler's
-  discovery in `bootstrap/source/discovery/program_discovery.spite` and `git_load.spite`,
-  `library/linux/file_system_watcher.spite`, `library/mac/file_system_watcher.spite`, `scripts/docs_corpus`, and the example under "List a
-  directory" in standard_library.md.
 - Open question for Mortaro: `Spite.Namespace`'s `.classes` and `.namespaces` have the same shape (one node's
   children split by kind) and may get the same treatment; undecided.
 - Rule details (which templates, how a name is read, error texts) are proposed by Claude, unconfirmed.

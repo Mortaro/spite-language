@@ -261,8 +261,7 @@ way ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-
 |---|---|---|
 | `path` | `String` | |
 | `name` | `String` | the last piece of the path: `Directory("levels/forest").name` is `forest` |
-| `entries()` | `List<Directory.Entry>` | every folder and file inside it, as `Directory` and `File` values |
-| `folders()` / `files()` | `List<String>` | names only, sorted by a merge sort (`n log n`), so a folder of thousands of files lists quickly |
+| `entries()` | `List<Directory.Entry>` | every folder and file inside it, as `Directory` and `File` values, each kind sorted by name with a merge sort (`n log n`), so a folder of thousands of files lists quickly |
 | `exists()` / `create()` | `Boolean` | |
 
 ```gdscript title=directory_tasks/directory_tasks.spite entry
@@ -274,7 +273,7 @@ func DirectoryTasks() {
     var target_exists = target.exists()
     console.print("exists", target_exists)
     var examples = Directory("examples")
-    var has_hello = examples.folders().contains("hello")
+    var has_hello = examples.entries().filter_directories().map_names().contains("hello")
     console.print("has hello", has_hello)
 }
 ```
@@ -283,8 +282,8 @@ exists true
 has hello true
 ```
 
-`files()` and `folders()` answer names, not paths; `entries()` answers values you can walk, and its member templates
-keep one kind: `folder.entries().filter_files()` is a `List<File>` and `filter_directories()` a `List<Directory>`
+`entries()` answers values you can walk, and its member templates keep one kind:
+`folder.entries().filter_files()` is a `List<File>` and `filter_directories()` a `List<Directory>`
 ([a list of a union](metaprogramming.md#member-templates)).
 
 ## Walk a directory tree
@@ -339,7 +338,7 @@ already holds is passed as it is.
 
 | Member | Result | Notes |
 |---|---|---|
-| `watch_for_changes(target: Directory or File)` | `Boolean` | a `File`, or a `Directory` with everything below it; `false` when there is nothing there to watch |
+| `watch_for_changes(target: FileSystemWatcher.Target)` | `Boolean` | `Target` is the union of `Directory` and `File`: a `File`, or a `Directory` with everything below it; `false` when there is nothing there to watch |
 | `changes()` | `List<String>` | never waits: the paths changed since the last call, each once, or none |
 | `wait_for_changes()` | | blocks this thread until `changes()` has something to answer |
 
@@ -883,7 +882,8 @@ computed ([optimizations.md](optimizations.md#maths-on-constants-is-worked-out-w
 `conformance/stage6/maths_folding`).
 
 **Tree-shaken, and nothing at run time.** A member a program never calls is not in its C; `<math.h>` is
-included only when a member that calls the C library survives tree shaking, and only then does a build on Linux or
+included only when a member that calls the C library, or a `%` on a `Float` or `Double` (`fmodf`, `fmod`),
+survives tree shaking, and only then does a build on Linux or
 macOS link it (`-lm`; Windows has it in the C runtime). A program that uses none of it, `examples/hello`, carries
 no `#include <math.h>`. There is no `fused_multiply_add`: without a processor flag telling the C compiler the
 machine has the instruction, `fmaf` is a slow exact routine in the C library, a cost a reader would not expect
@@ -907,12 +907,12 @@ library through `DynamicLibrary`. What each member answers is in the section of 
 |---|---|
 | `File(path)` | `path`, `name` (the last piece of the path), `to_string(): String` (the path), `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes: `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?`, `map(): MappedFile?`; see [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
 | `MappedFile` | made by `File.map()`: a read-only mapping of the whole file (`CreateFileMappingA`/`MapViewOfFile` on Windows, `mmap` with `PROT_READ` and `MAP_PRIVATE` on Linux and macOS, the file itself closed once mapped), undone by `drop()` (`UnmapViewOfFile`, `munmap`). `size(): Long`; `get_at(position): Byte?` (`mapped[position]`), `read_short`, `read_integer`, `read_long`, `read_float`, `read_double` (each `(position): T?`) and `text(position, count): String?` answer `null` unless every byte they would read is inside the file, so a bad offset read from the file cannot read outside it; a read inside is one load from the mapping. An empty file maps to a `MappedFile` of size 0, since the operating systems refuse to map nothing. `conformance/stage6/mapped_files`; see [A file larger than memory](#a-file-larger-than-memory-map-it) |
-| `Directory(path)` | `path`, `name` (the last piece of the path), `entries(): List<Directory.Entry>` (below), `files(): List<String>`, `folders(): List<String>`, `exists(): Boolean`, `create(): Boolean`; see [List a directory](#list-a-directory) |
+| `Directory(path)` | `path`, `name` (the last piece of the path), `entries(): List<Directory.Entry>` (below), `exists(): Boolean`, `create(): Boolean`; see [List a directory](#list-a-directory) |
 | `Process(command, arguments)` | `working_directory`, `environment_variables`, `run(): Integer`, `output(): String`, `run_attached(): Integer`; see [Run a process](#run-a-process). Each argument reaches the child whole: single-quoted for the shell on Linux and macOS, and quoted by the `CommandLineToArgvW` rules on Windows, a `key=value` argument quoting only its value (`-script="a b"`). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
 | `Program()` | a singleton: `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String`, `live_allocations(): Integer`; see [Program](#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |
 | `Clock()` | a singleton: `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant`; `elapsed_nanoseconds()` is the monotonic clock, with a nanosecond unit and no allocation per reading; see [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation) |
 | `Console()` | a singleton: `print(...values)`, `write(...values)`, `error(...values)`, `debug(...values)`, `flush()`, `read_line(): String?`; see [Console](#console), and below |
-| `FileSystemWatcher()` | `watch_for_changes(target: Directory or File): Boolean`, `changes(): List<String>`, `wait_for_changes()`; see [Watch files and folders](#watch-files-and-folders), which is the rule. `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload)) |
+| `FileSystemWatcher()` | `watch_for_changes(target: FileSystemWatcher.Target): Boolean`, `changes(): List<String>`, `wait_for_changes()`; see [Watch files and folders](#watch-files-and-folders), which is the rule. `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload)) |
 | `Socket()` | public library surface: `listen_locally(port): Boolean`, `listen_everywhere(port): Boolean`, `listen_at(host, port): Boolean`, `connect_locally(port): Boolean`, `connect(host, port): Boolean`, `accept_client(): Socket?`, `read_line(): String?`, `read_bytes(address, count): Integer`, `write_line(text): Boolean`, `write_bytes(address, count): Boolean`, the calls that never wait `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer` and `write_bytes_now(address, count): Integer`, `closed: Boolean`, `close()`: TCP over IPv4 and IPv6 on every system ([Socket](#socket), and below); `--repl-port` and `spite connect` use `listen_locally` and `connect_locally` ([REPL and live reload](repl.md#repl-and-live-reload)) |
 | `Concurrent(function)`, `Parallel(function)` | the handle stands in for what the function returned, and reading it is the wait; `finished: Boolean` never waits; dropping the handle waits for it; there is no `wait()` and no `join()`; see [concurrency.md](concurrency.md) |
 | `ThreadPool()` | the singleton every `Parallel` runs on: `size(): Integer` worker threads, `worker_index(): Integer` (`-1` off the pool); see [The thread pool](concurrency.md#the-thread-pool) |
@@ -1013,8 +1013,8 @@ In detail:
 - **The name is `Entry`**, namespaced as `Directory.Entry`, because it is what a directory listing calls each of
   its items and it says nothing the class does not: `DirectoryEntry` would repeat the class it already lives in,
   and `Path` would claim a text value it is not.
-- **Folders come first, then files, each sorted by name**; `.` and `..` are never listed. It is the order
-  `folders()` then `files()` already give, so the three agree.
+- **Folders come first, then files, each sorted by name**; `.` and `..` are never listed. Each kind's names
+  are sorted before its values are made.
 - Each operating system's folder lists a directory its own way, through `entry_names(want_folders)`, since
   `entries()` is the public listing and Spite has no overloading.
 - `--final-classes` prints `Directory` back out with its `union Entry`, which compiles because a union declared

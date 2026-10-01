@@ -119,7 +119,7 @@ html.div({ class: "card" }, html.h1(title), TodoForm({ on_done: add_todo }))
 ```
 
 It pulls together what already exists: tags come from `missing_function`, a list of children is
-`todos.map_render()`, a component is any class that fits a `type` requiring `render()`, a handler is a function
+`todos.map_renders()`, a component is any class that fits a `type` requiring `render()`, a handler is a function
 value bound to its instance, and `when(condition, element)` returns an `Element?` that the framework skips.
 
 Rejected: a JSX like literal is a second grammar and fixes neither conditionals

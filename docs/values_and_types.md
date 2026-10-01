@@ -273,6 +273,7 @@ type Number {
     subtract(Number): Number
     multiply(Number): Number
     divide(Number): Number
+    remainder(Number): Number
     less_than(Number): Boolean
     greater_than(Number): Boolean
     to_long(): Long
@@ -280,7 +281,7 @@ type Number {
 }
 ```
 
-The first six are the operators `+`, `-`, `*`, `/`, `<` and `>` (with `<=` and `>=`), and `Number` in them
+The first seven are the operators `+`, `-`, `*`, `/`, `%`, `<` and `>` (with `<=` and `>=`), and `Number` in them
 stands for the class that fits: an `Integer` adds an `Integer` and answers one. The last two are conversions every
 number has. A number library is written over it as a generic constrained by `Number`, compiled once per number
 class it is given, so the values stay plain machine numbers and nothing is boxed. `$value_type == Number` asks,
@@ -786,7 +787,7 @@ of values of any classes that fit ([functions_and_operators.md](functions_and_op
 Read through a `type`, a required function named without calling it is a function value bound to the value, as
 it is for a class ([functions_and_operators.md](functions_and_operators.md#functions-are-values)), so
 `Parallel(stage.run_once)` works on a `List<Stage>`'s element typed by shape. A `List` of a `type` answers the
-member templates too, over the attributes and the argument-free functions the type names: `map_name()`,
+member templates too, over the attributes and the argument-free functions the type names: `map_names()`,
 `filter_active()`, `count_active()`:
 
 ```gdscript title=shape_values_doc/job.spite
@@ -817,7 +818,7 @@ func ShapeValuesDoc() {
     var dry = Job("dry")
     jobs.append(dry)
     finish_first(jobs)
-    var names = jobs.map_name()
+    var names = jobs.map_names()
     var joined = names.join(", ")
     var finished = jobs.count_done()
     console.print(joined, finished)
@@ -1021,6 +1022,9 @@ divisor is not zero (`assert parts != 0`, `crash parts != 0`, `if parts != 0 { }
 condition saying so, kept or undone by a call as any proof is), no check is emitted
 ([optimizations.md](optimizations.md#a-proven-divisor-is-not-checked)). As in Go, the smallest signed value divided
 by `-1` wraps to itself and its remainder is `0`, where C would trap. Float division stays IEEE 754: `x / 0.0` is infinity or not-a-number.
+`%` on a `Float` or `Double` is the remainder of the division truncated toward zero, so it keeps the sign of the
+left side as a whole number's does (`-7.5 % 2.0` is `-1.5`, `730.5 % 360.0` is `10.5`), and `x % 0.0` is
+not-a-number.
 - **Floats keep infinity and not-a-number**: `Float` and `Double` are IEEE 754 as the
   hardware gives them, with no check after an operation that can overflow; they are dealt with where they cannot
   be represented, as `JsonWriter` does ([json.md](json.md)).

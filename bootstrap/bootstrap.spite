@@ -1540,7 +1540,7 @@ func collect_spite_files(named: String, files: List<String>) {
         files.append(path)
         return
     }
-    var names = folder.files()
+    var names = folder.entries().filter_files().map_names()
     var index = 0
     while index < names.count() {
         if names[index].ends_with(".spite") {
@@ -1548,7 +1548,7 @@ func collect_spite_files(named: String, files: List<String>) {
         }
         index = index + 1
     }
-    var folders = folder.folders()
+    var folders = folder.entries().filter_directories().map_names()
     var folder_index = 0
     while folder_index < folders.count() {
         if folders[folder_index] != ".spite" and folders[folder_index] != ".spite-cache" {
