@@ -35545,7 +35545,7 @@ func waiting_kind(information: Analysis.ClassInfo, function: Analysis.FunctionIn
         return "join"
     }
     var reads = owner == "Console" and name == "read_line_into"
-    var receives = owner == "Socket" and (name == "accept_handle" or name == "receive_into")
+    var receives = owner == "Socket" and (name == "accept_handle" or name == "receive_into" or name == "first_readable")
     var files = owner == "File" and (name == "read_into" or name == "write_text" or name == "write_from")
     if reads or receives or files {
         return "offload"

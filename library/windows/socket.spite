@@ -7,13 +7,37 @@ func start_sockets() {
     heap.free(information)
 }
 
-func open_socket(): Long {
+func open_socket(family: Integer): Long {
     nonblocking = false
-    return sockets.socket_as_long(2, 1, 6)
+    var opened = sockets.socket_as_long(family, 1, 6)
+    if opened != -1 and family == ipv6_family() {
+        allow_ipv4_too(opened)
+    }
+    return opened
 }
 
-func write_family(address: Memory.Address) {
-    address.write_byte(0, 2)
+func write_family(address: Memory.Address, family: Integer) {
+    address.write_short(0, family)
+}
+
+func read_family(address: Memory.Address): Integer {
+    var family: Integer = address.read_short(0)
+    return family
+}
+
+func ipv4_family(): Integer {
+    return 2
+}
+
+func ipv6_family(): Integer {
+    return 23
+}
+
+func allow_ipv4_too(opened: Long) {
+    var disabled = heap.allocate(4)
+    disabled.write_integer(0, 0)
+    sockets.setsockopt(opened, 41, 27, disabled, 4)
+    heap.free(disabled)
 }
 
 func resolve_name(host: String, hints: Memory.Address, found: Memory.Address): Integer {
@@ -30,7 +54,8 @@ func free_resolved(first: Memory.Address) {
 }
 
 func bind_address(address: Memory.Address): Boolean {
-    return sockets.bind(handle, address, 16) == 0
+    var length = address_length(address)
+    return sockets.bind(handle, address, length) == 0
 }
 
 func listen_for_clients(): Boolean {
@@ -43,7 +68,8 @@ func accept_handle(): Long {
 }
 
 func connect_address(address: Memory.Address): Boolean {
-    return sockets.connect(handle, address, 16) == 0
+    var length = address_length(address)
+    return sockets.connect(handle, address, length) == 0
 }
 
 func receive_into(buffer: Long, bytes: Integer): Integer {
@@ -122,4 +148,31 @@ func would_block(): Boolean {
 
 func close_handle() {
     sockets.closesocket(handle)
+}
+
+func first_readable(handles: List<Long>, milliseconds: Integer): Integer {
+    var count = handles.count()
+    var watched = heap.allocate(count * 16)
+    var index = 0
+    while index < count {
+        var watched_handle = handles[index]
+        watched.write_long(index * 16, watched_handle)
+        watched.write_short(index * 16 + 8, 256)
+        watched.write_short(index * 16 + 10, 0)
+        index = index + 1
+    }
+    var ready = sockets.WSAPoll(watched, count, milliseconds)
+    var found = -1
+    if ready < 0 {
+        found = -2
+    }
+    index = 0
+    while ready > 0 and found < 0 and index < count {
+        if watched.read_short(index * 16 + 10) != 0 {
+            found = index
+        }
+        index = index + 1
+    }
+    heap.free(watched)
+    return found
 }
