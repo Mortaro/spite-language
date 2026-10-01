@@ -93,7 +93,7 @@ fix. A `D` number is a row of the [decision log](decisions.md).
   `bootstrap/seed/spite_compiler.c` is the C it emits for its own sources, committed, so a C compiler is all that
   is needed to build it.
 - **The fixpoint is the test.** `bash check.sh` requires generation 2 (the seed compiling the sources) and
-  generation 3 (generation 2 compiling them again) to be byte identical before anything else is believed; when
+  generation 3 (generation 2 compiling them again) to be byte identical, or nothing else it checked is believed; when
   they differ, one more generation must settle it (a change to how the compiler compiles its own source), or the
   check fails with `FAILED: no fixpoint, generation 3 and 4 still emit different C`. A seed older than the sources
   is not a failure: the check ends `OK: fixpoint holds, but the compiler sources changed since the seed was
