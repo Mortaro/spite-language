@@ -82,7 +82,8 @@ these five are what is left, with where each stands today.
      brace has no other use, and text that genuinely needs one can hold the dollar in a value
      (`var dollar = "$"`, then `"{dollar}{name}"`).
    - **Leave it.** Text is text, and a rule about what may appear inside it is a rule to remember.
-10. **How `--final-classes` shows which root supplied a declaration.** D7 and milestone 10a both say a
+10. **(Answered by D366: as Spite source, generics as written, each declaration marked with the file and load root
+    that won.)** **How `--final-classes` shows which root supplied a declaration.** D7 and milestone 10a both say a
     reopening must not be silent, and `--final-classes` is where it stops being silent. But what it writes is
     a *program*: running the printed entry file runs the same program, which is what makes it proof rather than
     a report. Provenance cannot be a comment, because a comment is only ever a link to a markdown heading

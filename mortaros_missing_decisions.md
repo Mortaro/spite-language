@@ -12,7 +12,7 @@ Answered on 2026-09-30 and 2026-10-01 (rows in `design/decisions.md`): 5, 21, 22
 79 (D322's principle), 89 (D326), 98, 99, 100, 108, 153 (D342), 155 (D336), 166 (D338, D347), 175 (D353), 187,
 188, 197 (D346), 202 and 204 (D339), 206, 208 (D332), 209 (D354), 212 (D348), 215 (D349), 216 (D327), 218, 222
 (D351), 223, 224 (D330), 225 (D334), 227 (D320, D329), 229 (D318), 230 (D319), 231 (D321), 232 (D322), 234 (D340), 214 (D356), 210 (D357), 183
-(D358), 217 (D359), 39 and 9 (D361), 109 (D362, D363), 247 (D364), 240 (D365).
+(D358), 217 (D359), 39 and 9 (D361), 109 (D362, D363), 247 (D364), 240 (D365), 6's question 10 (D366).
 Answered, row pending: 228 (`map_` over a predicate is an error), 213 (the default build compiles fastest), 205's
 spelling (`x`, `y`, `z`, `w`). Last pass, 2026-10-01: 9 and 39 by D350 (moved to "Confirm quickly"); 6's `${` by
 D244; 134 narrowed by D348; 183, 210, 214 and 217 moved to "Confirm quickly" as compiler choices; 109 rewritten;
@@ -49,9 +49,8 @@ D244; 134 narrowed by D348; 183, 210, 214 and 217 moved to "Confirm quickly" as 
      Each gap is closed (D244); left for Mortaro only a gap whose sole fix costs speed.
 211. **`ForeignCallback`**: a call through a dropped context is not caught, and a `'no_context'` callback must be a
      singleton's function. Recommend: a dropped context halts at the call; the names stay.
-6. **Open questions 10 and 11** ([open_questions.md](design/open_questions.md#open-questions)): how
-   `--final-classes` shows which root supplied a declaration; whether a `type`'s functions are written as
-   function-valued attributes. (9, `${` printing a stray `$`, is a D244 error.)
+6. **Open question 11** ([open_questions.md](design/open_questions.md#open-questions)): are a `type`'s functions
+   written as function-valued attributes? (9 is a D244 error; 10 answered by D366.)
 
 ## Confirm what agents decided
 
