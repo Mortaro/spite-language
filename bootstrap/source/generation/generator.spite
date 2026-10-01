@@ -4245,6 +4245,9 @@ func tagged_value(code: String, from: Analysis.SpiteType, information: Analysis.
                 record_shape_flow(from_information, information)
             }
         }
+    } else {
+        var to = union_type_of(information)
+        report_mismatch(from, to, code)
     }
     return "spite_tagged_from_pointer((void*)({code}))"
 }
