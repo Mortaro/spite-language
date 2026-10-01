@@ -14,7 +14,7 @@ Answered on 2026-09-30 and 2026-10-01 (rows in `design/decisions.md`): 5, 9 and 
 like any other, and D366 shows the winner), 98, 99, 100, 108, 109 (D362, D363), 153 (D342), 155 (D336), 166
 (D338, D347), 175 (D353), 183 (D358), 187, 188, 197 (D346), 202 and 204 (D339), 206, 208 (D332), 209 (D354), 210
 (D357), 212 (D348), 214 (D356), 215 (D349), 216 (D327), 217 (D359, D360), 218, 222 (D351), 223, 224 (D330), 225
-(D334), 227 (D320, D329), 229 (D318), 230 (D319), 231 (D321), 232 (D322), 234 (D340), 240 (D365), 247 (D364); 6's
+(D334), 227 (D320, D329), 229 (D318), 230 (D319), 231 (D321), 232 (D322), 234 (D340), 240 (D365), 245 (D367), 247 (D364); 6's
 question 10 (D366). Answered, row pending: 228 (`map_` over a predicate is an error), 213 (the default build
 compiles fastest), 205's spelling (`x`, `y`, `z`, `w`). Pass of 2026-10-01 (after D366): 90 removed; 93 merged
 into 233; 134, 138, 171, 173, 178, 179, 211, 220, 221, 233, 236, 246 and 249 moved to "Confirm quickly"; 242
@@ -47,13 +47,6 @@ Each has the one answer the principles imply. Yes, or reopen.
 171. **Who may read and write an address**: only files under `library/` (prevent mistakes).
 178. **A wait inside an expression**: the written order holds, with temporaries where needed (no surprise); the
      compiler drops them where it proves nothing changes.
-
-## Blocking work now
-
-245. **D345's run-time `Number` operators** (proposed): with both sides read at run time, the right side is
-     converted to the left side's class and must fit exactly, or the program halts; an operator works through any
-     `type` that requires its function (`sum` for `+`). Options: that; convert both to the wider class; refuse
-     operators on `Number` outside a copy. Recommend that. Blocks: code over `Number` in hot builds.
 
 ## Open
 
