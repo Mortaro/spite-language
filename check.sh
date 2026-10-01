@@ -1041,9 +1041,9 @@ echo "launcher: bin/spite passes the program's settings and arguments as they we
 
 # A built program run directly reads its settings in kebab-case, like the compiler, and refuses the snake_case
 # spelling of a declared one rather than ignoring it.
-direct=$("$work/kebab_setting.exe" --player-name=bo --hard-mode 2>&1 | tr -d '\r')
+direct=$("$work/kebab_setting.exe" --player-name=bo --hard-mode 2>&1 | tr -d '\r' | grep -v '^allocations: ')
 if [ "$direct" != "player bo hard mode true" ]; then echo "FAILED: a program run directly misread its settings"; echo "$direct" | head -5; exit 1; fi
-snake=$("$work/kebab_setting.exe" --player_name=bo 2>&1 | tr -d '\r')
+snake=$("$work/kebab_setting.exe" --player_name=bo 2>&1 | tr -d '\r' | grep -v '^allocations: ')
 if [ "$snake" != "error: '--player_name' is written '--player-name': a program's setting is kebab-case on the command line, like the compiler's flags, and it sets Environment.player_name" ]; then
   echo "FAILED: a program run directly did not refuse a snake_case setting"; echo "$snake" | head -5; exit 1
 fi
