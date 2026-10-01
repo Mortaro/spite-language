@@ -20,7 +20,7 @@ Fourth pass, 2026-09-30, by the principles (the user of Spite is an AI, so the l
 the user" is never an answer; everything monomorphizes; get-only attributes; renames by map; REPL and hot-reload
 builds favour information over speed): answered 2026-09-30, rows pending: 225 (same-package pins are two loads in
 load order), 234 (identical code folded by the compiler), 36 (`type Number`), 202 and 204 (confirmed as proposed,
-maths constants as get-only attributes such as `Float.pi`), 205 (`x`, `y`, `z`, `w`). 166's names by D334. 79 by D322's principle (the REPL shows the fuller
+maths constants as get-only attributes such as `Float.pi`), 205 (`x`, `y`, `z`, `w`). 166's names by D335. 79 by D322's principle (the REPL shows the fuller
 `to_debug()`). Narrowed: 161. Moved to "Confirm quickly": 166 (quiet period only), 197, 212, 215.
 
 ## Confirm quickly
