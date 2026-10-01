@@ -387,6 +387,7 @@ if [ "$generated" == "0" ] && ! cmp -s "$work/generation_two.c" "$work/generatio
   cp "$work/generation_three.c" "$work/generation_two.c"; cp "$work/generation_three.exe" "$work/generation_two.exe"
   cp "$work/generation_two.exe" .spite/spite_development.exe
   rm -rf "$work/unformatted" && mkdir -p "$work/unformatted" && cp -r diagnostics "$work/unformatted/"
+  rm -rf "$fast_root" && mkdir -p "$fast_root"   # the fast reloads copy their programs afresh
   run_pool
 fi
 
