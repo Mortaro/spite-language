@@ -349,9 +349,42 @@ func NumberTypeDoc() {
 a number not a number
 ```
 
-Read through a value typed `Number` at run time (a parameter `value: Number`), the conversions work, but an
-operator is an error, since the class the operand must be is not known there: take the value through a codegen
-value `Number` constrains instead.
+A parameter can be typed `Number` too, and its operators are the number's own. The function is compiled once for
+each number class that reaches it ([optimizations.md](optimizations.md#a-function-taking-a-type-is-compiled-per-class)),
+so in the copy that takes an `Integer`, `value + value` is an `Integer` addition, checked like any other:
+
+```gdscript title=number_parameter_doc/number_parameter_doc.spite entry
+var console = Console()
+
+func NumberParameterDoc() {
+    var twice_four = twice(4)
+    var twice_half = twice(0.5)
+    console.print(twice_four, twice_half)
+    var bigger = larger(3, 9)
+    console.print(bigger)
+}
+
+func twice(value: Number): Number {
+    return value + value
+}
+
+func larger(first: Number, second: Number): Number {
+    if first > second {
+        return first
+    }
+    return second
+}
+```
+```output
+8 1
+9
+```
+
+Since each copy is compiled for its class, `value + 0.5` is the error it would be on an `Integer` when an `Integer`
+reaches it. A value whose class is known only while the program runs (read from a `List<Number>`) reaches the copy
+for its class. In a `--hot-reload` or REPL build, where new code may bring a class later, the function is compiled
+once as written, and an operator there tests both classes while the program runs: the right side is turned into
+the left side's class, and if it does not fit exactly, the program halts naming the operation.
 
 ## `String`
 
@@ -1081,11 +1114,17 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   operator: the compiler's own arithmetic answers it, so the class fits. `Boolean` and `Memory.Address` do not fit,
   and neither does anything else unless it declares those functions. `$value_type == Number` is decided while
   compiling ([metaprogramming.md](metaprogramming.md#codegen-values-)). A generic constrained by `Number` is compiled
-  once per number class it is given, with plain values and no box. Through a value typed `Number` at run time, a
-  conversion is called on the value's class, and an operator is an error: `'+' on a value read as 'Number' needs
-  the class that fits the type, which is not known while compiling: take the value through a codegen value the type
-  constrains, 'generic $value_type: Number'` (`diagnostics/number_type_mistakes`,
-  `conformance/stage6/number_type`).
+  once per number class it is given, with plain values and no box. **A parameter typed `Number` takes the
+  operators `+`, `-`, `*`, `/`, `<`, `>`, `<=` and `>=`**: the function is compiled once per number class that
+  reaches it, and in each copy the operator is that class's arithmetic, with that class's rules (an `Integer` copy
+  of `value + 0.5` is the "would be cut to fit" error). A conversion is called on the value's class. In a
+  `--hot-reload`, `--repl` or `--repl-port` build the function is compiled as written, and an operator on a value
+  typed `Number` tests the classes of both sides while the program runs: the right side is turned into the left
+  side's class, and a value that does not fit it exactly halts the program with `spite: '<operation>' needs its
+  right side to fit in <class>, at <place>` (`diagnostics/number_type_mistakes`, `conformance/stage6/number_type`,
+  `conformance/stage6/number_parameter`). A `type` that does not require an operator's function still refuses the
+  operator: `'+' on a value read as '<type>' needs the class that fits the type, which is not known while
+  compiling: take the value through a codegen value the type constrains, 'generic $value_type: <type>'`.
 - None of it costs anything at run time: a number stays a plain machine value, a cast is the one conversion written
   inline, a bitwise function is the single operation, and a number class's Spite functions (`to_string()`, a reopening's
   `doubled()`) are emitted only when the program calls them.

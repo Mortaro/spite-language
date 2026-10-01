@@ -591,10 +591,11 @@ thread never pays for atomics.
 **What it does.** A function whose parameter is a `type` (`Anything`, `Printable`, a shape of your own) is compiled
 once for each class that reaches it, following calls through the whole program. A call whose argument's class is
 known while compiling calls that class's copy, so a number, `Boolean` or enum value is passed as itself, every
-call through the parameter is a direct call, and each class test on it is decided while compiling.
+call through the parameter is a direct call, each class test on it is decided while compiling, and an operator on
+a parameter typed `Number` is the class's own arithmetic.
 A value whose class is known only at run time, read from a `List<Anything>` for example, is passed to the
-function's own name, which is a test of the value's class against the closed set of classes the program admits to
-the `type`, calling the matching copy and unboxing a plain value on the way. The function as written is still
+function's own name, which is a `switch` over the value's class among the closed set of classes the program admits
+to the `type`, calling the matching copy and unboxing a plain value on the way. The function as written is still
 compiled, under another name, so every mistake in it is reported, and
 [tree shaking](#tree-shaking-the-generated-c) drops it.
 
@@ -602,7 +603,9 @@ compiled, under another name, so every mistake in it is reported, and
 arrive later and the function is compiled as written. Not for a parameter the function assigns to, a `T?` of a
 `type`, a row of borrowed items passed to it, a function that waits, a value read at run time in a program that
 runs a `Concurrent` (it reaches the function as written), or the functions of `List`, `Dictionary` and the
-library's other containers, which store what they are given.
+library's other containers, which store what they are given. Where the function as written runs, an operator on a
+value typed `Number` is a `switch` over the classes of both sides
+([values_and_types.md](values_and_types.md#every-number-fits-number)).
 
 **What you notice.** More functions in `--c-source`, named `<function>___for_<position>_<class>`, one per class that
 reaches it; a class that never does gets none.

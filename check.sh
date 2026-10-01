@@ -870,6 +870,27 @@ if grep -qE "spite_box_(Spite(Integer|Long|Double|Float|Boolean)|TaggedValues_Le
   echo "FAILED: tagged_values should hold its numbers and enum values tagged, with no box"; exit 1
 fi
 echo "tagged values: a number, Boolean or enum value held as a type is tagged in place, never boxed"
+# A parameter typed Number takes operators (docs/values_and_types.md#every-number-fits-number): number_parameter
+# passes an Integer, a Float and values read from a List<Number> to doubled(value: Number), whose 'value + value'
+# is plain arithmetic in a copy per class. The production C holds those copies (none for a class that never reaches
+# them), a switch over the classes the program gives Number for a value read at run time, and no general version,
+# operator dispatch or box; a --hot-reload build
+# compiles the function as written, its operator a switch over the classes that fit Number.
+numbers="$work/number_parameter.c"
+"$work/generation_two.exe" conformance/stage6/number_parameter --run=false --c-source --c-path="$numbers" > /dev/null 2>&1 || {
+  echo "FAILED: number_parameter does not write its C"; exit 1; }
+if ! grep -q "^Number_Number NumberParameter_doubled___for_0_Integer(NumberParameter\* self, int32_t value_) {$" "$numbers" \
+   || ! grep -q "^Number_Number NumberParameter_larger___for_0_Float_1_Float(NumberParameter\* self, float first_, float second_) {$" "$numbers" \
+   || ! grep -q "^switch ((value_).tag) {$" "$numbers" \
+   || grep -qE "___general|___operate_|spite_box_|spite_operand_misfit|___for_0_(Double|Short|Byte)" "$numbers"; then
+  echo "FAILED: number_parameter should compile doubled and larger per number class, with no general version and no box"; exit 1
+fi
+"$work/generation_two.exe" conformance/stage6/number_parameter --run=false --hot-reload --c-source --c-path="$work/number_parameter_hot.c" > /dev/null 2>&1 || {
+  echo "FAILED: number_parameter does not write its --hot-reload C"; exit 1; }
+if grep -q "___for_0_" "$work/number_parameter_hot.c" || ! grep -q "^Number_Number Number_Number___operate_add(" "$work/number_parameter_hot.c"; then
+  echo "FAILED: a --hot-reload build should compile doubled as written, its '+' a switch over the classes that fit Number"; exit 1
+fi
+echo "number parameters: a function taking Number is compiled per number class, its operators plain arithmetic"
 # A loop over a list of plain values that cannot change its size reads the count once and its items without a range
 # check (docs/optimizations.md): counted_loops' scale_in_place is a plain C loop the C compiler can vectorise, and
 # scale_into checks the list it writes once, before the loop; add_from, whose counter starts at a parameter, is not.

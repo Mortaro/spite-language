@@ -159,6 +159,12 @@ var dispatched_owners = List<Analysis.ClassInfo>()
 var dispatched_functions = List<Analysis.FunctionInfo>()
 var dispatched_positions = List<Integer>()
 var dispatched_texts = List<String>()
+var shape_operator_names = Dictionary<Boolean>()
+var shape_operator_unions = List<Analysis.UnionInfo>()
+var shape_operator_operators = List<Syntax.Expressions.BinaryOperator>()
+var shape_operator_positions = List<Integer>()
+var shape_operator_texts = List<String>()
+var operand_checks_written = false
 var debug_memory = false
 var hot_reload_compiler = ""
 var hot_reload_arguments = ""
@@ -3687,6 +3693,7 @@ func shape_member_function(member: Analysis.ClassInfo, name: String): Analysis.F
 
 func emit_late_shape_callers(): Integer {
     var emitted = emit_dispatchers()
+    emitted = emitted + emit_shape_operators()
     var index = 0
     while index < unions.count() {
         var information = unions[index]
@@ -3737,9 +3744,10 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
             lines.append(release_line)
             index = index + 1
         }
-        if not type_shape.is_void(return_type) {
-            lines.append("return {default_value_for_type(return_type)};")
-        }
+        lines.append(
+            "fputs(\"spite.crash\\t{information.simple_name}.{name} was called on a value of a class it was not compiled for\\n\", stderr);",
+        )
+        lines.append("abort();")
         lines.append("}")
         var joined_lines = lines.join("\n")
         note_union_slot(information, "'s call of {name}")
@@ -4149,6 +4157,9 @@ func generate_object_literal(
 }
 
 func shape_default(information: Analysis.UnionInfo): String {
+    if information.is_tagged {
+        return "SPITE_TAGGED_NULL"
+    }
     var names = List<String>()
     var types = List<Analysis.SpiteType>()
     var label = "Object"
@@ -4332,7 +4343,12 @@ func object_pointer_code(code: String, value_type: Analysis.SpiteType): String {
 }
 
 func tagged_value(code: String, from: Analysis.SpiteType, information: Analysis.UnionInfo): String {
-    if tagged_shape_of(from) {
+    var from_tagged = tagged_shape_of(from)
+    if from_tagged {
+        if from_tagged.c_name != information.c_name {
+            admit_members_of(from_tagged, information)
+            record_shape_flow(from_tagged, information)
+        }
         return code
     }
     if type_shape.as_string(from) {
@@ -4471,6 +4487,17 @@ func record_shape_flow(source: Analysis.UnionInfo, target: Analysis.UnionInfo) {
     shape_flow_keys.append(key)
     shape_flow_sources.append(source.c_name)
     shape_flow_targets.append(target)
+}
+
+func admit_members_of(source: Analysis.UnionInfo, target: Analysis.UnionInfo) {
+    var index = 0
+    while index < source.members.count() {
+        var member = source.members[index]
+        if not target.has_member(member.c_name) {
+            admit_to_union(target, member)
+        }
+        index = index + 1
+    }
 }
 
 func admit_along_flows(source: Analysis.UnionInfo, candidate: Analysis.ClassInfo) {
@@ -9878,6 +9905,9 @@ func generate_binary(
     }
     var left_shape_name = operated_shape_name(binary.operator, left_type, class_information)
     if not left_shape_name.is_empty() {
+        if operates_through_shape(binary.operator, left_type) {
+            return shape_operator(binary, left, scope, class_information)
+        }
         report(
             "'{binary_operator_symbol(binary.operator)}' on a value read as '{left_shape_name}' needs the class that fits the type, which is not known while compiling: take the value through a codegen value the type constrains, 'generic $value_type: {left_shape_name}'",
         )
@@ -10424,6 +10454,268 @@ func operated_shape_name(
         index = index + 1
     }
     return information.simple_name
+}
+
+func operates_through_shape(operator: Syntax.Expressions.BinaryOperator, left_type: Analysis.SpiteType): Boolean {
+    var union_type = type_shape.as_union(left_type)
+    if not union_type {
+        return false
+    }
+    var information = find_union_by_c_name(union_type.c_name)
+    if not information {
+        return false
+    }
+    var word = operator_word(operator)
+    if not information.is_tagged or word.is_empty() {
+        return false
+    }
+    var function_name = operator_function_name(operator)
+    var required = find_required_function(information, function_name)
+    if not required {
+        return false
+    }
+    return true
+}
+
+func shape_operator(
+    binary: Syntax.Expressions.BinaryExpression,
+    left: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var left_type = left.get_type()
+    var union_type = type_shape.as_union(left_type)
+    crash union_type
+    var information = find_union_by_c_name(union_type.c_name)
+    crash information
+    var right = generate_joined(binary.right, scope, class_information)
+    var right_type = right.get_type()
+    var held = List<String>()
+    var releases = List<String>()
+    var left_held = next_temporary()
+    held.append("{information.c_name} {left_held} = {left.code};")
+    if owns(left, binary.left) {
+        releases.append("{release_call(left_type, left_held)};")
+    }
+    var right_held = next_temporary()
+    var right_tagged = tagged_value(right.code, right_type, information)
+    held.append("{information.c_name} {right_held} = {right_tagged};")
+    if owns(right, binary.right) and type_needs_drop(right_type) {
+        releases.append("{release_call(left_type, right_held)};")
+    }
+    var helper = ensure_shape_operator(information, binary.operator)
+    var printer = Syntax.SourcePrinter()
+    var expression: Syntax.Expressions.Expression = binary
+    var source_text = printer.source_expression(expression)
+    var written = escape_c_string(source_text)
+    var where = located(current_path, current_line, current_owner, current_function)
+    var result_c_type = information.c_name
+    var result_type = union_type_of(information)
+    if is_boolean_result_operator(binary.operator) {
+        result_c_type = "bool"
+        result_type = boolean_type()
+    }
+    var code = "(\{ {held.join(" ")} {result_c_type} spite_operated = {helper}({left_held}, {right_held}, \"{written}\", {where}); {releases.join(" ")} spite_operated; })"
+    return ExpressionResult(code, result_type)
+}
+
+func operator_word(operator: Syntax.Expressions.BinaryOperator): String {
+    switch operator {
+        'add': return "add"
+        'subtract': return "subtract"
+        'multiply': return "multiply"
+        'divide': return "divide"
+        'modulo': return "modulo"
+        'less': return "less"
+        'less_equal': return "less_equal"
+        'greater': return "greater"
+        'greater_equal': return "greater_equal"
+        _: return ""
+    }
+}
+
+func ensure_shape_operator(information: Analysis.UnionInfo, operator: Syntax.Expressions.BinaryOperator): String {
+    var name = "{information.c_name}___operate_{operator_word(operator)}"
+    if shape_operator_names.has(name) {
+        return name
+    }
+    shape_operator_names[name] = true
+    shape_operator_unions.append(information)
+    shape_operator_operators.append(operator)
+    shape_operator_texts.append("")
+    var returned = information.c_name
+    if is_boolean_result_operator(operator) {
+        returned = "bool"
+    }
+    builder.add_prototype(
+        "{returned} {name}({information.c_name} left, {information.c_name} right, const char* operation, const char* where);",
+    )
+    var position = builder.support_count()
+    shape_operator_positions.append(position)
+    builder.add_support("")
+    ensure_operand_checks()
+    return name
+}
+
+func ensure_operand_checks() {
+    assert not operand_checks_written
+    operand_checks_written = true
+    builder.add_prototype(
+        "static void spite_operand_misfit(const char* operation, const char* type, const char* where) __attribute__((noreturn, cold));",
+    )
+    builder.add_support(
+        "static void spite_operand_misfit(const char* operation, const char* type, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' needs its right side to fit in %s, at %s\\n\", operation, type, where);\nexit(1);\n}",
+    )
+    builder.add_prototype(
+        "static void spite_operator_unreached(const char* operation, const char* where) __attribute__((noreturn, cold));",
+    )
+    builder.add_support(
+        "static void spite_operator_unreached(const char* operation, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' was given a value of a class it is not compiled for, at %s\\n\", operation, where);\nexit(1);\n}",
+    )
+}
+
+func emit_shape_operators(): Integer {
+    var changed = 0
+    var index = 0
+    while index < shape_operator_unions.count() {
+        crash shape_operator_operators[index]
+        var text = shape_operator_text(shape_operator_unions[index], shape_operator_operators[index])
+        crash shape_operator_texts[index]
+        if text != shape_operator_texts[index] {
+            crash shape_operator_positions[index]
+            builder.replace_support(shape_operator_positions[index], text)
+            shape_operator_texts.set_at(index, text)
+            changed = changed + 1
+        }
+        index = index + 1
+    }
+    return changed
+}
+
+func operated_number_type(member: Analysis.ClassInfo): Analysis.SpiteType? {
+    assert is_plain_member(member)
+    crash boxed_value_types[member.c_name]
+    var member_type = boxed_value_types[member.c_name]
+    var scalar = type_shape.as_scalar(member_type)
+    assert scalar
+    assert scalar.kind != 'boolean_kind'
+    return member_type
+}
+
+func shape_operator_text(information: Analysis.UnionInfo, operator: Syntax.Expressions.BinaryOperator): String {
+    var returned = information.c_name
+    if is_boolean_result_operator(operator) {
+        returned = "bool"
+    }
+    var lines = List<String>()
+    lines.append(
+        "{returned} {information.c_name}___operate_{operator_word(operator)}({information.c_name} left, {information.c_name} right, const char* operation, const char* where) \{",
+    )
+    lines.append("switch (left.tag) \{")
+    var index = 0
+    while index < information.members.count() {
+        var member = information.members[index]
+        var member_type = operated_number_type(member)
+        if member_type {
+            lines.append("case {member.class_id}: \{")
+            var c_type = c_type_name(member_type)
+            var member_name = type_display_name(member_type)
+            var shown = with_article(member_name)
+            lines.append("{c_type} spite_left = SPITE_TAGGED_VALUE(left, {c_type});")
+            lines.append("{c_type} spite_right = 0;")
+            lines.append("switch (right.tag) \{")
+            var other_index = 0
+            while other_index < information.members.count() {
+                var other = information.members[other_index]
+                var other_type = operated_number_type(other)
+                if other_type {
+                    var other_c_type = c_type_name(other_type)
+                    if other.c_name == member.c_name {
+                        lines.append("case {other.class_id}: spite_right = SPITE_TAGGED_VALUE(right, {c_type}); break;")
+                    } else {
+                        var misfit = "({other_c_type})spite_right != spite_given"
+                        var other_scalar = type_shape.as_scalar(other_type)
+                        crash other_scalar
+                        if is_float_kind(other_scalar.kind) {
+                            misfit = "{misfit} && spite_given == spite_given"
+                        }
+                        lines.append(
+                            "case {other.class_id}: \{ {other_c_type} spite_given = SPITE_TAGGED_VALUE(right, {other_c_type}); spite_right = ({c_type})spite_given; if ({misfit}) spite_operand_misfit(operation, \"{shown}\", where); break; }",
+                        )
+                    }
+                }
+                other_index = other_index + 1
+            }
+            lines.append("default: spite_operand_misfit(operation, \"{shown}\", where);")
+            lines.append("}")
+            operated_lines(operator, member, member_type, lines)
+            lines.append("}")
+        }
+        index = index + 1
+    }
+    lines.append("}")
+    lines.append("spite_operator_unreached(operation, where);")
+    lines.append("}")
+    return lines.join("\n")
+}
+
+func operated_lines(
+    operator: Syntax.Expressions.BinaryOperator,
+    member: Analysis.ClassInfo,
+    member_type: Analysis.SpiteType,
+    lines: List<String>,
+) {
+    var symbol = binary_operator_symbol(operator)
+    if is_boolean_result_operator(operator) {
+        lines.append("return spite_left {symbol} spite_right;")
+        return
+    }
+    var scalar = type_shape.as_scalar(member_type)
+    crash scalar
+    var c_type = c_type_name(member_type)
+    var computed = "({c_type})(spite_left {symbol} spite_right)"
+    var signed = is_signed_kind(scalar.kind)
+    var whole = not is_float_kind(scalar.kind)
+    if operator == 'modulo' and not whole {
+        lines.append("spite_operator_unreached(operation, where);")
+        return
+    }
+    if operator == 'divide' or operator == 'modulo' {
+        if whole {
+            if not division_check_written {
+                ensure_division_check()
+            }
+            lines.append("if (spite_right == 0) spite_divided_by_zero(operation, where);")
+            if signed and operator == 'divide' {
+                computed = "spite_right == -1 ? ({c_type})(0 - (uint64_t)spite_left) : ({c_type})(spite_left / spite_right)"
+            }
+            if signed and operator == 'modulo' {
+                computed = "spite_right == -1 ? ({c_type})0 : ({c_type})(spite_left % spite_right)"
+            }
+        }
+        lines.append("return {ensure_tag(member, member_type)}({computed});")
+        return
+    }
+    if signed and (keeps_internals or debug_memory) {
+        if not overflow_check_written {
+            ensure_overflow_check()
+        }
+        var builtin = "__builtin_add_overflow"
+        if operator == 'subtract' {
+            builtin = "__builtin_sub_overflow"
+        }
+        if operator == 'multiply' {
+            builtin = "__builtin_mul_overflow"
+        }
+        var member_name = type_display_name(member_type)
+        var shown = with_article(member_name)
+        lines.append("{c_type} spite_result;")
+        lines.append(
+            "if ({builtin}(spite_left, spite_right, &spite_result)) spite_overflowed(operation, \"{shown}\", \"{symbol}\", (int64_t)spite_left, (int64_t)spite_right, where);",
+        )
+        computed = "spite_result"
+    }
+    lines.append("return {ensure_tag(member, member_type)}({computed});")
 }
 
 func operator_function_name(operator: Syntax.Expressions.BinaryOperator): String {
@@ -12416,9 +12708,6 @@ func dispatcher_text(information: Analysis.ClassInfo, function: Analysis.Functio
             "fputs(\"spite.crash\\t{information.qualified_dotted}.{function.name} was given a value of a class no copy of it was made for\\n\", stderr);",
         )
         lines.append("abort();")
-        if not type_shape.is_void(return_type) {
-            lines.append("return {default_value_for_type(return_type)};")
-        }
     }
     lines.append("}")
     return lines.join("\n")
@@ -12456,6 +12745,10 @@ func dispatch_lines(
     crash function.parameters[index]
     var argument = c_value_name(function.parameters[index].name)
     var argument_type = function.parameters[index].get_type()
+    var switched = tagged_shape_of(argument_type)
+    if switched {
+        lines.append("switch (({argument}).tag) \{")
+    }
     var member_index = 0
     while member_index < shaped.members.count() {
         var member = shaped.members[member_index]
@@ -12463,7 +12756,13 @@ func dispatch_lines(
         if member_type {
             var unboxed = "spite_dispatched_{index}"
             var tested = value_class_test(argument, argument_type, member)
-            lines.append("if {tested} \{")
+            if switched and member.c_name == "SpiteString" {
+                lines.append("case 0: if ((({argument}).plain == 0)) \{")
+            } else if switched {
+                lines.append("case {member.class_id}: \{")
+            } else {
+                lines.append("if {tested} \{")
+            }
             var unboxing = unbox_line(member, member_type, argument, unboxed, argument_type)
             lines.append(unboxing)
             var member_types = types.copy()
@@ -12472,9 +12771,14 @@ func dispatch_lines(
             member_codes.set_at(index, unboxed)
             dispatch_lines(information, function, index + 1, member_types, member_codes, lines)
             lines.append("}")
+            if switched {
+                lines.append("break;")
+            }
         }
         member_index = member_index + 1
     }
+    assert switched
+    lines.append("}")
 }
 
 func dispatched_member_type(member: Analysis.ClassInfo): Analysis.SpiteType? {

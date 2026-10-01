@@ -51,8 +51,15 @@ when a page gains a rule that is not built yet, add it here.
 
 ### Every number fits `Number`
 - Built: `type Number`, every number class fitting it, `$value_type == Number`, a generic constrained by it
-  (`conformance/stage6/number_type`). NOT BUILT: a function taking `value: Number` is not yet compiled per number
-  class (D321), so an operator on it is still the error the page states, and a number passed to it is boxed.
+  (`conformance/stage6/number_type`), and a parameter `value: Number` with operators, compiled per number class,
+  with a run-time switch over both sides' classes where the function runs as written
+  (`conformance/stage6/number_parameter`).
+- Unconfirmed proposals by Claude: the run-time rule for an operator on `Number` in a build that compiles the
+  function as written (the right side is turned into the left side's class and must fit exactly, or the program
+  halts).
+- NOT BUILT: an operator through a `type` that requires its function, on a class instance (not a number) whose
+  class is known only at run time, in a function that runs as written: it halts with "was given a value of a class
+  it is not compiled for" instead of calling the class's operator function.
 - Unconfirmed proposals by Claude: the member list, and a `type`'s own name in a required signature standing for
   the class that fits.
 
@@ -60,9 +67,11 @@ when a page gains a rule that is not built yet, add it here.
 - No status facts removed beyond the above.
 
 ### Inline types and duck typing: a function taking a `type` is compiled per class (D321)
-- Built: a copy per class for a call whose argument's class is known while compiling, and a class test over the
+- Built: a copy per class for a call whose argument's class is known while compiling, and a `switch` over the
   shape's closed set for a value read at run time, with the function as written compiled under another name and
-  shaken out (`conformance/stage6/shape_copies`, `benchmarks/shape_calls`).
+  shaken out (`conformance/stage6/shape_copies`, `conformance/stage6/number_parameter`, `benchmarks/shape_calls`).
+- Built: a call through a shape, on a value of a class no case was compiled for, halts naming the shape and the
+  function instead of answering a default.
 - Built: a `type` that requires no attributes is a tagged value (a class id and the object or the plain value), so a
   number, `Boolean` or enum stored as one allocates nothing (`conformance/stage6/tagged_values`).
 - NOT BUILT: text and a `Symbol` stored as a `type` are still heap boxes; a `type` with attributes (a row) and a
