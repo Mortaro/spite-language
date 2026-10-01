@@ -16,16 +16,16 @@ func MemberTemplates() {
     var all_active = repositories.all_active()
     var active_all_active = repositories.filter_active().all_active()
     console.print(any_active, all_active, active_all_active)
-    var names = repositories.map_name().join(",")
-    var labels = repositories.map_label().join(",")
+    var names = repositories.map_names().join(",")
+    var labels = repositories.map_labels().join(",")
     console.print(names, labels)
-    var names_by_stars = repositories.sort_by_stars().map_name().join(",")
-    var names_by_name = repositories.sort_by_name().map_name().join(",")
+    var names_by_stars = repositories.sort_by_stars().map_names().join(",")
+    var names_by_name = repositories.sort_by_name().map_names().join(",")
     console.print(names_by_stars, names_by_name)
     var first_labelled = repositories.sort_by_label().first()
     crash first_labelled
     var first_by_label = first_labelled.name
-    var popular_names = repositories.filter_is_popular().map_name().join(",")
+    var popular_names = repositories.filter_is_popular().map_names().join(",")
     console.print(first_by_label, popular_names)
     repositories.each_bump_stars()
     all_stars = repositories.sum_stars()
@@ -45,7 +45,7 @@ func MemberTemplates() {
     var idle = Repository("idle", 4, false)
     by_name["idle"] = idle
     var stars_by_name = by_name.sum_stars()
-    var active_names = by_name.filter_active().map_name().join(",")
+    var active_names = by_name.filter_active().map_names().join(",")
     var any_active_by_name = by_name.any_active()
     var least_starred = by_name.sort_by_stars().first()
     crash least_starred

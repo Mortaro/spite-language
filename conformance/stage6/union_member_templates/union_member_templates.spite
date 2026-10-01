@@ -3,7 +3,7 @@ var console = Console()
 func UnionMemberTemplates() {
     var folder = Directory("conformance/stage6/union_member_templates/tree")
     var entries = folder.entries()
-    var names = entries.map_name()
+    var names = entries.map_names()
     var joined_names = names.join(",")
     console.print("entries:", joined_names)
     var texts = entries.filter_name_ends_with(".txt")

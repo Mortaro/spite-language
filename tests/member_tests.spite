@@ -27,12 +27,12 @@ func test_a_chain_gives_what_its_steps_give() {
     var small = creatures.filter_small()
     crash creatures.filter_small().sum_strength() == small.sum_strength()
     crash creatures.filter_small().count_small() == 2
-    crash creatures.filter_small().map_label().join(" ") == "rat:3 bat:1"
+    crash creatures.filter_small().map_labels().join(" ") == "rat:3 bat:1"
     var found = creatures.filter_small().find_by_name("bat")
     crash found
     crash found.strength == 1
 }
 
 func test_map_collects_a_function_result() {
-    crash creatures.map_label().join(" ") == "rat:3 dragon:90 bat:1"
+    crash creatures.map_labels().join(" ") == "rat:3 dragon:90 bat:1"
 }

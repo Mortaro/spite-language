@@ -261,7 +261,7 @@ run-time list, and one copy per element in `--final-classes`.
 
 ### Template chains run as one loop
 
-**What it does.** `teams.filter_is_active().map_lead().sum_age()` reads as three steps, and that is what it means,
+**What it does.** `teams.filter_is_active().map_leads().sum_age()` reads as three steps, and that is what it means,
 but the compiler writes it as one loop over `teams` with no list in between: each element is tested, mapped and
 added before the next one is read.
 

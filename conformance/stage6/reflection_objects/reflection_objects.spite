@@ -8,7 +8,7 @@ func ReflectionObjects() {
     console.print(heavy, till.coins)
     var tools = Shop.Tools
     console.print(tools.name, tools.name_with_namespaces, tools.parent)
-    var shop_names = Shop.namespaces.map_name()
+    var shop_names = Shop.namespaces.map_names()
     var joined_shop_names = shop_names.join(", ")
     console.print("Shop holds", joined_shop_names)
     var every = Spite.Namespace.instances.map_name_with_namespaces()

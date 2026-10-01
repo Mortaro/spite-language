@@ -23,6 +23,6 @@ func FunctionValues() {
     var log_count = robot.log.count()
     console.print(log_count)
     robot.name = "renamed"
-    var joined_map_name = robot.functions.map_name().join(" ")
+    var joined_map_name = robot.functions.map_names().join(" ")
     console.print(joined_map_name)
 }

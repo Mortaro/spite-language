@@ -13,8 +13,8 @@ func FusedChain() {
     var round = 0
     while round < 300 {
         var prices = items.filter_is_active().sum_price()
-        var ages = items.filter_is_active().map_owner().filter_is_adult().sum_age()
-        var adults = items.map_owner().count_is_adult()
+        var ages = items.filter_is_active().map_owners().filter_is_adult().sum_age()
+        var adults = items.map_owners().count_is_adult()
         total = total + prices + ages + adults
         round = round + 1
     }

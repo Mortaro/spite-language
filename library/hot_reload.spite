@@ -33,16 +33,21 @@ var settle_problem: String? = null
 func start() {
     folder = build.program
     restart_state()
-    ready = heap.allocate(16)
+    ready = heap.allocate(24)
     ready.write_long(0, 0)
     ready.write_long(8, 0)
+    ready.write_long(16, 0)
     compiled_files = files_seen()
     scheduler.start()
     scheduler.serving = true
     scheduler.reloads = install_if_ready
     var entry = watcher_entry()
     var no_argument: Long = 0
-    scheduler.start_thread(entry, no_argument)
+    var watcher_thread = scheduler.start_thread(entry, no_argument)
+    crash watcher_thread != 0
+    while ready.read_long_atomically(16) == 0 {
+        program.sleep(1)
+    }
 }
 
 func drop() {
@@ -53,9 +58,17 @@ func drop() {
 
 func watch() {
     var watcher = FileSystemWatcher()
-    var program_folder = Directory(folder)
-    var watching = watcher.watch_for_changes(program_folder)
+    var watching = watch_folders(watcher)
+    ready.write_long_atomically(16, 1)
     assert watching
+    while true {
+        watcher.wait_for_changes()
+        watcher.changes()
+        compile_changes()
+    }
+}
+
+func watch_folders(watcher: FileSystemWatcher): Boolean {
     var loaded = loaded_folders().split("\n")
     var index = 0
     while index < loaded.count() {
@@ -65,11 +78,8 @@ func watch() {
         }
         index = index + 1
     }
-    while true {
-        watcher.wait_for_changes()
-        watcher.changes()
-        compile_changes()
-    }
+    var program_folder = Directory(folder)
+    return watcher.watch_for_changes(program_folder)
 }
 
 func compile_for_request() {

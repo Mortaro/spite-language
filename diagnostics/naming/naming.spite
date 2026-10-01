@@ -6,11 +6,12 @@ enum job_kind {
 var console = Console()
 var playerName = ""
 var msg = "hello"
+var item_cnt = 0
 
 func Naming() {
     var n = 1
     var btn_count = n + 1
-    console.print(msg, playerName, btn_count, calcTotal(2))
+    console.print(msg, playerName, btn_count, item_cnt, calcTotal(2))
 }
 
 func calcTotal(val: Integer): Integer {

@@ -650,6 +650,33 @@ error, and nothing is left to the moron's taste. The `--development`-only "skipp
   | `dst`/`dest` | `destination` | | `doc`/`docs` | `documentation` |
   | `dir` | `directory` | | | |
 
+  The rest of the table holds words Win32 spells out in full, so the `'windows'` naming rule
+  ([Naming rules](foreign_libraries.md#naming-rules)) reads only the part above backwards:
+
+  | Abbreviation | Full word | | Abbreviation | Full word |
+  |---|---|---|---|---|
+  | `cnt` | `count` | | `pwd` | `password` |
+  | `buf` | `buffer` | | `usr` | `user` |
+  | `addr` | `address` | | `repo` | `repository` |
+  | `mgr` | `manager` | | `qty` | `quantity` |
+  | `evt` | `event` | | `amt` | `amount` |
+  | `img` | `image` | | `cb` | `callback` |
+  | `hdr` | `header` | | `sz` | `size` |
+  | `arr` | `array` | | `lst` | `list` |
+  | `vec` | `vector` | | `rect` | `rectangle` |
+  | `dict` | `dictionary` | | `dbg` | `debug` |
+  | `coord`/`coords` | `coordinate`/`coordinates` | | `ver` | `version` |
+  | `opt`/`opts` | `option`/`options` | | `nav` | `navigation` |
+  | `ext` | `extension` | | `wnd` | `window` |
+  | `seq` | `sequence` | | `ctrl` | `control` |
+  | `sep` | `separator` | | `fmt` | `format` |
+  | `avg` | `average` | | `proc` | `process` |
+  | `tbl` | `table` | | `lang` | `language` |
+
+  Plurals of abbreviations are refused the same way: `nums`, `vals`, `msgs`, `strs`, `ptrs`, `bufs`, `elems`,
+  `objs`, `dirs`, `exprs`, `stmts`, `errs`, `cmds`, `funcs`/`fns`, `vars`, `btns`, `imgs`, `evts` and `idxs`
+  (`indices`).
+
   `id` is explicitly **allowed** even though it is short, since it has no ambiguity and no natural longer form.
   The language's own type names get no exemption: `Int`, `Bool` and `UnsignedInt` are spelled `Integer`,
   `Boolean` and `UnsignedInteger`, and the old spellings are errors naming the new ones, `'Int' is spelled

@@ -422,7 +422,7 @@ so an item borrowed from a `Vector` or `Items` is not read after one ([the rules
 
 A list of a class answers a family of functions named after the element's members (a function of your own is
 passed instead, [below](#passing-a-function-for-each-element)). `chores.count_done()` counts
-the chores whose `done` is true, `items.sum_price()` adds up their prices, and `repositories.map_name()` collects
+the chores whose `done` is true, `items.sum_price()` adds up their prices, and `repositories.map_names()` collects
 their names. A **member** is an attribute or a function that takes no arguments (the two are the same to a
 template, since reading an attribute already goes through its getter), and a template is compiled only for the
 names a program calls.
@@ -435,7 +435,7 @@ names a program calls.
 | `sum_<member>()` | the member's number type | take nothing, return a number |
 | `find_by_<member>(value)` | `T?`, the first element whose member equals `value` | return something comparable to `value` |
 | `sort_by_<member>()` | `List<T>`, sorted ascending, stable, in `n log n` time | return a number or a `String` |
-| `map_<member>()` | `List<U>`, one value per element | return a value |
+| `map_<members>()` | `List<U>`, one value per element | return a value |
 | `each_<member>()` | nothing: calls it on every element | be a function that takes nothing; what it returns is discarded |
 | `remove_where_<member>()` | nothing: removes the elements where it is true, keeping the rest in order | take nothing, return `Boolean` |
 
@@ -478,7 +478,7 @@ func ListHelpers() {
     console.print("any done", any_done)
     var all_done = chores.all_done()
     console.print("all done", all_done)
-    var titles = chores.map_title()
+    var titles = chores.map_titles()
     crash titles[0]
     console.print("first title", titles[0])
     chores.each_finish()
@@ -621,7 +621,7 @@ func ChainedMembers() {
     var alex = Player("alex", 7)
     players.append(alex)
     var starting_with_a = players.filter_name_starts_with("a")
-    var names = starting_with_a.map_name()
+    var names = starting_with_a.map_names()
     var joined = names.join(", ")
     var with_n = players.count_name_contains("n")
     var best = players.sum_score()
@@ -799,10 +799,10 @@ A `Vector` and an `Items` take no passed function: their items are classes, borr
 
 ## Chains run as one loop
 
-Every template takes what the one before it gives, so they chain: `map_<member>()` turns a list of teams into a
+Every template takes what the one before it gives, so they chain: `map_<members>()` turns a list of teams into a
 list of their leads, `filter_<member>()` keeps some of them, and anything else finishes the chain. Read a chain
 as the separate steps it is written as (that is what it means), but the compiler runs it as **one loop over
-the first list**, with no list in between: `teams.filter_active().map_lead().sum_age()` visits each team once,
+the first list**, with no list in between: `teams.filter_active().map_leads().sum_age()` visits each team once,
 reads its lead, and adds the age, allocating nothing.
 
 ```gdscript title=fused_chain/person.spite
@@ -832,9 +832,9 @@ func FusedChain() {
     var bob = Person(67)
     var bob_team = Team(false, bob)
     teams.append(bob_team)
-    var ages = teams.filter_active().map_lead().sum_age()
+    var ages = teams.filter_active().map_leads().sum_age()
     var active = teams.filter_active()
-    var leads = active.map_lead()
+    var leads = active.map_leads()
     var ages_step_by_step = leads.sum_age()
     console.print(ages, ages_step_by_step)
 }
@@ -843,7 +843,7 @@ func FusedChain() {
 34 34
 ```
 
-Only a call made directly on another template call is part of the chain: `active.map_lead()` above starts a new
+Only a call made directly on another template call is part of the chain: `active.map_leads()` above starts a new
 one, because `active` is a list the program named and kept. The steps in the middle are `map_` (to a member that
 is a class) and `filter_`; the last call can be any template, and a chain the compiler cannot write as one loop
 is run step by step, which means the same. The one visible difference is order: a member function in a fused
@@ -980,8 +980,8 @@ requires of a member is its **arity and its return type**, never whether it is s
 The templates, what each answers and what it requires of the member are [the table above](#member-templates-loops-you-do-not-write),
 which is normative; a `List<T>` of a class and a `Dictionary<T>` of a class answer all of them. These, together
 with `while` and the passed functions below, cover the cases a `for` loop covers elsewhere. This is why a list of
-components renders with nothing new in the language: `todos.map_render()` calls `render()` on every element and
-collects the results, exactly as `todos.map_title()` collects a field.
+components renders with nothing new in the language: `todos.map_renders()` calls `render()` on every element and
+collects the results, exactly as `todos.map_titles()` collects a field.
 
 A member that does not fit is a compile error naming the member, what it is, and what the template needs. Two
 of them name a fix: `count()` is only ever a collection's own size, so `count_<member>()` on a numeric member says
@@ -990,7 +990,7 @@ attribute says `'each_size': the member 'size' of 'Thing' is an Integer, but 'ea
 reading an attribute and discarding it does nothing`. `sort_by_` is stable (equal keys keep their order) and
 is a merge sort, so its time grows as `n log n`: it reads each key once, then merges runs of an index list, and
 makes the key list, two index lists and the result (`sort_by(f)` is the same template, and `Directory`'s
-`files()` and `folders()` sort through it; `conformance/stage6/sorting_many`).
+`entries()` sorts the names through it; `conformance/stage6/sorting_many`).
 
 **How the templates are written.** They are templates in `library/list.spite`, each a `while` over the list's
 `Memory` buffer: `func filter_member(member: Spite.Attribute<$element_type>): List<$element_type>` answers every
@@ -1088,7 +1088,7 @@ The caller's function is passed as a bound function value, owned by whoever it i
   member named `<name>` that is also a value of such an enum: an error naming both, since which one is read must
   not depend on what else the class declares.
 - **No helper answers one kind of a listing.** A function that answers the part of a listing of one kind, such as
-  `Directory.files()` or `Directory.folders()`, would be a second way to write `entries().filter_<kind>()`, so there
+  `Directory.files()` or `Directory.folders()`, would be a second way to write `entries().filter_files()`, so there
   is none.
 - **Tree shaking and run time.** Resolved while compiling; nothing exists at run time that a `Boolean` member's
   template would not have, and an enum no template reads costs nothing.
@@ -1146,7 +1146,7 @@ it: `Dictionary<T>` stays the one spelling.
   removing code that made some class be described would change what compiled
   (`conformance/stage6/debug_dictionary_keys`).
   The same holds for the member templates a build compiles only so the prompt can call them (a `--repl`,
-  `--repl-port` or `--hot-reload` build, [below](#how-the-member-templates-are-written)): `map_<member>` over a
+  `--repl-port` or `--hot-reload` build, [below](#how-the-member-templates-are-written)): `map_<members>` over a
   dictionary attribute appends it to the one `List<Dictionary<String>>` of the program, so each such template would
   tie every dictionary attribute of every listed class together, and a `--hot-reload` build of a large game would
   fail with a kind its `--optimized` build never had. A template kept for the prompt neither ties dictionaries nor
