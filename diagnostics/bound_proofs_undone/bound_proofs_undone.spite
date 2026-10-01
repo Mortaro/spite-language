@@ -16,7 +16,7 @@ func BoundProofsUndone() {
         index = index + 1
     }
     var ages = Dictionary<Integer>()
-    ages.set(3, 36)
+    ages[3] = 36
     var known = ages.count()
     var key = 0
     while key < known {

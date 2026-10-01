@@ -5,7 +5,7 @@ func ConstructorAsArgument() {
     var screen = Screen()
     var button = screen.add(CounterButton(screen.id))
     var label = Label(Font())
-    buffers.set("names", List<String>())
+    buffers["names"] = List<String>()
     label = relabel(Label(Font()))
     console.print("{relabel(Label(Font())).size} points", button)
     checked(screen)
