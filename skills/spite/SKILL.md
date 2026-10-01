@@ -14,6 +14,22 @@ The whole language, every rule the compiler enforces and the habits from other l
 it lists costs a compile round trip to rediscover. The full documentation is
 [docs/](https://github.com/Mortaro/spite-language/blob/master/docs/README.md).
 
+## How to iterate
+
+Do not rebuild the program for every change. Start it once, live, and let saves swap in:
+
+1. `spite game --hot-reload --repl-port=4000` builds and runs it; leave it running.
+2. Edit and save a file. Send `spite connect 4000 --command="wait_reload"`: it answers once the save is compiled
+   and swapped in (or refused, with the error), so never poll or restart. Objects and singletons keep their values.
+3. Ask the running program instead of adding prints: any value by its path (`hero.health`), `describe Hero`,
+   `enums`, `memory`; `eval <expression>` and `run <statement>` try code in the program as it runs.
+4. Debug in place: `break hero.spite:42`, then `where`, `locals` and `continue`.
+5. A save that renames an attribute is held, never guessed: answer it with
+   `reload {Hero.attributes['level']: "rank"}` (or `reload {}` to drop the old value).
+
+Use `spite game --run=false` only to check a whole program compiles (before a commit, or with the program not
+running), and `--optimized` only to measure: a `--hot-reload` build is slower by design.
+
 ## The loop
 
 1. Write the plain, readable version. Do not hand-optimise: the compiler fuses chains, specialises generics,
