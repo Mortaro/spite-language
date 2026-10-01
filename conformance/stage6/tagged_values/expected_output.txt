@@ -1,0 +1,4 @@
+3 40000000000 0.5 true high
+integer 3 long object boolean object
+first doubled 6
+3 'high' Crate { size: 2 }

@@ -851,6 +851,60 @@ if grep -q "spite_class_object_" "$work/walked_class.c"; then
   echo "FAILED: walked_class_fold should compare classes without making a Spite.Class object"; exit 1
 fi
 echo "class comparisons: a class known while compiling is compared by its id, with no class object made"
+# A function taking a type is compiled once per class that reaches it (docs/optimizations.md): shape_copies passes a
+# Gadget, 42, true and an enum value to describe(item: Printable), which calls kind_of(item: Anything), and reads
+# values back from a List<Anything>. The production C holds a copy per class, no general version of either function,
+# no box for a plain value passed straight to them, and a kind_of that tests the class of a value read at run time.
+copies="$work/shape_copies.c"
+"$work/generation_two.exe" conformance/stage6/shape_copies --run=false --c-source --c-path="$copies" > /dev/null 2>&1 || {
+  echo "FAILED: shape_copies does not write its C"; exit 1; }
+if ! grep -q "^SpiteString ShapeCopies_describe___for_0_Integer(ShapeCopies\* self, int32_t item_) {$" "$copies" \
+   || ! grep -q "^SpiteString ShapeCopies_kind_of___for_0_Level_Level(ShapeCopies\* self, Level_Level item_) {$" "$copies" \
+   || ! grep -q "= ShapeCopies_describe___for_0_Boolean(self, true);$" "$copies" \
+   || grep -q "___general" "$copies" || grep -q "ShapeCopies_describe(ShapeCopies\* self, Console_Printable" "$copies" \
+   || grep -qE "spite_box_Spite(Integer|Boolean)\((42|true)\)|spite_box_Level_Level\(" "$copies" \
+   || ! grep -q "^SpiteString ShapeCopies_kind_of(ShapeCopies\* self, Nothing_Anything item_) {$" "$copies"; then
+  echo "FAILED: shape_copies should call a copy of each function per class, with no general version and no box"; exit 1
+fi
+"$work/generation_two.exe" conformance/stage6/shape_copies --run=false --hot-reload --c-source --c-path="$work/shape_copies_hot.c" > /dev/null 2>&1 || {
+  echo "FAILED: shape_copies does not write its --hot-reload C"; exit 1; }
+if grep -q "___for_0_" "$work/shape_copies_hot.c"; then
+  echo "FAILED: a --hot-reload build should compile a function taking a type as written, with no copies"; exit 1
+fi
+echo "shape copies: a function taking a type is compiled per class, with no general version and no box, except in a --hot-reload build"
+# A number, Boolean or enum value held as a type without attributes is a tagged value, never a box
+# (docs/optimizations.md): tagged_values prints numbers, stores them in a List<Anything> and debugs an enum value,
+# and its production C calls no box maker for any of them; only text made at run time is boxed.
+tagged="$work/tagged_values.c"
+"$work/generation_two.exe" conformance/stage6/tagged_values --run=false --c-source --c-path="$tagged" > /dev/null 2>&1 || {
+  echo "FAILED: tagged_values does not write its C"; exit 1; }
+if grep -qE "spite_box_(Spite(Integer|Long|Double|Float|Boolean)|TaggedValues_Level)\(" "$tagged" \
+   || ! grep -q "^typedef SpiteTagged Nothing_Anything;$" "$tagged" \
+   || ! grep -q "List_Nothing_Anything_append(held_, spite_tagged_SpiteLong(total_));" "$tagged"; then
+  echo "FAILED: tagged_values should hold its numbers and enum values tagged, with no box"; exit 1
+fi
+echo "tagged values: a number, Boolean or enum value held as a type is tagged in place, never boxed"
+# A parameter typed Number takes operators (docs/values_and_types.md#every-number-fits-number): number_parameter
+# passes an Integer, a Float and values read from a List<Number> to doubled(value: Number), whose 'value + value'
+# is plain arithmetic in a copy per class. The production C holds those copies (none for a class that never reaches
+# them), a switch over the classes the program gives Number for a value read at run time, and no general version,
+# operator dispatch or box; a --hot-reload build
+# compiles the function as written, its operator a switch over the classes that fit Number.
+numbers="$work/number_parameter.c"
+"$work/generation_two.exe" conformance/stage6/number_parameter --run=false --c-source --c-path="$numbers" > /dev/null 2>&1 || {
+  echo "FAILED: number_parameter does not write its C"; exit 1; }
+if ! grep -q "^Number_Number NumberParameter_doubled___for_0_Integer(NumberParameter\* self, int32_t value_) {$" "$numbers" \
+   || ! grep -q "^Number_Number NumberParameter_larger___for_0_Float_1_Float(NumberParameter\* self, float first_, float second_) {$" "$numbers" \
+   || ! grep -q "^switch ((value_).tag) {$" "$numbers" \
+   || grep -qE "___general|___operate_|spite_box_|spite_operand_misfit|___for_0_(Double|Short|Byte)" "$numbers"; then
+  echo "FAILED: number_parameter should compile doubled and larger per number class, with no general version and no box"; exit 1
+fi
+"$work/generation_two.exe" conformance/stage6/number_parameter --run=false --hot-reload --c-source --c-path="$work/number_parameter_hot.c" > /dev/null 2>&1 || {
+  echo "FAILED: number_parameter does not write its --hot-reload C"; exit 1; }
+if grep -q "___for_0_" "$work/number_parameter_hot.c" || ! grep -q "^Number_Number Number_Number___operate_add(" "$work/number_parameter_hot.c"; then
+  echo "FAILED: a --hot-reload build should compile doubled as written, its '+' a switch over the classes that fit Number"; exit 1
+fi
+echo "number parameters: a function taking Number is compiled per number class, its operators plain arithmetic"
 # A loop over a list of plain values that cannot change its size reads the count once and its items without a range
 # check (docs/optimizations.md): counted_loops' scale_in_place is a plain C loop the C compiler can vectorise, and
 # scale_into checks the list it writes once, before the loop; add_from, whose counter starts at a parameter, is not.

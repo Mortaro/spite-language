@@ -543,7 +543,7 @@ same function called from the REPL on an `Anything` still writes JSON, through t
 
 1. Template parameters are spelled **`Spite.Attribute<Monster>`**; there is no separate `Symbol` idea.
 2. **A class and a namespace with the same dotted name is a compile error.**
-3. **`function.call_with(arguments.map(made))` is accepted** for spreading a walk into one call (item 98). D343
+3. **`function.call_with(arguments.map(made))` is accepted** for spreading a walk into one call (item 98). D346
    then removed `map(function)`, so the argument awaits a spelling.
 4. **"Every folder named X, at any depth" is an explicit filter** over `Spite.Namespace.instances`.
 5. **No names built by interpolation**: a symbol is not a string. Selection is by filter over the names that exist,
@@ -616,7 +616,7 @@ Mechanical once the compiler accepts both forms.
    the writer selects the `json_key_` functions and needs one that pairs with the attribute. `find_by_suffix(name)`
    as above, or should the override move off names (a function taking the attribute, `json_key(attribute)`)?
 2. **Predicates in the plural rule.** Settled by Mortaro on 2026-09-30: `map_` over a predicate is an error
-   pointing at `filter_`, `count_` and `any_`/`all_`, and there is no `List.map(function)` at all (D343). The
+   pointing at `filter_`, `count_` and `any_`/`all_`, and there is no `List.map(function)` at all (D346). The
    walks above collect with `each` into a list; `call_with(arguments.map(made))` awaits a spelling.
 3. ~~Reflection objects answering their name's text functions~~: answered by Mortaro (D318). They do not; the
    member template chains through the member instead, `functions.filter_name_ends_with("_each")`.

@@ -26,7 +26,7 @@ Fifth pass, 2026-09-30: 109's first half by D335 (narrowed to the runner's marke
 rows pending: 213 (the default build compiles fastest; hot builds compile
 like it, reversing D299's `-O3`, so D299 leaves 239; run-speed-only passes are skipped unless measured to speed up
 the whole build), 153 (no `--` separator; settings kebab on the command line, snake in code; a name colliding with
-a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242. 155 by D336. 228 by D343.
+a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242. 155 by D336. 228 by D346.
 
 ## Confirm quickly
 
