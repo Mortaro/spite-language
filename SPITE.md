@@ -122,6 +122,8 @@ shouldn't." `DLL` became `DynamicLibrary`; `Library` was rejected separately for
 *Except:* a well-known acronym followed by a full word that carries the meaning, as in `HttpClient`. An acronym is
 not an abbreviation, and it reads better than its expansion: most people know HTTP, few know what it stands for.
 The acronym is written as a word (`Http`, not `HTTP`).
+*Also except:* the axis names `x`, `y`, `z` and `w`, which are the names and not abbreviations of anything, are
+allowed everywhere (D370).
 
 **Vague names.** `add` does not say where, so it is `append` and `prepend`. A name should not need a comment to
 disambiguate it.
