@@ -19,10 +19,8 @@ D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330, 208 by D33
 Fourth pass, 2026-09-30, by the principles (the moron, anyone who uses Spite, never has to decide, so "leave it
 to the moron" is never an answer; everything monomorphizes; get-only attributes; renames by map; REPL and hot-reload
 builds favour information over speed): answered 2026-09-30, rows pending: 225 (same-package pins are two loads in
-load order), 234 (identical code folded by the compiler), 202 and 204 (confirmed as proposed,
-maths constants as get-only attributes such as `Float.pi`), 205 (`x`, `y`, `z`, `w`), 166's names
-(`FileSystemWatcher()`, `watch_for_changes(Directory or File)`). 79 by D322's principle (the REPL shows the fuller
-`to_debug()`). Narrowed: 161. Moved to "Confirm quickly": 166 (quiet period only), 197, 212, 215.
+load order), 234 (identical code folded by the compiler), 205 (`x`, `y`, `z`, `w`). 166's names by D338. 79 by D322's principle (the REPL shows the fuller
+`to_debug()`). 202 and 204 by D339. Narrowed: 161. Moved to "Confirm quickly": 166 (quiet period only), 197, 212, 215.
 
 Fifth pass, 2026-09-30: 109's first half by D335 (narrowed to the runner's markers), 225 by D334. Answered,
 rows pending: 228 (`map_` over a predicate is an error pointing at `filter_`/`count_`/`any_`/`all_`; class-qualified

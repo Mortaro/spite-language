@@ -428,7 +428,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   mapping (`mmap`) is held to compiling only; only Windows runs.
 
 ### Watch files and folders
-- The `Watcher` name and members are proposed, unconfirmed (mortaros_missing_decisions.md asks for the final name).
+- `watch_for_changes(target: Directory or File)` is declared over a union of the two classes in the watcher's own
+  file (`FileSystemWatcher.Target`), since the compiler has no inline union type; it becomes `Directory or File`
+  when that exists. The quiet period is still open (mortaros_missing_decisions.md 166).
 - Linux (`inotify`) and macOS (`kqueue`) watchers are held to compiling by check.sh; only Windows runs.
 
 ### Run a process
@@ -499,7 +501,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Not built, removed from the page (migration to do when it lands): remove `Directory.files()` and
   `Directory.folders()` and move their callers to `entries().filter_files()` / `filter_folders()`: the compiler's
   discovery in `bootstrap/source/discovery/program_discovery.spite` and `git_load.spite`,
-  `library/linux/watcher.spite`, `library/mac/watcher.spite`, `scripts/docs_corpus`, and the example under "List a
+  `library/linux/file_system_watcher.spite`, `library/mac/file_system_watcher.spite`, `scripts/docs_corpus`, and the example under "List a
   directory" in standard_library.md.
 - Open question for Mortaro: `Spite.Namespace`'s `.classes` and `.namespaces` have the same shape (one node's
   children split by kind) and may get the same treatment; undecided.
@@ -738,7 +740,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Identical functions are folded into one
 
-- Built (D296, D338). Proposed by Claude, unconfirmed: the normalisation details (layout equality by attribute order and type, numbered temporaries, texts by content, a site shared by two versions or instances reporting the first one met); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values; no folding in `--hot-reload` builds and the REPL.
+- Built (D296, D340). Proposed by Claude, unconfirmed: the normalisation details (layout equality by attribute order and type, numbered temporaries, texts by content, a site shared by two versions or instances reporting the first one met); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values; no folding in `--hot-reload` builds and the REPL.
 - Not folded yet: a function that differs only in which class of another layout it passes around by reference (a `List<A>` and a `List<B>` of two unrelated classes whose items are only retained and released); a boxed text constant (`spite_lit_N_box`) compares by its name, not its text; a site of a foreign callback still writes its place into the function.
 
 ### Other optimisations

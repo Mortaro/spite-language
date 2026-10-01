@@ -227,10 +227,11 @@ have `absolute()`, `minimum(other)`, `maximum(other)` and `clamp(low, high)`. Ea
 library's function written where it is called (`sqrtf` on a `Float`, `sqrt` on a `Double`), with no call of
 Spite's own around it.
 
-A number class also answers its constants on the class itself, `Float.pi()`, since they belong to no one value:
-`pi()`, `tau()`, `euler_number()`, `infinity()`, `not_a_number()`, `largest()` and `smallest()` on `Float` and `Double`, and
-`largest()` and `smallest()` on every whole number. `Integer.largest()` is 2147483647 and `Float.smallest()` the
-most negative `Float` there is.
+A number class also answers its constants on the class itself, `Float.pi`, since they belong to no one value:
+`pi`, `tau`, `euler_number`, `infinity`, `not_a_number`, `largest` and `smallest` on `Float` and `Double`, and
+`largest` and `smallest` on every whole number. `Integer.largest` is 2147483647 and `Float.smallest` the
+most negative `Float` there is. A constant is a get-only attribute of the class: it is read without parentheses,
+and nothing can assign it.
 
 ```gdscript title=maths_basics/maths_basics.spite entry
 var console = Console()
@@ -238,7 +239,7 @@ var console = Console()
 func MathsBasics() {
     var side: Double = 2.0
     var diagonal = side.square_root()
-    console.print("{diagonal} {Float.pi()} {Double.pi()}")
+    console.print("{diagonal} {Float.pi} {Double.pi}")
     var speed = 7.5
     var capped = speed.clamp(0.0, 5.0)
     var ahead = speed.round()
@@ -246,7 +247,7 @@ func MathsBasics() {
     console.print("{capped} {ahead} {behind.round()} {behind.floor()} {behind.absolute()}")
     var negative = -1.0
     var root = negative.square_root()
-    console.print("{root} {root.is_not_a_number()} {Integer.largest()}")
+    console.print("{root} {root.is_not_a_number()} {Integer.largest}")
 }
 ```
 ```output
@@ -1054,7 +1055,10 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
 - **The maths functions and the constants are members of the number classes** ([the teaching above](#maths-functions)).
   Which there are, what each answers at its edges and how each is lowered is
   [standard_library.md](standard_library.md#maths)'s, their one home. A constant is answered only by
-  the class: `angle.pi()` is "'pi()' is a constant of the class Float, not of a value: write 'Float.pi()'", and a
+  the class: `angle.pi` is "'pi' is a constant of the class Float, not of a value: write 'Float.pi'". A constant
+  is a get-only attribute: `Float.pi()` is "'Float.pi' is a constant, read as an attribute and never called: write
+  'Float.pi'", and `Float.pi = 3.0` is "'Float.pi' is a constant, and a constant is get-only: nothing can assign
+  it" (`diagnostics/maths_constant_assigned`). A
   function of a value called on the class, `Float.square_root()`, names the constants the class answers
   (`diagnostics/maths_constant_on_value`). The short names other languages use are errors naming the Spite one:
   `side.sqrt()` is "Float has no function 'sqrt': Spite spells it 'square_root', since no name is abbreviated"

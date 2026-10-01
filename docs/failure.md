@@ -1549,7 +1549,7 @@ it runs records, and a path there is reported only when it is a bare name, so no
 did not prove readable. **A call is never evaluated twice:** a call whose answer is reported is kept, as the
 condition runs, in a local beside a flag saying it ran, and the report reads the local; a call answering an object
 it owns hands it to that local, which releases it after the check. A call that is the whole condition, or its
-`not`, is not reported, since its answer is what failed. A name that is a class or a namespace (`Math.pi()`'s
+`not`, is not reported, since its answer is what failed. A name that is a class or a namespace (`Math.pi`'s
 `Math`) is not a value and is left out. **Cost:** the report is written only when the crash fires; on the passing
 path, a condition with a reported call inside it stores the call's answer and a flag, and one with a skippable side
 stores a flag (stores into locals that only the failure branch reads, which the C compiler keeps in registers or

@@ -717,7 +717,7 @@ echo "crash reports: a crash while a pool thread keeps failing asserts reports t
 job_production_c() {
 "$work/generation_two.exe" examples/hello --run=false --c-source --c-path="$work/hello_shaken.c" > /dev/null 2>&1 || {
   echo "FAILED: examples/hello does not write its C"; exit 1; }
-if grep -qE "struct (Watcher|Socket|Process|HotReload|ThreadPool|Scheduler|ForeignCallback) \{|(Watcher|Socket|ThreadPool|Scheduler)___allocate|spite_singleton_(ThreadPool|Scheduler)_cache|spite_callback_" "$work/hello_shaken.c"; then
+if grep -qE "struct (FileSystemWatcher|Socket|Process|HotReload|ThreadPool|Scheduler|ForeignCallback) \{|(FileSystemWatcher|Socket|ThreadPool|Scheduler)___allocate|spite_singleton_(ThreadPool|Scheduler)_cache|spite_callback_" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C still carries library classes it never uses"; exit 1
 fi
 # --debug-memory's table and the allocation counter are only in builds that read them (D177): hello allocates with

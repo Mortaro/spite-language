@@ -64,10 +64,10 @@ func test_trim_and_case() {
 
 func test_parsing_reads_a_sign_and_spaces_around_the_number() {
     crash " -12 ".to_integer() == -12 and "+7".to_integer() == 7
-    crash "9000000000".to_long() == 9000000000 and "-9223372036854775808".to_long() == Long.smallest()
+    crash "9000000000".to_long() == 9000000000 and "-9223372036854775808".to_long() == Long.smallest
     crash "2.5".to_double() == 2.5 and "-1.5e2".to_double() == -150.0 and ".5".to_float() == 0.5
     crash "255".to_byte() == 255 and "-128".to_tiny() == -128
-    crash "18446744073709551615".to_unsigned_long() == UnsignedLong.largest()
+    crash "18446744073709551615".to_unsigned_long() == UnsignedLong.largest
 }
 
 func test_pluralize_follows_english_rules() {
