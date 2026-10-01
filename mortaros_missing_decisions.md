@@ -14,8 +14,8 @@ Answered on 2026-09-30 and 2026-10-01 (rows in `design/decisions.md`): 5, 9 and 
 like any other, and D366 shows the winner), 98, 99, 100, 108, 109 (D362, D363), 153 (D342), 155 (D336), 166
 (D338, D347), 175 (D353), 183 (D358), 187, 188, 197 (D346), 202 and 204 (D339), 206, 208 (D332), 209 (D354), 210
 (D357), 212 (D348), 214 (D356), 215 (D349), 216 (D327), 217 (D359, D360), 218, 222 (D351), 223, 224 (D330), 225
-(D334), 227 (D320, D329), 229 (D318), 230 (D319), 231 (D321), 232 (D322), 234 (D340), 240 (D365), 245 (D367), 247 (D364); 6's
-question 10 (D366). Answered, row pending: 228 (`map_` over a predicate is an error), 213 (the default build
+(D334), 227 (D320, D329), 229 (D318), 230 (D319), 231 (D321), 232 (D322), 234 (D340), 240 (D365), 245 (D367), 247 (D364); 6 (D366,
+D368). Answered, row pending: 228 (`map_` over a predicate is an error), 213 (the default build
 compiles fastest), 205's spelling (`x`, `y`, `z`, `w`). Pass of 2026-10-01 (after D366): 90 removed; 93 merged
 into 233; 134, 138, 171, 173, 178, 179, 211, 220, 221, 233, 236, 246 and 249 moved to "Confirm quickly"; 242
 extended.
@@ -52,8 +52,6 @@ Each has the one answer the principles imply. Yes, or reopen.
 
 235. **Testing a `Boolean?` for presence**: today only `== true` or a `switch`. Options: (a) `flag != null` on a
      `Boolean?` only; (b) `switch` only; (c) `assert flag`. Recommend (a). Blocks nothing.
-6. **Open question 11** ([open_questions.md](design/open_questions.md#open-questions)): are a `type`'s functions
-   written as function-valued attributes? Blocks nothing.
 105. **A root class a nearer one shadows**: a root qualifier (`Root.Plugin`), or fall through only for a
      self-reference? Recommend fall through for a self-reference. Blocks nothing yet.
 161. **An enum reopening's values** are appended in merge order, so a program's come before a loaded package's.
