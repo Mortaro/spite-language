@@ -1,0 +1,66 @@
+var console = Console()
+var clock = Clock()
+var rounds = 20000000
+var held_total = 1000
+
+func ShapeCalls() {
+    var gadget = Gadget(2)
+    var start = clock.elapsed_milliseconds()
+    var known_total = weigh_known(gadget)
+    var known = clock.elapsed_milliseconds()
+    var held = List<Anything>()
+    fill(held, gadget)
+    var filled = clock.elapsed_milliseconds()
+    var read_total = weigh_held(held)
+    var read = clock.elapsed_milliseconds()
+    var known_time = known - start
+    var read_time = read - filled
+    console.print("ms: class known while compiling", known_time, "class read at run time", read_time)
+    console.print("totals", known_total, read_total)
+}
+
+func weigh_known(gadget: Gadget): Long {
+    var total: Long = 0
+    var index = 0
+    while index < rounds {
+        var number_weight = weigh(index)
+        var gadget_weight = weigh(gadget)
+        total = total + number_weight + gadget_weight
+        index = index + 1
+    }
+    return total
+}
+
+func fill(held: List<Anything>, gadget: Gadget) {
+    var index = 0
+    while index < held_total {
+        held.append(gadget)
+        held.append(index)
+        index = index + 1
+    }
+}
+
+func weigh_held(held: List<Anything>): Long {
+    var total: Long = 0
+    var round = 0
+    while round < rounds / held_total {
+        var index = 0
+        while index < held.count() {
+            var weight = weigh(held[index])
+            total = total + weight
+            index = index + 1
+        }
+        round = round + 1
+    }
+    return total
+}
+
+func weigh(item: Anything): Integer {
+    if item == Gadget {
+        return item.weight
+    }
+    if item == Integer {
+        return item % 7
+    }
+    return 1
+}

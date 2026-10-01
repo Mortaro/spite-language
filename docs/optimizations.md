@@ -47,7 +47,8 @@ emit nothing.
 | [Singletons: made on first use, never counted](#singletons-made-on-first-use-never-counted) | every | the constructor runs at first use |
 | [Singletons that hold nothing are static objects](#singletons-that-hold-nothing-are-static-objects) | production | one allocation fewer each; not in `.instances` |
 | [Atomic reference counts only with threads](#atomic-reference-counts-only-with-threads) | every, decided per program | nothing |
-| [Boxing only where a value travels as a shape](#boxing-only-where-a-value-travels-as-a-shape) | every | one allocation per boxed value |
+| [A function taking a `type` is compiled per class](#a-function-taking-a-type-is-compiled-per-class) | every but `--repl`, `--repl-port`, `--hot-reload` | no box for a value passed to it; direct calls; a copy per class |
+| [Boxing only where a value travels as a shape](#boxing-only-where-a-value-travels-as-a-shape) | every | numbers, `Boolean` and enum values are never boxed; one allocation per boxed text |
 | [Concurrency machinery only where it is used](#concurrency-machinery-only-where-it-is-used) | every, decided per program | nothing |
 | [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | every, in programs that make a `Concurrent` | one heap frame per waiting call; a wait inside an expression runs first |
 | [Reads in a row overlap](#reads-in-a-row-overlap) | every | the reads happen at once; the program carries the scheduler |
@@ -585,20 +586,50 @@ object between threads: one that makes a `Concurrent` or a `Parallel` (reads in 
 **When.** Decided per program, from what it uses. **What you notice.** Nothing: the program that never starts a
 thread never pays for atomics.
 
+### A function taking a `type` is compiled per class
+
+**What it does.** A function whose parameter is a `type` (`Anything`, `Printable`, a shape of your own) is compiled
+once for each class that reaches it, following calls through the whole program. A call whose argument's class is
+known while compiling calls that class's copy, so a number, `Boolean` or enum value is passed as itself, every
+call through the parameter is a direct call, each class test on it is decided while compiling, and an operator on
+a parameter typed `Number` is the class's own arithmetic.
+A value whose class is known only at run time, read from a `List<Anything>` for example, is passed to the
+function's own name, which is a `switch` over the value's class among the closed set of classes the program admits
+to the `type`, calling the matching copy and unboxing a plain value on the way. The function as written is still
+compiled, under another name, so every mistake in it is reported, and
+[tree shaking](#tree-shaking-the-generated-c) drops it.
+
+**When.** Every build but `--repl`, `--repl-port` and `--hot-reload`, where a class the compiler has not seen may
+arrive later and the function is compiled as written. Not for a parameter the function assigns to, a `T?` of a
+`type`, a row of borrowed items passed to it, a function that waits, a value read at run time in a program that
+runs a `Concurrent` (it reaches the function as written), or the functions of `List`, `Dictionary` and the
+library's other containers, which store what they are given. Where the function as written runs, an operator on a
+value typed `Number` is a `switch` over the classes of both sides
+([values_and_types.md](values_and_types.md#every-number-fits-number)).
+
+**What you notice.** More functions in `--c-source`, named `<function>___for_<position>_<class>`, one per class that
+reaches it; a class that never does gets none.
+
 ### Boxing only where a value travels as a shape
 
 **What it does.** A number, `Boolean`, enum value, `Symbol` or `String` is a plain value everywhere the compiler can
-see its type. It is put in a box (one small object, released like any other) only where it has to travel as a `type`
-shape (a `Printable`, a `Debuggable`, an empty `type` that accepts anything) and be called through it. A written
-text's box is part of the program and allocates nothing ([short text](#short-text-lives-inside-the-string)). Class
-instances are objects already and are never boxed.
+see its type, including where it is passed to a function that takes a `type`
+([above](#a-function-taking-a-type-is-compiled-per-class)). A `type` that requires no attributes (`Anything`,
+`Printable`, `Debuggable`, a shape of functions only) holds its value in sixteen bytes: the class's id as a tag, and
+either the object or, for a number, `Boolean` or enum value, the value itself. So a number, `Boolean` or enum value
+is never boxed: it travels as a shape, in a `List<Anything>`, in `console.print`'s list or in `attribute.value`,
+with nothing allocated, and a call through the shape reaches its class's function with the plain value. Text and
+a `Symbol` are put in a box (one small object, released like any other) where they travel as a shape, since the
+sixteen bytes of a `String` do not fit beside a tag; a written text's box is part of the program and allocates
+nothing ([short text](#short-text-lives-inside-the-string)). Class instances are objects already and are never
+boxed.
 
-**When.** Passing a plain value where a shape is wanted, reading `attribute.value` of a number or text
-attribute, or a class test against a number class.
+**When.** A box: storing text or a `Symbol` where a shape is wanted (a list's element, an attribute, the list of a
+variadic call), and reading `attribute.value` of a text attribute.
 
-**What you notice.** One allocation per boxed value under `--debug-memory`. The visible cost: every value
-given to `console.print` is passed as a `Printable`, so printing a number boxes it; text made while the
-program runs is boxed too, since the sixteen bytes of a `String` are not an object.
+**What you notice.** Printing a number allocates nothing; text made while the program runs is boxed when it is
+printed. A `List` of a `type` without attributes holds sixteen bytes per element instead of an eight-byte
+pointer.
 
 ### A variadic list the callee only reads lives in the caller's frame
 
@@ -606,7 +637,7 @@ program runs is boxed too, since the sixteen bytes of a `String` are not an obje
 (`console.print(name, count)`), outside `and`/`or` and outside a function that waits, and the function called only
 reads its list (`count()`, `is_empty()`, `[index]`, `get_at`, `first`, `last`, `contains`, `join`, or passing it to a
 function of its own class that only reads it too), the list and its items are in the caller's frame: no allocation for
-the list or its items, and its elements (the boxes above) are released after the call. A function that stores,
+the list or its items, and its elements (the boxes of text above) are released after the call. A function that stores,
 returns, grows or passes on its list anywhere else gets a list on the heap as before, and so does a function of a
 `--hot-reload` build's own classes, which can be swapped.
 
@@ -1477,8 +1508,7 @@ text (`conformance/stage6/text_building` went from 35 to 31, `singleton_counts` 
 text made while the program runs answers `'stack'` when the text is short and held in a local (`'heap'` when it is
 read from an attribute, where the value lives in its object) and `'heap'` when it is long; written text is
 `'constant'`, as before. Text passed where a `type` shape is wanted (a `Printable` given to `console.print`,
-`attribute.value`) is put in a box, one allocation, as a number is (written text has a box in the program and
-allocates nothing) ([below](#boxing-only-where-a-value-travels-as-a-shape)). A `List<String>` holds sixteen bytes
+`attribute.value`) is put in a box, one allocation (written text has a box in the program and allocates nothing) ([below](#boxing-only-where-a-value-travels-as-a-shape)). A `List<String>` holds sixteen bytes
 per element instead of an eight-byte pointer. Speed: `benchmarks/dictionary_keys` allocates 1 032 times instead of
 1 104 014, `text_building` 165 instead of 800 227 and `reflection_walks` 3 999 918 instead of 7 596 024, and each
 is 15-25% faster; a game engine's `stress` allocates 5.6 million times instead of 7.2. The cost that remains: a

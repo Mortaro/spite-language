@@ -154,6 +154,18 @@ var described_lock_emitted = false
 var development = false
 var keeps_internals = false
 var hot_reload = false
+var in_specialised_copy = false
+var dispatched_names = Dictionary<Boolean>()
+var dispatched_owners = List<Analysis.ClassInfo>()
+var dispatched_functions = List<Analysis.FunctionInfo>()
+var dispatched_positions = List<Integer>()
+var dispatched_texts = List<String>()
+var shape_operator_names = Dictionary<Boolean>()
+var shape_operator_unions = List<Analysis.UnionInfo>()
+var shape_operator_operators = List<Syntax.Expressions.BinaryOperator>()
+var shape_operator_positions = List<Integer>()
+var shape_operator_texts = List<String>()
+var operand_checks_written = false
 var debug_memory = false
 var hot_reload_compiler = ""
 var hot_reload_arguments = ""
@@ -368,6 +380,7 @@ var placed_frames = List<String>()
 var placed_receiver_names = List<String>()
 var placed_receiver_codes = List<String>()
 var boxed_value_types = Dictionary<Analysis.SpiteType>()
+var tagged_makers = Dictionary<Boolean>()
 var constant_boxes = List<String>()
 var box_release_emitted = false
 var union_release_positions = Dictionary<Integer>()
@@ -909,6 +922,9 @@ func generate(
         emit_attribute_object_bodies()
         emit_pending_functions()
     }
+    while emit_late_shape_callers() > 0 {
+        emit_pending_functions()
+    }
     refresh_union_releases()
     finish_wait_questions()
     if parallel_used {
@@ -1180,6 +1196,13 @@ func constant_condition(
                     return counted
                 }
                 if binary.operator == 'equal' or binary.operator == 'not_equal' {
+                    var copied_same = copied_class_is(binary.left, binary.right, scope, class_information)
+                    if copied_same == true {
+                        return binary.operator == 'equal'
+                    }
+                    if copied_same == false {
+                        return binary.operator == 'not_equal'
+                    }
                     var walked_same = walked_class_is(binary.left, binary.right, class_information)
                     if walked_same == true {
                         return binary.operator == 'equal'
@@ -1226,6 +1249,25 @@ func constant_condition(
         }
     }
     return null
+}
+
+func copied_class_is(
+    left: Syntax.Expressions.Expression,
+    right: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
+    assert in_specialised_copy
+    var named = shape.as_identifier(left)
+    assert named
+    var value_type = scope.lookup_type(named.name)
+    assert value_type
+    assert not type_shape.as_nullable(value_type) and not type_shape.as_union(value_type)
+    var tested = resolve_tested_class(right, class_information)
+    assert tested
+    var reaching = reaching_class_of(value_type)
+    assert reaching
+    return reaching.c_name == tested.c_name
 }
 
 func function_question(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Boolean? {
@@ -3258,6 +3300,7 @@ func register_shapes(entry: Discovery.DiscoveredClass) {
             )
             information.is_shape = true
             information.shape_fields = declaration.fields
+            information.is_tagged = not declaration.fields.any(is_attribute_field)
             information.shape_path = file.path
             var reopened = shape_position(information.c_name)
             if reopened < 0 {
@@ -3647,7 +3690,8 @@ func shape_member_function(member: Analysis.ClassInfo, name: String): Analysis.F
 }
 
 func emit_late_shape_callers(): Integer {
-    var emitted = 0
+    var emitted = emit_dispatchers()
+    emitted = emitted + emit_shape_operators()
     var index = 0
     while index < unions.count() {
         var information = unions[index]
@@ -3679,14 +3723,12 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
         var member_index = 0
         while member_index < information.members.count() {
             var member = information.members[member_index]
-            var receiver = "({member.c_name}*)self"
-            if boxed_value_types.has(member.c_name) {
-                receiver = "((SpiteBox_{member.c_name}*)self)->value"
-            }
+            var shape_type = union_type_of(information)
+            var receiver = member_value_code("self", shape_type, member)
             var called_function = shape_member_function(member, name)
             crash called_function
             var call = "{called_function.c_name}({receiver}{passed})"
-            var member_test = class_id_test("self", member)
+            var member_test = value_class_test("self", shape_type, member)
             if type_shape.is_void(return_type) {
                 lines.append("if {member_test} \{ {call}; return; }")
             } else {
@@ -3700,9 +3742,10 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
             lines.append(release_line)
             index = index + 1
         }
-        if not type_shape.is_void(return_type) {
-            lines.append("return {default_value_for_type(return_type)};")
-        }
+        lines.append(
+            "fputs(\"spite.crash\\t{information.simple_name}.{name} was called on a value of a class it was not compiled for\\n\", stderr);",
+        )
+        lines.append("abort();")
         lines.append("}")
         var joined_lines = lines.join("\n")
         note_union_slot(information, "'s call of {name}")
@@ -3805,7 +3848,9 @@ func emit_union_class_of_bodies() {
                     crash boxed_value_types[member.c_name]
                     class_type = boxed_value_types[member.c_name]
                 }
-                lines.append("if {class_id_test("self", member)} return {class_object_call(class_type)};")
+                var owner_type = union_type_of(information)
+                var tested_member = value_class_test("self", owner_type, member)
+                lines.append("if {tested_member} return {class_object_call(class_type)};")
                 member_index = member_index + 1
             }
             lines.append(
@@ -3844,6 +3889,25 @@ func union_release_text(information: Analysis.UnionInfo): String {
     var name = information.c_name
     var release_lines = List<String>()
     release_lines.append("void {name}___release({name} self) \{")
+    if information.is_tagged {
+        release_lines.append("if (self.plain != 0 || self.value.object == 0) return;")
+        var tagged_index = 0
+        while tagged_index < information.members.count() {
+            var tagged_member = information.members[tagged_index]
+            if not is_plain_member(tagged_member) {
+                var released_object = "{tagged_member.c_name}___release(({tagged_member.c_name}*)self.value.object)"
+                if tagged_member.c_name == "SpiteString" {
+                    released_object = "spite_string_box_release(self.value.object)"
+                } else if boxed_value_types.has(tagged_member.c_name) {
+                    released_object = "spite_box_release(self.value.object)"
+                }
+                release_lines.append("if {tagged_member_test("self", tagged_member)} \{ {released_object}; return; }")
+            }
+            tagged_index = tagged_index + 1
+        }
+        release_lines.append("}")
+        return release_lines.join("\n")
+    }
     release_lines.append("if (self == 0) return;")
     var member_index = 0
     while member_index < information.members.count() {
@@ -4091,6 +4155,9 @@ func generate_object_literal(
 }
 
 func shape_default(information: Analysis.UnionInfo): String {
+    if information.is_tagged {
+        return "SPITE_TAGGED_NULL"
+    }
     var names = List<String>()
     var types = List<Analysis.SpiteType>()
     var label = "Object"
@@ -4207,6 +4274,159 @@ func class_type_of(information: Analysis.ClassInfo): Analysis.SpiteType {
     return resolved
 }
 
+func is_attribute_field(field: Syntax.Statements.FieldDeclaration): Boolean {
+    return not field.is_function
+}
+
+func tagged_shape_of(spite_type: Analysis.SpiteType): Analysis.UnionInfo? {
+    var inner = expected_type_without_nullable(spite_type)
+    var union_type = type_shape.as_union(inner)
+    assert union_type
+    var information = find_union_by_c_name(union_type.c_name)
+    assert information
+    assert information.is_tagged
+    return information
+}
+
+func is_plain_member(member: Analysis.ClassInfo): Boolean {
+    if member.c_name == "SpiteString" or not boxed_value_types.has(member.c_name) {
+        return false
+    }
+    crash boxed_value_types[member.c_name]
+    return is_tagged_in_place(boxed_value_types[member.c_name])
+}
+
+func value_class_test(code: String, value_type: Analysis.SpiteType, member: Analysis.ClassInfo): String {
+    var tagged = tagged_shape_of(value_type)
+    if tagged {
+        return tagged_member_test(code, member)
+    }
+    return class_id_test(code, member)
+}
+
+func tagged_member_test(code: String, member: Analysis.ClassInfo): String {
+    if member.c_name == "SpiteString" {
+        return "((({code}).tag == 0) && (({code}).plain == 0))"
+    }
+    return "(({code}).tag == {member.class_id})"
+}
+
+func member_value_code(code: String, value_type: Analysis.SpiteType, member: Analysis.ClassInfo): String {
+    var tagged = tagged_shape_of(value_type)
+    if not tagged {
+        if boxed_value_types.has(member.c_name) {
+            return "(((SpiteBox_{member.c_name}*)({code}))->value)"
+        }
+        var class_type = instance_type_of(member)
+        return "(({c_type_name(class_type)})({code}))"
+    }
+    if is_plain_member(member) {
+        crash boxed_value_types[member.c_name]
+        var plain_c_type = c_type_name(boxed_value_types[member.c_name])
+        return "SPITE_TAGGED_VALUE({code}, {plain_c_type})"
+    }
+    if boxed_value_types.has(member.c_name) {
+        return "(((SpiteBox_{member.c_name}*)({code}).value.object)->value)"
+    }
+    var object_type = instance_type_of(member)
+    return "(({c_type_name(object_type)})({code}).value.object)"
+}
+
+func object_pointer_code(code: String, value_type: Analysis.SpiteType): String {
+    var tagged = tagged_shape_of(value_type)
+    if tagged {
+        return "({code}).value.object"
+    }
+    return code
+}
+
+func tagged_value(code: String, from: Analysis.SpiteType, information: Analysis.UnionInfo): String {
+    var from_tagged = tagged_shape_of(from)
+    if from_tagged {
+        if from_tagged.c_name != information.c_name {
+            admit_members_of(from_tagged, information)
+            record_shape_flow(from_tagged, information)
+        }
+        return code
+    }
+    if type_shape.as_string(from) {
+        var string_class = find_class_by_c_name("SpiteString")
+        crash string_class
+        admit_to_union(information, string_class)
+        return "spite_tagged_object({string_class.class_id}, {boxed_text(code)})"
+    }
+    var boxed_class = boxed_class_of(from)
+    if boxed_class {
+        admit_to_union(information, boxed_class)
+        if is_tagged_in_place(from) {
+            return "{ensure_tag(boxed_class, from)}({code})"
+        }
+        var box_maker = ensure_box(boxed_class, from)
+        return "spite_tagged_object({boxed_class.class_id}, {box_maker}({code}))"
+    }
+    var container_class = container_class_of(from)
+    if container_class {
+        admit_to_union(information, container_class)
+        return "spite_tagged_object({container_class.class_id}, (void*)({code}))"
+    }
+    var class_ref = type_shape.as_class_ref(from)
+    if class_ref {
+        var admitted = find_class_by_c_name(class_ref.c_name)
+        if admitted {
+            if not information.has_member(admitted.c_name) {
+                admit_to_union(information, admitted)
+            }
+            return "spite_tagged_object({admitted.class_id}, (void*)({code}))"
+        }
+    }
+    var from_union = type_shape.as_union(from)
+    if from_union {
+        var from_information = find_union_by_c_name(from_union.c_name)
+        if from_information {
+            var member_index = 0
+            while member_index < from_information.members.count() {
+                var member = from_information.members[member_index]
+                if not information.has_member(member.c_name) {
+                    admit_to_union(information, member)
+                }
+                member_index = member_index + 1
+            }
+            if from_information.is_shape {
+                record_shape_flow(from_information, information)
+            }
+        }
+    } else {
+        var to = union_type_of(information)
+        report_mismatch(from, to, code)
+    }
+    return "spite_tagged_from_pointer((void*)({code}))"
+}
+
+func is_tagged_in_place(value_type: Analysis.SpiteType): Boolean {
+    if type_shape.as_scalar(value_type) {
+        return true
+    }
+    if type_shape.as_enum(value_type) {
+        return true
+    }
+    return false
+}
+
+func ensure_tag(member: Analysis.ClassInfo, value_type: Analysis.SpiteType): String {
+    var maker = "spite_tagged_{member.c_name}"
+    if tagged_makers.has(member.c_name) {
+        return maker
+    }
+    tagged_makers[member.c_name] = true
+    ensure_box(member, value_type)
+    var value_c_type = c_type_name(value_type)
+    builder.add_prototype("static inline SpiteTagged {maker}({value_c_type} value);")
+    builder.add_support(
+        "static inline SpiteTagged {maker}({value_c_type} value) \{\nSpiteTagged tagged;\ntagged.tag = {member.class_id};\ntagged.plain = 1;\ntagged.value.bits = 0;\nmemcpy(&tagged.value, &value, sizeof(value));\nreturn tagged;\n}",
+    )
+    return maker
+}
+
 func class_id_test(code: String, information: Analysis.ClassInfo): String {
     if information.c_name == "SpiteString" {
         return "(((SpiteHeader*)({code}))->class_id <= 0)"
@@ -4220,6 +4440,9 @@ func shaped_value(
     to: Analysis.SpiteType,
     information: Analysis.UnionInfo,
 ): String {
+    if information.is_tagged {
+        return tagged_value(code, from, information)
+    }
     if type_shape.as_string(from) {
         var string_class = find_class_by_c_name("SpiteString")
         crash string_class
@@ -4262,6 +4485,17 @@ func record_shape_flow(source: Analysis.UnionInfo, target: Analysis.UnionInfo) {
     shape_flow_keys.append(key)
     shape_flow_sources.append(source.c_name)
     shape_flow_targets.append(target)
+}
+
+func admit_members_of(source: Analysis.UnionInfo, target: Analysis.UnionInfo) {
+    var index = 0
+    while index < source.members.count() {
+        var member = source.members[index]
+        if not target.has_member(member.c_name) {
+            admit_to_union(target, member)
+        }
+        index = index + 1
+    }
 }
 
 func admit_along_flows(source: Analysis.UnionInfo, candidate: Analysis.ClassInfo) {
@@ -4494,12 +4728,19 @@ func emit_unions() {
     while index < unions.count() {
         var information = unions[index]
         var name = information.c_name
-        builder.add_typedef("typedef void* {name};")
         builder.add_prototype("{name} {name}___retain({name} self);")
         builder.add_prototype("void {name}___release({name} self);")
-        builder.add_support(
-            "{name} {name}___retain({name} self) \{\nif (self != 0) SPITE_COUNT_UP(((SpiteHeader*)self)->ref_count);\nreturn self;\n}",
-        )
+        if information.is_tagged {
+            builder.add_typedef("typedef SpiteTagged {name};")
+            builder.add_support(
+                "{name} {name}___retain({name} self) \{\nif (self.plain == 0 && self.value.object != 0) SPITE_COUNT_UP(((SpiteHeader*)self.value.object)->ref_count);\nreturn self;\n}",
+            )
+        } else {
+            builder.add_typedef("typedef void* {name};")
+            builder.add_support(
+                "{name} {name}___retain({name} self) \{\nif (self != 0) SPITE_COUNT_UP(((SpiteHeader*)self)->ref_count);\nreturn self;\n}",
+            )
+        }
         if not information.is_shape {
             emit_union_release(information)
         }
@@ -7642,12 +7883,18 @@ func null_code(inner: Analysis.SpiteType): String {
     if type_shape.as_string(inner) or type_shape.is_symbol(inner) {
         return "SPITE_STRING_NULL"
     }
+    if tagged_shape_of(inner) {
+        return "SPITE_TAGGED_NULL"
+    }
     return "0"
 }
 
 func present_code(code: String, inner: Analysis.SpiteType): String {
     if type_shape.as_string(inner) or type_shape.is_symbol(inner) {
         return "(!SPITE_STRING_IS_NULL({code}))"
+    }
+    if tagged_shape_of(inner) {
+        return "SPITE_TAGGED_PRESENT({code})"
     }
     return "(({code}) != 0)"
 }
@@ -8150,6 +8397,9 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
             var admitted_union = find_union_by_c_name(to_union.c_name)
             var admitted_class = find_class_by_c_name(from_class_ref.c_name)
             if admitted_union {
+                if admitted_union.is_tagged {
+                    return tagged_value(code, from, admitted_union)
+                }
                 if admitted_class {
                     admit_to_union(admitted_union, admitted_class)
                 }
@@ -9470,7 +9720,7 @@ func report_decided_class_test(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ) {
-    assert class_information.codegen_types.is_empty() and bound_symbol_name.is_empty()
+    assert class_information.codegen_types.is_empty() and bound_symbol_name.is_empty() and not in_specialised_copy
     var class_ref = type_shape.as_class_ref(value_type)
     assert class_ref
     assert class_ref.c_name != "Spite_Class" and tested_class.c_name != "Spite_Class"
@@ -9493,6 +9743,26 @@ func report_decided_class_test(
         return
     }
     report("'{subject}' is already {type_with_article(value_type)}, narrowed by {site}: remove this test")
+}
+
+func specialised_class_test(
+    binary: Syntax.Expressions.BinaryExpression,
+    value_type: Analysis.SpiteType,
+    tested_class: Analysis.ClassInfo,
+): ExpressionResult {
+    var boolean_spite_type = boolean_type()
+    var reaching = reaching_class_of(value_type)
+    var same = false
+    if reaching {
+        same = reaching.c_name == tested_class.c_name
+    }
+    if binary.operator == 'not_equal' {
+        same = not same
+    }
+    if same {
+        return ExpressionResult("true", boolean_spite_type)
+    }
+    return ExpressionResult("false", boolean_spite_type)
 }
 
 func generate_class_test(
@@ -9531,6 +9801,9 @@ func generate_class_test(
             check_tested_member(union_information, tested_class)
         }
     } else if not type_shape.as_class_ref(value_type) {
+        if in_specialised_copy and not is_nullable and not owns(tested, binary.left) {
+            return specialised_class_test(binary, value_type, tested_class)
+        }
         report("'==' with a class asks what class a value is, and {type_with_article(value_type)} is not an object")
         var boolean_spite_type = boolean_type()
         return ExpressionResult("false", boolean_spite_type)
@@ -9539,9 +9812,10 @@ func generate_class_test(
     var lines = List<String>()
     var tested_type = tested.get_type()
     lines.append("{c_type_name(tested_type)} {temporary} = {tested.code};")
-    var test = class_id_test(temporary, tested_class)
+    var test = value_class_test(temporary, tested_type, tested_class)
     if is_nullable {
-        test = "({temporary} != 0 && {test})"
+        var present = present_code(temporary, value_type)
+        test = "({present} && {test})"
     }
     if binary.operator == 'not_equal' {
         test = "(!{test})"
@@ -9629,6 +9903,9 @@ func generate_binary(
     }
     var left_shape_name = operated_shape_name(binary.operator, left_type, class_information)
     if not left_shape_name.is_empty() {
+        if operates_through_shape(binary.operator, left_type) {
+            return shape_operator(binary, left, scope, class_information)
+        }
         report(
             "'{binary_operator_symbol(binary.operator)}' on a value read as '{left_shape_name}' needs the class that fits the type, which is not known while compiling: take the value through a codegen value the type constrains, 'generic $value_type: {left_shape_name}'",
         )
@@ -10202,6 +10479,268 @@ func operated_shape_name(
         index = index + 1
     }
     return information.simple_name
+}
+
+func operates_through_shape(operator: Syntax.Expressions.BinaryOperator, left_type: Analysis.SpiteType): Boolean {
+    var union_type = type_shape.as_union(left_type)
+    if not union_type {
+        return false
+    }
+    var information = find_union_by_c_name(union_type.c_name)
+    if not information {
+        return false
+    }
+    var word = operator_word(operator)
+    if not information.is_tagged or word.is_empty() {
+        return false
+    }
+    var function_name = operator_function_name(operator)
+    var required = find_required_function(information, function_name)
+    if not required {
+        return false
+    }
+    return true
+}
+
+func shape_operator(
+    binary: Syntax.Expressions.BinaryExpression,
+    left: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var left_type = left.get_type()
+    var union_type = type_shape.as_union(left_type)
+    crash union_type
+    var information = find_union_by_c_name(union_type.c_name)
+    crash information
+    var right = generate_joined(binary.right, scope, class_information)
+    var right_type = right.get_type()
+    var held = List<String>()
+    var releases = List<String>()
+    var left_held = next_temporary()
+    held.append("{information.c_name} {left_held} = {left.code};")
+    if owns(left, binary.left) {
+        releases.append("{release_call(left_type, left_held)};")
+    }
+    var right_held = next_temporary()
+    var right_tagged = tagged_value(right.code, right_type, information)
+    held.append("{information.c_name} {right_held} = {right_tagged};")
+    if owns(right, binary.right) and type_needs_drop(right_type) {
+        releases.append("{release_call(left_type, right_held)};")
+    }
+    var helper = ensure_shape_operator(information, binary.operator)
+    var printer = Syntax.SourcePrinter()
+    var expression: Syntax.Expressions.Expression = binary
+    var source_text = printer.source_expression(expression)
+    var written = escape_c_string(source_text)
+    var where = located(current_path, current_line, current_owner, current_function)
+    var result_c_type = information.c_name
+    var result_type = union_type_of(information)
+    if is_boolean_result_operator(binary.operator) {
+        result_c_type = "bool"
+        result_type = boolean_type()
+    }
+    var code = "(\{ {held.join(" ")} {result_c_type} spite_operated = {helper}({left_held}, {right_held}, \"{written}\", {where}); {releases.join(" ")} spite_operated; })"
+    return ExpressionResult(code, result_type)
+}
+
+func operator_word(operator: Syntax.Expressions.BinaryOperator): String {
+    switch operator {
+        'add': return "add"
+        'subtract': return "subtract"
+        'multiply': return "multiply"
+        'divide': return "divide"
+        'modulo': return "modulo"
+        'less': return "less"
+        'less_equal': return "less_equal"
+        'greater': return "greater"
+        'greater_equal': return "greater_equal"
+        _: return ""
+    }
+}
+
+func ensure_shape_operator(information: Analysis.UnionInfo, operator: Syntax.Expressions.BinaryOperator): String {
+    var name = "{information.c_name}___operate_{operator_word(operator)}"
+    if shape_operator_names.has(name) {
+        return name
+    }
+    shape_operator_names[name] = true
+    shape_operator_unions.append(information)
+    shape_operator_operators.append(operator)
+    shape_operator_texts.append("")
+    var returned = information.c_name
+    if is_boolean_result_operator(operator) {
+        returned = "bool"
+    }
+    builder.add_prototype(
+        "{returned} {name}({information.c_name} left, {information.c_name} right, const char* operation, const char* where);",
+    )
+    var position = builder.support_count()
+    shape_operator_positions.append(position)
+    builder.add_support("")
+    ensure_operand_checks()
+    return name
+}
+
+func ensure_operand_checks() {
+    assert not operand_checks_written
+    operand_checks_written = true
+    builder.add_prototype(
+        "static void spite_operand_misfit(const char* operation, const char* type, const char* where) __attribute__((noreturn, cold));",
+    )
+    builder.add_support(
+        "static void spite_operand_misfit(const char* operation, const char* type, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' needs its right side to fit in %s, at %s\\n\", operation, type, where);\nexit(1);\n}",
+    )
+    builder.add_prototype(
+        "static void spite_operator_unreached(const char* operation, const char* where) __attribute__((noreturn, cold));",
+    )
+    builder.add_support(
+        "static void spite_operator_unreached(const char* operation, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' was given a value of a class it is not compiled for, at %s\\n\", operation, where);\nexit(1);\n}",
+    )
+}
+
+func emit_shape_operators(): Integer {
+    var changed = 0
+    var index = 0
+    while index < shape_operator_unions.count() {
+        crash shape_operator_operators[index]
+        var text = shape_operator_text(shape_operator_unions[index], shape_operator_operators[index])
+        crash shape_operator_texts[index]
+        if text != shape_operator_texts[index] {
+            crash shape_operator_positions[index]
+            builder.replace_support(shape_operator_positions[index], text)
+            shape_operator_texts.set_at(index, text)
+            changed = changed + 1
+        }
+        index = index + 1
+    }
+    return changed
+}
+
+func operated_number_type(member: Analysis.ClassInfo): Analysis.SpiteType? {
+    assert is_plain_member(member)
+    crash boxed_value_types[member.c_name]
+    var member_type = boxed_value_types[member.c_name]
+    var scalar = type_shape.as_scalar(member_type)
+    assert scalar
+    assert scalar.kind != 'boolean_kind'
+    return member_type
+}
+
+func shape_operator_text(information: Analysis.UnionInfo, operator: Syntax.Expressions.BinaryOperator): String {
+    var returned = information.c_name
+    if is_boolean_result_operator(operator) {
+        returned = "bool"
+    }
+    var lines = List<String>()
+    lines.append(
+        "{returned} {information.c_name}___operate_{operator_word(operator)}({information.c_name} left, {information.c_name} right, const char* operation, const char* where) \{",
+    )
+    lines.append("switch (left.tag) \{")
+    var index = 0
+    while index < information.members.count() {
+        var member = information.members[index]
+        var member_type = operated_number_type(member)
+        if member_type {
+            lines.append("case {member.class_id}: \{")
+            var c_type = c_type_name(member_type)
+            var member_name = type_display_name(member_type)
+            var shown = with_article(member_name)
+            lines.append("{c_type} spite_left = SPITE_TAGGED_VALUE(left, {c_type});")
+            lines.append("{c_type} spite_right = 0;")
+            lines.append("switch (right.tag) \{")
+            var other_index = 0
+            while other_index < information.members.count() {
+                var other = information.members[other_index]
+                var other_type = operated_number_type(other)
+                if other_type {
+                    var other_c_type = c_type_name(other_type)
+                    if other.c_name == member.c_name {
+                        lines.append("case {other.class_id}: spite_right = SPITE_TAGGED_VALUE(right, {c_type}); break;")
+                    } else {
+                        var misfit = "({other_c_type})spite_right != spite_given"
+                        var other_scalar = type_shape.as_scalar(other_type)
+                        crash other_scalar
+                        if is_float_kind(other_scalar.kind) {
+                            misfit = "{misfit} && spite_given == spite_given"
+                        }
+                        lines.append(
+                            "case {other.class_id}: \{ {other_c_type} spite_given = SPITE_TAGGED_VALUE(right, {other_c_type}); spite_right = ({c_type})spite_given; if ({misfit}) spite_operand_misfit(operation, \"{shown}\", where); break; }",
+                        )
+                    }
+                }
+                other_index = other_index + 1
+            }
+            lines.append("default: spite_operand_misfit(operation, \"{shown}\", where);")
+            lines.append("}")
+            operated_lines(operator, member, member_type, lines)
+            lines.append("}")
+        }
+        index = index + 1
+    }
+    lines.append("}")
+    lines.append("spite_operator_unreached(operation, where);")
+    lines.append("}")
+    return lines.join("\n")
+}
+
+func operated_lines(
+    operator: Syntax.Expressions.BinaryOperator,
+    member: Analysis.ClassInfo,
+    member_type: Analysis.SpiteType,
+    lines: List<String>,
+) {
+    var symbol = binary_operator_symbol(operator)
+    if is_boolean_result_operator(operator) {
+        lines.append("return spite_left {symbol} spite_right;")
+        return
+    }
+    var scalar = type_shape.as_scalar(member_type)
+    crash scalar
+    var c_type = c_type_name(member_type)
+    var computed = "({c_type})(spite_left {symbol} spite_right)"
+    var signed = is_signed_kind(scalar.kind)
+    var whole = not is_float_kind(scalar.kind)
+    if operator == 'modulo' and not whole {
+        lines.append("spite_operator_unreached(operation, where);")
+        return
+    }
+    if operator == 'divide' or operator == 'modulo' {
+        if whole {
+            if not division_check_written {
+                ensure_division_check()
+            }
+            lines.append("if (spite_right == 0) spite_divided_by_zero(operation, where);")
+            if signed and operator == 'divide' {
+                computed = "spite_right == -1 ? ({c_type})(0 - (uint64_t)spite_left) : ({c_type})(spite_left / spite_right)"
+            }
+            if signed and operator == 'modulo' {
+                computed = "spite_right == -1 ? ({c_type})0 : ({c_type})(spite_left % spite_right)"
+            }
+        }
+        lines.append("return {ensure_tag(member, member_type)}({computed});")
+        return
+    }
+    if signed and (keeps_internals or debug_memory) {
+        if not overflow_check_written {
+            ensure_overflow_check()
+        }
+        var builtin = "__builtin_add_overflow"
+        if operator == 'subtract' {
+            builtin = "__builtin_sub_overflow"
+        }
+        if operator == 'multiply' {
+            builtin = "__builtin_mul_overflow"
+        }
+        var member_name = type_display_name(member_type)
+        var shown = with_article(member_name)
+        lines.append("{c_type} spite_result;")
+        lines.append(
+            "if ({builtin}(spite_left, spite_right, &spite_result)) spite_overflowed(operation, \"{shown}\", \"{symbol}\", (int64_t)spite_left, (int64_t)spite_right, where);",
+        )
+        computed = "spite_result"
+    }
+    lines.append("return {ensure_tag(member, member_type)}({computed});")
 }
 
 func operator_function_name(operator: Syntax.Expressions.BinaryOperator): String {
@@ -11911,14 +12450,14 @@ func generate_own_function_call(
     if passed {
         return generate_passed_symbol_call(passed, arguments_ast, scope, class_information)
     }
-    var function = find_or_instantiate_function(class_information, name)
-    if function {
-        var specialised = specialised_call(function, arguments_ast, scope, class_information)
+    var found = find_or_instantiate_function(class_information, name)
+    if found {
+        var specialised = specialised_call(found, arguments_ast, scope, class_information)
         if specialised {
             return specialised
         }
-        if constant_return_names.contains(function.c_name) {
-            report_run_time_reflection(function)
+        if constant_return_names.contains(found.c_name) {
+            report_run_time_reflection(found)
             return void_result()
         }
     }
@@ -11932,20 +12471,20 @@ func generate_own_function_call(
     if held_type {
         var held_function = type_shape.as_class_ref(held_type)
         if held_function {
-            if held_function.has_signature and not function {
+            if held_function.has_signature and not found {
                 var held_ast: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(name)
                 var held = generate_expression(held_ast, scope, class_information)
                 return call_function_value(held, held_ast, arguments_ast, scope, class_information)
             }
         }
     }
-    if not function and class_information.c_name == "SpiteString" {
+    if not found and class_information.c_name == "SpiteString" {
         var receiver: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("self")
         var string_spite_type = string_type()
         var self_result = ExpressionResult("self", string_spite_type)
         return generate_string_method(name, self_result, receiver, arguments_ast, scope, class_information)
     }
-    if not function {
+    if not found {
         var missed = range_miss(class_information, name)
         if name == "print" or name == "println" or name == "echo" or name == "printf" {
             report(
@@ -11970,6 +12509,7 @@ func generate_own_function_call(
         }
         return void_result()
     }
+    var function = specialised_for_arguments(class_information, found, arguments_ast, scope, class_information)
     var into_slot = claimed_slot(function.c_name)
     var parameter_types = parameter_types_of(function.parameters)
     held_arguments_blocked = not into_slot.is_empty()
@@ -11999,6 +12539,348 @@ func generate_own_function_call(
     var own_called = ExpressionResult("{called_c_name}({full_arguments.join(", ")})", function_return_type)
     lend_result(own_called, class_information, function)
     return own_called
+}
+
+func specialises_shapes(): Boolean {
+    return not hot_reload and not read_evaluate_print_loop and remote_loop_port == 0 and not resumable_mode
+}
+
+func is_specialisable(function: Analysis.FunctionInfo): Boolean {
+    if not function.has_body or function.is_constructor or function.result_slot or function.kept_for_prompt {
+        return false
+    }
+    if not function.lent_parameters.is_empty() or not function.held_parameters.is_empty() {
+        return false
+    }
+    if not function.lent_element.is_empty() or not function.specialised_from.is_empty() {
+        return false
+    }
+    return not asks_function_waits(function.body)
+}
+
+func holds_shaped_values(information: Analysis.ClassInfo): Boolean {
+    return information.is_container or is_library_class(information) and not information.codegen_types.is_empty()
+}
+
+func specialised_shape(function: Analysis.FunctionInfo, index: Integer): Analysis.UnionInfo? {
+    crash function.parameters[index]
+    var parameter_type = function.parameters[index].get_type()
+    var shaped = shape_of(parameter_type)
+    assert shaped
+    assert not assigns_name(function.body, function.parameters[index].name)
+    return shaped
+}
+
+func specialised_for_arguments(
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.FunctionInfo {
+    if not specialises_shapes() or not is_specialisable(function) or holds_shaped_values(owner) {
+        return function
+    }
+    if function.parameters.count() != arguments_ast.count() {
+        return function
+    }
+    if arguments_ast.count() == 1 and spread_template(arguments_ast, class_information) {
+        return function
+    }
+    var types = List<Analysis.SpiteType>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var chosen = parameter.get_type()
+        var shaped = specialised_shape(function, index)
+        if shaped and not is_row_name(arguments_ast[index], scope) {
+            var given = probed_type(arguments_ast[index], scope, class_information)
+            if reaches_shape_as_itself(given, shaped) {
+                chosen = given
+            }
+        }
+        types.append(chosen)
+        index = index + 1
+    }
+    return specialised_with(owner, function, types)
+}
+
+func specialised_with(
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    types: List<Analysis.SpiteType>,
+): Analysis.FunctionInfo {
+    var parameters = List<Analysis.ParamInfo>()
+    var label = ""
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.get_type()
+        var kept = parameter
+        if not types_equal(parameter_type, types[index]) {
+            kept = Analysis.ParamInfo(parameter.name, types[index])
+            var given_label = exact_type_label(types[index])
+            label = "{label}_{index}_{given_label}"
+        }
+        parameters.append(kept)
+        index = index + 1
+    }
+    if label.is_empty() {
+        return function
+    }
+    var copy_c_name = "{function.c_name}___for{label}"
+    var existing = function_by_c_name(owner, copy_c_name)
+    if existing {
+        return existing
+    }
+    var copy_return_type = function.get_return_type()
+    var copy = Analysis.FunctionInfo(function.name, copy_c_name, parameters, copy_return_type, function.body, false)
+    copy.line = function.line
+    copy.end_line = function.end_line
+    copy.source_path = function.source_path
+    copy.symbol_name = function.symbol_name
+    copy.symbol_field_name = function.symbol_field_name
+    copy.symbol_field_index = function.symbol_field_index
+    copy.symbol_field_type = function.symbol_field_type
+    copy.symbol_owner_c_name = function.symbol_owner_c_name
+    copy.symbol_through_caller = function.symbol_through_caller
+    copy.symbol_pattern = function.symbol_pattern
+    copy.symbol_function_name = function.symbol_function_name
+    copy.symbol_display_name = function.symbol_display_name
+    copy.symbol_range = function.symbol_range
+    copy.symbol_enum_c_name = function.symbol_enum_c_name
+    copy.specialised_from = function.c_name
+    owner.declared_functions.append(copy)
+    builder.add_prototype("{function_signature(owner, copy)};")
+    return copy
+}
+
+func dispatches_shapes(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
+    if not specialises_shapes() or not is_specialisable(function) or information.is_generic_template {
+        return false
+    }
+    if holds_shaped_values(information) {
+        return false
+    }
+    if dispatched_names.has(function.c_name) {
+        return false
+    }
+    var index = 0
+    while index < function.parameters.count() {
+        var shaped = specialised_shape(function, index)
+        if shaped {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func note_dispatcher(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    dispatched_names[function.c_name] = true
+    dispatched_owners.append(information)
+    dispatched_functions.append(function)
+    var position = builder.support_count()
+    dispatched_positions.append(position)
+    dispatched_texts.append("")
+    builder.add_support("")
+}
+
+func emit_dispatchers(): Integer {
+    var changed = 0
+    var index = 0
+    while index < dispatched_functions.count() {
+        var function = dispatched_functions[index]
+        var written = dispatched_texts[index]
+        crash written
+        if not written.is_empty() or builder.mentions(function.c_name) {
+            crash dispatched_owners[index]
+            var text = dispatcher_text(dispatched_owners[index], function)
+            if text != written {
+                crash dispatched_positions[index]
+                builder.replace_support(dispatched_positions[index], text)
+                dispatched_texts.set_at(index, text)
+                changed = changed + 1
+            }
+        }
+        index = index + 1
+    }
+    return changed
+}
+
+func dispatcher_text(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    var lines = List<String>()
+    var signature = function_signature(information, function)
+    lines.append("{signature} \{")
+    var return_type = function.get_return_type()
+    var codes = List<String>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var value_name = c_value_name(parameter.name)
+        codes.append(value_name)
+        index = index + 1
+    }
+    if scheduler_used or not is_specialisable(function) {
+        var passed = codes.copy()
+        passed.prepend("self")
+        var forwarded = returning_call("{function.c_name}___general({passed.join(", ")})", return_type)
+        lines.append(forwarded)
+    } else {
+        var types = parameter_types_of(function.parameters)
+        dispatch_lines(information, function, 0, types, codes, lines)
+        lines.append(
+            "fputs(\"spite.crash\\t{information.qualified_dotted}.{function.name} was given a value of a class no copy of it was made for\\n\", stderr);",
+        )
+        lines.append("abort();")
+    }
+    lines.append("}")
+    return lines.join("\n")
+}
+
+func returning_call(call: String, return_type: Analysis.SpiteType): String {
+    if type_shape.is_void(return_type) {
+        return "{call}; return;"
+    }
+    return "return {call};"
+}
+
+func dispatch_lines(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    index: Integer,
+    types: List<Analysis.SpiteType>,
+    codes: List<String>,
+    lines: List<String>,
+) {
+    if index == function.parameters.count() {
+        var copy = specialised_with(information, function, types)
+        var passed = codes.copy()
+        passed.prepend("self")
+        var return_type = function.get_return_type()
+        var called = returning_call("{copy.c_name}({passed.join(", ")})", return_type)
+        lines.append(called)
+        return
+    }
+    var shaped = specialised_shape(function, index)
+    if not shaped {
+        dispatch_lines(information, function, index + 1, types, codes, lines)
+        return
+    }
+    crash function.parameters[index]
+    var argument = c_value_name(function.parameters[index].name)
+    var argument_type = function.parameters[index].get_type()
+    var switched = tagged_shape_of(argument_type)
+    if switched {
+        lines.append("switch (({argument}).tag) \{")
+    }
+    var member_index = 0
+    while member_index < shaped.members.count() {
+        var member = shaped.members[member_index]
+        var member_type = dispatched_member_type(member)
+        if member_type {
+            var unboxed = "spite_dispatched_{index}"
+            var tested = value_class_test(argument, argument_type, member)
+            if switched and member.c_name == "SpiteString" {
+                lines.append("case 0: if ((({argument}).plain == 0)) \{")
+            } else if switched {
+                lines.append("case {member.class_id}: \{")
+            } else {
+                lines.append("if {tested} \{")
+            }
+            var unboxing = unbox_line(member, member_type, argument, unboxed, argument_type)
+            lines.append(unboxing)
+            var member_types = types.copy()
+            member_types.set_at(index, member_type)
+            var member_codes = codes.copy()
+            member_codes.set_at(index, unboxed)
+            dispatch_lines(information, function, index + 1, member_types, member_codes, lines)
+            lines.append("}")
+            if switched {
+                lines.append("break;")
+            }
+        }
+        member_index = member_index + 1
+    }
+    assert switched
+    lines.append("}")
+}
+
+func dispatched_member_type(member: Analysis.ClassInfo): Analysis.SpiteType? {
+    if member.c_name == "SpiteString" {
+        return string_type()
+    }
+    if boxed_value_types.has(member.c_name) {
+        return boxed_value_types[member.c_name]
+    }
+    assert not member.is_value_class
+    return instance_type_of(member)
+}
+
+func unbox_line(
+    member: Analysis.ClassInfo,
+    member_type: Analysis.SpiteType,
+    argument: String,
+    unboxed: String,
+    argument_type: Analysis.SpiteType,
+): String {
+    var value_c_type = c_type_name(member_type)
+    if tagged_shape_of(argument_type) {
+        var held = member_value_code(argument, argument_type, member)
+        if is_plain_member(member) or not boxed_value_types.has(member.c_name) {
+            return "{value_c_type} {unboxed} = {held};"
+        }
+        var retained_value = retain_call(member_type, held)
+        var boxed_object = object_pointer_code(argument, argument_type)
+        if member.c_name == "SpiteString" {
+            return "{value_c_type} {unboxed} = {retained_value}; spite_string_box_release({boxed_object});"
+        }
+        return "{value_c_type} {unboxed} = {retained_value}; spite_box_release({boxed_object});"
+    }
+    if member.c_name == "SpiteString" {
+        return "SpiteString {unboxed} = SpiteString___retain(((SpiteBox_SpiteString*)({argument}))->value); spite_string_box_release({argument});"
+    }
+    if boxed_value_types.has(member.c_name) {
+        var value = "((SpiteBox_{member.c_name}*)({argument}))->value"
+        if type_needs_drop(member_type) {
+            value = retain_call(member_type, value)
+        }
+        return "{value_c_type} {unboxed} = {value}; spite_box_release({argument});"
+    }
+    return "{value_c_type} {unboxed} = ({value_c_type})({argument});"
+}
+
+func reaches_shape_as_itself(given: Analysis.SpiteType, shaped: Analysis.UnionInfo): Boolean {
+    var reaching = reaching_class_of(given)
+    if not reaching {
+        return false
+    }
+    if shaped.has_member(reaching.c_name) {
+        return true
+    }
+    var problem = shape_fit_problem(shaped, reaching)
+    return problem.is_empty()
+}
+
+func reaching_class_of(given: Analysis.SpiteType): Analysis.ClassInfo? {
+    if type_shape.as_string(given) {
+        return find_class_by_c_name("SpiteString")
+    }
+    var boxed_class = boxed_class_of(given)
+    if boxed_class {
+        return boxed_class
+    }
+    var container_class = container_class_of(given)
+    if container_class {
+        return container_class
+    }
+    var class_ref = type_shape.as_class_ref(given)
+    assert class_ref
+    assert not class_ref.has_signature
+    var found = find_class_by_c_name(class_ref.c_name)
+    assert found
+    assert not found.is_generic_template
+    return found
 }
 
 func misnamed_plural(information: Analysis.ClassInfo, name: String): String {
@@ -12228,6 +13110,7 @@ func ensure_into_variant(owner: Analysis.ClassInfo, function: Analysis.FunctionI
     variant.symbol_display_name = function.symbol_display_name
     variant.symbol_range = function.symbol_range
     variant.symbol_enum_c_name = function.symbol_enum_c_name
+    variant.specialised_from = function.specialised_from
     variant.result_slot = true
     owner.declared_functions.append(variant)
     builder.add_prototype("{function_signature(owner, variant)};")
@@ -12444,6 +13327,7 @@ func add_lent_variant(
     variant.symbol_display_name = original.symbol_display_name
     variant.symbol_range = original.symbol_range
     variant.symbol_enum_c_name = original.symbol_enum_c_name
+    variant.specialised_from = original.specialised_from
     variant.lent_sources = sources
     var parameter_index = 0
     while parameter_index < original.parameters.count() {
@@ -12544,6 +13428,7 @@ func held_variant_name(
     variant.symbol_display_name = original.symbol_display_name
     variant.symbol_range = original.symbol_range
     variant.symbol_enum_c_name = original.symbol_enum_c_name
+    variant.specialised_from = original.specialised_from
     variant.lent_sources = original.lent_sources
     variant.lent_parameters = original.lent_parameters.copy()
     if lent_callers[function_c_name] {
@@ -12954,8 +13839,8 @@ func generate_method_call(
             class_information,
         )
     }
-    var function = find_or_instantiate_function(target_class, member.name)
-    if not function {
+    var found = find_or_instantiate_function(target_class, member.name)
+    if not found {
         if member.name == "deep_copy" {
             var ensured_class_deep_copy = ensure_class_deep_copy(target_class)
             var empty_types = no_types()
@@ -13019,6 +13904,7 @@ func generate_method_call(
         source_folder_used = true
         note_fact("flag source_folder_used")
     }
+    var function = specialised_for_arguments(target_class, found, arguments_ast, scope, class_information)
     var parameter_types = parameter_types_of(function.parameters)
     var function_return_type = function.return_type
     var spread = spread_template(arguments_ast, class_information)
@@ -15998,7 +16884,7 @@ func emit_attribute_object_bodies() {
         var position = attribute_objects_emitted
         attribute_objects_emitted = attribute_objects_emitted + 1
         crash attribute_object_types[position]
-        var object_code = "0"
+        var object_code = null_code(shape_type)
         if attribute_object_used {
             object_code = attribute_object_code(attribute_object_types[position], "value", shape_type)
         }
@@ -16015,9 +16901,9 @@ func attribute_object_code(spite_type: Analysis.SpiteType, code: String, shape_t
     if nullable {
         var inner = nullable.inner
         if type_is_reference(inner) {
-            return "({present_code(code, inner)} ? {attribute_object_code(inner, code, shape_type)} : 0)"
+            return "({present_code(code, inner)} ? {attribute_object_code(inner, code, shape_type)} : {null_code(shape_type)})"
         }
-        return "({code}.has_value ? {attribute_object_code(inner, "{code}.value", shape_type)} : 0)"
+        return "({code}.has_value ? {attribute_object_code(inner, "{code}.value", shape_type)} : {null_code(shape_type)})"
     }
     if boxed_class_of(spite_type) {
         return cast(code, spite_type, shape_type)
@@ -16120,7 +17006,10 @@ func emit_union_attributes_bodies() {
                 var member = information.members[member_index]
                 if attributes_described(member) {
                     var described = ensure_attributes_function(member)
-                    lines.append("if {class_id_test("self", member)} return {described}(({member.c_name}*)self);")
+                    var attributes_type = union_type_of(information)
+                    var attributes_test = value_class_test("self", attributes_type, member)
+                    var attributes_object = member_value_code("self", attributes_type, member)
+                    lines.append("if {attributes_test} return {described}({attributes_object});")
                 }
                 member_index = member_index + 1
             }
@@ -16421,9 +17310,12 @@ func union_member_links(spite_type: Analysis.SpiteType): String {
         var member = information.members[index]
         var walkable = not member.is_value_class and not member.is_generic_template
         if walkable and member.c_name != "SpiteString" and not boxed_value_types.has(member.c_name) {
-            var retained = "{member.c_name}___retain(({member.c_name}*)value)"
+            var held_object = member_value_code("value", spite_type, member)
+            var retained = "{member.c_name}___retain({held_object})"
+            var held_present = present_code("value", inner)
+            var held_test = value_class_test("value", spite_type, member)
             links.append(
-                "if (value != 0 && {class_id_test("value", member)}) \{ reflected->spite_held = {retained}; reflected->spite_release_held = (void (*)(void*)){member.c_name}___release; reflected->spite_held_attributes = (void* (*)(void*)){ensure_attributes_function(member)}; reflected->spite_held_functions = (void* (*)(void*)){ensure_functions_function(member)}; reflected->spite_held_bytes = {ensure_byte_count_function(member)}(); reflected->spite_held_class = (void* (*)(void)){ensure_class_object(member.simple_name, member.namespace_dotted, member.c_name)}; }",
+                "if ({held_present} && {held_test}) \{ reflected->spite_held = {retained}; reflected->spite_release_held = (void (*)(void*)){member.c_name}___release; reflected->spite_held_attributes = (void* (*)(void*)){ensure_attributes_function(member)}; reflected->spite_held_functions = (void* (*)(void*)){ensure_functions_function(member)}; reflected->spite_held_bytes = {ensure_byte_count_function(member)}(); reflected->spite_held_class = (void* (*)(void)){ensure_class_object(member.simple_name, member.namespace_dotted, member.c_name)}; }",
             )
         }
         index = index + 1
@@ -16557,7 +17449,7 @@ func parsed_value_lines(spite_type: Analysis.SpiteType, text: String, target: St
     if type_shape.as_string(inner) {
         return "if ({null_test}) {target} = SPITE_STRING_NULL; else {target} = SpiteString___retain({text});"
     }
-    return "if ({null_test}) {target} = 0; else {failure}"
+    return "if ({null_test}) {target} = {null_code(inner)}; else {failure}"
 }
 
 func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.FieldInfo): String {
@@ -22010,6 +22902,7 @@ func ensure_lent_element_variant(owner: Analysis.ClassInfo, function: Analysis.F
     variant.source_path = function.source_path
     variant.specialisation_position = function.specialisation_position
     variant.lent_element = lent_element_field(owner, function)
+    variant.specialised_from = function.specialised_from
     owner.declared_functions.append(variant)
     builder.add_prototype("{function_signature(owner, variant)};")
     return variant
@@ -28350,9 +29243,10 @@ func generate_class_narrowing_if(
     builder.add_user("\{")
     var subject_spite_type = subject.get_type()
     builder.add_user("{c_type_name(subject_spite_type)} {subject_temporary} = {subject.code};")
-    var test = class_id_test(subject_temporary, tested_class)
+    var test = value_class_test(subject_temporary, subject_spite_type, tested_class)
     if is_nullable {
-        test = "({subject_temporary} != 0 && {test})"
+        var subject_present = present_code(subject_temporary, subject_spite_type)
+        test = "({subject_present} && {test})"
     }
     builder.add_user("if ({test}) \{")
     var case_scope = Scope(scope)
@@ -28362,7 +29256,7 @@ func generate_class_narrowing_if(
         subject_identifier.name,
         "'if {subject_identifier.name} == {tested_class.simple_name}' on line {current_line}",
     )
-    var narrowed = narrowed_code(subject_temporary, tested_class, class_type)
+    var narrowed = member_value_code(subject_temporary, subject_spite_type, tested_class)
     case_scope.set_override(subject_identifier.name, narrowed)
     generate_block_in_scope(if_statement.then_branch, case_scope, class_information, function_information)
     builder.add_user("}")
@@ -28373,13 +29267,6 @@ func generate_class_narrowing_if(
     }
     builder.add_user("}")
     return true
-}
-
-func narrowed_code(code: String, tested_class: Analysis.ClassInfo, class_type: Analysis.SpiteType): String {
-    if boxed_value_types.has(tested_class.c_name) {
-        return "(((SpiteBox_{tested_class.c_name}*){code})->value)"
-    }
-    return "(({c_type_name(class_type)}){code})"
 }
 
 func generate_nullable_switch(
@@ -33086,7 +33973,7 @@ func emit_folded_check(
             "'assert' is not allowed in a constructor: a constructor is setup, not logic. Take already resolved values, or use 'crash' when absence is a bug",
         )
     }
-    if holds and class_information.codegen_types.is_empty() and bound_symbol_name.is_empty() and not folded_by_reflection {
+    if holds and class_information.codegen_types.is_empty() and bound_symbol_name.is_empty() and not in_specialised_copy and not folded_by_reflection {
         report(
             "'{check_keyword(assert_statement)} {assert_statement.condition_text}' is decided while compiling and always holds here: remove it",
         )
@@ -34212,6 +35099,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         guarded_positions.append(guarded_at)
     }
     current_function_c_name = function.c_name
+    in_specialised_copy = not function.specialised_from.is_empty()
     borrowed_names = List<String>()
     into_function_active = function.result_slot
     object_frames_open = true
@@ -34227,6 +35115,11 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     if is_slotted_function(information, function) {
         defined_name = "{function.c_name}___hot"
         add_hot_slot(information, function)
+    }
+    if waiting.is_empty() and not guarded and dispatches_shapes(information, function) {
+        defined_name = "{function.c_name}___general"
+        builder.add_prototype("{named_signature(information, function, defined_name)};")
+        note_dispatcher(information, function)
     }
     builder.add_user("{named_signature(information, function, defined_name)} \{")
     if function.c_name == "Spite_Function_get_arguments" {

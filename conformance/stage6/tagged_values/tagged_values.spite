@@ -1,0 +1,43 @@
+enum Level {
+    'low'
+    'high'
+}
+
+var console = Console()
+
+func TaggedValues() {
+    var count = 3
+    var total: Long = 40000000000
+    var ratio = 0.5
+    var level: Level = 'high'
+    console.print(count, total, ratio, true, level)
+    var held = List<Anything>()
+    held.append(count)
+    held.append(total)
+    held.append(level)
+    held.append(true)
+    var crate = Crate()
+    held.append(crate)
+    var kinds = held.map(kind_of)
+    var joined = kinds.join(" ")
+    console.print(joined)
+    var first: Anything? = held.first()
+    if first == Integer {
+        var doubled = first * 2
+        console.print("first doubled", doubled)
+    }
+    console.debug(count, level, crate)
+}
+
+func kind_of(item: Anything): String {
+    if item == Integer {
+        return "integer {item}"
+    }
+    if item == Long {
+        return "long"
+    }
+    if item == Boolean {
+        return "boolean"
+    }
+    return "object"
+}

@@ -502,8 +502,8 @@ filter over every namespace, with nothing registered.
 
 A value typed `Anything` or a union, a reflection object kept in an attribute and read later, and everything typed
 at the REPL prompt are only known at run time. Reflection still answers them, from tables the program builds only
-for the classes such a read can reach, and there `attribute.value` is an `Anything?`: the value itself, a number
-boxed, `null` only when the attribute holds `null`. Its text is `.value.to_string()`.
+for the classes such a read can reach, and there `attribute.value` is an `Anything?`: the value itself (a number
+keeps its class, held with its class's tag, and text is boxed), `null` only when the attribute holds `null`. Its text is `.value.to_string()`.
 
 ```gdscript title=attribute_objects/health.spite
 var amount = 10
@@ -833,7 +833,7 @@ on the spot is "only a named value has memory of its own: give this value a name
 - **A run-time object** (a value typed `Anything` or a union, a reflection object kept in an attribute, anything
   typed at the REPL) is answered from the run-time tables, built only for the classes such a read can reach, and for
   every class in a `--repl`, `--repl-port` or `--development` build. Its `attribute.value` is `Anything?`, a number
-  boxed. Handing one to a function whose result is typed by its reflection parameter is the error shown
+  held with its class's tag and text boxed. Handing one to a function whose result is typed by its reflection parameter is the error shown
   [above](#known-only-at-run-time); naming a type through a reflection object that is not a constant is "'<path>'
   is not a class known while compiling, so it cannot be a type here"; and using a specialisation's parameter as a
   run-time value is "'<name>' is a reflection object known while compiling, so this function is compiled once for

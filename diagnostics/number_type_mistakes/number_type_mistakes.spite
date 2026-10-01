@@ -3,10 +3,10 @@ var console = Console()
 func NumberTypeMistakes() {
     var flags = Summer<Boolean>()
     var flag = flags.twice(true)
-    var widened = doubled(4)
-    console.print(flag, widened)
+    var half = halved(4)
+    console.print(flag, half)
 }
 
-func doubled(value: Number): Number {
-    return value + value
+func halved(value: Number): Number {
+    return value + 0.5
 }
