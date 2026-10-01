@@ -27,18 +27,9 @@ rows pending: 228 (`map_` over a predicate is an error pointing at `filter_`/`co
 function values and plain `List.map(function)` go), 213 (the default build compiles fastest; hot builds compile
 like it, reversing D299's `-O3`, so D299 leaves 239; run-speed-only passes are skipped unless measured to speed up
 the whole build), 153 (no `--` separator; settings kebab on the command line, snake in code; a name colliding with
-a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242. 155 by D336, 197 by D346.
-
-## Confirm quickly
-
-Each has one answer the principle implies: the moron (anyone who uses Spite, SPITE.md) never has to decide, the
-language does. Yes, or reopen.
-
-166. **The file watcher's quiet period** (`FileSystemWatcher`): fixed by the language at 100 ms, not an argument.
-212. **`--run=false` and a stale executable** (D244): never leave one. The build writes a fresh executable or
-     deletes the old one; "teach `--executable --run=false`" is out.
-215. **`tune_for_this_machine` and `translation_units`**: not settings; the compiler chooses tuning and the number
-     of units (a default build stays unsplit, as measured), so the names go.
+a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242. 155 by D336, 197 by D346. 166 by D347, 212 by D348, 215 by D349 (the
+"Confirm quickly" group is empty and gone), 222 by D351, 173's reset by D352 (narrowed to the safety half), 175 by
+D353, 209 by D354; 233 narrowed by D351 to checking a binding's numbers.
 
 ## Blocking now
 
@@ -47,21 +38,12 @@ These hold up the D316/D317 migration, the game engine package or the game port.
 109. **The runner's marker attributes** (`Resource.World`/`Resource.MainThread`; what a function reads and writes is
      D335's `function.accesses`): keep them as attributes the runner reads, or a class-level marker? D205, as
      D261 was. Blocks: the game engine's runner, the game port's L6.
-222. **A foreign status enum** (D272, not built): a C function returning a C `enum` answers a Spite enum made from
-     the header, must be used, and is read by a `switch`. May that switch have `_:`? Options: never; `_:` that may
-     not `crash`/`assert`; freely. Recommend never (each outcome a written line). Blocks: D272, the game engine's Vulkan
-     resize handling. Needs 233.
-233. **How the compiler reads a C header** (PLAN milestone 11c area; today it reads none, [foreign_libraries.md](docs/foreign_libraries.md)).
-     Needed for D272's enums, a header's types as reflection, and trampoline width checks. Options: (a) a
-     declaration parser in Spite over the C compiler's `-E` output; (b) the C compiler's own dump (clang
-     `-ast-dump=json`, ties Spite to clang); (c) generated probe C that prints sizes and values. Recommend (a).
-     Blocks: 222.
-173. **`Memory.Frame` and an arena's `reset()`**: an object made in the frame arena may not be stored anywhere that
-     outlives the frame (a compile error naming `copy()`, a debug generation check as backstop)? Is `Memory.Frame`
-     an arena reset once a frame, or a ring of two? Until then, is an arena without `reset()` right?
-175. **A class reading its own allocator** (`memory.allocator` inside a class), so a list's buffer follows its arena.
-209. **Should a `List` own its items, so a kept reference is weak (`T?`)**, or stay an explicit `Weak<T>`?
-
+233. **Checking a binding's numbers against a C header** (D351: a binding writes its enums in Spite, so no header
+     is needed to make them). May the compiler read a header only to verify that a binding's values match the C
+     numbers (and, later, argument widths)? Options: (a) a declaration parser in Spite over the C compiler's `-E`
+     output; (b) generated probe C that prints the values; (c) no check. Recommend (b), the smallest.
+173. **An object made in the frame arena** (D352 made the reset the compiler's choice): may it be stored anywhere
+     that outlives the frame? Recommend a compile error naming `copy()`, with a debug generation check as backstop.
 ## Silent today (D244)
 
 236. **Text read as an enum by name** answers the first value when no value matches (D95 (5), still open under
