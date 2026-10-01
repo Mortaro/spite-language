@@ -26,7 +26,7 @@ func holds_only_numbers(generator: Generator, information: Analysis.ClassInfo): 
     if not fields_hold_nothing_counted(generator, information) {
         return false
     }
-    if generator.lists_instances(information.simple_name) {
+    if generator.lists_instances(information.qualified_dotted) {
         return false
     }
     if information.constructor {
