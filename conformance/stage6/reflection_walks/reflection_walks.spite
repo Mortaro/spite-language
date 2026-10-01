@@ -1,0 +1,83 @@
+var console = Console()
+var lines = List<String>()
+
+func ReflectionWalks() {
+    Monster.attributes.each(describe)
+    var troll = Monster()
+    troll.attributes.each(show)
+    troll.attributes.each(bump)
+    troll.attributes.each(add_line)
+    var joined = lines.join(", ")
+    console.print(joined)
+    show_name(troll)
+    show_health(troll)
+    var walked = Runner.functions.filter(walks_each)
+    walked.each(run)
+    var named_each = Runner.functions.filter_name_ends_with("_each")
+    var named_count = named_each.count()
+    console.print("functions named _each:", named_count)
+    var run_time_functions = List<Spite.Function>()
+    var runner = Runner()
+    run_time_functions.append(runner.reset)
+    var resets = run_time_functions.count_name_starts_with("re")
+    console.print("run-time functions starting with re:", resets)
+    var parts = Spite.Namespace.instances.filter(holds_parts)
+    parts.each(count_classes)
+}
+
+func describe(attribute: Spite.Attribute) {
+    var fresh: attribute.class = attribute.class()
+    console.print(attribute.index, attribute.name, attribute.class, "starts as", fresh)
+}
+
+func show(attribute: Spite.Attribute) {
+    console.print(attribute.name, "=", attribute.value)
+}
+
+func bump(attribute: Spite.Attribute) {
+    if attribute.class == Integer {
+        attribute.value = attribute.value + 1
+        console.print(attribute.name, "is now", attribute.value)
+    }
+}
+
+func add_line(attribute: Spite.Attribute) {
+    lines.append("{attribute.pascal_case_name}: {attribute.value}")
+}
+
+func show_attribute(attribute: Spite.Attribute<Monster>, monster: Monster) {
+    console.print("template", attribute.name, monster.attributes[attribute])
+}
+
+func walks_each(function: Spite.Function): Boolean {
+    return function.name.ends_with("_each")
+}
+
+func run(function: Spite.Function) {
+    var arguments_count = function.arguments.count()
+    console.print(function.name, "takes", arguments_count)
+    function.arguments.each(describe_argument)
+}
+
+func describe_argument(argument: Spite.Argument) {
+    var fresh = made(argument)
+    console.print(" ", argument.index, argument.name, argument.class, fresh)
+}
+
+func made(argument: Spite.Argument): argument.class {
+    return argument.class()
+}
+
+func holds_parts(namespace: Spite.Namespace): Boolean {
+    return namespace.name == 'Part'
+}
+
+func count_classes(namespace: Spite.Namespace) {
+    namespace.classes.each(describe_part)
+}
+
+func describe_part(part: Spite.Class) {
+    var fresh = part()
+    var shown = fresh.to_debug()
+    console.print("part", part.name, shown)
+}

@@ -1,0 +1,23 @@
+# ../docs/reflection.md#known-while-compiling
+var kind = ""
+var described_type: Analysis.SpiteType? = null
+var owner: Analysis.ClassInfo? = null
+var function: Analysis.FunctionInfo? = null
+var name = ""
+var is_symbol = false
+var position = -1
+var truth = false
+var bound: Syntax.Expressions.Expression? = null
+var elements = List<Reflected>()
+
+func Reflected(starting_kind: String) {
+    kind = starting_kind
+}
+
+func is_object(): Boolean {
+    return kind == "class" or kind == "namespace" or kind == "function" or kind == "argument" or kind == "attribute"
+}
+
+func is_scalar(): Boolean {
+    return kind == "boolean" or kind == "integer" or kind == "text" or kind == "null"
+}

@@ -1,0 +1,56 @@
+enum Shade {
+    'light'
+    'dark'
+}
+
+var console = Console()
+
+func NumberType() {
+    var counts = Tally<Integer>()
+    var whole: List<Integer> = [3, 9, 4]
+    var whole_best = counts.largest(whole)
+    var whole_total = counts.total(whole)
+    var whole_span = counts.span(whole)
+    console.print("{whole_best} {whole_total} {whole_span}")
+    var sizes = Tally<Float>()
+    var floats: List<Float> = [1.5, 0.25, 3.0]
+    var float_best = sizes.largest(floats)
+    var float_total = sizes.total(floats)
+    var float_span = sizes.span(floats)
+    console.print("{float_best} {float_total} {float_span}")
+    var bytes = Tally<Byte>()
+    var small: List<Byte> = [7, 200, 10]
+    var byte_best = bytes.largest(small)
+    var byte_total = bytes.total(small)
+    var byte_span = bytes.span(small)
+    console.print("{byte_best} {byte_total} {byte_span}")
+    describe_numbers()
+    describe_others()
+}
+
+func describe_numbers() {
+    var tiny = Kind<Tiny>()
+    var short = Kind<Short>()
+    var integer = Kind<Integer>()
+    var long = Kind<Long>()
+    var byte = Kind<Byte>()
+    var unsigned_short = Kind<UnsignedShort>()
+    var unsigned_integer = Kind<UnsignedInteger>()
+    var unsigned_long = Kind<UnsignedLong>()
+    var float = Kind<Float>()
+    var double = Kind<Double>()
+    console.print("{tiny.name()}, {short.name()}, {integer.name()}, {long.name()}, {byte.name()}")
+    console.print(
+        "{unsigned_short.name()}, {unsigned_integer.name()}, {unsigned_long.name()}, {float.name()}, {double.name()}",
+    )
+}
+
+func describe_others() {
+    var flag = Kind<Boolean>()
+    var text = Kind<String>()
+    var shade = Kind<Shade>()
+    var list = Kind<List<Integer>>()
+    var maybe = Kind<Integer?>()
+    var address = Kind<Memory.Address>()
+    console.print("{flag.name()}, {text.name()}, {shade.name()}, {list.name()}, {maybe.name()}, {address.name()}")
+}

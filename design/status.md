@@ -19,13 +19,13 @@ when a page gains a rule that is not built yet, add it here.
 
 ### Program settings: `Environment`
 
-- Open question (`mortaros_missing_decisions.md` item 153): whether a program's settings after `--` follow the
-  compiler's kebab-case spelling. Today a setting is spelled like its field (`--worker_count=4`), and a kebab-case
-  argument for a declared snake_case setting stops the program with an error, exit code 1
-  (`conformance/stage6/kebab_setting`). The page states only the present behaviour.
 - Unconfirmed (proposed by Claude, not decided by Mortaro), built as the page describes: the members of
   `Arguments()` (`count()`, `get(index)`, `.name`), the details of how a program is started (launcher, `main`), the
-  order of value sources and the error texts of the `Environment` settings.
+  order of value sources and the error texts of the `Environment` settings. From the kebab-case settings
+  decision: the arguments after the folder that are not flags go to the program; a flag naming no field of
+  `Build` or `Environment` stays a compile error, so a raw `--name=value` read only through `Arguments` reaches a
+  program only when it is run directly; `.player_name` on `Arguments` reads `--player-name`; a bare `Boolean`
+  setting; a setting's value checked while compiling; `--` an ordinary argument to a program run directly.
 
 ### Build settings: `Build`
 
@@ -48,6 +48,13 @@ when a page gains a rule that is not built yet, add it here.
 - Open: both the assignment cast (`var half: Float = count`) and the call form `count.to_float()` are allowed "for now"; the call form may be limited later. Page says both are allowed.
 - Unconfirmed proposals by Claude (removed from the page, still awaiting Mortaro): names of the bitwise functions (D117) and their rules, names of the maths functions and constants and their lowering, names of the bit-reinterpretation functions (D215), the `type` keyword allowed as a parameter name, the error texts for `from_` declarations, Go's answer for smallest-signed `/ -1`, the signed-overflow message and unsigned exemption (D205), the reach of text casting to every place a `String` is wanted (D223), the lone-hole error wording, the enum-from-text cast, the generic walk of enums, the shape-member behaviour, the class-test forms for generic classes and codegen values (D123).
 - Exact error texts still quote decision numbers: the `from_` declaration and `from_` call errors contain "(D293)" (lines 925 and 928); the compiler text must change with the page.
+
+### Every number fits `Number`
+- Built: `type Number`, every number class fitting it, `$value_type == Number`, a generic constrained by it
+  (`conformance/stage6/number_type`). NOT BUILT: a function taking `value: Number` is not yet compiled per number
+  class (D321), so an operator on it is still the error the page states, and a number passed to it is boxed.
+- Unconfirmed proposals by Claude: the member list, and a `type`'s own name in a required signature standing for
+  the class that fits.
 
 ### Numeric types (REPL and text reading)
 - No status facts removed beyond the above.
@@ -275,8 +282,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Mortaro's D175 quote removed: "generics being possibly unused code is used for tree shake, its on purpose not an error" (D167); the page states the reason in its own words.
 
 ### A class's functions, a folder's classes and a name's pattern
-- The spellings of the function, folder and pattern ranges (`has_function`, the `Symbol<...>` ranges, the plural forms, `phase.value`, `argument.index`) were "proposals, not yet confirmed" by Mortaro; what the ranges do was decided (D114-D116, D180).
-- `function_waits`: spelling proposed, unconfirmed (D209 decided the question). `function_writes_parameter`, `argument_count`, `fits_vector`: names provisional (D261, D219, D217).
+- The page no longer teaches the ranges, plural walks, name patterns or name-keyed questions (D316); they still
+  compile and are listed under reflection.md below for migration.
 
 ### Codegen values (`$`)
 - Reordering `generic` lines changes the meaning of positional call sites: a deliberate, accepted trade (Mortaro); the page says "deliberate, accepted trade" without the citation.
@@ -299,6 +306,49 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   decided by Claude under D205.
 - "Decided by Mortaro, being implemented" item 9 (open_questions.md) is the source of the `.functions` rule.
 - Removed clause: a `load`-ed root "would extend the deferred compile-time class generation" (deferred, not built).
+
+### Reflection known while compiling (D316, D317, D318, D323, D326)
+- The pages (metaprogramming.md, reflection.md) now teach only the D316 model. Shown there as untitled snippets because
+  they do not compile yet: the plural `map_<members>()` (today `map_name()` still compiles, and is no longer taught),
+  `filter_<members>()` on a list of a union and its narrowing (D330: `entries().filter_files()` is "'Entry' has no
+  attribute ... 'files'"), `function.accesses` and `Spite.Access` with dictionary member templates (D335),
+  `Spite.Namespace.enums`, `call_with`, a function taking `value: Number` (D321), and a class's own `get_`/`set_` template spelled `attribute: Spite.Attribute<Person>`:
+  inside `Person` it is "unknown identifier 'attributes'" (only `attribute: Symbol` reads `attributes[attribute]`
+  today, and `this.attributes` is refused).
+- Still teaching the old forms, to migrate once the compiler reaches them: memory.md's titled engine programs
+  (`Symbol<$row_type>` walks, `fill_attributes(...)` plurals, `Symbol<$system_type.phase_each>`), json.md's
+  `write_attribute(attribute: Symbol<$value_type>, ...)` and `$value_type.has_function("json_key_{attribute.name}")`
+  (a name built from text, which D317 forbids: it needs a decided replacement), the library itself
+  (`library/list.spite` templates are still `member: Symbol<$element_type>`, `library/spite/*.spite` still declares
+  `has_function`, `function_waits`, `argument_count`, `fits_vector`, `source_folder`, `name_fits`, `waits()`), the
+  diagnostic "write 'member: Symbol<$element_type>'" (collections.md, `diagnostics/plain_symbol_on_list`), and
+  `design/for_ai_writers.md`.
+- Narrowing gaps met while writing the pages: in a generic, `var run = $target_type.functions['run_each']` then
+  `if run { target.run_each(3) }` does not fold (the branch is compiled for a class without `run_each`), while
+  `if $target_type.functions['run_each'] {` does; and `crash Spite.Class.instances['Monster']` does not narrow that
+  path for a following read (a local `classes` first does).
+- Built: constants, folding, `each`/`map` unrolling, specialisation per reflection argument, bound attributes,
+  types from constants, `Spite.Namespace.instances`, enum `.values`, `[]` by name, `Spite.Attribute<T>` template
+  spelling, `filter_<member>_<function>(arguments)` on any list, `source_files`/`source_directories`;
+  `package_folder` removed.
+- Not built: `function.call_with(...)` spreading a walk into one call (D317): its proposed argument,
+  `arguments.map(made)`, is a `map(function)`, which D343 removes, so it waits for a spelling from Mortaro; `.read_attributes`/`.written_attributes` (item 109),
+  `Spite.Namespace.enums`, the plural `map_<members>` rule (D317, D328: `String.pluralize` is merged), and the
+  compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
+  (`engine/renderer/renderer.spite` is `Engine.Renderer` beside the namespace `Engine.Renderer`) is exactly that
+  pair, so the rule needs Mortaro to say whether the entry file is exempt.
+- Run time only through the old tables: `.is_stateful`, `.is_list` and the other kind questions, `.owner`,
+  `.index`, `.is_mutated` and `.returned_literal` answer only on a constant; read on a run-time object they are
+  "has no attribute".
+- Specialisation is limited to functions of the calling class; a function whose body needs the reflection
+  parameter's run-time value (passes it on to something that is not a reflection parameter, calls a function of
+  it) is not specialised and walks at run time as before. A parameter of an enum type is not specialised (rule 5
+  of the proposal names enums too).
+- The old mechanisms still work side by side: `Symbol<...>` templates and plural walks, `Symbol<$T.f>` argument
+  walks, name patterns, folder walks, `$T.has_function(...)` and the other name-keyed questions, `source_folder()`.
+  Unconfirmed (proposed by Claude): specialisation names `<function>_for_<member>`, a constant local being a
+  local never assigned again whose run-time value no statement needs, and a folded `assert` on a constant never
+  being an "always holds" error.
 
 ### Functions of `Spite.Class`, and why there are no static functions
 - The three override rules (the functions a class file can override are exactly those `Spite.Class` declares; an
@@ -331,7 +381,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### Two versions of one repository
 
 - D334 (one package pinning two commits reads them as two loads in load order) was decided by Mortaro on 2026-09-30 and built; the error for a commit read into two different versions was proposed by Claude, unconfirmed.
-- Not built: identical code folding, so the code two versions share unchanged is written twice today (`optimizations.md#identical-functions-are-folded-into-one`).
 - D296 (two versions are two libraries) was decided by Mortaro on 2026-09-30, built as proposed by Claude, unconfirmed.
 
 ### Final classes
@@ -399,7 +448,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   mapping (`mmap`) is held to compiling only; only Windows runs.
 
 ### Watch files and folders
-- The `Watcher` name and members are proposed, unconfirmed (mortaros_missing_decisions.md asks for the final name).
+- `watch_for_changes(target: Directory or File)` is declared over a union of the two classes in the watcher's own
+  file (`FileSystemWatcher.Target`), since the compiler has no inline union type; it becomes `Directory or File`
+  when that exists. The quiet period is still open (mortaros_missing_decisions.md 166).
 - Linux (`inotify`) and macOS (`kqueue`) watchers are held to compiling by check.sh; only Windows runs.
 
 ### Run a process
@@ -462,6 +513,11 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Proposed by Claude, unconfirmed, removed as bookkeeping but the behaviour stays on the page: how the templates are
   written, chains fused by one generated function, passed-function details (library-class functions bound as
   values), the dictionary key-kind rules, the Vector and Items readings.
+- D343 is built: `map(function)` on a list, an `Items` or a `Vector` is an error naming `map_<member>()` and a
+  read-only attribute; `map_` over a `Boolean` member names `filter_`, `count_`, `any_` and `all_`; a class-qualified
+  function value (`Monster.is_alive`) names an instance's function. The error texts are proposed by Claude,
+  unconfirmed. `map_<member>` still takes the singular member name until the plural rule (D317) is built. A `while`
+  collecting what a passed function answers is no longer reported by the loop rule.
 
 ### Member templates over an enum value
 - Whole section decided and NOT built: `filter_<value>`, `count_<value>`, `any_<value>`, `all_<value>` and
@@ -470,7 +526,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Not built, removed from the page (migration to do when it lands): remove `Directory.files()` and
   `Directory.folders()` and move their callers to `entries().filter_files()` / `filter_folders()`: the compiler's
   discovery in `bootstrap/source/discovery/program_discovery.spite` and `git_load.spite`,
-  `library/linux/watcher.spite`, `library/mac/watcher.spite`, `scripts/docs_corpus`, and the example under "List a
+  `library/linux/file_system_watcher.spite`, `library/mac/file_system_watcher.spite`, `scripts/docs_corpus`, and the example under "List a
   directory" in standard_library.md.
 - Open question for Mortaro: `Spite.Namespace`'s `.classes` and `.namespaces` have the same shape (one node's
   children split by kind) and may get the same treatment; undecided.
@@ -618,10 +674,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Outputs, Flags and settings, and other rules (decision status removed)
 - Decided by Mortaro, recorded only as decisions: D143 (inspectable versus production builds), D188 (kebab-case flags), D190 (every compile formats first), D283 (outputs in `.spite/`, "the compiler shouldn't write intermediate files beside the source"), the default build's `-O0`.
-- Proposed by Claude and still unconfirmed by Mortaro (the page now states them as the rules): the spellings of the output fields (D128, D129); the `.spite/build/<path>` and `.spite/elsewhere/<name>_<number>` layout; `.spite/` never being part of a program (D283); `translation_units` (behaviour, name and the `0` rule, 768 KiB per unit, power of two, at most 64); `--tune-for-this-machine` (name); `optimized` as `-O3` with `-flto=thin`/`-flto=auto`; the readings of the flag rules (kebab form in messages, run-time settings after `--` keep their field spelling); where the compiler's flags end (first bare `--`); the inspectable-build readings; where a program runs; the launcher passing arguments untouched (`cygpath -m`, `MSYS2_ARG_CONV_EXCL`; fixes a bug found converting a game's data); how many errors are listed (A94, from a game port); the formatting readings of D190. D260 (unique `<name>_<number>.c` and the "C compiler reported success but no executable" error) was decided by Claude under D244.
-- Open question: whether a program's run-time settings after `--` should use the kebab spelling (mortaros_missing_decisions.md). Today they keep their field's own spelling (`-- --player_name=x`), and the kebab form of a declared setting is an error naming the field's spelling. The page states only that.
+- Proposed by Claude and still unconfirmed by Mortaro (the page now states them as the rules): the spellings of the output fields (D128, D129); the `.spite/build/<path>` and `.spite/elsewhere/<name>_<number>` layout; `.spite/` never being part of a program (D283); `translation_units` (behaviour, name and the `0` rule, 768 KiB per unit, power of two, at most 64); `--tune-for-this-machine` (name); `optimized` as `-O3` with `-flto=thin`/`-flto=auto`; the readings of the flag rules (kebab form in messages); the inspectable-build readings; where a program runs; the launcher passing arguments untouched (`cygpath -m`, `MSYS2_ARG_CONV_EXCL`; fixes a bug found converting a game's data); how many errors are listed (A94, from a game port); the formatting readings of D190. D260 (unique `<name>_<number>.c` and the "C compiler reported success but no executable" error) was decided by Claude under D244.
 - Removed the history that `.spite-cache/` was the name of `.spite/` before D283 (the compiler still skips an old `.spite-cache/` folder; the page now says "an old `.spite-cache/` folder, which can be deleted").
-- Removed check.sh mentions: it proves the fixpoint by comparing the single-file `--c-source` C; it runs every program of `conformance/`, `examples/` and the docs pages with `--debug-memory` and requires the allocation balance; it uses `--target-operating-system=linux` to hold the Linux folders to compiling; it proves the `--final-classes` output runs as the same program; it runs `conformance/stage6/working_directory` from another folder and a copy from inside it, and `conformance/stage6/launcher_arguments` through `bin/spite` with `--prefixes=/Game/Legacy/`, `/usr/share` and `a b` after `--`; it compiles the deliberately unformatted `diagnostics/` inputs from a copy so formatting lands on the copy; `.spite/` also holds check.sh's work folders in the language repository.
+- Removed check.sh mentions: it proves the fixpoint by comparing the single-file `--c-source` C; it runs every program of `conformance/`, `examples/` and the docs pages with `--debug-memory` and requires the allocation balance; it uses `--target-operating-system=linux` to hold the Linux folders to compiling; it proves the `--final-classes` output runs as the same program; it runs `conformance/stage6/working_directory` from another folder and a copy from inside it, and `conformance/stage6/launcher_arguments` through `bin/spite` with `--prefixes=/Game/Legacy/`, `/usr/share` and `a b` beside the compiler's flags; it compiles the deliberately unformatted `diagnostics/` inputs from a copy so formatting lands on the copy; `.spite/` also holds check.sh's work folders in the language repository.
 - Removed "the one the corpus runs" (the default `-O0` build is the one the corpus uses).
 
 ## [repl.md](../docs/repl.md)
@@ -670,7 +725,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Whole page
 
-- The page had a Status column and "Built" / "Planned" parts. Every optimisation on the page is built except: the planned forms of "Thread safety for singletons, the rest of the plan", most of "Copies that cost nothing" (only the pieces listed below are built), all of "Identical functions are folded into one", and the three items of "Other optimisations". The partly built ones are listed below. The old "Planned" intro said: decided by Mortaro, not built yet; when one is built it moves up into the built part in the same change.
+- The page had a Status column and "Built" / "Planned" parts. Every optimisation on the page is built except: the planned forms of "Thread safety for singletons, the rest of the plan", most of "Copies that cost nothing" (only the pieces listed below are built), and the three items of "Other optimisations". The partly built ones are listed below. The old "Planned" intro said: decided by Mortaro, not built yet; when one is built it moves up into the built part in the same change.
 - The old "Adding one" section (removed, maintainer note) said: every optimisation the compiler starts making is added to this page in the same change, with what it does, when, whether it is built and what a user could notice (D185, D102); an unremovable cost is written down; one that contradicts the rules on another page is recorded in `mortaros_missing_decisions.md`.
 - Every optimisation whose old status line read "proposed by Claude, unconfirmed" still awaits Mortaro's confirmation: tree shaking of classes, slots and statics; native symbol lookup only when reached; reads in a row overlap (and its scheduler cost); the lock forms (padding, unlocked calls to itself, locked writes from outside, read-only held objects, no lock for functions that touch no changing state); the thread-safety forms and their order and the one-touch rule; the skipped lock while no task runs (D267); the readers' side (D266); the counted loop's single lock (D265); held arguments (D270); reading a singleton's unchanging attribute in place (D271); text joined in one piece; discarded defaults; function values describing arguments on demand; list templates reading uncounted; numbers written in place into text; dictionary hashing; number-keyed dictionaries (decided by Claude under D205, readings unconfirmed); reading through a `type` uncounted; borrowed rows in the frame (plus the Symbol walk, sparse rows, lent list elements, lent arguments, lent items passed to calls); `Items` storage; short text (the size 15 and the layout); proven reads (D225, D277); the walked `crash` read; frame objects (decided under D205/D214); parallel translation units and the object cache; `-O3` with ThinLTO; identical function folding (how, and function-value equality).
 - The default `-O0` build was "Mortaro's choice to keep" (recorded as a decision, not a reason).
@@ -709,8 +764,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Identical functions are folded into one
 
-- The whole section is not built (decided by Mortaro 2026-09-30, D296). The compiler does not fold identical generated C functions; it relies on whatever the C compiler and linker do.
-- Proposed by Claude, unconfirmed: the hashing scheme (hash of each function's C with names replaced by fold-group names, callee first, full text comparison on a hash match); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values.
+- Built (D296, D340). Proposed by Claude, unconfirmed: the normalisation details (layout equality by attribute order and type, numbered temporaries, texts by content, a site shared by two versions or instances reporting the first one met); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values; no folding in `--hot-reload` builds and the REPL.
+- Not folded yet: a function that differs only in which class of another layout it passes around by reference (a `List<A>` and a `List<B>` of two unrelated classes whose items are only retained and released); a boxed text constant (`spite_lit_N_box`) compares by its name, not its text; a site of a foreign callback still writes its place into the function.
 
 ### Other optimisations
 

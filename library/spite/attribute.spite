@@ -18,3 +18,7 @@ func get_class(): Spite.Class {
 func get_value(): Anything? {
     return _value
 }
+
+func get_is_singleton(): Boolean {
+    return _class.is_singleton
+}

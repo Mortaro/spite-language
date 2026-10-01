@@ -1,0 +1,6 @@
+var console = Console()
+var environment = Environment()
+
+func SeparatorFlag() {
+    console.print(environment.player_name)
+}

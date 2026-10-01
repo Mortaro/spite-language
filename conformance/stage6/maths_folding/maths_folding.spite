@@ -60,10 +60,10 @@ func floats() {
     var folded_limits = 2.0.minimum(-2.5) + 2.0.maximum(0.5) + (-2.5).clamp(0.0, 1.0)
     var computed_limits = two.minimum(negative) + two.maximum(half) + negative.clamp(zero, one)
     same_float("minimum, maximum, clamp", folded_limits, computed_limits)
-    var pi = Float.pi()
-    var folded_pi_sine = Float.pi().sine()
+    var pi = Float.pi
+    var folded_pi_sine = Float.pi.sine()
     var computed_pi_sine = pi.sine()
-    same_float("sine of Float.pi()", folded_pi_sine, computed_pi_sine)
+    same_float("sine of Float.pi", folded_pi_sine, computed_pi_sine)
     var folded_twice = 2.0.square_root().square_root()
     var computed_once = two.square_root()
     var computed_twice = computed_once.square_root()
@@ -75,22 +75,22 @@ func floats() {
 }
 
 func doubles() {
-    var pi = Double.pi()
-    var euler = Double.euler_number()
-    var folded_sine = Double.pi().sine()
+    var pi = Double.pi
+    var euler = Double.euler_number
+    var folded_sine = Double.pi.sine()
     var computed_sine = pi.sine()
-    same_double("sine of Double.pi()", folded_sine, computed_sine)
-    var folded_cosine = Double.pi().cosine()
+    same_double("sine of Double.pi", folded_sine, computed_sine)
+    var folded_cosine = Double.pi.cosine()
     var computed_cosine = pi.cosine()
-    same_double("cosine of Double.pi()", folded_cosine, computed_cosine)
-    var folded_logarithm = Double.euler_number().logarithm()
+    same_double("cosine of Double.pi", folded_cosine, computed_cosine)
+    var folded_logarithm = Double.euler_number.logarithm()
     var computed_logarithm = euler.logarithm()
-    same_double("logarithm of Double.euler_number()", folded_logarithm, computed_logarithm)
+    same_double("logarithm of Double.euler_number", folded_logarithm, computed_logarithm)
     var tenth: Double = 0.1
-    var folded_power = Double.pi().power(0.1)
+    var folded_power = Double.pi.power(0.1)
     var computed_power = pi.power(tenth)
     same_double("power with a Float literal, exact as a Double", folded_power, computed_power)
-    var folded_root = Double.pi().square_root().exponential()
+    var folded_root = Double.pi.square_root().exponential()
     var computed_root = pi.square_root()
     var computed_exponential = computed_root.exponential()
     same_double("exponential of a square_root", folded_root, computed_exponential)
@@ -113,13 +113,13 @@ func edges() {
     var negative_zero: Float = -0.0
     var computed_negative_zero = negative_zero.square_root()
     same_float("square_root of -0", folded_negative_zero, computed_negative_zero)
-    var largest_value = Double.largest()
-    var folded_overflow = Double.largest().power(2.0)
+    var largest_value = Double.largest
+    var folded_overflow = Double.largest.power(2.0)
     var two: Double = 2.0
     var computed_overflow = largest_value.power(two)
     same_double("power past the largest", folded_overflow, computed_overflow)
     console.print(
-        "questions {(-1.0).square_root().is_not_a_number()} {1000.0.exponential().is_infinite()} {Float.pi().is_finite()}",
+        "questions {(-1.0).square_root().is_not_a_number()} {1000.0.exponential().is_infinite()} {Float.pi.is_finite()}",
     )
 }
 

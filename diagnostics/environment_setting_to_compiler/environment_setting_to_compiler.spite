@@ -1,6 +1,0 @@
-var console = Console()
-var environment = Environment()
-
-func EnvironmentSettingToCompiler() {
-    console.print(environment.serve)
-}

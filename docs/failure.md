@@ -858,7 +858,7 @@ not smuggle text into a condition to have it printed (`crash found or bone_name 
 values in scope without it.
 
 A `crash` the compiler can decide is not left for the run: one whose condition asks only what is known while
-compiling (a codegen value, `has_function`, `fits_vector`, ...) and is false, in a function the program reaches,
+compiling (a codegen value, `functions['run_each']`, `is_fixed_size`, ...) and is false, in a function the program reaches,
 is a compile error at the `crash`, since the program would halt there every time
 ([metaprogramming.md](metaprogramming.md#codegen-values-)).
 
@@ -1405,7 +1405,7 @@ would quietly answer `0`, `""`, `false`, a default object or `null`. A path ends
 - at an `if` with an `else` whose two branches both end, and at a `switch` whose cases all end (a `switch`
   covers every member or value, or has `_:`, so there is no other way through it);
 - at a `while true`, which ends only by leaving the function, since Spite has no `break`;
-- at an `if` whose condition is decided while compiling (a codegen value, `has_function`, ...) and whose branch
+- at an `if` whose condition is decided while compiling (a codegen value, `functions['run_each']`, ...) and whose branch
   taken ends, and at an `assert` so decided to be false, read per instance of a generic class, as they are
   compiled.
 
@@ -1549,7 +1549,7 @@ it runs records, and a path there is reported only when it is a bare name, so no
 did not prove readable. **A call is never evaluated twice:** a call whose answer is reported is kept, as the
 condition runs, in a local beside a flag saying it ran, and the report reads the local; a call answering an object
 it owns hands it to that local, which releases it after the check. A call that is the whole condition, or its
-`not`, is not reported, since its answer is what failed. A name that is a class or a namespace (`Math.pi()`'s
+`not`, is not reported, since its answer is what failed. A name that is a class or a namespace (`Math.pi`'s
 `Math`) is not a value and is left out. **Cost:** the report is written only when the crash fires; on the passing
 path, a condition with a reported call inside it stores the call's answer and a flag, and one with a skippable side
 stores a flag (stores into locals that only the failure branch reads, which the C compiler keeps in registers or

@@ -111,7 +111,7 @@ and balanced allocations.
     declaration), codegen (monomorphization keyed by the constructor's declared order, plus the declared-versus-
     flag-fed split), the formatter (the `generics`-first rule disappears) and the final-class printer.
     Migration: two live files declare `generics` (`examples/arsenal/weapon.spite`) plus
-    their call sites; `docs/metaprogramming.md` and `design/for_ai_writers.md` migrate with it, since
+    their call sites; `docs/metaprogramming.md` and `skills/spite/reference.md` migrate with it, since
     `check.sh` compiles every sample in them. `examples/dungeon` and `examples/arsenal` keep
     requiring `--serve=`/`--environment=` exactly as they do now, since those are flag-fed and undeclared.
     **Sequencing:** independent of milestones 10-12, but it is a syntax change, so `bootstrap/`'s Spite front end
@@ -308,9 +308,9 @@ and balanced allocations.
     `docs/json.md`). **Waiting on Mortaro:** the reading spelling and the constraint readings in
     `mortaros_missing_decisions.md`. **Not done:** a constraint by a union.
 28. **Done on Windows (2026-09-25): D194, the standard library's file and folder watcher** (`docs/standard_library.md`,
-    "System classes"; `docs/standard_library.md`, "Watch files and folders"). `Watcher` watches a file or a folder
+    "System classes"; `docs/standard_library.md`, "Watch files and folders"). `FileSystemWatcher` watches a file or a folder
     tree through `ReadDirectoryChangesW`, `inotify` or `kqueue`, and `changes()` answers the settled paths without
-    waiting; live reload's watcher is now `Watcher` (the per-system `hot_reload.spite` files are gone). With it, a
+    waiting; live reload's watcher is now `FileSystemWatcher` (the per-system `hot_reload.spite` files are gone). With it, a
     `DynamicLibrary` looks up only the symbols of functions that survive tree shaking. Tested by
     `conformance/stage6/file_watching` and `check.sh`'s live reload step. **Not done:** Linux and macOS are only
     compiled; the name waits on `mortaros_missing_decisions.md` 166.

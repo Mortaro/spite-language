@@ -51,10 +51,10 @@ Read the pages in this order the first time; each page assumes the ones before i
    per line, and the short forms the compiler insists on.
 9. [memory.md](memory.md): reference counting, `copy`, `drop`, cycles, `Memory.Address`, `Memory.Heap`,
    placement, allocators, `TypedMemory`, and writing your own container.
-10. [metaprogramming.md](metaprogramming.md): Symbol codegen, templates over another class, the plural walk,
-    generics, codegen values and compile-time type tests, tree shaking.
-11. [reflection.md](reflection.md): `Spite.Class`, `Spite.Function`, namespaces, instances, the functions of
-    `Spite.Class`.
+10. [metaprogramming.md](metaprogramming.md): walks over a program's classes and functions, templates whose name
+    carries the member, member templates, generics, codegen values and compile-time type tests, tree shaking.
+11. [reflection.md](reflection.md): every class an instance of `Spite.Class`, a class against an instance, the
+    `Spite` classes and their members, what folds and what is known only at run time.
 12. [packages.md](packages.md): `load`, namespaces, reopening classes (mods), the reserved `Spite` namespace.
 13. [concurrency.md](concurrency.md): `Concurrent` and `Parallel`, and waiting without `async`/`await`.
 

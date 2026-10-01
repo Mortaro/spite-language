@@ -1,0 +1,1 @@
+diagnostics/setting_named_like_flag/environment.spite:2: error: 'Environment.optimized' and 'Build.optimized' are both '--optimized' on the command line: a program's settings and the compiler's flags share one set of names, so one of them needs another name

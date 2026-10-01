@@ -14,12 +14,12 @@ logarithm_base_10: true
 floor, ceiling, round, truncate: true
 absolute: true
 minimum, maximum, clamp: true
-sine of Float.pi(): true
+sine of Float.pi: true
 square_root twice: true
 power with an Integer literal: true
-sine of Double.pi(): true
-cosine of Double.pi(): true
-logarithm of Double.euler_number(): true
+sine of Double.pi: true
+cosine of Double.pi: true
+logarithm of Double.euler_number: true
 power with a Float literal, exact as a Double: true
 exponential of a square_root: true
 square_root of -1, not a number: true

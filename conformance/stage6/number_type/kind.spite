@@ -1,0 +1,8 @@
+generic $kind_type
+
+func name(): String {
+    if $kind_type == Number {
+        return "a number"
+    }
+    return "not a number"
+}
