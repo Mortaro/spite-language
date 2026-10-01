@@ -3,6 +3,7 @@ type Number {
     subtract(Number): Number
     multiply(Number): Number
     divide(Number): Number
+    remainder(Number): Number
     less_than(Number): Boolean
     greater_than(Number): Boolean
     to_long(): Long

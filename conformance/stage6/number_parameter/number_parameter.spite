@@ -15,9 +15,17 @@ func NumberParameter() {
     var index = 0
     while index < held.count() {
         var value = doubled(held[index])
-        console.print(value)
+        var rest = leftover(value)
+        console.print(value, rest)
         index = index + 1
     }
+    var whole_rest = leftover(17)
+    var decimal_rest = leftover(-7.5)
+    console.print(whole_rest, decimal_rest)
+}
+
+func leftover(value: Number): Number {
+    return value % 2
 }
 
 func doubled(value: Number): Number {

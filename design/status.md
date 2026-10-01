@@ -60,8 +60,8 @@ when a page gains a rule that is not built yet, add it here.
 - NOT BUILT: an operator through a `type` that requires its function, on a class instance (not a number) whose
   class is known only at run time, in a function that runs as written: it halts with "was given a value of a class
   it is not compiled for" instead of calling the class's operator function.
-- Unconfirmed proposals by Claude: the member list, and a `type`'s own name in a required signature standing for
-  the class that fits.
+- Unconfirmed proposals by Claude: the member list (`remainder` joined it once `%` on `Float` and `Double` compiled
+  to `fmodf`/`fmod`), and a `type`'s own name in a required signature standing for the class that fits.
 
 ### Numeric types (REPL and text reading)
 - No status facts removed beyond the above.
@@ -91,6 +91,9 @@ for a design):
 
 - Reference cycles leak without a word unless the program runs with `--debug-memory`, which prints the allocation
   balance (memory.md, "Cycles leak").
+- A `--hot-reload` build's watcher thread keeps running while the singletons are destroyed at exit: `start()` now
+  waits until it is watching, so it no longer asks for `HotReload` after the teardown, but a file change landing
+  during the teardown would still run `compile_changes()` on the destroyed `HotReload`.
 - Signed arithmetic wraps in production builds and unsigned arithmetic wraps in every build (D249).
 - A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` never ends
   (concurrency.md, "Choosing where Concurrents resume").
@@ -268,6 +271,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Naming and abbreviations: compile errors, not auto-fixed
 - Unconfirmed (proposed by Claude), stated on the page: the one-underscore-between-words rule (implemented 2026-09-24).
+- Unconfirmed (proposed by Claude), built: the second table of abbreviations (`cnt`, `buf`, `idxs`, ...), which the
+  `'windows'` naming rule does not read backwards because Win32 spells those words out in full.
 
 ## [memory.md](../docs/memory.md)
 
@@ -492,9 +497,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   mapping (`mmap`) is held to compiling only; only Windows runs.
 
 ### Watch files and folders
-- `watch_for_changes(target: Directory or File)` is declared over a union of the two classes in the watcher's own
-  file (`FileSystemWatcher.Target`), since the compiler has no inline union type; it becomes `Directory or File`
-  when that exists. The quiet period is still open (mortaros_missing_decisions.md 166).
+- The quiet period is still open (mortaros_missing_decisions.md 166).
 - Linux (`inotify`) and macOS (`kqueue`) watchers are held to compiling by check.sh; only Windows runs.
 
 ### Run a process
