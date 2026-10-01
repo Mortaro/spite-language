@@ -142,7 +142,12 @@ func remember_folder(folder: String, file_name: String, words: List<String>) {
         if word.starts_with("vars=") {
             var program_flags = flags_of(word, "vars=")
             crash folder_flags[position]
-            folder_flags[position] = "{folder_flags[position]} -- {program_flags}"
+            folder_flags[position] = "{folder_flags[position]} {program_flags}"
+        }
+        if word.starts_with("arguments=") {
+            var program_arguments = words_of(word, "arguments=")
+            crash folder_flags[position]
+            folder_flags[position] = "{folder_flags[position]} {program_arguments}"
         }
         if word.starts_with("build=") {
             var build_flags = flags_of(word, "build=")
@@ -176,6 +181,13 @@ func flags_of(word: String, prefix: String): String {
         index = index + 1
     }
     return flags.join(" ")
+}
+
+func words_of(word: String, prefix: String): String {
+    var prefix_length = prefix.length()
+    var word_length = word.length()
+    var declaration = word.slice(prefix_length, word_length)
+    return declaration.split(",").join(" ")
 }
 
 func write_source(folder: String, file_name: String, text: String) {

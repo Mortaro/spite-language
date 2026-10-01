@@ -111,7 +111,7 @@ and balanced allocations.
     declaration), codegen (monomorphization keyed by the constructor's declared order, plus the declared-versus-
     flag-fed split), the formatter (the `generics`-first rule disappears) and the final-class printer.
     Migration: two live files declare `generics` (`examples/arsenal/weapon.spite`) plus
-    their call sites; `docs/metaprogramming.md` and `design/for_ai_writers.md` migrate with it, since
+    their call sites; `docs/metaprogramming.md` and `skills/spite/reference.md` migrate with it, since
     `check.sh` compiles every sample in them. `examples/dungeon` and `examples/arsenal` keep
     requiring `--serve=`/`--environment=` exactly as they do now, since those are flag-fed and undeclared.
     **Sequencing:** independent of milestones 10-12, but it is a syntax change, so `bootstrap/`'s Spite front end

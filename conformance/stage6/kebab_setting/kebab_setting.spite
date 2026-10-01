@@ -2,5 +2,5 @@ var console = Console()
 var environment = Environment()
 
 func KebabSetting() {
-    console.print("never printed: the misspelled setting stops the program first", environment.player_name)
+    console.print("player", environment.player_name, "hard mode", environment.hard_mode)
 }

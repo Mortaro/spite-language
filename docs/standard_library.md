@@ -964,7 +964,7 @@ In detail:
   declares its own is shown by it wherever it appears. A `List` is `[a, b]`, a `Dictionary` is `{"key": value}`,
   text is quoted with `\"`, `\\` and `\n` escaped, a `Symbol` or enum value is written the way Spite writes it
   (`'calm'`), a number and a `Boolean` as they print, and an absent `T?` is `null`. A `Spite.Class` is its name.
-- **Private attributes are left out.** The walk is the plural attribute template ([Symbol codegen](metaprogramming.md#symbol-codegen)) run from
+- **Private attributes are left out.** The walk is the plural attribute template ([Symbol codegen](metaprogramming.md#templates)) run from
   `Spite.DebugInstance`, and a plural over another class's attributes ranges over the ones that class lets
   others read: a `_` attribute is its own business, and reading it from outside would be the ordinary private
   error. The JSON and binary writers and readers follow the same rule.

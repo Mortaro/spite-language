@@ -1,1 +1,1 @@
--- --player-name=ada
+--player-name=ada --hard-mode

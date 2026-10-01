@@ -17,7 +17,7 @@ spite game --debug-memory           the same, counting allocations and frees
 spite game --c-source               also write .spite/build/game/game.c
 spite game --run=false              only check that it compiles
 spite game --repl-port=4000         serve a REPL on 127.0.0.1:4000 while it runs
-spite game -- --name=production     run it with a setting its Environment declares
+spite game --name=production        run it with a setting its Environment declares
 spite format game                   format files without compiling them
 spite connect 4000                  talk to a program running with --repl-port=4000
 ```
@@ -29,9 +29,9 @@ write its C and write its final classes.
 `bin/spite` (and `bin/spite.cmd`, which runs it from a Windows prompt) is the command itself: it builds the
 compiler from `bootstrap/seed/spite_compiler.c` into `.spite/spite.exe` the first time, and again whenever the
 seed is newer, finds a C compiler, makes the folder and path arguments absolute, and passes everything else
-through. What follows `--` reaches the program exactly as it was typed, from bash or from PowerShell or `cmd`
-through `spite.cmd`: `spite tool -- --prefixes=/Game/Legacy/` gives the program `--prefixes=/Game/Legacy/`, not
-the path Git for Windows' bash would make of it ([the rule](#the-launcher-passes-the-programs-arguments-untouched)).
+through. A program's own settings and arguments reach it exactly as they were typed, from bash or from PowerShell
+or `cmd` through `spite.cmd`: `spite tool --prefixes=/Game/Legacy/` gives the program `--prefixes=/Game/Legacy/`,
+not the path Git for Windows' bash would make of it ([the rule](#the-launcher-passes-the-programs-arguments-untouched)).
 
 ## Name the program
 
@@ -66,7 +66,7 @@ that folder, not to the language's repository. A foreign library's header named 
 The compiler reads the program first, and decides what to produce only after, from `Build`, so a program's own
 `build.spite` can choose its outputs like any other option ([programs.md](programs.md#compile-time-settings-build)).
 There are four, and every one that is on is produced by the same compile: `run` (on by default: build the
-executable, then run it with everything after `--`), `executable` (build it without running it), `c_source` (write
+executable, then run it with its settings and arguments), `executable` (build it without running it), `c_source` (write
 the generated C) and `final_classes` (write the program back out as Spite into a folder,
 [below](#inspect-merged-classes)); their defaults are in [Build options](#build-options).
 
@@ -288,23 +288,25 @@ spite bootstrap --c-source --run=false --c-path=compiler_linux.c --target-operat
 
 ## Pass settings to the program
 
-Everything after the first bare `--` belongs to the program, not the compiler. A program reads its run-time
-settings from the `Environment` singleton, whose fields it declares by reopening `Environment` in its own
-`environment.spite` (see [programs.md](programs.md#run-time-settings-environment)):
+A program's settings are written exactly like the compiler's flags, beside them: kebab-case on the command line,
+snake_case in code. A program reads its run-time settings from the `Environment` singleton, whose fields it
+declares by reopening `Environment` in its own `environment.spite` (see
+[programs.md](programs.md#run-time-settings-environment)):
 
 ```bash
-spite server -- --name=production
+spite game --optimized --player-name=Bob --volume=7
 ```
 
-Before the `--`, a `--name=value` sets a `Build` field (the compiler's own options, or one the program declares
-in its `build.spite`) and is written into the build as a constant:
+`--optimized` sets a `Build` field (the compiler's own options, or one the program declares in its
+`build.spite`) and is written into the build as a constant; `--player-name=Bob` and `--volume=7` set
+`Environment.player_name` and `Environment.volume`, so the compiler passes them to the program when it runs it.
+Every other argument after the folder that is not a flag (`spite game ada`) is passed to the program too, for
+`Arguments` to read. There is no `--` separator: a bare `--` is an error showing the form above.
 
-```bash
-spite server --serve=true -- --name=production
-```
-
-A flag naming a field of `Environment` is an error that says to pass it after `--`, and a flag naming no field
-at all is an error listing the fields `Build` has, so typos never pass silently.
+Compiler flags and program settings share one set of names, so an `Environment` field named like a `Build` field
+is a compile error naming both. A flag naming no field of either is an error listing the fields `Build` has, a
+setting given the snake_case spelling is an error naming the kebab one, and a value that is not of the setting's
+type is an error naming the forms it takes, so typos never pass silently.
 
 ## Formatting
 
@@ -354,7 +356,7 @@ calls the allocator directly.
 Compiling grows linearly with the program: every whole-program step (reading, formatting, analysis, template
 instances, call effects, tree shaking) works on each class a fixed number of times, and anything looked up by
 name is found through a table, never by walking every class again. The measure is a data-heavy program: a
-`Symbol<Item>` walk over a folder of small record classes, each one `fill(item)` of 10 to 30 assignments, with
+walk over a folder of small record classes, each one `fill(item)` of 10 to 30 assignments, with
 `Filler<record.class>` made for each, and the items kept in a `Dictionary` keyed by number. CPU seconds of the
 compiler alone (`--c-source --run=false`, so no C compiler), on Windows with clang:
 
@@ -439,7 +441,7 @@ spite game --final-classes=.spite/final --run=false
 
 With no program, the compiler prints its usage text and exits unsuccessfully. A `.spite` file named instead of
 its folder, a folder with no entry file, an entry constructor that takes arguments, a path option for an output
-that is off, a flag with an underscore, and a `--name=value` before `--` that names no `Build` field are errors
+that is off, a flag with an underscore, a `--name=value` that names no field of `Build` or `Environment`, and a bare `--` are errors
 too, each naming the fix; their texts are [below](#naming-a-program).
 
 A program's own errors come first. When a package it loads is broken too (a game engine package halfway through a
@@ -454,8 +456,9 @@ the rules win.
 
 ### Command line
 
-Every command and flag the compiler has. `program` is a folder; every flag before the first bare `--`
-is a field of `Build` ([Build options](#build-options), [programs.md](programs.md#build-settings-build)).
+Every command and flag the compiler has. `program` is a folder; every flag is a field of `Build`
+([Build options](#build-options), [programs.md](programs.md#build-settings-build)) or of the program's
+`Environment` ([programs.md](programs.md#program-settings-environment)), which the program reads when it runs.
 
 ```
 spite program                           build .spite/build/program/program.exe and run it
@@ -476,7 +479,8 @@ spite program --repl-port=4000          serve REPL commands on 127.0.0.1:4000 wh
 spite program --hot-reload              swap changed classes into the running program (implies --development)
 spite program --target-operating-system=linux   compile for another system: windows, linux or mac
 spite program --serve=true              set a Build field the program declares in its build.spite (programs.md)
-spite program -- ada --player=x         run it, passing everything after '--' to the program (Arguments, Environment)
+spite program ada --player-name=x       run it, passing a setting its Environment declares, and any argument
+                                        that is not a flag, to the program (Environment, Arguments)
 spite format file_or_folder ...         format files without compiling them (a folder with every folder inside it)
 spite format --check file_or_folder ... rewrite nothing; list every file that would change, and exit 1 if any would
 spite connect port                      talk to a program running with --repl-port=port (repl.md)
@@ -578,19 +582,22 @@ before any output is written.
   `--worker-stack-size=256` (`conformance/stage6/build_settings`). An underscore in a flag's name is an error,
   checked before anything is read, naming the hyphen form: `error: '--repl_port' is written '--repl-port': a flag
   is kebab-case, and it sets the Build field 'repl_port'` (`diagnostics/underscore_flag`); the value after `=` is
-  never touched. The rule covers the compiler's flags
-  before the `--`, and every message that names a flag names the kebab form; a program's run-time settings after
-  the `--`, read by `Environment` when the program runs, keep their field's own spelling
-  (`-- --player_name=x`), and
-  the kebab form of a declared setting stops the program naming the field's spelling rather than being ignored
-  ([programs.md](programs.md)).
-- Before the `--`, a `--name=value` sets the `Build` field of that name, and is written into the build as a
-  constant. One that names no field is an error that shows both places a setting can belong
-  (`diagnostics/unknown_compiler_flag`): `error: '--serve' is not a compiler option, and this program's Build
-  declares no setting 'serve' (it declares run, executable, ...). To decide it when compiling, reopen Build in the
-  program's build.spite with 'var serve = ...'; to read it when the program runs, declare it in environment.spite
-  and give it after '--': spite program -- --serve=value`. One that names a field of `Environment` says to give it
-  after the `--` (`diagnostics/environment_setting_to_compiler`).
+  never touched. The rule covers the compiler's flags and the program's settings alike (`--player-name=x` sets
+  `Environment.player_name`), and every message that names a flag names the kebab form
+  (`diagnostics/underscore_setting`). A program run directly, without the compiler, reads the same kebab spelling
+  and refuses the snake_case one ([programs.md](programs.md#program-settings-environment)).
+- **One set of names**: an `Environment` field named like a field of `Build` is an error naming both, at the
+  setting: `environment.spite:2: error: 'Environment.optimized' and 'Build.optimized' are both '--optimized' on
+  the command line: a program's settings and the compiler's flags share one set of names, so one of them needs
+  another name` (`diagnostics/setting_named_like_flag`).
+- A `--name=value` naming a `Build` field sets it, and is written into the build as a constant. One naming a
+  field of `Environment` is checked against the setting's type while compiling (`error: '--volume=loud' was
+  given, but 'Environment.volume' is an Integer: a whole number, like --volume=3`, `diagnostics/setting_value`;
+  a bare flag only for a `Boolean`) and passed to the program. One that names no field is an error that shows
+  both places a setting can belong (`diagnostics/unknown_compiler_flag`): `error: '--serve' is not a compiler
+  option, and this program declares no setting 'serve' (its Build declares run, executable, ...). To decide it
+  when compiling, reopen Build in the program's build.spite with 'var serve = ...'; to read it when the program
+  runs, declare it in environment.spite with 'var serve = ...'`.
 - A value that does not fit the field is an error naming the flag and the forms it takes, and no file position,
   since the mistake is on the command line: `error: '--optimized=maybe' was given to the compiler, but
   'Build.optimized' is a Boolean: --optimized, --optimized=true or --optimized=false` (`diagnostics/flag_value`).
@@ -601,11 +608,14 @@ before any output is written.
   Build.operating_system is the system doing the compiling (windows). To write the program for another system, give
   --target-operating-system=linux (or windows, or mac)`, and `error: '--program' cannot be given: the program is
   the folder named on the command line, 'spite folder', and Build.program is set from it`.
-- **Where the compiler's flags end**: at the first bare `--`. Everything after it
-  reaches the program verbatim (`arguments.get(0)` is the first, `arguments.player` reads `--player=...`, and
-  `Environment` reads the settings it declares), and none of it is read as a compiler flag or a folder to compile
-  (`conformance/stage6/program_arguments`). A program's own `Arguments` stops at `--` the same way, which is the
-  ordinary meaning of `--`.
+- **What the program receives**: every setting its `Environment` declares, and every argument after the folder
+  that is not a flag, in the order given, verbatim (`arguments.get(0)` is the first, `arguments.player` reads
+  `--player=...`, and `Environment` reads the settings it declares); the compiler's own flags and the folder are
+  not passed (`conformance/stage6/program_arguments`). **There is no `--` separator**: a bare `--` is an error,
+  `error: '--' is not a separator: a program's settings are given beside the compiler's flags, kebab-case like
+  them: spite program --optimized --player-name=Bob` (`diagnostics/separator_flag`). A flag or setting given twice is an
+  error too, `error: '--optimized' is given twice: a flag or a setting is given once`
+  (`diagnostics/flag_given_twice`), so a later one never silently replaces an earlier one.
 - Every setting is decided while compiling and costs nothing at run time; only the builds that ask for it
   carry `--debug-memory`'s table, the REPL (`--repl`, `--repl-port`) or live reload (`--hot-reload`).
 
@@ -638,12 +648,13 @@ exits with the program's exit code.
 `bin/spite` is a bash
 script, and `bin/spite.cmd` runs it with the bash on the `PATH`, which on Windows is Git for Windows' bash. That
 bash rewrites every argument that looks like a POSIX path when it starts a Windows program, so
-`spite tool -- --prefixes=/Game/Legacy/` would reach the program as `--prefixes=C:/Program Files/Git/Game/Legacy/`,
+`spite tool --prefixes=/Game/Legacy/` would reach the program as `--prefixes=C:/Program Files/Git/Game/Legacy/`,
 from PowerShell as well, and `MSYS_NO_PATHCONV=1` would break the launcher's own paths instead. So the launcher writes
-its own paths as Windows paths itself (`cygpath -m`: the folder, `--executable-path`, `--c-path`,
-`--final-classes`, and any other `--name=/...` before `--`, which the rewriting would otherwise convert) and turns the
-rewriting off for the compiler it starts (`MSYS2_ARG_CONV_EXCL="*"`), so every argument after `--`, and every
-argument of `spite connect`, arrives exactly as typed. On Linux and macOS nothing is rewritten and nothing
+its own paths as Windows paths itself (`cygpath -m`: the folder, which is the first argument that is not a flag,
+`--executable-path`, `--c-path` and `--final-classes`) and turns the rewriting off for the compiler it starts
+(`MSYS2_ARG_CONV_EXCL="*"`), so every other argument, a program's settings and arguments included, and every
+argument of `spite connect`, arrives exactly as typed. A path given to a field a program's own `build.spite`
+declares is written as the system writes it (`--assets=C:/game/assets`). On Linux and macOS nothing is rewritten and nothing
 changes.
 
 ### How many errors are listed

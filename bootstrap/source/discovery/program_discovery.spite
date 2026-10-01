@@ -517,7 +517,7 @@ func check_entry_constructor(path: String, file: Syntax.SourceFile, class_name: 
         if function {
             if function.name == class_name and not function.parameters.is_empty() {
                 has_error = true
-                error_message = "{path}:{function.line}: error: '{class_name}' is the entry constructor, and it takes no arguments: a program reads its run-time settings through Environment() (declared in its environment.spite, given after '--'), what its build decided through Build(), and the raw command line through Arguments(), anywhere"
+                error_message = "{path}:{function.line}: error: '{class_name}' is the entry constructor, and it takes no arguments: a program reads its run-time settings through Environment() (declared in its environment.spite, given on the command line beside the compiler's flags), what its build decided through Build(), and the raw command line through Arguments(), anywhere"
             }
         }
         index = index + 1
@@ -1086,7 +1086,7 @@ func read_settings() {
     assert not has_error
     var environment = class_file_named("Environment")
     crash environment
-    var environment_names = read_environment(environment)
+    var environment_names = read_environment(environment, build_names)
     check_supplied_settings(build_names, environment_names)
 }
 
@@ -1122,17 +1122,21 @@ func hardcode_build(build: Syntax.SourceFile): List<String> {
     return declared
 }
 
-func read_environment(environment: Syntax.SourceFile): List<String> {
+func read_environment(environment: Syntax.SourceFile, build_names: List<String>): List<String> {
     var readings = List<Syntax.Statements.Statement>()
     var declared = List<String>()
     var index = 0
     while index < environment.statements.count() and not has_error {
         var variable = shape.as_variable_declaration(environment.statements[index])
         if variable and not variable.name.starts_with("_") {
-            declared.append(variable.name)
-            var reader = setting_reader(variable, "Environment", environment.path)
-            var reading = setting_reading(variable, reader)
-            readings.append(reading)
+            reject_shared_flag(variable, environment.path, build_names)
+            if not has_error {
+                declared.append(variable.name)
+                var reader = setting_reader(variable, "Environment", environment.path)
+                check_given_setting(variable.name, reader)
+                var reading = setting_reading(variable, reader)
+                readings.append(reading)
+            }
         }
         index = index + 1
     }
@@ -1150,6 +1154,32 @@ func read_environment(environment: Syntax.SourceFile): List<String> {
     }
     constructor.body = readings
     return declared
+}
+
+func check_given_setting(name: String, reader: String) {
+    assert not has_error
+    assert supplied_settings[name]
+    var given = "{flag_of(name)}={supplied_settings[name]}"
+    var literal = spelled_setting(reader, supplied_settings[name])
+    if bare_settings.contains(name) {
+        given = flag_of(name)
+        if reader != "boolean_setting" {
+            literal = null
+        }
+    }
+    assert not literal
+    has_error = true
+    error_message = "error: '{given}' was given, but 'Environment.{name}' is {setting_expectation(reader, name)}"
+}
+
+func reject_shared_flag(variable: Syntax.Statements.VariableDeclaration, file_path: String, build_names: List<String>) {
+    assert build_names.contains(variable.name)
+    var declared_path = variable.source_path
+    if declared_path.is_empty() {
+        declared_path = file_path
+    }
+    has_error = true
+    error_message = "{declared_path}:{variable.line}: error: 'Environment.{variable.name}' and 'Build.{variable.name}' are both '{flag_of(variable.name)}' on the command line: a program's settings and the compiler's flags share one set of names, so one of them needs another name"
 }
 
 func spelling_check(declared: List<String>, first_reading: Syntax.Statements.Statement): Syntax.Statements.Statement {
@@ -1209,7 +1239,7 @@ func setting_source(name: String, class_name: String): String {
     if class_name == "Build" {
         return "decided when compiling, by the compiler's {flag_of(name)}=value"
     }
-    return "a setting, read from the program's command line (--{name}=value) or its environment ({name.upper_case()})"
+    return "a setting, read from the program's command line ({flag_of(name)}=value) or its environment ({name.upper_case()})"
 }
 
 func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: String) {
@@ -1313,12 +1343,9 @@ func check_supplied_settings(build_names: List<String>, environment_names: List<
         if name == "format" {
             has_error = true
             error_message = "error: '--format' is not a compiler option: every compile formats the program's own files first, and nothing turns that off. To format files without compiling them: spite format file_or_folder"
-        } else if environment_names.contains(name) and not build_names.contains(name) {
+        } else if not build_names.contains(name) and not environment_names.contains(name) {
             has_error = true
-            error_message = "error: '{flag_of(name)}' was given to the compiler, but 'Environment.{name}' is read when the program runs: give it to the program after '--' (spite program -- --{name}=value), or, to decide it when compiling, declare it in the program's build.spite instead"
-        } else if not build_names.contains(name) {
-            has_error = true
-            error_message = "error: '{flag_of(name)}' is not a compiler option, and this program's Build declares no setting '{name}' (it declares {build_names.join(", ")}). To decide it when compiling, reopen Build in the program's build.spite with 'var {name} = ...'; to read it when the program runs, declare it in environment.spite and give it after '--': spite program -- --{name}=value"
+            error_message = "error: '{flag_of(name)}' is not a compiler option, and this program declares no setting '{name}' (its Build declares {build_names.join(", ")}). To decide it when compiling, reopen Build in the program's build.spite with 'var {name} = ...'; to read it when the program runs, declare it in environment.spite with 'var {name} = ...'"
         }
         index = index + 1
     }

@@ -599,7 +599,7 @@ D278 (private attributes are in `.attributes` for the class's own walks).
    error and the REPL path.
 4. Docs: metaprogramming.md's "Another class's attributes" and "A class's functions, a folder's classes and a
    name's pattern" and their rules (about 900 lines) rewritten into reflection.md, which becomes the one page for
-   both; collections.md's `map_` and the member-template rules; values_and_types.md's enum walk; for_ai_writers.md;
+   both; collections.md's `map_` and the member-template rules; values_and_types.md's enum walk; skills/spite/reference.md;
    README.
 
 **The engine package:** 17 files, 62 `Symbol<` lines, plus every `map_<member>` call. `runner.spite` is most of it (about 30

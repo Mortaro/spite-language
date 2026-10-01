@@ -244,7 +244,7 @@ columns ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call)).
 
 A generic class that keeps values of a type it does not know (an engine's `Column<$component_type>`) cannot
 say `Vector` or `List` without knowing whether the type fits a `Vector`. `Items<T>` (`library/items.spite`)
-answers that while compiling: when `T.fits_vector()` its items are
+answers that while compiling: when `T.is_fixed_size` its items are
 inline and borrowed, exactly as a `Vector`'s; otherwise they are references, as a `List`'s. The members are the
 same either way, so one class serves both:
 
@@ -853,13 +853,13 @@ starts. Written as three steps, the chain above would make two lists every time 
 ## How the member templates are written
 
 The templates are ordinary Spite in `library/list.spite`, over the list's own buffer on the heap. Each one is a
-Symbol codegen template ([metaprogramming.md](metaprogramming.md)) whose parameter is
-`member: Symbol<$element_type>`: the symbol names a member of the *element*, and `item.attributes[member]` reads
+template ([metaprogramming.md](metaprogramming.md#member-templates)) whose parameter is
+`member: Spite.Attribute<$element_type>`: it names a member of the *element*, and `item.attributes[member]` reads
 it: the field itself, or a call to the zero-argument function. `filter_member` answers `filter_in_stock`,
 `filter_is_popular` and every other `filter_<member>` call:
 
 ```gdscript
-func filter_member(member: Symbol<$element_type>): List<$element_type> {
+func filter_member(member: Spite.Attribute<$element_type>): List<$element_type> {
     var filtered = List<$element_type>()
     var index = 0
     while index < item_count {
@@ -892,11 +892,11 @@ in any build.
 ## Write your own member template
 
 A program reopens `List` by putting a `list.spite` in its own folder, and a function there with a
-`Symbol<$element_type>` parameter named after a segment of its name becomes one more template, exactly like the
+`Spite.Attribute<$element_type>` parameter named after a word of its name becomes one more template, exactly like the
 library's:
 
 ```gdscript title=list_average/list.spite
-func average_member(member: Symbol<$element_type>): Float? {
+func average_member(member: Spite.Attribute<$element_type>): Float? {
     assert item_count != 0
     var total = 0.0
     var index = 0
@@ -991,11 +991,11 @@ is a merge sort, so its time grows as `n log n`: it reads each key once, then me
 makes the key list, two index lists and the result (`sort_by(f)` is the same template, and `Directory`'s
 `files()` and `folders()` sort through it; `conformance/stage6/sorting_many`).
 
-**How the templates are written.** They are Symbol codegen templates in `library/list.spite`, each a `while` over the list's
-`Memory` buffer: `func filter_member(member: Symbol<$element_type>): List<$element_type>` answers every
-`filter_<member>` call. The symbol names a member of the *element*, not of the list (whose own attributes are
-its buffer), because it says so: `Symbol<$element_type>` is [Symbol codegen](metaprogramming.md#symbol-codegen)'s
-`Symbol<Label>`, one mechanism for both. `item.attributes[member]` reads it: the field, or a call to the
+**How the templates are written.** They are templates in `library/list.spite`, each a `while` over the list's
+`Memory` buffer: `func filter_member(member: Spite.Attribute<$element_type>): List<$element_type>` answers every
+`filter_<member>` call. The parameter names a member of the *element*, not of the list (whose own attributes are
+its buffer), because it says so: `Spite.Attribute<$element_type>` is a [template](metaprogramming.md#templates)'s
+`Spite.Attribute<Label>`, one mechanism for both. `item.attributes[member]` reads it: the field, or a call to the
 zero-argument function, which is "the value held in that field" applied to members. The generator binds the template to the
 element's member and checks [the table](#member-templates-loops-you-do-not-write) before it compiles the body, so a member that does not fit is still
 the error naming the member, its type and what the template needs; it writes none of the templates' C. Only the
@@ -1045,7 +1045,7 @@ The caller's function is passed as a bound function value, owned by whoever it i
   answers `Integer?`, and `keys.sort_by(counts.get)` is an error naming the fix: a function of your own
   that narrows it (`conformance/stage6/library_functions_passed`, `diagnostics/library_function_mistakes`).
 - **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
-  Symbol<$element_type>)`) is instantiated once per function and owner class, with a last hidden parameter holding
+  Spite.Attribute<$element_type>)`) is instantiated once per function and owner class, with a last hidden parameter holding
   the owner (the function's instance, passed at the call site), and `item.attributes[member]` reads as
   `owner.say_hello(item)`, or `owner(item)` when the owner is a held function value. A function written by name
   therefore costs no allocation and no indirect call; only a held value is called through `Spite.Function`. Only
@@ -1248,17 +1248,17 @@ under `Vector<T>`](#vectort-items-inline), which is normative. The readings:
 ### Items\<T\>
 
 `Items<T>` chooses its storage while compiling, inline like a
-`Vector<T>` when `T.fits_vector()` and references like a `List<T>` otherwise, behind one set of members. Its
+`Vector<T>` when `T.is_fixed_size` and references like a `List<T>` otherwise, behind one set of members. Its
 members are [the table under `Items<T>`](#itemst-the-storage-chosen-for-you), which is normative. The readings:
 
 - **One class, folded.** `library/items.spite` is one generic class. Its storage is the same for both kinds (a
-  heap block, a count and a capacity), and each body that touches an item folds on `$element_type.fits_vector()`
+  heap block, a count and a capacity), and each body that touches an item folds on `$element_type.is_fixed_size`
   ([metaprogramming.md](metaprogramming.md#asking-whether-a-class-fits-a-vector)): the inline branch goes through
   `InlineMemory<T>`, the reference branch through `TypedMemory<T>`, and the branch not taken is not compiled. So a
   `T` that does not fit never makes a `Vector<T>`, never meets the item errors of
   [Vector](#vectort), and never has an item function written for it. Both helpers are singletons
   bound as attributes, so an `Items` object holds one pointer more than a `Vector` or a `List`, one per
-  collection and never per item. No syntax is needed: the language already folds a body on `fits_vector()`, and
+  collection and never per item. No syntax is needed: the language already folds a body on `is_fixed_size`, and
   the storage needs no attribute of its own per kind.
 - **Which kind.** `T` fits exactly when a `Vector<T>` could be made (a `Vector`'s rule: a `String`, or a class made
   only of numbers, `Boolean`s, enums and `String`s, with no `drop()` and no function that uses `this` as a value).
@@ -1316,7 +1316,7 @@ members are [the table under `Items<T>`](#itemst-the-storage-chosen-for-you), wh
 `List`, `Vector` and `Items` remove many elements in one pass:
 
 - **`remove_where(test)` and `remove_where_<member>()`.** One template, `remove_where_member(member:
-  Symbol<$element_type>)` in each of `library/list.spite`, `vector.spite` and `items.spite`, so it answers both a
+  Spite.Attribute<$element_type>)` in each of `library/list.spite`, `vector.spite` and `items.spite`, so it answers both a
   member (`creatures.remove_where_dead()`: the member returns `Boolean`) and a passed function
   (`numbers.remove_where(is_odd)`: on a `List` of anything, never on a `Vector` or `Items`, whose items
   are borrowed or text, and a borrowed item is never passed on). It walks the collection once; an element that stays is

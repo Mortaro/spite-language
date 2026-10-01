@@ -1,1 +1,0 @@
-error: '--serve' was given to the compiler, but 'Environment.serve' is read when the program runs: give it to the program after '--' (spite program -- --serve=value), or, to decide it when compiling, declare it in the program's build.spite instead

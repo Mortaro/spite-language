@@ -586,11 +586,9 @@ brunch starter false
 
 ### Walking an enum's values
 
-`course: Symbol<Course>` makes a template over the enum's values, the way `Symbol<Label>` makes one over a
-class's attributes ([metaprogramming.md](metaprogramming.md#another-classs-attributes-and-all-of-them-at-once)).
-Inside, `course.name` is the value's name as text and `course.value` is the value itself, typed `Course`. The
-plural, `list_courses()`, calls the template once per value, in the order the enum lists them; `list_soup()`
-calls it for one.
+An enum is a class, so `Course` read as a value is its `Spite.Class`, and `Course.values` lists its values in the
+order the enum declares them. It is an ordinary list, walked with `each` like any other
+([metaprogramming.md](metaprogramming.md#walking-a-programs-structure)).
 
 ```gdscript title=enum_walk/enum_walk.spite entry
 enum Course {
@@ -603,12 +601,12 @@ var served: Course = 'soup'
 var console = Console()
 
 func EnumWalk() {
-    list_courses()
+    Course.values.each(list_course)
 }
 
-func list_course(course: Symbol<Course>) {
-    var is_served = course.value == served
-    console.print(course.name, is_served)
+func list_course(course: Course) {
+    var is_served = course == served
+    console.print(course, is_served)
 }
 ```
 ```output
@@ -617,8 +615,8 @@ soup true
 dessert false
 ```
 
-It is all decided while compiling: `list_courses()` becomes three calls, and no list of an enum's values exists
-at run time ([rules](#enums-in-full)). An enum is also open to the program that loads it: reopening its
+It is all decided while compiling: the walk becomes three calls, and no list of an enum's values exists at run
+time ([rules](#enums-in-full)). An enum is also open to the program that loads it: reopening its
 class declares the enum again with more values ([packages.md](packages.md#reopening-an-enum-adds-values)), and a
 walk then includes them.
 
@@ -1162,7 +1160,7 @@ That is all an enum is; the integer it compiles to is a representation detail.
   compile error listing the symbols that enum accepts. There is no widening from a symbol to an enum, and there
   is no untyped symbol literal: `var choice = 'orange'`, with nothing to check it against, is an error naming
   the missing context.
-- **Text is always written in double quotes.** A symbol literal where a `String` is wanted (an argument, a `var`, `has_function`) is an
+- **Text is always written in double quotes.** A symbol literal where a `String` is wanted (an argument, a `var`) is an
   error naming the fix, whether or not an enum has that value: `'world' in single quotes is a symbol, and text is
   wanted here: text is always written in double quotes, so write "world"` (`diagnostics/symbol_for_text`). Adding
   an enum value somewhere can then never change what a line passes. Where a `Symbol` is wanted, `'name'` stays
@@ -1179,7 +1177,7 @@ That is all an enum is; the integer it compiles to is a representation detail.
   ([optimizations.md](optimizations.md#short-symbols-are-inline-text)).
 - **What a `Symbol` names is still checked by whatever consumes it**, at compile time, the way the Symbol
   codegen path checks `set_age(2)` against `Person`'s real attributes
-  ([Symbol codegen](metaprogramming.md#symbol-codegen)).
+  ([Symbol codegen](metaprogramming.md#templates)).
 
 **An enum can be reopened, and walked.**
 
@@ -1189,18 +1187,15 @@ That is all an enum is; the integer it compiles to is a representation detail.
   stays where it was, so a reopening may restate the whole enum (as `--final-classes` output does) without
   changing it. Nothing removes a value. `conformance/stage6/enum_reopening` reopens one from a loaded folder and
   from the program's own folder.
-- **`course: Symbol<Course>` walks the values** of an enum, the way `Symbol<Label>` walks a class's attributes
-  ([Symbol codegen](metaprogramming.md#symbol-codegen)): `course.name` is the value's name as text, `course.value` the value itself typed as `Course`, and
-  the plural (`list_courses()` for `list_course`) calls the template once per value in the enum's order;
-  `list_soup()` calls it for one, and a name the enum does not have is an error listing the ones it does.
-- **A generic walks the enum it is given the same way**: in a generic class, `value: Symbol<$value_type>` ranges over the enum's values when
-  `$value_type` is an enum and over the attributes when it is a class, decided for each instance while compiling.
-  `library/binary_format.spite` finds an enum value's index and the number of values this way.
+- **`Course.values` lists the values** of an enum in its order, an ordinary list of `Course`
+  ([Walking a program's structure](metaprogramming.md#walking-a-programs-structure)): `each` over it is unrolled into one
+  call per value, `Course.values[1]` is `'soup'`, and `find_by_name` finds one by its name.
+- **A generic walks the enum it is given the same way**: in a generic class, `$value_type.values` lists the values
+  when `$value_type` is an enum, decided for each instance while compiling.
 - **All of it is compile time and tree-shaken.** A walk expands into one ordinary call per value, and
-  `course.value` into the constant, as `--final-classes` shows; no table of an enum's values, names or order
+  each value into its constant, as `--final-classes` shows; no table of an enum's values, names or order
   exists at run time, and a program that never walks an enum carries nothing for it.
-- A name pattern's hole is constrained by an enum the same way ([A class's functions, a folder's classes and a name's pattern](metaprogramming.md#a-classs-functions-a-folders-classes-and-a-names-pattern)). Environments are an
-  enum too.
+- Environments are an enum too.
 
 #### Unions in full
 

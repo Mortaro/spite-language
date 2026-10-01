@@ -297,10 +297,23 @@ job_final_classes() {
 # like POSIX paths (`/Game/Legacy/` into `C:/Program Files/Git/Game/Legacy/`) on their way to a Windows program.
 # The launcher builds .spite/spite.exe from the seed when that is missing or older, so this may be the longest job.
 job_launcher() {
-  local launched
-  launched=$(bin/spite conformance/stage6/launcher_arguments --executable-path="$work/launched.exe" -- --prefixes=/Game/Legacy/ /usr/share "a b" < /dev/null 2>&1 | tr -d '\r' | grep -v '^spite: building the compiler')
+  local launched direct snake
+  launched=$(bin/spite conformance/stage6/launcher_arguments --executable-path="$work/launched.exe" --prefixes=/Game/Legacy/ /usr/share "a b" < /dev/null 2>&1 | tr -d '\r' | grep -v '^spite: building the compiler')
   if [ "$launched" != "$(printf '[--prefixes=/Game/Legacy/]\n[/usr/share]\n[a b]')" ]; then
-    echo "FAILED: bin/spite changed the program's arguments after --"; echo "$launched" | head -5; exit 1
+    echo "FAILED: bin/spite changed the program's arguments"; echo "$launched" | head -5; exit 1
+  fi
+  # A built program run directly reads its settings in kebab-case, like the compiler, and refuses the snake_case
+  # spelling of a declared one rather than ignoring it.
+  bin/spite conformance/stage6/kebab_setting --executable --run=false --executable-path="$work/kebab_direct.exe" > /dev/null 2>&1 || {
+    echo "FAILED: kebab_setting does not build"; exit 1; }
+  direct=$("$work/kebab_direct.exe" --player-name=bo --hard-mode 2>&1 | tr -d '\r')
+  if [ "$direct" != "player bo hard mode true" ]; then echo "FAILED: a program run directly misread its settings"; echo "$direct" | head -5; exit 1; fi
+  snake=$("$work/kebab_direct.exe" --player_name=bo 2>&1 | tr -d '\r')
+  if [ "$snake" != "error: '--player_name' is written '--player-name': a program's setting is kebab-case on the command line, like the compiler's flags, and it sets Environment.player_name" ]; then
+    echo "FAILED: a program run directly did not refuse a snake_case setting"; echo "$snake" | head -5; exit 1
+  fi
+  if "$work/kebab_direct.exe" --player_name=bo > /dev/null 2>&1; then
+    echo "FAILED: a snake_case setting did not stop the program"; exit 1
   fi
 }
 
@@ -405,7 +418,8 @@ echo "tests: passed"
 echo "compiler memory: compiling itself frees everything it takes"
 echo "fast reload: $(cat "$work/fast_reload/"*.checked | awk '{ sum += $1 } END { print sum }') files reloaded by compiling only their classes match a whole compile, and a changed signature or call effect compiles the whole program"
 echo "final classes: the printed program runs the same"
-echo "launcher: bin/spite passes the program's arguments after '--' as they were typed"
+echo "launcher: bin/spite passes the program's settings and arguments as they were typed"
+echo "settings: a program run directly reads kebab-case settings and refuses the snake_case spelling"
 echo "operating systems: the compiler, a time zone program, a file watching program, a clock program, a mapped file program, socket and UDP programs and a secure random program compile with the windows, linux and mac library folders"
 # Every compile formats first (D190) and the formatter deletes an empty line inside a function (D196), so compiling
 # diagnostics/blank_line above fixed its copy: the copy changed, and is now in the one style.

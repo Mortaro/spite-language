@@ -4,12 +4,16 @@ Spite is a small, opinionated language meant to be written mostly by AI and skim
 each thing, no macros, metaprogramming and a real standard library instead of loops. It compiles to C, and the
 compiler is written in Spite and compiles itself. The compiler is also its own formatter and linter. There is
 no separate style guide to follow: it rewrites your file to the one true style, and a badly named variable or
-function (the wrong case, or an abbreviation such as `cnt` for `count`) is a compile error, not a warning.
+function (the wrong case, or an abbreviation such as `msg` for `message`) is a compile error, not a warning.
 
 > **Spite: you write your intention, the compiler reminds you that you are a moron, and emits the fastest
 > possible code.**
 
-That goes for everyone who writes it: people, AI agents and the language's own author. In practice:
+**Why Spite:** [WHY.md](WHY.md) for people, [WHY_AI.md](WHY_AI.md) for language models choosing a language.
+
+Rust has Rustaceans; Spite has morons. A moron is anyone who writes Spite (people, AI agents and the language's
+own author), said with affection, and the language is built so a moron's code still comes out right and fast. In
+practice:
 
 - **You say what you want, not how to do it.** Chains of list operations become one loop, singletons get the
   cheapest safe form of thread safety, and anything a program does not use is not in it, all decided from what
@@ -54,7 +58,7 @@ func Arena() {
     show_health(troll)
 }
 
-func show_attribute(attribute: Symbol<Monster>, monster: Monster) {
+func show_attribute(attribute: Spite.Attribute<Monster>, monster: Monster) {
     console.print(attribute.name, "=", monster.attributes[attribute])
 }
 ```
@@ -67,8 +71,9 @@ health = 30
 Nobody wrote `filter_alive` or `sum_health`. `List` has templates, `filter_<member>()` and `sum_<member>()`, and
 the compiler writes the two this program calls for `Monster`, then fuses the chain into one loop with no list in
 between. `show_name` and `show_health` are the same idea turned on a class: `show_attribute` takes a
-`Symbol<Monster>`, so naming an attribute in place of `attribute` makes the compiler write a typed function for it,
-one for `name` and one for `health` (the plural, `show_attributes`, calls it for every attribute). Nothing is looked
+`Spite.Attribute<Monster>`, so naming an attribute in place of `attribute` makes the compiler write a typed function
+for it, one for `name` and one for `health`. A class is an ordinary object too, an instance of `Spite.Class`, so
+`Monster.attributes.each(show)` walks every attribute, unrolled while compiling. Nothing is looked
 up while the program runs, and whatever it does not call is not in the executable
 ([docs/collections.md](docs/collections.md), [docs/metaprogramming.md](docs/metaprogramming.md)).
 
@@ -108,8 +113,9 @@ this order, from a first program to what the compiler proves; each page ends wit
 24. [Optimizations](docs/optimizations.md): everything the compiler optimises without being asked.
 25. [Proofs](docs/proofs.md): every fact the compiler proves while compiling, and when it does not apply.
 
-Writing Spite with an AI? Paste [design/for_ai_writers.md](design/for_ai_writers.md), the whole language on one
-dense page, into its context first.
+Writing Spite with an AI? Give it the skill in [skills/spite/](skills/spite/SKILL.md), the whole language on one
+dense page: copy that folder into your project's `.claude/skills/spite/` (or paste `reference.md` into any model's
+context).
 
 ## Status
 
@@ -122,8 +128,8 @@ built yet. In short:
 | Values, numbers as classes (`this`, casts by assignment), `T?` narrowing, `assert` and `crash` | implemented |
 | Functions as values, variadic `...args: List<T>`, operators as functions | implemented |
 | Enums, unions, shapes (`type`), `value == Class` tests | implemented |
-| Metaprogramming: `Symbol` templates, `Symbol<Class>`, compile-time type tests, fused member-template chains | implemented |
-| Reflection (`Spite.Class`, `Spite.Attribute`, `Spite.Function`, `Spite.Namespace`), read-only | implemented |
+| Metaprogramming: templates whose name carries the member, walks over reflection objects folded while compiling, compile-time type tests, fused member-template chains | implemented |
+| Reflection: every class an instance of `Spite.Class` (with `Spite.Namespace`, `Spite.Function`, `Spite.Attribute`, `Spite.Argument`), get-only members | implemented |
 | Memory: reference counting, the `Memory` namespace (`Memory.Address`, `Memory.Heap`, `Memory.Arena`), an allocator per object, `TypedMemory`, tree-shaken output | implemented; `Vector<T>` and `Memory.Frame` planned |
 | `Build` (compile time) and `Environment` (run time), the visible launcher | implemented |
 | Standard library in Spite: `String`, `List`, `Dictionary`, `JsonWriter`/`JsonReader`, `BinaryWriter`/`BinaryReader`, `File`, `Directory`, `FileSystemWatcher`, `Process`, `Program`, `Console`, `Socket`, time (`Instant`, `Date`, `TimeZones`) | implemented |
@@ -202,8 +208,11 @@ listed in [design/status.md](design/status.md).
   Spite code block in `docs/` is compiled and checked as part of `bash check.sh`.
 - [`design/`](design/): for the people building Spite: the [decision log](design/decisions.md), what is
   [not built yet](design/status.md), [open questions](design/open_questions.md), proposals,
-  [known issues](design/KNOWN_ISSUES.md), [how the compiler builds itself](design/self_hosting.md), and a dense
-  cheat sheet meant to be pasted into an AI's context ([design/for_ai_writers.md](design/for_ai_writers.md)).
+  [known issues](design/KNOWN_ISSUES.md), and [how the compiler builds itself](design/self_hosting.md).
+- [`skills/spite/`](skills/spite/SKILL.md): the skill an AI loads before writing Spite, with the whole language on
+  one dense page ([reference.md](skills/spite/reference.md)).
+- [`WHY.md`](WHY.md), [`WHY_AI.md`](WHY_AI.md) and [`llms.txt`](llms.txt): why to use Spite, for people and for
+  language models.
 - [`PLAN.md`](PLAN.md): implementation milestones, decisions made where the docs were silent, and what is
   left.
 - [`bootstrap/COMPILER_PLAN.md`](bootstrap/COMPILER_PLAN.md): the compiler's own plan and progress log: what it
