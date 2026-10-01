@@ -877,7 +877,7 @@ and a remote REPL command assigning or passing a number that does not parse is r
 inspectable build (`--development`, `--hot-reload`, `--repl`, `--repl-port`), every `+`, `-` and `*` whose
 left side (the type the arithmetic is done in) is `Tiny`, `Short`, `Integer` or `Long` is compiled with the C
 compiler's overflow builtin (`__builtin_add_overflow`, `__builtin_sub_overflow`, `__builtin_mul_overflow`) in that
-type, and an answer that does not fit halts, since it is the developer's mistake: `spite: 'amount * factor'
+type, and an answer that does not fit halts, since it is the moron's mistake: `spite: 'amount * factor'
 does not fit in an Integer (2000000000 * 2), at game/game.spite:17 in Game.scaled`
 (`conformance/stage6/integer_overflow`). A production build (the ordinary one and `--optimized`) emits the plain C
 operator, so the check costs nothing there and the answer wraps. The unsigned whole numbers (`Byte`,
@@ -888,7 +888,7 @@ is still a compile error, and `/` and `%` keep the check described next. Measure
 
 **Division by zero follows Go.** A whole-number `/` or `%` whose divisor is zero halts
 the program, naming the operation and the line (`spite: 'total / parts' divided by zero, at
-game/game.spite:22 in Game.share`), since dividing by zero is the developer's mistake
+game/game.spite:22 in Game.share`), since dividing by zero is the moron's mistake
 (`conformance/stage6/division_by_zero`). A divisor the compiler can see is zero, a constant (`total / 0`,
 `total % (2 - 2)`) or a codegen value folded to `0`, is a compile error instead: `'total / 0' divides by zero,
 which always halts the program` (`diagnostics/division_by_constant_zero`). Where a proof already shows the
