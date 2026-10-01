@@ -29,7 +29,7 @@ rows pending: 228 (`map_` over a predicate is an error pointing at `filter_`/`co
 function values and plain `List.map(function)` go), 213 (the default build compiles fastest; hot builds compile
 like it, reversing D299's `-O3`, so D299 leaves 239; run-speed-only passes are skipped unless measured to speed up
 the whole build), 153 (no `--` separator; settings kebab on the command line, snake in code; a name colliding with
-a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242.
+a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242. 155 by D336.
 
 ## Confirm quickly
 
@@ -64,8 +64,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
      outlives the frame (a compile error naming `copy()`, a debug generation check as backstop)? Is `Memory.Frame`
      an arena reset once a frame, or a ring of two? Until then, is an arena without `reset()` right?
 175. **A class reading its own allocator** (`memory.allocator` inside a class), so a list's buffer follows its arena.
-155. **A dedicated thread for work that blocks forever** (a game engine's window loop): `Thread(function)`, or a marker
-     on `Parallel`?
 209. **Should a `List` own its items, so a kept reference is weak (`T?`)**, or stay an explicit `Weak<T>`?
 
 ## Silent today (D244)
