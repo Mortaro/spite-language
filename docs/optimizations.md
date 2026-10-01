@@ -93,7 +93,7 @@ prototype (`bootstrap/source/generation/tree_shaker.spite`). So is every class n
 `struct` and the `typedef` that names it, its `___allocate`, `___init`, `___default`, `___retain`, `___release`
 and `_copy`, its singleton slot and that slot's lock, its reflection class object and the lines in `main` that
 would free that object at exit, and every text literal, static table and prototype only dropped code named. A
-program that never makes a `Watcher`, `Socket`, `Process`, `HotReload`, `ThreadPool` or `Scheduler` has none of
+program that never makes a `FileSystemWatcher`, `Socket`, `Process`, `HotReload`, `ThreadPool` or `Scheduler` has none of
 their C. The compiler does this itself rather than leaving dead code for the C compiler to find, so it holds
 whichever C compiler you bring, and a C compiler cannot find most of it anyway, since a function it is not told
 is private has to stay in the executable.
@@ -119,7 +119,7 @@ class, is still compiled and checked, so a mistake in it is still reported; it j
 
 The same pass decides which native symbols are looked up. A `DynamicLibrary` looks up every symbol the program
 calls when it opens, and a symbol is looked up only when a function that calls it survived the shaking: a
-program that never uses `Watcher` does not look up `ReadDirectoryChangesW`, though `library/windows/watcher.spite`
+program that never uses `FileSystemWatcher` does not look up `ReadDirectoryChangesW`, though `library/windows/file_system_watcher.spite`
 opens the same `kernel32.dll` as `Program.sleep`. **What you notice.** Fewer allocations under `--debug-memory`,
 since each lookup makes two short-lived strings, and a missing symbol that only unused code names does not stop
 the program when the library opens. An inspectable build is not shaken, so it looks up every symbol.
