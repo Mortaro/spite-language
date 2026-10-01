@@ -187,10 +187,12 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Rule.** The compiler follows the called function and everything it calls (`call_effects.spite`,
   `effect_study.spite`) and collects the attributes it may assign, by class and name, and the lists it may shrink
   (`clear`, `remove_at`, `remove_first`, `remove_last`, `remove`, `remove_swapping`, `remove_where...`, `truncate`,
-  `swap`). A proof that reads through one of them is undone. The receiver's class comes from declared types, the class
-  a constructor makes, the class a called function returns, a `[]` read's element class and an attribute's declared
-  class; `List`, `Dictionary` and `String` reach only their own functions. Growing a list keeps an index proof. A
-  `return`'s own calls undo nothing. Locals and parameters are never changed by a call.
+  `swap`). A proof that reads through one of them is undone. A class is known by its full name, resolved where it is
+  written, so a program's `Stock.Items` and the library's `Items<T>` never share effects. The receiver's class comes
+  from declared types, the class a constructor makes, the class a called function returns, a `[]` read's element
+  class and an attribute's declared class; `List`, `Dictionary` and `String` reach only their own functions. Growing
+  a list keeps an index proof. A `return`'s own calls undo nothing. Locals and parameters are never changed by a
+  call.
 - **Buys.** No re-check after a call that provably cannot change the value.
 - **Falls back.** A call on a value whose class cannot be told (a `type`, a type parameter) is followed into every
   function of that name; a call through a function value undoes every proof about attributes and lists; a `clear` or
@@ -201,7 +203,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **See.** [failure.md: A call may undo a proof](failure.md#a-call-may-undo-a-proof),
   [optimizations.md: Proofs that survive a call](optimizations.md#proofs-that-survive-a-call);
   `diagnostics/call_undoes_proof`, `diagnostics/receiver_call_undoes_proof`, `diagnostics/branch_undoes_proof`,
-  `conformance/stage6/receiver_call_effects`.
+  `conformance/stage6/receiver_call_effects`, `conformance/stage6/same_name_call_effects`.
 
 ### Proving what is proven is an error
 

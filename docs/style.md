@@ -590,7 +590,7 @@ a suggested fix, from a linter that runs on the parsed AST of every class file, 
 There is no `--no-lint`: the compiler already **is** the linter.
 
 The compiler has no warnings at all: it either reformats your code or gives an
-error, and nothing is left to the user's taste. The `--development`-only "skipped class" notice
+error, and nothing is left to the moron's taste. The `--development`-only "skipped class" notice
 ([Command line](compiler.md#command-line)) is plain informational `note:` text, not a warning.
 
 - Variables, attributes, functions, and parameters: lowercase `snake_case`. Classes, `type`s, `enum`s, and
