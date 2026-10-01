@@ -27,7 +27,7 @@ func parse(cursor: JsonCursor): $value_type {
         return cursor.read_text()
     } else if $value_type == Boolean {
         return cursor.read_boolean()
-    } else if $value_type == Integer or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInteger or $value_type == UnsignedLong {
+    } else if $value_type == Number {
         var number_text = cursor.read_number()
         var number: $value_type? = number_text
         if not number {

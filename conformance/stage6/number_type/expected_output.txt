@@ -1,0 +1,6 @@
+9 16 6
+3 4.75 2
+200 217 193
+a number, a number, a number, a number, a number
+a number, a number, a number, a number, a number
+not a number, not a number, not a number, not a number, not a number, not a number

@@ -361,7 +361,8 @@ compiler's, and the class made is the one an unconstrained line would make
 
 When a codegen value is a type, `if $value_type == String { }` asks which type it is. The answer is known when
 the class is made, so only the branch taken is compiled, and each branch may use what only that type has. Besides
-naming a type exactly, four names ask for a kind: `List`, `Dictionary`, `Null` (any `T?`) and `Symbol` (an enum).
+naming a type exactly, four names ask for a kind: `List`, `Dictionary`, `Null` (any `T?`) and `Symbol` (an enum),
+and a `type` name asks whether the type fits it (`$value_type == Number` for any number class).
 The table is in [the rules](#codegen-values-).
 
 What the branch ruled out is not compiled at all, and neither is what only it reaches. Below, `Field<Integer>`
@@ -1827,9 +1828,12 @@ does not want to spell:
 | `$value_type == Dictionary` | any `Dictionary<T>` |
 | `$value_type == Null` | any `T?` (`Null` is a member of the union a `T?` is) |
 | `$value_type == Symbol` | an enum, or `Symbol` (an enum is a closed list of symbols) |
+| `$value_type == Number` | any number class, `Tiny` to `Double` (a `type` name asks whether the type fits it) |
 | `$value_type == Enum` | an enum only, not a plain `Symbol` (`JsonReader` and `BinaryFormat` need it to read a plain `Symbol` through `Symbol(text)` and an enum through the text cast) |
 
-A union name is true for any of its members. Such a test always folds, `--development` included, because the
+A union name is true for any of its members, and a `type` name for any type that fits it: `$value_type ==
+Number` is true for every number class ([values_and_types.md](values_and_types.md#every-number-fits-number)).
+Such a test always folds, `--development` included, because the
 branch it rules out would not compile.
 
 **Only what survives folding is compiled.** A function of a generic class is

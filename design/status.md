@@ -49,6 +49,13 @@ when a page gains a rule that is not built yet, add it here.
 - Unconfirmed proposals by Claude (removed from the page, still awaiting Mortaro): names of the bitwise functions (D117) and their rules, names of the maths functions and constants and their lowering, names of the bit-reinterpretation functions (D215), the `type` keyword allowed as a parameter name, the error texts for `from_` declarations, Go's answer for smallest-signed `/ -1`, the signed-overflow message and unsigned exemption (D205), the reach of text casting to every place a `String` is wanted (D223), the lone-hole error wording, the enum-from-text cast, the generic walk of enums, the shape-member behaviour, the class-test forms for generic classes and codegen values (D123).
 - Exact error texts still quote decision numbers: the `from_` declaration and `from_` call errors contain "(D293)" (lines 925 and 928); the compiler text must change with the page.
 
+### Every number fits `Number`
+- Built: `type Number`, every number class fitting it, `$value_type == Number`, a generic constrained by it
+  (`conformance/stage6/number_type`). NOT BUILT: a function taking `value: Number` is not yet compiled per number
+  class (D321), so an operator on it is still the error the page states, and a number passed to it is boxed.
+- Unconfirmed proposals by Claude: the member list, and a `type`'s own name in a required signature standing for
+  the class that fits.
+
 ### Numeric types (REPL and text reading)
 - No status facts removed beyond the above.
 
