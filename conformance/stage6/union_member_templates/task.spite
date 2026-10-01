@@ -1,0 +1,7 @@
+var title = ""
+var is_done = false
+
+func Task(new_title: String, new_done: Boolean) {
+    title = new_title
+    is_done = new_done
+}

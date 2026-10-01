@@ -85,7 +85,7 @@ func test_pluralize_knows_irregulars_and_uncountables() {
     crash "index".pluralize() == "indices" and "matrix".pluralize() == "matrices" and "vertex".pluralize() == "vertices"
     crash "mouse".pluralize() == "mice" and "ox".pluralize() == "oxen" and "octopus".pluralize() == "octopi"
     crash "data".pluralize() == "data" and "equipment".pluralize() == "equipment" and "sheep".pluralize() == "sheep"
-    crash "people".pluralize() == "people"
+    crash "people".pluralize() == "people" and "health".pluralize() == "health"
 }
 
 func test_singularize_undoes_pluralize() {

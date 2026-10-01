@@ -1,0 +1,24 @@
+var console = Console()
+
+func FunctionAccesses() {
+    var update = Movement.functions['update_each']
+    crash update
+    var written = update.accesses.filter_written()
+    var written_count = written.count()
+    var read_count = update.accesses.count_read()
+    var access_count = update.accesses.count()
+    console.print("accesses:", access_count, "written:", written_count, "read:", read_count)
+    update.accesses.each(describe)
+    var speed = update.accesses['speed']
+    crash speed
+    console.print("speed is written:", speed.is_written)
+    var movement = Movement()
+    var log = List<String>()
+    movement.update_each(2, log)
+    var logged = log.count()
+    console.print(movement.position, logged)
+}
+
+func describe(access: Spite.Access) {
+    console.print(access.target.name, access.is_read, access.is_written)
+}
