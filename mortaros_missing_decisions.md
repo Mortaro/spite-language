@@ -11,33 +11,15 @@ Spite is written in Spite (D350); reflection exposes everything and tree-shakes 
 Answered on 2026-09-30 and 2026-10-01 (rows in `design/decisions.md`): 5, 21, 22, 25, 34, 36 (D337), 46, 64, 71,
 79 (D322's principle), 89 (D326), 98, 99, 100, 108, 153 (D342), 155 (D336), 166 (D338, D347), 175 (D353), 187,
 188, 197 (D346), 202 and 204 (D339), 206, 208 (D332), 209 (D354), 212 (D348), 215 (D349), 216 (D327), 218, 222
-(D351), 223, 224 (D330), 225 (D334), 227 (D320, D329), 229 (D318), 230 (D319), 231 (D321), 232 (D322), 234 (D340).
+(D351), 223, 224 (D330), 225 (D334), 227 (D320, D329), 229 (D318), 230 (D319), 231 (D321), 232 (D322), 234 (D340), 214 (D356), 210 (D357), 183
+(D358), 217 (D359), 39 and 9 (D361), 109 (D362).
 Answered, row pending: 228 (`map_` over a predicate is an error), 213 (the default build compiles fastest), 205's
 spelling (`x`, `y`, `z`, `w`). Last pass, 2026-10-01: 9 and 39 by D350 (moved to "Confirm quickly"); 6's `${` by
 D244; 134 narrowed by D348; 183, 210, 214 and 217 moved to "Confirm quickly" as compiler choices; 109 rewritten;
 205 narrowed; 243-247 and 249 added.
 
-## Confirm quickly
-
-Each has the one answer the principles imply. Yes, or reopen.
-
-214. **`--optimized` at `-O3` or `-O2`**: the compiler decides by measurement, per program if it pays. Blocks nothing.
-210. **`Float` rounded after each operation** (2-3x faster loops, last printed bits change): the compiler decides by
-     speed; printed last bits are not a guarantee. Blocks nothing.
-183. **A capped `ShortText<32>`**: no; how much text lives inline is the compiler's choice (D203's 15 bytes today).
-217. **Unsigned arithmetic that does not fit**: halts like signed (a silent wrap is a D244 bug), with explicit
-     wrapping functions for hashes; `-fwrapv` is the compiler's choice. Blocks: hash code in `library/`.
-39. **The C left in `main`** (`argv`, `_setmode`, releasing singletons, the `--debug-memory` report): moves into
-    Spite (D350), `argv` through `Arguments` (D342) and the end through the singletons' `drop()`. Blocks nothing.
-9. **The floor**: only what cannot be written in Spite stays C (D350), and shrinking it is the compiler's work, not
-   a question. Blocks nothing.
-
 ## Blocking work now
 
-109. **The runner's markers** (`Resource.World`, `Resource.MainThread`). Recommended by the orchestrator: no markers.
-     The runner derives parallelism from each system's `function.accesses` (D335), and main-thread affinity from the
-     components a system touches, each component class declaring it as a get-only reflection attribute. Options:
-     that; keep the markers as attributes; a class-level marker. Blocks: the game engine's runner, the game port.
 240. **D315's operator-form follow-ups** (the orchestrator's, unconfirmed): `x.type` parses (a keyword after `.`);
      `Dictionary.set` is written `d[k] = v`; a local copy of a read may be narrowed. Recommend all three. Blocks:
      the D315 migration's last call sites.
