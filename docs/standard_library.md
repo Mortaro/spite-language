@@ -620,8 +620,8 @@ and `spite connect` are written with it, and so is a game server. It is public l
 
 | Member | Does |
 |---|---|
-| `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host, port)` | listens on `127.0.0.1`, on every interface of both IPv4 and IPv6, or on the one interface a host name or address names; `false` when it cannot |
-| `connect_locally(port)`, `connect(host, port)` | connects to `127.0.0.1`, or to a host name (`"example.com"`, `"localhost"`), an IPv4 address (`"192.168.1.20"`) or an IPv6 address (`"::1"`, `"2001:db8::7"`), trying each address a name resolves to in turn; `false` when the name does not resolve or nobody answers |
+| `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host, port)` | listens on `127.0.0.1`, on every interface of both IPv4 and IPv6, or on the one interface a host name or address names (a name with both kinds of address, like `"localhost"`, listens on its IPv4 one); `false` when it cannot |
+| `connect_locally(port)`, `connect(host, port)` | connects to `127.0.0.1`, or to a host name (`"example.com"`, `"localhost"`), an IPv4 address (`"192.168.1.20"`) or an IPv6 address (`"::1"`, `"2001:db8::7"`), trying each address a name resolves to in turn, its IPv4 ones first; `false` when the name does not resolve or nobody answers |
 | `accept_client(): Socket?` | waits for the next client |
 | `read_line(): String?` | waits for a whole line, without its line break |
 | `read_bytes(address, count): Integer` | waits until at least one byte has arrived, puts up to `count` at `address`, and answers how many |
@@ -1024,8 +1024,8 @@ In detail:
 - **Addresses.** `listen_locally` and `connect_locally` build `127.0.0.1` themselves, and `listen_everywhere`
   builds `::` on a socket that takes IPv4 connections too (`IPV6_V6ONLY` off), or `0.0.0.0` where the system has
   no IPv6. `listen_at` and `connect` resolve the host with the system's `getaddrinfo`, asking for any family and a
-  stream socket: `listen_at` listens on the first answer, and `connect` tries the answers in the order the system
-  gives them until one connects. A name that does not resolve answers `false`. Resolving waits in place, like
+  stream socket, and put the IPv4 answers first, in the order the system gives them, then the IPv6 ones: `listen_at`
+  listens on the first, and `connect` tries them in turn until one connects. A name that does not resolve answers `false`. Resolving waits in place, like
   connecting. The listening queue is 64 connections deep. `UdpSocket` uses the same addresses: `open` and
   `open_everywhere` take both families on one IPv6 socket, sending to an IPv4 address as `::ffff:` and the address,
   and a sender's address is written as RFC 5952 gives it, with an IPv4 address inside `::ffff:` written as IPv4 and

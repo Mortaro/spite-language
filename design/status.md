@@ -486,8 +486,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### `Socket`
 - Names proposed by Claude, unconfirmed. WebSocket is to grow from `Socket` and is not built.
 - IPv6 (proposed by Claude, unconfirmed): `listen_everywhere` listens on `::` with IPv4 mapped in, falling back to
-  `0.0.0.0`; `listen_locally`/`connect_locally` stay `127.0.0.1`; `connect` tries every resolved address in the
-  system's order. Only the Windows build runs it; Linux and macOS (`IPV6_V6ONLY` 26 and 27, `AF_INET6` 10 and 30,
+  `0.0.0.0`; `listen_locally`/`connect_locally` stay `127.0.0.1`; a name's IPv4 addresses come before its IPv6
+  ones, so `listen_at("localhost")` keeps listening on `127.0.0.1` and `connect` tries IPv4 first (a refused `::1`
+  costs Windows two seconds). Only the Windows build runs it; Linux and macOS (`IPV6_V6ONLY` 26 and 27, `AF_INET6` 10 and 30,
   the macOS `sin6_len` byte) are held to compiling.
 - `Socket.drop()` now closes an open connection when its last reference goes; until now an unreferenced `Socket`
   kept its system handle open.

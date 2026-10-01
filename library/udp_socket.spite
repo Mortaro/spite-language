@@ -86,8 +86,7 @@ func _destination(host: String, port: Integer): Memory.Address {
     while index < addresses.count() {
         var address = addresses[index]
         var family = _addresses.read_family(address)
-        var wanted = family == ipv4 or _family != ipv4
-        if wanted and (chosen == 0 or family == ipv4 and _addresses.read_family(chosen) != ipv4) {
+        if chosen == 0 and (family == ipv4 or _family != ipv4) {
             chosen = address
         }
         index = index + 1

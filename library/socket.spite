@@ -322,6 +322,7 @@ func resolved_addresses(host: String, port: Integer, kind: Integer): List<Memory
         return addresses
     }
     var offset = resolved_address_offset()
+    var ipv4_count = 0
     var entry = first
     while entry != 0 {
         var family = entry.read_integer(4)
@@ -334,7 +335,12 @@ func resolved_addresses(host: String, port: Integer, kind: Integer): List<Memory
             }
             resolved.copy_to(address, resolved_length)
             write_port(address, port)
-            addresses.append(address)
+            if family == ipv4_family() {
+                addresses.insert(ipv4_count, address)
+                ipv4_count = ipv4_count + 1
+            } else {
+                addresses.append(address)
+            }
         }
         entry = entry.read_long(40)
     }
