@@ -282,8 +282,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Mortaro's D175 quote removed: "generics being possibly unused code is used for tree shake, its on purpose not an error" (D167); the page states the reason in its own words.
 
 ### A class's functions, a folder's classes and a name's pattern
-- The spellings of the function, folder and pattern ranges (`has_function`, the `Symbol<...>` ranges, the plural forms, `phase.value`, `argument.index`) were "proposals, not yet confirmed" by Mortaro; what the ranges do was decided (D114-D116, D180).
-- `function_waits`: spelling proposed, unconfirmed (D209 decided the question). `function_writes_parameter`, `argument_count`, `fits_vector`: names provisional (D261, D219, D217).
+- The page no longer teaches the ranges, plural walks, name patterns or name-keyed questions (D316); they still
+  compile and are listed under reflection.md below for migration.
 
 ### Codegen values (`$`)
 - Reordering `generic` lines changes the meaning of positional call sites: a deliberate, accepted trade (Mortaro); the page says "deliberate, accepted trade" without the citation.
@@ -308,6 +308,26 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Removed clause: a `load`-ed root "would extend the deferred compile-time class generation" (deferred, not built).
 
 ### Reflection known while compiling (D316, D317, D318, D323, D326)
+- The pages (metaprogramming.md, reflection.md) now teach only the D316 model. Shown there as untitled snippets because
+  they do not compile yet: the plural `map_<members>()` (today `map_name()` still compiles, and is no longer taught),
+  `filter_<members>()` on a list of a union and its narrowing (D330: `entries().filter_files()` is "'Entry' has no
+  attribute ... 'files'"), `function.accesses` and `Spite.Access` with dictionary member templates (D335),
+  `Spite.Namespace.enums`, `call_with`, a function taking `value: Number` (D321), the `map_is_alive()` error (#228,
+  being built on its own branch), and a class's own `get_`/`set_` template spelled `attribute: Spite.Attribute<Person>`:
+  inside `Person` it is "unknown identifier 'attributes'" (only `attribute: Symbol` reads `attributes[attribute]`
+  today, and `this.attributes` is refused).
+- Still teaching the old forms, to migrate once the compiler reaches them: memory.md's titled engine programs
+  (`Symbol<$row_type>` walks, `fill_attributes(...)` plurals, `Symbol<$system_type.phase_each>`), json.md's
+  `write_attribute(attribute: Symbol<$value_type>, ...)` and `$value_type.has_function("json_key_{attribute.name}")`
+  (a name built from text, which D317 forbids: it needs a decided replacement), the library itself
+  (`library/list.spite` templates are still `member: Symbol<$element_type>`, `library/spite/*.spite` still declares
+  `has_function`, `function_waits`, `argument_count`, `fits_vector`, `source_folder`, `name_fits`, `waits()`), the
+  diagnostic "write 'member: Symbol<$element_type>'" (collections.md, `diagnostics/plain_symbol_on_list`), and
+  `design/for_ai_writers.md`.
+- Narrowing gaps met while writing the pages: in a generic, `var run = $target_type.functions['run_each']` then
+  `if run { target.run_each(3) }` does not fold (the branch is compiled for a class without `run_each`), while
+  `if $target_type.functions['run_each'] {` does; and `crash Spite.Class.instances['Monster']` does not narrow that
+  path for a following read (a local `classes` first does).
 - Built: constants, folding, `each`/`map` unrolling, specialisation per reflection argument, bound attributes,
   types from constants, `Spite.Namespace.instances`, enum `.values`, `[]` by name, `Spite.Attribute<T>` template
   spelling, `filter_<member>_<function>(arguments)` on any list, `source_files`/`source_directories`;

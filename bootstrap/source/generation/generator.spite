@@ -39833,7 +39833,7 @@ func ensure_byte_count_function(information: Analysis.ClassInfo): String {
     return name
 }
 
-# ../docs/reflection.md#reflection-known-while-compiling
+# ../docs/reflection.md#known-while-compiling
 func is_reflection_type(spite_type: Analysis.SpiteType): Boolean {
     var class_ref = type_shape.as_class_ref(spite_type)
     if not class_ref {
