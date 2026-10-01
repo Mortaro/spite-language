@@ -159,6 +159,11 @@ var hot_reload_arguments = ""
 var hot_reload_program_file = ""
 var hot_slot_names = List<String>()
 var hot_slot_owners = List<String>()
+var hot_owner_index = Dictionary<String>()
+var hot_owner_indexed = -1
+var reload_renames = Dictionary<String>()
+var reload_renames_given = false
+var used_renames = List<String>()
 var hot_slot_displays = List<String>()
 var layout_host: HotReloadLibrary? = null
 var breakpoint_sites = List<String>()
@@ -5052,6 +5057,13 @@ func assigns_at_top(statements: List<Syntax.Statements.Statement>, name: String)
 func hardcoded_setting(target_class: Analysis.ClassInfo, name: String): Syntax.Statements.VariableDeclaration? {
     assert target_class.c_name == "Build"
     return hardcoded_settings.find_by_name(name)
+}
+
+func read_when_running(setting: Syntax.Statements.VariableDeclaration, reader: Analysis.ClassInfo): Boolean {
+    if not hot_reload or is_library_class(reader) or reader.source_path.is_empty() {
+        return false
+    }
+    return not setting.source_path.is_empty() and not setting.source_path.starts_with("library/")
 }
 
 func is_hardcoded_setting_name(name: String): Boolean {
@@ -15984,7 +15996,7 @@ func emit_functions_function(information: Analysis.ClassInfo) {
     if information.is_container {
         instantiate_member_templates_of(information)
     }
-    if is_slotted_class(information) {
+    if hot_reload {
         add_hot_functions_slot(information, list_name)
     }
     var declared_count = information.declared_functions.count()
@@ -16027,7 +16039,7 @@ func functions_list_text(information: Analysis.ClassInfo, list_name: String, arg
     var function_c_name = "{information.c_name}___functions"
     var lines = List<String>()
     var defined_name = function_c_name
-    if is_slotted_class(information) {
+    if hot_reload {
         defined_name = "{function_c_name}___hot"
     }
     lines.append("{list_name}* {defined_name}({information.c_name}* self) \{")
@@ -16052,7 +16064,7 @@ func functions_list_text(information: Analysis.ClassInfo, list_name: String, arg
                 parameter_index = parameter_index + 1
             }
             var retained_self = "{information.c_name}___retain(self)"
-            if is_slotted_class(information) {
+            if hot_reload {
                 retained_self = "(\{ if (self != 0) SPITE_COUNT_UP(self->header.ref_count); self; })"
             }
             lines.append("described->spite_owner = {retained_self};")
@@ -19838,7 +19850,7 @@ func generate_member_read_raw(
         return void_result()
     }
     var hardcoded = hardcoded_setting(target_class, member.name)
-    if hardcoded {
+    if hardcoded and not read_when_running(hardcoded, class_information) {
         return hardcoded_setting_value(hardcoded, scope, class_information)
     }
     var peeked_field_type = field.get_type()
@@ -33679,7 +33691,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     function.is_emitted = true
     if runs_in_host(information, function) {
         skipped_in_reload[function.c_name] = true
-        if is_slotted_class(information) {
+        if is_slotted_function(information, function) {
             note_hot_slot(information, function)
         }
         return
@@ -33692,7 +33704,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         builder.add_typedef(function.supplied_body)
         return
     }
-    if not function.has_body and is_slotted_class(information) and not is_hot_class(information) {
+    if not function.has_body and is_slotted_function(information, function) and not is_hot_class(information) {
         var supplied_hot_name = "{function.c_name}___hot"
         add_hot_slot(information, function)
         builder.add_user("{named_signature(information, function, supplied_hot_name)} \{\n{function.supplied_body}\n}")
@@ -33768,7 +33780,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         machine_candidate_functions.append(function)
     }
     var defined_name = function.c_name
-    if is_slotted_class(information) {
+    if is_slotted_function(information, function) {
         defined_name = "{function.c_name}___hot"
         add_hot_slot(information, function)
     }
@@ -36385,38 +36397,19 @@ func emit_main(launcher_mangled_name: String) {
 
 func is_hot_class(information: Analysis.ClassInfo): Boolean {
     var program_class = not information.source_path.is_empty() and not is_library_class(information)
-    return hot_reload and program_class and not information.is_value_class
+    return hot_reload and (program_class or is_settings_class(information)) and not information.is_value_class
 }
 
-func is_slotted_class(information: Analysis.ClassInfo): Boolean {
-    if is_hot_class(information) {
-        return true
-    }
-    if not hot_reload or information.is_value_class or not is_library_class(information) {
+func is_settings_class(information: Analysis.ClassInfo): Boolean {
+    return information.qualified_dotted == "Environment" or information.qualified_dotted == "Build"
+}
+
+func is_slotted_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
+    if not hot_reload {
         return false
     }
-    return made_for_program_class(information)
-}
-
-func made_for_program_class(information: Analysis.ClassInfo): Boolean {
-    var codec = TypeCodec()
-    var index = 0
-    while index < information.codegen_types.count() {
-        var encoded = codec.encoded(information.codegen_types[index])
-        var tokens = encoded.split("|")
-        var token_index = 0
-        while token_index < tokens.count() {
-            var named = find_class_by_c_name(tokens[token_index])
-            if named {
-                if is_hot_class(named) {
-                    return true
-                }
-            }
-            token_index = token_index + 1
-        }
-        index = index + 1
-    }
-    return false
+    var waiting = waiting_kind(information, function)
+    return waiting.is_empty()
 }
 
 func field_place(object_code: String, owner: Analysis.ClassInfo, name: String): String {
@@ -36470,6 +36463,11 @@ func note_layout_change(information: Analysis.ClassInfo, running: String, now: S
     var fields = signature_types(now)
     var notes = List<String>()
     var taken = List<String>()
+    var appeared = List<String>()
+    var held = "holds its default"
+    if information.qualified_dotted == "Environment" {
+        held = "is read like every setting, from the command line, the environment or its default"
+    }
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
@@ -36477,27 +36475,36 @@ func note_layout_change(information: Analysis.ClassInfo, running: String, now: S
         crash fields[field.name]
         var type_now = fields[field.name]
         var renamed = not old_name.is_empty() and was.has(old_name) and was[old_name] == type_now
+        if not old_name.is_empty() and not renamed {
+            report_unusable_rename(information, old_name, field.name)
+        }
         if renamed {
             taken.append(old_name)
             notes.append("{old_name} is now {field.name}")
         } else if not was.has(field.name) {
-            notes.append("{field.name} is new and holds its default")
+            appeared.append(field.name)
+            notes.append("{field.name} is new and {held}")
         } else if was[field.name] != type_now {
             taken.append(field.name)
-            notes.append("{field.name} has a new type and holds its default")
+            notes.append("{field.name} has a new type and {held}")
         } else {
             taken.append(field.name)
         }
         index = index + 1
     }
     var old_names = was.keys()
+    var gone = List<String>()
     index = 0
     while index < old_names.count() {
         var old_name = old_names[index]
         if old_name != "fits" and not taken.contains(old_name) {
+            gone.append(old_name)
             notes.append("{old_name} is gone, and what it held was released")
         }
         index = index + 1
+    }
+    if not gone.is_empty() and not appeared.is_empty() and not reload_renames_given {
+        report_held_rename(information, gone, appeared)
     }
     if was["fits"] != fields["fits"] {
         report(
@@ -36508,6 +36515,22 @@ func note_layout_change(information: Analysis.ClassInfo, running: String, now: S
         notes.append("its attributes were reordered")
     }
     migration_notes.append("moved every {information.qualified_dotted} to its new attributes: {notes.join("; ")}")
+}
+
+func report_held_rename(information: Analysis.ClassInfo, gone: List<String>, appeared: List<String>) {
+    var class_name = information.qualified_dotted
+    var first_gone = gone.first()
+    var first_new = appeared.first()
+    crash first_gone and first_new
+    report(
+        "the reload of {class_name} is held, since it would lose data: {gone.join(", ")} is gone and {appeared.join(", ")} is new, and a reload never guesses whether one is the other. Nothing was swapped in. To move the values of the running objects into the new attribute, give the map at the prompt: reload \{{class_name}.attributes['{first_gone}']: \"{first_new}\"}; to let what {gone.join(", ")} holds be released: reload \{}",
+    )
+}
+
+func report_unusable_rename(information: Analysis.ClassInfo, old_name: String, new_name: String) {
+    report(
+        "the reload map moves {information.qualified_dotted}.attributes['{old_name}'] into \"{new_name}\", but the running {information.qualified_dotted} has no attribute '{old_name}' of the type '{new_name}' has now: name an attribute the running class has, of the same type",
+    )
 }
 
 func signature_types(signature: String): Dictionary<String> {
@@ -36963,38 +36986,50 @@ func live_holders_of(item: Analysis.ClassInfo): List<Analysis.ClassInfo> {
     return holders
 }
 
-func renamed_from(information: Analysis.ClassInfo, attribute: String): String {
-    var function = information.find_function("renamed_from_{attribute}")
-    if not function {
-        return ""
+func read_reload_renames(text: String) {
+    reload_renames = Dictionary<String>()
+    reload_renames_given = text.starts_with("given")
+    var lines = text.split("\n")
+    var index = 1
+    while index < lines.count() {
+        var words = lines[index].trim().split(" ")
+        if words.count() == 3 {
+            var key = "{words[0]}|{words[2]}"
+            reload_renames[key] = words[1]
+        }
+        index = index + 1
     }
-    var returned = returned_literal_text(function)
-    if returned.is_empty() {
-        report(
-            "'renamed_from_{attribute}()' names the attribute '{attribute}' had before, so it returns one text literal: 'return \"old_name\"'",
-        )
-    }
-    return returned
 }
 
-func returned_literal_text(function: Analysis.FunctionInfo): String {
-    if function.body.count() != 1 {
-        return ""
+func renamed_from(information: Analysis.ClassInfo, attribute: String): String {
+    var key = "{information.qualified_dotted}|{attribute}"
+    if reload_renames[key] {
+        if not used_renames.contains(key) {
+            used_renames.append(key)
+        }
+        return reload_renames[key]
     }
-    var only = function.body[0]
-    var returned = shape.as_return_statement(only)
-    if not returned {
-        return ""
+    return ""
+}
+
+func unused_renames(): List<String> {
+    var unused = List<String>()
+    var keys = reload_renames.keys()
+    var index = 0
+    while index < keys.count() {
+        var key = keys[index]
+        if not used_renames.contains(key) {
+            crash reload_renames[key]
+            var old_name = reload_renames[key]
+            var parts = key.split("|")
+            crash parts[0] and parts[1]
+            var class_name = parts[0]
+            var new_name = parts[1]
+            unused.append("{class_name}.attributes['{old_name}']: \"{new_name}\"")
+        }
+        index = index + 1
     }
-    var value = returned.value
-    if not value {
-        return ""
-    }
-    var literal = shape.as_string_literal(value)
-    if not literal {
-        return ""
-    }
-    return literal.value
+    return unused
 }
 
 func note_support_slot(information: Analysis.ClassInfo, what: String) {
@@ -37088,6 +37123,254 @@ func slotted_support(text: String, owner: String, display: String): String {
     var text_length = text.length()
     var rest = text.slice(line_end, text_length)
     return "{hot_signature} \{{rest}"
+}
+
+func slot_every_helper() {
+    var state = static_state_names()
+    var slotted_names = Dictionary<Boolean>()
+    var index = 0
+    while index < hot_slot_names.count() {
+        var slotted_name = hot_slot_names[index]
+        slotted_names[slotted_name] = true
+        index = index + 1
+    }
+    var support_total = builder.support_count()
+    var position = 0
+    while position < support_total {
+        var text = builder.support_at(position)
+        var rewritten = slotted_helpers(text, state, slotted_names)
+        if rewritten != text {
+            builder.replace_support(position, rewritten)
+        }
+        position = position + 1
+    }
+    var user_total = builder.user_count()
+    position = 0
+    while position < user_total {
+        var text = builder.user_at(position)
+        var rewritten = slotted_helpers(text, state, slotted_names)
+        if rewritten != text {
+            builder.replace_user(position, rewritten)
+        }
+        position = position + 1
+    }
+}
+
+func static_state_names(): Dictionary<Boolean> {
+    var state = Dictionary<Boolean>()
+    note_static_state(builder.typedefs, state)
+    note_static_state(builder.prototypes, state)
+    note_static_state(builder.support_bodies, state)
+    note_static_state(builder.user_bodies, state)
+    return state
+}
+
+func note_static_state(texts: List<String>, state: Dictionary<Boolean>) {
+    var shaker = TreeShaker()
+    var index = 0
+    while index < texts.count() {
+        var lines = texts[index].split("\n")
+        var depth = 0
+        var line_index = 0
+        while line_index < lines.count() {
+            var line = lines[line_index]
+            if depth == 0 and line.starts_with("static ") {
+                var name = static_variable_of(line, shaker)
+                if not name.is_empty() {
+                    state[name] = true
+                }
+            }
+            depth = depth + shaker.depth_change(line)
+            line_index = line_index + 1
+        }
+        index = index + 1
+    }
+}
+
+func static_variable_of(line: String, shaker: TreeShaker): String {
+    var end = line.index_of("=")
+    var bracket = line.index_of("[")
+    if bracket > 0 and (end < 0 or bracket < end) {
+        end = bracket
+    }
+    if end < 0 {
+        end = line.index_of(";")
+    }
+    if end <= 0 {
+        return ""
+    }
+    var head = line.slice(0, end).trim()
+    if head.contains("(") {
+        return ""
+    }
+    var head_length = head.length()
+    var name = shaker.name_before(head, head_length)
+    var shared = ["spite_program_arguments", "spite_check_point_wanted", "spite_assert_trace", "spite_assert_total"]
+    if name.starts_with("spite_lit_") or shared.contains(name) {
+        return ""
+    }
+    return name
+}
+
+func slotted_helpers(text: String, state: Dictionary<Boolean>, slotted_names: Dictionary<Boolean>): String {
+    var lines = text.split("\n")
+    var shaker = TreeShaker()
+    var result = List<String>()
+    var changed = false
+    var outer_depth = 0
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        var signature = ""
+        if outer_depth == 0 {
+            signature = helper_signature(line, shaker, slotted_names)
+        }
+        if signature.is_empty() {
+            result.append(line)
+            outer_depth = outer_depth + shaker.depth_change(line)
+            index = index + 1
+        } else {
+            var depth = 0
+            var last = index
+            var body = List<String>()
+            var searching = true
+            while searching and last < lines.count() {
+                var body_line = lines[last]
+                body.append(body_line)
+                depth = depth + shaker.depth_change(body_line)
+                if depth <= 0 {
+                    searching = false
+                } else {
+                    last = last + 1
+                }
+            }
+            var function_text = body.join("\n")
+            var rewritten = line
+            if not searching and not holds_state(function_text, state) {
+                rewritten = slotted_helper(line, signature, shaker, slotted_names)
+                changed = true
+            }
+            result.append(rewritten)
+            var copied = index + 1
+            while copied <= last and copied < lines.count() {
+                result.append(lines[copied])
+                copied = copied + 1
+            }
+            index = last + 1
+        }
+    }
+    if not changed {
+        return text
+    }
+    return result.join("\n")
+}
+
+func helper_signature(line: String, shaker: TreeShaker, slotted_names: Dictionary<Boolean>): String {
+    if line.starts_with("static") or line.starts_with("#") or line.starts_with("typedef") or line.starts_with(" ") {
+        return ""
+    }
+    var brace = line.index_of(") \{")
+    if brace <= 0 {
+        return ""
+    }
+    var signature = line.slice(0, brace + 1)
+    var open = signature.index_of("(")
+    if open <= 0 or signature.contains("...") or signature.contains("[") {
+        return ""
+    }
+    var head = signature.slice(0, open)
+    if head.contains("=") or head.contains(";") or head.contains("\{") or not head.contains(" ") {
+        return ""
+    }
+    var head_length = head.length()
+    var name = shaker.name_before(head, head_length)
+    var name_length = name.length()
+    var returned = head.slice(0, head_length - name_length).trim()
+    if name.is_empty() or returned.is_empty() or name == "main" or name.ends_with("___hot") {
+        return ""
+    }
+    if slotted_names[name] == true {
+        return ""
+    }
+    if name.starts_with("spite_hot_") or name.starts_with("spite_reload_") or name.starts_with("spite_settings_") {
+        return ""
+    }
+    return signature
+}
+
+func holds_state(text: String, state: Dictionary<Boolean>): Boolean {
+    var lines = text.split("\n")
+    var line_index = 1
+    while line_index < lines.count() {
+        var trimmed = lines[line_index].trim()
+        if trimmed.starts_with("static ") {
+            return true
+        }
+        line_index = line_index + 1
+    }
+    var text_length = text.length()
+    var index = 0
+    while index < text_length {
+        var at_start = index == 0
+        if not at_start {
+            var before = text.code_at(index - 1)
+            at_start = not is_identifier_code(before)
+        }
+        if at_start and text.matches_at("spite_", index) {
+            var end = index
+            var inside = true
+            while end < text_length and inside {
+                var code = text.code_at(end)
+                inside = is_identifier_code(code)
+                if inside {
+                    end = end + 1
+                }
+            }
+            var name = text.slice(index, end)
+            if state.has(name) {
+                return true
+            }
+            index = end
+        } else {
+            index = index + 1
+        }
+    }
+    return false
+}
+
+func is_identifier_code(code: Integer): Boolean {
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
+
+func slotted_helper(line: String, signature: String, shaker: TreeShaker, slotted_names: Dictionary<Boolean>): String {
+    var open = signature.index_of("(")
+    var head = signature.slice(0, open)
+    var head_length = head.length()
+    var name = shaker.name_before(head, head_length)
+    var name_length = name.length()
+    var returned = head.slice(0, head_length - name_length).trim()
+    var signature_length = signature.length()
+    var parameters = signature.slice(open + 1, signature_length - 1)
+    var hot_signature = "{returned} {name}___hot({parameters})"
+    var line_length = line.length()
+    var rest = line.slice(signature_length, line_length)
+    if slotted_names.has(name) {
+        return "{hot_signature}{rest}"
+    }
+    slotted_names[name] = false
+    var arguments = argument_names(parameters)
+    builder.add_prototype("{signature};")
+    builder.add_prototype("{hot_signature};")
+    builder.add_slot(name, "static {returned} (*{name}___slot)({parameters}) = {name}___hot;")
+    var result = "return "
+    if returned == "void" {
+        result = ""
+    }
+    builder.add_support("{signature} \{\n{result}{slot_read(name)}({arguments});\n}")
+    hot_slot_names.append(name)
+    hot_slot_owners.append(name)
+    hot_slot_displays.append(name)
+    return "{hot_signature}{rest}"
 }
 
 func slot_read(name: String): String {
@@ -37280,7 +37563,7 @@ func hot_reload_body(name: String): String {
             if not hot_reload {
                 return "(void)library_;\nreturn spite_string_from_cstring_owned(\"this program was not built with --hot-reload\");"
             }
-            return "typedef const char* (*SpiteHotBind)(void* (*)(const char*), int32_t (*)(const char*, void*));\n#ifdef _WIN32\nSpiteHotBind bind = (SpiteHotBind)(void*)GetProcAddress((HMODULE)(intptr_t)library_, \"spite_reload_bind\");\n#else\nSpiteHotBind bind = (SpiteHotBind)dlsym((void*)(intptr_t)library_,\"spite_reload_bind\");\n#endif\nif (bind == 0) return spite_string_from_cstring_owned(\"spite_reload_bind\");\nconst char* missing = bind(spite_hot_find, spite_hot_install);\nreturn spite_string_from_cstring_owned(missing == 0 ? \"\" : missing);"
+            return "typedef const char* (*SpiteHotBind)(void* (*)(const char*), int32_t (*)(const char*, void*));\n#ifdef _WIN32\nSpiteHotBind bind = (SpiteHotBind)(void*)GetProcAddress((HMODULE)(intptr_t)library_, \"spite_reload_bind\");\n#else\nSpiteHotBind bind = (SpiteHotBind)dlsym((void*)(intptr_t)library_,\"spite_reload_bind\");\n#endif\nif (bind == 0) return spite_string_from_cstring_owned(\"spite_reload_bind\");\nconst char* missing = bind(spite_hot_find, spite_hot_install);\nif (missing == 0) spite_settings_reread();\nreturn spite_string_from_cstring_owned(missing == 0 ? \"\" : missing);"
         }
     }
 }
@@ -37302,6 +37585,12 @@ func emit_hot_reload_support() {
         "void* spite_hot_realloc(void* pointer, size_t size) \{\nreturn SPITE_REALLOC(pointer, size);\n}",
     )
     builder.add_support("void spite_hot_free(void* pointer) \{\nSPITE_FREE(pointer);\n}")
+    var settings = settings_reread_lines()
+    builder.add_prototype("void spite_settings_reread(void);")
+    builder.add_support(
+        "static int32_t spite_settings_changed = 0;\nvoid spite_settings_reread(void) \{\nif (spite_settings_changed == 0) return;\nspite_settings_changed = 0;\n{settings.join("\n")}\n}",
+    )
+    slot_every_helper()
     var names = List<String>()
     var cells = List<String>()
     var index = 0
@@ -37313,8 +37602,26 @@ func emit_hot_reload_support() {
     names.append("0")
     cells.append("0")
     builder.add_support(
-        "static const char* spite_hot_slot_names[] = \{ {names.join(", ")} };\nstatic void** spite_hot_slot_cells[] = \{ {cells.join(", ")} };\nstatic int32_t spite_hot_install(const char* name, void* address) \{\nfor (int64_t index = 0; spite_hot_slot_names[index] != 0; index = index + 1) \{\nif (strcmp(spite_hot_slot_names[index], name) == 0) \{ if (address != 0) __atomic_store_n(spite_hot_slot_cells[index], address, __ATOMIC_SEQ_CST); return 1; }\n}\nreturn 0;\n}",
+        "static const char* spite_hot_slot_names[] = \{ {names.join(", ")} };\nstatic void** spite_hot_slot_cells[] = \{ {cells.join(", ")} };\nstatic int32_t spite_hot_install(const char* name, void* address) \{\nfor (int64_t index = 0; spite_hot_slot_names[index] != 0; index = index + 1) \{\nif (strcmp(spite_hot_slot_names[index], name) == 0) \{ if (address != 0) \{ __atomic_store_n(spite_hot_slot_cells[index], address, __ATOMIC_SEQ_CST); if (strcmp(name, \"Environment_Environment\") == 0 || strcmp(name, \"Build___init\") == 0) spite_settings_changed = 1; } return 1; }\n}\nreturn 0;\n}",
     )
+}
+
+func settings_reread_lines(): List<String> {
+    var lines = List<String>()
+    var index = 0
+    while index < singleton_classes.count() {
+        var information = singleton_classes[index]
+        var made = "__atomic_load_n(&spite_singleton_{information.c_name}_cache, __ATOMIC_ACQUIRE)"
+        if information.qualified_dotted == "Environment" {
+            lines.append(
+                "\{ Environment* environment = {made}; if (environment != 0) Environment_Environment(environment); }",
+            )
+        } else if information.qualified_dotted == "Build" {
+            lines.append("\{ Build* build = {made}; if (build != 0) Build___init(build); }")
+        }
+        index = index + 1
+    }
+    return lines
 }
 
 func seed_class_names(names: List<String>, identities: List<String>) {
@@ -37466,7 +37773,7 @@ func classes_of_paths(paths: List<String>): List<String> {
         }
         var path_index = 0
         while path_index < class_paths.count() {
-            if is_hot_class(information) and paths.contains(class_paths[path_index]) and not owners.contains(information.c_name) {
+            if paths.contains(class_paths[path_index]) and not owners.contains(information.c_name) {
                 owners.append(information.c_name)
             }
             path_index = path_index + 1
@@ -37570,15 +37877,39 @@ func is_local_migration_piece(name: String): Boolean {
 
 func add_reached_classes(reload: HotReloadLibrary, owners: List<String>) {
     var changed = reload.changed_bodies(constant_texts)
+    var seen = Dictionary<Boolean>()
     var index = 0
+    while index < changed.count() {
+        var changed_name = changed[index]
+        seen[changed_name] = true
+        index = index + 1
+    }
+    index = 0
     while index < changed.count() {
         var name = changed[index]
         var owner = hot_owner_of(name)
         var migration_piece = not migrating_classes.is_empty() and is_local_migration_piece(name)
-        if owner.is_empty() and not migration_piece {
+        var host_only = name.starts_with("spite_hot_") or name.starts_with("spite_settings_")
+        var static_function = owner.is_empty() and reload.is_static_function(name)
+        if static_function {
+            add_callers_of_static(reload, name, changed, seen)
+        } else if owner.is_empty() and not migration_piece and not host_only {
             reload.stale_pieces.append(name)
         } else if not owner.is_empty() and not owners.contains(owner) {
             owners.append(owner)
+        }
+        index = index + 1
+    }
+}
+
+func add_callers_of_static(reload: HotReloadLibrary, name: String, changed: List<String>, seen: Dictionary<Boolean>) {
+    var callers = reload.pieces_mentioning(name)
+    var index = 0
+    while index < callers.count() {
+        var caller = callers[index]
+        if not seen.has(caller) {
+            seen[caller] = true
+            changed.append(caller)
         }
         index = index + 1
     }
@@ -37590,13 +37921,21 @@ func hot_owner_of(piece_name: String): String {
         var name_length = piece_name.length()
         slot = piece_name.slice(0, name_length - 6)
     }
-    var index = 0
-    while index < hot_slot_names.count() {
-        if hot_slot_names[index] == slot {
-            crash hot_slot_owners[index]
-            return hot_slot_owners[index]
+    if hot_owner_indexed != hot_slot_names.count() {
+        hot_owner_indexed = hot_slot_names.count()
+        hot_owner_index = Dictionary<String>()
+        var index = 0
+        while index < hot_slot_names.count() and index < hot_slot_owners.count() {
+            var slot_name = hot_slot_names[index]
+            if not hot_owner_index.has(slot_name) {
+                hot_owner_index[slot_name] = hot_slot_owners[index]
+            }
+            index = index + 1
         }
-        index = index + 1
+    }
+    var owner = hot_owner_index[slot]
+    if owner {
+        return owner
     }
     return ""
 }

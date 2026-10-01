@@ -68,7 +68,6 @@ func source_folder(): String {
     return _source_folder
 }
 
-
 func fits_vector(): Boolean {
     return _fits_vector
 }
