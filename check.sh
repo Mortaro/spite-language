@@ -227,8 +227,9 @@ func longest(): String {
     echo "FAILED: a changed checkout is not an error"; echo "$edited" | head -5; exit 1; }
   echo "git load: a load pinned to a commit of a local repository is checked out into .spite/git/ once, and stays that commit"
   # D296: two commits of one repository are two libraries. The program pins the engine at the first commit and a
-  # plugin repository pins it at the later one; each reads its own version, a mod folder the program loads reopens
-  # the program's version only, and one package pinning both commits is an error naming both lines.
+  # plugin repository pins it at the later one; each reads its own version, and a mod folder the program loads reopens
+  # the program's version only. One package pinning both commits reads them as two loads, the later reopening the
+  # earlier (D334).
   rm -rf "$checkout" "$checkout.files"   # the edited copy above is fetched again
   later=$(git -C "$engine_repository" rev-parse --short=7 HEAD)
   plugin_repository="$pinned_work/plugin_repo"
@@ -295,15 +296,30 @@ func FoldedVersions() {
      || ! grep -q "((__typeof__(&engine_repo_[0-9a-f]*_Shelf_longest))&engine_repo_[0-9a-f]*_Shelf_longest)(" "$pinned_work/folded_versions.c"; then
     echo "FAILED: a function two versions of one repository hold unchanged is not folded into one"; echo "$folded_versions" | head -5; exit 1
   fi
-  printf 'func OnePackageTwoPins() {
+  printf 'var console = Console()
+
+func OnePackageTwoPins() {
     load "../engine_repo@%s/engine"
     load "../engine_repo@%s/engine"
+    var greeter = Greeter()
+    var said = greeter.greeting()
+    console.print(said)
 }
 ' "$pinned" "$later" > "$pinned_work/one_package_two_pins/one_package_two_pins.spite"
-  two_pins=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" one_package_two_pins --run=false 2>&1 | tr -d '')
-  echo "$two_pins" | grep -q "^one_package_two_pins/one_package_two_pins.spite:3: error: .* pins it at another commit in the same package" || {
-    echo "FAILED: one package pinning two commits of one repository is not an error naming both lines"; echo "$two_pins" | head -5; exit 1; }
-  echo "git load: two commits of one repository are two libraries, and one package pins one commit"
+  two_pins=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" one_package_two_pins < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '')
+  [ "$two_pins" = "hello from a later commit" ] || {
+    echo "FAILED: one package pinning two commits of one repository does not read them as two loads, the later reopening the earlier"; echo "$two_pins" | head -5; exit 1; }
+  mkdir -p "$pinned_work/mixed_pins"
+  printf 'func MixedPins() {
+    load "../engine_repo@%s/engine"
+    load "../engine_repo@%s/engine"
+    load "../plugin_repo@%s/plugin"
+}
+' "$pinned" "$later" "$plugin_commit" > "$pinned_work/mixed_pins/mixed_pins.spite"
+  mixed=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" mixed_pins --run=false 2>&1 | tr -d '')
+  echo "$mixed" | grep -q "error: .* reads that commit as part of the version from $pinned: a commit's files are read once, into one version" || {
+    echo "FAILED: a commit one package reads alone and another reads into its version is not an error naming both"; echo "$mixed" | head -5; exit 1; }
+  echo "git load: two commits of one repository are two libraries, and one package's two commits are two loads in order"
 else
   echo "git load: SKIPPED, there is no git on the PATH to make a repository with"
 fi

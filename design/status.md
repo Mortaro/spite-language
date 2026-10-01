@@ -330,7 +330,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Two versions of one repository
 
-- Open: `mortaros_missing_decisions.md` item 225 asks whether one package should be able to pin both versions of a repository (today it is an error naming both lines).
+- D334 (one package pinning two commits reads them as two loads in load order) was decided by Mortaro on 2026-09-30 and built; the error for a commit read into two different versions was proposed by Claude, unconfirmed.
 - D296 (two versions are two libraries) was decided by Mortaro on 2026-09-30, built as proposed by Claude, unconfirmed.
 
 ### Final classes
@@ -708,7 +708,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Identical functions are folded into one
 
-- Built (D296, D334). Proposed by Claude, unconfirmed: the normalisation details (layout equality by attribute order and type, numbered temporaries, texts by content, a site shared by two versions or instances reporting the first one met); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values; no folding in `--hot-reload` builds and the REPL.
+- Built (D296, D335). Proposed by Claude, unconfirmed: the normalisation details (layout equality by attribute order and type, numbered temporaries, texts by content, a site shared by two versions or instances reporting the first one met); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values; no folding in `--hot-reload` builds and the REPL.
 - Not folded yet: a function that differs only in which class of another layout it passes around by reference (a `List<A>` and a `List<B>` of two unrelated classes whose items are only retained and released); a boxed text constant (`spite_lit_N_box`) compares by its name, not its text; a site of a foreign callback still writes its place into the function.
 
 ### Other optimisations
