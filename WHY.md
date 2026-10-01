@@ -112,35 +112,36 @@ does what a template does is refused with the template to write instead:
 this 'while' walks every element of 'monsters' only to add up 'health': write 'var total = monsters.sum_health()'
 ```
 
-The same mechanism, `Symbol` parameters, lets a library write a function once for every attribute of a class, and
-each one becomes an ordinary typed function at compile time. Nothing is looked up while the program runs
+Classes are ordinary objects too: every class is an instance of `Spite.Class`, so `Monster.attributes.each(show)`
+walks every attribute of `Monster`, and a library can write a function once for every attribute of a class. The
+compiler unrolls the walk while compiling, and each call becomes an ordinary typed function. Nothing is looked up while the program runs
 ([docs/metaprogramming.md](docs/metaprogramming.md)).
 
 ## Your architecture, proven by the compiler
 
 The same walks let a library or a framework check your code against its architecture while compiling. A rule is
-ordinary Spite: walk the classes of a folder, ask each one a question the compiler answers, and `crash` where the
-answer is wrong. A `crash` whose condition is decided while compiling and is false is a compile error, not a run-time
-surprise. This rule says that every class in `component/` holds plain data only (numbers, `Boolean`, enums and
-text, so no lists and no references):
+ordinary Spite: walk the classes of a folder, read a question each one answers, and `crash` where the answer is
+wrong. A `crash` whose condition is decided while compiling and is false is a compile error, not a run-time
+surprise. This rule says that every class in `component/` holds plain values of a known size only, so no lists
+and no references:
 
 ```gdscript
-func check_component(component: Symbol<Component>) {
-    crash component.class.fits_vector()
+func check_component(component: Spite.Class) {
+    crash component.is_fixed_size
 }
 ```
 
-Calling `check_components()` once walks them all. Add `var items = List<String>()` to `component/inventory.spite`
+`Component.classes.each(check_component)`, called once, walks them all. Add `var items = List<String>()` to `component/inventory.spite`
 and the program no longer builds:
 
 ```
-game.spite:9: error: 'crash component.class.fits_vector()' always halts: its condition is decided while compiling and is false, ... (in Game.check_component_inventory)
+game.spite:10: error: 'crash component.is_fixed_size' always halts: its condition is decided while compiling and is false, ... (in Game.check_component_for_inventory)
 ```
 
 The error names the rule and the class that broke it, and it costs nothing at run time. A framework can hold you to
 "a component holds data only", "a system's functions end in its phase", "a link holds only an entity" or "no
-sentinel values" the same way, with `has_function`, a function's arguments, an attribute's class and the other
-questions in [docs/metaprogramming.md](docs/metaprogramming.md). Your architecture stops being a convention people
+sentinel values" the same way, with a class's functions, a function's arguments, an attribute's class and the
+other questions in [docs/metaprogramming.md](docs/metaprogramming.md). Your architecture stops being a convention people
 forget and becomes something the compiler proves, which matters twice over when morons, human or AI, write most
 of the code.
 

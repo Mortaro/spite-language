@@ -73,25 +73,26 @@ designed so a moron's code still comes out correct and fast. That is the case fo
 
 - `filter_<member>()`, `map_<member>()`, `sum_<member>()`, `count_<member>()`, `any_`, `all_`, `sort_by_`,
   `find_by_`, `each_` exist on every list and dictionary of a class, written by the compiler for the member named.
-- A `Symbol` parameter lets one function serve every attribute of a class (`set_age`, `set_name` from one
-  `set_attribute`), compiled to typed functions. [docs/metaprogramming.md](docs/metaprogramming.md)
+- Every class is an instance of `Spite.Class`: `Monster.attributes.each(show)` walks its attributes, unrolled
+  while compiling. A `Spite.Attribute<Person>` parameter lets one function serve every attribute (`set_age`,
+  `set_name` from one `set_attribute`), compiled to typed functions. [docs/metaprogramming.md](docs/metaprogramming.md)
 
 ## Compile-time guarantees instead of tests you would have to write
 
 - Null safety, bounds proofs, borrowed items not kept past their call, singletons made thread-safe when a
   `Parallel` reaches them, data a `Parallel` may touch: all checked while compiling.
-- A library can state its own rules as compile errors (`crash $row_type.has_function("update_each")` fails the
+- A library can state its own rules as compile errors (a `crash` on `$system_type.functions['update_each']` fails the
   build for a class that breaks it).
 - A test is a function named `test_...` that crashes when wrong. [docs/testing.md](docs/testing.md)
 
 ## Architecture rules a framework enforces at compile time
 
-- A library walks the user's classes while compiling (`component: Symbol<Component>` walks every class in
-  `component/`) and states its rules as `crash` lines on questions the compiler answers: `fits_vector()` (plain
-  data only), `has_function(...)`, a function's arguments, an attribute's class.
+- A library walks the user's classes while compiling (`Component.classes.each(check_component)` walks every class
+  in `component/`) and states its rules as `crash` lines on questions the compiler answers: `is_fixed_size`
+  (plain values only), a class's functions, a function's arguments, an attribute's class.
 - A `crash` whose condition folds to false where the program reaches it is a compile error naming the instance:
-  `'crash component.class.fits_vector()' always halts: its condition is decided while compiling and is false ...
-  (in Game.check_component_inventory)`. It costs nothing at run time.
+  `'crash component.is_fixed_size' always halts: its condition is decided while compiling and is false ...
+  (in Game.check_component_for_inventory)`. It costs nothing at run time.
 - So rules such as "a component holds data only", "a system's functions end in its phase" or "no sentinel values"
   are proven by the compiler instead of left to review. Code you write against such a framework either fits it or
   does not build. [docs/metaprogramming.md](docs/metaprogramming.md)
