@@ -590,6 +590,10 @@ func restore_host_settings() {
 
 func read_flag(argument: String) {
     var name = setting_name(argument)
+    if supplied_settings.has(name) and flag_error.is_empty() {
+        var hyphenated = name.replace("_", "-")
+        flag_error = "error: '--{hyphenated}' is given twice: a flag or a setting is given once"
+    }
     var equals_position = argument.index_of("=")
     if equals_position > 2 {
         var argument_length = argument.length()

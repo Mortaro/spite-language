@@ -613,7 +613,9 @@ before any output is written.
   `--player=...`, and `Environment` reads the settings it declares); the compiler's own flags and the folder are
   not passed (`conformance/stage6/program_arguments`). **There is no `--` separator**: a bare `--` is an error,
   `error: '--' is not a separator: a program's settings are given beside the compiler's flags, kebab-case like
-  them: spite program --optimized --player-name=Bob` (`diagnostics/separator_flag`).
+  them: spite program --optimized --player-name=Bob` (`diagnostics/separator_flag`). A flag or setting given twice is an
+  error too, `error: '--optimized' is given twice: a flag or a setting is given once`
+  (`diagnostics/flag_given_twice`), so a later one never silently replaces an earlier one.
 - Every setting is decided while compiling and costs nothing at run time; only the builds that ask for it
   carry `--debug-memory`'s table, the REPL (`--repl`, `--repl-port`) or live reload (`--hot-reload`).
 

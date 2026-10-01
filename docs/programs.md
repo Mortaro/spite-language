@@ -152,7 +152,7 @@ var serve = false
 ```gdscript title=build_settings/environment.spite
 var name = "client"
 ```
-```gdscript title=build_settings/build_settings.spite entry build=serve:true vars=serve:false,name:tester
+```gdscript title=build_settings/build_settings.spite entry build=serve:true vars=name:tester
 var console = Console()
 var build = Build()
 var environment = Environment()

@@ -1,0 +1,1 @@
+error: '--optimized' is given twice: a flag or a setting is given once
