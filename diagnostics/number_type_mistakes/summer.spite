@@ -1,0 +1,5 @@
+generic $number_type: Number
+
+func twice(value: $number_type): $number_type {
+    return value + value
+}

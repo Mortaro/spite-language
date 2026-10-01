@@ -1,0 +1,2 @@
+diagnostics/number_type_mistakes/number_type_mistakes.spite:4: error: 'Boolean' does not fit type 'Number', which 'Summer' requires of $number_type: it has no function 'sum' (in NumberTypeMistakes.NumberTypeMistakes)
+diagnostics/number_type_mistakes/number_type_mistakes.spite:11: error: '+' on a value read as 'Number' needs the class that fits the type, which is not known while compiling: take the value through a codegen value the type constrains, 'generic $value_type: Number' (in NumberTypeMistakes.doubled)
