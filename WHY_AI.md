@@ -71,7 +71,7 @@ designed so a moron's code still comes out correct and fast. That is the case fo
 
 ## Templates that read like their intent
 
-- `filter_<member>()`, `map_<member>()`, `sum_<member>()`, `count_<member>()`, `any_`, `all_`, `sort_by_`,
+- `filter_<member>()`, `map_<members>()`, `sum_<member>()`, `count_<member>()`, `any_`, `all_`, `sort_by_`,
   `find_by_`, `each_` exist on every list and dictionary of a class, written by the compiler for the member named.
 - Every class is an instance of `Spite.Class`: `Monster.attributes.each(show)` walks its attributes, unrolled
   while compiling. A `Spite.Attribute<Person>` parameter lets one function serve every attribute (`set_age`,

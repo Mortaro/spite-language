@@ -500,13 +500,13 @@ func files_under(root: String, relative: String, found: List<String>) {
         prefix = "{relative}/"
     }
     var directory = Directory(folder)
-    var names = directory.files()
+    var names = directory.entries().filter_files().map_names()
     var index = 0
     while index < names.count() {
         found.append("{prefix}{names[index]}")
         index = index + 1
     }
-    var folders = directory.folders()
+    var folders = directory.entries().filter_directories().map_names()
     index = 0
     while index < folders.count() {
         files_under(root, "{prefix}{folders[index]}", found)

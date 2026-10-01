@@ -19,8 +19,8 @@ func FusedChains() {
     compare_four_step_chains()
     compare_collecting_chains()
     compare_dictionary_chain()
-    teams.map_lead().each_birthday()
-    var ages = teams.map_lead().sum_age()
+    teams.map_leads().each_birthday()
+    var ages = teams.map_leads().sum_age()
     console.print("after birthdays", ages)
 }
 
@@ -29,26 +29,26 @@ func compare_two_step_chains() {
     var active = teams.filter_active()
     var stepped_size = active.sum_size()
     console.print("filter then sum", fused_size, stepped_size)
-    var fused_age = teams.map_lead().sum_age()
-    var leads = teams.map_lead()
+    var fused_age = teams.map_leads().sum_age()
+    var leads = teams.map_leads()
     var stepped_age = leads.sum_age()
     console.print("map then sum", fused_age, stepped_age)
-    var fused_all = teams.map_lead().all_is_adult()
+    var fused_all = teams.map_leads().all_is_adult()
     var stepped_all = leads.all_is_adult()
     console.print("map then all", fused_all, stepped_all)
 }
 
 func compare_three_step_chains() {
-    var fused_count = teams.filter_active().map_lead().count_retired()
+    var fused_count = teams.filter_active().map_leads().count_retired()
     var active = teams.filter_active()
-    var active_leads = active.map_lead()
+    var active_leads = active.map_leads()
     var stepped_count = active_leads.count_retired()
     console.print("filter, map, count", fused_count, stepped_count)
-    var found = teams.map_lead().filter_is_adult().find_by_name("dee")
+    var found = teams.map_leads().filter_is_adult().find_by_name("dee")
     if found {
         console.print("map, filter, find", found.name, found.age)
     }
-    var missing = teams.map_lead().filter_is_adult().find_by_name("cid")
+    var missing = teams.map_leads().filter_is_adult().find_by_name("cid")
     if missing {
         console.print("unexpected", missing.name)
     } else {
@@ -57,26 +57,26 @@ func compare_three_step_chains() {
 }
 
 func compare_four_step_chains() {
-    var fused_any = teams.filter_active().map_lead().filter_is_adult().any_retired()
+    var fused_any = teams.filter_active().map_leads().filter_is_adult().any_retired()
     var active = teams.filter_active()
-    var active_leads = active.map_lead()
+    var active_leads = active.map_leads()
     var adults = active_leads.filter_is_adult()
     var stepped_any = adults.any_retired()
     console.print("filter, map, filter, any", fused_any, stepped_any)
-    var fused_level = teams.filter_active().map_lead().map_badge().sum_level()
-    var badges = active_leads.map_badge()
+    var fused_level = teams.filter_active().map_leads().map_badges().sum_level()
+    var badges = active_leads.map_badges()
     var stepped_level = badges.sum_level()
     console.print("filter, map, map, sum", fused_level, stepped_level)
 }
 
 func compare_collecting_chains() {
-    var names = teams.filter_active().map_name().join(",")
+    var names = teams.filter_active().map_names().join(",")
     console.print("filter, map names", names)
-    var adults = teams.map_lead().filter_is_adult()
-    var adult_names = adults.map_name().join(",")
+    var adults = teams.map_leads().filter_is_adult()
+    var adult_names = adults.map_names().join(",")
     console.print("map, filter", adult_names)
-    var by_age = teams.map_lead().sort_by_age()
-    var names_by_age = by_age.map_name().join(",")
+    var by_age = teams.map_leads().sort_by_age()
+    var names_by_age = by_age.map_names().join(",")
     console.print("map, sort", names_by_age)
 }
 
@@ -88,6 +88,6 @@ func compare_dictionary_chain() {
     var fay = Person("fay", 20, false)
     var blue = Team("blue", 3, false, fay)
     by_name.set("blue", blue)
-    var fused_age = by_name.filter_active().map_lead().sum_age()
+    var fused_age = by_name.filter_active().map_leads().sum_age()
     console.print("dictionary filter, map, sum", fused_age)
 }

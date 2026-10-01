@@ -27,7 +27,7 @@ func PassedFunctions() {
     var alan = Person("Alan", 41)
     people.append(alan)
     people.each(introduce)
-    var short_adults = people.filter_is_adult().map_name().count(is_short)
+    var short_adults = people.filter_is_adult().map_names().count(is_short)
     console.print(short_adults)
     var greeter = Greeter("welcome")
     people.each(greeter.greet)

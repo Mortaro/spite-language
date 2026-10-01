@@ -207,7 +207,7 @@ func copy(): List<$element_type> {
     return copied
 }
 
-func filter_member(member: Symbol<$element_type>): List<$element_type> {
+func filter_member(member: Spite.Attribute<$element_type>): List<$element_type> {
     var filtered = List<$element_type>()
     var index = 0
     while index < item_count {
@@ -220,7 +220,7 @@ func filter_member(member: Symbol<$element_type>): List<$element_type> {
     return filtered
 }
 
-func remove_where_member(member: Symbol<$element_type>) {
+func remove_where_member(member: Spite.Attribute<$element_type>) {
     var kept = 0
     var index = 0
     while index < item_count {
@@ -240,7 +240,7 @@ func remove_where_member(member: Symbol<$element_type>) {
     truncate(kept)
 }
 
-func count_member(member: Symbol<$element_type>): Integer {
+func count_member(member: Spite.Attribute<$element_type>): Integer {
     var counted = 0
     var index = 0
     while index < item_count {
@@ -253,7 +253,7 @@ func count_member(member: Symbol<$element_type>): Integer {
     return counted
 }
 
-func any_member(member: Symbol<$element_type>): Boolean {
+func any_member(member: Spite.Attribute<$element_type>): Boolean {
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
@@ -265,7 +265,7 @@ func any_member(member: Symbol<$element_type>): Boolean {
     return false
 }
 
-func all_member(member: Symbol<$element_type>): Boolean {
+func all_member(member: Spite.Attribute<$element_type>): Boolean {
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
@@ -277,7 +277,7 @@ func all_member(member: Symbol<$element_type>): Boolean {
     return true
 }
 
-func sum_member(member: Symbol<$element_type>): member.class {
+func sum_member(member: Spite.Attribute<$element_type>): member.class {
     var total: member.class = 0
     var index = 0
     while index < item_count {
@@ -288,7 +288,7 @@ func sum_member(member: Symbol<$element_type>): member.class {
     return total
 }
 
-func each_member(member: Symbol<$element_type>) {
+func each_member(member: Spite.Attribute<$element_type>) {
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
@@ -297,7 +297,7 @@ func each_member(member: Symbol<$element_type>) {
     }
 }
 
-func map_member(member: Symbol<$element_type>): List<member.class> {
+func map_members(member: Spite.Attribute<$element_type>): List<member.class> {
     var mapped = List<member.class>()
     var index = 0
     while index < item_count {
@@ -309,7 +309,7 @@ func map_member(member: Symbol<$element_type>): List<member.class> {
     return mapped
 }
 
-func find_by_member(member: Symbol<$element_type>, value: member.class): $element_type? {
+func find_by_member(member: Spite.Attribute<$element_type>, value: member.class): $element_type? {
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
@@ -321,7 +321,7 @@ func find_by_member(member: Symbol<$element_type>, value: member.class): $elemen
     return null
 }
 
-func sort_by_member(member: Symbol<$element_type>): List<$element_type> {
+func sort_by_member(member: Spite.Attribute<$element_type>): List<$element_type> {
     var keys = List<member.class>()
     var order = List<Integer>()
     var index = 0

@@ -58,7 +58,7 @@ func PlainItems() {
     spawn()
     runner.run(mover, 4)
     runner.run_passed(mover, 4)
-    var lefts = positions.values.map_left()
+    var lefts = positions.values.map_lefts()
     var joined_lefts = lefts.join(", ")
     console.print("lefts", joined_lefts, "moved", mover.moved)
 }
