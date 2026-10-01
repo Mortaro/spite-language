@@ -93,7 +93,8 @@ these five are what is left, with where each stands today.
       prose scattered through files.
     - **Print it to the console** as the classes are written, so it is read once and not stored.
     - **Give the comment rule one more form**, a provenance line the compiler writes and a human never does.
-11. **Whether a `type`'s function members should be written as function-valued attributes** (Mortaro, 2026-09-21,
+11. **(Answered by D368: no; a call through a `type` is always the class's own function, compiled per class.)**
+    **Whether a `type`'s function members should be written as function-valued attributes** (Mortaro, 2026-09-21,
     thinking aloud rather than deciding). Today a shape writes `hit(): Integer`; the alternative is
     `hit: Spite.Function<Integer>`, which would make a required function an ordinary attribute whose type happens to
     be a function, and would leave a `type` with exactly one kind of member instead of two.
