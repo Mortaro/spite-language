@@ -1,0 +1,5 @@
+entries: levels,a.txt,b.md
+text files: 1
+first file: a.txt hello
+folders: 1 levels
+done: 1 1

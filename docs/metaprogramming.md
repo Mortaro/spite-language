@@ -862,6 +862,11 @@ compile error naming the fix.
 
 **A `Dictionary` takes the same member templates as a `List`, over its values**: `accesses.filter_written()`.
 
+**A question member is asked without its `is_`.** The templates that ask a question of each element (`filter_`,
+`count_`, `any_`, `all_`, `remove_where_`) name a member `is_<word>` as `<word>` when the element has no member
+`<word>` of its own: `accesses.filter_written()` keeps the accesses whose `is_written` is true, as
+`monsters.filter_alive()` would for an `is_alive`. Naming it in full, `filter_is_written()`, is the same template.
+
 **There is no plain `map(function)`, and a class has no function values.** A member's values are collected with
 `map_<members>()`; a value computed from an element becomes a get-only attribute of the element's class and is
 collected the same way. `Monster.is_alive` names nothing, since `Monster` is a `Spite.Class` object; a function value

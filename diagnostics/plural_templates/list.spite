@@ -1,0 +1,10 @@
+func collect_members(member: Spite.Attribute<$element_type>): List<member.class> {
+    var collected = List<member.class>()
+    var index = 0
+    while index < item_count {
+        var item = values.read_value(items, index)
+        collected.append(item.attributes[member])
+        index = index + 1
+    }
+    return collected
+}

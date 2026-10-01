@@ -391,7 +391,7 @@ func _cased_like(original: String, changed: String): String {
 }
 
 func _is_uncountable(word: String): Boolean {
-    return word == "data" or word == "equipment" or word == "information" or word == "rice" or word == "money" or word == "species" or word == "series" or word == "fish" or word == "sheep" or word == "jeans" or word == "police"
+    return word == "data" or word == "equipment" or word == "health" or word == "information" or word == "rice" or word == "money" or word == "species" or word == "series" or word == "fish" or word == "sheep" or word == "jeans" or word == "police"
 }
 
 func _irregular(word: String, to_plural: Boolean): String {
