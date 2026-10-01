@@ -347,6 +347,10 @@ func is_alive(): Boolean {
   object literal `{ label: "x" }`, with those attributes and functions.
 - `Anything` is the built-in empty `type`, the counterpart of `Nothing`: `component: Anything` and
   `List<Anything>()` accept any object (a number is boxed). Never declare an empty `type` of your own.
+- `Number` is the library `type` every number class fits (`Tiny` to `Double`, not `Boolean`): its operators and
+  `to_long()`, `to_double()`. Write number code as `generic $number_type: Number`, and ask
+  `$value_type == Number` (never ten comparisons) to tell a number apart in a walk. Inside a `type`, its own name
+  in a signature is the class that fits.
 
 ## Nothing, null, and failure
 

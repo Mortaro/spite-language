@@ -2390,6 +2390,9 @@ func type_test(
             if kind_union {
                 var union_information = find_union_by_c_name(kind_union.c_name)
                 if union_information {
+                    if union_information.is_shape {
+                        return type_fits_shape(bound_type, union_information)
+                    }
                     var member_index = 0
                     while member_index < union_information.member_types.count() {
                         var member_type = resolve_type(
@@ -2408,6 +2411,18 @@ func type_test(
             return exact_type_label(kind_type) == exact_type_label(bound_type)
         }
     }
+}
+
+func type_fits_shape(bound_type: Analysis.SpiteType, information: Analysis.UnionInfo): Boolean {
+    if type_shape.as_nullable(bound_type) {
+        return false
+    }
+    var candidate = class_of_given(bound_type)
+    if not candidate {
+        return false
+    }
+    var problem = shape_fit_problem(information, candidate)
+    return problem.is_empty()
 }
 
 func exact_type_label(spite_type: Analysis.SpiteType): String {
@@ -3330,9 +3345,14 @@ func required_function_problem(
 ): String {
     var function = find_or_instantiate_function(candidate, wanted.name)
     if not function {
-        return "it has no function '{wanted.name}'"
+        return built_in_operator_problem(information, wanted, candidate)
     }
     var wanted_types = required_parameter_types(information, wanted)
+    var own_index = 0
+    while own_index < wanted_types.count() {
+        wanted_types[own_index] = own_type_in_shape(information, wanted_types[own_index], candidate)
+        own_index = own_index + 1
+    }
     if function.parameters.count() != wanted_types.count() {
         return "its '{wanted.name}' takes {function.parameters.count()} argument(s), but the type needs {wanted_types.count()}"
     }
@@ -3350,7 +3370,8 @@ func required_function_problem(
         }
         index = index + 1
     }
-    var wanted_return = required_return_type(information, wanted)
+    var shape_return = required_return_type(information, wanted)
+    var wanted_return = own_type_in_shape(information, shape_return, candidate)
     var function_return_type = function.return_type
     if not types_equal(function_return_type, wanted_return) {
         var names = type_display_names(function_return_type, wanted_return)
@@ -3365,6 +3386,82 @@ func required_function_problem(
     var lent = lent_result_source(candidate, function)
     if not lent.is_empty() {
         return "its '{wanted.name}' lends its caller an item of '{lent}', which only a call written by name can borrow: a call through the type would let go of an item it does not own"
+    }
+    return ""
+}
+
+# ../docs/values_and_types.md#inline-types-and-duck-typing-in-full
+func own_type_in_shape(
+    information: Analysis.UnionInfo,
+    wanted_type: Analysis.SpiteType,
+    candidate: Analysis.ClassInfo,
+): Analysis.SpiteType {
+    var shape_type = union_type_of(information)
+    if types_equal(wanted_type, shape_type) {
+        return instance_type_of(candidate)
+    }
+    return wanted_type
+}
+
+func names_own_shape(information: Analysis.UnionInfo, wanted: Syntax.Statements.FieldDeclaration): Boolean {
+    var shape_type = union_type_of(information)
+    var parameter_types = required_parameter_types(information, wanted)
+    var index = 0
+    while index < parameter_types.count() {
+        if types_equal(parameter_types[index], shape_type) {
+            return true
+        }
+        index = index + 1
+    }
+    var returned = required_return_type(information, wanted)
+    return types_equal(returned, shape_type)
+}
+
+func built_in_operator_problem(
+    information: Analysis.UnionInfo,
+    wanted: Syntax.Statements.FieldDeclaration,
+    candidate: Analysis.ClassInfo,
+): String {
+    var missing = "it has no function '{wanted.name}'"
+    var own_type = instance_type_of(candidate)
+    var own_scalar = type_shape.as_scalar(own_type)
+    if not own_scalar {
+        return missing
+    }
+    if own_scalar.kind == 'boolean_kind' or own_scalar.kind == 'address_kind' {
+        return missing
+    }
+    var arithmetic = ["sum", "subtract", "multiply", "divide"]
+    if own_scalar.kind != 'float_kind' and own_scalar.kind != 'double_kind' {
+        arithmetic.append("remainder")
+    }
+    var comparison = ["less_than", "greater_than", "equals"]
+    var is_arithmetic = arithmetic.contains(wanted.name)
+    if not is_arithmetic and not comparison.contains(wanted.name) {
+        return missing
+    }
+    var wanted_types = required_parameter_types(information, wanted)
+    if wanted_types.count() != 1 {
+        return "its '{wanted.name}' takes 1 argument, but the type needs {wanted_types.count()}"
+    }
+    var wanted_parameter = own_type_in_shape(information, wanted_types[0], candidate)
+    if not types_equal(wanted_parameter, own_type) {
+        var parameter_name = type_display_name(wanted_parameter)
+        var own_name = type_display_name(own_type)
+        return "its '{wanted.name}' takes {with_article(own_name)}, but the type needs {with_article(parameter_name)}"
+    }
+    var shape_return = required_return_type(information, wanted)
+    var wanted_return = own_type_in_shape(information, shape_return, candidate)
+    var answered = own_type
+    if not is_arithmetic {
+        answered = boolean_type()
+    }
+    if not types_equal(wanted_return, answered) {
+        var answered_name = type_display_name(answered)
+        var returned = returned_display(answered, answered_name)
+        var wanted_name = type_display_name(wanted_return)
+        var needed = returned_display(wanted_return, wanted_name)
+        return "its '{wanted.name}' returns {returned}, but the type needs {needed}"
     }
     return ""
 }
@@ -3398,6 +3495,14 @@ func generate_shape_call(
             "type '{information.simple_name}' does not require a function '{name}', so it cannot be called through it",
         )
         return void_result()
+    }
+    if wanted {
+        if names_own_shape(information, wanted) {
+            report(
+                "'{name}' of type '{information.simple_name}' takes or answers the class that fits the type, which a value read as '{information.simple_name}' does not know while compiling: take the value through a codegen value the type constrains, 'generic $value_type: {information.simple_name}'",
+            )
+            return void_result()
+        }
     }
     var parameter_types = shape_call_parameter_types(information, name)
     var return_type = shape_call_return_type(information, name)
@@ -9439,6 +9544,13 @@ func generate_binary(
     if type_shape.as_string(left_type) {
         return generate_string_binary(binary.operator, left, binary.left, binary.right, scope, class_information)
     }
+    var left_shape_name = operated_shape_name(binary.operator, left_type, class_information)
+    if not left_shape_name.is_empty() {
+        report(
+            "'{binary_operator_symbol(binary.operator)}' on a value read as '{left_shape_name}' needs the class that fits the type, which is not known while compiling: take the value through a codegen value the type constrains, 'generic $value_type: {left_shape_name}'",
+        )
+        return void_result()
+    }
     var left_class_ref = type_shape.as_class_ref(left_type)
     if left_class_ref {
         var left_class = find_class_by_c_name(left_class_ref.c_name)
@@ -9948,6 +10060,38 @@ func truth_of(result: ExpressionResult): String {
         return "(({result.code}).has_value)"
     }
     return "({result.code})"
+}
+
+func operated_shape_name(
+    operator: Syntax.Expressions.BinaryOperator,
+    left_type: Analysis.SpiteType,
+    class_information: Analysis.ClassInfo,
+): String {
+    if operator == 'logical_and' or operator == 'logical_or' or operator == 'equal' or operator == 'not_equal' {
+        return ""
+    }
+    var left_union = type_shape.as_union(left_type)
+    if not left_union {
+        return ""
+    }
+    var information = find_union_by_c_name(left_union.c_name)
+    if not information {
+        return ""
+    }
+    if not information.is_shape {
+        return ""
+    }
+    if not class_information.codegen_constraints.contains(information.c_name) {
+        return information.simple_name
+    }
+    var index = 0
+    while index < failed_constraints.count() {
+        if failed_constraints[index].starts_with("{information.c_name}>") {
+            return ""
+        }
+        index = index + 1
+    }
+    return information.simple_name
 }
 
 func operator_function_name(operator: Syntax.Expressions.BinaryOperator): String {
