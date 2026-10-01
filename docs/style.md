@@ -666,13 +666,12 @@ error, and nothing is left to the moron's taste. The `--development`-only "skipp
   | `vec` | `vector` | | `rect` | `rectangle` |
   | `dict` | `dictionary` | | `dbg` | `debug` |
   | `coord`/`coords` | `coordinate`/`coordinates` | | `ver` | `version` |
-  | `prop`/`props` | `property`/`properties` | | `lang` | `language` |
   | `opt`/`opts` | `option`/`options` | | `nav` | `navigation` |
   | `ext` | `extension` | | `wnd` | `window` |
   | `seq` | `sequence` | | `ctrl` | `control` |
   | `sep` | `separator` | | `fmt` | `format` |
   | `avg` | `average` | | `proc` | `process` |
-  | `tbl` | `table` | | | |
+  | `tbl` | `table` | | `lang` | `language` |
 
   Plurals of abbreviations are refused the same way: `nums`, `vals`, `msgs`, `strs`, `ptrs`, `bufs`, `elems`,
   `objs`, `dirs`, `exprs`, `stmts`, `errs`, `cmds`, `funcs`/`fns`, `vars`, `btns`, `imgs`, `evts` and `idxs`
