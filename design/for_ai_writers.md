@@ -21,7 +21,7 @@ spite program --repl-port=4000          serve the REPL; spite connect 4000 --com
 spite program --c-source --run=false    write .spite/build/program/program.c instead (--c-path= puts it elsewhere)
 spite program --run=false               only compile: the errors, if any (writes no executable)
 spite program --executable --run=false  build .spite/build/program/program.exe without running it
-spite program -- --serve=true           the program's own arguments, read by Environment (snake_case after '--')
+spite program --player-name=ada         a setting the program's Environment declares (kebab-case, no '--')
 spite format game                       format files without compiling them (every compile formats first anyway)
 bash check.sh                           the compiler still compiles itself, and every corpus passes
 ```
@@ -45,7 +45,7 @@ beside its own source through `class.source_folder()` (or `$item_type.source_fol
 the class's file on the machine that built it, never through a path relative to where the program runs.
 A name that resolves to no class is `unknown type 'X'`, with `did you mean
 'Component.Eye'?` when a class ends the same way: an environment's folder (`server/`) is not part of the name.
-What follows `--` reaches the program as typed, from bash, PowerShell or `cmd` alike:
+A program's settings and arguments reach it as typed, from bash, PowerShell or `cmd` alike:
 `/Game/Legacy/` stays `/Game/Legacy/`, so do not work around Git for Windows' path rewriting.
 
 ## A file is a class
@@ -462,9 +462,10 @@ func is_alive(): Boolean {
   that fit the `type` `Printable`; any other is an error where the class is named, not inside the generic.
 - Settings: reopen `Environment` in the program's `environment.spite` with one `var` per setting and a literal
   default (`var serve = false`), then bind `var environment = Environment()` and read `environment.serve`. The
-  value comes from `--serve=true` after `--` on the command line (spelled with the field's own underscores:
-  `-- --player_name=x`), else the `SERVE` environment variable, else the default. Given before the `--` it is an
-  error saying so.
+  value comes from `--serve=true` (or bare `--serve` for a `Boolean`) on the command line, written beside the
+  compiler's flags and kebab-case like them (`spite game --optimized --player-name=x` sets
+  `environment.player_name`; there is no `--` separator), else the `SERVE` environment variable, else the
+  default. A setting named like a `Build` field is a compile error naming both.
 - Build settings: reopen `Build` in `build.spite` the same way. A `Build` field is decided when compiling (`spite game --serve=true`, else its default) and is a constant in the program, so `if build.serve { }`
   keeps only one branch. The compiler's own options (`optimized`, `debug_memory`, `run`, `c_source`, ...) and
   `build.target_operating_system` are `Build` fields too. A flag is kebab-case (`--debug-memory`) and sets the
@@ -663,7 +664,8 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 | `;` at the end of a line | `';' is not something Spite reads` | nothing |
 | `var memory = Memory()` | `this class has no function 'Memory'` | `var heap = Memory.Heap()` (inside a container of your own; see [memory.md](../docs/memory.md)) |
 | `--repl_port=4000` | `'--repl_port' is written '--repl-port'` | kebab-case flags; the `Build` field behind it stays `repl_port` |
-| `spite game -- --player-name=ada` | `'--player-name' is written '--player_name'` (when the program runs) | a program's own setting is spelled like its field: `-- --player_name=ada` |
+| `spite game -- --player-name=ada` | `'--' is not a separator` | `spite game --player-name=ada`: settings sit beside the compiler's flags |
+| `spite game --player_name=ada` | `'--player_name' is written '--player-name'` | settings are kebab-case on the command line, like flags |
 | `spite game/game.spite` | `'game/game.spite' is a file, and a program is named by its folder` | `spite game` |
 | renaming `short`, `static` or `near` because C takes them | | the name you meant: Spite reserves nothing for C (D168) |
 

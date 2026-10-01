@@ -19626,8 +19626,9 @@ func generate_member_read_raw(
     if type_shape.is_arguments(object_result_type) {
         var string_spite_type = string_type()
         var nullable_type = nullable_type_of(string_spite_type)
+        var flag_name = member.name.replace("_", "-")
         var lookup_result = ExpressionResult(
-            "SpiteArguments_lookup(&({object_result.code}), \"{member.name}\")",
+            "SpiteArguments_lookup(&({object_result.code}), \"{flag_name}\")",
             nullable_type,
         )
         lookup_result.owning_override = true

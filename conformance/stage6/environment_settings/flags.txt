@@ -1,1 +1,1 @@
--- --name=server --workers=4 --verbose=true --unrelated=ignored
+--name=server --workers=4 --verbose

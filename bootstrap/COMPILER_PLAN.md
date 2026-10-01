@@ -25,10 +25,10 @@ progress log before it ends. `docs/` is the language (D193); this file is the co
 - `bash check.sh --update-seed` refreshes the committed seed after an intended compiler change.
 - One feature = one conformance (or diagnostics) program = one commit. Run `check.sh` per feature, not per file.
 - `conformance/<stage>/<name>/<name>.spite` plus `expected_output.txt`; `diagnostics/<name>/<name>.spite` plus
-  `expected_errors.txt`; either may carry `flags.txt` with the command line after the file, such as `-- --name=server` for a program's `Environment`, and a
+  `expected_errors.txt`; either may carry `flags.txt` with the command line after the file, such as `--name=server` for a program's `Environment`, and a
   conformance program may carry `input.txt` for what it reads from the console.
 - A documentation program is a fenced block in `docs/` headed `spite title=<folder>/<file>.spite [entry] [error]
-  [vars=name:value] [build=name:value]` (`vars` go to the program after `--`, `build` to the compiler), followed by an ```output or ```diagnostic block. `scripts/docs_corpus` writes them
+  [vars=name:value] [build=name:value] [arguments=word,word]` (`vars` are the program's settings, `build` the compiler's flags, both written `--name=value`; `arguments` are passed as they are), followed by an ```output or ```diagnostic block. `scripts/docs_corpus` writes them
   out; `check.sh` runs them.
 - `scripts/patch_tool.py` applies a file of OLD/NEW blocks; `scripts/regenerate_type_shape.py` regenerates the
   `SpiteType` union and its narrowing helpers when a kind of type is added.

@@ -75,7 +75,9 @@ func first_argument(arguments: Arguments): String {
 }
 
 func print_usage() {
-    console.error("usage: spite program_folder [--optimized] [--debug-memory] [-- program arguments ...]")
+    console.error(
+        "usage: spite program_folder [--optimized] [--debug-memory] [--setting=value ...] [program arguments ...]",
+    )
     console.error(
         "       spite program_folder --c-source                also write the C, into .spite/build/ or at --c-path=path",
     )
@@ -107,7 +109,7 @@ func named_program(arguments: Arguments): String {
     if reloading {
         index = 1
     }
-    while index < compiler_arguments_end(arguments) {
+    while index < arguments.count() {
         var argument = arguments.get(index)
         if not argument.starts_with("-") {
             return argument
@@ -486,7 +488,7 @@ func reload_arguments(): String {
     if reloading {
         index = 1
     }
-    while index < compiler_arguments_end(arguments) {
+    while index < arguments.count() {
         var argument = arguments.get(index)
         if not is_output_flag(argument) {
             kept.append(argument)
@@ -522,34 +524,40 @@ func remote_loop_port(): Integer {
     return port_number(port_text)
 }
 
-func compiler_arguments_end(arguments: Arguments): Integer {
-    var index = 0
-    while index < arguments.count() {
-        if arguments.get(index) == "--" {
-            return index
-        }
-        index = index + 1
-    }
-    return arguments.count()
-}
-
 func program_arguments(): List<String> {
     var arguments = Arguments()
+    var named = named_program(arguments)
     var passed = List<String>()
-    var index = compiler_arguments_end(arguments) + 1
+    var folder_seen = false
+    var index = 0
     while index < arguments.count() {
         var argument = arguments.get(index)
-        passed.append(argument)
+        if argument == named and not folder_seen {
+            folder_seen = true
+        } else if not is_compiler_flag(argument) {
+            passed.append(argument)
+        }
         index = index + 1
     }
     return passed
 }
 
+func is_compiler_flag(argument: String): Boolean {
+    if not argument.starts_with("--") {
+        return false
+    }
+    var name = flag_name(argument).replace("-", "_")
+    return build_values.has(name)
+}
+
 func read_supplied_settings(arguments: Arguments) {
     var index = 0
-    while index < compiler_arguments_end(arguments) {
+    while index < arguments.count() {
         var argument = arguments.get(index)
         var argument_length = argument.length()
+        if argument == "--" and flag_error.is_empty() {
+            flag_error = "error: '--' is not a separator: a program's settings are given beside the compiler's flags, kebab-case like them: spite program --optimized --player-name=Bob"
+        }
         if argument.starts_with("--") and argument_length > 2 {
             read_flag(argument)
         }
@@ -596,7 +604,7 @@ func setting_name(argument: String): String {
     var written = flag_name(argument)
     if written.contains("_") and flag_error.is_empty() {
         var hyphenated = written.replace("_", "-")
-        flag_error = "error: '--{written}' is written '--{hyphenated}': a flag is kebab-case, and it sets the Build field '{written}'"
+        flag_error = "error: '--{written}' is written '--{hyphenated}': flags and settings are kebab-case on the command line, and the field they set is '{written}'"
     }
     return written.replace("-", "_")
 }

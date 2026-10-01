@@ -1033,11 +1033,22 @@ echo "operating systems: the compiler, a time zone program, a file watching prog
 
 # bin/spite passes a program's own arguments through untouched: Git for Windows' bash would rewrite ones that look
 # like POSIX paths (`/Game/Legacy/` into `C:/Program Files/Git/Game/Legacy/`) on their way to a Windows program.
-launched=$(bin/spite conformance/stage6/launcher_arguments --executable-path="$work/launched.exe" -- --prefixes=/Game/Legacy/ /usr/share "a b" < /dev/null 2>&1 | tr -d '\r' | grep -v '^spite: building the compiler')
+launched=$(bin/spite conformance/stage6/launcher_arguments --executable-path="$work/launched.exe" --prefixes=/Game/Legacy/ /usr/share "a b" < /dev/null 2>&1 | tr -d '\r' | grep -v '^spite: building the compiler')
 if [ "$launched" != "$(printf '[--prefixes=/Game/Legacy/]\n[/usr/share]\n[a b]')" ]; then
-  echo "FAILED: bin/spite changed the program's arguments after --"; echo "$launched" | head -5; exit 1
+  echo "FAILED: bin/spite changed the program's arguments"; echo "$launched" | head -5; exit 1
 fi
-echo "launcher: bin/spite passes the program's arguments after '--' as they were typed"
+echo "launcher: bin/spite passes the program's settings and arguments as they were typed"
+
+# A built program run directly reads its settings in kebab-case, like the compiler, and refuses the snake_case
+# spelling of a declared one rather than ignoring it.
+direct=$("$work/kebab_setting.exe" --player-name=bo --hard-mode 2>&1 | tr -d '\r')
+if [ "$direct" != "player bo hard mode true" ]; then echo "FAILED: a program run directly misread its settings"; echo "$direct" | head -5; exit 1; fi
+snake=$("$work/kebab_setting.exe" --player_name=bo 2>&1 | tr -d '\r')
+if [ "$snake" != "error: '--player_name' is written '--player-name': a program's setting is kebab-case on the command line, like the compiler's flags, and it sets Environment.player_name" ]; then
+  echo "FAILED: a program run directly did not refuse a snake_case setting"; echo "$snake" | head -5; exit 1
+fi
+"$work/kebab_setting.exe" --player_name=bo > /dev/null 2>&1 && { echo "FAILED: a snake_case setting did not stop the program"; exit 1; }
+echo "settings: a program run directly reads kebab-case settings and refuses the snake_case spelling"
 
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would

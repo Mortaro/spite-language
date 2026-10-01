@@ -1,0 +1,6 @@
+var console = Console()
+var environment = Environment()
+
+func UnderscoreSetting() {
+    console.print(environment.player_name)
+}

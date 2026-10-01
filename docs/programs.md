@@ -46,11 +46,12 @@ complicated splits it into functions it calls, and then reads as a table of cont
 
 ## `Arguments()`: the raw command line
 
-`Arguments()` answers the arguments the program was given, which is everything after the first bare `--` when
-the compiler runs it (`spite game -- ada --player=knight`). `count()` and `get(index)` read them by position, and
-`.player` reads the value of `--player=...` as a `String?`: `null` when the flag was not given.
+`Arguments()` answers the arguments the program was given. When the compiler runs it, those are the settings
+its `Environment` declares and every argument after the folder that is not a flag (`spite game ada knight`).
+`count()` and `get(index)` read them by position, and `.player_name` reads the value of `--player-name=...` as a
+`String?`: `null` when the flag was not given.
 
-```gdscript title=raw_arguments/raw_arguments.spite entry vars=player:knight,rounds:3
+```gdscript title=raw_arguments/raw_arguments.spite entry arguments=ada,knight
 var console = Console()
 
 func RawArguments() {
@@ -61,17 +62,18 @@ func RawArguments() {
 }
 
 func announce(arguments: Arguments) {
-    assert arguments.player
-    console.print("player", arguments.player)
+    var first = arguments.get(0)
+    var second = arguments.get(1)
+    console.print("player", first, "class", second)
 }
 ```
 ```output
 arguments 2
-player knight
+player ada class knight
 ```
 
-That run is `spite raw_arguments -- --player=knight --rounds=3`. A setting the program always wants is better
-declared in `Environment`, which gives it a type and a default.
+That run is `spite raw_arguments ada knight`. A setting the program always wants is better declared in
+`Environment`, which gives it a type, a default and a name the compiler checks.
 
 ## Run-time settings: `Environment`
 
@@ -81,10 +83,10 @@ reads it with `Environment()` anywhere:
 
 ```gdscript title=program_settings/environment.spite
 var endpoint = "local"
-var workers = 1
+var worker_count = 1
 var verbose = false
 ```
-```gdscript title=program_settings/program_settings.spite entry vars=endpoint:production,verbose:true
+```gdscript title=program_settings/program_settings.spite entry vars=endpoint:production,worker-count:4,verbose:true
 var console = Console()
 var environment = Environment()
 
@@ -94,18 +96,20 @@ func ProgramSettings() {
     } else {
         console.print("using the local endpoint")
     }
-    console.print("workers", environment.workers, "verbose", environment.verbose)
+    console.print("workers", environment.worker_count, "verbose", environment.verbose)
 }
 ```
 ```output
 using the production endpoint
-workers 1 verbose true
+workers 4 verbose true
 ```
 
-Each field is read once, when `Environment()` is first made, from the first of:
+That run is `spite program_settings --endpoint=production --worker-count=4 --verbose`: a setting is written like
+a compiler flag, beside the compiler's own flags, kebab-case on the command line and snake_case in code, and a
+`Boolean` may be given bare. Each field is read once, when `Environment()` is first made, from the first of:
 
-1. the program's own command line, `--endpoint=production` (after `--` when the compiler runs it:
-   `spite program_settings -- --endpoint=production`);
+1. the program's own command line, `--endpoint=production` (given to the compiler, which passes it on, or to
+   the built program run directly);
 2. the process environment variable named by the field in upper case, `ENDPOINT`;
 3. the declared default.
 
@@ -165,17 +169,18 @@ func BuildSettings() {
 serving as tester
 ```
 
-That is `spite build_settings --serve=true -- --serve=false --name=tester`. A `--name=value` given to the
-**compiler** (before the `--`) sets the `Build` field of that name; a field nobody sets keeps the default it
-was declared with. Either way `build.serve` is the literal `true` in the built program: `if build.serve { }` is
-decided while compiling, the branch it does not take is never generated, and the program's own `--serve=false`
-changes nothing. `name` belongs to `Environment`, so it is still read when the program runs.
+That is `spite build_settings --serve=true --name=tester`. A `--name=value` naming a `Build` field sets that
+field while compiling; a field nobody sets keeps the default it was declared with. Either way `build.serve` is
+the literal `true` in the built program: `if build.serve { }` is decided while compiling, and the branch it does
+not take is never generated. `name` belongs to `Environment`, so the compiler passes `--name=tester` to the
+program, which reads it when it runs.
 
 - A `Boolean` field may be given bare: `--optimized` is `--optimized=true`. Any other bare flag is an error naming
   the value it needs.
-- The value has to be of the field's type (`--workers=many` for an `Integer` is a compile error), a flag naming a
-  field of `Environment` is a compile error that says to pass it after `--`, and a flag naming no field at all is
-  a compile error listing the fields `Build` has. A typo never passes silently.
+- The value has to be of the field's type (`--workers=many` for an `Integer` is a compile error, for a `Build`
+  field and an `Environment` one alike), a flag naming no field of either is a compile error listing the fields
+  `Build` has, and an `Environment` field named like a `Build` field is a compile error naming both, since the two
+  share one set of names on the command line. A typo never passes silently.
 
 ```gdscript title=unknown_flag_error/unknown_flag_error.spite entry error build=verbos:true
 var console = Console()
@@ -185,7 +190,7 @@ func UnknownFlagError() {
 }
 ```
 ```diagnostic
-'--verbos' is not a compiler option, and this program's Build declares no setting 'verbos'
+'--verbos' is not a compiler option, and this program declares no setting 'verbos'
 ```
 
 - A program's own `build.spite` may give a compiler option a different default: `var optimized = true` builds it
@@ -324,8 +329,8 @@ the file looked for. No other file may reopen the entry class
 ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading)).
 
 The entry constructor takes **no arguments**: `'Kal' is the entry constructor, and it takes no arguments:
-a program reads its run-time settings through Environment() (declared in its environment.spite, given after
-'--'), what its build decided through Build(), and the raw command line through Arguments(), anywhere`
+a program reads its run-time settings through Environment() (declared in its environment.spite, given on the
+command line beside the compiler's flags), what its build decided through Build(), and the raw command line through Arguments(), anywhere`
 (`diagnostics/entry_constructor_arguments`).
 
 ```gdscript kal.spite
@@ -341,9 +346,11 @@ func Kal() {
 ```
 
 **`Arguments()` is the raw command line, anywhere**: what
-the program was given (after the first bare `--` when the compiler runs it), with `count()`, `get(index)`, and
-`.name` answering the value of `--name=...` as a `String?`, `null` when that flag was not given
-(`conformance/stage6/program_arguments`). The compiler answers it in any function; its only cost is the slot
+the program was given (when the compiler runs it, the settings its `Environment` declares and every argument
+after the folder that is not a flag), with `count()`, `get(index)`, and `.player_name` answering the value of
+`--player-name=...` as a `String?`, `null` when that flag was not given; the name is kebab-case on the command
+line and snake_case in code, like a setting's (`conformance/stage6/program_arguments`). A bare `--` is an
+ordinary argument to it. The compiler answers it in any function; its only cost is the slot
 `main` fills with the process's arguments.
 
 **Nothing starts a program behind its back.** Running
@@ -384,35 +391,41 @@ deterministic replacement for packages like Node's dotenv.
 What follows is how it is compiled:
 
 - **Where a value comes from.** Each field is read once, when the singleton is first made, from the first of:
-  the program's own command line, `--serve=true` (what the program receives: after `--` when the compiler runs
-  it, see [Command line](compiler.md#command-line), and stopping at the program's own `--`); the process
-  environment variable named by the field in upper case, `SERVE`; the declared default. The command line wins
-  because it is the more deliberate of the two. An argument that names no field is left alone for `Arguments` to
-  read.
-- **A setting's flag is spelled like its field**, `--worker_count=4` for `var worker_count = 1`: the
-  compiler's flags are kebab-case, but a program's settings are spelled like their fields. `--worker-count=4` for a declared
-  `worker_count` stops the program as it reads its settings, before anything else runs: `error: '--worker-count'
-  is written '--worker_count': a program's setting is spelled like its field, Environment.worker_count, so
-  '--worker-count' would be ignored`, exit code 1 (`conformance/stage6/kebab_setting`).
-  A kebab-case argument that names no setting is still left to `Arguments`. The check is one pass over the
-  arguments when `Environment` is first made, and only in a program that declares a setting.
+  the program's own command line, `--serve=true` or, for a `Boolean`, bare `--serve` (what the program
+  receives, see [Command line](compiler.md#command-line)); the process environment variable named by the field
+  in upper case, `SERVE`; the declared default. The command line wins because it is the more deliberate of the
+  two. An argument that names no field is left alone for `Arguments` to read.
+- **A setting is written like a compiler flag**: kebab-case on the command line, snake_case in code,
+  `--worker-count=4` for `var worker_count = 1` (`conformance/stage6/kebab_setting`). The compiler refuses the
+  snake_case spelling before anything is read (`error: '--worker_count' is written '--worker-count': flags and
+  settings are kebab-case on the command line, and the field they set is 'worker_count'`), and so does the built
+  program run directly: `--worker_count=4` for a declared `worker_count` stops it as it reads its settings,
+  before anything else runs, with `error: '--worker_count' is written '--worker-count': a program's setting is
+  kebab-case on the command line, like the compiler's flags, and it sets Environment.worker_count`, exit code 1.
+  The check is one pass over the arguments when `Environment` is first made, and only in a program that
+  declares a setting.
+- **One set of names.** A setting and a compiler flag are written the same way, so an `Environment` field named
+  like a field of `Build` (the compiler's options, or one the program's `build.spite` or a package declares) is
+  a compile error naming both (`diagnostics/setting_named_like_flag`): rename one.
 - **The default's literal is the type.** A setting is declared with nothing but a literal default: `false`/`true`
   is a `Boolean`, a whole number (negative too) an `Integer`, `""` a `String`. A type annotation, or any other
   default, is a compile error naming the three forms: `'Environment.workers' is a setting, read from the
   program's command line (--workers=value) or its environment (WORKERS), so it is declared with only a literal
   default, and the literal is its type: 'var workers = false' (Boolean), 'var workers = 0' (Integer) or 'var
   workers = ""' (String)` (`diagnostics/environment_setting`). Text that is not a value of the setting's type
-  (`--serve=maybe`, `--workers=many`) **crashes** when the singleton is made (a malformed setting is a bug in
-  how the program was started, and there is nothing sensible to continue with).
+  (`--serve=maybe`, `--workers=many`, a bare `--name` for a `String`) is a compile error when it is given to the
+  compiler (`diagnostics/setting_value`), and **crashes** when the singleton is made in a program run directly
+  (a malformed setting is a bug in how the program was started, and there is nothing sensible to continue
+  with).
 - **How the fields get filled.** The compiler prepends one assignment per declared field to `Environment`'s
   constructor, `serve = boolean_setting("serve", serve)`, where `boolean_setting`, `integer_setting` and
   `text_setting` are ordinary Spite functions in `library/environment.spite`. The reading itself is Spite; the
   compiler only writes the calls, the way it writes a Symbol codegen function
   (`conformance/stage6/environment_settings`).
-- **An `Environment` field is never given to the compiler.** `spite program --serve=true` is an error that says
-  to pass it after `--`: `'--serve' was given to the compiler, but 'Environment.serve' is read when the program
-  runs: give it to the program after '--' (spite program -- --serve=value), or, to decide it when compiling,
-  declare it in the program's build.spite instead` (`diagnostics/environment_setting_to_compiler`).
+- **The compiler passes a setting on.** `spite program --serve=true` with `serve` declared in `Environment`
+  checks the value while compiling and gives `--serve=true` to the program when it runs it; nothing about the
+  setting is written into the build. There is no `--` separator between the compiler's flags and the program's
+  (`diagnostics/separator_flag`).
 - **Run-time cost**: one pass over the command line and one environment lookup per declared field, once,
   when `Environment()` is first made. A program that never makes `Environment()` has none of its code: the
   class is tree-shaken with the rest of the unused library.
@@ -430,7 +443,7 @@ when it is **compiled**. Every compiler option is a `Build` field
 with a literal default, and a program adds its own the same way it adds `Environment` settings, by reopening
 `Build` in a file named `build.spite`. What follows is how it is compiled:
 
-- **Every field is a constant.** A `--name=value` before the `--` sets the field of that name; a field nobody
+- **Every field is a constant.** A `--name=value` naming a `Build` field sets it; a field nobody
   sets keeps its declared default: the program's own `build.spite` if it reopens it, else a loaded package's,
   else `library/build.spite`.
   Either way the value is written into the program: `build.serve` compiles to `true`, a condition on it is decided

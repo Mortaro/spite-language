@@ -60,8 +60,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
      declaration parser in Spite over the C compiler's `-E` output; (b) the C compiler's own dump (clang
      `-ast-dump=json`, ties Spite to clang); (c) generated probe C that prints sizes and values. Recommend (a).
      Blocks: 222.
-153. **Kebab-case for a program's settings after `--`** too (`--player-name`)? Today a kebab-case setting is refused
-     and names the snake_case spelling.
 173. **`Memory.Frame` and an arena's `reset()`**: an object made in the frame arena may not be stored anywhere that
      outlives the frame (a compile error naming `copy()`, a debug generation check as backstop)? Is `Memory.Frame`
      an arena reset once a frame, or a ring of two? Until then, is an arena without `reset()` right?
