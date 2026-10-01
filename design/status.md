@@ -196,10 +196,13 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### What a native fault reports
 
-- The page said "Implemented on Windows, and compiled (not run) for Linux and macOS". The Linux and macOS handler
-  (`sigaction`, alternate stack, frame-pointer walk) is compiled but has not been run. The conformance programs
-  `native_fault_foreign`, `native_fault_stack`, `native_fault_illegal` and `native_fault_heap` run on Windows only; on
-  Linux and macOS a corrupted heap is found by the C library, which prints its own message and aborts (`SIGABRT`).
+- The Linux handler (`sigaction`, alternate stack, frame-pointer walk) runs in `check.sh` on Linux, with gcc and
+  clang: `native_fault_foreign`, `native_fault_stack`, `native_fault_illegal` and `native_fault_heap` compare against
+  their `expected_output.linux.txt` (a signal number where Windows has an exception code, and the shell's own line,
+  such as `Segmentation fault`, as the compiler's run of the program reports the death). The macOS handler is
+  compiled but has not been run. On Linux and macOS a corrupted heap is found by the C library, which prints its own
+  message and aborts (`SIGABRT`), so `native_fault_heap`'s Linux output pins glibc's `free(): invalid pointer`
+  (still open above).
 - The design and the field names of the `spite.fault` line are Claude's proposal, unconfirmed, field names
   provisional under D214.
 - check.sh compares the fault reports with the offset after `+0x` left out and also builds `native_fault_foreign`

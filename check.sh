@@ -3,7 +3,7 @@
 # what docs/ says it does.
 # Needs only a C compiler. Set CC to choose one, otherwise the first available of cc, clang or gcc
 # is used.  Run from anywhere:   bash check.sh
-# Update the committed seed after an intended compiler change:   bash check.sh --update-seed
+# Update the committed seeds after an intended compiler change:   bash check.sh --update-seed
 # The programs are checked side by side, as many at once as there are processors. CHECK_JOBS sets how many
 # (CHECK_JOBS=1 checks one at a time); the report is the same either way, since each result is printed in a fixed
 # order once every program has run, so one program failing never hides another.
@@ -55,9 +55,18 @@ CC_BIN="$CC"
 case "$CC" in *\ *) command -v cygpath >/dev/null 2>&1 && CC=$(cygpath -d "$CC" 2>/dev/null || echo "$CC") ;; esac
 CC="$CC -Wno-deprecated-declarations"   # CC may carry arguments; MSVC headers warn on fopen
 export CC   # the Spite compiler reads it to compile the C it emits
+# The compiler knows the system it runs on as it was compiled, so each system builds its own seed (bootstrap/seed/).
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) system=windows ;;
+  Linux)                system=linux ;;
+  Darwin)               system=mac ;;
+  *)                    system="$(uname -s)" ;;
+esac
+seed="bootstrap/seed/$system/spite_compiler.c"
+[ -f "$seed" ] || { echo "no seed for this system ($system) in bootstrap/seed/" >&2; exit 1; }
 # The compiler folds maths on constants with the C library's own functions, which Linux and macOS keep in libm.
 maths_library="-lm"
-case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) maths_library="" ;; esac
+[ "$system" == "windows" ] && maths_library=""
 
 # Each generation writes its C to the default place, .spite/build/bootstrap/bootstrap.c (D283; a seed from before
 # D283 writes bootstrap/bootstrap.c beside the program), and it is moved into the work folder at once: every Build
@@ -85,7 +94,7 @@ compile_compiler() {
 # The seed only has to write the compiler's C once, so it is compiled without optimisation: that takes a tenth of
 # the time, and the slower seed still finishes far sooner.
 echo "1/4 building the seed compiler"
-"$CC_BIN" -O0 -Wno-parentheses-equality -Wno-deprecated-declarations bootstrap/seed/spite_compiler.c -o "$work/seed.exe" $maths_library 2> "$job_errors" || { head -20 "$job_errors"; exit 1; }
+"$CC_BIN" -O0 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$work/seed.exe" $maths_library 2> "$job_errors" || { head -20 "$job_errors"; exit 1; }
 wait $writing; written=$?
 cat "$work/writing.txt"
 [ "$written" == "0" ] || exit 1
@@ -101,16 +110,30 @@ cp "$work/generation_two.exe" .spite/spite_development.exe   # the freshly built
 # so it never depends on which job ended first.
 # A job runs in a subshell: its 'exit 1' ends that job alone.
 repository=$(pwd)
-case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) position_independent="" ;; *) position_independent="-fPIC" ;; esac
-export work jobs repository CC_BIN maths_library
+position_independent="-fPIC"; [ "$system" == "windows" ] && position_independent=""
+export work jobs repository CC_BIN maths_library system
 
 job_generation_three() {
   compile_compiler "$work/generation_two.exe" "$work/generation_three.c" || { echo "FAILED: generation 2 could not compile the compiler sources"; exit 1; }
 }
 
+# Every program the corpus, the examples, the documentation and the tests build and run has a time limit, so a
+# program that hangs fails by name instead of stalling the whole run. CHECK_TIMEOUT sets it in seconds.
+limit=${CHECK_TIMEOUT:-300}
+export limit
+limited() {
+  if timeout --version > /dev/null 2>&1; then
+    timeout -k 10 "$limit" "$@"
+    local status=$?
+    [ $status == 124 ] || [ $status == 137 ] && echo "check: stopped after $limit seconds, the program did not finish"
+    return $status
+  fi
+  "$@"
+}
+
 # A corpus program or an example: its output must be exactly expected_output.txt, and it must free everything it takes.
 job_program() {
-  local folder=$1 name flags input executable actual expected body balance allocations frees
+  local folder=$1 name flags input executable actual expected body balance allocations frees expected_file pinned_file
   name=$(basename "$folder")
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")   # compiler flags such as --environment=server
   input=/dev/null; [ -f "$folder/input.txt" ] && input="$folder/input.txt"   # what the program reads from the console
@@ -118,28 +141,39 @@ job_program() {
   # program's own path, so two programs of one name never share one, and named like the program, as its crashes name it
   executable="$work/${folder%/}.exe"
   mkdir -p "$(dirname "$executable")"
-  actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$executable" $flags < "$input" 2>&1 | tr -d '\r')
+  actual=$(limited "$work/generation_two.exe" "$folder" --debug-memory --executable-path="$executable" $flags < "$input" 2>&1 | tr -d '\r')
   # some toolchains intermittently fail to open their own cache files on Windows; that is not a
   if echo "$actual" | grep -q "failed to check cache"; then
-    actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$executable" $flags < "$input" 2>&1 | tr -d '\r')
+    actual=$(limited "$work/generation_two.exe" "$folder" --debug-memory --executable-path="$executable" $flags < "$input" 2>&1 | tr -d '\r')
   fi
-  expected=$(tr -d '\r' < "$folder/expected_output.txt")
+  # where a program's output legitimately differs by system (a native fault names a signal on Linux and an exception
+  # code on Windows), expected_output.<system>.txt is this system's, and the same holds for allocations.<system>.txt
+  expected_file="$folder/expected_output.txt"
+  [ -f "$folder/expected_output.$system.txt" ] && expected_file="$folder/expected_output.$system.txt"
+  pinned_file="$folder/allocations.txt"
+  [ -f "$folder/allocations.$system.txt" ] && pinned_file="$folder/allocations.$system.txt"
+  expected=$(tr -d '\r' < "$expected_file")
   body=$(echo "$actual" | grep -v '^allocations: ')
   balance=$(echo "$actual" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
   allocations=${balance% *}; frees=${balance#* }
   if [ -f "$folder/crashes.txt" ]; then
     # a program that is meant to crash: its whole output (stdout and the crash line) must match, and there is no
     # balance line because a crash halts before the program would have released anything. A native fault names where
-    # it stopped as module+offset (D244), and the offset is the C compiler's, so it is compared without it.
-    actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g')
+    # it stopped as module+offset (D244), and the offset is the C compiler's, so it is compared without it; so is an
+    # address on the stack, which the system places anew on every run.
+    actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g; s/address=0x[0-9a-f]{6,}/address=0x.../g')
     [ "$actual" == "$expected" ] && exit 0
     echo "FAILED: $name"; echo "$actual" | head -8; exit 1
   fi
   # allocations.txt pins how many allocations a program makes, so an optimisation that removes them stays removed
-  if [ -f "$folder/allocations.txt" ] && [ "$allocations" != "$(tr -d '\r\n' < "$folder/allocations.txt")" ]; then
-    echo "FAILED: $name allocated $allocations times, allocations.txt says $(tr -d '\r\n' < "$folder/allocations.txt")"; exit 1
+  if [ -f "$pinned_file" ] && [ "$allocations" != "$(tr -d '\r\n' < "$pinned_file")" ]; then
+    echo "FAILED: $name allocated $allocations times, $(basename "$pinned_file") says $(tr -d '\r\n' < "$pinned_file")"; exit 1
   fi
   [ "$body" == "$expected" ] && [ -n "$balance" ] && [ "$allocations" == "$frees" ] && exit 0
+  # a program this machine cannot run (no IPv6, say) prints only 'skipped: <why>', and the report names it and why
+  if [ "$(echo "$body" | wc -l)" == "1" ] && [ "${body#skipped: }" != "$body" ] && [ "$allocations" == "$frees" ]; then
+    echo "SKIPPED: $name: ${body#skipped: }"; exit 77
+  fi
   echo "FAILED: $name"; echo "$actual" | head -8; exit 1
 }
 
@@ -156,8 +190,17 @@ job_documentation() {
     [ -n "$actual" ] && [ "${actual#*$expected}" != "$actual" ] && exit 0
     echo "FAILED docs: $name wanted an error saying '$expected'"; echo "$actual" | head -4; exit 1
   fi
+  # a program written for one system (it names that system's C runtime, say) runs there; elsewhere it is held to
+  # compiling for it, as each system's library is
+  if [ -f "$folder/system.txt" ] && [ "$(tr -d '\r\n' < "$folder/system.txt")" != "$system" ]; then
+    local only
+    only=$(tr -d '\r\n' < "$folder/system.txt")
+    actual=$("$work/generation_two.exe" "$folder" --run=false --c-source --c-path="$work/docs_$name.c" --target-operating-system="$only" $flags 2>&1) &&
+      actual=$("$CC_BIN" -fsyntax-only -w "$work/docs_$name.c" 2>&1) && exit 0
+    echo "FAILED docs: $name does not compile for $only"; echo "$actual" | head -6; exit 1
+  fi
   # a program that loads a repository pinned to a commit (docs/packages.md) says so the first time it fetches it
-  actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$work/docs_$name.exe" $flags < /dev/null 2>&1 | tr -d '\r' | grep -v '^fetched .* into ')
+  actual=$(limited "$work/generation_two.exe" "$folder" --debug-memory --executable-path="$work/docs_$name.exe" $flags < /dev/null 2>&1 | tr -d '\r' | grep -v '^fetched .* into ')
   expected=$(tr -d '\r' < "$folder/expected_output.txt")
   body=$(echo "$actual" | grep -v '^allocations: ')
   balance=$(echo "$actual" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
@@ -196,9 +239,9 @@ job_benchmark() {
 # The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
 job_tests() {
   local test_output test_balance
-  test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
+  test_output=$(limited "$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
   if echo "$test_output" | grep -q "failed to check cache"; then
-    test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
+    test_output=$(limited "$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
   fi
   test_balance=$(echo "$test_output" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
   if [ "$(echo "$test_output" | grep -vc '^allocations: ')" != "0" ] || [ -z "$test_balance" ] || [ "${test_balance% *}" != "${test_balance#* }" ]; then
@@ -372,10 +415,13 @@ run_pool() {
 # The report prints each job's output in the order of the job list, never in the order the jobs ended, and counts
 # the results of each kind; a job that left no exit code failed.
 report_pool() {
-  failures=0; passed=0; failed=0; documented=0; undocumented=0; checked=0; wrong=0; benchmarked=0
+  failures=0; passed=0; failed=0; skipped=0; documented=0; undocumented=0; checked=0; wrong=0; benchmarked=0
   while read -r index kind rest; do
     status=""; [ -f "$work/results/$index.status" ] && read -r status < "$work/results/$index.status"
     [ -s "$work/results/$index.txt" ] && tr -d '\r' < "$work/results/$index.txt"
+    if [ "$kind" == "program" ] && [ "$status" == "77" ]; then
+      skipped=$((skipped+1)); continue
+    fi
     if [ "$status" != "0" ]; then
       failures=$((failures+1))
       [ -n "$status" ] || echo "FAILED: the job '$kind $rest' left no result"
@@ -408,7 +454,7 @@ if [ "$generated" == "0" ] && ! cmp -s "$work/generation_two.c" "$work/generatio
 fi
 
 report_pool
-echo "conformance and examples: $passed passed, $failed failed"
+echo "conformance and examples: $passed passed, $failed failed, $skipped skipped"
 echo "documentation: $documented passed, $undocumented failed"
 echo "diagnostics: $checked checked, $wrong wrong"
 echo "benchmarks: $benchmarked compile"
@@ -1372,10 +1418,27 @@ run_pool
 report_pool
 [ "$failures" == "0" ] || { echo "FAILED: $failures checks failed"; exit 1; }
 
-if cmp -s "$work/generation_two.c" bootstrap/seed/spite_compiler.c; then
-  echo "OK: fixpoint holds and the committed seed is current"
-elif [ "$1" == "--update-seed" ]; then
-  cp "$work/generation_two.c" bootstrap/seed/spite_compiler.c; echo "OK: fixpoint holds; bootstrap/seed/spite_compiler.c updated"
+# Each operating system has its own seed, the compiler's C written for it: this system's is generation 2 itself, and
+# generation 2 writes every other one with --target-operating-system, which gives the very C that system's own
+# generation 2 writes, since nothing of the system doing the compiling reaches the C. So one machine keeps them all.
+stale=()
+for seed_folder in bootstrap/seed/*/; do
+  seed_system=$(basename "$seed_folder")
+  written="$work/generation_two.c"
+  if [ "$seed_system" != "$system" ]; then
+    written="$work/seed_$seed_system.c"
+    rm -f .spite/build/bootstrap/bootstrap.c
+    "$work/generation_two.exe" bootstrap --run=false --c-source --target-operating-system="$seed_system" &&
+      cp .spite/build/bootstrap/bootstrap.c "$written" || { echo "FAILED: generation 2 could not write the seed for $seed_system"; exit 1; }
+  fi
+  if ! cmp -s "$written" "$seed_folder/spite_compiler.c"; then
+    if [ "$1" == "--update-seed" ]; then cp "$written" "$seed_folder/spite_compiler.c"; else stale+=("$seed_system"); fi
+  fi
+done
+if [ "$1" == "--update-seed" ]; then
+  echo "OK: fixpoint holds; every seed in bootstrap/seed/ is current"
+elif [ ${#stale[@]} == 0 ]; then
+  echo "OK: fixpoint holds and the committed seeds are current"
 else
-  echo "OK: fixpoint holds, but the compiler sources changed since the seed was written: run  bash check.sh --update-seed"
+  echo "OK: fixpoint holds, but the compiler sources changed since the seeds for ${stale[*]} were written: run  bash check.sh --update-seed"
 fi

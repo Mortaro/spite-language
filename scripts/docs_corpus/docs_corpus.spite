@@ -149,6 +149,11 @@ func remember_folder(folder: String, file_name: String, words: List<String>) {
             crash folder_flags[position]
             folder_flags[position] = "{folder_flags[position]} {program_arguments}"
         }
+        if word.starts_with("system=") {
+            var only_system = words_of(word, "system=")
+            make_directory("{root}/{folder}")
+            File("{root}/{folder}/system.txt").write("{only_system}\n")
+        }
         if word.starts_with("build=") {
             var build_flags = flags_of(word, "build=")
             crash folder_flags[position]

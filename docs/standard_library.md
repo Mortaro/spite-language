@@ -396,7 +396,7 @@ not the code, and not the lookups of the system's functions ([optimizations.md](
 var console = Console()
 
 func ProcessTasks() {
-    var listing = Process("echo", ["build finished"])
+    var listing = Process("echo", ["build", "finished"])
     var code = listing.run()
     console.print("exit code", code)
     var trimmed_output = listing.output().trim()
@@ -405,7 +405,7 @@ func ProcessTasks() {
 ```
 ```output
 exit code 0
-output "build finished"
+output build finished
 ```
 
 | Member | Result | Notes |

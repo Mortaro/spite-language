@@ -3,6 +3,12 @@ var everywhere = Socket()
 var loopback = Socket()
 
 func Ipv6Addresses() {
+    var probe = Socket()
+    if not probe.listen_at("::1", 47326) {
+        console.print("skipped: this machine has no IPv6, so nothing can listen on ::1")
+        return
+    }
+    probe.close()
     crash everywhere.listen_everywhere(47321)
     reach(everywhere, "::1", 47321)
     reach(everywhere, "127.0.0.1", 47321)
@@ -19,6 +25,7 @@ func Ipv6Addresses() {
 func reach(server: Socket, host: String, port: Integer) {
     var client = Socket()
     var connected = client.connect(host, port)
+    crash connected
     var peer = server.accept_client()
     crash peer
     crash client.write_line("over {host}")

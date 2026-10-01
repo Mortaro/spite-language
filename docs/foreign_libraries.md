@@ -8,7 +8,7 @@ what a program can do with it, the library already does.
 
 ## Calling a function
 
-```gdscript title=foreign_call/foreign_call.spite entry
+```gdscript title=foreign_call/foreign_call.spite entry system=windows
 var console = Console()
 var c_runtime = DynamicLibrary("ucrtbase.dll", 'identity', "")
 
@@ -129,7 +129,7 @@ program writes C, and there is no new syntax.
 
 A function value given as an argument of a foreign call is a C function pointer for that call:
 
-```gdscript title=sorted_by_c/sorted_by_c.spite entry
+```gdscript title=sorted_by_c/sorted_by_c.spite entry system=windows
 var console = Console()
 var c_runtime = DynamicLibrary("ucrtbase.dll", 'identity', "")
 var numbers = TypedMemory<Integer>()

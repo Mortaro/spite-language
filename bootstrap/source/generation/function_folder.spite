@@ -10,6 +10,7 @@ var headers = List<String>()
 var replacements = Dictionary<String>()
 var casts = Dictionary<Boolean>()
 var main_text = ""
+var pointer_lines = List<String>()
 var last_header = ""
 var folded_count = 0
 var defined_names = Dictionary<Boolean>()
@@ -435,6 +436,14 @@ func fold_into(folded: Integer, kept: Integer) {
     }
     replacements[folded_name] = "((__typeof__(&{folded_name}))&{kept_name})"
     casts[folded_name] = true
+    pointer_lines.append(
+        "static __typeof__(&{folded_name}) spite_folded_{folded_name} = ((__typeof__(&{folded_name}))&{kept_name});",
+    )
+}
+
+# ../docs/optimizations.md#identical-functions-are-folded-into-one
+func pointers(): String {
+    return pointer_lines.join("\n")
 }
 
 func written_alike(folded_piece: String, folded_name: String, kept_piece: String, kept_name: String): Boolean {
@@ -465,7 +474,11 @@ func rewritten(text: String): String {
                 var before = text.slice(copied, cut)
                 parts.append(before)
                 crash replacements[name]
-                parts.append(replacements[name])
+                if cut == index and casts.has(name) and is_called(text, end) {
+                    parts.append("spite_folded_{name}")
+                } else {
+                    parts.append(replacements[name])
+                }
                 copied = end
             }
             index = end
@@ -482,6 +495,14 @@ func rewritten(text: String): String {
     var rest = text.slice(copied, text_length)
     parts.append(rest)
     return parts.join("")
+}
+
+func is_called(text: String, after_name: Integer): Boolean {
+    var index = after_name
+    while index < text.length() and text.code_at(index) == 32 {
+        index = index + 1
+    }
+    return index < text.length() and text.code_at(index) == 40
 }
 
 func replaced_start(text: String, name_start: Integer, name: String): Integer {
