@@ -26,7 +26,7 @@ maths constants as get-only attributes such as `Float.pi`), 205 (`x`, `y`, `z`, 
 
 Fifth pass, 2026-09-30: 109's first half by D335 (narrowed to the runner's markers), 225 by D334. Answered,
 rows pending: 228 (`map_` over a predicate is an error pointing at `filter_`/`count_`/`any_`/`all_`; class-qualified
-function values and plain `List.map(function)` go), 213 (the default build compiles fastest; hot builds compile
+function values and plain `List.map(function)` go), 213 (D337: the default build compiles fastest; hot builds compile
 like it, reversing D299's `-O3`, so D299 leaves 239; run-speed-only passes are skipped unless measured to speed up
 the whole build), 153 (no `--` separator; settings kebab on the command line, snake in code; a name colliding with
 a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242. 155 by D336.
