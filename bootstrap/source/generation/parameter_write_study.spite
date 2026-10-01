@@ -160,13 +160,25 @@ func assign(assignment: Syntax.Statements.AssignmentStatement) {
             }
             return
         }
-        record_all("|this|", reason)
+        var own_written = "|this|"
+        var assigned_owner = the_owner()
+        if assigned_owner.find_field(named.name) {
+            own_written = "|this|@{named.name}|"
+        }
+        record_all(own_written, reason)
         var stored_roots = roots_of(value)
         record_all(stored_roots, reason)
         return
     }
     visit_target(target)
     var written = target_roots(target)
+    var target_member = shape.as_member(target)
+    if target_member {
+        crash target_member.object
+        if is_identifier_this(target_member.object) {
+            written = united(written, "|@{target_member.name}|")
+        }
+    }
     record_all(written, reason)
     var kept_roots = roots_of(value)
     record_all(kept_roots, reason)
@@ -379,6 +391,9 @@ func apply(
             receiver,
             "at {path}:{line}: '{printed(call)}' calls {shown}, which writes the object it is called on",
         )
+    }
+    if receiver == "|this|" {
+        record_own_attributes(key, callee_owner, call)
     }
     if table_now.writes(key, "shared") {
         var shared_reason = table_now.reason_of(key, "shared")
@@ -735,7 +750,7 @@ func named_roots(name: String): String {
         if binds_singleton(field.spite_type) {
             return "|shared|"
         }
-        return "|this|"
+        return "|this|@{name}|"
     }
     return ""
 }
@@ -892,4 +907,26 @@ func record_all(slots: String, reason: String) {
 
 func printed(expression: Syntax.Expressions.Expression): String {
     return printer.source_expression(expression)
+}
+
+func is_identifier_this(expression: Syntax.Expressions.Expression): Boolean {
+    var named = shape.as_identifier(expression)
+    if not named {
+        return false
+    }
+    return named.name == "this"
+}
+
+func record_own_attributes(key: String, callee_owner: Analysis.ClassInfo, call: Syntax.Expressions.CallExpression) {
+    var studied_owner = the_owner()
+    assert callee_owner.c_name == studied_owner.c_name
+    var table_now = writes()
+    var index = 0
+    while index < studied_owner.fields.count() {
+        var slot = "@{studied_owner.fields[index].name}"
+        if table_now.writes(key, slot) {
+            record_all("|{slot}|", "at {path}:{line}: '{printed(call)}' calls a function of this class that writes it")
+        }
+        index = index + 1
+    }
 }

@@ -4,6 +4,7 @@ var prefix = ""
 var suffix = ""
 var range: Syntax.Types.Type? = null
 var passed = false
+var plural = false
 
 func TemplateInfo(
     starting_declaration: Syntax.Statements.FunctionDeclaration,

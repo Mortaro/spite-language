@@ -659,9 +659,10 @@ posts.remove_where_archived()
 
 `posts.filter_published()` means exactly `posts.filter_stage_is_published()` would, had `Post` a
 `func stage_is_published(): Boolean { return stage == 'published' }`: one loop, one comparison of two small
-integers per element, and a chain of them fuses like any other ([below](#chains-run-as-one-loop)). This is how a
-directory lists only its files: `directory.entries().filter_files()`, where each entry's `kind` is `'files'` or
-`'folders'`, and why `Directory` has no `files()` of its own ([standard_library.md](standard_library.md#list-a-directory)).
+integers per element, and a chain of them fuses like any other ([below](#chains-run-as-one-loop)). A directory
+lists only its files the other way, by class: `directory.entries()` is a list of the union of `Directory` and `File`,
+and `filter_files()` keeps the `File` items as a `List<File>` ([metaprogramming.md](metaprogramming.md#member-templates),
+[standard_library.md](standard_library.md#list-a-directory)).
 
 ## Passing a function for each element
 

@@ -349,7 +349,53 @@ What a function does with one attribute or argument, the value of `function.acce
 | `.is_written` | the function writes it | `access.is_written` |
 | `.target` | the `Spite.Attribute or Spite.Argument` it is about | `access.target.name` |
 
-An attribute and an argument of one function cannot share a name, so one dictionary holds both.
+An attribute and an argument of one function cannot share a name, so one dictionary holds both. Its attributes come
+first, in declaration order, then its arguments, in order. Both answers follow every call to a function of the same
+class, however deep, so `remember()` below writes `trail` for `update_each`; an attribute or argument the function
+neither reads nor writes has no entry. Calling a function on an attribute (`trail.append(position)`) reads it, and
+writes it when that function changes the object it is called on.
+
+```gdscript title=access_report/movement.spite
+var position = 0
+var speed = 1
+var trail = List<Integer>()
+
+func update_each(steps: Integer) {
+    position = position + speed * steps
+    remember()
+}
+
+func remember() {
+    trail.append(position)
+}
+```
+```gdscript title=access_report/access_report.spite entry
+var console = Console()
+
+func AccessReport() {
+    var update = Movement.functions['update_each']
+    crash update
+    update.accesses.each(describe)
+    var written = update.accesses.filter_written()
+    var written_count = written.count()
+    console.print("written:", written_count)
+    var movement = Movement()
+    movement.update_each(2)
+    console.print(movement.position)
+}
+
+func describe(access: Spite.Access) {
+    console.print(access.target.name, "read", access.is_read, "written", access.is_written)
+}
+```
+```output
+position read true written true
+speed read true written false
+trail read true written true
+steps read true written false
+written: 2
+2
+```
 
 ### `Spite.Memory`
 
