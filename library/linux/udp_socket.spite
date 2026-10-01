@@ -1,20 +1,26 @@
 var _library = DynamicLibrary("libc.so.6", 'identity', "")
 
-func _open_handle(): Long {
-    return _library.socket(2, 2, 17)
+func _open_handle(family: Integer): Long {
+    var opened = _library.socket(family, 2, 17)
+    if opened != -1 and family == _addresses.ipv6_family() {
+        _addresses.allow_ipv4_too(opened)
+    }
+    return opened
 }
 
 func _bind(address: Memory.Address): Boolean {
-    return _library.bind(handle, address, 16) == 0
+    var length = _addresses.address_length(address)
+    return _library.bind(handle, address, length) == 0
 }
 
 func _send(address: Memory.Address, buffer: Memory.Address, count: Integer): Integer {
+    var length = _addresses.address_length(address)
     var wanted: Long = count
-    return _library.sendto_as_long(handle, buffer, wanted, 0, address, 16)
+    return _library.sendto_as_long(handle, buffer, wanted, 0, address, length)
 }
 
 func _receive_from(buffer: Memory.Address, count: Integer, sender: Memory.Address): Integer {
-    var length_slot = sender + 16
+    var length_slot = sender + 28
     var wanted: Long = count
     return _library.recvfrom_as_long(handle, buffer, wanted, 0, sender, length_slot)
 }

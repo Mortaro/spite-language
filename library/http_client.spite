@@ -1,36 +1,92 @@
 var heap = Memory.Heap()
 var largest_body = 16777216
+var largest_idle = 8
+var _idle = List<Socket>()
+var _idle_keys = List<String>()
 
 func send(host: String, port: Integer, request: HttpRequest): HttpResponse? {
+    var key = "{host} {port}"
+    var reused = _take_idle(key)
+    if reused {
+        var first_line = _ask(reused, host, request)
+        if first_line {
+            return _finish(reused, key, request, first_line)
+        }
+        reused.close()
+    }
     var connection = Socket()
     var connected = connection.connect(host, port)
     assert connected
+    var answer = _ask(connection, host, request)
+    if not answer {
+        connection.close()
+    }
+    assert answer
+    return _finish(connection, key, request, answer)
+}
+
+func close() {
+    _idle.each_close()
+    _idle.clear()
+    _idle_keys.clear()
+}
+
+func drop() {
+    close()
+}
+
+func _take_idle(key: String): Socket? {
+    var index = 0
+    while index < _idle_keys.count() {
+        if _idle_keys[index] == key {
+            var taken = _idle[index]
+            _idle.remove_at(index)
+            _idle_keys.remove_at(index)
+            return taken
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func _ask(connection: Socket, host: String, request: HttpRequest): String? {
     var body_length = request.body.length()
-    var head = "{request.method} {request.path} HTTP/1.1\r\nhost: {host}\r\n"
+    var host_header = host
+    if host.contains(":") {
+        host_header = "[{host}]"
+    }
+    var head = "{request.method} {request.path} HTTP/1.1\r\nhost: {host_header}\r\n"
     var names = request.headers.keys()
     var index = 0
     while index < names.count() {
         var name = names[index]
         crash request.headers[name]
-        if name != "host" and name != "content-length" and name != "connection" {
+        if name != "host" and name != "content-length" {
             head = "{head}{name}: {request.headers[name]}\r\n"
         }
         index = index + 1
     }
-    head = "{head}content-length: {body_length}\r\nconnection: close\r\n\r\n"
+    head = "{head}content-length: {body_length}\r\n\r\n"
     var whole = head + request.body
     var bytes = whole.to_bytes()
     var counted = bytes.count()
     var written = connection.write_bytes(bytes.items, counted)
-    var response = _read_response(connection)
-    connection.close()
     assert written
+    return connection.read_line()
+}
+
+func _finish(connection: Socket, key: String, request: HttpRequest, first_line: String): HttpResponse? {
+    var response = _read_response(connection, request, first_line)
+    if not response or connection.closed or _idle.count() >= largest_idle {
+        connection.close()
+    } else {
+        _idle.append(connection)
+        _idle_keys.append(key)
+    }
     return response
 }
 
-func _read_response(connection: Socket): HttpResponse? {
-    var first_line = connection.read_line()
-    assert first_line
+func _read_response(connection: Socket, request: HttpRequest, first_line: String): HttpResponse? {
     assert first_line.starts_with("HTTP/1.")
     var line_length = first_line.length()
     assert line_length >= 12
@@ -41,24 +97,37 @@ func _read_response(connection: Socket): HttpResponse? {
     response.status = status
     var headers_read = _read_headers(connection, response.headers)
     assert headers_read
+    var asked = ""
+    var connection_header = response.header("connection")
+    if connection_header {
+        asked = connection_header.lower_case()
+    }
+    var keep = not asked.contains("close") and (first_line.starts_with("HTTP/1.1") or asked.contains("keep-alive"))
     var declared = response.header("content-length")
     var encoding = response.header("transfer-encoding")
-    if declared {
+    var bodiless = request.method == "HEAD" or status == 204 or status == 304 or status < 200
+    if bodiless {
+        response.body = ""
+    } else if encoding {
+        assert encoding.lower_case() == "chunked"
+        var chunked = _read_chunks(connection)
+        assert chunked
+        response.body = chunked
+    } else if declared {
         var length = declared.to_integer()
         assert length
         assert length >= 0 and length <= largest_body
         var body = _read_exactly(connection, length)
         assert body
         response.body = body
-    } else if encoding {
-        assert encoding.lower_case() == "chunked"
-        var chunked = _read_chunks(connection)
-        assert chunked
-        response.body = chunked
     } else {
         var rest = _read_until_closed(connection)
         assert rest
         response.body = rest
+        keep = false
+    }
+    if not keep {
+        connection.close()
     }
     return response
 }
