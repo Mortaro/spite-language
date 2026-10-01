@@ -450,9 +450,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   mapping (`mmap`) is held to compiling only; only Windows runs.
 
 ### Watch files and folders
-- `watch_for_changes(target: Directory or File)` is declared over a union of the two classes in the watcher's own
-  file (`FileSystemWatcher.Target`), since the compiler has no inline union type; it becomes `Directory or File`
-  when that exists. The quiet period is still open (mortaros_missing_decisions.md 166).
+- The quiet period is still open (mortaros_missing_decisions.md 166).
 - Linux (`inotify`) and macOS (`kqueue`) watchers are held to compiling by check.sh; only Windows runs.
 
 ### Run a process
