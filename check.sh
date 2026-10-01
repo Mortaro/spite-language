@@ -312,7 +312,9 @@ job_launcher() {
   if [ "$snake" != "error: '--player_name' is written '--player-name': a program's setting is kebab-case on the command line, like the compiler's flags, and it sets Environment.player_name" ]; then
     echo "FAILED: a program run directly did not refuse a snake_case setting"; echo "$snake" | head -5; exit 1
   fi
-  "$work/kebab_direct.exe" --player_name=bo > /dev/null 2>&1 && { echo "FAILED: a snake_case setting did not stop the program"; exit 1; }
+  if "$work/kebab_direct.exe" --player_name=bo > /dev/null 2>&1; then
+    echo "FAILED: a snake_case setting did not stop the program"; exit 1
+  fi
 }
 
 run_job() {
