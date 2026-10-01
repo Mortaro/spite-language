@@ -41011,7 +41011,14 @@ func is_reflection_type(spite_type: Analysis.SpiteType): Boolean {
     if not class_ref {
         return false
     }
-    var reflection_names = ["Spite_Class", "Spite_Namespace", "Spite_Function", "Spite_Argument", "Spite_Attribute"]
+    var reflection_names = [
+        "Spite_Class"
+        "Spite_Namespace"
+        "Spite_Function"
+        "Spite_Argument"
+        "Spite_Attribute"
+        "Spite_Access"
+    ]
     return reflection_names.contains(class_ref.c_name)
 }
 
@@ -41066,6 +41073,10 @@ func reflection_word(name: String): Boolean {
         "is_resumable"
         "is_mutated"
         "returned_literal"
+        "accesses"
+        "target"
+        "is_read"
+        "is_written"
         "element_type"
         "value_type"
         "camel_case_name"
@@ -41484,6 +41495,7 @@ func reflected_member_of(object: Reflected, name: String, class_information: Ana
         "function": return reflected_function_member(object, name, class_information)
         "argument": return reflected_argument_member(object, name)
         "attribute": return reflected_attribute_member(object, name)
+        "access": return reflected_access_member(object, name)
         "enum": {
             assert name == "name"
             return reflected_text(object.name, true)
@@ -41787,6 +41799,7 @@ func reflected_function_member(object: Reflected, name: String, class_informatio
             return reflected_class(returned)
         }
         "arguments": return reflected_arguments_of(owner, function)
+        "accesses": return reflected_accesses(owner, function)
         "is_resumable": {
             var resumable = class_function_waits(owner, function.name, class_information)
             return reflected_truth(resumable)
@@ -41874,6 +41887,156 @@ func reflected_attribute_member(object: Reflected, name: String): Reflected? {
         }
         _: return null
     }
+}
+
+func reflected_accesses(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo): Reflected {
+    var read_names = List<String>()
+    var visited = List<String>()
+    collect_function_reads(owner, function, true, read_names, visited)
+    var accesses = List<Reflected>()
+    var index = 0
+    while index < owner.fields.count() {
+        var field = owner.fields[index]
+        var slot = "@{field.name}"
+        var written = parameter_writes.answer(this, owner, function, slot)
+        note_fact("asks writes {function.c_name} {slot} {written}")
+        var read = read_names.contains(field.name)
+        if read or written {
+            var attribute = Reflected("attribute")
+            attribute.owner = owner
+            attribute.name = field.name
+            attribute.described_type = field.get_type()
+            attribute.position = index
+            var attribute_access = reflected_access(attribute, read, written)
+            accesses.append(attribute_access)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var position: String = index
+        var mutated = parameter_writes.answer(this, owner, function, position)
+        note_fact("asks writes {function.c_name} {position} {mutated}")
+        var used = read_names.contains(parameter.name)
+        if used or mutated {
+            var argument = Reflected("argument")
+            argument.owner = owner
+            argument.function = function
+            argument.name = parameter.name
+            argument.described_type = parameter.get_type()
+            argument.position = index
+            var argument_access = reflected_access(argument, used, mutated)
+            accesses.append(argument_access)
+        }
+        index = index + 1
+    }
+    return reflected_list(accesses)
+}
+
+func reflected_access(target: Reflected, read: Boolean, written: Boolean): Reflected {
+    var access = Reflected("access")
+    access.name = target.name
+    access.is_read = read
+    access.is_written = written
+    access.elements.append(target)
+    return access
+}
+
+func reflected_access_member(object: Reflected, name: String): Reflected? {
+    switch name {
+        "is_read": return reflected_truth(object.is_read)
+        "is_written": return reflected_truth(object.is_written)
+        "target": {
+            var target = object.elements.first()
+            crash target
+            return target
+        }
+        _: return null
+    }
+}
+
+func collect_function_reads(
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    every_name: Boolean,
+    names: List<String>,
+    visited: List<String>,
+) {
+    assert not visited.contains(function.c_name)
+    visited.append(function.c_name)
+    var mentioned = List<String>()
+    collect_read_block(function.body, mentioned)
+    var index = 0
+    while index < mentioned.count() {
+        var name = mentioned[index]
+        var kept = every_name
+        if owner.find_field(name) {
+            kept = true
+        }
+        if kept and not names.contains(name) {
+            names.append(name)
+        }
+        var own = owner.find_function(name)
+        if own {
+            if not own.is_constructor {
+                collect_function_reads(owner, own, false, names, visited)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func collect_read_block(statements: List<Syntax.Statements.Statement>, names: List<String>) {
+    var index = 0
+    while index < statements.count() {
+        collect_read_statement(statements[index], names)
+        index = index + 1
+    }
+}
+
+func collect_read_statement(statement: Syntax.Statements.Statement, names: List<String>) {
+    switch statement {
+        Syntax.Statements.AssignmentStatement: {
+            collect_target_reads(statement.target, names)
+            collect_optional_names(statement.value, names)
+        }
+        Syntax.Statements.IfStatement: {
+            collect_optional_names(statement.condition, names)
+            collect_read_block(statement.then_branch, names)
+            collect_read_block(statement.else_branch, names)
+        }
+        Syntax.Statements.WhileStatement: {
+            collect_optional_names(statement.condition, names)
+            collect_read_block(statement.body, names)
+        }
+        Syntax.Statements.SwitchStatement: {
+            collect_optional_names(statement.subject, names)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                collect_read_block(statement.cases[case_index].body, names)
+                case_index = case_index + 1
+            }
+        }
+        _: collect_statement_names(statement, names)
+    }
+}
+
+func collect_target_reads(target: Syntax.Expressions.Expression?, names: List<String>) {
+    assert target
+    var member = shape.as_member(target)
+    if member {
+        collect_target_reads(member.object, names)
+        return
+    }
+    var indexed = shape.as_index(target)
+    if indexed {
+        collect_target_reads(indexed.object, names)
+        collect_optional_names(indexed.index, names)
+        return
+    }
+    assert not shape.as_identifier(target)
+    collect_mentioned_names(target, names)
 }
 
 func reflected_index(
@@ -42148,7 +42311,11 @@ func reflected_chain(
     class_information: Analysis.ClassInfo,
 ): Reflected? {
     if arguments.is_empty() {
-        return reflected_member_of(element, chain, class_information)
+        var direct = reflected_member_of(element, chain, class_information)
+        if direct {
+            return direct
+        }
+        return reflected_member_of(element, "is_{chain}", class_information)
     }
     var words = chain.split("_")
     var split = 1
@@ -42285,6 +42452,7 @@ func matches_parameter(constant: Reflected, parameter_type: Analysis.SpiteType):
         "Spite_Function": return constant.kind == "function"
         "Spite_Argument": return constant.kind == "argument"
         "Spite_Attribute": return constant.kind == "attribute"
+        "Spite_Access": return constant.kind == "access"
         _: return false
     }
 }

@@ -334,8 +334,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - The pages (metaprogramming.md, reflection.md) now teach only the D316 model. Shown there as untitled snippets because
   they do not compile yet: the plural `map_<members>()` of the library (the plural rule is built for a template
   whose name holds its parameter in the plural, but `library/list.spite` still declares `map_member`, so
-  `map_name()` still compiles), `function.accesses` and `Spite.Access` with dictionary member templates (D335),
-  `Spite.Namespace.enums`, `call_with`, a function taking `value: Number` (D321), the `map_is_alive()` error (#228,
+  `map_name()` still compiles), `Spite.Namespace.enums`, `call_with`, a function taking `value: Number` (D321), the `map_is_alive()` error (#228,
   being built on its own branch), and a class's own `get_`/`set_` template spelled `attribute: Spite.Attribute<Person>`:
   inside `Person` it is "unknown identifier 'attributes'" (only `attribute: Symbol` reads `attributes[attribute]`
   today, and `this.attributes` is refused).
@@ -367,7 +366,12 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   added to the uncountable words, since metaprogramming.md reads `map_health` as `health`; the error texts.
   Not built: `String.Inflection`, the table a program reopens to add words (the compiler inflects with its own
   copy of `String`, so a program's words would not reach it either).
-- Not built: `function.call_with(arguments.map(made))` (D317), `.read_attributes`/`.written_attributes` (item 109),
+- Built (D335): `function.accesses`, a constant dictionary of `Spite.Access` (`is_read`, `is_written`, `target`),
+  attributes then arguments, following calls to the same class's functions (`conformance/stage6/function_accesses`,
+  reflection.md's `access_report`). Proposed by Claude, unconfirmed: that order; calling a function on an attribute
+  counts as reading it; a write through `this.f()` is followed but a read through it is not; the union's name
+  `Spite.Access.Target`. Not built: `.accesses` on a run-time function object (it answers only on a constant).
+- Not built: `function.call_with(arguments.map(made))` (D317),
   `Spite.Namespace.enums`, the library's `map_members` (the rule is built; `list.spite`, `vector.spite` and
   `items.spite` and every `map_<member>` call still use the singular), and the
   compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
