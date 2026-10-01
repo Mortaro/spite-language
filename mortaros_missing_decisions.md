@@ -14,7 +14,7 @@ Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection re
 answered by D314.
 
 Third pass, after D318-D325: 229 answered by D318 (on the reflection branch), 230 by D319, 227 by D320 and
-D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330, 208 by D332, 36 by D334. Rewritten: 238 (D324).
+D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330, 208 by D332, 36 by D335. Rewritten: 238 (D324).
 
 Fourth pass, 2026-09-30, by the principles (the user of Spite is an AI, so the language decides and "leave it to
 the user" is never an answer; everything monomorphizes; get-only attributes; renames by map; REPL and hot-reload

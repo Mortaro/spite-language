@@ -337,7 +337,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Two versions of one repository
 
-- Open: `mortaros_missing_decisions.md` item 225 asks whether one package should be able to pin both versions of a repository (today it is an error naming both lines).
+- D334 (one package pinning two commits reads them as two loads in load order) was decided by Mortaro on 2026-09-30 and built; the error for a commit read into two different versions was proposed by Claude, unconfirmed.
 - Not built: identical code folding, so the code two versions share unchanged is written twice today (`optimizations.md#identical-functions-are-folded-into-one`).
 - D296 (two versions are two libraries) was decided by Mortaro on 2026-09-30, built as proposed by Claude, unconfirmed.
 
