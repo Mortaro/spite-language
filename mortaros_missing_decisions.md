@@ -12,7 +12,7 @@ Answered on 2026-09-30 and 2026-10-01 (rows in `design/decisions.md`): 5, 21, 22
 79 (D322's principle), 89 (D326), 98, 99, 100, 108, 153 (D342), 155 (D336), 166 (D338, D347), 175 (D353), 187,
 188, 197 (D346), 202 and 204 (D339), 206, 208 (D332), 209 (D354), 212 (D348), 215 (D349), 216 (D327), 218, 222
 (D351), 223, 224 (D330), 225 (D334), 227 (D320, D329), 229 (D318), 230 (D319), 231 (D321), 232 (D322), 234 (D340), 214 (D356), 210 (D357), 183
-(D358), 217 (D359), 39 and 9 (D361), 109 (D362).
+(D358), 217 (D359), 39 and 9 (D361), 109 (D362, D363), 247 (D364).
 Answered, row pending: 228 (`map_` over a predicate is an error), 213 (the default build compiles fastest), 205's
 spelling (`x`, `y`, `z`, `w`). Last pass, 2026-10-01: 9 and 39 by D350 (moved to "Confirm quickly"); 6's `${` by
 D244; 134 narrowed by D348; 183, 210, 214 and 217 moved to "Confirm quickly" as compiler choices; 109 rewritten;
@@ -30,10 +30,6 @@ D244; 134 narrowed by D348; 183, 210, 214 and 217 moved to "Confirm quickly" as 
 246. **Nullable type parameters under D321** (`value: Number?`, "not yet" in D343): a copy per class plus the null
      case, the tag (D344) carrying "no value". Options: that; refuse `T?` of a `type`. Recommend that. Blocks:
      finishing D321.
-247. **A class and a namespace of one dotted name** (an error since D317) **when a folder has an entry file**:
-     recommend the entry class IS the namespace, so a folder `Physics/` with `physics.spite` is one object.
-     Options: that; keep the error and rename one. Blocks: the reflection core's namespaces, packages with entry
-     files.
 173. **An object made in the frame arena** (the reset is the compiler's, D352): may it be stored where it outlives
      the frame? Recommend a compile error naming `copy()`, a debug generation check as backstop. Blocks: D154's
      frame lists.
