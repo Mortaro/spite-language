@@ -110,6 +110,28 @@ The default build is three to seven times slower than `-O2` on every program her
 (the dictionary and text 10-18% faster, the compiler 6% slower, the rest equal); and the split `--optimized` build
 runs exactly as fast as one file at `-O3`, so ThinLTO gets back the inlining across units.
 
+## Executable size
+
+`executable_size.sh` builds each program with `--optimized` (`-O3` and link-time optimisation) and prints the
+executable's size and how many functions its C defines, so two compilers can be compared:
+
+```
+bash benchmarks/executable_size.sh [compiler] [program ...]
+```
+
+Identical function folding ([optimizations.md](../docs/optimizations.md#identical-functions-are-folded-into-one)),
+before and after, on Windows with clang:
+
+| program | bytes before | bytes after | functions before | functions after |
+|---|---|---|---|---|
+| the compiler (`bootstrap`) | 9 211 392 | 9 197 056 | 4 894 | 4 614 |
+| `sparse_rows` | 246 784 | 244 224 | 437 | 404 |
+| `matched_rows` | 211 968 | 210 944 | 277 | 259 |
+
+About 6% of the functions fold away, but an `-O3` build had already inlined most of the small ones they are, so the
+executable shrinks by 0.2% to 1%. The folding pays most where whole functions are duplicated: two versions of one
+dependency, and generic classes over classes of the same layout.
+
 ## Compile time at scale
 
 `build_times.sh` times building an executable (the whole `spite` command, the Spite compile to C included) from

@@ -1,0 +1,22 @@
+singleton
+
+generic $component_type
+
+var values = List<$component_type>()
+
+func total_across(): Float {
+    var total = 0.0
+    var index = 0
+    while index < values.count() {
+        var value = values[index]
+        total = total + value.across
+        index = index + 1
+    }
+    return total
+}
+
+func first_across(): Float {
+    crash values.count() > 0
+    var value = values[0]
+    return value.across
+}

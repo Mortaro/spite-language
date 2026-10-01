@@ -1790,24 +1790,33 @@ shared.
 
 Two versions of one dependency are two different libraries
 ([packages.md](packages.md#two-versions-of-one-repository)), and what that duplicates must cost nothing. So the
-compiler folds every generated C function whose code is exactly identical to another's into one: the same
-statements over the same types, once the function's own name and the names of the functions it calls (themselves
-folded first) are set aside. Every call and every function value then goes to the one that is kept.
+compiler folds every function it generates that is identical to another once both are normalised: the same
+statements over types of the same layout, calling functions that are themselves folded together. Every call and
+every function value then goes to the one that is kept, cast to the folded function's type where the two are
+written over different types. The compiler does this itself, in every build, rather than leaving it to the C
+compiler or the linker.
 
-- **When it applies**: to every generated function, whoever wrote it: two versions of one package, two template
-  instances that came out the same (`Column<Position>` and `Column<Velocity>` over two layouts of the same size), two
-  classes with the same helper. Functions that differ in one byte of code, in a type's layout or in a constant are
-  not identical and are both kept.
-- **How**: a hash of each function's C with its own name and the names of the
-  functions it calls replaced by the kept name of their fold group, worked out callee first, and a full comparison
-  of the text for functions whose hashes match, so a collision can never merge two different functions. It runs
-  on the C the compiler writes, in every build, rather than relying on the linker's `--icf=all` or `/OPT:ICF`,
-  which only some linkers and only optimised builds do.
+- **When it applies**: to every generated function, whoever wrote it: two versions of one package, two instances of a
+  generic class over classes of the same layout (`Column<Position>` and `Column<Velocity>` when both hold the same
+  attributes), two classes with the same helper. Before comparing, the compiler sets aside what differs between
+  two copies of one function without changing what it does:
+  - the function's own name, and the names of the functions it calls, which compare by the group they fold into
+    (worked out by splitting groups until every member calls the same groups, so functions that call each other
+    fold too);
+  - a class's name, which compares by its layout: the same attributes in the same order, each of the same type or
+    of a class of the same layout;
+  - the numbers of the compiler's own temporaries, and which constant holds a text, which compares by the text;
+  - where a failure happened: a crash site and a failed check name their place through the site, not by writing
+    it into the function, and a site in two versions of one file, or in one generic function, is one site.
+- **When it does not**: functions that differ in a statement, a constant, an attribute or a type's layout are both
+  kept, and so is a function with a `static` variable of its own. A `--hot-reload` build and the REPL fold nothing,
+  since each function there must be replaceable on its own.
 - **What you could notice**: nothing a program can observe. A folded function has one address, so two function values
   of folded functions compare equal where they would compare unequal otherwise, and a native fault's `spite.frame`
-  line or a debugger names the kept function, which may be the other version's or the other instance's.
+  line or a debugger names the kept function, which may be the other version's or the other instance's. A crash in
+  code two versions share reports the place in the version the compiler met first, which holds the same line.
   `--final-classes` is unchanged: it prints Spite, not C.
-- **Cost**: compile time only, one hash per function; the executable gets smaller.
+- **Cost**: compile time only; the executable gets smaller.
 
 ### Other optimisations
 
