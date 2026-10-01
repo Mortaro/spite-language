@@ -645,7 +645,8 @@ func FoldedVersions() {
   folded_versions=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" folded_versions --c-source --c-path=folded_versions.c < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '\r')
   if [ "$folded_versions" != "$(printf 'the program shelf\nthe plugin shelf')" ] \
      || [ "$(grep -c "^SpiteString engine_repo_[0-9a-f]*_Shelf_longest(.*) {$" "$pinned_work/folded_versions.c")" != 1 ] \
-     || ! grep -q "((__typeof__(&engine_repo_[0-9a-f]*_Shelf_longest))&engine_repo_[0-9a-f]*_Shelf_longest)(" "$pinned_work/folded_versions.c"; then
+     || ! grep -q "^static __typeof__(&engine_repo_[0-9a-f]*_Shelf_longest) spite_folded_engine_repo_[0-9a-f]*_Shelf_longest = ((__typeof__(&engine_repo_[0-9a-f]*_Shelf_longest))&engine_repo_[0-9a-f]*_Shelf_longest);$" "$pinned_work/folded_versions.c" \
+     || ! grep -q "spite_folded_engine_repo_[0-9a-f]*_Shelf_longest(" "$pinned_work/folded_versions.c"; then
     echo "FAILED: a function two versions of one repository hold unchanged is not folded into one"; echo "$folded_versions" | head -5; exit 1
   fi
   printf 'var console = Console()
@@ -705,9 +706,11 @@ fi
 echo "translation units: a program built from four units runs the same, and building it again only links"
 # The fault handler and its function table are written after every function (D255), and must still report when the
 # C is split into units and linked with link-time optimisation: an --optimized native_fault_foreign from four units.
+# Only Windows walks the stack of an --optimized build; Linux and macOS walk frame pointers, which it does not keep.
+walked_frames=true; [ "$system" == "windows" ] || walked_frames=false
 faulted=$("$work/generation_two.exe" conformance/stage6/native_fault_foreign --optimized --translation-units=4 --executable-path="$work/native_fault_units.exe" < /dev/null 2>&1 | tr -d '\r')
 if ! echo "$faulted" | grep -qE "^spite.fault	[a-z]+-violation	-	-	-	address=0x0	.*	at=fixture.dll\+0x[0-9a-f]+	foreign=read_integer_at	library=conformance/stage6/native_fault_foreign/fixture.dll	from=conformance/stage6/native_fault_foreign/native_fault_foreign.spite:13$" \
-   || ! echo "$faulted" | grep -q "^spite.frame	" || ! echo "$faulted" | grep -q "^before the fault 5$"; then
+   || { $walked_frames && ! echo "$faulted" | grep -q "^spite.frame	"; } || ! echo "$faulted" | grep -q "^before the fault 5$"; then
   echo "FAILED: native_fault_foreign built --optimized from four translation units"; echo "$faulted" | head -8; exit 1
 fi
 echo "native faults: an --optimized program built from four units reports its fault, its last foreign call and its frames"
@@ -793,12 +796,14 @@ if grep -qE "__builtin_(add|sub|mul)_overflow|spite_overflowed" "$work/hello_sha
   echo "FAILED: examples/hello's C checks arithmetic for overflow in a production build"; exit 1
 fi
 # Identical functions are folded into one (D296): two instances of a generic over classes of the same layout keep
-# one function, called through a cast, and an instance over a class of another layout keeps its own.
+# one function, called through a pointer cast to the folded one's type, and an instance over a class of another
+# layout keeps its own.
 folded="$work/folded_functions.c"
 "$work/generation_two.exe" conformance/stage6/folded_functions --run=false --c-source --c-path="$folded" > /dev/null 2>&1 || {
   echo "FAILED: folded_functions does not write its C"; exit 1; }
 if grep -q "^float Column__Velocity_total_across(.*) {" "$folded" || ! grep -q "^float Column__Position_total_across(Column__Position\* self) {" "$folded" \
-   || ! grep -q "((__typeof__(&Column__Velocity_total_across))&Column__Position_total_across)(self->velocities_)" "$folded" \
+   || ! grep -q "^static __typeof__(&Column__Velocity_total_across) spite_folded_Column__Velocity_total_across = ((__typeof__(&Column__Velocity_total_across))&Column__Position_total_across);$" "$folded" \
+   || ! grep -q "spite_folded_Column__Velocity_total_across(self->velocities_)" "$folded" \
    || ! grep -q "^float Column__Label_total_across(Column__Label\* self) {" "$folded"; then
   echo "FAILED: folded_functions should fold Column<Velocity>.total_across into Column<Position>'s and keep Column<Label>'s"; exit 1
 fi
