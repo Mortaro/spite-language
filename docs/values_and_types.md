@@ -227,10 +227,11 @@ have `absolute()`, `minimum(other)`, `maximum(other)` and `clamp(low, high)`. Ea
 library's function written where it is called (`sqrtf` on a `Float`, `sqrt` on a `Double`), with no call of
 Spite's own around it.
 
-A number class also answers its constants on the class itself, `Float.pi()`, since they belong to no one value:
-`pi()`, `tau()`, `euler_number()`, `infinity()`, `not_a_number()`, `largest()` and `smallest()` on `Float` and `Double`, and
-`largest()` and `smallest()` on every whole number. `Integer.largest()` is 2147483647 and `Float.smallest()` the
-most negative `Float` there is.
+A number class also answers its constants on the class itself, `Float.pi`, since they belong to no one value:
+`pi`, `tau`, `euler_number`, `infinity`, `not_a_number`, `largest` and `smallest` on `Float` and `Double`, and
+`largest` and `smallest` on every whole number. `Integer.largest` is 2147483647 and `Float.smallest` the
+most negative `Float` there is. A constant is a get-only attribute of the class: it is read without parentheses,
+and nothing can assign it.
 
 ```gdscript title=maths_basics/maths_basics.spite entry
 var console = Console()
@@ -238,7 +239,7 @@ var console = Console()
 func MathsBasics() {
     var side: Double = 2.0
     var diagonal = side.square_root()
-    console.print("{diagonal} {Float.pi()} {Double.pi()}")
+    console.print("{diagonal} {Float.pi} {Double.pi}")
     var speed = 7.5
     var capped = speed.clamp(0.0, 5.0)
     var ahead = speed.round()
@@ -246,7 +247,7 @@ func MathsBasics() {
     console.print("{capped} {ahead} {behind.round()} {behind.floor()} {behind.absolute()}")
     var negative = -1.0
     var root = negative.square_root()
-    console.print("{root} {root.is_not_a_number()} {Integer.largest()}")
+    console.print("{root} {root.is_not_a_number()} {Integer.largest}")
 }
 ```
 ```output
@@ -258,6 +259,132 @@ nan true 2147483647
 As with `/` on a float, nothing here halts: the square root of `-1` is not-a-number and the logarithm of
 `0` is minus infinity, the IEEE answers. What each function answers at its edges is
 [standard_library.md](standard_library.md#maths)'s.
+
+### Every number fits `Number`
+
+The library declares `type Number` once (`library/number.spite`), a [shape](#inline-types-and-duck-typing) that
+every number class fits: `Tiny`, `Short`, `Integer`, `Long`, `Byte`, `UnsignedShort`, `UnsignedInteger`,
+`UnsignedLong`, `Float` and `Double`. `Boolean` and `Memory.Address` do not. It is what every number has in
+common, and nothing more:
+
+```gdscript
+type Number {
+    sum(Number): Number
+    subtract(Number): Number
+    multiply(Number): Number
+    divide(Number): Number
+    less_than(Number): Boolean
+    greater_than(Number): Boolean
+    to_long(): Long
+    to_double(): Double
+}
+```
+
+The first six are the operators `+`, `-`, `*`, `/`, `<` and `>` (with `<=` and `>=`), and `Number` in them
+stands for the class that fits: an `Integer` adds an `Integer` and answers one. The last two are conversions every
+number has. A number library is written over it as a generic constrained by `Number`, compiled once per number
+class it is given, so the values stay plain machine numbers and nothing is boxed. `$value_type == Number` asks,
+while compiling, whether a type is a number, which is how a walk over types tells numbers apart
+([metaprogramming.md](metaprogramming.md#asking-what-a-generic-was-given)):
+
+```gdscript title=number_type_doc/statistics.spite
+generic $number_type: Number
+
+func largest(values: List<$number_type>): $number_type {
+    crash values[0]
+    var best = values[0]
+    var index = 1
+    while index < values.count() {
+        if values[index] > best {
+            best = values[index]
+        }
+        index = index + 1
+    }
+    return best
+}
+
+func mean(values: List<$number_type>): Double {
+    var total: Double = 0.0
+    var index = 0
+    while index < values.count() {
+        total = total + values[index].to_double()
+        index = index + 1
+    }
+    return total / values.count().to_double()
+}
+```
+```gdscript title=number_type_doc/describe.spite
+generic $value_type
+
+func kind(): String {
+    if $value_type == Number {
+        return "a number"
+    }
+    return "not a number"
+}
+```
+```gdscript title=number_type_doc/number_type_doc.spite entry
+var console = Console()
+
+func NumberTypeDoc() {
+    var scores: List<Integer> = [4, 9, 2]
+    var score_statistics = Statistics<Integer>()
+    var best_score = score_statistics.largest(scores)
+    var mean_score = score_statistics.mean(scores)
+    console.print(best_score, mean_score)
+    var weights: List<Float> = [0.5, 2.5]
+    var weight_statistics = Statistics<Float>()
+    var heaviest = weight_statistics.largest(weights)
+    console.print(heaviest)
+    var byte_kind = Describe<Byte>()
+    var flag_kind = Describe<Boolean>()
+    var byte_text = byte_kind.kind()
+    var flag_text = flag_kind.kind()
+    console.print(byte_text, flag_text)
+}
+```
+```output
+9 5
+2.5
+a number not a number
+```
+
+A parameter can be typed `Number` too, and its operators are the number's own. The function is compiled once for
+each number class that reaches it ([optimizations.md](optimizations.md#a-function-taking-a-type-is-compiled-per-class)),
+so in the copy that takes an `Integer`, `value + value` is an `Integer` addition, checked like any other:
+
+```gdscript title=number_parameter_doc/number_parameter_doc.spite entry
+var console = Console()
+
+func NumberParameterDoc() {
+    var twice_four = twice(4)
+    var twice_half = twice(0.5)
+    console.print(twice_four, twice_half)
+    var bigger = larger(3, 9)
+    console.print(bigger)
+}
+
+func twice(value: Number): Number {
+    return value + value
+}
+
+func larger(first: Number, second: Number): Number {
+    if first > second {
+        return first
+    }
+    return second
+}
+```
+```output
+8 1
+9
+```
+
+Since each copy is compiled for its class, `value + 0.5` is the error it would be on an `Integer` when an `Integer`
+reaches it. A value whose class is known only while the program runs (read from a `List<Number>`) reaches the copy
+for its class. In a `--hot-reload` or REPL build, where new code may bring a class later, the function is compiled
+once as written, and an operator there tests both classes while the program runs: the right side is turned into
+the left side's class, and if it does not fit exactly, the program halts naming the operation.
 
 ## `String`
 
@@ -459,11 +586,9 @@ brunch starter false
 
 ### Walking an enum's values
 
-`course: Symbol<Course>` makes a template over the enum's values, the way `Symbol<Label>` makes one over a
-class's attributes ([metaprogramming.md](metaprogramming.md#another-classs-attributes-and-all-of-them-at-once)).
-Inside, `course.name` is the value's name as text and `course.value` is the value itself, typed `Course`. The
-plural, `list_courses()`, calls the template once per value, in the order the enum lists them; `list_soup()`
-calls it for one.
+An enum is a class, so `Course` read as a value is its `Spite.Class`, and `Course.values` lists its values in the
+order the enum declares them. It is an ordinary list, walked with `each` like any other
+([metaprogramming.md](metaprogramming.md#walking-a-programs-structure)).
 
 ```gdscript title=enum_walk/enum_walk.spite entry
 enum Course {
@@ -476,12 +601,12 @@ var served: Course = 'soup'
 var console = Console()
 
 func EnumWalk() {
-    list_courses()
+    Course.values.each(list_course)
 }
 
-func list_course(course: Symbol<Course>) {
-    var is_served = course.value == served
-    console.print(course.name, is_served)
+func list_course(course: Course) {
+    var is_served = course == served
+    console.print(course, is_served)
 }
 ```
 ```output
@@ -490,8 +615,8 @@ soup true
 dessert false
 ```
 
-It is all decided while compiling: `list_courses()` becomes three calls, and no list of an enum's values exists
-at run time ([rules](#enums-in-full)). An enum is also open to the program that loads it: reopening its
+It is all decided while compiling: the walk becomes three calls, and no list of an enum's values exists at run
+time ([rules](#enums-in-full)). An enum is also open to the program that loads it: reopening its
 class declares the enum again with more values ([packages.md](packages.md#reopening-an-enum-adds-values)), and a
 walk then includes them.
 
@@ -647,6 +772,13 @@ func show(item: Renderable) {
 [new] (12)
 == banner 12 ==
 ```
+
+`show` above is compiled twice, once for `Badge` and once for `Banner`: a function that takes a `type` gets a
+copy for each class that reaches it, and in that copy `item` is that class, so `item.render(12)` is a direct call.
+A number, `Boolean` or enum value passed to it arrives as the plain value. When the class is known only as the
+program runs (a value read from a `List<Anything>`, say), the call tests the value's class against every class the
+program ever gives that `type` and runs the matching copy. A class that never reaches the function gets no copy,
+so nothing is compiled for it.
 
 A `type` can also be the element of a variadic parameter, `...items: List<Renderable>`, so a call takes any number
 of values of any classes that fit ([functions_and_operators.md](functions_and_operators.md#variadic-arguments)).
@@ -870,7 +1002,7 @@ and a remote REPL command assigning or passing a number that does not parse is r
 inspectable build (`--development`, `--hot-reload`, `--repl`, `--repl-port`), every `+`, `-` and `*` whose
 left side (the type the arithmetic is done in) is `Tiny`, `Short`, `Integer` or `Long` is compiled with the C
 compiler's overflow builtin (`__builtin_add_overflow`, `__builtin_sub_overflow`, `__builtin_mul_overflow`) in that
-type, and an answer that does not fit halts, since it is the developer's mistake: `spite: 'amount * factor'
+type, and an answer that does not fit halts, since it is the moron's mistake: `spite: 'amount * factor'
 does not fit in an Integer (2000000000 * 2), at game/game.spite:17 in Game.scaled`
 (`conformance/stage6/integer_overflow`). A production build (the ordinary one and `--optimized`) emits the plain C
 operator, so the check costs nothing there and the answer wraps. The unsigned whole numbers (`Byte`,
@@ -881,7 +1013,7 @@ is still a compile error, and `/` and `%` keep the check described next. Measure
 
 **Division by zero follows Go.** A whole-number `/` or `%` whose divisor is zero halts
 the program, naming the operation and the line (`spite: 'total / parts' divided by zero, at
-game/game.spite:22 in Game.share`), since dividing by zero is the developer's mistake
+game/game.spite:22 in Game.share`), since dividing by zero is the moron's mistake
 (`conformance/stage6/division_by_zero`). A divisor the compiler can see is zero, a constant (`total / 0`,
 `total % (2 - 2)`) or a codegen value folded to `0`, is a compile error instead: `'total / 0' divides by zero,
 which always halts the program` (`diagnostics/division_by_constant_zero`). Where a proof already shows the
@@ -961,7 +1093,10 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
 - **The maths functions and the constants are members of the number classes** ([the teaching above](#maths-functions)).
   Which there are, what each answers at its edges and how each is lowered is
   [standard_library.md](standard_library.md#maths)'s, their one home. A constant is answered only by
-  the class: `angle.pi()` is "'pi()' is a constant of the class Float, not of a value: write 'Float.pi()'", and a
+  the class: `angle.pi` is "'pi' is a constant of the class Float, not of a value: write 'Float.pi'". A constant
+  is a get-only attribute: `Float.pi()` is "'Float.pi' is a constant, read as an attribute and never called: write
+  'Float.pi'", and `Float.pi = 3.0` is "'Float.pi' is a constant, and a constant is get-only: nothing can assign
+  it" (`diagnostics/maths_constant_assigned`). A
   function of a value called on the class, `Float.square_root()`, names the constants the class answers
   (`diagnostics/maths_constant_on_value`). The short names other languages use are errors naming the Spite one:
   `side.sqrt()` is "Float has no function 'sqrt': Spite spells it 'square_root', since no name is abbreviated"
@@ -971,6 +1106,23 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   error: `this.name` is "a class reads its own attributes by name: write 'name', not 'this.name'", and
   `this.to_string()` is "a class calls its own functions by name: write 'to_string()', not 'this.to_string()'".
 - A decimal literal is a decimal in what is emitted (`1.0`, not `1`), so `1.0 / 3.0` divides as decimals.
+- **Every number class fits the library's `type Number`** (`library/number.spite`): `sum`, `subtract`, `multiply`,
+  `divide`, `less_than` and `greater_than`, each taking and answering the class itself (`Boolean` for the two
+  comparisons), and `to_long(): Long` and `to_double(): Double`. A number class declares no function for an
+  operator: the compiler's own arithmetic answers it, so the class fits. `Boolean` and `Memory.Address` do not fit,
+  and neither does anything else unless it declares those functions. `$value_type == Number` is decided while
+  compiling ([metaprogramming.md](metaprogramming.md#codegen-values-)). A generic constrained by `Number` is compiled
+  once per number class it is given, with plain values and no box. **A parameter typed `Number` takes the
+  operators `+`, `-`, `*`, `/`, `<`, `>`, `<=` and `>=`**: the function is compiled once per number class that
+  reaches it, and in each copy the operator is that class's arithmetic, with that class's rules (an `Integer` copy
+  of `value + 0.5` is the "would be cut to fit" error). A conversion is called on the value's class. In a
+  `--hot-reload`, `--repl` or `--repl-port` build the function is compiled as written, and an operator on a value
+  typed `Number` tests the classes of both sides while the program runs: the right side is turned into the left
+  side's class, and a value that does not fit it exactly halts the program with `spite: '<operation>' needs its
+  right side to fit in <class>, at <place>` (`diagnostics/number_type_mistakes`, `conformance/stage6/number_type`,
+  `conformance/stage6/number_parameter`). A `type` that does not require an operator's function still refuses the
+  operator: `'+' on a value read as '<type>' needs the class that fits the type, which is not known while
+  compiling: take the value through a codegen value the type constrains, 'generic $value_type: <type>'`.
 - None of it costs anything at run time: a number stays a plain machine value, a cast is the one conversion written
   inline, a bitwise function is the single operation, and a number class's Spite functions (`to_string()`, a reopening's
   `doubled()`) are emitted only when the program calls them.
@@ -1008,7 +1160,7 @@ That is all an enum is; the integer it compiles to is a representation detail.
   compile error listing the symbols that enum accepts. There is no widening from a symbol to an enum, and there
   is no untyped symbol literal: `var choice = 'orange'`, with nothing to check it against, is an error naming
   the missing context.
-- **Text is always written in double quotes.** A symbol literal where a `String` is wanted (an argument, a `var`, `has_function`) is an
+- **Text is always written in double quotes.** A symbol literal where a `String` is wanted (an argument, a `var`) is an
   error naming the fix, whether or not an enum has that value: `'world' in single quotes is a symbol, and text is
   wanted here: text is always written in double quotes, so write "world"` (`diagnostics/symbol_for_text`). Adding
   an enum value somewhere can then never change what a line passes. Where a `Symbol` is wanted, `'name'` stays
@@ -1025,7 +1177,7 @@ That is all an enum is; the integer it compiles to is a representation detail.
   ([optimizations.md](optimizations.md#short-symbols-are-inline-text)).
 - **What a `Symbol` names is still checked by whatever consumes it**, at compile time, the way the Symbol
   codegen path checks `set_age(2)` against `Person`'s real attributes
-  ([Symbol codegen](metaprogramming.md#symbol-codegen)).
+  ([Symbol codegen](metaprogramming.md#templates)).
 
 **An enum can be reopened, and walked.**
 
@@ -1035,18 +1187,15 @@ That is all an enum is; the integer it compiles to is a representation detail.
   stays where it was, so a reopening may restate the whole enum (as `--final-classes` output does) without
   changing it. Nothing removes a value. `conformance/stage6/enum_reopening` reopens one from a loaded folder and
   from the program's own folder.
-- **`course: Symbol<Course>` walks the values** of an enum, the way `Symbol<Label>` walks a class's attributes
-  ([Symbol codegen](metaprogramming.md#symbol-codegen)): `course.name` is the value's name as text, `course.value` the value itself typed as `Course`, and
-  the plural (`list_courses()` for `list_course`) calls the template once per value in the enum's order;
-  `list_soup()` calls it for one, and a name the enum does not have is an error listing the ones it does.
-- **A generic walks the enum it is given the same way**: in a generic class, `value: Symbol<$value_type>` ranges over the enum's values when
-  `$value_type` is an enum and over the attributes when it is a class, decided for each instance while compiling.
-  `library/binary_format.spite` finds an enum value's index and the number of values this way.
+- **`Course.values` lists the values** of an enum in its order, an ordinary list of `Course`
+  ([Walking a program's structure](metaprogramming.md#walking-a-programs-structure)): `each` over it is unrolled into one
+  call per value, `Course.values[1]` is `'soup'`, and `find_by_name` finds one by its name.
+- **A generic walks the enum it is given the same way**: in a generic class, `$value_type.values` lists the values
+  when `$value_type` is an enum, decided for each instance while compiling.
 - **All of it is compile time and tree-shaken.** A walk expands into one ordinary call per value, and
-  `course.value` into the constant, as `--final-classes` shows; no table of an enum's values, names or order
+  each value into its constant, as `--final-classes` shows; no table of an enum's values, names or order
   exists at run time, and a program that never walks an enum carries nothing for it.
-- A name pattern's hole is constrained by an enum the same way ([A class's functions, a folder's classes and a name's pattern](metaprogramming.md#a-classs-functions-a-folders-classes-and-a-names-pattern)). Environments are an
-  enum too.
+- Environments are an enum too.
 
 #### Unions in full
 
@@ -1088,8 +1237,8 @@ else it is an error saying to call it. Tested through a `type`, a class that fit
 by the test itself, so a value read back from a `Dictionary<AnyStorage>` can be narrowed before this function
 has stored one (`conformance/stage6/generic_class_test`).
 **A codegen value bound to a class is a class test too**: inside `Fetch<$wanted_type>`, `if item == $wanted_type { found = item }` narrows `item`
-to the bound class, as `if item == Health` would. A binding that is a number, `Boolean` or enum tests for its boxed
-class, since that is what such a value is inside a `type`, and the narrowed name is the plain value again;
+to the bound class, as `if item == Health` would. A binding that is a number, `Boolean` or enum tests for its
+class, since such a value keeps it inside a `type`, and the narrowed name is the plain value again;
 `String`, a `List` or a `Dictionary` test for their own classes. Where the value's static type already answers,
 the test is decided while compiling instead: a `Health` against `$wanted_type` bound to `Health` is `true`, bound
 to `Label` is `false`, and a union that does not hold the bound class is `false` rather than the "never true"
@@ -1155,7 +1304,9 @@ type Renderable {
 }
 ```
 
-Any class with a `render()` of that signature is accepted. This is what lets a collection hold "any class that
+Any class with a `render()` of that signature is accepted. **The type's own name inside a required signature
+stands for the class that fits**: `sum(Number): Number` in `type Number` is met by an `Integer`'s
+`sum(Integer): Integer`, so a type can ask for a function that takes and answers the class itself. This is what lets a collection hold "any class that
 responds to `render()`" (a list of components, [Markup](targets.md#markup)) without a union naming every class in advance,
 and it makes the respond-to check expressible as an ordinary type rather than as reflection.
 
@@ -1163,6 +1314,19 @@ and it makes the respond-to check expressible as an ordinary type rather than as
 of values of any classes that fit, written one by one. A generic can be written over a `type` or a class, and is
 in the end compiled separately for each class. Each class that is passed is admitted to the shape, and each call on an
 element is compiled once per admitted class ([Variadic arguments](functions_and_operators.md#variadic-arguments)).
+
+**A function that takes a `type` is compiled once for each class that reaches it**, following calls through the
+whole program. A call whose argument's class is known while compiling runs the copy made for that class: there the
+parameter is that class, a number, `Boolean` or enum value arrives unboxed, calls through it are direct, a class
+test on it is decided while compiling, and a copy that passes the parameter on reaches the copy made for the same
+class. A value whose class is known only at run time (from a list, a dictionary, parsed data) goes through a test
+of its class against the closed set of classes the program admits to that `type`, which runs the matching copy;
+no general version of the function is in the program. The function as written is still compiled, so every error
+in it is reported against the `type` it names; a class test that only a copy decides is not the "decided while
+compiling" error. Not copied: a parameter the function assigns to, a `T?` of a `type`, a row of borrowed items, a
+function that waits, and the functions of `List`, `Dictionary` and the other containers of the library. A
+`--repl`, `--repl-port` or `--hot-reload` build compiles the function as written and no copies, since a class the
+compiler has not seen may reach it later.
 
 **A shape's members behave as a class's do**: a required function
 read without calling it is a function value bound to the value, dispatched on the value's class when it is

@@ -5,6 +5,18 @@ func File(starting_path: String) {
     path = starting_path
 }
 
+func get_name(): String {
+    var end = path.length()
+    while end > 1 and path.code_at(end - 1) == 47 {
+        end = end - 1
+    }
+    var start = end
+    while start > 0 and path.code_at(start - 1) != 47 and path.code_at(start - 1) != 92 {
+        start = start - 1
+    }
+    return path.slice(start, end)
+}
+
 func read(): String? {
     var handle = open_file("rb")
     assert handle != 0

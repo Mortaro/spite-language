@@ -1,0 +1,2 @@
+diagnostics/plural_templates/plural_templates.spite:7: error: 'collect_name' answers every 'name', so it is written in the plural: 'collect_names' (in PluralTemplates.PluralTemplates)
+diagnostics/plural_templates/plural_templates.spite:8: error: 'collect_data' could collect 'data' or 'datum' of 'Person', since each is 'data' in the plural: rename one of them (in PluralTemplates.PluralTemplates)

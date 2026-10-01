@@ -1,0 +1,18 @@
+var console = Console()
+
+func PluralTemplates() {
+    var people = List<Person>()
+    var ann = Person("ann", 3, "cid")
+    people.append(ann)
+    var bob = Person("bob", 5, "dee")
+    people.append(bob)
+    var names = people.collect_names()
+    var joined_names = names.join(",")
+    console.print(joined_names)
+    var healths = people.collect_health()
+    var joined_healths = healths.join(",")
+    console.print(joined_healths)
+    var children = people.collect_children()
+    var joined_children = children.join(",")
+    console.print(joined_children)
+}

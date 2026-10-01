@@ -50,8 +50,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   in a function whose result can say "nothing". [Every path ends](#every-path-ends-in-a-return),
   [guard `assert`](#a-guard-assert-answers-only-nothing).
 - **A `switch`**: cover every member or value, or end with `_:`. [Switches](#a-switch-covers-every-case).
-- **Generic code asking about `$T`**: `has_function`, `function_waits`, `fits_vector`, `argument_count`,
-  `function_writes_parameter` fold; only the branch taken is compiled, and a `crash` that folds false in reached code
+- **Generic code asking about `$T`**: `functions['run_each']`, `.is_resumable`, `.is_fixed_size`, `.arguments.count()`,
+  `.is_mutated` fold; only the branch taken is compiled, and a `crash` that folds false in reached code
   is a compile error. [Compile-time questions](#compile-time-questions).
 - **Small objects of numbers** (`Vector3`, a `Velocity`): make them, pass them to functions that keep nothing, and
   they live in the frame. [Frame objects](#objects-that-never-leave-their-function-live-in-the-frame).
@@ -187,10 +187,12 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Rule.** The compiler follows the called function and everything it calls (`call_effects.spite`,
   `effect_study.spite`) and collects the attributes it may assign, by class and name, and the lists it may shrink
   (`clear`, `remove_at`, `remove_first`, `remove_last`, `remove`, `remove_swapping`, `remove_where...`, `truncate`,
-  `swap`). A proof that reads through one of them is undone. The receiver's class comes from declared types, the class
-  a constructor makes, the class a called function returns, a `[]` read's element class and an attribute's declared
-  class; `List`, `Dictionary` and `String` reach only their own functions. Growing a list keeps an index proof. A
-  `return`'s own calls undo nothing. Locals and parameters are never changed by a call.
+  `swap`). A proof that reads through one of them is undone. A class is known by its full name, resolved where it is
+  written, so a program's `Stock.Items` and the library's `Items<T>` never share effects. The receiver's class comes
+  from declared types, the class a constructor makes, the class a called function returns, a `[]` read's element
+  class and an attribute's declared class; `List`, `Dictionary` and `String` reach only their own functions. Growing
+  a list keeps an index proof. A `return`'s own calls undo nothing. Locals and parameters are never changed by a
+  call.
 - **Buys.** No re-check after a call that provably cannot change the value.
 - **Falls back.** A call on a value whose class cannot be told (a `type`, a type parameter) is followed into every
   function of that name; a call through a function value undoes every proof about attributes and lists; a `clear` or
@@ -201,7 +203,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **See.** [failure.md: A call may undo a proof](failure.md#a-call-may-undo-a-proof),
   [optimizations.md: Proofs that survive a call](optimizations.md#proofs-that-survive-a-call);
   `diagnostics/call_undoes_proof`, `diagnostics/receiver_call_undoes_proof`, `diagnostics/branch_undoes_proof`,
-  `conformance/stage6/receiver_call_effects`.
+  `conformance/stage6/receiver_call_effects`, `conformance/stage6/same_name_call_effects`.
 
 ### Proving what is proven is an error
 
@@ -216,7 +218,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
     `T?`: `this value cannot be null here (it is a Tracker), so 'assert' on it proves nothing: remove the check`.
   - A divisor already proven: `path != 0` after `path != 0` or `path > 0`, and `path > 0` after `path > 0`, is
     `'parts != 0' is already proven by 'parts > 0' on line 19: remove this check`.
-  - A class test the value's type already answers, outside a generic class or a walk (where it folds per instance): `'creature' is already a Monster, narrowed by 'if creature == Monster' on line 30: remove this test`,
+  - A class test the value's type already answers, outside a generic class, a walk or a copy of a function made for
+    one class that reaches a `type` (where it folds per instance or per copy): `'creature' is already a Monster, narrowed by 'if creature == Monster' on line 30: remove this test`,
     `'monster' is a Monster here, so this test is decided while compiling: remove it`, and for another class
     `'monster' is a Monster here, so it is never Ghost and this test is decided while compiling: remove it`.
   - The same `assert` or `crash` condition on the very next statement, when it calls nothing (a call could change
@@ -431,7 +434,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 - **Proves.** A maths function called on constants has one answer.
 - **Rule.** A maths member (`sine`, `square_root`, ...) whose receiver and arguments are literals, the number
-  classes' constants (`pi()`, `infinity()`, ...) or other folded calls is answered by the compiler's own C library.
+  classes' constants (`Float.pi`, `Double.infinity`, ...) or other folded calls is answered by the compiler's own C library.
 - **Buys.** No call, and no `math.h` when every call folds.
 - **Falls back.** A variable is never a constant: `angle.sine()` is a call. Plain arithmetic on literals is left
   to the C compiler.
@@ -445,7 +448,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Proves.** A condition's answer is a fact of the build.
 - **Rule.** An `if` whose condition is a `Build` field, a codegen value (`$is_magic`), a test on a codegen type
   (`$T == List`, `$T.element_type == Float`), `attribute.class == X` in a walk, a class test the value's type already
-  answers, one of the questions below, or `not`, `and`, `or`, `==`, `!=` over them. An `and` whose left folds false,
+  answers (in a copy of a function made for one class that reaches a `type`, a test on its parameter), one of the questions below, or `not`, `and`, `or`, `==`, `!=` over them. An `and` whose left folds false,
   or an `or` whose left folds true, folds whatever the right side is. A function of a generic class is compiled for
   an instance only when code that survived folding names it.
 - **Buys.** The branch not taken is absent, so it may use what this build or instance does not have.
@@ -460,26 +463,26 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Proves.** A function can or cannot reach a wait (a sleep, a read of a console, file or socket, a scheduler
   join).
 - **Rule.** Waiting spreads from those library functions through calls by name, function values and dispatch
-  through a union or `type`, to a fixed point. `$T.function_waits("update_each")` folds to the answer; an answer that
+  through a union or `type`, to a fixed point. `$T.functions['update_each'].is_resumable` folds to the answer; an answer that
   would change once the asking function is compiled is an error. Joining a `Parallel` is not a wait, nor is
   `finished`.
 - **Buys.** An engine runs a system on a `Concurrent` only where it waits.
 - **Falls back.** Where it cannot tell (a function value of the same signature, a constructor, dispatch), the
   answer is `true`.
 - **See.** [metaprogramming.md: Asking whether a function
-  waits](metaprogramming.md#asking-whether-a-function-waits); `conformance/stage6/waiting_systems`,
+  waits](metaprogramming.md#asking-a-question-while-compiling); `conformance/stage6/waiting_systems`,
   `diagnostics/function_waits_paradox`.
 
 ### How many arguments a function takes
 
 - **Proves.** A function's arity.
-- **Rule.** `$T.argument_count("update_each")` and `phase.argument_count()` in a walk fold to a whole number,
+- **Rule.** `$T.functions['update_each'].arguments.count()` and `phase.arguments.count()` in a walk fold to a whole number,
   compared with `==`, `!=`, `<`, `<=`, `>` or `>=`; 0 when the class does not declare the function; a pattern must
   agree across every function it matches.
 - **Buys.** A runner compiles only the branch that fits a system's arity.
 - **Falls back.** A pattern whose functions disagree is an error.
 - **See.** [metaprogramming.md: Asking how many arguments a function
-  takes](metaprogramming.md#asking-how-many-arguments-a-function-takes); `conformance/stage6/folded_argument_count`,
+  takes](metaprogramming.md#asking-a-question-while-compiling); `conformance/stage6/folded_argument_count`,
   `diagnostics/argument_count`.
 
 ### Whether a class fits a `Vector`
@@ -487,7 +490,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Proves.** A class's objects can be laid out inline in a block, with no header and no count.
 - **Rule.** Every attribute is a number, `Boolean`, text, enum, symbol or singleton, or a `T?` of those; the class
   has no `drop()` and no function uses `this` as a value; it is not a generic template.
-  `$T.fits_vector()`, `attribute.class.fits_vector()` and `$T.any_attribute_fits_vector(Entity)` fold to the answer.
+  `$T.is_fixed_size`, `attribute.class.is_fixed_size` and `$T.any_attribute_fits_vector(Entity)` fold to the answer.
 - **Buys.** `Items<T>` chooses inline storage and lends its items.
 - **Falls back.** Reference storage: counted items, none of the borrow rules.
 - **See.** [metaprogramming.md: Asking whether a class fits a
@@ -498,7 +501,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 - **Proves.** A function writes, or does not write, what one of its parameters is given, or anything reached
   through it.
-- **Rule.** `$T.function_writes_parameter("update_each", index)` folds. A write is an attribute or item set on what
+- **Rule.** `$T.functions['update_each'].arguments[index].is_mutated` folds. A write is an attribute or item set on what
   the parameter reaches, a call that writes its own object, passing it to a parameter that is written, or storing
   it where a later write could reach it; reassigning the name and copying plain values out are not writes, and
   neither is a write to a singleton reached through it, which is shared state. It follows a walked
@@ -507,21 +510,21 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Falls back.** Where it cannot decide (a function value, dispatch through a union or `type`, a template, an
   unknown class), the answer is `true`.
 - **See.** [metaprogramming.md: Asking whether a function writes a
-  parameter](metaprogramming.md#asking-whether-a-function-writes-a-parameter); `conformance/stage6/parameter_writes`,
+  parameter](metaprogramming.md#asking-a-question-while-compiling); `conformance/stage6/parameter_writes`,
   `diagnostics/snapshot_argument_writes`.
 
 ### Whether a class keeps state
 
 - **Proves.** No function of a class writes its own object after it is made, and no singleton it binds keeps
   state, or that one does.
-- **Rule.** `$T.has_state()` folds, and so does `kind.class.has_state()` in a walk over `Symbol<Spite.Class>`. It
+- **Rule.** `$T.is_stateful` folds, and so does `kind.class.is_stateful` in a walk over `Spite.Class.instances`. It
   asks the question of [Whether a function writes a parameter](#whether-a-function-writes-a-parameter) of each
   function's own object, skipping the constructor and `drop()`, counts a function that writes a singleton,
   and follows the singletons the class binds.
 - **Buys.** An engine can refuse a system that keeps state between frames, for every system at once.
 - **Falls back.** As that question does: where the study cannot decide, the answer is `true`. The standard
   library counts like any code, so a class binding `Console` has state (reading a line writes its buffer).
-- **See.** [metaprogramming.md: Every class in the program](metaprogramming.md#every-class-in-the-program);
+- **See.** [metaprogramming.md: Every class in the program](metaprogramming.md#walking-a-programs-structure);
   `conformance/stage6/class_walk`.
 
 ### A `crash` that folds false is a compile error
@@ -689,7 +692,7 @@ have moved.
 - **Proves.** A function's result is an item of a singleton's `Vector` or `Items` storage.
 - **Rule.** A `return` that reads an item straight from an attribute path of the function's class ending at a
   singleton's `Vector` or fitting `Items` lends its result, decided per instance with compile-time conditions folded
-  (`fits_vector`, a literal `has_function`, `$T == X`; not `function_waits`). Every return is such an item or `null`.
+  (`is_fixed_size`, `functions[...]` with a literal name, `$T == X`; not `is_resumable`). Every return is such an item or `null`.
   At the caller the result is borrowed under every rule above, narrowing it keeps it borrowed, and it is not
   returned further. A lending function is only called by name, never made a function value or used through a `type`.
 - **Buys.** The caller gets the address: no retain, no release.

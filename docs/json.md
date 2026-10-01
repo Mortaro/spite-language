@@ -561,7 +561,7 @@ makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'` (`diagn
   `BinaryReader<T>(bytes: List<Byte>?)`. `JsonReader.read()` reads the whole text as one value, every time it is
   called; `BinaryReader.read()` reads the next value from `position`, so a buffer of many values is read by
   calling it again.
-- **What it is written with** is [Symbol codegen](metaprogramming.md#symbol-codegen) and
+- **What it is written with** is [Symbol codegen](metaprogramming.md#templates) and
   [Codegen values (`$`)](metaprogramming.md#codegen-values-) and nothing else, as
   [How it is written](#how-it-is-written) shows. The binary walk's helper, `BinaryFormat<T>`, is a `singleton`
   that holds nothing, bound where it is used (`BinaryFormat<attribute.class>()`), which is allowed since a
@@ -623,7 +623,7 @@ The details:
   underscores), and only a snake_case name has one, so no key can match two attributes; when the text holds both
   `buy_price` and `buyPrice`, the later one wins, as a repeated key does. `JsonWriter` writes the attribute's own
   name. The spellings are compile-time constants a walked symbol answers, `attribute.camel_case_name` and
-  `attribute.pascal_case_name` ([metaprogramming.md](metaprogramming.md#symbol-codegen)),
+  `attribute.pascal_case_name` ([metaprogramming.md](metaprogramming.md#templates)),
   and `JsonReader` compares them in a second walk, `read_camel_attributes`, that runs only for a key the first
   walk did not match: snake_case input runs the same comparisons it did before (`benchmarks/serialisation`, JSON
   read, best of eight alternating runs on a loaded machine: 269 ms before, 267 ms after), and a program that reads
@@ -637,7 +637,7 @@ The details:
   the compiler's code generation: `read_attribute`, `read_camel_attribute` and `write_attribute` ask
   `$value_type.has_function("json_key_{attribute.name}")`, which folds for each attribute walked, and in the branch
   where it is true read the key with `$value_type.returned_text(...)`, a text constant
-  ([metaprogramming.md](metaprogramming.md#a-classs-functions-a-folders-classes-and-a-names-pattern)).
+  ([metaprogramming.md](metaprogramming.md#walking-a-programs-structure)).
   So a key is compared exactly as an attribute's name is, and a class with no `json_key_` function compiles to
   the same C as before. Every class the program declares is checked while compiling, whether or not it is ever
   read or written as JSON, and each mistake is an error at the function (`diagnostics/json_key`):
@@ -660,7 +660,7 @@ The details:
   `3.7` read into an `Integer` is `3`; JSON has one number type and the class already says which one it wants.
 - **Infinity and not-a-number crash `JsonWriter`**: JSON
   (RFC 8259) holds neither, and a float became one through a division by zero or an overflow the program did not
-  guard, which is the developer's mistake ([failure.md](failure.md)); floats themselves keep them,
+  guard, which is the moron's mistake ([failure.md](failure.md)); floats themselves keep them,
   and `BinaryWriter` writes their bits like any other. The crash shows the value and the attribute's path,
   `Class.attribute`, with `[index]` or `["key"]` for an element: `shown=inf	path=Order.price` (and the
   same for negative infinity and not-a-number; `conformance/stage6/json_infinity`). A program that wants `null`

@@ -1,0 +1,19 @@
+0 name String starts as 
+1 health Integer starts as 0
+2 speed Float starts as 0
+name = troll
+health = 10
+speed = 1.5
+health is now 11
+Name: troll, Health: 11, Speed: 1.5
+template name troll
+template health 11
+update_each takes 2
+  0 amount Integer 0
+  1 label String 
+render_each takes 1
+  0 scale Float 0
+functions named _each: 2
+run-time functions starting with re: 1
+part Axle Axle { length: 7 }
+part Wheel Wheel { size: 3 }

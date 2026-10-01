@@ -1,0 +1,27 @@
+union Target {
+    Spite.Attribute
+    Spite.Argument
+}
+
+var _target: Target? = null
+var _is_read = false
+var _is_written = false
+
+func Access(starting_target: Target, read: Boolean, written: Boolean) {
+    _target = starting_target
+    _is_read = read
+    _is_written = written
+}
+
+func get_target(): Target {
+    crash _target
+    return _target
+}
+
+func get_is_read(): Boolean {
+    return _is_read
+}
+
+func get_is_written(): Boolean {
+    return _is_written
+}

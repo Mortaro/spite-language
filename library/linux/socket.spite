@@ -2,8 +2,11 @@ var library = DynamicLibrary("libc.so.6", 'identity', "")
 
 func start_sockets() {}
 
-func open_socket(): Long {
-    var opened = library.socket(2, 1, 6)
+func open_socket(family: Integer): Long {
+    var opened = library.socket(family, 1, 6)
+    if opened >= 0 and family == ipv6_family() {
+        allow_ipv4_too(opened)
+    }
     if opened >= 0 {
         var enabled = heap.allocate(4)
         enabled.write_integer(0, 1)
@@ -13,8 +16,28 @@ func open_socket(): Long {
     return opened
 }
 
-func write_family(address: Memory.Address) {
-    address.write_byte(0, 2)
+func write_family(address: Memory.Address, family: Integer) {
+    address.write_short(0, family)
+}
+
+func read_family(address: Memory.Address): Integer {
+    var family: Integer = address.read_short(0)
+    return family
+}
+
+func ipv4_family(): Integer {
+    return 2
+}
+
+func ipv6_family(): Integer {
+    return 10
+}
+
+func allow_ipv4_too(opened: Long) {
+    var disabled = heap.allocate(4)
+    disabled.write_integer(0, 0)
+    library.setsockopt(opened, 41, 26, disabled, 4)
+    heap.free(disabled)
 }
 
 func resolve_name(host: String, hints: Memory.Address, found: Memory.Address): Integer {
@@ -31,7 +54,8 @@ func free_resolved(first: Memory.Address) {
 }
 
 func bind_address(address: Memory.Address): Boolean {
-    return library.bind(handle, address, 16) == 0
+    var length = address_length(address)
+    return library.bind(handle, address, length) == 0
 }
 
 func listen_for_clients(): Boolean {
@@ -44,7 +68,8 @@ func accept_handle(): Long {
 }
 
 func connect_address(address: Memory.Address): Boolean {
-    return library.connect(handle, address, 16) == 0
+    var length = address_length(address)
+    return library.connect(handle, address, length) == 0
 }
 
 func receive_into(buffer: Long, bytes: Integer): Integer {
@@ -112,4 +137,33 @@ func would_block(): Boolean {
 
 func close_handle() {
     library.close(handle)
+}
+
+func first_readable(handles: List<Long>, milliseconds: Integer): Integer {
+    var count = handles.count()
+    var watched = heap.allocate(count * 8)
+    var index = 0
+    while index < count {
+        var watched_handle = handles[index]
+        var descriptor: Integer = watched_handle
+        watched.write_integer(index * 8, descriptor)
+        watched.write_short(index * 8 + 4, 1)
+        watched.write_short(index * 8 + 6, 0)
+        index = index + 1
+    }
+    var watched_count: Long = count
+    var ready = library.poll(watched, watched_count, milliseconds)
+    var found = -1
+    if ready < 0 {
+        found = -2
+    }
+    index = 0
+    while ready > 0 and found < 0 and index < count {
+        if watched.read_short(index * 8 + 6) != 0 {
+            found = index
+        }
+        index = index + 1
+    }
+    heap.free(watched)
+    return found
 }

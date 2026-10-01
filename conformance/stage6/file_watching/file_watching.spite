@@ -8,19 +8,30 @@ func FileWatching() {
     inner.create()
     var note = File("{folder.path}/note.txt")
     var deep = File("{inner.path}/deep.txt")
+    var settings = File(".spite/file_watching_settings.txt")
+    var neighbour = File(".spite/file_watching_neighbour.txt")
     note.remove()
     deep.remove()
-    var watcher = Watcher()
-    var watching = watcher.watch(folder.path)
-    console.print("watching", watching)
+    settings.write("before")
+    var watcher = FileSystemWatcher()
+    var watching_folder = watcher.watch_for_changes(folder)
+    console.print("watching the folder", watching_folder)
+    var watching_file = watcher.watch_for_changes(settings)
+    console.print("watching the file", watching_file)
     note.write("first")
     note.append(", second")
     deep.write("deep")
+    neighbour.write("not watched")
+    settings.write("after")
     var changed = settled_changes(watcher)
     var saw_note = changed.contains(note.path)
     var saw_deep = changed.contains(deep.path)
+    var saw_settings = changed.contains(settings.path)
+    var saw_neighbour = changed.contains(neighbour.path)
     console.print("note.txt changed", saw_note)
     console.print("inner/deep.txt changed", saw_deep)
+    console.print("the watched file changed", saw_settings)
+    console.print("its unwatched neighbour reported", saw_neighbour)
     var path_count = changed.count()
     console.print("paths", path_count)
     var again = watcher.changes()
@@ -28,10 +39,10 @@ func FileWatching() {
     console.print("paths from a second call", again_count)
 }
 
-func settled_changes(watcher: Watcher): List<String> {
+func settled_changes(watcher: FileSystemWatcher): List<String> {
     var changed = watcher.changes()
     var tries = 0
-    while changed.count() < 2 and tries < 250 {
+    while changed.count() < 3 and tries < 250 {
         program.sleep(20)
         var more = watcher.changes()
         var index = 0

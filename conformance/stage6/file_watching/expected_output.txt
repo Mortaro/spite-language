@@ -1,5 +1,8 @@
-watching true
+watching the folder true
+watching the file true
 note.txt changed true
 inner/deep.txt changed true
-paths 2
+the watched file changed true
+its unwatched neighbour reported false
+paths 3
 paths from a second call 0

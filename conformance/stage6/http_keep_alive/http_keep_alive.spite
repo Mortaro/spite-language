@@ -1,0 +1,53 @@
+var console = Console()
+var program = Program()
+var server = HttpServer()
+var client = HttpClient()
+var connections = List<Socket>()
+
+func HttpKeepAlive() {
+    server.idle_limit = 100
+    crash server.listen_locally(47912)
+    var serving = Concurrent(serve_four)
+    ask("/first")
+    ask("/second")
+    program.sleep(400)
+    ask("/after-the-server-let-go")
+    var closing = HttpRequest()
+    closing.path = "/last"
+    closing.set_header("connection", "close")
+    var answer = client.send("127.0.0.1", 47912, closing)
+    crash answer
+    var said = answer.header("connection")
+    crash said
+    console.print("{closing.path}: {answer.body}, connection: {said}")
+    console.print("served", serving)
+    var reused = connections[0] == connections[1]
+    var replaced = connections[1] == connections[2]
+    console.print("the second request came over the first one's connection:", reused)
+    console.print("the third came over that connection too:", replaced)
+    server.close()
+}
+
+func serve_four(): Integer {
+    var served = 0
+    while served < 4 {
+        var request = server.next_request()
+        crash request
+        connections.append(request.connection)
+        var response = HttpResponse()
+        response.body = "served {request.path}"
+        server.respond(request, response)
+        served = served + 1
+    }
+    return served
+}
+
+func ask(path: String) {
+    var request = HttpRequest()
+    request.path = path
+    var response = client.send("127.0.0.1", 47912, request)
+    crash response
+    var said = response.header("connection")
+    crash said
+    console.print("{path}: {response.body}, connection: {said}")
+}

@@ -21,7 +21,7 @@ func boxes() {
     console.print("including {box.including(outside)}")
     var turn = Quaternion()
     var axis = Vector3(0.0, 0.0, 1.0)
-    var quarter = Float.pi() * 0.5
+    var quarter = Float.pi * 0.5
     turn.set_axis_angle(axis, quarter)
     var place = Vector3(10.0, 0.0, 0.0)
     var size = Vector3(1.0, 1.0, 1.0)
@@ -35,7 +35,7 @@ func boxes() {
 
 func culling() {
     var projection = Matrix4()
-    var view_angle = Float.pi() * 0.5
+    var view_angle = Float.pi * 0.5
     projection.set_perspective(view_angle, 1.0, 1.0, 100.0)
     var camera = Matrix4()
     var eye = Vector3(0.0, 0.0, 10.0)

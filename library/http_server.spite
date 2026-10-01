@@ -1,6 +1,11 @@
 var heap = Memory.Heap()
 var largest_body = 1048576
+var idle_limit = 5000
+var largest_waiting = 64
 var _listener = Socket()
+var _waiting = List<Socket>()
+var _waiting_since = List<Long>()
+var _clock = Clock()
 
 func listen_locally(port: Integer): Boolean {
     return _listener.listen_locally(port)
@@ -12,24 +17,126 @@ func listen_everywhere(port: Integer): Boolean {
 
 func next_request(): HttpRequest? {
     while true {
-        var client = _listener.accept_client()
+        var client = _next_ready_connection()
         assert client
         var request = _read_request(client)
         if request {
             return request
         }
-        var refused = HttpResponse()
-        refused.status = 400
-        _write_response(client, refused)
+        if client.closed {
+            client.close()
+        } else {
+            var refused = HttpResponse()
+            refused.status = 400
+            _write_response(client, refused, true, true)
+        }
     }
 }
 
 func respond(request: HttpRequest, response: HttpResponse) {
-    _write_response(request.connection, response)
+    var client = request.connection
+    var keep = _keeps_alive(request) and _waiting.count() < largest_waiting and not _listener.closed
+    var with_body = request.method != "HEAD" and response.status != 204 and response.status != 304
+    var announce = keep and request.version == "HTTP/1.0"
+    _write_response(client, response, with_body, announce or not keep)
+    if keep and not client.closed {
+        _waiting.append(client)
+        var now = _clock.elapsed_milliseconds()
+        _waiting_since.append(now)
+    } else {
+        client.close()
+    }
 }
 
 func close() {
     _listener.close()
+    _waiting.each_close()
+    _waiting.clear()
+    _waiting_since.clear()
+}
+
+func drop() {
+    close()
+}
+
+func _keeps_alive(request: HttpRequest): Boolean {
+    var asked = ""
+    var connection_header = request.header("connection")
+    if connection_header {
+        asked = connection_header.lower_case()
+    }
+    if asked.contains("close") {
+        return false
+    }
+    return request.version == "HTTP/1.1" or asked.contains("keep-alive")
+}
+
+func _next_ready_connection(): Socket? {
+    while true {
+        _close_idle_connections()
+        var pipelined = _first_pipelined()
+        if pipelined >= 0 {
+            return _take_waiting(pipelined)
+        }
+        assert not _listener.closed
+        var handles = List<Long>()
+        handles.append(_listener.handle)
+        var index = 0
+        while index < _waiting.count() {
+            var waiting = _waiting[index]
+            handles.append(waiting.handle)
+            index = index + 1
+        }
+        var patience = idle_limit
+        if patience > 1000 {
+            patience = 1000
+        }
+        var ready = _listener.first_readable(handles, patience)
+        assert ready != -2
+        if ready == 0 {
+            var client = _listener.accept_client()
+            assert client
+            return client
+        }
+        if ready > 0 {
+            return _take_waiting(ready - 1)
+        }
+    }
+}
+
+func _first_pipelined(): Integer {
+    var index = 0
+    while index < _waiting.count() {
+        var waiting = _waiting[index]
+        if not waiting.pending.is_empty() {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func _take_waiting(index: Integer): Socket {
+    crash _waiting[index]
+    var taken = _waiting[index]
+    _waiting.remove_at(index)
+    _waiting_since.remove_at(index)
+    return taken
+}
+
+func _close_idle_connections() {
+    var now = _clock.elapsed_milliseconds()
+    var index = 0
+    while index < _waiting.count() {
+        var since = _waiting_since[index]
+        crash since
+        if now - since > idle_limit {
+            var idle = _take_waiting(index)
+            idle.close()
+        } else {
+            index = index + 1
+        }
+    }
 }
 
 func _read_request(client: Socket): HttpRequest? {
@@ -42,6 +149,7 @@ func _read_request(client: Socket): HttpRequest? {
     request.connection = client
     request.method = parts[0]
     request.path = parts[1]
+    request.version = parts[2]
     assert not request.method.is_empty() and request.path.starts_with("/")
     var headers_read = _read_headers(client, request.headers)
     assert headers_read
@@ -102,7 +210,7 @@ func _read_exactly(client: Socket, count: Integer): String? {
     return text
 }
 
-func _write_response(client: Socket, response: HttpResponse) {
+func _write_response(client: Socket, response: HttpResponse, with_body: Boolean, closing: Boolean) {
     var reason = response.reason()
     var body_length = response.body.length()
     var head = "HTTP/1.1 {response.status} {reason}\r\n"
@@ -116,10 +224,19 @@ func _write_response(client: Socket, response: HttpResponse) {
         }
         index = index + 1
     }
-    head = "{head}content-length: {body_length}\r\nconnection: close\r\n\r\n"
-    var whole = head + response.body
+    var connection_line = "keep-alive"
+    if closing {
+        connection_line = "close"
+    }
+    head = "{head}content-length: {body_length}\r\nconnection: {connection_line}\r\n\r\n"
+    var whole = head
+    if with_body {
+        whole = head + response.body
+    }
     var bytes = whole.to_bytes()
     var counted = bytes.count()
     client.write_bytes(bytes.items, counted)
-    client.close()
+    if closing {
+        client.close()
+    }
 }

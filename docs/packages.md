@@ -160,8 +160,8 @@ HELLO!
 An enum a class declares is open the same way. A reopening file that declares the enum again lists the
 values it adds, and they come after the ones already merged, in the order above: the program's own folder
 first, then each loaded folder in load order. An engine's phases are an enum for exactly this: a mod adds a
-phase, and everything that walks the enum, `Symbol<Phase>` or a name pattern whose hole is `phase`
-([metaprogramming.md](metaprogramming.md#a-name-that-says-when-it-runs)), walks the new one too.
+phase, and everything that walks the enum's values, `Phase.values`
+([metaprogramming.md](metaprogramming.md#walking-a-programs-structure)), walks the new one too.
 
 ```gdscript title=phase_mod/engine/schedule.spite
 enum Phase {
@@ -171,8 +171,12 @@ enum Phase {
 
 var console = Console()
 
-func run_phase(phase: Symbol<Phase>) {
-    console.print("running", phase.name)
+func run_every_phase() {
+    Phase.values.each(run_phase)
+}
+
+func run_phase(phase: Phase) {
+    console.print("running", phase)
 }
 ```
 ```gdscript title=phase_mod/mods/schedule.spite
@@ -185,7 +189,7 @@ func PhaseMod() {
     load "engine"
     load "mods"
     var schedule = Schedule()
-    schedule.run_phases()
+    schedule.run_every_phase()
 }
 ```
 ```output
@@ -376,8 +380,16 @@ A reopening reopens the version its package pinned, so a game's `mods/renderer.s
 loads and leaves the minimap's alone. A class of the standard library that a version reopens is still the one
 class, as it is for any two packages.
 
-A package may pin a repository only once. Two pins of one repository at different commits in one package are an
-error naming both lines, since a name there could mean either version. A package that pins
+One package may pin a repository at two commits, and that is not two versions: the two pins are two ordinary
+loads into the same namespace, and the later one reopens the earlier exactly as a later folder does ([monkey
+patching](#monkey-patching-mods)), overriding what both define. A package that pins `engine@6c7dca9/core` and then
+`engine@41c09e2/tools` reads the tools of the later commit on top of the core of the earlier. If the two commits do
+not fit together, the compiler reports whatever breaks, as it would for any two folders, and the answer is to pin
+commits that fit (or fork the repository, which is all git). The pair is one version, spelled by its first commit,
+and a commit belongs to one version only: a commit that one package reads alongside another cannot also be read
+alone by a second package, which is an error naming both lines.
+
+A package that pins
 neither version and names a class that only the versions have is an error listing each version and the line that
 pinned it, and so is a package that reopens such a class: it loads the version it means.
 
@@ -389,17 +401,18 @@ name. The code the versions share unchanged is folded into one by identical code
 ## Files beside a package's source
 
 A package does not know where the program that loads it lives, so a relative path it opens (`File("shaders/
-sky.spv")`) is read from the folder the program runs in, not from the package. A class asks for its own folder
-instead: `class.source_folder()` inside it, `Recipe.source_folder()` for a class by name, and `$item_type.source_folder()`
-for a generic's class. The answer is the absolute folder of the file that declares the class, worked out
-while compiling and written into the program as text, so a plugin finds the files beside it wherever it is loaded
-from and whatever folder the program runs in.
+sky.spv")`) is read from the folder the program runs in, not from the package. A class asks where it
+comes from instead: `class.source_files` inside it, `Recipe.source_files` for a class by name, and
+`$item_type.source_files` for a generic's class answer a `List<File>`, every file that declares or reopens the class
+in load order, and a namespace's `source_directories` answers a `List<Directory>` the same way
+([reflection.md](reflection.md#the-spite-classes)). The paths are absolute, worked out while compiling, so a plugin
+finds the files beside it wherever it is loaded from and whatever folder the program runs in.
 
-That folder is on the machine that **built** the program. It is the right answer while developing, and the wrong
+Those paths are on the machine that **built** the program. It is the right answer while developing, and the wrong
 one for a program shipped to someone else, whose machine has no such folder: a shipped program copies or cooks the
 files it needs into its own output and opens them from there. Asking a `Spite.Class` held in a variable
-(`kind.source_folder()`, with `var kind: Spite.Class = Recipe`) answers the same folder when the program runs, and
-only a program that asks that way carries the folders of its class objects.
+(`kind.source_files`, with `var kind: Spite.Class = Recipe`) answers the same files when the program runs, and only a
+program that asks that way carries the paths of its class objects.
 
 ## Final classes
 
@@ -491,7 +504,7 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   ([Types](values_and_types.md#types)). Load order stays the rule even where a package would rather be
   configured by the program it is loaded into: such a package calls a function the program declares (a
   `build.base_folder()` in the program's `build.spite`), which is an error when missing unless the package
-  supplies a default behind `has_function`. **`Build` is the one exception**: a field the program's
+  supplies a default behind `Build.functions['base_folder']`. **`Build` is the one exception**: a field the program's
   own `build.spite` declares is not replaced by a loaded package's declaration of it, so the program decides its
   build and a package's field is only a default ([programs.md](programs.md#build-settings-build),
   `conformance/stage6/build_precedence`). The standard library (`library/`) is discovered
@@ -552,15 +565,14 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   add `Build` fields that decide loads: the fields are read before the first package is. Compile time only.
 - `load` marks a **bundle boundary**, like an async import in webpack: each loaded root can become a separate dynamic library,
   tree shaking is computed per bundle, and a `load` inside an `if` is loaded lazily when that line runs.
-- **A class can ask for its own source folder**: `class.source_folder()` in a class's function, `Name.source_folder()` for a
-  class named statically, `$item_type.source_folder()` for a codegen type and `value.class.source_folder()` for a
-  value whose class is known while compiling are folded to text: the absolute folder, with `/` separators, of the
-  file that declares the class (the first file merged into it, so a mod's reopening does not move it). A program
+- **A class can ask where it comes from**: `class.source_files`, `Name.source_files`, `$item_type.source_files` and
+  `value.class.source_files` of a value whose class is known while compiling are folded to a `List<File>`: every file
+  that declares or reopens the class, in load order, each an absolute path with `/` separators; a namespace's
+  `source_directories` is a `List<Directory>` the same way. A question about a path is asked of those values. A program
   file's path is joined to the folder the compiler runs in, a library file's to the language's folder, and `.`
-  and `..` are resolved. A `Spite.Class` the compiler cannot name answers the same text at run time from its class
-  object, which holds it only in a program that asks that way (`conformance/stage6/source_folder`). It is the build
-  machine's folder: a shipped program copies or cooks the files it needs instead. A class that declares its own
-  `source_folder` function is called as usual.
+  and `..` are resolved. A `Spite.Class` the compiler cannot name answers the same at run time from its class object,
+  which holds them only in a program that asks that way. They are the build machine's paths: a shipped program copies
+  or cooks the files it needs instead.
 - **A dependency is a repository pinned to a commit in the `load` line itself**: `load
   "github.com/example/engine@a3f2c91"`, fetched by the ordinary compile, with no package manager, registry,
   lockfile or fetch step. The readings:
@@ -623,16 +635,20 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
     package pinned; a value of one version's class is not the other's type, a singleton of one version is not
     the other's, and a file outside a version that has the dotted name of one of its classes reopens the version
     its package pinned. A class of the standard library a version reopens stays the one class. **One package
-    pinning two commits** of one repository is an error at the second: "'load "<text>"' pins <repository> at
-    <commit>, and <file>:<line> ('load "..."') pins it at another commit in the same package: both versions'
-    classes would have the same names there, so one package pins one commit of a repository".
+    pinning two commits** of one repository reads them as two ordinary loads into one namespace, the later
+    reopening the earlier under the load-order rule; together they are that package's version, spelled by its
+    first commit. A commit is read once, into one version, so a commit one package reads alongside another and
+    a second package reads into a different version is "'load "<text>"' reads <repository> at <commit> as part
+    of its package's version from <commit>, and <file>:<line> ('load "..."') reads that commit as part of the
+    version from <commit>: a commit's files are read once, into one version, so pin it the same way in both
+    packages".
     A name, or a reopening, that only the versions hold in a package that pinned none of them is an error listing
     every version as "<repository>@<commit>, pinned by <file>:<line> ('load "..."')". A version's classes are
     spelled `<repository name>_<commit>.<dotted name>` in messages, reflection and `--final-classes`, which
     prints each version into its own folder; the commit is 7 digits, more when two versions share them. Two
     spellings of one commit share nothing but agree. Built by discovering the program twice when a repository is
     pinned at two commits: the first pass learns which package pins what, the second puts each version's
-    classes under its own name. The duplicate code costs nothing because identical C functions are folded into one
+    classes under its own name. The duplicate code costs nothing because identical functions are folded into one
     ([optimizations.md](optimizations.md#identical-functions-are-folded-into-one)).
   - Compile time only: a git load costs what a folder load costs at run time, nothing.
 - Because patching is dangerous to read, the toolchain writes a **final class** folder: every class after all codegen, with the

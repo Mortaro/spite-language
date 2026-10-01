@@ -395,7 +395,7 @@ The compiler also follows these rules:
 
 **A native library is a class, not a keyword.** There is no `external`
 keyword, no per-symbol binding string, no generated-binding step and no hand-written C shim. `DynamicLibrary`
-is an ordinary standard library class, and its Symbol codegen ([Symbol codegen](metaprogramming.md#symbol-codegen)) resolves every foreign function,
+is an ordinary standard library class, and its Symbol codegen ([Symbol codegen](metaprogramming.md#templates)) resolves every foreign function,
 constant and type at compile time.
 
 ```gdscript mouse.spite
@@ -485,12 +485,12 @@ ordinary Spite, and `--final-classes` prints the whole class with every generate
 reflection. Loading a library is plain Spite calling the operating system, with no compiler-supplied C at all.
 
 - **`missing_function` and `missing_attribute` are the only two new names in the entire foreign function
-  interface.** They are Ruby's `method_missing` resolved at compile time: [Symbol codegen](metaprogramming.md#symbol-codegen)'s rule ("a parameter of class
+  interface.** They are Ruby's `method_missing` resolved at compile time: [Symbol codegen](metaprogramming.md#templates)'s rule ("a parameter of class
   `Symbol` whose name is a segment of its function's name turns the function into codegen for every name that
   fits") taken to its limit, where the segment is the whole name. They get reserved names rather than falling out
   of the segment rule so that a class opts in by defining them, instead of silently swallowing every misspelled
-  call. [Symbol codegen](metaprogramming.md#symbol-codegen)'s existing precedence is unchanged: a function with the exact name always wins.
-- `missing_attribute` returning `attribute.class` is the same form as [Symbol codegen](metaprogramming.md#symbol-codegen)'s `get_attribute(attribute:
+  call. [Symbol codegen](metaprogramming.md#templates)'s existing precedence is unchanged: a function with the exact name always wins.
+- `missing_attribute` returning `attribute.class` is the same form as [Symbol codegen](metaprogramming.md#templates)'s `get_attribute(attribute:
   Symbol): attribute.class`: the return type is whatever that symbol turns out to be: an `Integer` for a `#define`,
   a `Spite.Class` for a type name.
 - **The naming rule is a function, not a table.** Three rules cover a whole library, and binding one more symbol
@@ -576,7 +576,7 @@ arguments past the eighth, which it packs at their own width, need the header.
 right-to-left casting takes it from there. Anything wider, or not an integer, is asked for by suffix, since a
 `double` comes back in a different register and nothing in the call says which: `_as_long` for a 64-bit integer
 or a pointer, `_as_double` for a `double`, `_as_text` for a `const char*` copied into a `String`. The suffix is
-[Symbol codegen](metaprogramming.md#symbol-codegen)'s ordinary segment template, not a new mechanism.
+[Symbol codegen](metaprogramming.md#templates)'s ordinary segment template, not a new mechanism.
 
 #### Lifetime, and what gets linked
 

@@ -1,0 +1,61 @@
+var console = Console()
+var everywhere = Socket()
+var loopback = Socket()
+
+func Ipv6Addresses() {
+    crash everywhere.listen_everywhere(47321)
+    reach(everywhere, "::1", 47321)
+    reach(everywhere, "127.0.0.1", 47321)
+    crash loopback.listen_at("::1", 47322)
+    reach(loopback, "localhost", 47322)
+    var unknown = Socket()
+    var refused = unknown.connect("::1", 47323)
+    console.print("nobody on ::1 port 47323:", refused)
+    everywhere.close()
+    loopback.close()
+    datagrams()
+}
+
+func reach(server: Socket, host: String, port: Integer) {
+    var client = Socket()
+    var connected = client.connect(host, port)
+    var peer = server.accept_client()
+    crash peer
+    crash client.write_line("over {host}")
+    var line = peer.read_line()
+    crash line
+    console.print("connected to {host}: {connected}, the server read '{line}'")
+    client.close()
+    peer.close()
+}
+
+func datagrams() {
+    var server = UdpSocket()
+    var client = UdpSocket()
+    crash server.open_everywhere(47324)
+    crash client.open()
+    send(client, "::1")
+    receive(server)
+    send(client, "127.0.0.1")
+    receive(server)
+    var ipv4_only = UdpSocket()
+    crash ipv4_only.open_locally(47325)
+    var text = "ping"
+    var bytes = text.to_bytes()
+    var unreachable = ipv4_only.send_to("::1", 47324, bytes)
+    console.print("an IPv4 socket sends to ::1:", unreachable)
+}
+
+func send(client: UdpSocket, host: String) {
+    var text = "to {host}"
+    var bytes = text.to_bytes()
+    crash client.send_to(host, 47324, bytes)
+}
+
+func receive(server: UdpSocket) {
+    var arrived = server.receive()
+    crash arrived
+    var count = arrived.count()
+    var sender = server.sender_host()
+    console.print("{count} bytes from {sender}")
+}

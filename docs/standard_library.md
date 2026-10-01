@@ -12,7 +12,7 @@ reopen the classes each system does differently, and the launcher loads the one 
 ([foreign_libraries.md](foreign_libraries.md#each-operating-system-reopens-what-it-changes)).
 
 **A program carries only the classes it uses.** The library is part of every program's
-source, but a production build keeps only the C that `main` can reach: a program that never makes a `Watcher`,
+source, but a production build keeps only the C that `main` can reach: a program that never makes a `FileSystemWatcher`,
 a `Socket`, a `Process` or a `ThreadPool` has none of their code, and none of the operating-system functions only
 they call is looked up when the program starts ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)).
 What a class costs when it is used is what its Spite does, and each section below says where that is more than a
@@ -24,12 +24,13 @@ REPL can look at any of it.
 | Class | What it is | Page |
 |---|---|---|
 | `String` | immutable text | [below](#string) |
-| `Integer`, `Long`, `Float`, `Double`, `Boolean`, ... | numbers, as classes, with their maths (`square_root()`, `sine()`, `Float.pi()`, ...) | [values_and_types.md](values_and_types.md#numbers-are-classes), [maths](values_and_types.md#maths-functions) |
+| `Integer`, `Long`, `Float`, `Double`, `Boolean`, ... | numbers, as classes, with their maths (`square_root()`, `sine()`, `Float.pi`, ...) | [values_and_types.md](values_and_types.md#numbers-are-classes), [maths](values_and_types.md#maths-functions) |
 | `Nothing`, `Anything` | what a function returns when it returns nothing; the empty `type` every class fits | [functions_and_operators.md](functions_and_operators.md#calling-one) |
+| `Number` | the `type` every number class fits: its operators and `to_long()`, `to_double()` | [values_and_types.md](values_and_types.md#every-number-fits-number) |
 | `List<T>`, `Dictionary<T>` | containers, and the member templates | [collections.md](collections.md) |
 | `Console` | the terminal: print, read a line | [below](#console) |
 | `File`, `Directory` | files and folders | [below](#read-and-write-a-file) |
-| `Watcher` | the paths that changed under a file or a folder, told by the operating system | [below](#watch-files-and-folders) |
+| `FileSystemWatcher` | the paths that changed under a file or a folder, told by the operating system | [below](#watch-files-and-folders) |
 | `Process` | run another program | [below](#run-a-process) |
 | `Program` | this program: exit, sleep, environment variables, its own path | [below](#program) |
 | `Clock` | elapsed time for measuring, and the wall clock | [below](#clock) |
@@ -42,9 +43,9 @@ REPL can look at any of it.
 | `Concurrent`, `Parallel`, `ThreadPool` | run a function while waiting, or on the thread pool; the handle is the value | [concurrency.md](concurrency.md) |
 | `ThreadLocal<T>`, `Lock`, `ThreadSlot` | a value per thread, and a lock | [concurrency.md](concurrency.md#a-value-per-thread-and-a-lock) |
 | `Atomic<T>` | a whole number or `Boolean` threads share without a lock | [concurrency.md](concurrency.md#a-number-every-thread-shares-atomict) |
-| `Socket` | TCP over IPv4: listen, connect, lines and bytes, waiting or not | [below](#socket) |
-| `UdpSocket` | UDP datagrams over IPv4 | [below](#udpsocket) |
-| `HttpServer`, `HttpClient`, `HttpRequest`, `HttpResponse` | HTTP/1.1, one exchange per connection | [below](#http) |
+| `Socket` | TCP over IPv4 and IPv6: listen, connect, lines and bytes, waiting or not | [below](#socket) |
+| `UdpSocket` | UDP datagrams over IPv4 and IPv6 | [below](#udpsocket) |
+| `HttpServer`, `HttpClient`, `HttpRequest`, `HttpResponse` | HTTP/1.1, connections kept alive | [below](#http) |
 | `Base64`, `Deflate`, `Zlib`, `Gzip` | bytes as base64 and base64url text; bytes compressed as raw DEFLATE, zlib and gzip | [below](#bytes-base64-compression-hashes-and-passwords) |
 | `Sha256`, `SecureRandom`, `Argon2` | SHA-256 and HMAC-SHA256; bytes from the operating system's secure random source; password hashes as PHC strings | [below](#bytes-base64-compression-hashes-and-passwords) |
 | `Memory.Address`, `Memory.Heap`, `Memory.Arena`, `TypedMemory<T>` | a place in memory, the allocators that own it, and values of any type there: the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
@@ -67,9 +68,9 @@ other repository
 ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)). `library/windows/`, `library/linux/` and
 `library/mac/` are not brand packages: they are how a standard class is written for one system.
 
-The library has UDP and HTTP/1.1 ([below](#udpsocket)), SHA-256 and HMAC, Argon2id, secure random bytes, base64
-and base64url, and DEFLATE, zlib and gzip ([below](#bytes-base64-compression-hashes-and-passwords)). WebSocket,
-TLS and IPv6 belong to it as well.
+The library has TCP and UDP over IPv4 and IPv6 and HTTP/1.1 with kept-alive connections ([below](#socket)),
+SHA-256 and HMAC, Argon2id, secure random bytes, base64 and base64url, and DEFLATE, zlib and gzip
+([below](#bytes-base64-compression-hashes-and-passwords)). WebSocket and TLS belong to it as well.
 
 ## `String`
 
@@ -259,6 +260,7 @@ way ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-
 | Member | Result | Notes |
 |---|---|---|
 | `path` | `String` | |
+| `name` | `String` | the last piece of the path: `Directory("levels/forest").name` is `forest` |
 | `entries()` | `List<Directory.Entry>` | every folder and file inside it, as `Directory` and `File` values |
 | `folders()` / `files()` | `List<String>` | names only, sorted by a merge sort (`n log n`), so a folder of thousands of files lists quickly |
 | `exists()` / `create()` | `Boolean` | |
@@ -281,7 +283,9 @@ exists true
 has hello true
 ```
 
-`files()` and `folders()` answer names, not paths; `entries()` answers values you can walk.
+`files()` and `folders()` answer names, not paths; `entries()` answers values you can walk, and its member templates
+keep one kind: `folder.entries().filter_files()` is a `List<File>` and `filter_directories()` a `List<Directory>`
+([a list of a union](metaprogramming.md#member-templates)).
 
 ## Walk a directory tree
 
@@ -328,20 +332,23 @@ Folders come first, then files, each sorted by name, and `.` and `..` are never 
 
 ## Watch files and folders
 
-`Watcher()` is told by the operating system which paths changed, so nothing reads the disk over and over:
+`FileSystemWatcher()` is told by the operating system which paths changed, so nothing reads the disk over and over.
+Making one takes no arguments and starts nothing: no thread and no job exist until something is watched. One watcher
+watches any number of files and folders, and `watch_for_changes` takes either, so a folder or a file a program
+already holds is passed as it is.
 
 | Member | Result | Notes |
 |---|---|---|
-| `watch(path)` | `Boolean` | a file, or a folder with everything below it; `false` when there is nothing there to watch |
+| `watch_for_changes(target: Directory or File)` | `Boolean` | a `File`, or a `Directory` with everything below it; `false` when there is nothing there to watch |
 | `changes()` | `List<String>` | never waits: the paths changed since the last call, each once, or none |
 | `wait_for_changes()` | | blocks this thread until `changes()` has something to answer |
 
 A change is reported once the watcher has seen none for 100 ms, so a burst (a save that writes a file in pieces,
 a checkout that touches a hundred) comes back as one list, each path once, in the order they first changed.
-Each path is the watched path joined with what is below it, with `/` between. A folder is reported when it is
-created, removed or renamed, not when what is inside it changes: the files inside are reported instead. The
-100 ms are counted from when the watcher sees the change, which is in a call, so a program that calls `changes()`
-once a frame sees a save about 100 ms after it happened.
+Each path is the `path` of the watched `Directory` or `File` joined with what is below it, with `/` between. A
+folder is reported when it is created, removed or renamed, not when what is inside it changes: the files inside
+are reported instead. The 100 ms are counted from when the watcher sees the change, which is in a call, so a
+program that calls `changes()` once a frame sees a save about 100 ms after it happened.
 
 ```gdscript title=watch_folder/watch_folder.spite entry
 var console = Console()
@@ -350,8 +357,8 @@ var program = Program()
 func WatchFolder() {
     var folder = Directory(".spite/documentation_watch")
     folder.create()
-    var watcher = Watcher()
-    watcher.watch(folder.path)
+    var watcher = FileSystemWatcher()
+    watcher.watch_for_changes(folder)
     File("{folder.path}/level.txt").write("three goblins")
     var changed = watcher.changes()
     var tries = 0
@@ -380,7 +387,7 @@ included, until something changes.
 Each system's folder asks its own kernel: `ReadDirectoryChangesW` on the folder, with its sub-folders, on Windows;
 an `inotify` watch on each folder on Linux, adding one for each new folder; and a `kqueue` entry on each file and
 folder on macOS, adding new files when their folder changes. A file is watched through its folder on Windows and
-Linux, so a save that replaces the file is still seen. Nothing of it is in a program that never calls `Watcher()`:
+Linux, so a save that replaces the file is still seen. Nothing of it is in a program that never calls `FileSystemWatcher()`:
 not the code, and not the lookups of the system's functions ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)).
 
 ## Run a process
@@ -611,13 +618,13 @@ waited at least 4 ms: true
 
 ## `Socket`
 
-`Socket()` is a TCP connection over IPv4, the same on Windows (winsock), Linux and macOS. `--repl-port` and
-`spite connect` are written with it, and so is a game server. It is public library surface.
+`Socket()` is a TCP connection over IPv4 or IPv6, the same on Windows (winsock), Linux and macOS. `--repl-port`
+and `spite connect` are written with it, and so is a game server. It is public library surface.
 
 | Member | Does |
 |---|---|
-| `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host, port)` | listens on `127.0.0.1`, on every interface, or on the one interface a host name or IPv4 address names; `false` when it cannot |
-| `connect_locally(port)`, `connect(host, port)` | connects to `127.0.0.1`, or to a host name (`"example.com"`, `"localhost"`) or IPv4 address (`"192.168.1.20"`); `false` when the name does not resolve or nobody answers |
+| `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host, port)` | listens on `127.0.0.1`, on every interface of both IPv4 and IPv6, or on the one interface a host name or address names (a name with both kinds of address, like `"localhost"`, listens on its IPv4 one); `false` when it cannot |
+| `connect_locally(port)`, `connect(host, port)` | connects to `127.0.0.1`, or to a host name (`"example.com"`, `"localhost"`), an IPv4 address (`"192.168.1.20"`) or an IPv6 address (`"::1"`, `"2001:db8::7"`), trying each address a name resolves to in turn, its IPv4 ones first; `false` when the name does not resolve or nobody answers |
 | `accept_client(): Socket?` | waits for the next client |
 | `read_line(): String?` | waits for a whole line, without its line break |
 | `read_bytes(address, count): Integer` | waits until at least one byte has arrived, puts up to `count` at `address`, and answers how many |
@@ -658,15 +665,15 @@ Addresses are `Memory.Address`es, so a buffer is `heap.allocate(bytes)` and its 
 
 ## `UdpSocket`
 
-`UdpSocket()` sends and receives UDP datagrams over IPv4, the same on Windows, Linux and macOS. A datagram is a `List<Byte>`, and one call is one datagram.
+`UdpSocket()` sends and receives UDP datagrams over IPv4 and IPv6, the same on Windows, Linux and macOS. A datagram is a `List<Byte>`, and one call is one datagram.
 
 | Member | Does |
 |---|---|
-| `open()`, `open_locally(port)`, `open_everywhere(port)` | opens on a port the system picks (a client), or on `port` of `127.0.0.1` or of every interface; `false` when the port is taken |
-| `send_to(host, port, bytes): Boolean` | sends one datagram to a host name or IPv4 address; `false` when the name does not resolve or the system refuses it |
+| `open()`, `open_locally(port)`, `open_everywhere(port)` | opens on a port the system picks (a client), or on `port` of `127.0.0.1` or of every interface of both IPv4 and IPv6; `false` when the port is taken |
+| `send_to(host, port, bytes): Boolean` | sends one datagram to a host name or an IPv4 or IPv6 address; a name with both kinds of address is sent to its IPv4 one; `false` when the name does not resolve to an address the socket can reach (an IPv6 one from `open_locally`) or the system refuses it |
 | `receive(): List<Byte>?` | waits for the next datagram; `null` when the socket is closed |
 | `receive_now(): List<Byte>?` | the next datagram if one has arrived, otherwise `null` at once |
-| `sender_host(): String`, `sender_port(): Integer` | who sent the datagram received last, to answer with `send_to` |
+| `sender_host(): String`, `sender_port(): Integer` | who sent the datagram received last, to answer with `send_to`: an IPv4 address as `"127.0.0.1"`, an IPv6 one in its shortest form (`"::1"`, `"2001:db8::7"`) |
 | `close()` | closes it |
 
 A datagram can arrive empty, which is a list of no bytes, not `null`. UDP itself neither orders nor repeats lost
@@ -674,21 +681,35 @@ datagrams; reliable channels are the program's.
 
 ## HTTP
 
-`HttpServer` and `HttpClient` speak HTTP/1.1 over `Socket`.
-A message is an `HttpRequest` (`method`, `path`, `headers`, `body`) or an `HttpResponse` (`status`, `headers`,
-`body`); `header(name)` reads a header whatever its case and `set_header(name, value)` writes one, and
+`HttpServer` and `HttpClient` speak HTTP/1.1 over `Socket`, keeping a connection open for the next exchange.
+A message is an `HttpRequest` (`method`, `path`, `version`, `headers`, `body`) or an `HttpResponse` (`status`,
+`headers`, `body`); `header(name)` reads a header whatever its case and `set_header(name, value)` writes one, and
 `reason()` is the response's reason phrase. Bodies are text.
 
 | Member | Does |
 |---|---|
 | `HttpServer.listen_locally(port)`, `listen_everywhere(port)` | listens, like `Socket` |
-| `HttpServer.next_request(): HttpRequest?` | waits for the next well-formed request; a malformed one is answered `400 Bad Request` and skipped, and a body over `largest_body` (1 MiB) counts as malformed; `null` when the listener fails |
-| `HttpServer.respond(request, response)` | writes the response with its `content-length` and closes the connection |
-| `HttpClient.send(host, port, request): HttpResponse?` | connects, sends the request with `host` and `content-length`, and reads the response, whether its body is sized, chunked or ends when the connection closes; `null` when nobody answers or the response is malformed |
+| `HttpServer.next_request(): HttpRequest?` | waits for the next well-formed request, on a new connection or on one kept open; a malformed one is answered `400 Bad Request` and its connection closed, and a body over `largest_body` (1 MiB) counts as malformed; `null` when the listener fails or is closed |
+| `HttpServer.respond(request, response)` | writes the response with its `content-length`, and keeps the connection open for the client's next request unless the client asked to close it |
+| `HttpServer.close()` | stops listening and closes every connection kept open |
+| `HttpClient.send(host, port, request): HttpResponse?` | sends the request with `host` and `content-length` over a connection kept open to that host and port, or a new one, and reads the response, whether its body is sized, chunked or ends when the connection closes; `null` when nobody answers or the response is malformed |
+| `HttpClient.close()` | closes the connections it keeps open |
 
-Each exchange is one connection (`connection: close`): no keep-alive, no pipelining, and a server's requests
-with a chunked body are refused. Inside a `Concurrent`, `next_request` and `send` wait the way `Socket` does,
-so a server serves while its program runs ([concurrency.md](concurrency.md#what-the-compiler-does-at-a-wait)).
+**Connections are kept alive.** HTTP/1.1 keeps a connection open between exchanges, and both sides do: a server
+answers `connection: keep-alive` and waits on every open connection and on its listener at once, and a client
+keeps the connection after a response and sends its next request to the same host and port over it. A connection
+closes when either side says `connection: close` (a request that sets that header gets its answer and then the
+close), when an HTTP/1.0 client does not ask for `keep-alive`, when a response's body ends with the connection,
+and when it has been idle too long: a server closes one after `idle_limit` milliseconds (5000) without a request,
+and keeps at most `largest_waiting` (64) open, closing each further one after its answer; a client keeps at most
+`largest_idle` (8). A kept connection the server has closed meanwhile is noticed when the client's next request
+gets no answer at all, and that request is sent once more over a new connection. Requests on one connection are
+answered in order, and requests a client sent before reading the answers (pipelining) are read one at a time.
+A response to `HEAD`, and a `204` or `304`, carries no body. A server still refuses a request with a chunked body.
+
+Inside a `Concurrent`, `next_request` and `send` wait the way `Socket` does, so a server serves while its program
+runs ([concurrency.md](concurrency.md#what-the-compiler-does-at-a-wait)). A server reads one request at a time:
+while a client is slow to send the rest of a request, the other connections wait for it.
 
 ## Bytes: base64, compression, hashes and passwords
 
@@ -789,7 +810,7 @@ name and its collection read as a pair: `"active_quest".pluralize()` is `"active
 `"map_names".singularize()` is `"map_name"`. Only the last word changes: the text after the last `_` or space, or
 from the last capital that follows a lower-case letter (`"ActiveQuest"` → `"ActiveQuests"`). The word is inflected
 in lower case and handed back in the case it came in: `"Person"` → `"People"`, `"ACTIVE_QUEST"` →
-`"ACTIVE_QUESTS"`. In order, a whole last word that is **uncountable** stays as it is (`data`, `equipment`,
+`"ACTIVE_QUESTS"`. In order, a whole last word that is **uncountable** stays as it is (`data`, `equipment`, `health`,
 `information`, `rice`, `money`, `species`, `series`, `fish`, `sheep`, `jeans`, `police`); an **irregular** one
 swaps with its pair (`person`/`people`, `man`/`men`, `woman`/`women`, `child`/`children`, `sex`/`sexes`,
 `move`/`moves`, `zombie`/`zombies`); otherwise the first of ActiveSupport's ending rules that matches applies
@@ -830,18 +851,21 @@ On every whole number, `Tiny` to `UnsignedLong`, answering the receiver's type:
 
 | Member | Answers |
 |---|---|
-| `absolute()` | the value without its sign; the smallest signed value wraps to itself, as its negation does (`Integer.smallest().absolute()` is -2147483648), and an unsigned value is itself |
+| `absolute()` | the value without its sign; the smallest signed value wraps to itself, as its negation does (`Integer.smallest.absolute()` is -2147483648), and an unsigned value is itself |
 | `minimum(other)`, `maximum(other)` | the smaller or larger, `other` cast first: a `Byte`'s `minimum(300)` compares with 44 |
 | `clamp(low, high)` | `value` held between `low` and `high`, with `high` winning when `low` is above it, as on a float |
 
-**Constants are answered by the class itself** (a class is an object): `Float.pi()`, `tau()`, `euler_number()`,
-`infinity()`, `not_a_number()`, `largest()` (the largest finite value) and `smallest()` (the most negative finite
-one) on `Float` and `Double`, and `largest()` and `smallest()` on each whole number (`UnsignedLong.largest()` is
-18446744073709551615, its `smallest()` 0). Each is the value itself in the C, written exactly (`0x1.921fb6p+1f`
-for `Float.pi()`, `INT32_MAX` for `Integer.largest()`). On a value, `angle.pi()` is "'pi()' is a constant of the
-class Float, not of a value: write 'Float.pi()'"; on the class, a function of a value is "'Float.square_root()'
+**Constants are get-only attributes of the class itself** (a class is an object): `Float.pi`, `tau`, `euler_number`,
+`infinity`, `not_a_number`, `largest` (the largest finite value) and `smallest` (the most negative finite
+one) on `Float` and `Double`, and `largest` and `smallest` on each whole number (`UnsignedLong.largest` is
+18446744073709551615, its `smallest` 0). They are read without parentheses, and nothing can assign one:
+`Float.pi = 3.0` is "'Float.pi' is a constant, and a constant is get-only: nothing can assign it", and
+`Float.pi()` is "'Float.pi' is a constant, read as an attribute and never called: write 'Float.pi'"
+(`diagnostics/maths_constant_assigned`). Each is the value itself in the C, written exactly (`0x1.921fb6p+1f`
+for `Float.pi`, `INT32_MAX` for `Integer.largest`). On a value, `angle.pi` is "'pi' is a constant of the
+class Float, not of a value: write 'Float.pi'"; on the class, a function of a value is "'Float.square_root()'
 calls a function of a value on the class: the class Float answers only its constants, ..." and a name that is
-neither is "the class Integer answers only its constants, largest() and smallest(), and 'pi' is not one of them"
+neither is "the class Integer answers only its constants, largest and smallest, and 'pi' is not one of them"
 (`diagnostics/maths_constant_on_value`).
 
 **Nothing here halts.** Floats keep infinity and not-a-number, so every edge answers the IEEE 754 value the
@@ -853,7 +877,7 @@ place, so no Spite changes with the backend). `--final-classes` prints them as b
 class, and `bootstrap/source/generation/maths_primitives.spite` is the one place that says what C each becomes:
 a macro written where it is called, so `angle.sine()` is `sinf(angle)` in the C, with no function of Spite's own
 around it, and a whole number's `clamp` is two comparisons in one statement. None has hand-written C in a `.spite`
-file of `library/`. A call whose operands are all constants, `(0.5).sine()` or `Float.pi().cosine()`, is worked out
+file of `library/`. A call whose operands are all constants, `(0.5).sine()` or `Float.pi.cosine()`, is worked out
 while compiling with the same C library function, so its answer is bit for bit the one the program would have
 computed ([optimizations.md](optimizations.md#maths-on-constants-is-worked-out-while-compiling);
 `conformance/stage6/maths_folding`).
@@ -881,15 +905,15 @@ library through `DynamicLibrary`. What each member answers is in the section of 
 
 | Class | Members |
 |---|---|
-| `File(path)` | `path`, `to_string(): String` (the path), `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes: `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?`, `map(): MappedFile?`; see [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
+| `File(path)` | `path`, `name` (the last piece of the path), `to_string(): String` (the path), `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes: `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?`, `map(): MappedFile?`; see [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
 | `MappedFile` | made by `File.map()`: a read-only mapping of the whole file (`CreateFileMappingA`/`MapViewOfFile` on Windows, `mmap` with `PROT_READ` and `MAP_PRIVATE` on Linux and macOS, the file itself closed once mapped), undone by `drop()` (`UnmapViewOfFile`, `munmap`). `size(): Long`; `get_at(position): Byte?` (`mapped[position]`), `read_short`, `read_integer`, `read_long`, `read_float`, `read_double` (each `(position): T?`) and `text(position, count): String?` answer `null` unless every byte they would read is inside the file, so a bad offset read from the file cannot read outside it; a read inside is one load from the mapping. An empty file maps to a `MappedFile` of size 0, since the operating systems refuse to map nothing. `conformance/stage6/mapped_files`; see [A file larger than memory](#a-file-larger-than-memory-map-it) |
-| `Directory(path)` | `path`, `entries(): List<Directory.Entry>` (below), `files(): List<String>`, `folders(): List<String>`, `exists(): Boolean`, `create(): Boolean`; see [List a directory](#list-a-directory) |
+| `Directory(path)` | `path`, `name` (the last piece of the path), `entries(): List<Directory.Entry>` (below), `files(): List<String>`, `folders(): List<String>`, `exists(): Boolean`, `create(): Boolean`; see [List a directory](#list-a-directory) |
 | `Process(command, arguments)` | `working_directory`, `environment_variables`, `run(): Integer`, `output(): String`, `run_attached(): Integer`; see [Run a process](#run-a-process). Each argument reaches the child whole: single-quoted for the shell on Linux and macOS, and quoted by the `CommandLineToArgvW` rules on Windows, a `key=value` argument quoting only its value (`-script="a b"`). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
 | `Program()` | a singleton: `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String`, `live_allocations(): Integer`; see [Program](#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |
 | `Clock()` | a singleton: `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant`; `elapsed_nanoseconds()` is the monotonic clock, with a nanosecond unit and no allocation per reading; see [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation) |
 | `Console()` | a singleton: `print(...values)`, `write(...values)`, `error(...values)`, `debug(...values)`, `flush()`, `read_line(): String?`; see [Console](#console), and below |
-| `Watcher()` | `watch(path): Boolean`, `changes(): List<String>`, `wait_for_changes()`; see [Watch files and folders](#watch-files-and-folders), which is the rule. `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload)) |
-| `Socket()` | public library surface: `listen_locally(port): Boolean`, `listen_everywhere(port): Boolean`, `listen_at(host, port): Boolean`, `connect_locally(port): Boolean`, `connect(host, port): Boolean`, `accept_client(): Socket?`, `read_line(): String?`, `read_bytes(address, count): Integer`, `write_line(text): Boolean`, `write_bytes(address, count): Boolean`, the calls that never wait `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer` and `write_bytes_now(address, count): Integer`, `closed: Boolean`, `close()`: TCP over IPv4 on every system ([Socket](#socket), and below); `--repl-port` and `spite connect` use `listen_locally` and `connect_locally` ([REPL and live reload](repl.md#repl-and-live-reload)) |
+| `FileSystemWatcher()` | `watch_for_changes(target: Directory or File): Boolean`, `changes(): List<String>`, `wait_for_changes()`; see [Watch files and folders](#watch-files-and-folders), which is the rule. `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload)) |
+| `Socket()` | public library surface: `listen_locally(port): Boolean`, `listen_everywhere(port): Boolean`, `listen_at(host, port): Boolean`, `connect_locally(port): Boolean`, `connect(host, port): Boolean`, `accept_client(): Socket?`, `read_line(): String?`, `read_bytes(address, count): Integer`, `write_line(text): Boolean`, `write_bytes(address, count): Boolean`, the calls that never wait `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer` and `write_bytes_now(address, count): Integer`, `closed: Boolean`, `close()`: TCP over IPv4 and IPv6 on every system ([Socket](#socket), and below); `--repl-port` and `spite connect` use `listen_locally` and `connect_locally` ([REPL and live reload](repl.md#repl-and-live-reload)) |
 | `Concurrent(function)`, `Parallel(function)` | the handle stands in for what the function returned, and reading it is the wait; `finished: Boolean` never waits; dropping the handle waits for it; there is no `wait()` and no `join()`; see [concurrency.md](concurrency.md) |
 | `ThreadPool()` | the singleton every `Parallel` runs on: `size(): Integer` worker threads, `worker_index(): Integer` (`-1` off the pool); see [The thread pool](concurrency.md#the-thread-pool) |
 | `ThreadLocal<T>()`, `Lock()`, `ThreadSlot()` | one value per thread, `get(): T?`, `set(value)`; a lock, `while_locked(function)`, `lock()`, `unlock()`; the raw per-thread `Long` both are built on, `read()`, `write(value)`; see [A value per thread, and a lock](concurrency.md#a-value-per-thread-and-a-lock) |
@@ -936,7 +960,7 @@ program that computes without waiting in the buffer. A program that prints a gre
 need to be watched builds its text and prints it in fewer, longer lines.
 
 Printing a value costs what the call says: the list of values
-is a `List` like any variadic call's, a number goes through its box and its `to_string()`, and the text is written
+is a `List` like any variadic call's, a number is held in the list with its class and goes through its `to_string()`, and the text is written
 with its length rather than up to its first zero byte. `conformance/stage6/text_building` and
 `fused_chain_allocations` pin those allocations. A `crash` writes its operands itself, through each value's
 `to_string()`, because it reports on the way out of a program that is stopping. `flush()` writes out what the
@@ -957,7 +981,7 @@ In detail:
   declares its own is shown by it wherever it appears. A `List` is `[a, b]`, a `Dictionary` is `{"key": value}`,
   text is quoted with `\"`, `\\` and `\n` escaped, a `Symbol` or enum value is written the way Spite writes it
   (`'calm'`), a number and a `Boolean` as they print, and an absent `T?` is `null`. A `Spite.Class` is its name.
-- **Private attributes are left out.** The walk is the plural attribute template ([Symbol codegen](metaprogramming.md#symbol-codegen)) run from
+- **Private attributes are left out.** The walk is the plural attribute template ([Symbol codegen](metaprogramming.md#templates)) run from
   `Spite.DebugInstance`, and a plural over another class's attributes ranges over the ones that class lets
   others read: a `_` attribute is its own business, and reading it from outside would be the ordinary private
   error. The JSON and binary writers and readers follow the same rule.
@@ -1000,12 +1024,19 @@ In detail:
 `library/socket.spite` holds everything but the calls into each system's library, which `library/windows/`,
 `linux/` and `mac/socket.spite` reopen the class with:
 
-- **Addresses.** `listen_locally` and `connect_locally` build `127.0.0.1` themselves, `listen_everywhere` builds
-  `0.0.0.0`, and `listen_at` and `connect` resolve the host with the system's `getaddrinfo`, asking for IPv4 and a
-  stream socket and taking the first answer; a name that does not resolve answers `false`. Resolving waits in
-  place, like connecting. The listening queue is 64 connections deep.
+- **Addresses.** `listen_locally` and `connect_locally` build `127.0.0.1` themselves, and `listen_everywhere`
+  builds `::` on a socket that takes IPv4 connections too (`IPV6_V6ONLY` off), or `0.0.0.0` where the system has
+  no IPv6. `listen_at` and `connect` resolve the host with the system's `getaddrinfo`, asking for any family and a
+  stream socket, and put the IPv4 answers first, in the order the system gives them, then the IPv6 ones: `listen_at`
+  listens on the first, and `connect` tries them in turn until one connects. A name that does not resolve answers `false`. Resolving waits in place, like
+  connecting. The listening queue is 64 connections deep. `UdpSocket` uses the same addresses: `open` and
+  `open_everywhere` take both families on one IPv6 socket, sending to an IPv4 address as `::ffff:` and the address,
+  and a sender's address is written as RFC 5952 gives it, with an IPv4 address inside `::ffff:` written as IPv4 and
+  a link-local one's scope after a `%`.
 - **Waiting calls.** `accept_client`, `read_line` and `read_bytes` reach `Socket.accept_handle` and
-  `Socket.receive_into`, which are the compiler's waits ([concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting)):
+  `Socket.receive_into`, and `HttpServer.next_request` reaches `Socket.first_readable` (the system's `poll`, or
+  `WSAPoll`, over the listener and every kept connection, for at most `idle_limit` or one second), which are the
+  compiler's waits ([concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting)):
   in a `Concurrent` they return to the event loop while a helper thread makes the call. `write_line` and
   `write_bytes` send until everything is sent, in place, as before.
 - **Calls that never wait** (`_now`) are ordinary calls, not waits, so they add nothing to a state machine. Linux
@@ -1046,7 +1077,7 @@ and atomics at an address, are language primitives each backend lowers.
 | Part | How |
 |---|---|
 | `String`, `List<T>`, `Dictionary<T>`, number to text (`library/number_text.spite`) | over `Memory.Heap` and `TypedMemory<T>`. The syntax stays the compiler's (`[]`, list literals, `List<T>()`), mapped onto these classes' functions, and per element type the compiler still writes four one-line functions a generic class cannot, plus `deep_copy`; the member templates are Spite in `library/list.spite` ([collections.md](collections.md#standard-library-metaprogramming)) |
-| `File`, `Directory`, `Process`, `Program`, `Console.read_line`, `Clock`, `Socket`, `Watcher`, `ThreadPool`, `Lock`, `ThreadSlot`, the time-zone database | written once in `library/`; each operating system's folder reopens the class with the few functions that call its own library (`ucrtbase.dll`/`kernel32.dll`, `libc.so.6`, `libSystem.dylib`) through `DynamicLibrary` |
+| `File`, `Directory`, `Process`, `Program`, `Console.read_line`, `Clock`, `Socket`, `FileSystemWatcher`, `ThreadPool`, `Lock`, `ThreadSlot`, the time-zone database | written once in `library/`; each operating system's folder reopens the class with the few functions that call its own library (`ucrtbase.dll`/`kernel32.dll`, `libc.so.6`, `libSystem.dylib`) through `DynamicLibrary` |
 | `--debug-memory`'s live table | `AllocationTable` (`library/allocation_table.spite`), an open-addressing set of live addresses with each object's class id beside it, which prints the leak report; the compiler emits only the small functions `SPITE_MALLOC`, `SPITE_REALLOC` and `SPITE_FREE` call under `--debug-memory` |
 | the REPL, live reload, the event loop | `ReadEvaluatePrintLoop`, `HotReload` and `Scheduler`, over reflection tables the compiler generates |
 | printing, `to_debug()`, JSON and bytes | `Console`, `Spite.Debug<T>`, `Spite.DebugInstance<T>`, `JsonWriter<T>`, `JsonReader<T>`, `BinaryWriter<T>` and `BinaryReader<T>` ([json.md](json.md)) |

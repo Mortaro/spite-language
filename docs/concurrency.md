@@ -289,7 +289,7 @@ each load took a frame of its own: true
 The `program.sleep(1)` in the frame never resumes the loads; only `run_ready()` does. That also means a loop that
 polls `finished` and never calls `run_ready()` never ends, since nothing moves the `Concurrent` on. It is the one
 mistake this mode allows. Which systems to start this way is asked while compiling, with
-`$system_type.function_waits("update_each")` ([metaprogramming.md](metaprogramming.md#asking-whether-a-function-waits)),
+`$system_type.functions['update_each'].is_resumable` ([metaprogramming.md](metaprogramming.md#asking-a-question-while-compiling)),
 so a system never says that it does IO.
 
 ## `Parallel`: work that computes
@@ -861,7 +861,7 @@ somewhere (`while not reading.finished { program.sleep(1) }` is the polling loop
 
 **`finished_value()` takes a finished result without waiting.** `handle.finished_value(): T?` answers the value when the work has finished and `null` otherwise, on a
 `Concurrent` and on a `Parallel`: `finished`, then the value, in one call (`library/concurrent.spite`,
-`library/parallel.spite`). It is never a wait point, so `function_waits` answers `false` for a function
+`library/parallel.spite`). It is never a wait point, so `is_resumable` answers `false` for a function
 whose only handle read is `finished_value()`, while reading the handle as its value still waits and still counts:
 an engine system that only collects finished work is not taken for one that does IO. It costs what `finished`
 followed by a read costs, and a program that never calls it carries none of it
@@ -983,12 +983,12 @@ a resumable version (`bootstrap/source/generation/state_machine.spite`):
   reached through a function value, a union's dispatch or a constructor, and a `Concurrent` dropped inside a
   `Concurrent` are the plain calls: they wait by running the event loop where they are, as code outside a
   `Concurrent` does, which keeps every other state machine going but holds this one until the wait is over.
-  A `Concurrent` whose function has no state machine runs it to the end when it is made. `function_waits` still answers `true` for a function whose only wait is one of these, since it
+  A `Concurrent` whose function has no state machine runs it to the end when it is made. `is_resumable` still answers `true` for a function whose only wait is one of these, since it
   does wait: the wait just holds whoever stepped the frame, such as the loop calling `run_ready()`, until it is
   over.
 - **The waits at the bottom** are small state machines the generator writes: `Program.sleep` registers a deadline
   and is over when the clock passes it; `Console.read_line_into`, `File.read_into`, `File.write_text`,
-  `File.write_from`, `Socket.accept_handle` and `Socket.receive_into` start their one system call on a helper thread
+  `File.write_from`, `Socket.accept_handle`, `Socket.receive_into` and `Socket.first_readable` start their one system call on a helper thread
   and are over when it flags that it returned; `Scheduler.wait_for(frame)`, under reading or dropping a
   `Concurrent`, is over when that frame has finished.
 

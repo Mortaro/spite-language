@@ -1359,7 +1359,7 @@ func parse_primary(): Syntax.Expressions.Expression {
         var text_number = token.text.to_long()
         if not text_number {
             fail(
-                "'{token.text}' does not fit a Long, the widest whole number, which holds up to 9223372036854775807: write a smaller number, or 'Long.smallest()' for the most negative one",
+                "'{token.text}' does not fit a Long, the widest whole number, which holds up to 9223372036854775807: write a smaller number, or 'Long.smallest' for the most negative one",
             )
             return dummy_expression()
         }

@@ -1,0 +1,57 @@
+union Target {
+    Directory
+    File
+}
+
+var heap = Memory.Heap()
+var clock = Clock()
+var pending = List<String>()
+var last_change: Long = 0
+
+func watch_for_changes(target: Target): Boolean {
+    switch target {
+        Directory: return watch_folder(target.path)
+        File: return watch_file(target.path)
+    }
+}
+
+func changes(): List<String> {
+    collect()
+    if pending.is_empty() or quiet_left() > 0 {
+        return List<String>()
+    }
+    var changed = pending
+    pending = List<String>()
+    return changed
+}
+
+func wait_for_changes() {
+    collect()
+    while pending.is_empty() or quiet_left() > 0 {
+        var waiting: Long = -1
+        if not pending.is_empty() {
+            waiting = quiet_left()
+        }
+        wait_for_event(waiting)
+        collect()
+    }
+}
+
+func quiet_left(): Long {
+    var now = clock.elapsed_milliseconds()
+    return last_change + 100 - now
+}
+
+func note(path: String) {
+    last_change = clock.elapsed_milliseconds()
+    if not pending.contains(path) {
+        pending.append(path)
+    }
+}
+
+func joined(folder: String, name: String): String {
+    if folder.ends_with("/") {
+        return "{folder}{name}"
+    }
+    return "{folder}/{name}"
+}

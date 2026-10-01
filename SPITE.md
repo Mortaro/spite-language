@@ -7,6 +7,10 @@ what is hated, why, and what to do instead: a list of dislikes without alternati
 
 When Mortaro rejects something new, add it here with its reason.
 
+**The moron** is anyone who uses Spite: a human, Mortaro himself, or an AI. Rust has Rustaceans; Spite has morons. When Mortaro says "the moron" he means
+all of them at once, and the docs say "the moron" wherever another language's docs would say the user, the
+programmer or the developer. Design for the moron: the language decides, so the moron never has to.
+
 ---
 
 ## Language design
@@ -83,6 +87,14 @@ project and its dependencies, which is what pushes Mortaro toward Rust and Node 
 **Ecosystems that compete with each other.** "Every day a new ecosystem arises to compete with npm", and the
 bundler story in Ruby. Same spite as bring-your-own-runtime: it fragments what should be settled.
 *Instead:* git is the registry, so there is no central index for a competitor to fork from (D38).
+
+**C, or anything external, reaching the moron.** "the moron should not have to think of C at all or any other
+external for that matter."
+*Instead:* whatever can be written in Spite is written in Spite. A foreign library is wrapped so only Spite shapes
+come out of it: a C enum becomes a Spite enum with Spite names, and no C type, name or convention passes the
+binding (D350, D351). And "eventually C goes away, so avoid depending on it": new compiler or runtime work adds
+no hand-written C helper, no C-only trick and no meaning left to the C compiler; it is Spite, or one isolated
+backend primitive (D361).
 
 ---
 

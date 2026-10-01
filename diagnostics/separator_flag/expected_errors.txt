@@ -1,0 +1,1 @@
+error: '--' is not a separator: a program's settings are given beside the compiler's flags, kebab-case like them: spite program --optimized --player-name=Bob

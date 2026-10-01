@@ -1,0 +1,2 @@
+diagnostics/number_type_mistakes/number_type_mistakes.spite:4: error: 'Boolean' does not fit type 'Number', which 'Summer' requires of $number_type: it has no function 'sum' (in NumberTypeMistakes.NumberTypeMistakes)
+diagnostics/number_type_mistakes/number_type_mistakes.spite:11: error: 'value + 0.5' is an addition in Integer, since arithmetic takes the left side's type, and the right side is a Float, which would be cut to fit: write the Float first ('0.5 + value'), or store the right side in an Integer first if it fits one (in NumberTypeMistakes.halved)

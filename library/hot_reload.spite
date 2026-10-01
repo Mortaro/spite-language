@@ -52,14 +52,16 @@ func drop() {
 }
 
 func watch() {
-    var watcher = Watcher()
-    var watching = watcher.watch(folder)
+    var watcher = FileSystemWatcher()
+    var program_folder = Directory(folder)
+    var watching = watcher.watch_for_changes(program_folder)
     assert watching
     var loaded = loaded_folders().split("\n")
     var index = 0
     while index < loaded.count() {
         if not loaded[index].is_empty() {
-            watcher.watch(loaded[index])
+            var loaded_folder = Directory(loaded[index])
+            watcher.watch_for_changes(loaded_folder)
         }
         index = index + 1
     }

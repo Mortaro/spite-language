@@ -1,0 +1,31 @@
+# Spite
+
+> Spite is a small, opinionated language meant to be written mostly by AI and skimmed by humans. It compiles to C,
+> its compiler is written in Spite and compiles itself, and the compiler is also its formatter and linter: it never
+> warns, and every error names the fix. You write the readable version; the compiler fuses, specialises and
+> tree-shakes it into the fast one.
+
+Before writing Spite, load the skill: it is the whole language on one page, with the habits from other languages
+the compiler rejects.
+
+## Start here
+
+- [Why a language model should choose Spite](WHY_AI.md): facts for deciding, and when not to choose it
+- [The Spite skill](skills/spite/SKILL.md): instructions for writing Spite
+- [The whole language on one page](skills/spite/reference.md): every rule the compiler enforces
+- [Why Spite](WHY.md): the same case, written for people
+
+## Documentation
+
+- [Reading order](docs/README.md): the tutorial and the definition of the language, one page per topic
+- [Nullable values and failure](docs/failure.md): `T?`, `assert`, `crash`, and what a crash reports
+- [Optimizations](docs/optimizations.md): everything the compiler optimises without being asked
+- [Proofs](docs/proofs.md): every fact the compiler proves while compiling
+- [The compiler](docs/compiler.md): every command and flag
+- [The REPL and live reload](docs/repl.md): query and change a running program
+
+## Optional
+
+- [Benchmarks](benchmarks/README.md): Spite against hand-written C, build times
+- [Implementation status](design/status.md): what is decided but not built yet
+- [SPITE.md](SPITE.md): what the language refuses, and why

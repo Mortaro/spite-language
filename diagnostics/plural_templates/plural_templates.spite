@@ -1,0 +1,10 @@
+var console = Console()
+
+func PluralTemplates() {
+    var people = List<Person>()
+    var ann = Person("ann")
+    people.append(ann)
+    var names = people.collect_name()
+    var data = people.collect_data()
+    console.print(ann.name)
+}

@@ -1,0 +1,12 @@
+var console = Console()
+
+func NumberTypeMistakes() {
+    var flags = Summer<Boolean>()
+    var flag = flags.twice(true)
+    var half = halved(4)
+    console.print(flag, half)
+}
+
+func halved(value: Number): Number {
+    return value + 0.5
+}
