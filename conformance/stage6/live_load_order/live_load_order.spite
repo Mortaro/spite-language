@@ -1,0 +1,16 @@
+var console = Console()
+var build = Build()
+
+func LiveLoadOrder() {
+    load "base"
+    load "mod"
+    var seen = check()
+    console.print(seen)
+}
+
+func check(): String {
+    var monster = Monster()
+    var described = monster.describe()
+    var taunted = monster.taunt()
+    return "{described}, {taunted}, {monster.name}, {monster.level}, {build.tone}"
+}

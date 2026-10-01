@@ -14,22 +14,20 @@ Cleaned 2026-09-30 (second pass, after D314-D317): answered by the reflection re
 answered by D314.
 
 Third pass, after D318-D325: 229 answered by D318 (on the reflection branch), 230 by D319, 227 by D320 and
-D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330, 208 by D332. Rewritten: 238 (D324), 36 (D319).
+D329, 231 by D321, 232 by D322, 89 by D326, 216 by D327, 224 by D330, 208 by D332, 36 by D337. Rewritten: 238 (D324).
 
 Fourth pass, 2026-09-30, by the principles (the moron, anyone who uses Spite, never has to decide, so "leave it
 to the moron" is never an answer; everything monomorphizes; get-only attributes; renames by map; REPL and hot-reload
 builds favour information over speed): answered 2026-09-30, rows pending: 225 (same-package pins are two loads in
-load order), 234 (identical code folded by the compiler), 36 (`type Number`), 202 and 204 (confirmed as proposed,
-maths constants as get-only attributes such as `Float.pi`), 205 (`x`, `y`, `z`, `w`), 166's names
-(`FileSystemWatcher()`, `watch_for_changes(Directory or File)`). 79 by D322's principle (the REPL shows the fuller
-`to_debug()`). Narrowed: 161. Moved to "Confirm quickly": 166 (quiet period only), 197, 212, 215.
+load order), 234 (identical code folded by the compiler), 205 (`x`, `y`, `z`, `w`). 166's names by D338. 79 by D322's principle (the REPL shows the fuller
+`to_debug()`). 202 and 204 by D339. Narrowed: 161. Moved to "Confirm quickly": 166 (quiet period only), 197, 212, 215.
 
 Fifth pass, 2026-09-30: 109's first half by D335 (narrowed to the runner's markers), 225 by D334. Answered,
 rows pending: 228 (`map_` over a predicate is an error pointing at `filter_`/`count_`/`any_`/`all_`; class-qualified
 function values and plain `List.map(function)` go), 213 (the default build compiles fastest; hot builds compile
 like it, reversing D299's `-O3`, so D299 leaves 239; run-speed-only passes are skipped unless measured to speed up
 the whole build), 153 (no `--` separator; settings kebab on the command line, snake in code; a name colliding with
-a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242.
+a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242. 155 by D336.
 
 ## Confirm quickly
 
@@ -64,8 +62,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
      outlives the frame (a compile error naming `copy()`, a debug generation check as backstop)? Is `Memory.Frame`
      an arena reset once a frame, or a ring of two? Until then, is an arena without `reset()` right?
 175. **A class reading its own allocator** (`memory.allocator` inside a class), so a list's buffer follows its arena.
-155. **A dedicated thread for work that blocks forever** (a game engine's window loop): `Thread(function)`, or a marker
-     on `Parallel`?
 209. **Should a `List` own its items, so a kept reference is weak (`T?`)**, or stay an explicit `Weak<T>`?
 
 ## Silent today (D244)

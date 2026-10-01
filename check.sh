@@ -4,29 +4,39 @@
 # Needs only a C compiler. Set CC to choose one, otherwise the first available of cc, clang or gcc
 # is used.  Run from anywhere:   bash check.sh
 # Update the committed seed after an intended compiler change:   bash check.sh --update-seed
+# The programs are checked side by side, as many at once as there are processors. CHECK_JOBS sets how many
+# (CHECK_JOBS=1 checks one at a time); the report is the same either way, since each result is printed in a fixed
+# order once every program has run, so one program failing never hides another.
 cd "$(dirname "$0")" || exit 1
 work=.spite/check_$$   # one folder per run: two sessions may run this at the same time
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work"
+job_errors="$work/c_errors.txt"   # what a failed C compile said; each job of a pool below keeps its own
+jobs=${CHECK_JOBS:-$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}
 
 # SPITE.md: no em dashes anywhere, neither the character nor two hyphens between spaces standing in for one, and
 # no third-party package named inside the language. Every tracked text file is read but the seed, which is C the
 # compiler writes from these sources. A '--' between spaces is allowed only where it is a command line's own
 # separator: before a flag, after 'spite <program>' or 'set', and between two holes of a Spite text.
-em_dash=$(printf '\342\200\224')
-stand_in=' -''- '
-dashes=$(git grep -n -I -F -e "$em_dash" -e "$stand_in" ':!bootstrap/seed' \
-  | grep -v -E "$stand_in-|(spite|bin/spite|spite\.exe) [^ ]+$stand_in|set$stand_in|\}$stand_in\{")
-if [ -n "$dashes" ]; then
-  echo "FAILED: em dashes (end the sentence, or use a colon, a comma or parentheses):"; echo "$dashes"; exit 1
-fi
-# the names are written in pieces so this file does not name them
-names="(^|[^[:alnum:]])sl""op(eng""ine)?([^[:alnum:]]|$)|thes""eus"
-package_names=$(git grep -n -I -i -E "$names" ':!bootstrap/seed')
-if [ -n "$package_names" ]; then
-  echo "FAILED: a third-party package is named (use a neutral invented one):"; echo "$package_names"; exit 1
-fi
-echo "writing: no em dashes, and no third-party package named"
+# It runs while the seed is compiled, and its answer is read once the seed is built.
+writing_check() {
+  em_dash=$(printf '\342\200\224')
+  stand_in=' -''- '
+  dashes=$(git grep -n -I -F -e "$em_dash" -e "$stand_in" ':!bootstrap/seed' \
+    | grep -v -E "$stand_in-|(spite|bin/spite|spite\.exe) [^ ]+$stand_in|set$stand_in|\}$stand_in\{")
+  if [ -n "$dashes" ]; then
+    echo "FAILED: em dashes (end the sentence, or use a colon, a comma or parentheses):"; echo "$dashes"; exit 1
+  fi
+  # the names are written in pieces so this file does not name them
+  names="(^|[^[:alnum:]])sl""op(eng""ine)?([^[:alnum:]]|$)|thes""eus"
+  package_names=$(git grep -n -I -i -E "$names" ':!bootstrap/seed')
+  if [ -n "$package_names" ]; then
+    echo "FAILED: a third-party package is named (use a neutral invented one):"; echo "$package_names"; exit 1
+  fi
+  echo "writing: no em dashes, and no third-party package named"
+}
+( writing_check ) > "$work/writing.txt" 2>&1 &
+writing=$!
 if [ -z "$CC" ]; then
     for candidate in cc clang gcc; do
         command -v "$candidate" >/dev/null 2>&1 && { CC="$candidate"; break; }
@@ -48,15 +58,20 @@ export CC   # the Spite compiler reads it to compile the C it emits
 # The compiler folds maths on constants with the C library's own functions, which Linux and macOS keep in libm.
 maths_library="-lm"
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) maths_library="" ;; esac
-compile_c() { "$CC_BIN" -O1 -Wno-parentheses-equality -Wno-deprecated-declarations "$1" -o "$2" $maths_library 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }; }
 
 # Each generation writes its C to the default place, .spite/build/bootstrap/bootstrap.c (D283; a seed from before
 # D283 writes bootstrap/bootstrap.c beside the program), and it is moved into the work folder at once: every Build
 # field is a constant in the built compiler, so a --c-path naming this run's folder would be written into the C and
-# no two generations (or seeds) would ever be equal.
+# no two generations (or seeds) would ever be equal. Given a third argument, the same compile also builds that
+# executable the way any program is built, from translation units compiled in parallel and cached in .spite/objects
+# (docs/compiler.md): how the executable is made changes nothing in the C, which is what the generations compare.
 compile_compiler() {
   rm -f .spite/build/bootstrap/bootstrap.c bootstrap/bootstrap.c
-  "$1" bootstrap --run=false --c-source || return 1
+  if [ -n "$3" ]; then
+    "$1" bootstrap --run=false --c-source --executable --translation-units="$jobs" --executable-path="$3" || return 1
+  else
+    "$1" bootstrap --run=false --c-source || return 1
+  fi
   produced=.spite/build/bootstrap/bootstrap.c
   [ -f "$produced" ] || produced=bootstrap/bootstrap.c
   cp "$produced" "$2" || return 1   # a copy: Windows may still hold the file, refusing a rename
@@ -67,43 +82,46 @@ compile_compiler() {
   rm -f "$produced"
 }
 
+# The seed only has to write the compiler's C once, so it is compiled without optimisation: that takes a tenth of
+# the time, and the slower seed still finishes far sooner.
 echo "1/4 building the seed compiler"
-compile_c bootstrap/seed/spite_compiler.c "$work/seed.exe"
+"$CC_BIN" -O0 -Wno-parentheses-equality -Wno-deprecated-declarations bootstrap/seed/spite_compiler.c -o "$work/seed.exe" $maths_library 2> "$job_errors" || { head -20 "$job_errors"; exit 1; }
+wait $writing; written=$?
+cat "$work/writing.txt"
+[ "$written" == "0" ] || exit 1
 
 echo "2/4 the seed compiles the compiler sources (generation 2)"
-compile_compiler "$work/seed.exe" "$work/generation_two.c" || { echo "FAILED: the seed could not compile the compiler sources"; exit 1; }
-compile_c "$work/generation_two.c" "$work/generation_two.exe"
-
-echo "3/4 generation 2 compiles the compiler sources again (generation 3): must be byte identical"
-compile_compiler "$work/generation_two.exe" "$work/generation_three.c" || exit 1
-if ! cmp -s "$work/generation_two.c" "$work/generation_three.c"; then
-  # A change to how the compiler compiles ITS OWN source needs one more generation to settle.
-  echo "    generation 2 and 3 differ: trying one more generation"
-  compile_c "$work/generation_three.c" "$work/generation_three.exe"
-  compile_compiler "$work/generation_three.exe" "$work/generation_four.c" || exit 1
-  if ! cmp -s "$work/generation_three.c" "$work/generation_four.c"; then echo "FAILED: no fixpoint, generation 3 and 4 still emit different C"; exit 1; fi
-  cp "$work/generation_three.c" "$work/generation_two.c"; cp "$work/generation_three.exe" "$work/generation_two.exe"
-fi
-
+compile_compiler "$work/seed.exe" "$work/generation_two.c" "$work/generation_two.exe" || { echo "FAILED: the seed could not compile the compiler sources"; exit 1; }
 cp "$work/generation_two.exe" .spite/spite_development.exe   # the freshly built compiler, handy for trying things by hand
-echo "4/4 conformance corpus and examples with generation 2"
-# A program that calls a foreign library brings the library's C as fixture.c; it is built next to it here, as
-# fixture.dll on every platform, so the program can name one real file (D71); dlopen does not mind the name.
+
+# Everything below that only needs generation 2 is one job of a pool, and the pool runs `jobs` of them at once:
+# generation 3, the corpus and examples, the documentation's programs, the diagnostics, the benchmarks, the tests,
+# the compiler's own memory, each operating system's library, the fast reloads, --final-classes and the launcher.
+# Each job's output and exit code go into its own files, and the report reads them in the order of the job list,
+# so it never depends on which job ended first.
+# A job runs in a subshell: its 'exit 1' ends that job alone.
+repository=$(pwd)
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) position_independent="" ;; *) position_independent="-fPIC" ;; esac
-for fixture in conformance/*/*/fixture.c; do
-  [ -f "$fixture" ] || continue
-  "$CC_BIN" -shared $position_independent -w "$fixture" -o "$(dirname "$fixture")/fixture.dll" > "$work/c_errors.txt" 2>&1 || { echo "FAILED: could not build $fixture"; head -5 "$work/c_errors.txt"; exit 1; }
-done
-passed=0; failed=0
-for folder in conformance/*/*/ examples/*/; do   # the examples are held to the same standard as the corpus
+export work jobs repository CC_BIN maths_library
+
+job_generation_three() {
+  compile_compiler "$work/generation_two.exe" "$work/generation_three.c" || { echo "FAILED: generation 2 could not compile the compiler sources"; exit 1; }
+}
+
+# A corpus program or an example: its output must be exactly expected_output.txt, and it must free everything it takes.
+job_program() {
+  local folder=$1 name flags input executable actual expected body balance allocations frees
   name=$(basename "$folder")
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")   # compiler flags such as --environment=server
   input=/dev/null; [ -f "$folder/input.txt" ] && input="$folder/input.txt"   # what the program reads from the console
-  # the executable goes into the work folder rather than beside the program, so the repository stays clean
-  actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$work/$name.exe" $flags < "$input" 2>&1 | tr -d '\r')
+  # the executable goes into the work folder rather than beside the program, so the repository stays clean, under the
+  # program's own path, so two programs of one name never share one, and named like the program, as its crashes name it
+  executable="$work/${folder%/}.exe"
+  mkdir -p "$(dirname "$executable")"
+  actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$executable" $flags < "$input" 2>&1 | tr -d '\r')
   # some toolchains intermittently fail to open their own cache files on Windows; that is not a
   if echo "$actual" | grep -q "failed to check cache"; then
-    actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$work/$name.exe" $flags < "$input" 2>&1 | tr -d '\r')
+    actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$executable" $flags < "$input" 2>&1 | tr -d '\r')
   fi
   expected=$(tr -d '\r' < "$folder/expected_output.txt")
   body=$(echo "$actual" | grep -v '^allocations: ')
@@ -114,22 +132,294 @@ for folder in conformance/*/*/ examples/*/; do   # the examples are held to the 
     # balance line because a crash halts before the program would have released anything. A native fault names where
     # it stopped as module+offset (D244), and the offset is the C compiler's, so it is compared without it.
     actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g')
-    if [ "$actual" == "$expected" ]; then passed=$((passed+1)); else failed=$((failed+1)); echo "FAILED: $name"; echo "$actual" | head -8; fi
-    continue
+    [ "$actual" == "$expected" ] && exit 0
+    echo "FAILED: $name"; echo "$actual" | head -8; exit 1
   fi
   # allocations.txt pins how many allocations a program makes, so an optimisation that removes them stays removed
   if [ -f "$folder/allocations.txt" ] && [ "$allocations" != "$(tr -d '\r\n' < "$folder/allocations.txt")" ]; then
-    failed=$((failed+1)); echo "FAILED: $name allocated $allocations times, allocations.txt says $(tr -d '\r\n' < "$folder/allocations.txt")"; continue
+    echo "FAILED: $name allocated $allocations times, allocations.txt says $(tr -d '\r\n' < "$folder/allocations.txt")"; exit 1
   fi
-  if [ "$body" == "$expected" ] && [ -n "$balance" ] && [ "$allocations" == "$frees" ]; then passed=$((passed+1)); else failed=$((failed+1)); echo "FAILED: $name"; echo "$actual" | head -8; fi
+  [ "$body" == "$expected" ] && [ -n "$balance" ] && [ "$allocations" == "$frees" ] && exit 0
+  echo "FAILED: $name"; echo "$actual" | head -8; exit 1
+}
+
+# Every program written in docs/ and README.md is a program: scripts/docs_corpus (itself Spite) writes each titled
+# code block out, and each one has to compile, run, print its ```output block and free everything it took.
+# A block marked `error` must fail to compile with its ```diagnostic text somewhere in the message.
+job_documentation() {
+  local folder=$1 name flags actual expected body balance
+  name=$(basename "$folder")
+  flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")
+  if [ -f "$folder/must_fail.txt" ]; then
+    actual=$("$work/generation_two.exe" "$folder" --run=false $flags 2>&1 >/dev/null | tr -d '\r')
+    expected=$(tr -d '\r' < "$folder/expected_diagnostic.txt")
+    [ -n "$actual" ] && [ "${actual#*$expected}" != "$actual" ] && exit 0
+    echo "FAILED docs: $name wanted an error saying '$expected'"; echo "$actual" | head -4; exit 1
+  fi
+  # a program that loads a repository pinned to a commit (docs/packages.md) says so the first time it fetches it
+  actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$work/docs_$name.exe" $flags < /dev/null 2>&1 | tr -d '\r' | grep -v '^fetched .* into ')
+  expected=$(tr -d '\r' < "$folder/expected_output.txt")
+  body=$(echo "$actual" | grep -v '^allocations: ')
+  balance=$(echo "$actual" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
+  [ "$body" == "$expected" ] && [ -n "$balance" ] && [ "${balance% *}" == "${balance#* }" ] && exit 0
+  echo "FAILED docs: $name"; echo "$actual" | head -6; exit 1
+}
+
+# Programs that must NOT compile: the errors are the language's main channel to whoever (or whatever) writes the code.
+# Every compile formats the program first (D190), and some of these are unformatted on purpose, so each is compiled
+# from a copy in the work folder, from where its paths read as they do here.
+job_diagnostic() {
+  local folder=$1 name flags actual expected
+  name=$(basename "$folder")
+  flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")
+  actual=$(cd "$work/unformatted" && "$repository/$work/generation_two.exe" "$folder" --run=false $flags 2>&1 >/dev/null | tr -d '\r')
+  expected=$(tr -d '\r' < "$folder/expected_errors.txt")
+  [ "$actual" == "$expected" ] && exit 0
+  echo "FAILED diagnostics: $name"; echo "$actual" | head -8; exit 1
+}
+
+# The benchmarks (benchmarks/README.md) are timed by hand with benchmarks/run.sh; here they only have to compile.
+job_benchmark() {
+  local folder=$1 name errors
+  name=$(basename "$folder")
+  # a program measured against C (benchmarks/versus_c/run.sh) brings its C twin, which has to compile too
+  if [ -f "$folder/twin.c" ]; then
+    errors=$("$CC_BIN" -fsyntax-only -w "$folder/twin.c" 2>&1) || {
+      echo "FAILED: the C twin of benchmark $name does not compile"; echo "$errors" | head -5; exit 1; }
+  fi
+  errors=$("$work/generation_two.exe" "$folder" --run=false --c-source --c-path="$work/benchmark_$name.c" 2>&1) || {
+    echo "FAILED: benchmark $name does not compile"; echo "$errors" | head -5; exit 1; }
+  errors=$("$CC_BIN" -fsyntax-only -w "$work/benchmark_$name.c" 2>&1) || {
+    echo "FAILED: the C of benchmark $name does not compile"; echo "$errors" | head -5; exit 1; }
+}
+
+# The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
+job_tests() {
+  local test_output test_balance
+  test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
+  if echo "$test_output" | grep -q "failed to check cache"; then
+    test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
+  fi
+  test_balance=$(echo "$test_output" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
+  if [ "$(echo "$test_output" | grep -vc '^allocations: ')" != "0" ] || [ -z "$test_balance" ] || [ "${test_balance% *}" != "${test_balance#* }" ]; then
+    echo "FAILED: tests"; echo "$test_output" | head -8; exit 1
+  fi
+}
+
+# The compiler is held to the corpus standard too: compiling itself, it frees everything it takes. The table that
+# counts is only in a --debug-memory build, so the compiler builds itself once more with it.
+job_compiler_memory() {
+  local self_leaks
+  "$work/generation_two.exe" bootstrap --run=false --debug-memory --executable --translation-units="$jobs" --executable-path="$work/generation_two_debug.exe" || {
+    echo "FAILED: the compiler does not build itself with --debug-memory"; exit 1; }
+  self_leaks=$("$work/generation_two_debug.exe" bootstrap --run=false 2>&1 > /dev/null | head -5)   # no output: compile only
+  if [ -n "$self_leaks" ]; then echo "FAILED: the compiler leaks while compiling itself"; echo "$self_leaks"; exit 1; fi
+}
+
+# Each operating system's folder in library/ reopens the classes it changes (D80). Only this machine's can run
+# here, so the others are held to compiling: the compiler writes itself out once for each, and so does each program
+# that asks the system for what the compiler never does (time zones, file watching, clocks, mapped files, sockets,
+# UDP and secure random numbers), since each system answers its own way.
+job_target() {
+  local system=$1 program=$2 name errors
+  name=$(basename "$program")
+  "$work/generation_two.exe" "$program" --run=false --c-source --c-path="$work/target_${system}_$name.c" --target-operating-system="$system" || {
+    echo "FAILED: $program does not compile with library/$system"; exit 1; }
+  errors=$("$CC_BIN" -fsyntax-only -w "$work/target_${system}_$name.c" 2>&1) || {
+    echo "FAILED: the C of $program written for library/$system does not compile"; echo "$errors" | head -5; exit 1; }
+}
+
+# A reload compiles only the classes of the changed files (docs/repl.md#how-it-works), from what the running
+# program's manifest says about the rest. SPITE_RELOAD_CHECK makes a reload of the file it names compile both
+# ways and compare what they write; a fast reload that differs from a whole compile is a bug. Every file of these
+# programs is checked, and two edits of hot_counter must fall back to a whole compile: a changed parameter list,
+# and a change that makes a function write another class's attribute (the call effects its callers were compiled
+# with change). Each copy sits as deep below the repository as a conformance program, so its comments' links resolve.
+fast_root="${work}_fast_reload"
+trap 'rm -rf "$work" "$fast_root"' EXIT
+mkdir -p "$work/fast_reload" "$fast_root"
+checked_port=$((20001 + $$ % 20000))   # written into each build; nothing listens on it, since nothing runs
+export fast_root checked_port
+job_fast_reload() {
+  local program=$1 name copy flags errors file answer checked=0
+  name=$(basename "$program"); copy="$fast_root/$name"
+  cp -r "$program" "$copy"
+  flags=""; [ -f "$copy/flags.txt" ] && flags=$(tr -d '\r\n' < "$copy/flags.txt")
+  errors=$("$work/generation_two.exe" "$copy" --executable --run=false --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/$name.exe" $flags 2>&1) || {
+    echo "FAILED fast reload: $name does not build with --hot-reload"; echo "$errors" | head -5; exit 1; }
+  local files=("$copy"/*.spite)
+  # a class two loaded folders declare is compiled from both, in load order, whichever of them changed
+  [ "$name" == "live_load_order" ] && files+=("$copy/base/monster.spite" "$copy/mod/monster.spite")
+  for file in "${files[@]}"; do
+    case "$(basename "$file")" in environment.spite|build.spite) continue ;; esac
+    answer=$(SPITE_RELOAD_CHECK="$file" "$work/generation_two.exe" reload "$copy" --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/$name.exe" $flags 2>&1 | tr -d '\r')
+    case "$answer" in
+      "reload check: the fast reload matches a whole compile"*) checked=$((checked + 1)) ;;
+      *) echo "FAILED fast reload: $name/$(basename "$file"): $answer" | head -c 600; echo; exit 1 ;;
+    esac
+  done
+  echo "$checked" > "$work/fast_reload/$name.checked"
+  [ "$name" == "hot_counter" ] || exit 0
+  cp "$copy/monster.spite" "$work/fast_reload/monster.spite"
+  sed -i 's/^func roar(): String {$/func roar(_loudness: Integer): String {/' "$copy/monster.spite"
+  sed -i 's/monster\.roar()/monster.roar(2)/' "$copy/hot_counter.spite"
+  fall_back "a function of a changed class has another parameter list or return type" "a new parameter"
+  cp "$work/fast_reload/monster.spite" "$copy/monster.spite"
+  sed -i 's/monster\.roar(2)/monster.roar()/' "$copy/hot_counter.spite"
+  sed -i 's/^func greeting(): String {$/func greeting(): String {\n    monster.name = "Orc"/' "$copy/hot_counter.spite"
+  fall_back "" "a function that writes another class's attribute"
+}
+fall_back() {
+  local answer
+  answer=$(SPITE_RELOAD_CHECK=1 "$work/generation_two.exe" reload "$fast_root/hot_counter" --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/hot_counter.exe" 2>&1 | tr -d '\r')
+  case "$answer" in
+    "reload check: whole $1"*) ;;
+    *) echo "FAILED fast reload: after $2 a reload answered: $answer" | head -c 600; echo; exit 1 ;;
+  esac
+}
+
+# --final-classes writes the program back out as Spite source. What it writes has to be a program:
+# printing a corpus program and running what came out must print the same thing. symbol_codegen proves the
+# functions Spite made from a template are printed as real functions (D61).
+job_final_classes() {
+  local printed_program=$1 printed_name printed printed_output
+  printed_name=$(basename "$printed_program")
+  printed="$work/final/$printed_name"   # a program is a folder named like its entry file (D89)
+  "$work/generation_two.exe" "$printed_program" --run=false --final-classes="$printed" > /dev/null 2>&1 || {
+    echo "FAILED: --final-classes could not write $printed_program out"; exit 1; }
+  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '\r' | grep -v '^allocations: ')
+  if [ "$printed_output" != "$(tr -d '\r' < "$printed_program/expected_output.txt")" ]; then
+    echo "FAILED: the printed $printed_name does not run like the one it was printed from"; echo "$printed_output" | head -6; exit 1
+  fi
+}
+
+# bin/spite passes a program's own arguments through untouched: Git for Windows' bash would rewrite ones that look
+# like POSIX paths (`/Game/Legacy/` into `C:/Program Files/Git/Game/Legacy/`) on their way to a Windows program.
+# The launcher builds .spite/spite.exe from the seed when that is missing or older, so this may be the longest job.
+job_launcher() {
+  local launched
+  launched=$(bin/spite conformance/stage6/launcher_arguments --executable-path="$work/launched.exe" -- --prefixes=/Game/Legacy/ /usr/share "a b" < /dev/null 2>&1 | tr -d '\r' | grep -v '^spite: building the compiler')
+  if [ "$launched" != "$(printf '[--prefixes=/Game/Legacy/]\n[/usr/share]\n[a b]')" ]; then
+    echo "FAILED: bin/spite changed the program's arguments after --"; echo "$launched" | head -5; exit 1
+  fi
+}
+
+run_job() {
+  local index=$1 kind=$2
+  shift 2
+  ( job_errors="$work/results/$index.errors"; "job_$kind" "$@" ) > "$work/results/$index.txt" 2>&1 < /dev/null
+  echo $? > "$work/results/$index.status"
+}
+
+# A program that calls a foreign library brings the library's C as fixture.c; it is built next to it here, as
+# fixture.dll on every platform, so the program can name one real file (D71); dlopen does not mind the name.
+for fixture in conformance/*/*/fixture.c; do
+  [ -f "$fixture" ] || continue
+  "$CC_BIN" -shared $position_independent -w "$fixture" -o "$(dirname "$fixture")/fixture.dll" > "$job_errors" 2>&1 || { echo "FAILED: could not build $fixture"; head -5 "$job_errors"; exit 1; }
 done
+rm -rf .spite/docs   # so a program deleted from docs/ stops being checked
+"$work/generation_two.exe" scripts/docs_corpus --executable-path="$work/docs_corpus.exe" > /dev/null || {
+  echo "FAILED: could not extract the documentation's programs"; exit 1; }
+mkdir -p "$work/unformatted" && cp -r diagnostics "$work/unformatted/"
+
+# The longest jobs come first, so the pool does not end waiting on one of them.
+{
+  echo generation_three
+  echo launcher
+  echo compiler_memory
+  for program in .spite/docs/hot_counter conformance/stage6/kept_templates conformance/stage6/items_columns                  conformance/stage6/class_argument conformance/stage6/json_symbols conformance/stage6/attribute_object                  conformance/stage6/foreign_callbacks conformance/stage6/waiting_systems conformance/stage6/allocator_choice                  examples/dungeon conformance/stage6/live_load_order; do
+    echo "fast_reload $program"
+  done
+  for system in windows linux mac; do
+    for program in bootstrap conformance/stage6/daylight_saving conformance/stage6/file_watching conformance/stage6/clock_reads \
+                   conformance/stage6/mapped_files conformance/stage6/socket_bytes conformance/stage6/socket_waits \
+                   conformance/stage6/datagrams conformance/stage6/hashes; do
+      echo "target $system $program"
+    done
+  done
+  echo tests
+  echo "final_classes conformance/stage3/interpolation"
+  echo "final_classes conformance/stage6/symbol_codegen"
+  for folder in conformance/*/*/ examples/*/; do echo "program $folder"; done   # the examples are held to the same standard as the corpus
+  for folder in .spite/docs/*/; do echo "documentation $folder"; done
+  for folder in benchmarks/*/ benchmarks/versus_c/*/; do
+    [ "$(basename "$folder")" == "versus_c" ] || echo "benchmark $folder"   # a suite of programs, each checked on its own
+  done
+  for folder in diagnostics/*/; do echo "diagnostic $folder"; done
+} | awk '{ print NR, $0 }' > "$work/jobs.txt"
+
+# Each job is started by a new bash, which reads the functions from a file: Windows refuses to start a process whose
+# environment is as large as these functions exported would make it.
+run_pool() {
+  rm -rf "$work/results"; mkdir -p "$work/results"
+  declare -f > "$work/functions.sh"
+  xargs -P "$jobs" -L 1 bash -c '. "$work/functions.sh"; run_job "$@"' run_job < "$work/jobs.txt"
+}
+
+# The report prints each job's output in the order of the job list, never in the order the jobs ended, and counts
+# the results of each kind; a job that left no exit code failed.
+report_pool() {
+  failures=0; passed=0; failed=0; documented=0; undocumented=0; checked=0; wrong=0; benchmarked=0
+  while read -r index kind rest; do
+    status=""; [ -f "$work/results/$index.status" ] && read -r status < "$work/results/$index.status"
+    [ -s "$work/results/$index.txt" ] && tr -d '\r' < "$work/results/$index.txt"
+    if [ "$status" != "0" ]; then
+      failures=$((failures+1))
+      [ -n "$status" ] || echo "FAILED: the job '$kind $rest' left no result"
+    fi
+    case "$kind" in
+      program) if [ "$status" == "0" ]; then passed=$((passed+1)); else failed=$((failed+1)); fi ;;
+      documentation) if [ "$status" == "0" ]; then documented=$((documented+1)); else undocumented=$((undocumented+1)); fi ;;
+      diagnostic) checked=$((checked+1)); [ "$status" == "0" ] || wrong=$((wrong+1)) ;;
+      benchmark) [ "$status" == "0" ] && benchmarked=$((benchmarked+1)) ;;
+    esac
+  done < "$work/jobs.txt"
+}
+
+echo "3/4 generation 2 compiles the compiler sources again (generation 3), while the programs are checked: must be byte identical"
+echo "4/4 conformance corpus, examples, documentation, diagnostics, benchmarks and tests with generation 2, $jobs at a time"
+run_pool
+generated=""; [ -f "$work/results/1.status" ] && read -r generated < "$work/results/1.status"
+if [ "$generated" == "0" ] && ! cmp -s "$work/generation_two.c" "$work/generation_three.c"; then
+  # A change to how the compiler compiles ITS OWN source needs one more generation to settle, and every program is
+  # checked again with the generation that settled.
+  echo "    generation 2 and 3 differ: trying one more generation"
+  compile_compiler "$work/generation_two.exe" "$work/generation_three.c" "$work/generation_three.exe" || exit 1
+  compile_compiler "$work/generation_three.exe" "$work/generation_four.c" || exit 1
+  if ! cmp -s "$work/generation_three.c" "$work/generation_four.c"; then echo "FAILED: no fixpoint, generation 3 and 4 still emit different C"; exit 1; fi
+  cp "$work/generation_three.c" "$work/generation_two.c"; cp "$work/generation_three.exe" "$work/generation_two.exe"
+  cp "$work/generation_two.exe" .spite/spite_development.exe
+  rm -rf "$work/unformatted" && mkdir -p "$work/unformatted" && cp -r diagnostics "$work/unformatted/"
+  rm -rf "$fast_root" && mkdir -p "$fast_root"   # the fast reloads copy their programs afresh
+  run_pool
+fi
+
+report_pool
 echo "conformance and examples: $passed passed, $failed failed"
-[ "$failed" == "0" ] || exit 1
+echo "documentation: $documented passed, $undocumented failed"
+echo "diagnostics: $checked checked, $wrong wrong"
+echo "benchmarks: $benchmarked compile"
+[ "$failures" == "0" ] || { echo "FAILED: $failures jobs failed"; exit 1; }
+echo "generation 3: byte identical to generation 2"
+echo "tests: passed"
+echo "compiler memory: compiling itself frees everything it takes"
+echo "fast reload: $(cat "$work/fast_reload/"*.checked | awk '{ sum += $1 } END { print sum }') files reloaded by compiling only their classes match a whole compile, and a changed signature or call effect compiles the whole program"
+echo "final classes: the printed program runs the same"
+echo "launcher: bin/spite passes the program's arguments after '--' as they were typed"
+echo "operating systems: the compiler, a time zone program, a file watching program, a clock program, a mapped file program, socket and UDP programs and a secure random program compile with the windows, linux and mac library folders"
+# Every compile formats first (D190) and the formatter deletes an empty line inside a function (D196), so compiling
+# diagnostics/blank_line above fixed its copy: the copy changed, and is now in the one style.
+if cmp -s "$work/unformatted/diagnostics/blank_line/blank_line.spite" diagnostics/blank_line/blank_line.spite \
+   || [ -n "$("$work/generation_two.exe" format --check "$work/unformatted/diagnostics/blank_line" 2>&1)" ]; then
+  echo "FAILED: compiling diagnostics/blank_line should have deleted the empty line inside its function"; exit 1
+fi
+echo "format: compiling deletes an empty line inside a function"
 
 # A program runs in the folder spite was run from, not the language's: the compiler finds library/ and launcher/
 # from its own executable, so a relative path the program opens is the caller's. With no --executable-path its
 # executable goes into that folder's .spite/ (D283): a program outside the folder into .spite/elsewhere/, one inside
 # it into .spite/build/<its path>/, and nothing is ever written beside the program's source.
+job_places() {
 repository=$(pwd)
 mkdir -p "$work/elsewhere/inside"
 echo "hello" > "$work/elsewhere/greeting.txt"
@@ -172,10 +462,12 @@ if [ "$(echo "$listed" | wc -l)" != "27" ] || [ "$(echo "$listed" | head -1)" !=
   echo "FAILED: the program's own errors are not listed first, with a loaded package's capped at 25"; echo "$listed" | head -3; echo "$listed" | tail -2; exit 1
 fi
 echo "error list: the program's own errors come first, and a broken package's are capped at 25"
+}
 
 # D38, D283: a load names a repository and a commit, 'load "../engine_repo@<commit>/engine"', and the ordinary compile
 # checks that commit's files out into the working folder's .spite/git/. The repository is a local one made here, so
 # no network is needed; its HEAD moves on after the pin, and the program must keep the pinned commit's code.
+job_git_load() {
 if command -v git > /dev/null 2>&1; then
   pinned_work="$work/git_load"
   engine_repository="$pinned_work/engine_repo"
@@ -183,7 +475,22 @@ if command -v git > /dev/null 2>&1; then
   commit_in() { git -C "$engine_repository" -c user.email=check@spite.invalid -c user.name=check -c commit.gpgsign=false commit -q "$@"; }
   git -C "$engine_repository" init -q
   printf 'func greeting(): String {\n    return "hello from the pinned commit"\n}\n' > "$engine_repository/engine/greeter.spite"
-  git -C "$engine_repository" add engine/greeter.spite && commit_in -m pinned
+  printf 'var names = List<String>()
+
+func longest(): String {
+    var best = ""
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if name.length() > best.length() {
+            best = name
+        }
+        index = index + 1
+    }
+    return best
+}
+' > "$engine_repository/engine/shelf.spite"
+  git -C "$engine_repository" add engine/greeter.spite engine/shelf.spite && commit_in -m pinned
   pinned=$(git -C "$engine_repository" rev-parse --short=7 HEAD)
   printf 'func greeting(): String {\n    return "hello from a later commit"\n}\n' > "$engine_repository/engine/greeter.spite"
   commit_in -am later
@@ -227,6 +534,12 @@ func told(): String {
     var greeter = Greeter()
     return greeter.greeting()
 }
+
+func stored(): String {
+    var shelf = Shelf()
+    shelf.names.append("the plugin shelf")
+    return shelf.longest()
+}
 ' "$later" > "$plugin_repository/plugin/plugin.spite"
   git -C "$plugin_repository" init -q && git -C "$plugin_repository" add plugin/plugin.spite     && git -C "$plugin_repository" -c user.email=check@spite.invalid -c user.name=check -c commit.gpgsign=false commit -q -m plugin
   plugin_commit=$(git -C "$plugin_repository" rev-parse --short=7 HEAD)
@@ -248,10 +561,32 @@ func TwoVersions() {
     return "the program modded its own version"
 }
 ' > "$pinned_work/two_versions/mods/greeter.spite"
-  two_versions=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" two_versions < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '')
+  two_versions=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" two_versions < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '\r')
   if [ "$two_versions" != "$(printf 'the program modded its own version
 hello from a later commit')" ]; then
     echo "FAILED: two commits of one repository are not two libraries, each read by the package that pinned it"; echo "$two_versions" | head -5; exit 1
+  fi
+  # A function both versions hold unchanged is folded into one, crash sites included (D296).
+  mkdir -p "$pinned_work/folded_versions"
+  printf 'var console = Console()
+
+func FoldedVersions() {
+    load "../engine_repo@%s/engine"
+    load "../plugin_repo@%s/plugin"
+    var shelf = Shelf()
+    shelf.names.append("the program shelf")
+    var own = shelf.longest()
+    console.print(own)
+    var plugin = Plugin()
+    var stored = plugin.stored()
+    console.print(stored)
+}
+' "$pinned" "$plugin_commit" > "$pinned_work/folded_versions/folded_versions.spite"
+  folded_versions=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" folded_versions --c-source --c-path=folded_versions.c < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '\r')
+  if [ "$folded_versions" != "$(printf 'the program shelf\nthe plugin shelf')" ] \
+     || [ "$(grep -c "^SpiteString engine_repo_[0-9a-f]*_Shelf_longest(.*) {$" "$pinned_work/folded_versions.c")" != 1 ] \
+     || ! grep -q "((__typeof__(&engine_repo_[0-9a-f]*_Shelf_longest))&engine_repo_[0-9a-f]*_Shelf_longest)(" "$pinned_work/folded_versions.c"; then
+    echo "FAILED: a function two versions of one repository hold unchanged is not folded into one"; echo "$folded_versions" | head -5; exit 1
   fi
   printf 'var console = Console()
 
@@ -263,7 +598,7 @@ func OnePackageTwoPins() {
     console.print(said)
 }
 ' "$pinned" "$later" > "$pinned_work/one_package_two_pins/one_package_two_pins.spite"
-  two_pins=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" one_package_two_pins < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '')
+  two_pins=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" one_package_two_pins < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '\r')
   [ "$two_pins" = "hello from a later commit" ] || {
     echo "FAILED: one package pinning two commits of one repository does not read them as two loads, the later reopening the earlier"; echo "$two_pins" | head -5; exit 1; }
   mkdir -p "$pinned_work/mixed_pins"
@@ -273,17 +608,19 @@ func OnePackageTwoPins() {
     load "../plugin_repo@%s/plugin"
 }
 ' "$pinned" "$later" "$plugin_commit" > "$pinned_work/mixed_pins/mixed_pins.spite"
-  mixed=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" mixed_pins --run=false 2>&1 | tr -d '')
+  mixed=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" mixed_pins --run=false 2>&1 | tr -d '\r')
   echo "$mixed" | grep -q "error: .* reads that commit as part of the version from $pinned: a commit's files are read once, into one version" || {
     echo "FAILED: a commit one package reads alone and another reads into its version is not an error naming both"; echo "$mixed" | head -5; exit 1; }
   echo "git load: two commits of one repository are two libraries, and one package's two commits are two loads in order"
 else
   echo "git load: SKIPPED, there is no git on the PATH to make a repository with"
 fi
+}
 
 # Every program above is built with --debug-memory, whose allocations go through a locked table. The thread pool is
 # also run the way a user runs it (`spite <program>`, compile and run, no flags) with runners started from a
 # stage, a singleton reached from the pool, a ThreadLocal and a Lock.
+job_units() {
 stages=conformance/stage6/parallel_stages
 plain=$("$work/generation_two.exe" "$stages" --executable-path="$work/parallel_stages_plain.exe" < /dev/null 2>&1 | tr -d '\r')
 if [ "$plain" != "$(tr -d '\r' < "$stages/expected_output.txt")" ]; then
@@ -314,10 +651,13 @@ if ! echo "$faulted" | grep -qE "^spite.fault	[a-z]+-violation	-	-	-	address=0x0
   echo "FAILED: native_fault_foreign built --optimized from four translation units"; echo "$faulted" | head -8; exit 1
 fi
 echo "native faults: an --optimized program built from four units reports its fault, its last foreign call and its frames"
+}
+
 # A class or namespace object is made once, on whichever thread asks first: threaded_class_objects has eight pool
 # threads ask for the same class objects at once, and a race shows up as a leak or a double free, so the build the
 # corpus made is run a few more times.
-threaded="$work/threaded_class_objects.exe"
+job_threads() {
+threaded="$work/conformance/stage6/threaded_class_objects.exe"
 for attempt in 1 2 3 4 5; do
   raced=$("$threaded" < /dev/null 2>&1 | tr -d '\r')
   if [ "$(echo "$raced" | grep -v '^allocations: ')" != "$(tr -d '\r' < conformance/stage6/threaded_class_objects/expected_output.txt)" ] \
@@ -360,8 +700,8 @@ func refuse(value: Integer) {
     assert value < 0
 }
 SPITE
-"$work/generation_two.exe" "$work/crash_while_asserting" --optimized --executable --run=false --executable-path="$work/crash_while_asserting.exe" > "$work/c_errors.txt" 2>&1 || {
-  echo "FAILED: could not build crash_while_asserting"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/generation_two.exe" "$work/crash_while_asserting" --optimized --executable --run=false --executable-path="$work/crash_while_asserting.exe" > "$job_errors" 2>&1 || {
+  echo "FAILED: could not build crash_while_asserting"; head -5 "$job_errors"; exit 1; }
 timeout 60 "$work/crash_while_asserting.exe" < /dev/null > "$work/crash_while_asserting.txt" 2>&1
 crashed=$?
 reported=$(tr -d '\r' < "$work/crash_while_asserting.txt")
@@ -371,14 +711,16 @@ if [ "$crashed" != "1" ] || [ "$(echo "$reported" | grep -c '^spite.crash	')" !=
   echo "FAILED: a crash while another thread fails asserts (exit $crashed, $(echo "$reported" | wc -l) lines)"; echo "$reported" | head -3; exit 1
 fi
 echo "crash reports: a crash while a pool thread keeps failing asserts reports the ring as it stood and exits"
+}
 
 # What a production build leaves out is only visible in its C (docs/optimizations.md): hello carries no struct,
 # allocate or singleton slot of a library class it never makes, and each singleton singleton_forms reaches from a
 # Parallel takes its cheapest safe form (atomics for a counter, nothing for one that never changes or that no
 # Parallel reaches), so no lock at all.
+job_production_c() {
 "$work/generation_two.exe" examples/hello --run=false --c-source --c-path="$work/hello_shaken.c" > /dev/null 2>&1 || {
   echo "FAILED: examples/hello does not write its C"; exit 1; }
-if grep -qE "struct (Watcher|Socket|Process|HotReload|ThreadPool|Scheduler|ForeignCallback) \{|(Watcher|Socket|ThreadPool|Scheduler)___allocate|spite_singleton_(ThreadPool|Scheduler)_cache|spite_callback_" "$work/hello_shaken.c"; then
+if grep -qE "struct (FileSystemWatcher|Socket|Process|HotReload|ThreadPool|Scheduler|ForeignCallback) \{|(FileSystemWatcher|Socket|ThreadPool|Scheduler)___allocate|spite_singleton_(ThreadPool|Scheduler)_cache|spite_callback_" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C still carries library classes it never uses"; exit 1
 fi
 # --debug-memory's table and the allocation counter are only in builds that read them (D177): hello allocates with
@@ -389,6 +731,16 @@ fi
 # Signed arithmetic is checked for overflow only in a --debug-memory or inspectable build: production is the plain operator.
 if grep -qE "__builtin_(add|sub|mul)_overflow|spite_overflowed" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C checks arithmetic for overflow in a production build"; exit 1
+fi
+# Identical functions are folded into one (D296): two instances of a generic over classes of the same layout keep
+# one function, called through a cast, and an instance over a class of another layout keeps its own.
+folded="$work/folded_functions.c"
+"$work/generation_two.exe" conformance/stage6/folded_functions --run=false --c-source --c-path="$folded" > /dev/null 2>&1 || {
+  echo "FAILED: folded_functions does not write its C"; exit 1; }
+if grep -q "^float Column__Velocity_total_across(.*) {" "$folded" || ! grep -q "^float Column__Position_total_across(Column__Position\* self) {" "$folded" \
+   || ! grep -q "((__typeof__(&Column__Velocity_total_across))&Column__Position_total_across)(self->velocities_)" "$folded" \
+   || ! grep -q "^float Column__Label_total_across(Column__Label\* self) {" "$folded"; then
+  echo "FAILED: folded_functions should fold Column<Velocity>.total_across into Column<Position>'s and keep Column<Label>'s"; exit 1
 fi
 # The maths functions are the C library's, and <math.h> is included only when one survives tree shaking (D177).
 if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then
@@ -525,7 +877,7 @@ echo "tagged values: a number, Boolean or enum value held as a type is tagged in
   echo "FAILED: counted_loops does not write its C"; exit 1; }
 if ! grep -qE "^spite_temp_[0-9]+\[index_\] = \(spite_temp_[0-9]+\[index_\] \* 2\.0\);$" "$work/counted.c" \
    || ! grep -qE "^if \(spite_temp_[0-9]+ <= spite_temp_[0-9]+\) \{$" "$work/counted.c" \
-   || [ "$(grep -c "^while (((index_ < List_Integer_count(values_)))) {$" "$work/counted.c")" != "2" ]; then
+   || [ "$(grep -cE "^while \(\(\(index_ < (List_Integer_count|\(\(__typeof__\(&List_Integer_count\)\)&[A-Za-z_]+_count\))\(values_\)\)\)\) \{$" "$work/counted.c")" != "2" ]; then
   echo "FAILED: counted_loops should read its plain lists without range checks, except in add_from and double_up"; exit 1
 fi
 echo "counted loops: a plain list's loop reads the count once and its items unchecked"
@@ -542,8 +894,8 @@ echo "live reload: every loaded folder is watched, and a loop's check point is o
 # A --hot-reload build keeps every function and, with a REPL, every member template that fits a reachable list:
 # kept_templates (run above with --development) must build that way too, its lists of Parallel and ThreadLocal
 # and its two unrelated dictionaries included (docs/collections.md#how-the-member-templates-are-written).
-"$work/generation_two.exe" conformance/stage6/kept_templates --executable --run=false --hot-reload --repl-port=4000 --executable-path="$work/kept_templates_hot.exe" > "$work/c_errors.txt" 2>&1 || {
-  echo "FAILED: kept_templates does not build with --hot-reload --repl-port"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/generation_two.exe" conformance/stage6/kept_templates --executable --run=false --hot-reload --repl-port=4000 --executable-path="$work/kept_templates_hot.exe" > "$job_errors" 2>&1 || {
+  echo "FAILED: kept_templates does not build with --hot-reload --repl-port"; head -5 "$job_errors"; exit 1; }
 echo "live reload: a build that keeps every function compiles the library's templates it keeps"
 # Maths on constants is worked out while compiling (docs/optimizations.md): every folded_ value in maths_folding is
 # a literal in its C, and the program itself holds each one to the bits the C library computes at run time.
@@ -554,105 +906,19 @@ if grep -E "(float|double) folded_[a-z_]*_ = " "$work/folding.c" | grep -v "_wid
   echo "FAILED: maths_folding's constant maths should be literals in its C"; exit 1
 fi
 echo "maths: a maths function of constants is a literal in the C"
-
-# The benchmarks (benchmarks/README.md) are timed by hand with benchmarks/run.sh; here they only have to compile.
-benchmarked=0
-for folder in benchmarks/*/ benchmarks/versus_c/*/; do
-  name=$(basename "$folder")
-  [ "$name" == "versus_c" ] && continue   # a suite of programs, each checked on its own
-  # a program measured against C (benchmarks/versus_c/run.sh) brings its C twin, which has to compile too
-  if [ -f "$folder/twin.c" ]; then
-    "$CC_BIN" -fsyntax-only -w "$folder/twin.c" 2> "$work/c_errors.txt" || {
-      echo "FAILED: the C twin of benchmark $name does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
-  fi
-  "$work/generation_two.exe" "$folder" --run=false --c-source --c-path="$work/benchmark_$name.c" > "$work/c_errors.txt" 2>&1 || {
-    echo "FAILED: benchmark $name does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
-  "$CC_BIN" -fsyntax-only -w "$work/benchmark_$name.c" 2> "$work/c_errors.txt" || {
-    echo "FAILED: the C of benchmark $name does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
-  benchmarked=$((benchmarked+1))
-done
-echo "benchmarks: $benchmarked compile"
-
-# The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
-test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
-if echo "$test_output" | grep -q "failed to check cache"; then
-  test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
-fi
-test_balance=$(echo "$test_output" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
-if [ "$(echo "$test_output" | grep -vc '^allocations: ')" != "0" ] || [ -z "$test_balance" ] || [ "${test_balance% *}" != "${test_balance#* }" ]; then
-  echo "FAILED: tests"; echo "$test_output" | head -8; exit 1
-fi
-echo "tests: passed"
-
-# The compiler is held to the corpus standard too: compiling itself, it frees everything it takes. The table that
-# counts is only in a --debug-memory build's C, so the compiler writes itself once more with it.
-"$work/generation_two.exe" bootstrap --run=false --c-source --debug-memory --c-path="$work/generation_two_debug.c" || { echo "FAILED: the compiler does not write itself with --debug-memory"; exit 1; }
-"$CC_BIN" -O1 -w "$work/generation_two_debug.c" -o "$work/generation_two_debug.exe" $maths_library 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }
-self_leaks=$("$work/generation_two_debug.exe" bootstrap --run=false 2>&1 > /dev/null | head -5)   # no output: compile only
-if [ -n "$self_leaks" ]; then echo "FAILED: the compiler leaks while compiling itself"; echo "$self_leaks"; exit 1; fi
-echo "compiler memory: compiling itself frees everything it takes"
-
-# Programs that must NOT compile: the errors are the language's main channel to whoever (or whatever) writes the code.
-# Every compile formats the program first (D190), and some of these are unformatted on purpose, so each is compiled
-# from a copy in the work folder, from where its paths read as they do here.
-mkdir -p "$work/unformatted" && cp -r diagnostics "$work/unformatted/"
-wrong=0; checked=0
-for folder in diagnostics/*/; do
-  name=$(basename "$folder")
-  flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")
-  actual=$(cd "$work/unformatted" && "$repository/$work/generation_two.exe" "$folder" --run=false $flags 2>&1 >/dev/null | tr -d '\r')
-  expected=$(tr -d '\r' < "$folder/expected_errors.txt")
-  checked=$((checked+1))
-  if [ "$actual" != "$expected" ]; then wrong=$((wrong+1)); echo "FAILED diagnostics: $name"; echo "$actual" | head -8; fi
-done
-echo "diagnostics: $checked checked, $wrong wrong"
-[ "$wrong" == "0" ] || exit 1
-# Every compile formats first (D190) and the formatter deletes an empty line inside a function (D196), so compiling
-# diagnostics/blank_line above fixed its copy: the copy changed, and is now in the one style.
-if cmp -s "$work/unformatted/diagnostics/blank_line/blank_line.spite" diagnostics/blank_line/blank_line.spite \
-   || [ -n "$("$work/generation_two.exe" format --check "$work/unformatted/diagnostics/blank_line" 2>&1)" ]; then
-  echo "FAILED: compiling diagnostics/blank_line should have deleted the empty line inside its function"; exit 1
-fi
-echo "format: compiling deletes an empty line inside a function"
-
-# Every program written in docs/ and README.md is a program: scripts/docs_corpus (itself Spite) writes each titled
-# code block out, and each one has to compile, run, print its ```output block and free everything it took.
-# A block marked `error` must fail to compile with its ```diagnostic text somewhere in the message.
-rm -rf .spite/docs   # so a program deleted from docs/ stops being checked
-"$work/generation_two.exe" scripts/docs_corpus --executable-path="$work/docs_corpus.exe" > /dev/null || {
-  echo "FAILED: could not extract the documentation's programs"; exit 1; }
-documented=0; undocumented=0
-for folder in .spite/docs/*/; do
-  name=$(basename "$folder")
-  flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")
-  if [ -f "$folder/must_fail.txt" ]; then
-    actual=$("$work/generation_two.exe" "$folder" --run=false $flags 2>&1 >/dev/null | tr -d '\r')
-    expected=$(tr -d '\r' < "$folder/expected_diagnostic.txt")
-    if [ -n "$actual" ] && [ "${actual#*$expected}" != "$actual" ]; then documented=$((documented+1))
-    else undocumented=$((undocumented+1)); echo "FAILED docs: $name wanted an error saying '$expected'"; echo "$actual" | head -4; fi
-    continue
-  fi
-  # a program that loads a repository pinned to a commit (docs/packages.md) says so the first time it fetches it
-  actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$work/docs_$name.exe" $flags < /dev/null 2>&1 | tr -d '\r' | grep -v '^fetched .* into ')
-  expected=$(tr -d '\r' < "$folder/expected_output.txt")
-  body=$(echo "$actual" | grep -v '^allocations: ')
-  balance=$(echo "$actual" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
-  if [ "$body" == "$expected" ] && [ -n "$balance" ] && [ "${balance% *}" == "${balance#* }" ]; then documented=$((documented+1))
-  else undocumented=$((undocumented+1)); echo "FAILED docs: $name"; echo "$actual" | head -6; fi
-done
-echo "documentation: $documented passed, $undocumented failed"
-[ "$undocumented" == "0" ] || exit 1
+}
 
 # A ```wire block in docs/ is a remote REPL session: its program runs with --repl-port, every
 # `$ spite connect <port> --command="..."` line is sent with the compiler's own client, and each answer must be
 # the JSON line written under it. The port comes from this run's process id, so two runs do not share one.
+job_wire() {
+port=$((port + 6))   # the live reload checks below take the five after this run's port, and the one after this
 sessions=0
 for wire in .spite/docs/*/wire.txt; do
   [ -f "$wire" ] || continue
   folder=$(dirname "$wire"); name=$(basename "$folder")
-  port=$((20000 + $$ % 20000))
-  "$work/generation_two.exe" "$folder" --executable --run=false --repl-port=$port --executable-path="$work/wire_$name.exe" > "$work/c_errors.txt" 2>&1 || {
-    echo "FAILED wire: $name does not build with --repl-port"; head -5 "$work/c_errors.txt"; exit 1; }
+  "$work/generation_two.exe" "$folder" --executable --run=false --repl-port=$port --executable-path="$work/wire_$name.exe" > "$job_errors" 2>&1 || {
+    echo "FAILED wire: $name does not build with --repl-port"; head -5 "$job_errors"; exit 1; }
   "$work/wire_$name.exe" > "$work/wire_$name.txt" 2>&1 < /dev/null &
   served=$!
   listening=false
@@ -681,17 +947,18 @@ for wire in .spite/docs/*/wire.txt; do
 done
 [ "$sessions" -gt 0 ] || { echo "FAILED wire: docs/ has no remote REPL session to replay"; exit 1; }
 echo "remote REPL: $sessions documented sessions answered exactly"
+}
 
 # Live reload (docs/repl.md): docs/'s hot_counter program runs with --hot-reload and --repl-port from a copy in the
 # work folder, which this step edits. An edit followed by `reload` must run the new code with the state set before
 # it, and an edit nobody reports must be picked up by the file watcher, rebuilding only its class. Every wait has a
 # timeout, and the program is killed if it outlives the session.
+job_hot_reload() {
 hot_folder="$work/hot_reload/hot_counter"
 [ -d .spite/docs/hot_counter ] || { echo "FAILED live reload: docs/repl.md has no hot_counter program"; exit 1; }
 mkdir -p "$work/hot_reload"; cp -r .spite/docs/hot_counter "$hot_folder"
-port=$((20000 + $$ % 20000))
-"$work/generation_two.exe" "$hot_folder" --executable --run=false --hot-reload --repl-port=$port --executable-path="$work/hot_reload/hot_counter.exe" > "$work/c_errors.txt" 2>&1 || {
-  echo "FAILED live reload: hot_counter does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/generation_two.exe" "$hot_folder" --executable --run=false --hot-reload --repl-port=$port --executable-path="$work/hot_reload/hot_counter.exe" > "$job_errors" 2>&1 || {
+  echo "FAILED live reload: hot_counter does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
 "$work/hot_reload/hot_counter.exe" > "$work/hot_reload/output.txt" 2>&1 < /dev/null &
 served=$!
 hot_fail() { kill $served 2>/dev/null; echo "FAILED live reload: $1"; head -5 "$work/hot_reload/output.txt"; exit 1; }
@@ -745,17 +1012,19 @@ for attempt in $(seq 1 50); do kill -0 $served 2>/dev/null || break; sleep 0.2; 
 kill -0 $served 2>/dev/null && hot_fail "the program kept running after exit"
 wait $served || hot_fail "the program ended with exit code $?"
 echo "live reload: an edited class was swapped in by reload and another by the watcher, keeping the program's state, and a new function answers at the prompt"
+}
 
 # A reload moves live objects to their class's new attributes (docs/repl.md#changing-a-classs-attributes): docs/'s
 # live_party program runs from a copy that this step edits. A kept attribute keeps its value, a new one holds its
 # default, a renamed one keeps its value, a removed one is released (in objects and in an Items' own memory), and
 # a reload after a move still swaps in a change to a body. Every wait has a timeout.
+job_moving_objects() {
 party_folder="$work/live_party/live_party"
 [ -d .spite/docs/live_party ] || { echo "FAILED moving objects: docs/repl.md has no live_party program"; exit 1; }
 mkdir -p "$work/live_party"; cp -r .spite/docs/live_party "$party_folder"
 party_port=$((port + 2))
-"$work/generation_two.exe" "$party_folder" --executable --run=false --hot-reload --repl-port=$party_port --executable-path="$work/live_party/live_party.exe" > "$work/c_errors.txt" 2>&1 || {
-  echo "FAILED moving objects: live_party does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/generation_two.exe" "$party_folder" --executable --run=false --hot-reload --repl-port=$party_port --executable-path="$work/live_party/live_party.exe" > "$job_errors" 2>&1 || {
+  echo "FAILED moving objects: live_party does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
 "$work/live_party/live_party.exe" > "$work/live_party/output.txt" 2>&1 < /dev/null &
 party=$!
 party_fail() { kill $party 2>/dev/null; echo "FAILED moving objects: $1"; head -5 "$work/live_party/output.txt"; exit 1; }
@@ -806,15 +1075,17 @@ case "$answer" in
   *) echo "FAILED moving objects: a fast reload against the baseline answered: $answer" | head -c 600; echo; exit 1 ;;
 esac
 echo "moving objects: a reload moved live objects and an Items' own memory to new attributes, keeping, renaming and releasing them, and a body edit after compiled only its class, matching a whole compile"
+}
 
 # An enum's values change live (docs/repl.md#what-a-reload-can-change): a copy of conformance/stage6/live_enum runs
 # with --hot-reload, gains a value before the others and loses one an attribute still holds. Every value keeps its
 # meaning, and a switch that meets the removed value halts naming it. Every wait has a timeout.
+job_live_enums() {
 enum_folder="$work/live_enum/live_enum"
 mkdir -p "$work/live_enum"; cp -r conformance/stage6/live_enum "$enum_folder"; rm -f "$enum_folder/expected_output.txt"
 enum_port=$((port + 3))
-"$work/generation_two.exe" "$enum_folder" --executable --run=false --hot-reload --repl-port=$enum_port --executable-path="$work/live_enum/live_enum.exe" > "$work/c_errors.txt" 2>&1 || {
-  echo "FAILED live enums: live_enum does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/generation_two.exe" "$enum_folder" --executable --run=false --hot-reload --repl-port=$enum_port --executable-path="$work/live_enum/live_enum.exe" > "$job_errors" 2>&1 || {
+  echo "FAILED live enums: live_enum does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
 "$work/live_enum/live_enum.exe" > "$work/live_enum/output.txt" 2>&1 < /dev/null &
 enum_program=$!
 enum_fail() { kill $enum_program 2>/dev/null; echo "FAILED live enums: $1"; head -5 "$work/live_enum/output.txt"; exit 1; }
@@ -850,17 +1121,19 @@ kill -0 $enum_program 2>/dev/null && enum_fail "a switch that met a removed valu
 wait $enum_program && enum_fail "a switch that met a removed value ended with exit code 0"
 grep -q "a switch over LiveEnum.Mood met the value 'angry', which a reload removed from it" "$work/live_enum/output.txt" || enum_fail "the halt did not name the removed value"
 echo "live enums: an enum gained and lost values while the program ran, every held value kept its meaning, a new class answered at the prompt, and a switch that met the removed value halted naming it"
+}
 
 # Settings and the standard library's classes change live (docs/repl.md#what-a-reload-can-change): a copy of
 # conformance/stage6/live_settings runs with --hot-reload and a setting on its command line that it does not declare
 # yet. A function the program adds to Integer changes, environment.spite gains that setting and a new default, and
 # build.spite a new default; each is swapped in, and the new setting is read from the command line. Every wait is a
 # wait_reload with a timeout.
+job_live_settings() {
 settings_folder="$work/live_settings/live_settings"
 mkdir -p "$work/live_settings"; cp -r conformance/stage6/live_settings "$settings_folder"; rm -f "$settings_folder/expected_output.txt"
 settings_port=$((port + 5))
-"$work/generation_two.exe" "$settings_folder" --executable --run=false --hot-reload --repl-port=$settings_port --executable-path="$work/live_settings/live_settings.exe" > "$work/c_errors.txt" 2>&1 || {
-  echo "FAILED live settings: live_settings does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/generation_two.exe" "$settings_folder" --executable --run=false --hot-reload --repl-port=$settings_port --executable-path="$work/live_settings/live_settings.exe" > "$job_errors" 2>&1 || {
+  echo "FAILED live settings: live_settings does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
 "$work/live_settings/live_settings.exe" --volume=7 > "$work/live_settings/output.txt" 2>&1 < /dev/null &
 settings_program=$!
 settings_fail() { kill $settings_program 2>/dev/null; echo "FAILED live settings: $1"; head -5 "$work/live_settings/output.txt"; exit 1; }
@@ -895,10 +1168,69 @@ for attempt in $(seq 1 50); do kill -0 $settings_program 2>/dev/null || break; s
 kill -0 $settings_program 2>/dev/null && settings_fail "the program kept running after exit"
 wait $settings_program || settings_fail "the program ended with exit code $?"
 echo "live settings: a function added to Integer, a new setting read from the command line, a setting's default and a Build field's default were swapped in while the program ran"
+}
+
+# A reload keeps load order (docs/repl.md#what-a-reload-can-change): a copy of conformance/stage6/live_load_order
+# loads two folders, and the later one reopens Monster, replacing a function, an attribute's default and the
+# constructor. Editing what the later load replaces changes nothing, editing the replacement goes live, deleting it
+# brings the earlier declaration back, and a replacement added while the program runs goes live; the same with the
+# whole overriding file. A Build field the program's own build.spite declares stays the program's. Every wait has a
+# timeout.
+job_load_order() {
+order_folder="$work/live_load_order/live_load_order"
+mkdir -p "$work/live_load_order"; cp -r conformance/stage6/live_load_order "$order_folder"; rm -f "$order_folder/expected_output.txt"
+order_port=$((port + 7))
+"$work/generation_two.exe" "$order_folder" --executable --run=false --hot-reload --repl-port=$order_port --executable-path="$work/live_load_order/live_load_order.exe" > "$job_errors" 2>&1 || {
+  echo "FAILED load order: live_load_order does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
+"$work/live_load_order/live_load_order.exe" > "$work/live_load_order/output.txt" 2>&1 < /dev/null &
+order_program=$!
+order_fail() { kill $order_program 2>/dev/null; echo "FAILED load order: $1"; head -5 "$work/live_load_order/output.txt"; exit 1; }
+order_ask() { timeout 120 "$work/generation_two.exe" connect $order_port --command="$1" 2>&1 | tr -d '\r'; }
+order_seen() {   # $1: what the reload did, $2: what the reload must answer, $3: what check() must answer after it
+  local answer; answer=$(order_ask wait_reload)
+  case "$answer" in *'"ok":true'*"$2"*) ;; *) order_fail "after $1 a reload answered $answer, without $2" ;; esac
+  answer=$(order_ask 'check()')
+  [ "$answer" == "{\"ok\":true,\"value\":\"$3\",\"type\":\"String\"}" ] || order_fail "after $1 check() answered $answer, not $3"
+}
+order_file_seen() {   # a new or deleted file: reload compiles it unless the watcher already has, then as order_seen
+  case "$(order_ask reload)" in *'"ok":true'*) ;; *) order_fail "a reload after $1 failed" ;; esac
+  order_seen "$@"
+}
+listening=false
+for attempt in $(seq 1 100); do
+  timeout 10 "$work/generation_two.exe" connect $order_port --command=help > /dev/null 2>&1 && { listening=true; break; }
+  kill -0 $order_program 2>/dev/null || break
+  sleep 0.2
+done
+$listening || order_fail "the program never listened on $order_port"
+sed -i 's/base tone/base tone again/' "$order_folder/base/build.spite"
+order_seen "editing a Build field the program declares too" "no code the program runs changed, so nothing was rebuilt" "mod describes, base taunts, mod made, 5, program tone"
+sed -i 's/program tone/program tone again/' "$order_folder/build.spite"
+order_seen "editing the program's Build field" "rebuilt Build" "mod describes, base taunts, mod made, 5, program tone again"
+rm "$order_folder/build.spite"
+order_file_seen "deleting the program's build.spite" "rebuilt Build" "mod describes, base taunts, mod made, 5, base tone again"
+base="$order_folder/base/monster.spite"; mod="$order_folder/mod/monster.spite"
+sed -i 's/base describes/base describes again/; s/^var level = 1$/var level = 2/; s/base made/base built/' "$base"
+order_seen "editing what the later load replaces" "rebuilt Monster" "mod describes, base taunts, mod made, 5, base tone again"
+sed -i 's/mod describes/mod describes again/; s/^var level = 5$/var level = 6/; s/mod made/mod built/' "$mod"
+order_seen "editing the replacements" "rebuilt Monster" "mod describes again, base taunts, mod built, 6, base tone again"
+printf 'func taunt(): String {\n    return "mod taunts"\n}\n' > "$mod"
+order_seen "deleting the replacements and adding one" "rebuilt Monster" "base describes again, mod taunts, base built, 2, base tone again"
+rm "$mod"
+order_file_seen "deleting the overriding file" "rebuilt Monster" "base describes again, base taunts, base built, 2, base tone again"
+printf 'func describe(): String {\n    return "mod describes anew"\n}\n' > "$mod"
+order_file_seen "adding an overriding file" "rebuilt Monster" "mod describes anew, base taunts, base built, 2, base tone again"
+order_ask exit > /dev/null
+for attempt in $(seq 1 50); do kill -0 $order_program 2>/dev/null || break; sleep 0.2; done
+kill -0 $order_program 2>/dev/null && order_fail "the program kept running after exit"
+wait $order_program || order_fail "the program ended with exit code $?"
+echo "load order: a reload kept the later load's function, attribute and constructor over edits to the earlier ones, swapped in edits to them, brought the earlier ones back when they or their file were deleted, and kept the program's own Build field"
+}
 
 # Breakpoints (docs/repl.md#breakpoints): a program that ticks in a loop runs with --hot-reload and --repl-port; a
 # breakpoint is compiled into it, the loop stops there with its locals readable, goes on, and the breakpoint is
 # cleared again. A prompt call that meets a breakpoint answers that it stopped. Every wait has a timeout.
+job_breakpoints() {
 break_folder="$work/live_break/ticker"
 mkdir -p "$break_folder"
 cat > "$break_folder/ticker.spite" <<'SPITE'
@@ -921,8 +1253,8 @@ func tick(amount: Integer) {
 }
 SPITE
 break_port=$((port + 4))
-"$work/generation_two.exe" "$break_folder" --executable --run=false --hot-reload --repl-port=$break_port --executable-path="$work/live_break/ticker.exe" > "$work/c_errors.txt" 2>&1 || {
-  echo "FAILED breakpoints: the ticker does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/generation_two.exe" "$break_folder" --executable --run=false --hot-reload --repl-port=$break_port --executable-path="$work/live_break/ticker.exe" > "$job_errors" 2>&1 || {
+  echo "FAILED breakpoints: the ticker does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
 "$work/live_break/ticker.exe" > "$work/live_break/output.txt" 2>&1 < /dev/null &
 ticker=$!
 break_fail() { kill $ticker 2>/dev/null; echo "FAILED breakpoints: $1"; head -5 "$work/live_break/output.txt"; exit 1; }
@@ -966,115 +1298,12 @@ for attempt in $(seq 1 50); do kill -0 $ticker 2>/dev/null || break; sleep 0.2; 
 kill -0 $ticker 2>/dev/null && break_fail "the program kept running after exit"
 wait $ticker || break_fail "the program ended with exit code $?"
 echo "breakpoints: a breakpoint compiled into a running loop stopped it with its locals readable, it went on once cleared, and code typed at the prompt ran in the program"
-
-# A reload compiles only the classes of the changed files (docs/repl.md#how-it-works), from what the running
-# program's manifest says about the rest. SPITE_RELOAD_CHECK makes a reload of the file it names compile both
-# ways and compare what they write; a fast reload that differs from a whole compile is a bug. Every file of these
-# programs is checked, and two edits must fall back to a whole compile: a changed parameter list, and a change
-# that makes a function write another class's attribute (the call effects its callers were compiled with change).
-checked_port=$((port + 1))
-fast_checked=0
-# Each copy sits as deep below the repository as a conformance program, so its comments' links resolve.
-fast_root="${work}_fast_reload"
-trap 'rm -rf "$work" "$fast_root"' EXIT
-mkdir -p "$work/fast_reload" "$fast_root"
-for program in .spite/docs/hot_counter conformance/stage6/kept_templates conformance/stage6/items_columns \
-               conformance/stage6/class_argument conformance/stage6/json_symbols conformance/stage6/attribute_object \
-               conformance/stage6/foreign_callbacks conformance/stage6/waiting_systems conformance/stage6/allocator_choice \
-               examples/dungeon; do
-  name=$(basename "$program"); copy="$fast_root/$name"
-  cp -r "$program" "$copy"
-  flags=""; [ -f "$copy/flags.txt" ] && flags=$(tr -d '\r\n' < "$copy/flags.txt")
-  "$work/generation_two.exe" "$copy" --executable --run=false --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/$name.exe" $flags > "$work/c_errors.txt" 2>&1 || {
-    echo "FAILED fast reload: $name does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
-  for file in "$copy"/*.spite; do
-    case "$(basename "$file")" in environment.spite|build.spite) continue ;; esac
-    answer=$(SPITE_RELOAD_CHECK="$file" "$work/generation_two.exe" reload "$copy" --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/$name.exe" $flags 2>&1 | tr -d '\r')
-    case "$answer" in
-      "reload check: the fast reload matches a whole compile"*) fast_checked=$((fast_checked + 1)) ;;
-      *) echo "FAILED fast reload: $name/$(basename "$file"): $answer" | head -c 600; echo; exit 1 ;;
-    esac
-  done
-done
-hot_copy="$fast_root/hot_counter"
-fall_back() {
-  local answer
-  answer=$(SPITE_RELOAD_CHECK=1 "$work/generation_two.exe" reload "$hot_copy" --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/hot_counter.exe" 2>&1 | tr -d '\r')
-  case "$answer" in
-    "reload check: whole $1"*) ;;
-    *) echo "FAILED fast reload: after $2 a reload answered: $answer" | head -c 600; echo; exit 1 ;;
-  esac
 }
-cp "$hot_copy/monster.spite" "$work/fast_reload/monster.spite"
-sed -i 's/^func roar(): String {$/func roar(_loudness: Integer): String {/' "$hot_copy/monster.spite"
-sed -i 's/monster\.roar()/monster.roar(2)/' "$hot_copy/hot_counter.spite"
-fall_back "a function of a changed class has another parameter list or return type" "a new parameter"
-cp "$work/fast_reload/monster.spite" "$hot_copy/monster.spite"
-sed -i 's/monster\.roar(2)/monster.roar()/' "$hot_copy/hot_counter.spite"
-sed -i 's/^func greeting(): String {$/func greeting(): String {\n    monster.name = "Orc"/' "$hot_copy/hot_counter.spite"
-fall_back "" "a function that writes another class's attribute"
-echo "fast reload: $fast_checked files reloaded by compiling only their classes match a whole compile, and a changed signature or call effect compiles the whole program"
-
-# --final-classes writes the program back out as Spite source. What it writes has to be a program:
-# printing a corpus program and running what came out must print the same thing. symbol_codegen proves the
-# functions Spite made from a template are printed as real functions (D61).
-for printed_program in conformance/stage3/interpolation conformance/stage6/symbol_codegen; do
-  printed_name=$(basename "$printed_program")
-  printed="$work/final/$printed_name"   # a program is a folder named like its entry file (D89)
-  "$work/generation_two.exe" "$printed_program" --run=false --final-classes="$printed" > /dev/null 2>&1 || {
-    echo "FAILED: --final-classes could not write $printed_program out"; exit 1; }
-  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '' | grep -v '^allocations: ')
-  if [ "$printed_output" != "$(tr -d '' < "$printed_program/expected_output.txt")" ]; then
-    echo "FAILED: the printed $printed_name does not run like the one it was printed from"; echo "$printed_output" | head -6; exit 1
-  fi
-done
-echo "final classes: the printed program runs the same"
-
-# Each operating system's folder in library/ reopens the classes it changes (D80). Only this machine's can run
-# here, so the others are held to compiling: the compiler writes itself out once for each.
-for operating_system in windows linux mac; do
-  "$work/generation_two.exe" bootstrap --run=false --c-source --c-path="$work/compiler_$operating_system.c" --target-operating-system=$operating_system || {
-    echo "FAILED: the compiler does not compile with library/$operating_system"; exit 1; }
-  "$CC_BIN" -fsyntax-only -w "$work/compiler_$operating_system.c" 2> "$work/c_errors.txt" || {
-    echo "FAILED: the C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
-  # The compiler names no time zone, so a program that does is written out too: each system reads zones its own way.
-  "$work/generation_two.exe" conformance/stage6/daylight_saving --run=false --c-source --c-path="$work/zones_$operating_system.c" --target-operating-system=$operating_system || {
-    echo "FAILED: time zones do not compile with library/$operating_system"; exit 1; }
-  "$CC_BIN" -fsyntax-only -w "$work/zones_$operating_system.c" 2> "$work/c_errors.txt" || {
-    echo "FAILED: the time zone C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
-  # The compiler never watches files, so a program that does is written out too: each system asks its own kernel.
-  "$work/generation_two.exe" conformance/stage6/file_watching --run=false --c-source --c-path="$work/watching_$operating_system.c" --target-operating-system=$operating_system || {
-    echo "FAILED: Watcher does not compile with library/$operating_system"; exit 1; }
-  "$CC_BIN" -fsyntax-only -w "$work/watching_$operating_system.c" 2> "$work/c_errors.txt" || {
-    echo "FAILED: the Watcher C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
-  # Clock readings and mapped files ask each kernel their own way.
-  for system_program in clock_reads mapped_files; do
-    "$work/generation_two.exe" conformance/stage6/$system_program --run=false --c-source --c-path="$work/${system_program}_$operating_system.c" --target-operating-system=$operating_system || {
-      echo "FAILED: $system_program does not compile with library/$operating_system"; exit 1; }
-    "$CC_BIN" -fsyntax-only -w "$work/${system_program}_$operating_system.c" 2> "$work/c_errors.txt" || {
-      echo "FAILED: the C of $system_program written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
-  done
-  # The compiler only talks lines on 127.0.0.1, so programs that resolve names and move bytes, waiting and not, are too.
-  for socket_program in socket_bytes socket_waits datagrams hashes; do
-    "$work/generation_two.exe" conformance/stage6/$socket_program --run=false --c-source --c-path="$work/${socket_program}_$operating_system.c" --target-operating-system=$operating_system || {
-      echo "FAILED: $socket_program does not compile with library/$operating_system"; exit 1; }
-    "$CC_BIN" -fsyntax-only -w "$work/${socket_program}_$operating_system.c" 2> "$work/c_errors.txt" || {
-      echo "FAILED: the C of $socket_program written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
-  done
-done
-echo "operating systems: the compiler, a time zone program, a file watching program, a clock program, a mapped file program, socket and UDP programs and a secure random program compile with the windows, linux and mac library folders"
-
-# bin/spite passes a program's own arguments through untouched: Git for Windows' bash would rewrite ones that look
-# like POSIX paths (`/Game/Legacy/` into `C:/Program Files/Git/Game/Legacy/`) on their way to a Windows program.
-launched=$(bin/spite conformance/stage6/launcher_arguments --executable-path="$work/launched.exe" -- --prefixes=/Game/Legacy/ /usr/share "a b" < /dev/null 2>&1 | tr -d '\r' | grep -v '^spite: building the compiler')
-if [ "$launched" != "$(printf '[--prefixes=/Game/Legacy/]\n[/usr/share]\n[a b]')" ]; then
-  echo "FAILED: bin/spite changed the program's arguments after --"; echo "$launched" | head -5; exit 1
-fi
-echo "launcher: bin/spite passes the program's arguments after '--' as they were typed"
 
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would
 # change and fails; a docs/ program that must fail may be wrong on purpose, formatting included.
+job_formatting() {
 formatted_folders=(bootstrap launcher library tests conformance examples scripts benchmarks)
 for folder in .spite/docs/*/; do
   [ -f "$folder/must_fail.txt" ] || formatted_folders+=("$folder")
@@ -1082,6 +1311,31 @@ done
 unformatted=$("$work/generation_two.exe" format --check "${formatted_folders[@]}" 2>&1 | tr -d '\r')
 if [ -n "$unformatted" ]; then echo "FAILED: not formatted (run: bin/spite format <path>):"; echo "$unformatted"; exit 1; fi
 echo "formatting: every file is in the one style"
+}
+
+# These checks need only generation 2 and the corpus's executables, and they are a second pool, run once the first
+# has ended: several of them start a program and talk to it within a timeout, which a machine busy with the first
+# pool could miss. Each takes its own ports, from this run's process id.
+port=$((20000 + $$ % 20000))
+export port
+{
+  echo places
+  echo git_load
+  echo units
+  echo threads
+  echo production_c
+  echo wire
+  echo hot_reload
+  echo moving_objects
+  echo live_enums
+  echo live_settings
+  echo load_order
+  echo breakpoints
+  echo formatting
+} | awk '{ print NR, $0 }' > "$work/jobs.txt"
+run_pool
+report_pool
+[ "$failures" == "0" ] || { echo "FAILED: $failures checks failed"; exit 1; }
 
 if cmp -s "$work/generation_two.c" bootstrap/seed/spite_compiler.c; then
   echo "OK: fixpoint holds and the committed seed is current"

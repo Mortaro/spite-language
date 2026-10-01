@@ -17,7 +17,7 @@ in [section 8](#8-what-mortaro-settled-on-the-first-review); the rest is propose
 | `get_<attribute>`/`set_<attribute>`, `to_<type>()` (D311) | **stay** | same reason |
 | The plural walk, `show_attributes(label, lines)` | **goes**: `label.attributes.each(...)` / `.map(...)` | a loop in disguise; nobody ever calls the singular by name |
 | `Symbol<$T.run_each>` over a function's arguments (D114) | **goes**: `$T.functions['run_each'].arguments` | the arguments are a list on a `Spite.Function` |
-| `Symbol<$T.phase_each>` name patterns and holes (D116, D180) | **goes**: `$T.functions.filter_ends_with("_each")` | selection by filter; a name is never built from text |
+| `Symbol<$T.phase_each>` name patterns and holes (D116, D180) | **goes**: `$T.functions.filter_name_ends_with("_each")` | selection by filter; a name is never built from text |
 | `Symbol<System>`, every folder named `system` (D115) | **goes**: an explicit filter over `Spite.Namespace.instances`, then `namespace.classes` | a folder is a namespace, not IO |
 | `Symbol<Spite.Class>` (D287) | **goes**: `Spite.Class.instances` (D49, already there) | two spellings of one list |
 | `Symbol<Phase>` over an enum's values | **goes**: `Phase.values` | a list |
@@ -103,11 +103,11 @@ get-only attribute, and that their collections are ordinary lists.
 reflection objects keys by `.name`), `count()`, `each`, `map`, `filter`, and every member template:
 `Monster.attributes.map_names()`, `Shop.classes.filter_is_singleton()`, `namespace.classes.map_names()`.
 
-**A reflection object answers its name's text functions.** Its `.name` is a `Symbol`, which answers every `String`
-function (D68), and the object itself does too wherever it has no member of that name, so
-`functions.filter_ends_with("_each")` keeps the functions whose names end in `_each`. For that, the member templates
-pass their call's arguments on to a member function that takes them (`filter_ends_with("_each")` calls
-`ends_with("_each")` on each element); D15 allowed only members with no arguments.
+**A member template chains through a member's own function** (D318, decided by Mortaro). `filter_<member>_<function>(arguments)`
+keeps the items whose `member` answers `function(arguments)`: `functions.filter_name_ends_with("_each")` keeps the
+functions whose `name` ends in `_each`, because a name answers every `String` function (D68). Nothing in it is special
+to reflection: `players.filter_name_starts_with("a")` works on any list of any class the same way. A reflection
+object does not answer its name's text functions itself.
 
 **Names are selected, never built.** A symbol is not a string: `functions["{phase}_each"]` would turn a symbol into
 text and back, so it is not proposed. `[]` takes a name written in the code (`functions['run_each']`); everything
@@ -170,7 +170,7 @@ A reflection object is a **constant** when the compiler knows which one it is:
 1. a class or namespace named in the code, `$T`, `class` and `namespace`, an enum's value named in the code;
 2. `value.class` when `value`'s declared type is a class (not a `type` or a union);
 3. any member of a constant (`Monster.functions['alive']`, `.namespace`, `.arguments[0]`), `[]` with a name written
-   in the code, and a text function answered by a constant's name (`function.ends_with("_each")`);
+   in the code, and a text function answered by a constant's name (`function.name.ends_with("_each")`);
 4. every element of a constant list (`.attributes`, `.classes`, `Spite.Class.instances`, `Phase.values`, and a
    `filter`, `map` or member template applied to one);
 5. **a parameter of a reflection type (`Spite.Class`, `Spite.Attribute`, `Spite.Function`, `Spite.Argument`,
@@ -397,7 +397,7 @@ func prepare_argument(argument: Symbol<$system_type.phase_each>) {
 After:
 
 ```gdscript
-var placing = $system_type.functions.filter_ends_with("_each")
+var placing = $system_type.functions.filter_name_ends_with("_each")
 placing.each(place)
 
 func place(function: Spite.Function) {
@@ -415,7 +415,7 @@ func prepare(argument: Spite.Argument) {
 
 The pattern hole and its enum rule (D180) are gone, and so is the member that changed meaning inside a pattern
 template (item 100): the runner selects the functions that end in `_each` and asks the enum which value the rest of
-the name is. Every step folds (`filter_ends_with` over constant names, `without_suffix` on a constant name, and
+the name is. Every step folds (`filter_name_ends_with` over constant names, `without_suffix` on a constant name, and
 `find_by_name` over `Phase.values`), so a `count_each` that names no phase is skipped while compiling, as today.
 Running is the same selection: `function.is_resumable` replaces `function_waits("<phase>_each")`,
 `function.arguments.count()` replaces `phase.argument_count()`, and `function.call_with(...)` replaces
@@ -544,7 +544,7 @@ same function called from the REPL on an `Anything` still writes JSON, through t
 3. **`function.call_with(arguments.map(made))` is accepted** for spreading a walk into one call (item 98).
 4. **"Every folder named X, at any depth" is an explicit filter** over `Spite.Namespace.instances`.
 5. **No names built by interpolation**: a symbol is not a string. Selection is by filter over the names that exist,
-   `functions.filter_ends_with("_each")`.
+   `functions.filter_name_ends_with("_each")`.
 6. **Member templates that answer a collection take the member in the plural** (`classes.map_names()`), with a
    Rails-like `pluralize`/`singularize` in `String` ([section 5](#5-plural-member-templates)).
 7. **Every reflection question is named for what it answers** (`function.waits()` was unclear;
@@ -614,5 +614,5 @@ Mechanical once the compiler accepts both forms.
    as above, or should the override move off names (a function taking the attribute, `json_key(attribute)`)?
 2. **Predicates in the plural rule.** `monsters.map_is_alive()` keeps the predicate's name, as proposed, or is
    `map_` over a predicate an error pointing at `filter_`/`count_`?
-3. **Reflection objects answering their name's text functions** (`functions.filter_ends_with("_each")`), with
-   member templates passing arguments on. Or keep the element strict and write `filter_name_ends_with("_each")`?
+3. ~~Reflection objects answering their name's text functions~~: answered by Mortaro (D318). They do not; the
+   member template chains through the member instead, `functions.filter_name_ends_with("_each")`.

@@ -4,9 +4,9 @@ func MathsPrecision() {
     var narrow: Float = 2.0
     var wide: Double = 2.0
     console.print("square_root of 2: Float {narrow.square_root()}, Double {wide.square_root()}")
-    console.print("pi: Float {Float.pi()}, Double {Double.pi()}")
-    var float_sine = Float.pi().sine()
-    var double_sine = Double.pi().sine()
+    console.print("pi: Float {Float.pi}, Double {Double.pi}")
+    var float_sine = Float.pi.sine()
+    var double_sine = Double.pi.sine()
     var float_error = float_sine.absolute()
     var double_error = double_sine.absolute()
     console.print(
@@ -21,7 +21,7 @@ func MathsPrecision() {
     var double_power = wide.power(100.0)
     var float_huge = narrow.power(200.0)
     console.print("2^100: Float {float_power}, Double {double_power}; 2^200 overflows a Float: {float_huge}")
-    var widened: Double = Float.pi()
+    var widened: Double = Float.pi
     console.print("Float pi widened to a Double: {widened}")
     var float_tenth: Float = 0.1
     var double_tenth: Double = 0.1

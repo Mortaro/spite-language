@@ -227,10 +227,11 @@ have `absolute()`, `minimum(other)`, `maximum(other)` and `clamp(low, high)`. Ea
 library's function written where it is called (`sqrtf` on a `Float`, `sqrt` on a `Double`), with no call of
 Spite's own around it.
 
-A number class also answers its constants on the class itself, `Float.pi()`, since they belong to no one value:
-`pi()`, `tau()`, `euler_number()`, `infinity()`, `not_a_number()`, `largest()` and `smallest()` on `Float` and `Double`, and
-`largest()` and `smallest()` on every whole number. `Integer.largest()` is 2147483647 and `Float.smallest()` the
-most negative `Float` there is.
+A number class also answers its constants on the class itself, `Float.pi`, since they belong to no one value:
+`pi`, `tau`, `euler_number`, `infinity`, `not_a_number`, `largest` and `smallest` on `Float` and `Double`, and
+`largest` and `smallest` on every whole number. `Integer.largest` is 2147483647 and `Float.smallest` the
+most negative `Float` there is. A constant is a get-only attribute of the class: it is read without parentheses,
+and nothing can assign it.
 
 ```gdscript title=maths_basics/maths_basics.spite entry
 var console = Console()
@@ -238,7 +239,7 @@ var console = Console()
 func MathsBasics() {
     var side: Double = 2.0
     var diagonal = side.square_root()
-    console.print("{diagonal} {Float.pi()} {Double.pi()}")
+    console.print("{diagonal} {Float.pi} {Double.pi}")
     var speed = 7.5
     var capped = speed.clamp(0.0, 5.0)
     var ahead = speed.round()
@@ -246,7 +247,7 @@ func MathsBasics() {
     console.print("{capped} {ahead} {behind.round()} {behind.floor()} {behind.absolute()}")
     var negative = -1.0
     var root = negative.square_root()
-    console.print("{root} {root.is_not_a_number()} {Integer.largest()}")
+    console.print("{root} {root.is_not_a_number()} {Integer.largest}")
 }
 ```
 ```output
@@ -258,6 +259,99 @@ nan true 2147483647
 As with `/` on a float, nothing here halts: the square root of `-1` is not-a-number and the logarithm of
 `0` is minus infinity, the IEEE answers. What each function answers at its edges is
 [standard_library.md](standard_library.md#maths)'s.
+
+### Every number fits `Number`
+
+The library declares `type Number` once (`library/number.spite`), a [shape](#inline-types-and-duck-typing) that
+every number class fits: `Tiny`, `Short`, `Integer`, `Long`, `Byte`, `UnsignedShort`, `UnsignedInteger`,
+`UnsignedLong`, `Float` and `Double`. `Boolean` and `Memory.Address` do not. It is what every number has in
+common, and nothing more:
+
+```gdscript
+type Number {
+    sum(Number): Number
+    subtract(Number): Number
+    multiply(Number): Number
+    divide(Number): Number
+    less_than(Number): Boolean
+    greater_than(Number): Boolean
+    to_long(): Long
+    to_double(): Double
+}
+```
+
+The first six are the operators `+`, `-`, `*`, `/`, `<` and `>` (with `<=` and `>=`), and `Number` in them
+stands for the class that fits: an `Integer` adds an `Integer` and answers one. The last two are conversions every
+number has. A number library is written over it as a generic constrained by `Number`, compiled once per number
+class it is given, so the values stay plain machine numbers and nothing is boxed. `$value_type == Number` asks,
+while compiling, whether a type is a number, which is how a walk over types tells numbers apart
+([metaprogramming.md](metaprogramming.md#asking-what-a-generic-was-given)):
+
+```gdscript title=number_type_doc/statistics.spite
+generic $number_type: Number
+
+func largest(values: List<$number_type>): $number_type {
+    crash values[0]
+    var best = values[0]
+    var index = 1
+    while index < values.count() {
+        if values[index] > best {
+            best = values[index]
+        }
+        index = index + 1
+    }
+    return best
+}
+
+func mean(values: List<$number_type>): Double {
+    var total: Double = 0.0
+    var index = 0
+    while index < values.count() {
+        total = total + values[index].to_double()
+        index = index + 1
+    }
+    return total / values.count().to_double()
+}
+```
+```gdscript title=number_type_doc/describe.spite
+generic $value_type
+
+func kind(): String {
+    if $value_type == Number {
+        return "a number"
+    }
+    return "not a number"
+}
+```
+```gdscript title=number_type_doc/number_type_doc.spite entry
+var console = Console()
+
+func NumberTypeDoc() {
+    var scores: List<Integer> = [4, 9, 2]
+    var score_statistics = Statistics<Integer>()
+    var best_score = score_statistics.largest(scores)
+    var mean_score = score_statistics.mean(scores)
+    console.print(best_score, mean_score)
+    var weights: List<Float> = [0.5, 2.5]
+    var weight_statistics = Statistics<Float>()
+    var heaviest = weight_statistics.largest(weights)
+    console.print(heaviest)
+    var byte_kind = Describe<Byte>()
+    var flag_kind = Describe<Boolean>()
+    var byte_text = byte_kind.kind()
+    var flag_text = flag_kind.kind()
+    console.print(byte_text, flag_text)
+}
+```
+```output
+9 5
+2.5
+a number not a number
+```
+
+Read through a value typed `Number` at run time (a parameter `value: Number`), the conversions work, but an
+operator is an error, since the class the operand must be is not known there: take the value through a codegen
+value `Number` constrains instead.
 
 ## `String`
 
@@ -968,7 +1062,10 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
 - **The maths functions and the constants are members of the number classes** ([the teaching above](#maths-functions)).
   Which there are, what each answers at its edges and how each is lowered is
   [standard_library.md](standard_library.md#maths)'s, their one home. A constant is answered only by
-  the class: `angle.pi()` is "'pi()' is a constant of the class Float, not of a value: write 'Float.pi()'", and a
+  the class: `angle.pi` is "'pi' is a constant of the class Float, not of a value: write 'Float.pi'". A constant
+  is a get-only attribute: `Float.pi()` is "'Float.pi' is a constant, read as an attribute and never called: write
+  'Float.pi'", and `Float.pi = 3.0` is "'Float.pi' is a constant, and a constant is get-only: nothing can assign
+  it" (`diagnostics/maths_constant_assigned`). A
   function of a value called on the class, `Float.square_root()`, names the constants the class answers
   (`diagnostics/maths_constant_on_value`). The short names other languages use are errors naming the Spite one:
   `side.sqrt()` is "Float has no function 'sqrt': Spite spells it 'square_root', since no name is abbreviated"
@@ -978,6 +1075,17 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   error: `this.name` is "a class reads its own attributes by name: write 'name', not 'this.name'", and
   `this.to_string()` is "a class calls its own functions by name: write 'to_string()', not 'this.to_string()'".
 - A decimal literal is a decimal in what is emitted (`1.0`, not `1`), so `1.0 / 3.0` divides as decimals.
+- **Every number class fits the library's `type Number`** (`library/number.spite`): `sum`, `subtract`, `multiply`,
+  `divide`, `less_than` and `greater_than`, each taking and answering the class itself (`Boolean` for the two
+  comparisons), and `to_long(): Long` and `to_double(): Double`. A number class declares no function for an
+  operator: the compiler's own arithmetic answers it, so the class fits. `Boolean` and `Memory.Address` do not fit,
+  and neither does anything else unless it declares those functions. `$value_type == Number` is decided while
+  compiling ([metaprogramming.md](metaprogramming.md#codegen-values-)). A generic constrained by `Number` is compiled
+  once per number class it is given, with plain values and no box. Through a value typed `Number` at run time, a
+  conversion is called on the value's class, and an operator is an error: `'+' on a value read as 'Number' needs
+  the class that fits the type, which is not known while compiling: take the value through a codegen value the type
+  constrains, 'generic $value_type: Number'` (`diagnostics/number_type_mistakes`,
+  `conformance/stage6/number_type`).
 - None of it costs anything at run time: a number stays a plain machine value, a cast is the one conversion written
   inline, a bitwise function is the single operation, and a number class's Spite functions (`to_string()`, a reopening's
   `doubled()`) are emitted only when the program calls them.
@@ -1162,7 +1270,9 @@ type Renderable {
 }
 ```
 
-Any class with a `render()` of that signature is accepted. This is what lets a collection hold "any class that
+Any class with a `render()` of that signature is accepted. **The type's own name inside a required signature
+stands for the class that fits**: `sum(Number): Number` in `type Number` is met by an `Integer`'s
+`sum(Integer): Integer`, so a type can ask for a function that takes and answers the class itself. This is what lets a collection hold "any class that
 responds to `render()`" (a list of components, [Markup](targets.md#markup)) without a union naming every class in advance,
 and it makes the respond-to check expressible as an ordinary type rather than as reflection.
 

@@ -403,7 +403,7 @@ a folder named by the repository and the commit (`engine_6c7dca9/`), since the v
 What is written is what the program **ends up with**, not what was written down: the classes come from the
 generator after it has run, so a class the generator never made is not there, a generic template is not there,
 and each of its instantiations is. The tree shaking of a production build's C runs after that, so a library class
-the program never uses (`Watcher`, `Socket`) may still be printed although its C was dropped.
+the program never uses (`FileSystemWatcher`, `Socket`) may still be printed although its C was dropped.
 
 Every class the program names comes from a file in `library/`, including `Memory.Heap`, `DynamicLibrary`,
 `String` and the numbers (`Integer`, `Long`, `Double`, `Memory.Address`, ...), so every one of them is printed like a

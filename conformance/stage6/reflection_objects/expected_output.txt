@@ -1,0 +1,13 @@
+true 2
+Tools Shop.Tools Shop
+Shop holds Counter, Tools
+every namespace: Shop, Shop.Counter, Shop.Tools
+the entry class is in no namespace
+false true true true
+alive answers Boolean and is resumable: false
+greeting returns grr
+no function 'missing'
+hurt takes 2 and reason is a String
+phases 3 update
+found finish
+console holds a singleton: true

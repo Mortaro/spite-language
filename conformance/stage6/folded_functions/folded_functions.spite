@@ -1,0 +1,26 @@
+var console = Console()
+var positions = Column<Position>()
+var velocities = Column<Velocity>()
+var labels = Column<Label>()
+
+func FoldedFunctions() {
+    var position = Position()
+    position.across = 1.5
+    position.name = "start"
+    positions.values.append(position)
+    var velocity = Velocity()
+    velocity.across = 2.5
+    velocity.name = "drift"
+    velocities.values.append(velocity)
+    var label = Label()
+    label.across = 4.0
+    label.code = 7
+    labels.values.append(label)
+    var position_total = positions.total_across()
+    var velocity_total = velocities.total_across()
+    var label_total = labels.total_across()
+    var first_velocity = velocities.first_across()
+    var first_label = labels.first_across()
+    console.print(position_total, velocity_total, label_total, first_velocity, first_label)
+    console.print(position.name, velocity.name, label.code)
+}
