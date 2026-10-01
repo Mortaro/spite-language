@@ -10702,7 +10702,8 @@ func operated_lines(
     var signed = is_signed_kind(scalar.kind)
     var whole = not is_float_kind(scalar.kind)
     if operator == 'modulo' and not whole {
-        lines.append("spite_operator_unreached(operation, where);")
+        var decimal_remainder = decimal_remainder_macro(operator, member_type)
+        lines.append("return {ensure_tag(member, member_type)}({decimal_remainder}(spite_left, spite_right));")
         return
     }
     if operator == 'divide' or operator == 'modulo' {
