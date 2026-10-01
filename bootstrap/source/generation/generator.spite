@@ -27118,6 +27118,70 @@ func abbreviated_words(): List<String> {
     ]
 }
 
+func spelled_out_abbreviations(): List<String> {
+    return [
+        "cnt"
+        "buf"
+        "buff"
+        "addr"
+        "mgr"
+        "evt"
+        "img"
+        "hdr"
+        "arr"
+        "vec"
+        "dict"
+        "coord"
+        "coords"
+        "prop"
+        "props"
+        "opt"
+        "opts"
+        "ext"
+        "seq"
+        "sep"
+        "avg"
+        "fmt"
+        "proc"
+        "tbl"
+        "pwd"
+        "usr"
+        "repo"
+        "qty"
+        "amt"
+        "cb"
+        "sz"
+        "lst"
+        "rect"
+        "dbg"
+        "ver"
+        "lang"
+        "nav"
+        "wnd"
+        "ctrl"
+        "nums"
+        "vals"
+        "msgs"
+        "strs"
+        "ptrs"
+        "bufs"
+        "elems"
+        "objs"
+        "dirs"
+        "exprs"
+        "stmts"
+        "errs"
+        "cmds"
+        "funcs"
+        "fns"
+        "vars"
+        "btns"
+        "imgs"
+        "evts"
+        "idxs"
+    ]
+}
+
 func unabbreviated_words(): List<String> {
     return [
         "expression"
@@ -27182,9 +27246,80 @@ func unabbreviated_words(): List<String> {
     ]
 }
 
+func spelled_out_words(): List<String> {
+    return [
+        "count"
+        "buffer"
+        "buffer"
+        "address"
+        "manager"
+        "event"
+        "image"
+        "header"
+        "array"
+        "vector"
+        "dictionary"
+        "coordinate"
+        "coordinates"
+        "property"
+        "properties"
+        "option"
+        "options"
+        "extension"
+        "sequence"
+        "separator"
+        "average"
+        "format"
+        "process"
+        "table"
+        "password"
+        "user"
+        "repository"
+        "quantity"
+        "amount"
+        "callback"
+        "size"
+        "list"
+        "rectangle"
+        "debug"
+        "version"
+        "language"
+        "navigation"
+        "window"
+        "control"
+        "numbers"
+        "values"
+        "messages"
+        "strings"
+        "pointers"
+        "buffers"
+        "elements"
+        "objects"
+        "directories"
+        "expressions"
+        "statements"
+        "errors"
+        "commands"
+        "functions"
+        "functions"
+        "variables"
+        "buttons"
+        "images"
+        "events"
+        "indices"
+    ]
+}
+
 func check_abbreviations(name: String) {
     var short_words = abbreviated_words()
     var full_words = unabbreviated_words()
+    check_abbreviations_in(name, short_words, full_words)
+    var spelled_short_words = spelled_out_abbreviations()
+    var spelled_full_words = spelled_out_words()
+    check_abbreviations_in(name, spelled_short_words, spelled_full_words)
+}
+
+func check_abbreviations_in(name: String, short_words: List<String>, full_words: List<String>) {
     var words = words_of(name)
     var index = 0
     while index < words.count() {

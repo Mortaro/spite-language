@@ -245,6 +245,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Naming and abbreviations: compile errors, not auto-fixed
 - Unconfirmed (proposed by Claude), stated on the page: the one-underscore-between-words rule (implemented 2026-09-24).
+- Unconfirmed (proposed by Claude), built: the second table of abbreviations (`cnt`, `buf`, `idxs`, ...), which the
+  `'windows'` naming rule does not read backwards because Win32 spells those words out in full.
 
 ## [memory.md](../docs/memory.md)
 
