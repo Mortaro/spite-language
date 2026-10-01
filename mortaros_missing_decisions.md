@@ -10,11 +10,10 @@ Spite is written in Spite (D350); reflection exposes everything and tree-shakes 
 thing; prevent mistakes rather than offer options; storage owns its items and other references are `T?` (D354).
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
-D370, 76 by D371 and 235 by D372 (2026-10-01). Earlier answers are listed in each row of `design/decisions.md`.
+D370, 76 by D371, 235 by D372 and 161 by D373
+(2026-10-01). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
 105. **A root class a nearer one shadows**: a root qualifier (`Root.Plugin`), or fall through only for a
      self-reference? Recommend fall through for a self-reference. Blocks nothing yet.
-161. **An enum reopening's values** are appended in merge order, so a program's come before a loaded package's.
-     Should the program's come last? Recommend last (the program has the final say). Blocks nothing.
