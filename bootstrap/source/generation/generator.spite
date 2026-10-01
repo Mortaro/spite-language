@@ -28,6 +28,21 @@ var falling_ends = List<String>()
 var symbol_names = List<String>()
 var symbol_lookup_used = false
 var symbol_positions = Dictionary<Integer>()
+var reflected_bindings = List<ReflectedBinding>()
+var reflected_body = List<Syntax.Statements.Statement>()
+var reflected_element_counter = 0
+var specialisations = List<Specialisation>()
+var specialisation_names = Dictionary<String>()
+var reflection_declarations = List<Syntax.Statements.FunctionDeclaration>()
+var reflection_declaration_positions = Dictionary<Integer>()
+var constant_return_names = List<String>()
+var namespaces_known = List<String>()
+var namespaces_known_for = -1
+var folded_by_reflection = false
+var source_paths_used = false
+var scanning_parameter = false
+var declaring_reflected_value = false
+var scanned_body = List<Syntax.Statements.Statement>()
 var conversion_names = Dictionary<String>()
 var foreign_library_files = List<String>()
 var foreign_library_namings = List<String>()
@@ -184,7 +199,6 @@ var all_classes_used = false
 var class_level_attributes_used = false
 var namespace_read_used = false
 var source_folder_used = false
-var package_folder_used = false
 var working_folder = ""
 var language_folder = ""
 var namespace_tree_used = false
@@ -261,6 +275,10 @@ var bound_function_name = ""
 var bound_display_name = ""
 var bound_range = ""
 var bound_enum_c_name = ""
+var bound_chain_method = ""
+var bound_chain_arguments = List<String>()
+var chained_parameters = List<Analysis.ParamInfo>()
+var chained_method_name = ""
 var unliteral_reported = List<String>()
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
@@ -1099,6 +1117,13 @@ func constant_condition(
             return value.code == "true"
         }
         return null
+    }
+    var reflected_answer = reflected_condition(expression, scope, class_information)
+    if reflected_answer == true or reflected_answer == false {
+        return reflected_answer
+    }
+    if bound_value_present(expression, scope, class_information) {
+        return true
     }
     var asked = function_question(expression, class_information)
     if asked == true or asked == false {
@@ -2257,6 +2282,9 @@ func expression_asks_waits(expression: Syntax.Expressions.Expression): Boolean {
         }
         Syntax.Expressions.MemberExpression: {
             crash expression.object
+            if expression.name == "is_resumable" {
+                return true
+            }
             return expression_asks_waits(expression.object)
         }
         _: return false
@@ -4957,6 +4985,7 @@ func resolve_field(
     var field = Analysis.FieldInfo(declaration.name, field_type, default_code)
     field.line = declaration.line
     information.fields.append(field)
+    note_source_path(information, declaration.source_path)
 }
 
 func report_null_default(
@@ -5176,7 +5205,7 @@ func symbol_parameter_of(declaration: Syntax.Statements.FunctionDeclaration): St
         if parameter.type_reference {
             var named = shape.as_named_type(parameter.type_reference)
             if named {
-                if named.path.count() == 1 and named.path[0] == "Symbol" {
+                if names_symbol_parameter(named) {
                     return parameter.name
                 }
             }
@@ -6167,6 +6196,15 @@ func instantiate_template(
         var described_parameter = Analysis.ParamInfo("owner", owner_type)
         parameters.append(described_parameter)
     }
+    var chained_names = List<String>()
+    var chained_index = 0
+    while chained_index < chained_parameters.count() {
+        var chained = chained_parameters[chained_index]
+        parameters.append(chained)
+        chained_names.append(chained.name)
+        chained_index = chained_index + 1
+    }
+    chained_parameters = List<Analysis.ParamInfo>()
     var return_type = void_type()
     if declaration.return_type {
         var resolved_return = resolve_type(declaration.return_type, information.qualified_dotted)
@@ -6186,6 +6224,9 @@ func instantiate_template(
     function.symbol_field_name = member_name
     function.symbol_field_type = member_type
     function.symbol_owner_c_name = member_owner_c_name
+    function.symbol_chain_method = chained_method_name
+    function.symbol_chain_arguments = chained_names
+    chained_method_name = ""
     if owner_type {
         function.symbol_through_caller = true
     }
@@ -6234,6 +6275,8 @@ func bind_symbol_of(function: Analysis.FunctionInfo) {
     bound_function_name = function.symbol_function_name
     bound_display_name = function.symbol_display_name
     bound_enum_c_name = function.symbol_enum_c_name
+    bound_chain_method = function.symbol_chain_method
+    bound_chain_arguments = function.symbol_chain_arguments
 }
 
 func is_bound_member_index(index_expression: Syntax.Expressions.IndexExpression): Boolean {
@@ -6260,11 +6303,28 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
         return caller_call_expression(member.object)
     }
     var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(member.object, bound_field_name)
-    if not bound_member_is_function() {
+    if bound_member_is_function() {
+        var no_arguments = List<Syntax.Expressions.Expression>()
+        read = Syntax.Expressions.CallExpression(read, no_arguments)
+    }
+    return chained_read(read)
+}
+
+# ../docs/collections.md#a-members-own-function-in-a-templates-name
+func chained_read(read: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
+    if bound_chain_method.is_empty() {
         return read
     }
-    var no_arguments = List<Syntax.Expressions.Expression>()
-    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(read, no_arguments)
+    var arguments = List<Syntax.Expressions.Expression>()
+    var index = 0
+    while index < bound_chain_arguments.count() {
+        var argument_name = bound_chain_arguments[index]
+        var argument: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(argument_name)
+        arguments.append(argument)
+        index = index + 1
+    }
+    var method: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(read, bound_chain_method)
+    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(method, arguments)
     return called
 }
 
@@ -6396,6 +6456,9 @@ func is_pending(information: Analysis.ClassInfo, function: Analysis.FunctionInfo
     if function.is_emitted {
         return false
     }
+    if skips_generic(information, function) and not builder.mentions(function.c_name) {
+        return false
+    }
     if not information.is_instantiated or ran_in_host(information, function) {
         return true
     }
@@ -6461,7 +6524,8 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         parameter_index = parameter_index + 1
     }
     var return_type: Analysis.SpiteType = Analysis.Types.VoidType()
-    if declaration.return_type {
+    var waiting_return = return_waits_for_constants(declaration)
+    if declaration.return_type and not waiting_return {
         var resolved_return = resolve_type(declaration.return_type, information.qualified_dotted)
         if resolved_return {
             return_type = resolved_return
@@ -6488,6 +6552,14 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         is_constructor,
     )
     function.source_path = declaration.source_path
+    note_source_path(information, declaration.source_path)
+    if takes_reflection(function) {
+        reflection_declaration_positions[c_name] = reflection_declarations.count()
+        reflection_declarations.append(declaration)
+        if waiting_return {
+            constant_return_names.append(c_name)
+        }
+    }
     if not declaration.has_body {
         supply_body(information, function)
     }
@@ -7092,6 +7164,14 @@ func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String):
 }
 
 func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String): Analysis.SpiteType? {
+    if not reflected_bindings.is_empty() {
+        var reflected_root = named.path.first()
+        if reflected_root {
+            if reflected_binding(reflected_root) {
+                return reflected_type(named)
+            }
+        }
+    }
     if named.path.count() > 1 and named.path[0].starts_with("$") {
         return resolve_codegen_member(named)
     }
@@ -8747,6 +8827,9 @@ func generate_identifier(
     if identifier.name == "this" {
         var receiver_type = value_class_type(class_information)
         return ExpressionResult("self", receiver_type)
+    }
+    if reflected_binding(identifier.name) {
+        return reflected_identifier(identifier, scope, class_information)
     }
     var override = scope.lookup_override(identifier.name)
     var scope_type = scope.lookup_type(identifier.name)
@@ -11802,6 +11885,16 @@ func generate_own_function_call(
         return generate_passed_symbol_call(passed, arguments_ast, scope, class_information)
     }
     var function = find_or_instantiate_function(class_information, name)
+    if function {
+        var specialised = specialised_call(function, arguments_ast, scope, class_information)
+        if specialised {
+            return specialised
+        }
+        if constant_return_names.contains(function.c_name) {
+            report_run_time_reflection(function)
+            return void_result()
+        }
+    }
     var held_type = scope.lookup_type(name)
     if not held_type {
         var held_field = class_information.find_field(name)
@@ -12094,8 +12187,11 @@ func ensure_into_variant(owner: Analysis.ClassInfo, function: Analysis.FunctionI
     variant.line = function.line
     variant.end_line = function.end_line
     variant.source_path = function.source_path
+    variant.specialisation_position = function.specialisation_position
     variant.symbol_name = function.symbol_name
     variant.symbol_field_name = function.symbol_field_name
+    variant.symbol_chain_method = function.symbol_chain_method
+    variant.symbol_chain_arguments = function.symbol_chain_arguments
     variant.symbol_field_index = function.symbol_field_index
     variant.symbol_field_type = function.symbol_field_type
     variant.symbol_owner_c_name = function.symbol_owner_c_name
@@ -12307,8 +12403,11 @@ func add_lent_variant(
     )
     variant.line = original.line
     variant.source_path = original.source_path
+    variant.specialisation_position = original.specialisation_position
     variant.symbol_name = original.symbol_name
     variant.symbol_field_name = original.symbol_field_name
+    variant.symbol_chain_method = original.symbol_chain_method
+    variant.symbol_chain_arguments = original.symbol_chain_arguments
     variant.symbol_field_index = original.symbol_field_index
     variant.symbol_field_type = original.symbol_field_type
     variant.symbol_owner_c_name = original.symbol_owner_c_name
@@ -12404,8 +12503,11 @@ func held_variant_name(
     )
     variant.line = original.line
     variant.source_path = original.source_path
+    variant.specialisation_position = original.specialisation_position
     variant.symbol_name = original.symbol_name
     variant.symbol_field_name = original.symbol_field_name
+    variant.symbol_chain_method = original.symbol_chain_method
+    variant.symbol_chain_arguments = original.symbol_chain_arguments
     variant.symbol_field_index = original.symbol_field_index
     variant.symbol_field_type = original.symbol_field_type
     variant.symbol_owner_c_name = original.symbol_owner_c_name
@@ -12889,9 +12991,6 @@ func generate_method_call(
     if member.name == "source_folder" and target_class.c_name == "Spite_Class" {
         source_folder_used = true
         note_fact("flag source_folder_used")
-    }
-    if member.name == "package_folder" and target_class.c_name == "Spite_Class" {
-        package_folder_used = true
     }
     var parameter_types = parameter_types_of(function.parameters)
     var function_return_type = function.return_type
@@ -13453,6 +13552,12 @@ func instantiate_element_template(
         member_type = shape_member_type(element_shape, member_name)
     }
     var element_label = type_display_name(element)
+    if not member_type and element_class {
+        var chained = chained_element_template(list_class, element_class, template, name)
+        if chained {
+            return chained
+        }
+    }
     if not member_type {
         var hint = passing_hint(caller, template.prefix, member_name)
         report("'{element_label}' has no attribute or zero argument function '{member_name}' for '{name}'{hint}")
@@ -15285,20 +15390,6 @@ func folded_source_folder(
     return ExpressionResult(folder_code, text_type)
 }
 
-func folded_package_folder(
-    member: Syntax.Expressions.MemberExpression,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
-): ExpressionResult? {
-    crash member.object
-    var asked = source_folder_class(member.object, scope, class_information)
-    assert asked
-    var folder = package_folder(asked)
-    var folder_code = render_string_literal(folder)
-    var text_type = string_type()
-    return ExpressionResult(folder_code, text_type)
-}
-
 func source_folder_class(
     object: Syntax.Expressions.Expression,
     scope: Scope,
@@ -15342,7 +15433,7 @@ func source_folder_class(
     }
     var named = try_resolve_static_path(object, class_information.qualified_dotted)
     assert named
-    assert not named.find_function("source_folder") and not named.find_function("package_folder")
+    assert not named.find_function("source_folder")
     return named
 }
 
@@ -15408,9 +15499,8 @@ func emit_class_object_bodies() {
                 var described_folder = absolute_source_folder(described)
                 lines.append("{function_c_name}_cache->_source_folder_ = {render_string_literal(described_folder)};")
             }
-            if package_folder_used and not described.source_path.is_empty() {
-                var described_package = package_folder(described)
-                lines.append("{function_c_name}_cache->_package_folder_ = {render_string_literal(described_package)};")
+            if source_paths_used {
+                emit_source_paths(lines, "{function_c_name}_cache", described.source_paths, false)
             }
             if namespace_read_used {
                 crash class_object_namespaces[position]
@@ -15597,6 +15687,10 @@ func emit_namespace_object_bodies() {
         lines.append(
             "{function_c_name}_cache = Spite_Namespace___make({ensure_symbol(namespace_name)}, {ensure_symbol(namespace_dotted)});",
         )
+        if source_paths_used {
+            var namespace_paths = namespace_source_paths(namespace_dotted)
+            emit_source_paths(lines, "{function_c_name}_cache", namespace_paths, true)
+        }
         if segments.count() > 1 {
             var parent_segments = segments.copy()
             parent_segments.remove_last()
@@ -16115,7 +16209,8 @@ func functions_list_text(information: Analysis.ClassInfo, list_name: String, arg
     while index < information.declared_functions.count() {
         var function = information.declared_functions[index]
         var listed = not information.is_container or not function.symbol_owner_c_name.is_empty()
-        if listed and not function.is_constructor and not function.symbol_through_caller {
+        var specialised = function.specialisation_position >= 0
+        if listed and not function.is_constructor and not function.symbol_through_caller and not specialised {
             lines.append("\{")
             lines.append(
                 "Spite_Function* described = Spite_Function___make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
@@ -17273,6 +17368,18 @@ func generate_index_read(
 ): ExpressionResult {
     crash index_expression.object
     crash index_expression.index
+    var reflected_read = reflected_field_read(index_expression, scope, class_information)
+    if reflected_read {
+        return generate_expression(reflected_read, scope, class_information)
+    }
+    var folded_index = folded_reflection(index_expression, scope, class_information)
+    if folded_index {
+        return folded_index
+    }
+    var named_read = named_reflection_read(index_expression, scope, class_information)
+    if named_read {
+        return generate_expression(named_read, scope, class_information)
+    }
     if is_bound_member_index(index_expression) {
         return generate_bound_member_read(index_expression, scope, class_information)
     }
@@ -19430,6 +19537,18 @@ func generate_call(
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
+        var unrolled = unrolled_walk(member, call.arguments, scope, class_information)
+        if unrolled {
+            return unrolled
+        }
+        var folded_call = folded_reflection(call, scope, class_information)
+        if folded_call {
+            return folded_call
+        }
+        var made_from_member = reflected_construction(call.callee, call.arguments, scope, class_information)
+        if made_from_member {
+            return made_from_member
+        }
         if member.name == "has_function" or member.name == "function_waits" or member.name == "fits_vector" or member.name == "function_writes_parameter" or member.name == "any_attribute_fits_vector" or member.name == "has_state" {
             var answered = folded_function_question(call, class_information)
             if answered == true or answered == false {
@@ -19447,12 +19566,6 @@ func generate_call(
             var folded_folder = folded_source_folder(member, scope, class_information)
             if folded_folder {
                 return folded_folder
-            }
-        }
-        if member.name == "package_folder" and call.arguments.is_empty() {
-            var folded_package = folded_package_folder(member, scope, class_information)
-            if folded_package {
-                return folded_package
             }
         }
         if member.name == "class" {
@@ -19474,6 +19587,10 @@ func generate_call(
     }
     var identifier = shape.as_identifier(call.callee)
     if identifier {
+        var made_from_name = reflected_construction(call.callee, call.arguments, scope, class_information)
+        if made_from_name {
+            return made_from_name
+        }
         return generate_own_function_call(identifier.name, call.arguments, scope, class_information)
     }
     var codegen = shape.as_generic_identifier(call.callee)
@@ -19670,6 +19787,14 @@ func generate_member_read_raw(
             }
         }
     }
+    var attribute_read = bound_attribute_read(member, scope, class_information)
+    if attribute_read {
+        return generate_expression(attribute_read, scope, class_information)
+    }
+    var folded_member = folded_reflection(member, scope, class_information)
+    if folded_member {
+        return folded_member
+    }
     if member.name == "size" {
         var type_size = type_size_read(member, scope, class_information)
         if type_size {
@@ -19679,6 +19804,10 @@ func generate_member_read_raw(
     if member.name == "instances" {
         var named_class = try_resolve_static_path(member.object, class_information.qualified_dotted)
         if named_class {
+            if named_class.c_name == "Spite_Namespace" {
+                var every_namespace = reflected_every_namespace()
+                return namespace_list_result(every_namespace)
+            }
             if named_class.c_name == "Spite_Class" {
                 all_classes_used = true
                 note_fact("flag all_classes_used")
@@ -19782,6 +19911,10 @@ func generate_member_read_raw(
                 note_fact("flag attribute_object_used")
             }
         }
+    }
+    if member.name == "source_files" or member.name == "source_directories" {
+        source_paths_used = true
+        note_fact("flag source_paths_used")
     }
     if member.name == "classes" or member.name == "namespaces" {
         var tree_receiver = type_shape.as_class_ref(object_result_type)
@@ -20768,6 +20901,7 @@ func generate_variable_declaration(
     class_information: Analysis.ClassInfo,
 ) {
     assert declaration.value
+    assert not constant_local(declaration, scope, class_information)
     if pending_allocator {
         generate_allocated_declaration(declaration, pending_allocator, scope, class_information)
         return
@@ -21846,6 +21980,7 @@ func ensure_lent_element_variant(owner: Analysis.ClassInfo, function: Analysis.F
     )
     variant.line = function.line
     variant.source_path = function.source_path
+    variant.specialisation_position = function.specialisation_position
     variant.lent_element = lent_element_field(owner, function)
     owner.declared_functions.append(variant)
     builder.add_prototype("{function_signature(owner, variant)};")
@@ -25365,6 +25500,13 @@ func generate_assignment(
         }
         return
     }
+    var reflected_target = reflected_assignment_target(assignment.target, scope, class_information)
+    if reflected_target {
+        var reflected_assignment = Syntax.Statements.AssignmentStatement(reflected_target, assignment.value)
+        reflected_assignment.line = assignment.line
+        generate_assignment(reflected_assignment, scope, class_information)
+        return
+    }
     var index_target = shape.as_index(assignment.target)
     if index_target {
         if is_bound_member_index(index_target) {
@@ -27345,7 +27487,7 @@ func symbol_parameter_names(declaration: Syntax.Statements.FunctionDeclaration):
         if parameter.type_reference {
             var named = shape.as_named_type(parameter.type_reference)
             if named {
-                if named.path.first() == "Symbol" {
+                if names_symbol_parameter(named) {
                     names.append(parameter.name)
                 }
             }
@@ -32783,7 +32925,7 @@ func emit_folded_check(
             "'assert' is not allowed in a constructor: a constructor is setup, not logic. Take already resolved values, or use 'crash' when absence is a bug",
         )
     }
-    if holds and class_information.codegen_types.is_empty() and bound_symbol_name.is_empty() {
+    if holds and class_information.codegen_types.is_empty() and bound_symbol_name.is_empty() and not folded_by_reflection {
         report(
             "'{check_keyword(assert_statement)} {assert_statement.condition_text}' is decided while compiling and always holds here: remove it",
         )
@@ -32904,6 +33046,18 @@ func folded_check(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean? {
+    var reflected_answer = reflected_condition(assertion, scope, class_information)
+    if bound_value_present(assertion, scope, class_information) {
+        reflected_answer = true
+    }
+    folded_by_reflection = reflected_answer == true or reflected_answer == false
+    if folded_by_reflection {
+        var checked_path = operand_text(assertion)
+        if reflected_answer == true and not checked_path.is_empty() {
+            scope.narrow_path(checked_path)
+        }
+        return reflected_answer
+    }
     assert asks_while_compiling(assertion)
     writes_reasons.clear()
     return constant_condition(assertion, scope, class_information)
@@ -33802,6 +33956,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         current_path = function.source_path
     }
     bind_symbol_of(function)
+    bind_reflected_of(function)
     key_flows_ignored = function.kept_for_prompt
     var outer_fact_owner = fact_owner
     fact_owner = information.c_name
@@ -33934,7 +34089,8 @@ func parameter_scope(function: Analysis.FunctionInfo): Scope {
         } else {
             scope.declare(parameter.name, parameter_type)
         }
-        if not signature_is_dictated(function) {
+        var reflected_instance = function.specialisation_position >= 0 and parameter.name.ends_with("_instance")
+        if not signature_is_dictated(function) and not reflected_instance {
             scope.check_last_parameter(current_line)
         }
         parameter_index = parameter_index + 1
@@ -34004,7 +34160,10 @@ func emit_class(information: Analysis.ClassInfo) {
     assert not information.is_instantiated
     var function_index = 0
     while function_index < information.declared_functions.count() {
-        emit_user_function(information, information.declared_functions[function_index])
+        var emitted_function = information.declared_functions[function_index]
+        if not skips_generic(information, emitted_function) or builder.mentions(emitted_function.c_name) {
+            emit_user_function(information, emitted_function)
+        }
         function_index = function_index + 1
     }
 }
@@ -39547,53 +39706,6 @@ func listed_singleton(
     return "\{ {information.c_name}* made = {peek}(); {list_name}_append(result, made != 0 ? {reflect}({named}, made) : {unmade}); }"
 }
 
-func package_folder(information: Analysis.ClassInfo): String {
-    var folder = absolute_source_folder(information)
-    var roots = List<String>()
-    var entry_class = find_class_by_c_name(entry_class_c_name)
-    crash entry_class
-    var program_folder = absolute_source_folder(entry_class)
-    roots.append(program_folder)
-    var language = language_folder.replace("\\", "/")
-    var library_root = normalized_folder("{language}/library/")
-    roots.append(library_root)
-    var launcher_root = normalized_folder("{language}/launcher/")
-    roots.append(launcher_root)
-    var index = 0
-    while index < loaded_folders.count() {
-        var loaded = loaded_folders[index].replace("\\", "/")
-        if not loaded.starts_with("/") and loaded.slice(1, 2) != ":" {
-            var base = working_folder.replace("\\", "/")
-            loaded = "{base}/{loaded}"
-        }
-        var loaded_root = normalized_folder(loaded)
-        roots.append(loaded_root)
-        index = index + 1
-    }
-    var best = ""
-    index = 0
-    while index < roots.count() {
-        var root = roots[index]
-        var holds = folder == root or folder.starts_with("{root}/")
-        if holds and root.length() > best.length() {
-            best = root
-        }
-        index = index + 1
-    }
-    if best.is_empty() {
-        report(
-            "'{information.qualified_dotted}' was declared in '{information.source_path}', which is in no folder the program loads, so it has no package folder",
-        )
-        return ""
-    }
-    if folder == best {
-        return ""
-    }
-    var folder_length = folder.length()
-    var best_length = best.length()
-    return folder.slice(best_length + 1, folder_length)
-}
-
 func parameter_class_type(owner: Analysis.SpiteType, segment: String): Analysis.SpiteType? {
     var pieces = segment.split("\"")
     crash pieces.count() == 3
@@ -39653,4 +39765,2594 @@ func ensure_byte_count_function(information: Analysis.ClassInfo): String {
     hot_slot_owners.append(information.c_name)
     hot_slot_displays.append("{information.qualified_dotted}'s size")
     return name
+}
+
+# ../docs/reflection.md#reflection-known-while-compiling
+func is_reflection_type(spite_type: Analysis.SpiteType): Boolean {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if not class_ref {
+        return false
+    }
+    var reflection_names = ["Spite_Class", "Spite_Namespace", "Spite_Function", "Spite_Argument", "Spite_Attribute"]
+    return reflection_names.contains(class_ref.c_name)
+}
+
+func takes_reflection(function: Analysis.FunctionInfo): Boolean {
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.get_type()
+        if is_reflection_type(parameter_type) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func waits_for_constants(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
+    if information.qualified_dotted.starts_with("Spite.") or function.is_constructor {
+        return false
+    }
+    if function.specialisation_position >= 0 {
+        return false
+    }
+    return takes_reflection(function)
+}
+
+func reflection_word(name: String): Boolean {
+    var words = [
+        "attributes"
+        "functions"
+        "classes"
+        "namespaces"
+        "every_class"
+        "values"
+        "arguments"
+        "name"
+        "name_with_namespaces"
+        "namespace"
+        "parent"
+        "returns"
+        "owner"
+        "index"
+        "class"
+        "function"
+        "is_singleton"
+        "is_stateful"
+        "is_fixed_size"
+        "is_list"
+        "is_dictionary"
+        "is_optional"
+        "is_enum"
+        "is_resumable"
+        "is_mutated"
+        "returned_literal"
+        "element_type"
+        "value_type"
+        "camel_case_name"
+        "pascal_case_name"
+        "instances"
+    ]
+    return words.contains(name)
+}
+
+func receiver_of(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    var member = shape.as_member(expression)
+    if member {
+        return member.object
+    }
+    var indexed = shape.as_index(expression)
+    if indexed {
+        return indexed.object
+    }
+    var called = shape.as_call(expression)
+    assert called
+    return called.callee
+}
+
+func root_of(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
+    var current = expression
+    var receiver = receiver_of(current)
+    while receiver {
+        current = receiver
+        receiver = receiver_of(current)
+    }
+    return current
+}
+
+func worth_reflecting(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
+    var binary = shape.as_binary(expression)
+    if binary {
+        crash binary.left
+        crash binary.right
+        return worth_reflecting(binary.left, scope) or worth_reflecting(binary.right, scope)
+    }
+    var unary = shape.as_unary(expression)
+    if unary {
+        crash unary.operand
+        return worth_reflecting(unary.operand, scope)
+    }
+    var current = expression
+    var mentions_reflection = false
+    var nearest_member = ""
+    var receiver = receiver_of(current)
+    while receiver {
+        var member = shape.as_member(current)
+        if member {
+            if reflection_word(member.name) {
+                mentions_reflection = true
+            }
+            nearest_member = member.name
+        }
+        current = receiver
+        receiver = receiver_of(current)
+    }
+    if shape.as_generic_identifier(current) {
+        return mentions_reflection
+    }
+    var root = shape.as_identifier(current)
+    if not root {
+        return false
+    }
+    if reflected_binding(root.name) {
+        return true
+    }
+    var own_name = root.name == "class" or root.name == "namespace"
+    if own_name and not scope.lookup_type(root.name) {
+        return true
+    }
+    if not mentions_reflection {
+        return names_namespace(expression, scope)
+    }
+    var local_type = scope.lookup_type(root.name)
+    var first_code = root.name.code_at(0)
+    var static_root = first_code >= 65 and first_code <= 90
+    if not local_type and (static_root or root.name == "class" or root.name == "namespace") {
+        return true
+    }
+    return nearest_member == "class" or nearest_member == "attributes" or nearest_member == "functions"
+}
+
+func reflected_binding(name: String): Reflected? {
+    var index = reflected_bindings.count() - 1
+    while index >= 0 {
+        var binding = reflected_bindings[index]
+        crash binding
+        if binding.name == name {
+            return binding.value
+        }
+        index = index - 1
+    }
+    return null
+}
+
+func binding_origin(name: String): Syntax.Expressions.Expression? {
+    var index = reflected_bindings.count() - 1
+    while index >= 0 {
+        var binding = reflected_bindings[index]
+        crash binding
+        if binding.name == name {
+            return binding.origin
+        }
+        index = index - 1
+    }
+    return null
+}
+
+func bind_reflected(name: String, value: Reflected) {
+    var binding = ReflectedBinding(name, value)
+    reflected_bindings.append(binding)
+}
+
+func unbind_reflected() {
+    reflected_bindings.remove_last()
+}
+
+func reflected_class(described: Analysis.SpiteType): Reflected {
+    var made = Reflected("class")
+    made.described_type = described
+    return made
+}
+
+func reflected_text(text: String, is_symbol: Boolean): Reflected {
+    var made = Reflected("text")
+    made.name = text
+    made.is_symbol = is_symbol
+    return made
+}
+
+func reflected_truth(truth: Boolean): Reflected {
+    var made = Reflected("boolean")
+    made.truth = truth
+    return made
+}
+
+func reflected_number(value: Integer): Reflected {
+    var made = Reflected("integer")
+    made.position = value
+    return made
+}
+
+func reflected_null(): Reflected {
+    return Reflected("null")
+}
+
+func reflected_namespace(dotted: String): Reflected {
+    if dotted.is_empty() {
+        return reflected_null()
+    }
+    var made = Reflected("namespace")
+    made.name = dotted
+    return made
+}
+
+func reflected_list(elements: List<Reflected>): Reflected {
+    var made = Reflected("list")
+    made.elements = elements
+    return made
+}
+
+func reflected(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Reflected? {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return reflected_name(expression.name, scope, class_information)
+        Syntax.Expressions.GenericIdentifierExpression: return reflected_generic(expression.name, class_information)
+        Syntax.Expressions.MemberExpression: return reflected_member_read(expression, scope, class_information)
+        Syntax.Expressions.IndexExpression: return reflected_index(expression, scope, class_information)
+        Syntax.Expressions.CallExpression: return reflected_call(expression, scope, class_information)
+        Syntax.Expressions.BinaryExpression: return reflected_binary(expression, scope, class_information)
+        Syntax.Expressions.UnaryExpression: return reflected_not(expression, scope, class_information)
+        Syntax.Expressions.StringLiteralExpression: {
+            assert not expression.value.contains("\{")
+            return reflected_text(expression.value, false)
+        }
+        Syntax.Expressions.EnumLiteralExpression: return reflected_text(expression.value, true)
+        Syntax.Expressions.IntegerLiteral: {
+            var number: Integer = expression.value
+            return reflected_number(number)
+        }
+        Syntax.Expressions.TrueLiteral: return reflected_truth(true)
+        Syntax.Expressions.FalseLiteral: return reflected_truth(false)
+        Syntax.Expressions.NullLiteral: return reflected_null()
+        _: return null
+    }
+}
+
+func reflected_generic(name: String, class_information: Analysis.ClassInfo): Reflected? {
+    var bare_name = without_dollar(name)
+    assert codegen_index(class_information, bare_name) >= 0
+    var bound_type = codegen_bound_type(bare_name, class_information)
+    assert bound_type
+    return reflected_class(bound_type)
+}
+
+func reflected_not(
+    unary: Syntax.Expressions.UnaryExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Reflected? {
+    crash unary.operand
+    assert unary.operator == 'logical_not'
+    var inner = reflected(unary.operand, scope, class_information)
+    assert inner
+    assert inner.kind == "boolean"
+    return reflected_truth(not inner.truth)
+}
+
+func reflected_name(name: String, scope: Scope, class_information: Analysis.ClassInfo): Reflected? {
+    var bound = reflected_binding(name)
+    if bound {
+        return bound
+    }
+    assert not scope.lookup_type(name) and not class_information.find_field(name)
+    if name == "class" {
+        var own_type = value_class_type(class_information)
+        return reflected_class(own_type)
+    }
+    if name == "namespace" {
+        return reflected_namespace(class_information.namespace_dotted)
+    }
+    var first_code = name.code_at(0)
+    assert first_code >= 65 and first_code <= 90
+    return reflected_path(name, class_information)
+}
+
+func reflected_path(dotted: String, class_information: Analysis.ClassInfo): Reflected? {
+    var named_enum = find_enum(dotted)
+    if named_enum {
+        var enum_type = enum_type_of(named_enum)
+        return reflected_class(enum_type)
+    }
+    var named = find_class(dotted, class_information.qualified_dotted)
+    if named {
+        assert not named.is_generic_template
+        var named_type = value_class_type(named)
+        return reflected_class(named_type)
+    }
+    var plain = plain_type_named(dotted)
+    if plain {
+        return reflected_class(plain)
+    }
+    var namespace_dotted = nearest_namespace(dotted, class_information.namespace_dotted)
+    assert not namespace_dotted.is_empty()
+    return reflected_namespace(namespace_dotted)
+}
+
+func plain_type_named(name: String): Analysis.SpiteType? {
+    var plain = [
+        "Integer"
+        "Long"
+        "Tiny"
+        "Short"
+        "Byte"
+        "UnsignedShort"
+        "UnsignedInteger"
+        "UnsignedLong"
+        "Float"
+        "Double"
+        "Boolean"
+        "String"
+        "Symbol"
+    ]
+    assert plain.contains(name)
+    var path = [name]
+    var no_arguments = List<Syntax.Types.GenericArgument>()
+    var named = Syntax.Types.NamedType(path, no_arguments)
+    return resolve_named_type(named, "")
+}
+
+func known_namespaces(): List<String> {
+    if namespaces_known_for == classes.count() {
+        return namespaces_known
+    }
+    namespaces_known_for = classes.count()
+    namespaces_known = List<String>()
+    var index = 0
+    while index < classes.count() {
+        var known_class = classes[index]
+        add_namespace_prefixes(known_class.namespace_dotted)
+        index = index + 1
+    }
+    return namespaces_known
+}
+
+func add_namespace_prefixes(dotted: String) {
+    assert not dotted.is_empty()
+    var segments = dotted.split(".")
+    var prefix = List<String>()
+    var index = 0
+    while index < segments.count() {
+        var segment = segments[index]
+        prefix.append(segment)
+        var joined = prefix.join(".")
+        if not namespaces_known.contains(joined) {
+            namespaces_known.append(joined)
+        }
+        index = index + 1
+    }
+}
+
+func nearest_namespace(name: String, current_namespace: String): String {
+    var known = known_namespaces()
+    var segments = current_namespace.split(".")
+    if current_namespace.is_empty() {
+        segments.clear()
+    }
+    while not segments.is_empty() {
+        var candidate = "{segments.join(".")}.{name}"
+        if known.contains(candidate) {
+            return candidate
+        }
+        segments.remove_last()
+    }
+    if known.contains(name) {
+        return name
+    }
+    return ""
+}
+
+func static_value_type(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var identifier = shape.as_identifier(expression)
+    assert identifier
+    assert not reflected_binding(identifier.name)
+    var local_type = scope.lookup_type(identifier.name)
+    if not local_type {
+        var field = class_information.find_field(identifier.name)
+        if field {
+            local_type = field.get_type()
+        }
+    }
+    assert local_type
+    assert not type_shape.as_union(local_type) and not type_shape.as_nullable(local_type)
+    return local_type
+}
+
+func reflected_member_read(
+    member: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Reflected? {
+    crash member.object
+    var whole = reflected_static_path(member, scope, class_information)
+    if whole {
+        return whole
+    }
+    var object = reflected(member.object, scope, class_information)
+    if object {
+        return reflected_member_of(object, member.name, class_information)
+    }
+    var described = member.name == "class" or member.name == "attributes" or member.name == "functions"
+    assert described
+    var value_type = static_value_type(member.object, scope, class_information)
+    assert value_type
+    assert not is_reflection_type(value_type)
+    var value_class = reflected_class(value_type)
+    if member.name == "class" {
+        return value_class
+    }
+    var listed = reflected_member_of(value_class, member.name, class_information)
+    assert listed
+    if member.name == "attributes" {
+        listed = bound_attributes(listed, member.object)
+    }
+    return listed
+}
+
+func bound_attributes(listed: Reflected, instance: Syntax.Expressions.Expression): Reflected {
+    var bound = List<Reflected>()
+    var index = 0
+    while index < listed.elements.count() {
+        var element = listed.elements[index]
+        var copied = Reflected("attribute")
+        copied.owner = element.owner
+        copied.name = element.name
+        copied.described_type = element.described_type
+        copied.position = element.position
+        copied.bound = instance
+        bound.append(copied)
+        index = index + 1
+    }
+    return reflected_list(bound)
+}
+
+func reflected_static_path(
+    member: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Reflected? {
+    var segments = List<String>()
+    assert collect_static_segments(member, segments)
+    assert segments[0]
+    var root_code = segments[0].code_at(0)
+    assert root_code >= 65 and root_code <= 90
+    assert not reflected_binding(segments[0]) and not scope.lookup_type(segments[0])
+    assert not class_information.find_field(segments[0])
+    var dotted = segments.join(".")
+    return reflected_path(dotted, class_information)
+}
+
+func reflected_member_of(object: Reflected, name: String, class_information: Analysis.ClassInfo): Reflected? {
+    switch object.kind {
+        "class": return reflected_class_member(object, name, class_information)
+        "namespace": return reflected_namespace_member(object, name)
+        "function": return reflected_function_member(object, name, class_information)
+        "argument": return reflected_argument_member(object, name)
+        "attribute": return reflected_attribute_member(object, name)
+        "enum": {
+            assert name == "name"
+            return reflected_text(object.name, true)
+        }
+        _: return null
+    }
+}
+
+func reflected_class_name(described: Analysis.SpiteType): Reflected {
+    var described_class = class_of_type(described)
+    if described_class {
+        return reflected_text(described_class.simple_name, true)
+    }
+    var shown = type_display_name(described)
+    return reflected_text(shown, true)
+}
+
+func reflected_class_member(object: Reflected, name: String, class_information: Analysis.ClassInfo): Reflected? {
+    crash object.described_type
+    var described = object.described_type
+    var described_class = class_of_type(described)
+    switch name {
+        "name": return reflected_class_name(described)
+        "namespace": {
+            assert described_class
+            return reflected_namespace(described_class.namespace_dotted)
+        }
+        "is_singleton": {
+            var singleton = false
+            if described_class {
+                singleton = described_class.is_singleton
+            }
+            return reflected_truth(singleton)
+        }
+        "is_list": return reflected_kind_test(described, "list")
+        "is_dictionary": return reflected_kind_test(described, "dictionary")
+        "is_optional": return reflected_kind_test(described, "optional")
+        "is_enum": return reflected_kind_test(described, "enum")
+        "is_fixed_size": {
+            var problem = vector_item_problem(described)
+            var fixed = problem.is_empty()
+            return reflected_truth(fixed)
+        }
+        "is_stateful": {
+            var stateful = false
+            if described_class {
+                var visited = List<String>()
+                stateful = class_has_state(described_class, visited)
+            }
+            return reflected_truth(stateful)
+        }
+        "element_type": return reflected_element_type(described)
+        "value_type": return reflected_value_type(described)
+        "values": return reflected_enum_values(described)
+        "attributes": {
+            assert described_class
+            return reflected_attributes(described_class, class_information)
+        }
+        "functions": {
+            assert described_class
+            assert described_class.c_name != entry_class_c_name
+            return reflected_functions(described_class)
+        }
+        "instances": {
+            assert described_class
+            if described_class.c_name == "Spite_Namespace" {
+                return reflected_every_namespace()
+            }
+            assert described_class.c_name == "Spite_Class"
+            return reflected_every_class()
+        }
+        _: return null
+    }
+}
+
+func reflected_every_class(): Reflected {
+    var every = List<Reflected>()
+    var index = 0
+    while index < classes.count() {
+        var candidate = classes[index]
+        if is_listed_class(candidate) {
+            var candidate_type = value_class_type(candidate)
+            var candidate_class = reflected_class(candidate_type)
+            every.append(candidate_class)
+        }
+        index = index + 1
+    }
+    return reflected_list(every)
+}
+
+func reflected_every_namespace(): Reflected {
+    var dotted_names = List<String>()
+    var index = 0
+    while index < classes.count() {
+        var candidate = classes[index]
+        if is_listed_class(candidate) and not candidate.namespace_dotted.is_empty() {
+            add_prefixes_to(candidate.namespace_dotted, dotted_names)
+        }
+        index = index + 1
+    }
+    var every = List<Reflected>()
+    index = 0
+    while index < dotted_names.count() {
+        var dotted = dotted_names[index]
+        var namespace = reflected_namespace(dotted)
+        every.append(namespace)
+        index = index + 1
+    }
+    return reflected_list(every)
+}
+
+func add_prefixes_to(dotted: String, names: List<String>) {
+    var segments = dotted.split(".")
+    var prefix = List<String>()
+    var index = 0
+    while index < segments.count() {
+        var segment = segments[index]
+        prefix.append(segment)
+        var joined = prefix.join(".")
+        if not names.contains(joined) {
+            names.append(joined)
+        }
+        index = index + 1
+    }
+}
+
+func reflected_kind_test(described: Analysis.SpiteType, kind: String): Reflected {
+    var answer = false
+    switch kind {
+        "list": {
+            if type_shape.as_list(described) {
+                answer = true
+            }
+        }
+        "dictionary": {
+            if type_shape.as_dictionary(described) {
+                answer = true
+            }
+        }
+        "optional": {
+            if type_shape.as_nullable(described) {
+                answer = true
+            }
+        }
+        _: {
+            if type_shape.as_enum(described) {
+                answer = true
+            }
+        }
+    }
+    return reflected_truth(answer)
+}
+
+func reflected_element_type(described: Analysis.SpiteType): Reflected {
+    var described_list = type_shape.as_list(described)
+    if described_list {
+        var element = described_list.get_element()
+        return reflected_class(element)
+    }
+    var described_optional = type_shape.as_nullable(described)
+    if described_optional {
+        var inner = described_optional.get_inner()
+        return reflected_class(inner)
+    }
+    return reflected_null()
+}
+
+func reflected_value_type(described: Analysis.SpiteType): Reflected {
+    var described_dictionary = type_shape.as_dictionary(described)
+    if described_dictionary {
+        var value_type = described_dictionary.get_element()
+        return reflected_class(value_type)
+    }
+    return reflected_null()
+}
+
+func reflected_enum_values(described: Analysis.SpiteType): Reflected? {
+    var described_enum = type_shape.as_enum(described)
+    assert described_enum
+    var enum_values = List<Reflected>()
+    var index = 0
+    while index < described_enum.values.count() {
+        var value = Reflected("enum")
+        value.name = described_enum.values[index]
+        value.described_type = described
+        value.position = index
+        enum_values.append(value)
+        index = index + 1
+    }
+    return reflected_list(enum_values)
+}
+
+func reflected_attributes(described_class: Analysis.ClassInfo, class_information: Analysis.ClassInfo): Reflected {
+    var own = described_class.c_name == class_information.c_name
+    var attributes = List<Reflected>()
+    var index = 0
+    while index < described_class.fields.count() {
+        var field = described_class.fields[index]
+        if own or not field.name.starts_with("_") {
+            var attribute = Reflected("attribute")
+            attribute.owner = described_class
+            attribute.name = field.name
+            attribute.described_type = field.get_type()
+            attribute.position = index
+            attributes.append(attribute)
+        }
+        index = index + 1
+    }
+    return reflected_list(attributes)
+}
+
+func reflected_functions(described_class: Analysis.ClassInfo): Reflected {
+    var functions = List<Reflected>()
+    var declared = declared_functions_of(described_class)
+    var index = 0
+    while index < declared.count() {
+        var declared_function = declared[index]
+        if declared_function.specialisation_position < 0 {
+            var reflected_function = Reflected("function")
+            reflected_function.owner = described_class
+            reflected_function.function = declared_function
+            reflected_function.name = declared_function.name
+            functions.append(reflected_function)
+        }
+        index = index + 1
+    }
+    return reflected_list(functions)
+}
+
+func reflected_namespace_member(object: Reflected, name: String): Reflected? {
+    var dotted = object.name
+    var segments = dotted.split(".")
+    switch name {
+        "name": {
+            var last = segments.last()
+            crash last
+            return reflected_text(last, true)
+        }
+        "name_with_namespaces": return reflected_text(dotted, true)
+        "parent": {
+            segments.remove_last()
+            var parent = segments.join(".")
+            return reflected_namespace(parent)
+        }
+        "classes": return reflected_namespace_classes(dotted, false)
+        "every_class": return reflected_namespace_classes(dotted, true)
+        "namespaces": return reflected_child_namespaces(dotted)
+        _: return null
+    }
+}
+
+func reflected_namespace_classes(dotted: String, every: Boolean): Reflected {
+    var listed = List<Reflected>()
+    var index = 0
+    while index < classes.count() {
+        var candidate = classes[index]
+        var inside = candidate.namespace_dotted == dotted
+        if every and candidate.namespace_dotted.starts_with("{dotted}.") {
+            inside = true
+        }
+        if inside and is_listed_class(candidate) {
+            var candidate_type = value_class_type(candidate)
+            var candidate_class = reflected_class(candidate_type)
+            listed.append(candidate_class)
+        }
+        index = index + 1
+    }
+    return reflected_list(listed)
+}
+
+func reflected_child_namespaces(dotted: String): Reflected {
+    var children = List<Reflected>()
+    var depth = dotted.split(".").count()
+    var known = known_namespaces()
+    var index = 0
+    while index < known.count() {
+        var candidate = known[index]
+        var child_depth = candidate.split(".").count()
+        if candidate.starts_with("{dotted}.") and child_depth == depth + 1 {
+            var child = reflected_namespace(candidate)
+            children.append(child)
+        }
+        index = index + 1
+    }
+    return reflected_list(children)
+}
+
+func reflected_function_member(object: Reflected, name: String, class_information: Analysis.ClassInfo): Reflected? {
+    crash object.owner
+    crash object.function
+    var owner = object.owner
+    var function = object.function
+    switch name {
+        "name": return reflected_text(function.name, true)
+        "owner": {
+            var owner_type = value_class_type(owner)
+            return reflected_class(owner_type)
+        }
+        "returns": {
+            var returned = function.get_return_type()
+            return reflected_class(returned)
+        }
+        "arguments": return reflected_arguments_of(owner, function)
+        "is_resumable": {
+            var resumable = class_function_waits(owner, function.name, class_information)
+            return reflected_truth(resumable)
+        }
+        "returned_literal": {
+            var literal = returned_literal(function)
+            if literal {
+                return reflected_text(literal, false)
+            }
+            report_unliteral_body(owner, function, "'{function.name}.returned_literal' reads it while compiling")
+            return reflected_text("", false)
+        }
+        _: return null
+    }
+}
+
+func reflected_arguments_of(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo): Reflected {
+    var arguments = List<Reflected>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var argument = Reflected("argument")
+        argument.owner = owner
+        argument.function = function
+        argument.name = parameter.name
+        argument.described_type = parameter.get_type()
+        argument.position = index
+        arguments.append(argument)
+        index = index + 1
+    }
+    return reflected_list(arguments)
+}
+
+func reflected_argument_member(object: Reflected, name: String): Reflected? {
+    crash object.owner
+    crash object.function
+    crash object.described_type
+    switch name {
+        "name": return reflected_text(object.name, true)
+        "class": return reflected_class(object.described_type)
+        "index": return reflected_number(object.position)
+        "function": {
+            var function = Reflected("function")
+            function.owner = object.owner
+            function.function = object.function
+            function.name = object.function.name
+            return function
+        }
+        "is_mutated": {
+            var slot: String = object.position
+            var written = parameter_writes.answer(this, object.owner, object.function, slot)
+            note_fact("asks writes {object.function.c_name} {slot} {written}")
+            return reflected_truth(written)
+        }
+        _: return null
+    }
+}
+
+func reflected_attribute_member(object: Reflected, name: String): Reflected? {
+    crash object.owner
+    crash object.described_type
+    switch name {
+        "name": return reflected_text(object.name, true)
+        "class": return reflected_class(object.described_type)
+        "index": return reflected_number(object.position)
+        "owner": {
+            var owner_type = value_class_type(object.owner)
+            return reflected_class(owner_type)
+        }
+        "camel_case_name": {
+            var camel = joined_case_spelling(object.name, false)
+            return reflected_text(camel, false)
+        }
+        "pascal_case_name": {
+            var pascal = joined_case_spelling(object.name, true)
+            return reflected_text(pascal, false)
+        }
+        "is_singleton": {
+            var singleton = false
+            var held = class_of_type(object.described_type)
+            if held {
+                singleton = held.is_singleton
+            }
+            return reflected_truth(singleton)
+        }
+        _: return null
+    }
+}
+
+func reflected_index(
+    indexed: Syntax.Expressions.IndexExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Reflected? {
+    crash indexed.object
+    crash indexed.index
+    var listed = reflected(indexed.object, scope, class_information)
+    assert listed
+    assert listed.kind == "list"
+    var key = reflected(indexed.index, scope, class_information)
+    assert key
+    if key.kind == "text" {
+        return reflected_named_element(listed, key.name)
+    }
+    assert key.kind == "integer"
+    if key.position < 0 or key.position >= listed.elements.count() {
+        return reflected_null()
+    }
+    return listed.elements[key.position]
+}
+
+func reflected_named_element(listed: Reflected, name: String): Reflected {
+    var index = 0
+    while index < listed.elements.count() {
+        var element = listed.elements[index]
+        var element_name = reflected_name_of(element)
+        if element_name == name {
+            return element
+        }
+        index = index + 1
+    }
+    return reflected_null()
+}
+
+func reflected_name_of(element: Reflected): String {
+    switch element.kind {
+        "class": {
+            crash element.described_type
+            var class_name = reflected_class_name(element.described_type)
+            return class_name.name
+        }
+        "namespace": {
+            var segments = element.name.split(".")
+            var last = segments.last()
+            crash last
+            return last
+        }
+        _: return element.name
+    }
+}
+
+func reflected_call(
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Reflected? {
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var receiver = reflected(member.object, scope, class_information)
+    assert receiver
+    if member.name == "filter" and receiver.kind == "list" {
+        assert call.arguments.count() == 1
+        var chosen = call.arguments[0]
+        return reflected_filter(receiver.elements, chosen, scope, class_information)
+    }
+    var arguments = List<Reflected>()
+    var argument_index = 0
+    while argument_index < call.arguments.count() {
+        var argument_ast = call.arguments[argument_index]
+        var argument = reflected(argument_ast, scope, class_information)
+        assert argument
+        arguments.append(argument)
+        argument_index = argument_index + 1
+    }
+    if receiver.kind == "text" {
+        return reflected_text_call(receiver.name, member.name, arguments)
+    }
+    assert receiver.kind == "list"
+    return reflected_list_call(receiver.elements, member.name, arguments, class_information)
+}
+
+func reflected_list_call(
+    elements: List<Reflected>,
+    name: String,
+    arguments: List<Reflected>,
+    class_information: Analysis.ClassInfo,
+): Reflected? {
+    switch name {
+        "count": {
+            var counted = elements.count()
+            return reflected_number(counted)
+        }
+        "is_empty": {
+            var empty = elements.is_empty()
+            return reflected_truth(empty)
+        }
+        "first": {
+            var first = elements.first()
+            if first {
+                return first
+            }
+            return reflected_null()
+        }
+        "last": {
+            var last = elements.last()
+            if last {
+                return last
+            }
+            return reflected_null()
+        }
+        _: return reflected_member_template(elements, name, arguments, class_information)
+    }
+}
+
+func reflected_text_call(text: String, name: String, arguments: List<Reflected>): Reflected? {
+    assert arguments.count() == 1
+    var argument = arguments[0]
+    assert argument.kind == "text"
+    var asked = argument.name
+    switch name {
+        "ends_with": {
+            var ends = text.ends_with(asked)
+            return reflected_truth(ends)
+        }
+        "starts_with": {
+            var starts = text.starts_with(asked)
+            return reflected_truth(starts)
+        }
+        "contains": {
+            var holds = text.contains(asked)
+            return reflected_truth(holds)
+        }
+        "without_suffix": {
+            var kept = text
+            if text.ends_with(asked) {
+                var kept_length = text.length() - asked.length()
+                kept = text.slice(0, kept_length)
+            }
+            return reflected_text(kept, false)
+        }
+        "without_prefix": {
+            var kept = text
+            if text.starts_with(asked) {
+                var text_length = text.length()
+                var asked_length = asked.length()
+                kept = text.slice(asked_length, text_length)
+            }
+            return reflected_text(kept, false)
+        }
+        _: return null
+    }
+}
+
+func reflected_filter(
+    elements: List<Reflected>,
+    chosen: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Reflected? {
+    var chosen_name = shape.as_identifier(chosen)
+    assert chosen_name
+    var function = class_information.find_function(chosen_name.name)
+    assert function
+    assert function.parameters.count() == 1 and function.body.count() == 1
+    var returned = shape.as_return_statement(function.body[0])
+    assert returned
+    var parameter = function.parameters[0]
+    var kept = List<Reflected>()
+    var index = 0
+    while index < elements.count() {
+        var element = elements[index]
+        bind_reflected(parameter.name, element)
+        crash returned.value
+        var answer = reflected(returned.value, scope, class_information)
+        unbind_reflected()
+        assert answer
+        assert answer.kind == "boolean"
+        if answer.truth {
+            kept.append(element)
+        }
+        index = index + 1
+    }
+    return reflected_list(kept)
+}
+
+func member_template_prefix(name: String): String {
+    var prefixes = ["filter_", "count_", "any_", "all_", "find_by_"]
+    var index = 0
+    while index < prefixes.count() {
+        var candidate = prefixes[index]
+        if name.starts_with(candidate) {
+            return candidate
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func reflected_member_template(
+    elements: List<Reflected>,
+    name: String,
+    arguments: List<Reflected>,
+    class_information: Analysis.ClassInfo,
+): Reflected? {
+    var prefix = member_template_prefix(name)
+    assert not prefix.is_empty()
+    var name_length = name.length()
+    var prefix_length = prefix.length()
+    var chain = name.slice(prefix_length, name_length)
+    if prefix == "find_by_" {
+        return reflected_found(elements, chain, arguments, class_information)
+    }
+    var kept = List<Reflected>()
+    var index = 0
+    while index < elements.count() {
+        var element = elements[index]
+        var answer = reflected_chain(element, chain, arguments, class_information)
+        assert answer
+        assert answer.kind == "boolean"
+        if answer.truth {
+            kept.append(element)
+        }
+        index = index + 1
+    }
+    switch prefix {
+        "filter_": return reflected_list(kept)
+        "count_": {
+            var counted = kept.count()
+            return reflected_number(counted)
+        }
+        "any_": {
+            var any = not kept.is_empty()
+            return reflected_truth(any)
+        }
+        _: {
+            var all = kept.count() == elements.count()
+            return reflected_truth(all)
+        }
+    }
+}
+
+func reflected_found(
+    elements: List<Reflected>,
+    member_name: String,
+    arguments: List<Reflected>,
+    class_information: Analysis.ClassInfo,
+): Reflected? {
+    assert arguments.count() == 1
+    var wanted = arguments[0]
+    var index = 0
+    while index < elements.count() {
+        var element = elements[index]
+        var value = reflected_member_of(element, member_name, class_information)
+        assert value
+        if reflected_same(value, wanted) {
+            return element
+        }
+        index = index + 1
+    }
+    return reflected_null()
+}
+
+func reflected_chain(
+    element: Reflected,
+    chain: String,
+    arguments: List<Reflected>,
+    class_information: Analysis.ClassInfo,
+): Reflected? {
+    if arguments.is_empty() {
+        return reflected_member_of(element, chain, class_information)
+    }
+    var words = chain.split("_")
+    var split = 1
+    while split < words.count() {
+        var member_words = List<String>()
+        var method_words = List<String>()
+        var word_index = 0
+        while word_index < words.count() {
+            var word = words[word_index]
+            if word_index < split {
+                member_words.append(word)
+            } else {
+                method_words.append(word)
+            }
+            word_index = word_index + 1
+        }
+        var member_name = member_words.join("_")
+        var method_name = method_words.join("_")
+        var value = reflected_member_of(element, member_name, class_information)
+        if value {
+            assert value.kind == "text"
+            return reflected_text_call(value.name, method_name, arguments)
+        }
+        split = split + 1
+    }
+    return null
+}
+
+func reflected_same(left: Reflected, right: Reflected): Boolean {
+    var named_kinds = ["text", "enum", "namespace"]
+    if named_kinds.contains(left.kind) and named_kinds.contains(right.kind) {
+        return left.name == right.name
+    }
+    if left.kind != right.kind {
+        return false
+    }
+    switch left.kind {
+        "boolean": return left.truth == right.truth
+        "integer": return left.position == right.position
+        "null": return true
+        _: {
+            var left_key = reflected_key(left)
+            var right_key = reflected_key(right)
+            return left_key == right_key
+        }
+    }
+}
+
+func reflected_binary(
+    binary: Syntax.Expressions.BinaryExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Reflected? {
+    crash binary.left
+    crash binary.right
+    var left = reflected(binary.left, scope, class_information)
+    assert left
+    var decided_by_left = left.kind == "boolean" and (binary.operator == 'logical_and' and not left.truth or binary.operator == 'logical_or' and left.truth)
+    if decided_by_left {
+        return left
+    }
+    var right = reflected(binary.right, scope, class_information)
+    assert right
+    if binary.operator == 'logical_and' or binary.operator == 'logical_or' {
+        assert right.kind == "boolean"
+        return right
+    }
+    var same = reflected_same(left, right)
+    switch binary.operator {
+        'equal': return reflected_truth(same)
+        'not_equal': return reflected_truth(not same)
+        _: return null
+    }
+}
+
+func reflected_key(value: Reflected): String {
+    switch value.kind {
+        "class": {
+            crash value.described_type
+            return "class {c_type_name(value.described_type)}"
+        }
+        "attribute": {
+            crash value.owner
+            var bound_mark = ""
+            if value.bound {
+                bound_mark = " bound"
+            }
+            return "attribute {value.owner.c_name} {value.name}{bound_mark}"
+        }
+        "function": {
+            crash value.owner
+            return "function {value.owner.c_name} {value.name}"
+        }
+        "argument": {
+            crash value.owner
+            crash value.function
+            return "argument {value.owner.c_name} {value.function.name} {value.position}"
+        }
+        _: return "{value.kind} {value.name} {value.position} {value.truth}"
+    }
+}
+
+func reflected_word(value: Reflected): String {
+    switch value.kind {
+        "class": {
+            crash value.described_type
+            var described_class = class_of_type(value.described_type)
+            if described_class {
+                return snake_words(described_class.simple_name)
+            }
+            var label = type_label(value.described_type)
+            return snake_words(label)
+        }
+        "namespace": {
+            var lowered = value.name.lower_case()
+            return lowered.replace(".", "_")
+        }
+        "argument": {
+            crash value.function
+            return "{value.function.name}_{value.name}"
+        }
+        _: return value.name
+    }
+}
+
+func matches_parameter(constant: Reflected, parameter_type: Analysis.SpiteType): Boolean {
+    var class_ref = type_shape.as_class_ref(parameter_type)
+    if not class_ref {
+        return false
+    }
+    switch class_ref.c_name {
+        "Spite_Class": return constant.kind == "class"
+        "Spite_Namespace": return constant.kind == "namespace"
+        "Spite_Function": return constant.kind == "function"
+        "Spite_Argument": return constant.kind == "argument"
+        "Spite_Attribute": return constant.kind == "attribute"
+        _: return false
+    }
+}
+
+func reflected_argument_at(
+    parameter_type: Analysis.SpiteType,
+    argument: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Reflected {
+    var not_constant = Reflected("")
+    if not is_reflection_type(parameter_type) or not worth_reflecting(argument, scope) {
+        return not_constant
+    }
+    var found = reflected(argument, scope, class_information)
+    if not found {
+        return not_constant
+    }
+    if not matches_parameter(found, parameter_type) {
+        return not_constant
+    }
+    return found
+}
+
+func reflected_arguments(
+    function: Analysis.FunctionInfo,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): List<Reflected> {
+    var constants = List<Reflected>()
+    var any_constant = false
+    var index = 0
+    while index < function.parameters.count() and index < arguments_ast.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.get_type()
+        var argument = arguments_ast[index]
+        var constant = reflected_argument_at(parameter_type, argument, scope, class_information)
+        if not constant.kind.is_empty() {
+            any_constant = true
+        }
+        constants.append(constant)
+        index = index + 1
+    }
+    if not any_constant {
+        constants.clear()
+    }
+    return constants
+}
+
+func specialisation_key(function: Analysis.FunctionInfo, constants: List<Reflected>): String {
+    var key_parts = [function.c_name]
+    var index = 0
+    while index < constants.count() {
+        var constant = constants[index]
+        var constant_key = reflected_key(constant)
+        key_parts.append(constant_key)
+        index = index + 1
+    }
+    return key_parts.join("|")
+}
+
+func specialisation_name(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    constants: List<Reflected>,
+): String {
+    var words = List<String>()
+    var index = 0
+    while index < constants.count() {
+        var constant = constants[index]
+        if not constant.kind.is_empty() {
+            var word = reflected_word(constant)
+            words.append(word)
+        }
+        index = index + 1
+    }
+    var base_name = "{function.name}_for_{words.join("_")}"
+    var name = base_name
+    var counter = 2
+    while information.find_function(name) {
+        name = "{base_name}_{counter}"
+        counter = counter + 1
+    }
+    return name
+}
+
+func bound_copy(constant: Reflected, instance_name: String): Reflected {
+    var copied = Reflected("attribute")
+    copied.owner = constant.owner
+    copied.name = constant.name
+    copied.described_type = constant.described_type
+    copied.position = constant.position
+    copied.bound = Syntax.Expressions.IdentifierExpression(instance_name)
+    return copied
+}
+
+func specialised_return_type(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    bindings: List<ReflectedBinding>,
+): Analysis.SpiteType {
+    var return_type = function.get_return_type()
+    var declaration_position = reflection_declaration_positions.get(function.c_name)
+    crash declaration_position
+    crash reflection_declarations[declaration_position]
+    var declaration = reflection_declarations[declaration_position]
+    crash declaration.return_type
+    var saved_bindings = reflected_bindings
+    reflected_bindings = bindings.copy()
+    var saved_class = current_class
+    current_class = information
+    var resolved_return = resolve_type(declaration.return_type, information.qualified_dotted)
+    current_class = saved_class
+    reflected_bindings = saved_bindings
+    if resolved_return {
+        return_type = resolved_return
+    }
+    return return_type
+}
+
+func bind_single_symbol(specialised: Analysis.FunctionInfo, bindings: List<ReflectedBinding>) {
+    assert bindings.count() == 1
+    var only_binding = bindings[0]
+    var only = only_binding.value
+    var described = only.kind == "attribute" and not only.bound or only.kind == "argument"
+    assert described
+    specialised.symbol_name = only_binding.name
+    specialised.symbol_field_name = only.name
+    specialised.symbol_field_type = only.described_type
+    specialised.symbol_field_index = only.position
+    if only.kind == "attribute" {
+        crash only.owner
+        specialised.symbol_owner_c_name = only.owner.c_name
+    }
+}
+
+func specialised_function(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    constants: List<Reflected>,
+): Analysis.FunctionInfo {
+    var key = specialisation_key(function, constants)
+    var known = specialisation_names.get(key)
+    if known {
+        var existing = information.find_function(known)
+        crash existing
+        return existing
+    }
+    var name = specialisation_name(information, function, constants)
+    specialisation_names[key] = name
+    var parameters = List<Analysis.ParamInfo>()
+    var bindings = List<ReflectedBinding>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var constant = Reflected("")
+        if index < constants.count() {
+            constant = constants[index]
+        }
+        if constant.kind.is_empty() {
+            parameters.append(parameter)
+        } else {
+            var bound_value = constant
+            if constant.bound {
+                crash constant.owner
+                var instance_name = "{parameter.name}_instance"
+                var instance_type = value_class_type(constant.owner)
+                var instance = Analysis.ParamInfo(instance_name, instance_type)
+                parameters.append(instance)
+                bound_value = bound_copy(constant, instance_name)
+            }
+            var binding = ReflectedBinding(parameter.name, bound_value)
+            bindings.append(binding)
+        }
+        index = index + 1
+    }
+    var return_type = function.get_return_type()
+    if constant_return_names.contains(function.c_name) {
+        return_type = specialised_return_type(information, function, bindings)
+    }
+    var specialised = Analysis.FunctionInfo(
+        name,
+        "{information.c_name}_{name}",
+        parameters,
+        return_type,
+        function.body,
+        false,
+    )
+    specialised.line = function.line
+    specialised.end_line = function.end_line
+    specialised.source_path = function.source_path
+    bind_single_symbol(specialised, bindings)
+    var position = specialisations.count()
+    var made = Specialisation(specialised.c_name, bindings)
+    specialisations.append(made)
+    specialised.specialisation_position = position
+    information.declared_functions.append(specialised)
+    builder.add_prototype("{function_signature(information, specialised)};")
+    return specialised
+}
+
+func specialised_arguments(
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    constants: List<Reflected>,
+): List<Syntax.Expressions.Expression> {
+    var passed = List<Syntax.Expressions.Expression>()
+    var index = 0
+    while index < arguments_ast.count() {
+        var argument = arguments_ast[index]
+        var constant = Reflected("")
+        if index < constants.count() {
+            constant = constants[index]
+        }
+        if constant.kind.is_empty() {
+            passed.append(argument)
+        } else if constant.bound {
+            passed.append(constant.bound)
+        }
+        index = index + 1
+    }
+    return passed
+}
+
+func specialised_call(
+    function: Analysis.FunctionInfo,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert waits_for_constants(class_information, function)
+    var constants = reflected_arguments(function, arguments_ast, scope, class_information)
+    assert not constants.is_empty()
+    assert keeps_constants(function, constants)
+    var specialised = specialised_function(class_information, function, constants)
+    var passed = specialised_arguments(arguments_ast, constants)
+    return generate_own_function_call(specialised.name, passed, scope, class_information)
+}
+
+func bind_reflected_of(function: Analysis.FunctionInfo) {
+    reflected_bindings = List<ReflectedBinding>()
+    reflected_body = function.body
+    assert function.specialisation_position >= 0
+    assert specialisations[function.specialisation_position]
+    var made = specialisations[function.specialisation_position]
+    reflected_bindings = made.bindings.copy()
+}
+
+func reflected_walk_function(
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): Analysis.FunctionInfo? {
+    assert arguments_ast.count() == 1
+    var walked = arguments_ast[0]
+    var walked_name = shape.as_identifier(walked)
+    assert walked_name
+    var function = class_information.find_function(walked_name.name)
+    assert function
+    assert function.parameters.count() == 1
+    return function
+}
+
+func walk_fits(listed: Reflected, function: Analysis.FunctionInfo): Boolean {
+    crash function.parameters[0]
+    var parameter = function.parameters[0]
+    var parameter_type = parameter.get_type()
+    if is_reflection_type(parameter_type) and parameter_needs_value(function, parameter.name) {
+        return false
+    }
+    var index = 0
+    while index < listed.elements.count() {
+        var element = listed.elements[index]
+        var fits = element.kind == "enum" or matches_parameter(element, parameter_type)
+        if not fits {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func unrolled_walk(
+    member: Syntax.Expressions.MemberExpression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert member.name == "each" or member.name == "map"
+    crash member.object
+    assert worth_reflecting(member.object, scope)
+    var function = reflected_walk_function(arguments_ast, class_information)
+    assert function
+    var listed = reflected(member.object, scope, class_information)
+    assert listed
+    assert listed.kind == "list" and walk_fits(listed, function)
+    var calls = List<Syntax.Expressions.Expression>()
+    var index = 0
+    while index < listed.elements.count() {
+        var element = listed.elements[index]
+        var call = reflected_walk_call(function, element)
+        calls.append(call)
+        index = index + 1
+    }
+    if member.name == "map" {
+        return unrolled_map(function, calls, scope, class_information)
+    }
+    var codes = List<String>()
+    index = 0
+    while index < calls.count() {
+        var call = calls[index]
+        var called = generate_expression(call, scope, class_information)
+        codes.append(called.code)
+        index = index + 1
+    }
+    var nothing_type = void_type()
+    if codes.is_empty() {
+        return ExpressionResult("(void)0", nothing_type)
+    }
+    return ExpressionResult("({codes.join(", ")})", nothing_type)
+}
+
+func reflected_walk_call(function: Analysis.FunctionInfo, element: Reflected): Syntax.Expressions.Expression {
+    var element_name = "reflected_element_{reflected_element_counter}"
+    reflected_element_counter = reflected_element_counter + 1
+    var element_argument: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(element_name)
+    if element.kind == "enum" {
+        element_argument = Syntax.Expressions.EnumLiteralExpression(element.name)
+    } else {
+        bind_reflected(element_name, element)
+    }
+    var call_arguments = [element_argument]
+    var callee: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(function.name)
+    var call: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, call_arguments)
+    return call
+}
+
+func unrolled_map(
+    function: Analysis.FunctionInfo,
+    calls: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var elements = List<Syntax.Expressions.ListElement>()
+    var element_type = function.get_return_type()
+    var index = 0
+    while index < calls.count() {
+        var call = calls[index]
+        var element = Syntax.Expressions.ListElement(call)
+        elements.append(element)
+        index = index + 1
+    }
+    var first_call = calls.first()
+    if first_call {
+        var saved_counter = temporary_counter
+        var probe = generate_expression(first_call, scope, class_information)
+        rewind_temporaries(saved_counter)
+        element_type = probe.get_type()
+    }
+    if type_shape.is_void(element_type) {
+        report(
+            "'map' needs a function that answers a value, and '{function.name}' answers nothing: walk with 'each' instead",
+        )
+        return void_result()
+    }
+    var literal = Syntax.Expressions.ListLiteralExpression(elements)
+    return generate_list_literal(literal, element_type, scope, class_information)
+}
+
+func folded_reflection(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert worth_reflecting(expression, scope)
+    var found = reflected(expression, scope, class_information)
+    assert found
+    switch found.kind {
+        "boolean": {
+            var answer_type = boolean_type()
+            var answer = "false"
+            if found.truth {
+                answer = "true"
+            }
+            var folded_answer = ExpressionResult(answer, answer_type)
+            folded_answer.constant_text = "b:{answer}"
+            return folded_answer
+        }
+        "integer": {
+            var count_type = integer_type()
+            var counted = ExpressionResult(found.position, count_type)
+            counted.constant_text = "i:{found.position}"
+            return counted
+        }
+        "text": return folded_text_result(found)
+        "list": return materialised_list(found, scope, class_information)
+        "namespace": return namespace_object_result(found.name)
+        "enum": {
+            crash found.described_type
+            var enum_ref = type_shape.as_enum(found.described_type)
+            crash enum_ref
+            return ExpressionResult("{enum_ref.c_name}_{found.name}", found.described_type)
+        }
+        "class": {
+            assert rooted_in_binding(expression)
+            crash found.described_type
+            var class_object_code = class_object_call(found.described_type)
+            var class_object_type = spite_class_type()
+            var class_object = ExpressionResult(class_object_code, class_object_type)
+            class_object.owning_override = true
+            return class_object
+        }
+        _: return null
+    }
+}
+
+func folded_text_result(found: Reflected): ExpressionResult {
+    if found.is_symbol {
+        var symbol_code = ensure_symbol(found.name)
+        var symbol_spite_type: Analysis.SpiteType = Analysis.Types.SymbolType()
+        return ExpressionResult(symbol_code, symbol_spite_type)
+    }
+    var rendered = render_string_literal(found.name)
+    var text_type = string_type()
+    var text = ExpressionResult(rendered, text_type)
+    text.constant_text = "s:{found.name}"
+    return text
+}
+
+func namespace_object_result(dotted: String): ExpressionResult {
+    var namespace_code = "{ensure_namespace_object(dotted)}()"
+    var namespace_class = find_class_by_c_name("Spite_Namespace")
+    crash namespace_class
+    var namespace_type = class_type_of(namespace_class)
+    var namespace_object = ExpressionResult(namespace_code, namespace_type)
+    namespace_object.owning_override = true
+    return namespace_object
+}
+
+func rooted_in_binding(expression: Syntax.Expressions.Expression): Boolean {
+    var root = root_of(expression)
+    var root_name = shape.as_identifier(root)
+    if not root_name {
+        return false
+    }
+    var bound = reflected_binding(root_name.name)
+    if not bound {
+        return false
+    }
+    return true
+}
+
+func reflected_condition(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
+    assert worth_reflecting(expression, scope)
+    var found = reflected(expression, scope, class_information)
+    assert found
+    if found.kind == "boolean" {
+        return found.truth
+    }
+    if found.kind == "null" {
+        return false
+    }
+    assert found.is_object() or found.kind == "list" or found.kind == "enum"
+    return true
+}
+
+func reflected_type(named: Syntax.Types.NamedType): Analysis.SpiteType? {
+    var root = named.path.first()
+    crash root
+    var current: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(root)
+    var index = 1
+    while index < named.path.count() {
+        var segment = named.path[index]
+        current = Syntax.Expressions.MemberExpression(current, segment)
+        index = index + 1
+    }
+    var empty_scope = Scope(null)
+    crash current_class
+    var found = reflected(current, empty_scope, current_class)
+    if found {
+        if found.kind == "class" {
+            return found.described_type
+        }
+    }
+    report(
+        "'{named.path.join(".")}' is not a class known while compiling, so it cannot be a type here: a reflection object is a type only when it is a class the compiler can identify",
+    )
+    return null
+}
+
+func reassigned_in(statements: List<Syntax.Statements.Statement>, name: String): Boolean {
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        if statement_reassigns(statement, name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func statement_reassigns(statement: Syntax.Statements.Statement, name: String): Boolean {
+    switch statement {
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            return is_identifier_named(statement.target, name)
+        }
+        Syntax.Statements.IfStatement: return reassigned_in(statement.then_branch, name) or reassigned_in(statement.else_branch, name)
+        Syntax.Statements.WhileStatement: return reassigned_in(statement.body, name)
+        _: return false
+    }
+}
+
+func constant_local(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if declaration.type_reference or declaring_reflected_value {
+        return false
+    }
+    crash declaration.value
+    if not worth_reflecting(declaration.value, scope) {
+        return false
+    }
+    var found = reflected(declaration.value, scope, class_information)
+    if not found {
+        return false
+    }
+    var constant_kind = found.is_object() or found.kind == "list"
+    if not constant_kind or reassigned_in(reflected_body, declaration.name) {
+        return false
+    }
+    scanned_body = reflected_body
+    if statements_need_value(reflected_body, declaration.name) {
+        return false
+    }
+    var binding = ReflectedBinding(declaration.name, found)
+    binding.origin = declaration.value
+    reflected_bindings.append(binding)
+    return true
+}
+
+func reflected_identifier(
+    identifier: Syntax.Expressions.IdentifierExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var origin = binding_origin(identifier.name)
+    if origin {
+        return held_reflected_value(identifier.name, origin, scope, class_information)
+    }
+    var folded = folded_reflection(identifier, scope, class_information)
+    if folded {
+        return folded
+    }
+    report(
+        "'{identifier.name}' is a reflection object known while compiling, so this function is compiled once for it, and it has no run-time value to pass on here: read what you need from it, like '{identifier.name}.name' or '{identifier.name}.class'",
+    )
+    return void_result()
+}
+
+func bound_attribute_read(
+    member: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Syntax.Expressions.Expression? {
+    assert member.name == "value"
+    crash member.object
+    assert worth_reflecting(member.object, scope)
+    assert rooted_in_parameter(member.object)
+    var attribute = reflected(member.object, scope, class_information)
+    assert attribute
+    assert attribute.kind == "attribute"
+    if not attribute.bound {
+        var shown = Syntax.SourcePrinter().source_expression(member.object)
+        report(
+            "'{shown}.value' reads an attribute of an instance, and '{shown}' describes a declaration: walk the instance's own attributes, 'monster.attributes', or read 'monster.attributes[{shown}]'",
+        )
+        return null
+    }
+    var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(attribute.bound, attribute.name)
+    return read
+}
+
+func reflected_field_read(
+    index_expression: Syntax.Expressions.IndexExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Syntax.Expressions.Expression? {
+    crash index_expression.object
+    crash index_expression.index
+    var listed = shape.as_member(index_expression.object)
+    assert listed
+    assert listed.name == "attributes"
+    assert worth_reflecting(index_expression.index, scope)
+    var attribute = reflected(index_expression.index, scope, class_information)
+    assert attribute
+    assert attribute.kind == "attribute"
+    crash listed.object
+    var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(listed.object, attribute.name)
+    return read
+}
+
+func named_reflection_read(
+    index_expression: Syntax.Expressions.IndexExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Syntax.Expressions.Expression? {
+    crash index_expression.object
+    crash index_expression.index
+    var text_name = shape.as_string_literal(index_expression.index)
+    var enum_name = shape.as_enum_literal(index_expression.index)
+    assert text_name or enum_name
+    var saved_counter = temporary_counter
+    var probe = generate_expression(index_expression.object, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var probe_type = probe.get_type()
+    var listed = type_shape.as_list(probe_type)
+    assert listed
+    var element = listed.get_element()
+    assert is_reflection_type(element)
+    var callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(
+        index_expression.object,
+        "find_by_name",
+    )
+    var name_argument: Syntax.Expressions.Expression = index_expression.index
+    if text_name {
+        name_argument = Syntax.Expressions.EnumLiteralExpression(text_name.value)
+    }
+    var arguments = [name_argument]
+    var found: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, arguments)
+    return found
+}
+
+func report_run_time_reflection(function: Analysis.FunctionInfo) {
+    report(
+        "'{function.name}' answers a type read from a reflection object, so it is compiled once for each object the compiler can identify, and this call hands it one known only at run time: pass a class, attribute, function or argument named in the code, or walked from one",
+    )
+}
+
+func reflection_parameter_named(declaration: Syntax.Statements.FunctionDeclaration, name: String): Boolean {
+    var reflection_names = ["Spite.Class", "Spite.Namespace", "Spite.Function", "Spite.Argument", "Spite.Attribute"]
+    var index = 0
+    while index < declaration.parameters.count() {
+        var parameter = declaration.parameters[index]
+        var written = written_parameter_type(parameter)
+        if written and parameter.name == name and reflection_names.contains(written) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func written_parameter_type(parameter: Syntax.Statements.Parameter): String? {
+    assert parameter.type_reference
+    var named = shape.as_named_type(parameter.type_reference)
+    assert named
+    assert named.arguments.is_empty()
+    return named.path.join(".")
+}
+
+func return_waits_for_constants(declaration: Syntax.Statements.FunctionDeclaration): Boolean {
+    if not declaration.return_type {
+        return false
+    }
+    var named = shape.as_named_type(declaration.return_type)
+    if not named {
+        return false
+    }
+    var root = named.path.first()
+    if not root {
+        return false
+    }
+    return reflection_parameter_named(declaration, root)
+}
+
+func reflected_assignment_target(
+    target: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Syntax.Expressions.Expression? {
+    var indexed = shape.as_index(target)
+    if indexed {
+        return reflected_field_read(indexed, scope, class_information)
+    }
+    var member = shape.as_member(target)
+    assert member
+    return bound_attribute_read(member, scope, class_information)
+}
+
+func names_namespace(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
+    var segments = List<String>()
+    if not collect_static_segments(expression, segments) {
+        return false
+    }
+    crash segments[0]
+    var root_code = segments[0].code_at(0)
+    if root_code < 65 or root_code > 90 or scope.lookup_type(segments[0]) {
+        return false
+    }
+    var dotted = segments.join(".")
+    crash current_class
+    if find_class(dotted, current_class.qualified_dotted) {
+        return false
+    }
+    var namespace_dotted = nearest_namespace(dotted, current_class.namespace_dotted)
+    return not namespace_dotted.is_empty()
+}
+
+func statements_need_value(statements: List<Syntax.Statements.Statement>, name: String): Boolean {
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        if statement_needs_value(statement, name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func statement_needs_value(statement: Syntax.Statements.Statement, name: String): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: return declaration_needs_value(statement, name)
+        Syntax.Statements.AssignmentStatement: {
+            if optional_needs_value(statement.target, name) {
+                return true
+            }
+            return optional_needs_value(statement.value, name)
+        }
+        Syntax.Statements.ExpressionStatement: return optional_needs_value(statement.value, name)
+        Syntax.Statements.ReturnStatement: return optional_needs_value(statement.value, name)
+        Syntax.Statements.AssertStatement: return condition_needs_value(statement.value, name)
+        Syntax.Statements.IfStatement: {
+            if condition_needs_value(statement.condition, name) {
+                return true
+            }
+            return statements_need_value(statement.then_branch, name) or statements_need_value(statement.else_branch, name)
+        }
+        Syntax.Statements.WhileStatement: {
+            if optional_needs_value(statement.condition, name) {
+                return true
+            }
+            return statements_need_value(statement.body, name)
+        }
+        Syntax.Statements.SwitchStatement: return switch_needs_value(statement, name)
+        _: return false
+    }
+}
+
+func switch_needs_value(statement: Syntax.Statements.SwitchStatement, name: String): Boolean {
+    if optional_needs_value(statement.subject, name) {
+        return true
+    }
+    var index = 0
+    while index < statement.cases.count() {
+        var switch_case = statement.cases[index]
+        if statements_need_value(switch_case.body, name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func condition_needs_value(condition: Syntax.Expressions.Expression?, name: String): Boolean {
+    if not condition {
+        return false
+    }
+    if is_identifier_named(condition, name) {
+        return false
+    }
+    return expression_needs_value(condition, name)
+}
+
+func optional_needs_value(expression: Syntax.Expressions.Expression?, name: String): Boolean {
+    if not expression {
+        return false
+    }
+    return expression_needs_value(expression, name)
+}
+
+func expressions_need_value(expressions: List<Syntax.Expressions.Expression>, name: String): Boolean {
+    var index = 0
+    while index < expressions.count() {
+        var expression = expressions[index]
+        if expression_needs_value(expression, name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func expression_needs_value(expression: Syntax.Expressions.Expression, name: String): Boolean {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return expression.name == name
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            if expression.name == "value" and not scanning_parameter and mentions_in(expression.object, name) {
+                return true
+            }
+            if is_identifier_named(expression.object, name) {
+                var typed_value = scanning_parameter and expression.name == "value"
+                return not reflection_word(expression.name) and not typed_value
+            }
+            return expression_needs_value(expression.object, name)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            if expression_needs_value(expression.index, name) {
+                return true
+            }
+            if is_identifier_named(expression.object, name) {
+                return false
+            }
+            return expression_needs_value(expression.object, name)
+        }
+        Syntax.Expressions.CallExpression: return call_needs_value(expression, name)
+        Syntax.Expressions.GenericCallExpression: return expressions_need_value(expression.arguments, name)
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            return expression_needs_value(expression.left, name) or expression_needs_value(expression.right, name)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return expression_needs_value(expression.operand, name)
+        }
+        Syntax.Expressions.StringLiteralExpression: return expression.value.contains("\{") and expression.value.contains(name)
+        Syntax.Expressions.ListLiteralExpression: return list_literal_needs_value(expression, name)
+        _: return false
+    }
+}
+
+func list_literal_needs_value(literal: Syntax.Expressions.ListLiteralExpression, name: String): Boolean {
+    var index = 0
+    while index < literal.elements.count() {
+        var element = literal.elements[index]
+        if optional_needs_value(element.value, name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func call_needs_value(call: Syntax.Expressions.CallExpression, name: String): Boolean {
+    crash call.callee
+    if arguments_need_value(call, name) {
+        return true
+    }
+    var member = shape.as_member(call.callee)
+    if not member {
+        if is_identifier_named(call.callee, name) {
+            return false
+        }
+        return expression_needs_value(call.callee, name)
+    }
+    crash member.object
+    if not is_identifier_named(member.object, name) {
+        return expression_needs_value(member.object, name)
+    }
+    var folding = ["each", "map", "count", "is_empty", "first", "last", "filter"]
+    if folding.contains(member.name) or reflection_word(member.name) {
+        return false
+    }
+    var prefix = member_template_prefix(member.name)
+    return prefix.is_empty()
+}
+
+func declaration_needs_value(declaration: Syntax.Statements.VariableDeclaration, name: String): Boolean {
+    crash declaration.value
+    if expression_needs_value(declaration.value, name) {
+        return true
+    }
+    var mentioned = List<String>()
+    collect_mentioned_names(declaration.value, mentioned)
+    if not mentioned.contains(name) or declaration.name == name or not answers_reflection(declaration.value) {
+        return false
+    }
+    return statements_need_value(scanned_body, declaration.name)
+}
+
+func names_symbol_parameter(named: Syntax.Types.NamedType): Boolean {
+    var written = named.path.join(".")
+    if written == "Symbol" {
+        return true
+    }
+    return written == "Spite.Attribute" and not named.arguments.is_empty()
+}
+
+func materialised_list(found: Reflected, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult? {
+    var first = found.elements.first()
+    assert first
+    if first.kind == "namespace" {
+        return namespace_list_result(found)
+    }
+    assert first.kind == "enum"
+    crash first.described_type
+    var elements = List<Syntax.Expressions.ListElement>()
+    var index = 0
+    while index < found.elements.count() {
+        var value = found.elements[index]
+        var enum_value: Syntax.Expressions.Expression = Syntax.Expressions.EnumLiteralExpression(value.name)
+        var element = Syntax.Expressions.ListElement(enum_value)
+        elements.append(element)
+        index = index + 1
+    }
+    var literal = Syntax.Expressions.ListLiteralExpression(elements)
+    return generate_list_literal(literal, first.described_type, scope, class_information)
+}
+
+func namespace_list_result(found: Reflected): ExpressionResult {
+    var namespace_class = find_class_by_c_name("Spite_Namespace")
+    crash namespace_class
+    var namespace_type = class_type_of(namespace_class)
+    var list_name = ensure_list(namespace_type)
+    var temporary = next_temporary()
+    var lines = List<String>()
+    lines.append("{list_name}* {temporary} = {list_name}___make();")
+    var index = 0
+    while index < found.elements.count() {
+        var element = found.elements[index]
+        lines.append("{list_name}_append({temporary}, {ensure_namespace_object(element.name)}());")
+        index = index + 1
+    }
+    lines.append("{temporary};")
+    var list_type = list_type_of(namespace_type)
+    var listed = ExpressionResult("(\{ {lines.join(" ")} })", list_type)
+    listed.owning_override = true
+    return listed
+}
+
+func answers_plain_value(expression: Syntax.Expressions.Expression): Boolean {
+    var plain_words = [
+        "name"
+        "name_with_namespaces"
+        "index"
+        "returned_literal"
+        "camel_case_name"
+        "pascal_case_name"
+        "count"
+        "is_empty"
+    ]
+    var member = shape.as_member(expression)
+    if member {
+        return plain_words.contains(member.name) or member.name.starts_with("is_")
+    }
+    var call = shape.as_call(expression)
+    if not call {
+        return false
+    }
+    crash call.callee
+    var called = shape.as_member(call.callee)
+    if not called {
+        return false
+    }
+    var counting = called.name.starts_with("count_") or called.name.starts_with("any_") or called.name.starts_with("all_")
+    return plain_words.contains(called.name) or counting
+}
+
+func reflected_construction(
+    callee: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert rooted_in_binding(callee)
+    var made_class = reflected(callee, scope, class_information)
+    assert made_class
+    assert made_class.kind == "class"
+    crash made_class.described_type
+    var written = Syntax.SourcePrinter().source_expression(callee)
+    return generate_default_of(made_class.described_type, written, arguments, scope, class_information)
+}
+
+func chained_element_template(
+    list_class: Analysis.ClassInfo,
+    element_class: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    name: String,
+): Analysis.FunctionInfo? {
+    var existing = list_class.find_function(name)
+    if existing {
+        return existing
+    }
+    var hole = template.member_name_for(name)
+    var words = hole.split("_")
+    var split = 1
+    while split < words.count() {
+        var member_words = List<String>()
+        var method_words = List<String>()
+        var word_index = 0
+        while word_index < words.count() {
+            var word = words[word_index]
+            if word_index < split {
+                member_words.append(word)
+            } else {
+                method_words.append(word)
+            }
+            word_index = word_index + 1
+        }
+        var member_name = member_words.join("_")
+        var method_name = method_words.join("_")
+        var member_type = member_type_of(element_class, member_name)
+        if member_type {
+            var method = chained_method(member_type, method_name)
+            if method {
+                return instantiate_chained(list_class, element_class, template, member_name, method, name)
+            }
+        }
+        split = split + 1
+    }
+    return null
+}
+
+func chained_method(member_type: Analysis.SpiteType, method_name: String): Analysis.FunctionInfo? {
+    var owner = class_of_type(member_type)
+    if type_shape.as_string(member_type) or type_shape.is_symbol(member_type) {
+        owner = find_class_by_c_name("SpiteString")
+    }
+    assert owner
+    var method = find_or_instantiate_function(owner, method_name)
+    assert method
+    assert not method.is_constructor
+    return method
+}
+
+func instantiate_chained(
+    list_class: Analysis.ClassInfo,
+    element_class: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    member_name: String,
+    method: Analysis.FunctionInfo,
+    name: String,
+): Analysis.FunctionInfo {
+    chained_parameters = List<Analysis.ParamInfo>()
+    var index = 0
+    while index < method.parameters.count() {
+        var parameter = method.parameters[index]
+        var parameter_type = parameter.get_type()
+        var chained = Analysis.ParamInfo("chained_{parameter.name}", parameter_type)
+        chained_parameters.append(chained)
+        index = index + 1
+    }
+    chained_method_name = method.name
+    var returned = method.get_return_type()
+    return instantiate_template(list_class, template, member_name, returned, element_class.c_name, name, null)
+}
+
+func note_source_path(information: Analysis.ClassInfo, path: String) {
+    if information.source_paths.is_empty() and not information.source_path.is_empty() {
+        information.source_paths.append(information.source_path)
+    }
+    if not path.is_empty() and not information.source_paths.contains(path) {
+        information.source_paths.append(path)
+    }
+}
+
+func emit_source_paths(lines: List<String>, cache: String, paths: List<String>, folders: Boolean) {
+    var text_type = string_type()
+    var list_name = ensure_list(text_type)
+    if not paths.is_empty() {
+        lines.append("if ({cache}->_source_paths_ == 0) {cache}->_source_paths_ = {list_name}___make();")
+    }
+    var index = 0
+    while index < paths.count() {
+        var path = paths[index]
+        var absolute = absolute_source_path(path)
+        if folders {
+            absolute = path
+        }
+        lines.append("{list_name}_append({cache}->_source_paths_, {render_string_literal(absolute)});")
+        index = index + 1
+    }
+}
+
+func absolute_source_path(path: String): String {
+    var forward = path.replace("\\", "/")
+    var base = working_folder.replace("\\", "/")
+    if forward.starts_with("library/") or forward.starts_with("launcher/") {
+        base = language_folder.replace("\\", "/")
+    }
+    var joined = "{base}/{forward}"
+    if forward.starts_with("/") or forward.slice(1, 2) == ":" {
+        joined = forward
+    }
+    var folder = normalized_folder(joined)
+    var segments = forward.split("/")
+    var file_name = segments.last()
+    crash file_name
+    return "{folder}/{file_name}"
+}
+
+func namespace_source_paths(dotted: String): List<String> {
+    var folders = List<String>()
+    var index = 0
+    while index < classes.count() {
+        var candidate = classes[index]
+        if candidate.namespace_dotted == dotted {
+            add_class_folders(candidate, folders)
+        }
+        index = index + 1
+    }
+    return folders
+}
+
+func add_class_folders(candidate: Analysis.ClassInfo, folders: List<String>) {
+    var index = 0
+    while index < candidate.source_paths.count() {
+        var path = candidate.source_paths[index]
+        var absolute = absolute_source_path(path)
+        var folder = normalized_folder(absolute)
+        if not folders.contains(folder) {
+            folders.append(folder)
+        }
+        index = index + 1
+    }
+}
+
+func mentions_in(expression: Syntax.Expressions.Expression, name: String): Boolean {
+    var mentioned = List<String>()
+    collect_mentioned_names(expression, mentioned)
+    return mentioned.contains(name)
+}
+
+func rooted_in_parameter(expression: Syntax.Expressions.Expression): Boolean {
+    var root = root_of(expression)
+    var root_name = shape.as_identifier(root)
+    if not root_name {
+        return false
+    }
+    var bound = reflected_binding(root_name.name)
+    if not bound {
+        return false
+    }
+    var origin = binding_origin(root_name.name)
+    if origin {
+        return false
+    }
+    return true
+}
+
+func parameter_needs_value(function: Analysis.FunctionInfo, name: String): Boolean {
+    var saved_body = scanned_body
+    scanned_body = function.body
+    scanning_parameter = true
+    var needs = statements_need_value(function.body, name)
+    scanning_parameter = false
+    scanned_body = saved_body
+    return needs
+}
+
+func keeps_constants(function: Analysis.FunctionInfo, constants: List<Reflected>): Boolean {
+    var index = 0
+    while index < constants.count() and index < function.parameters.count() {
+        var constant = constants[index]
+        var parameter = function.parameters[index]
+        if not constant.kind.is_empty() and parameter_needs_value(function, parameter.name) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func bound_value_present(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var member = shape.as_member(expression)
+    if not member {
+        return false
+    }
+    crash member.object
+    if member.name != "value" or not rooted_in_parameter(member.object) {
+        return false
+    }
+    var attribute = reflected(member.object, scope, class_information)
+    if not attribute {
+        return false
+    }
+    if attribute.kind != "attribute" or not attribute.bound {
+        return false
+    }
+    crash attribute.described_type
+    if type_shape.as_nullable(attribute.described_type) {
+        return false
+    }
+    return true
+}
+
+func arguments_need_value(call: Syntax.Expressions.CallExpression, name: String): Boolean {
+    crash call.callee
+    var index = 0
+    while index < call.arguments.count() {
+        var argument = call.arguments[index]
+        var passed_on = is_identifier_named(argument, name) and passes_reflection(call.callee, index)
+        if not passed_on and expression_needs_value(argument, name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func passes_reflection(callee: Syntax.Expressions.Expression, position: Integer): Boolean {
+    var called = shape.as_identifier(callee)
+    if not called or not current_class {
+        return false
+    }
+    var function = current_class.find_function(called.name)
+    if not function {
+        return false
+    }
+    if position >= function.parameters.count() {
+        return false
+    }
+    var parameter = function.parameters[position]
+    var parameter_type = parameter.get_type()
+    return is_reflection_type(parameter_type)
+}
+
+func answers_reflection(expression: Syntax.Expressions.Expression): Boolean {
+    var object_words = [
+        "attributes"
+        "functions"
+        "classes"
+        "namespaces"
+        "every_class"
+        "values"
+        "arguments"
+        "namespace"
+        "parent"
+        "owner"
+        "function"
+        "returns"
+        "element_type"
+        "value_type"
+        "instances"
+        "class"
+    ]
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return true
+        Syntax.Expressions.IndexExpression: return true
+        Syntax.Expressions.MemberExpression: return object_words.contains(expression.name)
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            var called = shape.as_member(expression.callee)
+            if not called {
+                return false
+            }
+            var selecting = ["first", "last", "filter"]
+            return selecting.contains(called.name) or called.name.starts_with("filter_") or called.name.starts_with("find_by_")
+        }
+        _: return false
+    }
+}
+
+func held_reflected_value(
+    name: String,
+    origin: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var hidden = "{name}_at_run_time"
+    var held: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(hidden)
+    if not scope.lookup_type(hidden) {
+        var declaration = Syntax.Statements.VariableDeclaration(hidden, null, origin)
+        declaration.line = current_line
+        declaring_reflected_value = true
+        generate_variable_declaration(declaration, scope, class_information)
+        declaring_reflected_value = false
+    }
+    scope.mark_used(hidden)
+    return generate_expression(held, scope, class_information)
+}
+
+func skips_generic(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
+    if not waits_for_constants(information, function) {
+        return false
+    }
+    var inspectable = read_evaluate_print_loop or development or hot_reload
+    if not inspectable or constant_return_names.contains(function.c_name) {
+        return true
+    }
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.get_type()
+        var class_ref = type_shape.as_class_ref(parameter_type)
+        if class_ref {
+            if class_ref.c_name == "Spite_Attribute" or class_ref.c_name == "Spite_Argument" {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }

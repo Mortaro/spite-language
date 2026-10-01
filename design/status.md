@@ -307,6 +307,29 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - "Decided by Mortaro, being implemented" item 9 (open_questions.md) is the source of the `.functions` rule.
 - Removed clause: a `load`-ed root "would extend the deferred compile-time class generation" (deferred, not built).
 
+### Reflection known while compiling (D316, D317, D318, D323, D326)
+- Built: constants, folding, `each`/`map` unrolling, specialisation per reflection argument, bound attributes,
+  types from constants, `Spite.Namespace.instances`, enum `.values`, `[]` by name, `Spite.Attribute<T>` template
+  spelling, `filter_<member>_<function>(arguments)` on any list, `source_files`/`source_directories`;
+  `package_folder` removed.
+- Not built: `function.call_with(arguments.map(made))` (D317), `.read_attributes`/`.written_attributes` (item 109),
+  `Spite.Namespace.enums`, the plural `map_<members>` rule (D317, D328: `String.pluralize` is merged), and the
+  compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
+  (`engine/renderer/renderer.spite` is `Engine.Renderer` beside the namespace `Engine.Renderer`) is exactly that
+  pair, so the rule needs Mortaro to say whether the entry file is exempt.
+- Run time only through the old tables: `.is_stateful`, `.is_list` and the other kind questions, `.owner`,
+  `.index`, `.is_mutated` and `.returned_literal` answer only on a constant; read on a run-time object they are
+  "has no attribute".
+- Specialisation is limited to functions of the calling class; a function whose body needs the reflection
+  parameter's run-time value (passes it on to something that is not a reflection parameter, calls a function of
+  it) is not specialised and walks at run time as before. A parameter of an enum type is not specialised (rule 5
+  of the proposal names enums too).
+- The old mechanisms still work side by side: `Symbol<...>` templates and plural walks, `Symbol<$T.f>` argument
+  walks, name patterns, folder walks, `$T.has_function(...)` and the other name-keyed questions, `source_folder()`.
+  Unconfirmed (proposed by Claude): specialisation names `<function>_for_<member>`, a constant local being a
+  local never assigned again whose run-time value no statement needs, and a folded `assert` on a constant never
+  being an "always holds" error.
+
 ### Functions of `Spite.Class`, and why there are no static functions
 - The three override rules (the functions a class file can override are exactly those `Spite.Class` declares; an
   ordinary instance function whose name collides is a diagnostic naming `Spite.Class`; the override is evaluated at

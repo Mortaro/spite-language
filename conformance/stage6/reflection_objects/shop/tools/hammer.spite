@@ -1,0 +1,5 @@
+var weight = 2
+
+func heavy(): Boolean {
+    return weight > 1
+}

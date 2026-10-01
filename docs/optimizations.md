@@ -246,6 +246,18 @@ notice.** Nothing: reflection may be as detailed as it likes, because a program 
 of it. The list behind `.instances` is the compiler's bookkeeping, like the list of singletons to destroy at
 exit, so `--debug-memory` does not count it.
 
+### Reflection on constants folds and unrolls
+
+**What it does.** A reflection object the compiler can identify (a class named in the code, `$T`, `value.class`
+of a class-typed value, and everything read from them) is a constant
+([reflection.md](reflection.md#reflection-known-while-compiling)). A question asked of it is a literal, `each` over
+its list is one call per element, `map` is a list literal, and a function handed one is compiled once for it, so
+`Monster.attributes.each(show)` makes no list, no `Spite.Attribute` objects and no boxed values: `show_for_health`
+reads `health` directly. A local that holds a constant is not made at all when nothing needs its value at run time.
+
+**When.** Every build. **What you notice.** Fewer allocations under `--debug-memory` than the same walk over a
+run-time list, and one copy per element in `--final-classes`.
+
 ### Template chains run as one loop
 
 **What it does.** `teams.filter_is_active().map_lead().sum_age()` reads as three steps, and that is what it means,

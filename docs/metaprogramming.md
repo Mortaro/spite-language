@@ -13,6 +13,12 @@ Reading a program's structure at run time (`.class`, `.attributes`, `.functions`
 the element: a function of the calling class is passed as a value, `people.each(say_hello)`, never found by name
 ([collections.md](collections.md#passing-a-function-for-each-element)).
 
+A template is for a function whose name says what it is given, like `show_health(troll)`. Walking a program's
+structure (every attribute of a class, the arguments of a function, the classes of a namespace) is reflection on
+objects the compiler already knows: `Monster.attributes.each(show)` calls `show` once for each attribute, compiled
+once for each, with nothing looked up at run time
+([reflection.md](reflection.md#reflection-known-while-compiling)).
+
 ## Symbol codegen, step by step
 
 A parameter of type `Symbol` whose name is a segment of its own function's name turns that function into a
@@ -78,7 +84,8 @@ no other instance exists. The exact rules are in [Symbol codegen](#symbol-codege
 ### Another class's attributes, and all of them at once
 
 A template can answer for the attributes of a class other than its own: write the class inside the `Symbol`,
-`attribute: Symbol<Label>`. Inside, `label.attributes[attribute]` is that attribute of the `Label` passed in,
+`attribute: Symbol<Label>`, or spell the parameter as what it is, `attribute: Spite.Attribute<Label>`; the two are
+the same. Inside, `label.attributes[attribute]` is that attribute of the `Label` passed in,
 for reading and for writing. Calling the template with the symbol's name made plural (`show_attributes(...)`
 for `show_attribute`) calls it once for every attribute, in the order they are declared, so the template has
 to return nothing. It is how a class walks another one attribute by attribute without a loop or reflection at
@@ -1000,15 +1007,12 @@ wave runs
 `kind: Symbol<Spite.Class>` ranges over every class the program holds: its own, every package it loads and the
 standard library's, in order of their dotted names. It is the folder walk with no folder: `kind.class` is
 the class and `kind.name` its dotted name, and every question a walked class answers folds for each one. Two
-questions exist for this walk above all. **`kind.class.package_folder()`** is the folder of the class's file
-relative to the root of the `load` that brought it in: the program's folder for its own classes, the loaded
-folder for a package's (`ui/layout` for a class in `plugins/ui_plugin/ui/layout`, loaded as
-`load "../../plugins/ui_plugin"`), and `library/` for the standard library's (`spite` for `Spite.Class`).
-So a check can tell whose a class is without knowing where anything lives; `source_folder()` stays the absolute
-folder. **`kind.class.has_state()`** is `true` when some function of the class other than its constructor and
+questions exist for this walk above all. **`kind.class.source_files`** lists every file that declares or reopens
+the class, in the order they were loaded, as `File`s, so a check asks their `path` where a class comes from.
+**`kind.class.has_state()`** is `true` when some function of the class other than its constructor and
 `drop()` writes the class's own attributes, or anything reached through them, or a singleton, or when a singleton
 the class binds has state; it is the same study `function_writes_parameter` answers from ([below](#asking-whether-a-function-writes-a-parameter)),
-asked of the object itself. Both are constants while compiling, so the walk costs nothing when the program runs,
+asked of the object itself. `has_state()` is a constant while compiling, so the walk costs nothing when the program runs,
 and a program that never walks carries nothing of it.
 
 ```gdscript
@@ -1016,16 +1020,18 @@ func check_kind(kind: Symbol<Spite.Class>) {
     var name: String = kind.name
     if name.starts_with("Walk") {
         var stateful = kind.class.has_state()
-        var folder = kind.class.package_folder()
-        console.print(name, stateful, "'{folder}'")
+        var files = kind.class.source_files
+        var first = files.first()
+        crash first
+        console.print(name, stateful, first.path)
     }
 }
 ```
 
 Called as `check_kinds()`, over `WalkCounter` (whose `count_up()` writes `total`), `WalkWatcher` (which only reads
 a `WalkTally` singleton, whose `add_note()` writes it) and `Parts.WalkPart` (in `parts/`, holding one attribute
-nobody writes after it is made), it prints `WalkCounter true ''`, `WalkWatcher true ''` and
-`Parts.WalkPart false 'parts'` (`conformance/stage6/class_walk`). The standard library's classes are walked too,
+nobody writes after it is made), it prints `WalkCounter true`, `WalkWatcher true` and `Parts.WalkPart false`,
+each followed by the path of its file. The standard library's classes are walked too,
 and they answer the same way: `Console` has state, since reading a line writes its buffer through its heap.
 
 ### A name that says when it runs
@@ -1412,13 +1418,6 @@ below are the existing forms read one step further:
   standard library's, not a generic class's instances and not the compiler's own object literals), in order of
   their dotted names, and is read like a folder walk: `kind.class`, `kind.name`, the plural `check_kinds()`, and
   every question a walked class answers.
-- **`$T.package_folder()` is the folder of a class's file relative to the root of the load that brought it in.**
-  Asked as `source_folder()` is (`class.package_folder()`,
-  `Name.package_folder()`, `$T.package_folder()`, `kind.class.package_folder()` in a walk, and
-  `value.class.package_folder()` at run time), it folds to the path below the deepest root holding the file: the
-  program's folder, a folder a `load` names, or the standard library's `library/`; a file at a root answers `""`.
-  A class in no such folder is the error "'Name' was declared in '...', which is in no folder the program loads,
-  so it has no package folder".
 - **`$T.has_state()` answers whether a class keeps state.** It folds wherever it is written, for `$T`, a class
   named statically and a walked class, to `true` when a function of the class other than its constructor and
   `drop()` writes its own object (an attribute set on it or on anything reached through it, a call that writes it)

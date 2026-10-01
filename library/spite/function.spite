@@ -29,6 +29,10 @@ func waits(): Boolean {
     return _waits
 }
 
+func get_is_resumable(): Boolean {
+    return _waits
+}
+
 func name_fits(pattern: String): Boolean {
     var opening = pattern.index_of("<")
     var closing = pattern.index_of(">")
