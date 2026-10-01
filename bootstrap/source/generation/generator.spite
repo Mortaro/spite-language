@@ -1980,7 +1980,7 @@ func written_key_problem(key: String): Boolean {
 
 func class_has_function(owner: Analysis.ClassInfo, pattern: String, asking: Analysis.ClassInfo): Boolean {
     var functions = declared_functions_of(owner)
-    var names = functions.map_name()
+    var names = functions.map_names()
     var opening = pattern.index_of("<")
     var closing = pattern.index_of(">")
     if opening < 0 or closing < opening {
@@ -5493,6 +5493,7 @@ func register_template(declaration: Syntax.Statements.FunctionDeclaration, infor
     var suffix = declaration.name.slice(position + symbol_parameter_length, name_length)
     var template = Analysis.TemplateInfo(declaration, symbol_parameter, prefix, suffix)
     template.range = symbol_range_of(declaration, symbol_parameter)
+    report_singular_collection(declaration, information, symbol_parameter)
     if not template.range and information.qualified_dotted == "List" {
         var saved_function = current_function
         current_function = declaration.name
@@ -5504,6 +5505,30 @@ func register_template(declaration: Syntax.Statements.FunctionDeclaration, infor
     information.templates.append(template)
     check_hole_enum(information, template)
     return true
+}
+
+func report_singular_collection(
+    declaration: Syntax.Statements.FunctionDeclaration,
+    information: Analysis.ClassInfo,
+    symbol_parameter: String,
+) {
+    assert has_element_templates(information)
+    assert declaration.return_type
+    var printer = Syntax.SourcePrinter()
+    var returned = printer.source_type(declaration.return_type)
+    assert returned == "List<{symbol_parameter}.class>"
+    var plural_word = symbol_parameter.pluralize()
+    assert plural_word != symbol_parameter
+    var renamed = declaration.name.replace(symbol_parameter, plural_word)
+    var saved_function = current_function
+    var saved_line = current_line
+    current_function = declaration.name
+    current_line = declaration.line
+    report(
+        "'{declaration.name}' answers every '{symbol_parameter}' of the element, a 'List<{symbol_parameter}.class>', so its name holds the member in the plural: '{renamed}'",
+    )
+    current_function = saved_function
+    current_line = saved_line
 }
 
 func has_element_templates(information: Analysis.ClassInfo): Boolean {
@@ -5707,7 +5732,7 @@ func missing_hole_enum(information: Analysis.ClassInfo, hole: String, pattern: S
     var name = pascal_name(hole)
     var named = enums_named(name)
     if named.count() > 1 {
-        var owners = named.map_owner_qualified()
+        var owners = named.map_owner_qualifieds()
         return "the hole '<{hole}>' of '{pattern}' matches only the values of the enum '{name}', and more than one class declares one ('{owners.join("', '")}'): rename one of them, or declare '{name}' in '{information.qualified_dotted}' itself"
     }
     return "the hole '<{hole}>' of '{pattern}' matches only the values of an enum named for it, and there is no enum '{name}': declare 'enum {name}' listing the names it may match, one per line"
@@ -5880,7 +5905,7 @@ func pattern_matches(information: Analysis.ClassInfo, template: Analysis.Templat
     var prefix = pattern_prefix(template)
     var suffix = pattern_suffix(template)
     var functions = declared_functions_of(owner)
-    var names = functions.map_name()
+    var names = functions.map_names()
     var index = 0
     while index < hole_values.values.count() {
         var value = hole_values.values[index]
@@ -6050,7 +6075,7 @@ func template_attribute_names(information: Analysis.ClassInfo, template: Analysi
     if kind == "function" {
         var function = range_function(information, template)
         if function {
-            return function.parameters.map_name()
+            return function.parameters.map_names()
         }
         return List<String>()
     }
@@ -6068,11 +6093,11 @@ func template_attribute_names(information: Analysis.ClassInfo, template: Analysi
     }
     var range_class = template_range_class(information, template)
     if range_class {
-        return range_class.fields.map_name()
+        return range_class.fields.map_names()
     }
     var range_shape = template_range_shape(information, template)
     if range_shape {
-        return range_shape.shape_fields.filter_is_attribute().map_name()
+        return range_shape.shape_fields.filter_is_attribute().map_names()
     }
     return List<String>()
 }
@@ -11893,7 +11918,7 @@ func whole_list_passed(
 }
 
 func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.SpiteType> {
-    return parameters.map_get_type()
+    return parameters.map_get_types()
 }
 
 func singleton_call(target_class: Analysis.ClassInfo): String {
@@ -14631,6 +14656,13 @@ func asks_question(template_prefix: String): Boolean {
     return template_prefix == "filter_" or template_prefix == "any_" or template_prefix == "all_" or template_prefix == "count_" or template_prefix == "remove_where_"
 }
 
+func collected_word(member_name: String): String {
+    if is_question_name(member_name) {
+        return member_name
+    }
+    return member_name.pluralize()
+}
+
 func is_question_name(member_name: String): Boolean {
     return member_name.starts_with("is_") or member_name.starts_with("has_") or member_name.starts_with("can_")
 }
@@ -14668,7 +14700,7 @@ func template_member_name(template: Analysis.TemplateInfo, name: String, member_
         return ""
     }
     var member_name = found[0]
-    if member_name.pluralize().singularize() != member_name {
+    if word != member_name and word.singularize() != member_name {
         return ""
     }
     return member_name
@@ -15145,7 +15177,7 @@ func check_parallel_reach(
 ) {
     assert not visited.contains(function.name)
     visited.append(function.name)
-    var locals = function.parameters.map_name()
+    var locals = function.parameters.map_names()
     collect_declared_names(function.body, locals)
     var mentioned = List<String>()
     collect_block_names(function.body, mentioned)
@@ -19940,7 +19972,7 @@ func generate_foreign_callback(
     var work_text = printer.source_expression(work)
     var call_text = "ForeignCallback({work_text}, '{position}')"
     var parameter_types = parameter_types_of(function.parameters)
-    var parameter_names = function.parameters.map_name()
+    var parameter_names = function.parameters.map_names()
     var returned = function.return_type
     if not callback_types_cross(call_text, parameter_types, parameter_names, returned) {
         return refused_callback(target_class)
@@ -22231,7 +22263,7 @@ func lent_result_source(information: Analysis.ClassInfo, function: Analysis.Func
     }
     lent_results.set(key, "")
     var returns = List<Syntax.Expressions.Expression>()
-    var locals = function.parameters.map_name()
+    var locals = function.parameters.map_names()
     collect_returned_values(function.body, returns, locals, information)
     var index = 0
     while index < returns.count() {
@@ -22477,7 +22509,7 @@ func lends_this_return(expression_ast: Syntax.Expressions.Expression, class_info
     if lent.is_empty() {
         return false
     }
-    var locals = function.parameters.map_name()
+    var locals = function.parameters.map_names()
     var ignored = List<Syntax.Expressions.Expression>()
     collect_returned_values(function.body, ignored, locals, class_information)
     return lent_return_source(expression_ast, class_information, locals) == lent
@@ -23425,7 +23457,7 @@ func write_lent_argument(
     class_information: Analysis.ClassInfo,
 ): Boolean {
     var declaration = spread.declaration
-    var parameters = declaration.parameters.map_name()
+    var parameters = declaration.parameters.map_names()
     var symbol_position = name_position(parameters, spread.symbol_parameter)
     if symbol_position < parameters.count() {
         parameters.remove_at(symbol_position)
@@ -23924,7 +23956,7 @@ func walked_row_literal(
     var range_shape = template_range_shape(class_information, template)
     assert range_shape
     var template_declaration = template.declaration
-    var parameters = template_declaration.parameters.map_name()
+    var parameters = template_declaration.parameters.map_names()
     var symbol_position = name_position(parameters, template.symbol_parameter)
     assert symbol_position < parameters.count()
     parameters.remove_at(symbol_position)
@@ -27786,7 +27818,10 @@ func walk_by_call(
         mapped_by.result_name = result
         return mapped_by
     }
-    var mapped = TemplateWalk("to collect each '{mapped_member}'", "var {result} = {list_text}.map_{mapped_member}()")
+    var mapped = TemplateWalk(
+        "to collect each '{mapped_member}'",
+        "var {result} = {list_text}.map_{collected_word(mapped_member)}()",
+    )
     mapped.members.append(mapped_member)
     mapped.result_name = result
     return mapped
@@ -27821,7 +27856,7 @@ func walk_through_local(
         mapped_by.result_name = result
         return mapped_by
     }
-    var mapped = TemplateWalk("to collect each '{member}'", "var {result} = {list_text}.map_{member}()")
+    var mapped = TemplateWalk("to collect each '{member}'", "var {result} = {list_text}.map_{collected_word(member)}()")
     mapped.members.append(member)
     mapped.result_name = result
     return mapped
@@ -27920,7 +27955,7 @@ func walk_by_kept(
     assert not mapped_member.is_empty()
     var kept_and_mapped = TemplateWalk(
         "to collect '{mapped_member}' of the elements whose '{tested}' is true",
-        "var {result} = {list_text}.filter_{tested}().map_{mapped_member}()",
+        "var {result} = {list_text}.filter_{tested}().map_{collected_word(mapped_member)}()",
     )
     kept_and_mapped.members.append(tested)
     kept_and_mapped.members.append(mapped_member)
@@ -34884,7 +34919,7 @@ func constructor_replaced_fields(information: Analysis.ClassInfo): List<String> 
     var replaced = List<String>()
     assert information.constructor and not hot_reload and not information.is_singleton
     assert not information.is_value_class
-    var parameter_names = information.constructor.parameters.map_name()
+    var parameter_names = information.constructor.parameters.map_names()
     var body = information.constructor.body
     var index = 0
     var leading = true
@@ -35004,7 +35039,7 @@ func pure_class(class_c_name: String, visiting: List<String>): Boolean {
         return false
     }
     if information.constructor {
-        var parameter_names = information.constructor.parameters.map_name()
+        var parameter_names = information.constructor.parameters.map_names()
         var index = 0
         while index < information.constructor.body.count() {
             var target = replaced_by_statement(information, information.constructor.body[index], parameter_names)
@@ -39317,7 +39352,7 @@ func analysis_manifest_lines(): List<String> {
     while declared_index < classes.count() {
         var declaring = classes[declared_index]
         if is_hot_class(declaring) and not declaring.is_generic_template {
-            var declared_names = declaring.declared_functions.map_c_name()
+            var declared_names = declaring.declared_functions.map_c_names()
             fact_lines.append("declared {declaring.c_name}\t{declared_names.join(",")}")
         }
         declared_index = declared_index + 1
@@ -39326,7 +39361,7 @@ func analysis_manifest_lines(): List<String> {
     while union_index < unions.count() {
         var shaped = unions[union_index]
         if shaped.is_shape {
-            var shaped_members = shaped.members.map_c_name()
+            var shaped_members = shaped.members.map_c_names()
             fact_lines.append("members {shaped.c_name}\t{shaped_members.join(",")}")
         }
         union_index = union_index + 1
@@ -40560,7 +40595,7 @@ func differing_members(host: HotReloadLibrary, information: Analysis.UnionInfo):
         return "the running program has none"
     }
     var running_names = running.split(",")
-    var now = information.members.map_c_name()
+    var now = information.members.map_c_names()
     var differing = List<String>()
     var index = 0
     while index < running_names.count() {
@@ -40610,7 +40645,7 @@ func missing_slot(host: HotReloadLibrary): String {
         var declared = host.host_declared[rebuilt_name]
         if rebuilt and declared {
             var names = declared.split(",")
-            var existing = rebuilt.declared_functions.map_c_name()
+            var existing = rebuilt.declared_functions.map_c_names()
             var name_index = 0
             while name_index < names.count() {
                 if not names[name_index].is_empty() and not existing.contains(names[name_index]) {
@@ -40661,7 +40696,7 @@ func seed_made_members(host: HotReloadLibrary) {
 
 func make_declared_again(owner: Analysis.ClassInfo, declared: String) {
     var names = declared.split(",")
-    var existing = owner.declared_functions.map_c_name()
+    var existing = owner.declared_functions.map_c_names()
     var index = 0
     while index < names.count() {
         var c_name = names[index]
@@ -40842,7 +40877,7 @@ func analysis_snapshot(): Dictionary<String> {
     while index < unions.count() {
         var information = unions[index]
         if information.is_shape {
-            var member_names = information.members.map_c_name()
+            var member_names = information.members.map_c_names()
             snapshot["members {information.c_name}"] = digest.deduplicated_digest(member_names)
         }
         index = index + 1
@@ -41195,7 +41230,15 @@ func takes_reflection(function: Analysis.FunctionInfo): Boolean {
 }
 
 func waits_for_constants(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
-    if information.qualified_dotted.starts_with("Spite.") or function.is_constructor {
+    var reflection_classes = [
+        "Spite.Class"
+        "Spite.Namespace"
+        "Spite.Function"
+        "Spite.Argument"
+        "Spite.Attribute"
+        "Spite.Access"
+    ]
+    if reflection_classes.contains(information.qualified_dotted) or function.is_constructor {
         return false
     }
     if function.specialisation_position >= 0 {

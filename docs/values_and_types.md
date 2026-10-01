@@ -787,7 +787,7 @@ of values of any classes that fit ([functions_and_operators.md](functions_and_op
 Read through a `type`, a required function named without calling it is a function value bound to the value, as
 it is for a class ([functions_and_operators.md](functions_and_operators.md#functions-are-values)), so
 `Parallel(stage.run_once)` works on a `List<Stage>`'s element typed by shape. A `List` of a `type` answers the
-member templates too, over the attributes and the argument-free functions the type names: `map_name()`,
+member templates too, over the attributes and the argument-free functions the type names: `map_names()`,
 `filter_active()`, `count_active()`:
 
 ```gdscript title=shape_values_doc/job.spite
@@ -818,7 +818,7 @@ func ShapeValuesDoc() {
     var dry = Job("dry")
     jobs.append(dry)
     finish_first(jobs)
-    var names = jobs.map_name()
+    var names = jobs.map_names()
     var joined = names.join(", ")
     var finished = jobs.count_done()
     console.print(joined, finished)

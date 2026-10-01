@@ -847,6 +847,10 @@ is the word called, never by guessing from the call:
 - two members with one plural is an error naming both and asking to rename one;
 - a name `pluralize()` cannot inflect so that `singularize()` gives it back is an error naming the member and the
   fix: add the word to the irregulars table by reopening `String.Inflection`, or rename the member;
+- a name `pluralize()` leaves as it is, already plural or uncountable, is its own plural: `map_name_with_namespaces`;
+- a template that answers `List<member.class>` but names its member in the singular is an error naming the plural:
+  "'map_member' answers every 'member' of the element, a 'List<member.class>', so its name holds the member in
+  the plural: 'map_members'";
 - a member that is a question (`is_alive`, `has_target`, `can_fly`) is never collected: `map_is_alive()` is an error
   naming `filter_is_alive()`, `count_is_alive()`, `any_is_alive()` and `all_is_alive()`.
 

@@ -1,5 +1,5 @@
 diagnostics/template_walk/template_walk.spite:30: error: this 'while' walks every element of 'items' only to call 'restock' on each: write 'items.each_restock()' (in TemplateWalk.restock_all)
-diagnostics/template_walk/template_walk.spite:39: error: this 'while' walks every element of 'items' only to collect each 'name': write 'var names = items.map_name()' (in TemplateWalk.item_names)
+diagnostics/template_walk/template_walk.spite:39: error: this 'while' walks every element of 'items' only to collect each 'name': write 'var names = items.map_names()' (in TemplateWalk.item_names)
 diagnostics/template_walk/template_walk.spite:50: error: this 'while' walks every element of 'items' only to keep the elements whose 'in_stock' is true: write 'var stocked = items.filter_in_stock()' (in TemplateWalk.stocked_items)
 diagnostics/template_walk/template_walk.spite:62: error: this 'while' walks every element of 'items' only to add up 'price': write 'var total = items.sum_price()' (in TemplateWalk.total_price)
 diagnostics/template_walk/template_walk.spite:71: error: this 'while' walks every element of 'items' only to find the first whose 'name' equals 'wanted': write 'return items.find_by_name(wanted)' (in TemplateWalk.named)

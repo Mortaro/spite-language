@@ -9,7 +9,7 @@ func EveryClass() {
         if described.namespace {
             text = described.namespace.name_with_namespaces
         }
-        var joined_map_name = described.functions.map_name().join(",")
+        var joined_map_name = described.functions.map_names().join(",")
         console.print(described.name, "{text}|", joined_map_name)
         index = index + 1
     }
