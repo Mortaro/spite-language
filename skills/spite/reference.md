@@ -203,7 +203,7 @@ func is_alive(): Boolean {
   (`created_layouts[entity]`), never by text made from it (no `"{entity}"`). `keys()` answers the numbers.
   One dictionary never takes both kinds (a compile error naming both places). A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
   'Printable'`; print `list.join(", ")`, or `console.debug(list)`.
-- A chain of templates, `teams.filter_active().map_lead().sum_age()`, runs as one loop with no list in between.
+- A chain of templates, `teams.filter_active().map_leads().sum_age()`, runs as one loop with no list in between.
 - To remove many elements, never call `remove_at` or `remove_swapping` in a loop: `creatures.remove_where_dead()`
   or `numbers.remove_where(is_odd)` removes every one the test is true for in one pass and keeps the rest in
   order (`List`, `Vector`, `Items`; the passed-function form on a `List` only, never on a chain or a
@@ -302,7 +302,7 @@ func is_alive(): Boolean {
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](https://github.com/Mortaro/spite-language/blob/master/docs/optimizations.md).
 - On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Boolean` member),
-  `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
+  `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<members>()`,
   `each_<member>()` (a function). A member is an attribute or a function that takes nothing. A member that does
   not fit is an error naming what the template needs: `count_stars()` on a number member says `but 'count_' needs
   it to return Boolean (to add up a numeric member use 'sum_stars')`, and `each_size()` on an attribute says

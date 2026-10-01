@@ -36,7 +36,7 @@ func add_folder(path: String, report_files: Boolean): Boolean {
     }
     var directory = Directory(path)
     if report_files {
-        var names = directory.files()
+        var names = directory.entries().filter_files().map_names()
         var file_index = 0
         while file_index < names.count() {
             var name = names[file_index]
@@ -45,7 +45,7 @@ func add_folder(path: String, report_files: Boolean): Boolean {
             file_index = file_index + 1
         }
     }
-    var inner = directory.folders()
+    var inner = directory.entries().filter_directories().map_names()
     var index = 0
     while index < inner.count() {
         var name = inner[index]

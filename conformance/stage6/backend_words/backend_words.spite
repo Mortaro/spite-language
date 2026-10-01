@@ -18,7 +18,7 @@ func BackendWords() {
     var copied = map.copy()
     console.print(near, pascal, callback, winapi, main, stdin, stderr, free, memcpy, result, value, assigned)
     console.print(copied.interface, copied.linux, copied.errno)
-    var names = map.attributes.map_name().join(",")
+    var names = map.attributes.map_names().join(",")
     console.print(names)
     var auto = 0
     var double = 1.5

@@ -35,7 +35,7 @@ func remove_creatures() {
         index = index + 1
     }
     creatures.remove_where_dead()
-    var alive = creatures.map_name().join(", ")
+    var alive = creatures.map_names().join(", ")
     console.print("alive", alive)
 }
 
@@ -50,7 +50,7 @@ func remove_velocities() {
     var fourth = Velocity(0.0, "fourth")
     velocities.append(fourth)
     velocities.remove_where_stopped()
-    var labels = velocities.map_label().join(" | ")
+    var labels = velocities.map_labels().join(" | ")
     var weights = List<Float>()
     weights.append(0.5)
     weights.append(3.0)
@@ -73,7 +73,7 @@ func remove_packs() {
     also_kept.tag("lamp")
     packs.append(also_kept)
     packs.remove_where_empty()
-    var owners = packs.map_owner().join(", ")
+    var owners = packs.map_owners().join(", ")
     console.print("packs", owners)
 }
 

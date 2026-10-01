@@ -14,7 +14,7 @@ func JsonCamelCase() {
     var list_reader = JsonReader<List<ItemRecord>>("[\{\"buyPrice\": 4}, \{\"buy_price\": 5}]")
     var records = list_reader.read()
     crash records
-    var prices = records.map_buy_price()
+    var prices = records.map_buy_prices()
     var joined = prices.join(" ")
     console.print(joined)
     var writer = JsonWriter(camel)

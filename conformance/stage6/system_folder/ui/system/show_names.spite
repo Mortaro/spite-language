@@ -5,8 +5,8 @@ type Named {
 var console = Console()
 
 func run_all(named: List<Named>) {
-    var labels = named.map_label()
-    var texts = labels.map_text()
+    var labels = named.map_labels()
+    var texts = labels.map_texts()
     var joined = texts.join(", ")
     console.print("on screen:", joined)
 }
