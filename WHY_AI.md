@@ -84,6 +84,18 @@ designed so a moron's code still comes out correct and fast. That is the case fo
   build for a class that breaks it).
 - A test is a function named `test_...` that crashes when wrong. [docs/testing.md](docs/testing.md)
 
+## Architecture rules a framework enforces at compile time
+
+- A library walks the user's classes while compiling (`component: Symbol<Component>` walks every class in
+  `component/`) and states its rules as `crash` lines on questions the compiler answers: `fits_vector()` (plain
+  data only), `has_function(...)`, a function's arguments, an attribute's class.
+- A `crash` whose condition folds to false where the program reaches it is a compile error naming the instance:
+  `'crash component.class.fits_vector()' always halts: its condition is decided while compiling and is false ...
+  (in Game.check_component_inventory)`. It costs nothing at run time.
+- So rules such as "a component holds data only", "a system's functions end in its phase" or "no sentinel values"
+  are proven by the compiler instead of left to review. Code you write against such a framework either fits it or
+  does not build. [docs/metaprogramming.md](docs/metaprogramming.md)
+
 ## A running program you can query
 
 - `--hot-reload --repl-port=4000`: save a file and the changed classes are swapped into the running program.
