@@ -516,13 +516,14 @@ a class prints once it declares `func to_string(): String`, and `debug` shows an
 as `var console = Console()`.
 `print`, `error` and `debug` write their line out at once, so a log redirected to a file shows every line as it
 happens; `write` waits for the next line end or `flush()`.
-`Socket()` is TCP over IPv4 on every system: `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host,
+`Socket()` is TCP over IPv4 and IPv6 on every system (`connect("::1", port)`; `listen_everywhere` takes both): `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host,
 port)`, `connect_locally(port)`, `connect(host, port)`, then lines (`read_line(): String?`, `write_line(text)`) or
 bytes at a `Memory.Address` (`read_bytes(address, count): Integer`, `write_bytes(address, count)`), which wait.
 A loop that must not wait (a game server's tick) calls `accept_client_now(): Socket?`, `read_line_now():
 String?`, `read_bytes_now(address, count): Integer` (`0` is nothing yet) and `write_bytes_now(address, count):
 Integer` (how many the system took). A peer that hung up is not an error: `socket.closed` turns `true`, reads
 answer `0` or `null` and writes send nothing. Check `closed`, never a count of `-1`.
+`UdpSocket()` sends one `List<Byte>` datagram per `send_to(host, port, bytes)`; `HttpServer` (`next_request(): HttpRequest?`, `respond(request, response)`) and `HttpClient` (`send(host, port, request): HttpResponse?`) speak HTTP/1.1 and keep connections alive on their own.
 `Concurrent(function)` runs a function as a compile-time state machine and `Parallel(function)` on the thread pool: the handle stands
 in for what the function returns and reading it is the wait (there is no `.wait()`: `an Integer has no function
 'wait'`), `finished` answers without waiting, `finished_value(): T?` is the value once finished and `null` before

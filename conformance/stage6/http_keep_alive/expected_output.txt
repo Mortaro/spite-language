@@ -1,0 +1,7 @@
+/first: served /first, connection: keep-alive
+/second: served /second, connection: keep-alive
+/after-the-server-let-go: served /after-the-server-let-go, connection: keep-alive
+/last: served /last, connection: close
+served 4
+the second request came over the first one's connection: true
+the third came over that connection too: false

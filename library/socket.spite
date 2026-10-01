@@ -5,33 +5,52 @@ var heap = Memory.Heap()
 
 func listen_locally(port: Integer): Boolean {
     var address = local_address(port)
-    return listen_on(address)
+    var listening = listen_on(address)
+    heap.free(address)
+    return listening
 }
 
 func listen_everywhere(port: Integer): Boolean {
-    var address = any_address(port)
-    return listen_on(address)
+    var address = any_ipv6_address(port)
+    var listening = listen_on(address)
+    heap.free(address)
+    if listening {
+        return true
+    }
+    var fallback = any_address(port)
+    listening = listen_on(fallback)
+    heap.free(fallback)
+    return listening
 }
 
 func listen_at(host: String, port: Integer): Boolean {
-    var address = resolved_address(host, port)
-    if address == 0 {
-        return false
+    var addresses = resolved_addresses(host, port, 1)
+    var listening = false
+    if not addresses.is_empty() {
+        listening = listen_on(addresses[0])
     }
-    return listen_on(address)
+    free_addresses(addresses)
+    return listening
 }
 
 func connect_locally(port: Integer): Boolean {
     var address = local_address(port)
-    return connect_to(address)
+    var connected = connect_to(address)
+    heap.free(address)
+    return connected
 }
 
 func connect(host: String, port: Integer): Boolean {
-    var address = resolved_address(host, port)
-    if address == 0 {
-        return false
+    var addresses = resolved_addresses(host, port, 1)
+    var connected = false
+    var index = 0
+    while not connected and index < addresses.count() {
+        var address = addresses[index]
+        connected = connect_to(address)
+        index = index + 1
     }
-    return connect_to(address)
+    free_addresses(addresses)
+    return connected
 }
 
 func accept_client(): Socket? {
@@ -170,21 +189,31 @@ func close() {
     }
 }
 
+func drop() {
+    close()
+}
+
 func listen_on(address: Memory.Address): Boolean {
     start_sockets()
-    handle = open_socket()
+    var family = read_family(address)
+    handle = open_socket(family)
     closed = false
-    var bound = handle != -1 and bind_address(address)
-    heap.free(address)
-    return bound and listen_for_clients()
+    var listening = handle != -1 and bind_address(address) and listen_for_clients()
+    if not listening {
+        close()
+    }
+    return listening
 }
 
 func connect_to(address: Memory.Address): Boolean {
     start_sockets()
-    handle = open_socket()
+    var family = read_family(address)
+    handle = open_socket(family)
     closed = false
     var connected = handle != -1 and connect_address(address)
-    heap.free(address)
+    if not connected {
+        close()
+    }
     return connected
 }
 
@@ -228,15 +257,36 @@ func local_address(port: Integer): Memory.Address {
 }
 
 func any_address(port: Integer): Memory.Address {
-    var address = heap.allocate(16)
+    var address = empty_address()
+    var family = ipv4_family()
+    write_family(address, family)
+    write_port(address, port)
+    return address
+}
+
+func any_ipv6_address(port: Integer): Memory.Address {
+    var address = empty_address()
+    var family = ipv6_family()
+    write_family(address, family)
+    write_port(address, port)
+    return address
+}
+
+func empty_address(): Memory.Address {
+    var address = heap.allocate(28)
     var index = 0
-    while index < 16 {
+    while index < 28 {
         address.write_byte(index, 0)
         index = index + 1
     }
-    write_family(address)
-    write_port(address, port)
     return address
+}
+
+func address_length(address: Memory.Address): Integer {
+    if read_family(address) == ipv6_family() {
+        return 28
+    }
+    return 16
 }
 
 func write_port(address: Memory.Address, port: Integer) {
@@ -246,16 +296,22 @@ func write_port(address: Memory.Address, port: Integer) {
     address.write_byte(3, port_low)
 }
 
-func resolved_address(host: String, port: Integer): Memory.Address {
+func read_port(address: Memory.Address): Integer {
+    var port_high: Integer = address.read_byte(2)
+    var port_low: Integer = address.read_byte(3)
+    return port_high * 256 + port_low
+}
+
+func resolved_addresses(host: String, port: Integer, kind: Integer): List<Memory.Address> {
     start_sockets()
+    var addresses = List<Memory.Address>()
     var hints = heap.allocate(48)
     var index = 0
     while index < 48 {
         hints.write_byte(index, 0)
         index = index + 1
     }
-    hints.write_integer(4, 2)
-    hints.write_integer(8, 1)
+    hints.write_integer(8, kind)
     var found = heap.allocate(8)
     found.write_long(0, 0)
     var failed = resolve_name(host, hints, found) != 0
@@ -263,13 +319,126 @@ func resolved_address(host: String, port: Integer): Memory.Address {
     var first: Memory.Address = found.read_long(0)
     heap.free(found)
     if failed or first == 0 {
-        return 0
+        return addresses
     }
     var offset = resolved_address_offset()
-    var resolved: Memory.Address = first.read_long(offset)
-    var address = heap.allocate(16)
-    resolved.copy_to(address, 16)
+    var entry = first
+    while entry != 0 {
+        var family = entry.read_integer(4)
+        if family == ipv4_family() or family == ipv6_family() {
+            var resolved: Memory.Address = entry.read_long(offset)
+            var address = empty_address()
+            var resolved_length = entry.read_integer(16)
+            if resolved_length > 28 {
+                resolved_length = 28
+            }
+            resolved.copy_to(address, resolved_length)
+            write_port(address, port)
+            addresses.append(address)
+        }
+        entry = entry.read_long(40)
+    }
     free_resolved(first)
-    write_port(address, port)
-    return address
+    return addresses
+}
+
+func free_addresses(addresses: List<Memory.Address>) {
+    addresses.each(heap.free)
+}
+
+func address_text(address: Memory.Address): String {
+    if read_family(address) != ipv6_family() {
+        return dotted_text(address, 4)
+    }
+    var mapped = true
+    var index = 8
+    while index < 20 {
+        var expected = 0
+        if index >= 18 {
+            expected = 255
+        }
+        var value: Integer = address.read_byte(index)
+        mapped = mapped and value == expected
+        index = index + 1
+    }
+    if mapped {
+        return dotted_text(address, 20)
+    }
+    var groups = List<Integer>()
+    index = 0
+    while index < 8 {
+        var high: Integer = address.read_byte(8 + index * 2)
+        var low: Integer = address.read_byte(9 + index * 2)
+        groups.append(high * 256 + low)
+        index = index + 1
+    }
+    var text = ipv6_groups_text(groups)
+    var scope = address.read_integer(24)
+    if scope != 0 {
+        return "{text}%{scope}"
+    }
+    return text
+}
+
+func dotted_text(address: Memory.Address, start: Integer): String {
+    var first: Integer = address.read_byte(start)
+    var second: Integer = address.read_byte(start + 1)
+    var third: Integer = address.read_byte(start + 2)
+    var fourth: Integer = address.read_byte(start + 3)
+    return "{first}.{second}.{third}.{fourth}"
+}
+
+func ipv6_groups_text(groups: List<Integer>): String {
+    var longest_start = -1
+    var longest_length = 1
+    var run_start = -1
+    var index = 0
+    while index <= 8 {
+        var zero = false
+        if index < 8 {
+            zero = groups[index] == 0
+        }
+        if zero and run_start < 0 {
+            run_start = index
+        }
+        if not zero and run_start >= 0 {
+            if index - run_start > longest_length {
+                longest_start = run_start
+                longest_length = index - run_start
+            }
+            run_start = -1
+        }
+        index = index + 1
+    }
+    var text = ""
+    index = 0
+    while index < 8 {
+        if index == longest_start {
+            text = "{text}::"
+            index = index + longest_length
+        } else {
+            if not text.is_empty() and not text.ends_with(":") {
+                text = "{text}:"
+            }
+            var group = groups[index]
+            crash group
+            var digits = hex_text(group)
+            text = "{text}{digits}"
+            index = index + 1
+        }
+    }
+    return text
+}
+
+func hex_text(value: Integer): String {
+    var digits = "0123456789abcdef"
+    var text = ""
+    var rest = value
+    while rest > 0 or text.is_empty() {
+        var digit = rest.bits_and(15)
+        var character = digits.slice(digit, digit + 1)
+        text = "{character}{text}"
+        rest = rest.shifted_right(4)
+    }
+    return text
 }
