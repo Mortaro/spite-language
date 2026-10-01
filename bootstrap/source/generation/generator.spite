@@ -333,6 +333,7 @@ var frame_helper_classes = List<String>()
 var instance_lists_studied = false
 var every_class_listed = false
 var instance_listed_names = List<String>()
+var instance_study_owner = ""
 var read_list_answers = Dictionary<Boolean>()
 var class_read_lists = Dictionary<String>()
 var pending_allocator: Syntax.Statements.AssignmentStatement? = null
@@ -808,7 +809,7 @@ func generate(
     classes_resolved = true
     check_pending_constraints()
     report_shadowed_functions(discovery.class_files)
-    call_effects.study(discovery.class_files)
+    call_effects.study(discovery.class_files, this)
     var string_layout_code = string_layout()
     builder.replace_typedef(string_layout_position, string_layout_code)
     check_number_memory()
@@ -10317,15 +10318,16 @@ func receiver_in_frame(
     return into
 }
 
-func lists_instances(simple_name: String): Boolean {
+func lists_instances(qualified_name: String): Boolean {
     if not instance_lists_studied {
         instance_lists_studied = true
         classes.each(study_instance_lists)
     }
-    return every_class_listed or instance_listed_names.contains(simple_name)
+    return every_class_listed or instance_listed_names.contains(qualified_name)
 }
 
 func study_instance_lists(information: Analysis.ClassInfo) {
+    instance_study_owner = information.qualified_dotted
     information.declared_functions.each(study_function_instance_lists)
 }
 
@@ -10382,6 +10384,14 @@ func note_element_instance_lists(element: Syntax.Expressions.ListElement) {
 }
 
 func note_listed_class(listed: Syntax.Expressions.Expression) {
+    var saved_owner = current_owner
+    current_owner = instance_study_owner
+    var found = try_resolve_static_path(listed, instance_study_owner)
+    current_owner = saved_owner
+    if found {
+        instance_listed_names.append(found.qualified_dotted)
+        return
+    }
     var named = shape.as_identifier(listed)
     if named {
         instance_listed_names.append(named.name)
@@ -13957,7 +13967,7 @@ func report_use_after_handover(name: String, task: String, owner: Analysis.Class
 }
 
 func remember_parallel_site(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, work_text: String) {
-    parallel_site_keys.append("{owner.simple_name}#{function.name}")
+    parallel_site_keys.append("{owner.qualified_dotted}#{function.name}")
     parallel_site_texts.append(work_text)
     parallel_site_places.append("{current_path}\n{current_line}\n{current_owner}\n{current_function}")
 }
@@ -14172,10 +14182,10 @@ func self_contained(information: Analysis.ClassInfo, visited: List<String>): Boo
 }
 
 func kept_inside(owner: Analysis.ClassInfo, name: String, held: Analysis.SpiteType): Boolean {
-    if call_effects.default_is_shared(owner.simple_name, name) {
+    if call_effects.default_is_shared(owner.qualified_dotted, name) {
         return false
     }
-    var written_outside = call_effects.writes_from_outside(owner.simple_name)
+    var written_outside = call_effects.writes_from_outside(owner.qualified_dotted)
     if written_outside.contains(name) {
         return false
     }
@@ -14282,7 +14292,7 @@ func weak_class_reached(reached: Dictionary<Boolean>): String {
     while index < weak_classes.count() {
         var held = find_class_by_c_name(weak_classes[index])
         if held {
-            if reached.has(held.simple_name) {
+            if reached.has(held.qualified_dotted) {
                 return held.simple_name
             }
         }
@@ -14291,7 +14301,7 @@ func weak_class_reached(reached: Dictionary<Boolean>): String {
     index = 0
     while index < classes.count() {
         var reached_class = classes[index]
-        if reached.has(reached_class.simple_name) and not is_library_class(reached_class) {
+        if reached.has(reached_class.qualified_dotted) and not is_library_class(reached_class) {
             var weak_field = weak_field_of(reached_class)
             if not weak_field.is_empty() {
                 return weak_field
@@ -19966,7 +19976,7 @@ func undo_proofs_after_call(
     var attribute_index = 0
     while attribute_index < attributes.count() {
         var attribute = attributes[attribute_index]
-        var attribute_dependency = ["{class_information.simple_name}#{attribute}"]
+        var attribute_dependency = ["{class_information.qualified_dotted}#{attribute}"]
         var effect = changing_effect(effects, attribute_dependency, attribute, arguments)
         if not effect.is_empty() and scope.forget_override(attribute, false) {
             crossed.append(attribute)
@@ -19996,9 +20006,10 @@ func called_effects(
             return unknown
         }
         if call_effects.names_a_class(identifier.name) {
-            return call_effects.effects_of(identifier.name, identifier.name)
+            var constructed = effects_class_of(callee, class_information)
+            return call_effects.effects_of(constructed, identifier.name)
         }
-        return call_effects.effects_of(class_information.simple_name, identifier.name)
+        return call_effects.effects_of(class_information.qualified_dotted, identifier.name)
     }
     var member = shape.as_member(callee)
     if member {
@@ -20006,7 +20017,8 @@ func called_effects(
             return unknown
         }
         if call_effects.names_a_class(member.name) {
-            return call_effects.effects_of(member.name, member.name)
+            var constructed = effects_class_of(callee, class_information)
+            return call_effects.effects_of(constructed, member.name)
         }
         crash member.object
         var owner = receiver_owner(member.object, scope, class_information)
@@ -20056,7 +20068,7 @@ func receiver_owner(
     var construction = shape.as_generic_call(expression)
     if construction {
         crash construction.callee
-        var constructed = called_name_of(construction.callee)
+        var constructed = effects_class_of(construction.callee, class_information)
         if call_effects.class_names.has(constructed) {
             return constructed
         }
@@ -20275,7 +20287,7 @@ func proof_dependencies(path: String, scope: Scope, class_information: Analysis.
         current = made_type
         position = constructed.length()
     } else if not root_local {
-        link = "{class_information.simple_name}#{root}"
+        link = "{class_information.qualified_dotted}#{root}"
         dependencies.append(link)
         var root_field = class_information.find_field(root)
         if root_field {
@@ -20309,7 +20321,7 @@ func proof_dependencies(path: String, scope: Scope, class_information: Analysis.
 func owner_name(spite_type: Analysis.SpiteType?): String {
     var owner_class = class_behind(spite_type)
     if owner_class {
-        return owner_class.simple_name
+        return owner_class.qualified_dotted
     }
     return collection_name(spite_type)
 }
@@ -20403,7 +20415,7 @@ func add_key_dependency(
     assert not local
     var field = class_information.find_field(word)
     assert field
-    dependencies.append("{class_information.simple_name}#{word}")
+    dependencies.append("{class_information.qualified_dotted}#{word}")
 }
 
 func narrow_by_guard(scope: Scope, guard: NullableGuard, check: String) {
@@ -21580,7 +21592,7 @@ func drops_reach_list(owner: Analysis.ClassInfo, field_name: String): Boolean {
         var information = classes[index]
         var dropped_while_running = not information.is_singleton and not is_library_class(information)
         if dropped_while_running and information.find_function("drop") {
-            var key = call_effects.effects_key(information.simple_name, "drop")
+            var key = call_effects.effects_key(information.qualified_dotted, "drop")
             if key.is_empty() {
                 return true
             }
@@ -21600,11 +21612,11 @@ func drop_reaches_list(key: String, owner: Analysis.ClassInfo, field_name: Strin
         return true
     }
     var reached = call_effects.reached_classes(keys)
-    if reached.has(owner.simple_name) {
+    if reached.has(owner.qualified_dotted) {
         return true
     }
     var accesses = call_effects.reached_accesses(keys)
-    return accesses.contains("{owner.simple_name}#{field_name}") or accesses.contains("*#{field_name}")
+    return accesses.contains("{owner.qualified_dotted}#{field_name}") or accesses.contains("*#{field_name}")
 }
 
 func lend_site(
@@ -21732,7 +21744,7 @@ func finish_lend_sites() {
         crash lend_site_keys[index]
         var releasing = lend_site_releases[index]
         var keys_text = lend_site_keys[index]
-        var threaded = parallel_used and (reached.has(owner.simple_name) or called_implicitly(owner))
+        var threaded = parallel_used and (reached.has(owner.qualified_dotted) or called_implicitly(owner))
         var lent_read = "#define spite_lend_{index}_read(lent, counted, receiver, index) lent(receiver, index)"
         if not threaded {
             builder.add_typedef("#define spite_lend_{index}_enter() ((void)0)")
@@ -21772,7 +21784,7 @@ func lend_window_holds(owner: Analysis.ClassInfo, keys_text: String): Boolean {
         keys = keys_text.split(" ")
     }
     var reached = call_effects.reached_classes(keys)
-    if reached.has(owner.simple_name) {
+    if reached.has(owner.qualified_dotted) {
         return false
     }
     var blocking = ["Parallel", "Concurrent", "ThreadPool", "Scheduler", "Lock", "Program", "Console", "File", "Socket"]
@@ -21788,7 +21800,7 @@ func lend_window_holds(owner: Analysis.ClassInfo, keys_text: String): Boolean {
     while index < classes.count() {
         var information = classes[index]
         if information.is_singleton and not information.is_stateless_singleton {
-            if reached.has(information.simple_name) or accesses_class(accesses, information) {
+            if reached.has(information.qualified_dotted) or accesses_class(accesses, information) {
                 return false
             }
         }
@@ -21805,7 +21817,7 @@ func accesses_class(accesses: List<String>, information: Analysis.ClassInfo): Bo
         var access_length = access.length()
         var owner = access.slice(0, hash)
         var field_name = access.slice(hash + 1, access_length)
-        if owner == information.simple_name {
+        if owner == information.qualified_dotted {
             return true
         }
         if owner == "*" and information.find_field(field_name) {
@@ -23882,8 +23894,9 @@ func call_resizes(
     var construction = shape.as_generic_call(called)
     if construction {
         crash construction.callee
-        var constructed = called_name_of(construction.callee)
-        var construction_effects = call_effects.effects_of(constructed, constructed)
+        var constructed = effects_class_of(construction.callee, class_information)
+        var made_name = called_name_of(construction.callee)
+        var construction_effects = call_effects.effects_of(constructed, made_name)
         if effects_resize(construction_effects, source, construction.arguments, scope, class_information) {
             return "'{printer.source_expression(construction.callee)}()'"
         }
@@ -23952,16 +23965,18 @@ func called_effects_key(
             return ""
         }
         if call_effects.names_a_class(identifier.name) {
-            return call_effects.effects_key(identifier.name, identifier.name)
+            var constructed = effects_class_of(callee, class_information)
+            return call_effects.effects_key(constructed, identifier.name)
         }
-        return call_effects.effects_key(class_information.simple_name, identifier.name)
+        return call_effects.effects_key(class_information.qualified_dotted, identifier.name)
     }
     var member = shape.as_member(callee)
     if not member or member.name == "call_function" {
         return ""
     }
     if call_effects.names_a_class(member.name) {
-        return call_effects.effects_key(member.name, member.name)
+        var constructed = effects_class_of(callee, class_information)
+        return call_effects.effects_key(constructed, member.name)
     }
     crash member.object
     var root = shape.as_identifier(member.object)
@@ -24005,10 +24020,10 @@ func argument_class_name(
         return ""
     }
     var argument_class = find_class_by_c_name(class_reference.c_name)
-    if not argument_class or not call_effects.class_names.has(argument_class.simple_name) {
+    if not argument_class or not call_effects.class_names.has(argument_class.qualified_dotted) {
         return ""
     }
-    return argument_class.simple_name
+    return argument_class.qualified_dotted
 }
 
 func argument_type_of(
@@ -24392,8 +24407,9 @@ func watch_expression(
             }
             var constructed = called_name_of(expression.callee)
             if watch.strict {
-                var constructed_key = call_effects.effects_key(constructed, constructed)
-                var constructed_effects = call_effects.effects_of(constructed, constructed)
+                var constructed_class = effects_class_of(expression.callee, class_information)
+                var constructed_key = call_effects.effects_key(constructed_class, constructed)
+                var constructed_effects = call_effects.effects_of(constructed_class, constructed)
                 if constructed_key.is_empty() or not window_keeps(constructed_effects) {
                     return false
                 }
@@ -24558,7 +24574,7 @@ func watched_owner(watched_type: Analysis.SpiteType): String {
     if not owner {
         return ""
     }
-    return owner.simple_name
+    return owner.qualified_dotted
 }
 
 func watched_effects(
@@ -24575,6 +24591,14 @@ func watched_effects(
         }
     }
     return called_effects(callee, scope, class_information)
+}
+
+func effects_class_of(named: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): String {
+    var found = try_resolve_static_path(named, class_information.qualified_dotted)
+    if not found {
+        return "*"
+    }
+    return found.qualified_dotted
 }
 
 func called_name_of(callee: Syntax.Expressions.Expression): String {
@@ -30654,7 +30678,7 @@ func coarse_call(
         return false
     }
     coarse_called.append(function.c_name)
-    coarse_keys.append("{owner.simple_name}#{function.name}")
+    coarse_keys.append("{owner.qualified_dotted}#{function.name}")
     return true
 }
 
@@ -34180,7 +34204,7 @@ func finish_singleton_guards() {
         crash guarded_classes[index]
         var information = guarded_classes[index]
         var function = guarded_functions[index]
-        var threaded = reached.has(information.simple_name) or called_implicitly(information)
+        var threaded = reached.has(information.qualified_dotted) or called_implicitly(information)
         if threaded and touching.has(function.c_name) {
             wrapped.append(index)
         }
@@ -34246,7 +34270,7 @@ func find_reading_functions(wrapped: List<Integer>) {
         var function = guarded_functions[position]
         var name = information.c_name
         var shared = readers.contains(name) and not written_on_threads.contains(name)
-        if shared and not call_effects.writes_from_reached(information.simple_name, reached) {
+        if shared and not call_effects.writes_from_reached(information.qualified_dotted, reached) {
             var visiting = List<String>()
             if reads_only(information, function, visiting) {
                 reading_function_names.set(function.c_name, true)
@@ -34269,7 +34293,7 @@ func find_reading_functions(wrapped: List<Integer>) {
 }
 
 func thread_reaches(information: Analysis.ClassInfo, name: String, reached: Dictionary<Boolean>): Boolean {
-    return reached.has("{information.simple_name}#{name}") or reached.has("*#{name}")
+    return reached.has("{information.qualified_dotted}#{name}") or reached.has("*#{name}")
 }
 
 func reads_only(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, visiting: List<String>): Boolean {
@@ -34655,7 +34679,7 @@ func state_touching_functions(): Dictionary<Boolean> {
         var line_index = guarded_positions[index] + 1
         var end = guarded_ends[index]
         var changing = changing_field_codes(information)
-        var touches = call_effects.calls_back_into(information.simple_name, function.name)
+        var touches = call_effects.calls_back_into(information.qualified_dotted, function.name)
         while line_index < end and not touches {
             var line = builder.user_at(line_index)
             touches = line_touches_state(line, information, changing, function.c_name, own_names)
@@ -34698,7 +34722,7 @@ func changing_field_codes(information: Analysis.ClassInfo): List<String> {
         }
         index = index + 1
     }
-    var outside = call_effects.writes_from_outside(information.simple_name)
+    var outside = call_effects.writes_from_outside(information.qualified_dotted)
     var codes = List<String>()
     index = 0
     while index < information.fields.count() {
@@ -34844,7 +34868,7 @@ func report_locked_waits(wrapped: List<Integer>) {
         var function = guarded_functions[position]
         wrapped_function_names.set(function.c_name, true)
         if not is_instantiated_class(information) {
-            locked_keys.set("{information.simple_name}#{function.name}", information.simple_name)
+            locked_keys.set("{information.qualified_dotted}#{function.name}", information.qualified_dotted)
         }
         index = index + 1
     }
@@ -34915,7 +34939,7 @@ func report_joined_parallel(
     while index < reached_keys.count() {
         var key = reached_keys[index]
         if locked_keys[key] {
-            if locked_keys[key] == information.simple_name {
+            if locked_keys[key] == information.qualified_dotted {
                 report_locked_wait(declared, information, function, site, key)
                 return
             }
@@ -35723,7 +35747,7 @@ func finish_atomic_singletons() {
     var index = 0
     while index < atomic_classes.count() {
         var information = atomic_classes[index]
-        var threaded = parallel_used and (reached.has(information.simple_name) or called_implicitly(information))
+        var threaded = parallel_used and (reached.has(information.qualified_dotted) or called_implicitly(information))
         var flag = "0"
         if threaded {
             flag = "1"
@@ -35738,7 +35762,7 @@ func written_from_outside(information: Analysis.ClassInfo): Boolean {
         return outside_written[information.c_name] == true
     }
     var written = false
-    var names = call_effects.writes_from_outside(information.simple_name)
+    var names = call_effects.writes_from_outside(information.qualified_dotted)
     var index = 0
     while index < names.count() {
         if information.find_field(names[index]) {
@@ -35844,7 +35868,7 @@ func stays_with_singleton(target_class: Analysis.ClassInfo, field: Analysis.Fiel
     } else if not collection {
         return false
     }
-    return not call_effects.assigned_after_construction(target_class.simple_name, field.name)
+    return not call_effects.assigned_after_construction(target_class.qualified_dotted, field.name)
 }
 
 func guards_outside_write(target_class: Analysis.ClassInfo): Boolean {
@@ -35858,7 +35882,7 @@ func finish_outside_writes() {
     while index < outside_classes.count() {
         var information = outside_classes[index]
         var name = information.c_name
-        var threaded = parallel_used and (reached.has(information.simple_name) or called_implicitly(information))
+        var threaded = parallel_used and (reached.has(information.qualified_dotted) or called_implicitly(information))
         if threaded and not emitted_guards.contains(name) {
             emitted_guards.append(name)
             builder.add_support("static SpiteGuard {name}___guard = \{ 0, 0 };")
