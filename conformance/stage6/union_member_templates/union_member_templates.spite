@@ -1,0 +1,33 @@
+var console = Console()
+
+func UnionMemberTemplates() {
+    var folder = Directory("conformance/stage6/union_member_templates/tree")
+    var entries = folder.entries()
+    var names = entries.map_name()
+    var joined_names = names.join(",")
+    console.print("entries:", joined_names)
+    var texts = entries.filter_name_ends_with(".txt")
+    var text_count = texts.count()
+    console.print("text files:", text_count)
+    var files = entries.filter_files()
+    var first = files.first()
+    crash first
+    var content = first.read()
+    crash content
+    var trimmed = content.trim()
+    console.print("first file:", first.name, trimmed)
+    var directories = entries.filter_directories()
+    var inner = directories.first()
+    crash inner
+    var directory_count = directories.count()
+    console.print("folders:", directory_count, inner.name)
+    var tasks = Dictionary<Task>()
+    var sweep = Task("sweep", true)
+    tasks.set("sweep", sweep)
+    var cook = Task("cook", false)
+    tasks.set("cook", cook)
+    var done_count = tasks.count_done()
+    var finished = tasks.filter_is_done()
+    var finished_count = finished.count()
+    console.print("done:", done_count, finished_count)
+}

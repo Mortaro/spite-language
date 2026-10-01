@@ -260,6 +260,7 @@ way ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-
 | Member | Result | Notes |
 |---|---|---|
 | `path` | `String` | |
+| `name` | `String` | the last piece of the path: `Directory("levels/forest").name` is `forest` |
 | `entries()` | `List<Directory.Entry>` | every folder and file inside it, as `Directory` and `File` values |
 | `folders()` / `files()` | `List<String>` | names only, sorted by a merge sort (`n log n`), so a folder of thousands of files lists quickly |
 | `exists()` / `create()` | `Boolean` | |
@@ -282,7 +283,9 @@ exists true
 has hello true
 ```
 
-`files()` and `folders()` answer names, not paths; `entries()` answers values you can walk.
+`files()` and `folders()` answer names, not paths; `entries()` answers values you can walk, and its member templates
+keep one kind: `folder.entries().filter_files()` is a `List<File>` and `filter_directories()` a `List<Directory>`
+([a list of a union](metaprogramming.md#member-templates)).
 
 ## Walk a directory tree
 
@@ -793,7 +796,7 @@ name and its collection read as a pair: `"active_quest".pluralize()` is `"active
 `"map_names".singularize()` is `"map_name"`. Only the last word changes: the text after the last `_` or space, or
 from the last capital that follows a lower-case letter (`"ActiveQuest"` → `"ActiveQuests"`). The word is inflected
 in lower case and handed back in the case it came in: `"Person"` → `"People"`, `"ACTIVE_QUEST"` →
-`"ACTIVE_QUESTS"`. In order, a whole last word that is **uncountable** stays as it is (`data`, `equipment`,
+`"ACTIVE_QUESTS"`. In order, a whole last word that is **uncountable** stays as it is (`data`, `equipment`, `health`,
 `information`, `rice`, `money`, `species`, `series`, `fish`, `sheep`, `jeans`, `police`); an **irregular** one
 swaps with its pair (`person`/`people`, `man`/`men`, `woman`/`women`, `child`/`children`, `sex`/`sexes`,
 `move`/`moves`, `zombie`/`zombies`); otherwise the first of ActiveSupport's ending rules that matches applies
@@ -888,9 +891,9 @@ library through `DynamicLibrary`. What each member answers is in the section of 
 
 | Class | Members |
 |---|---|
-| `File(path)` | `path`, `to_string(): String` (the path), `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes: `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?`, `map(): MappedFile?`; see [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
+| `File(path)` | `path`, `name` (the last piece of the path), `to_string(): String` (the path), `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes: `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?`, `map(): MappedFile?`; see [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
 | `MappedFile` | made by `File.map()`: a read-only mapping of the whole file (`CreateFileMappingA`/`MapViewOfFile` on Windows, `mmap` with `PROT_READ` and `MAP_PRIVATE` on Linux and macOS, the file itself closed once mapped), undone by `drop()` (`UnmapViewOfFile`, `munmap`). `size(): Long`; `get_at(position): Byte?` (`mapped[position]`), `read_short`, `read_integer`, `read_long`, `read_float`, `read_double` (each `(position): T?`) and `text(position, count): String?` answer `null` unless every byte they would read is inside the file, so a bad offset read from the file cannot read outside it; a read inside is one load from the mapping. An empty file maps to a `MappedFile` of size 0, since the operating systems refuse to map nothing. `conformance/stage6/mapped_files`; see [A file larger than memory](#a-file-larger-than-memory-map-it) |
-| `Directory(path)` | `path`, `entries(): List<Directory.Entry>` (below), `files(): List<String>`, `folders(): List<String>`, `exists(): Boolean`, `create(): Boolean`; see [List a directory](#list-a-directory) |
+| `Directory(path)` | `path`, `name` (the last piece of the path), `entries(): List<Directory.Entry>` (below), `files(): List<String>`, `folders(): List<String>`, `exists(): Boolean`, `create(): Boolean`; see [List a directory](#list-a-directory) |
 | `Process(command, arguments)` | `working_directory`, `environment_variables`, `run(): Integer`, `output(): String`, `run_attached(): Integer`; see [Run a process](#run-a-process). Each argument reaches the child whole: single-quoted for the shell on Linux and macOS, and quoted by the `CommandLineToArgvW` rules on Windows, a `key=value` argument quoting only its value (`-script="a b"`). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
 | `Program()` | a singleton: `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String`, `live_allocations(): Integer`; see [Program](#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |
 | `Clock()` | a singleton: `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant`; `elapsed_nanoseconds()` is the monotonic clock, with a nanosecond unit and no allocation per reading; see [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation) |
