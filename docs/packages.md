@@ -376,8 +376,16 @@ A reopening reopens the version its package pinned, so a game's `mods/renderer.s
 loads and leaves the minimap's alone. A class of the standard library that a version reopens is still the one
 class, as it is for any two packages.
 
-A package may pin a repository only once. Two pins of one repository at different commits in one package are an
-error naming both lines, since a name there could mean either version. A package that pins
+One package may pin a repository at two commits, and that is not two versions: the two pins are two ordinary
+loads into the same namespace, and the later one reopens the earlier exactly as a later folder does ([monkey
+patching](#monkey-patching-mods)), overriding what both define. A package that pins `engine@6c7dca9/core` and then
+`engine@41c09e2/tools` reads the tools of the later commit on top of the core of the earlier. If the two commits do
+not fit together, the compiler reports whatever breaks, as it would for any two folders, and the answer is to pin
+commits that fit (or fork the repository, which is all git). The pair is one version, spelled by its first commit,
+and a commit belongs to one version only: a commit that one package reads alongside another cannot also be read
+alone by a second package, which is an error naming both lines.
+
+A package that pins
 neither version and names a class that only the versions have is an error listing each version and the line that
 pinned it, and so is a package that reopens such a class: it loads the version it means.
 
@@ -623,9 +631,13 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
     package pinned; a value of one version's class is not the other's type, a singleton of one version is not
     the other's, and a file outside a version that has the dotted name of one of its classes reopens the version
     its package pinned. A class of the standard library a version reopens stays the one class. **One package
-    pinning two commits** of one repository is an error at the second: "'load "<text>"' pins <repository> at
-    <commit>, and <file>:<line> ('load "..."') pins it at another commit in the same package: both versions'
-    classes would have the same names there, so one package pins one commit of a repository".
+    pinning two commits** of one repository reads them as two ordinary loads into one namespace, the later
+    reopening the earlier under the load-order rule; together they are that package's version, spelled by its
+    first commit. A commit is read once, into one version, so a commit one package reads alongside another and
+    a second package reads into a different version is "'load "<text>"' reads <repository> at <commit> as part
+    of its package's version from <commit>, and <file>:<line> ('load "..."') reads that commit as part of the
+    version from <commit>: a commit's files are read once, into one version, so pin it the same way in both
+    packages".
     A name, or a reopening, that only the versions hold in a package that pinned none of them is an error listing
     every version as "<repository>@<commit>, pinned by <file>:<line> ('load "..."')". A version's classes are
     spelled `<repository name>_<commit>.<dotted name>` in messages, reflection and `--final-classes`, which
