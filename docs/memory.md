@@ -435,7 +435,7 @@ counts `Column<Trail>().values[found[3]]` for the call, exactly as above, and a 
 
 A system may take its components as arguments instead of a row, `update_each(position: Position, velocity:
 Velocity)`, and a generic runner fills them with a template over the function's arguments whose plural is the
-call's whole argument list ([metaprogramming.md](metaprogramming.md#asking-for-a-function-and-walking-its-arguments)).
+call's whole argument list ([metaprogramming.md](metaprogramming.md#walking-a-programs-structure)).
 The template's line is the walked row's line, read per argument: `argument.index` is the argument's place, so
 `Column<argument.class>().values[stored_row]`, after `var stored_row = rows[argument.index]`, is that component's
 item. The plural stands for exactly

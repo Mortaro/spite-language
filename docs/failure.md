@@ -858,7 +858,7 @@ not smuggle text into a condition to have it printed (`crash found or bone_name 
 values in scope without it.
 
 A `crash` the compiler can decide is not left for the run: one whose condition asks only what is known while
-compiling (a codegen value, `has_function`, `fits_vector`, ...) and is false, in a function the program reaches,
+compiling (a codegen value, `functions['run_each']`, `is_fixed_size`, ...) and is false, in a function the program reaches,
 is a compile error at the `crash`, since the program would halt there every time
 ([metaprogramming.md](metaprogramming.md#codegen-values-)).
 
@@ -1405,7 +1405,7 @@ would quietly answer `0`, `""`, `false`, a default object or `null`. A path ends
 - at an `if` with an `else` whose two branches both end, and at a `switch` whose cases all end (a `switch`
   covers every member or value, or has `_:`, so there is no other way through it);
 - at a `while true`, which ends only by leaving the function, since Spite has no `break`;
-- at an `if` whose condition is decided while compiling (a codegen value, `has_function`, ...) and whose branch
+- at an `if` whose condition is decided while compiling (a codegen value, `functions['run_each']`, ...) and whose branch
   taken ends, and at an `assert` so decided to be false, read per instance of a generic class, as they are
   compiled.
 

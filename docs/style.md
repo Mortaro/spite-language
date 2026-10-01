@@ -133,8 +133,8 @@ func WrittenNotRead() {
 An attribute nothing reads is an error the same way: remove it. A private `_name` attribute is no
 exception, since only its own class can read it. Writing an attribute is not reading it, so one that is only
 assigned is still unused. A read is anything that takes the attribute's value: its name in the class's own
-functions, `thing.world` from another class, `x.attributes[attribute]` in a Symbol template (which is how the JSON
-and binary writers and `to_debug()` read), and the rest [in the rules](#unused-is-an-error). A template that only looks
+functions, `thing.world` from another class, `x.attributes[attribute]` in a template or a walk (which is how the JSON
+and binary writers and `to_debug()` read), and the rest [in the rules](#unused-is-an-error). A walk that only looks
 at `attribute.name` or `attribute.class` reads the attribute's description, not the attribute, so an attribute
 kept only as a marker for such a walk is an error:
 
@@ -149,14 +149,12 @@ var console = Console()
 var mover = Mover()
 
 func UnusedMarker() {
-    var lines = List<String>()
-    classify_attributes(mover, lines)
-    var joined = lines.join(", ")
-    console.print(joined)
+    Mover.attributes.each(classify)
+    console.print(mover.class)
 }
 
-func classify_attribute(attribute: Symbol<Mover>, classified: Mover, lines: List<String>) {
-    lines.append("{attribute.name} is a {attribute.class}")
+func classify(attribute: Spite.Attribute) {
+    console.print(attribute.name, "is a", attribute.class)
 }
 ```
 ```diagnostic

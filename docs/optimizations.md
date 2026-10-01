@@ -136,13 +136,13 @@ even use things that would not compile for this build. That covers:
   ([metaprogramming.md](metaprogramming.md#tree-shaking));
 - a class test the value's type already answers, `if item == $wanted_type`, and one that can never be true for one
   instantiation of a generic, which folds to `false` there instead of being an error;
-- `$system_type.has_function("run_each")`;
-- `$system_type.function_waits("update_each")`, answered from the functions the compiler
+- `$system_type.functions['run_each']`;
+- `$system_type.functions['update_each'].is_resumable`, answered from the functions the compiler
   turns into state machines;
-- `phase.argument_count()` and `$system_type.argument_count("update_each")`, a whole
+- `phase.arguments.count()` and `$system_type.functions['update_each'].arguments.count()`, a whole
   number compared with `==`, `!=`, `<`, `<=`, `>` or `>=`, so a runner compiles only the branch that fits a
   system's arity;
-- `$component_type.fits_vector()` and `attribute.class.fits_vector()`, which is how
+- `$component_type.is_fixed_size` and `attribute.class.is_fixed_size`, which is how
   `Items<T>` picks inline or reference storage ([below](#an-items-storage-is-chosen-while-compiling));
 - a test on a codegen value's own codegen values, `$list_type.element_type == Float`,
   `$map_type.value_type == Item`, `$holder_type.held_type == String`, to any depth, in every branch of an
@@ -156,8 +156,8 @@ even use things that would not compile for this build. That covers:
   text, whose items have no `element_type` to ask about.
 
 An `assert` or `crash` folds too, but only when its condition asks a codegen question: a `$` value or a test of a
-codegen type, `attribute.class`, `has_function`, `function_waits`, `fits_vector`, `any_attribute_fits_vector`,
-`argument_count` or `function_writes_parameter`, and `not`, `and` and `or` over them. A check that holds writes
+codegen type, `attribute.class`, `functions[...]`, `.is_resumable`, `.is_fixed_size`, `any_attribute_fits_vector`,
+`.arguments.count()` or `.is_mutated`, and `not`, `and` and `or` over them. A check that holds writes
 nothing, and one that fails writes its failure (the default returned, or the crash report) with no test, the rest
 of its block not compiled ([metaprogramming.md](metaprogramming.md#codegen-values-)). A `Build` field,
 or a class test on a value (`item == $wanted_type`), in an `assert` or `crash` is not folded: it is tested at run
@@ -235,10 +235,10 @@ emits only that: a class object's `.attributes`, `.functions` and
 `.namespace`, `value.attributes`, `value.memory`, `attribute.value`, the per-class `Person.instances` registry (a
 class is only tracked when something asks for its instances), `Spite.Class.instances`, and a class's `to_debug()`.
 A symbol literal is an entry of a table the compiler writes with only the symbols the program uses; it is
-constant text, so storing and comparing symbols allocates nothing. A Symbol
-codegen template exists only for the names a program calls: a program that never calls `sum_price()` has no
-`sum_price`. An enum's reflection is the same kind of template: `Symbol<Phase>` and a name pattern's hole
-become one call per value, with `phase.value` the constant itself, so no table of an enum's values, names or
+constant text, so storing and comparing symbols allocates nothing. A template
+exists only for the names a program calls: a program that never calls `sum_price()` has no
+`sum_price`. An enum's reflection folds the same way: a walk over `Phase.values`
+becomes one call per value, each value a constant, so no table of an enum's values, names or
 order exists at run time: walking one costs exactly the calls it expands to, and not walking one costs nothing.
 
 **When.** Every build: what a REPL reads is compiled into the REPL build, so it is read there too. **What you
@@ -250,7 +250,7 @@ exit, so `--debug-memory` does not count it.
 
 **What it does.** A reflection object the compiler can identify (a class named in the code, `$T`, `value.class`
 of a class-typed value, and everything read from them) is a constant
-([reflection.md](reflection.md#reflection-known-while-compiling)). A question asked of it is a literal, `each` over
+([reflection.md](reflection.md#known-while-compiling)). A question asked of it is a literal, `each` over
 its list is one call per element, `map` is a list literal, and a function handed one is compiled once for it, so
 `Monster.attributes.each(show)` makes no list, no `Spite.Attribute` objects and no boxed values: `show_for_health`
 reads `health` directly. A local that holds a constant is not made at all when nothing needs its value at run time.
@@ -969,7 +969,7 @@ holds, so that the lock held longer can neither deadlock nor wait on anything:
   getter or `to_string` of a class of the program's can run in it. A lock it takes nothing else under adds no new
   order between two locks: whatever the singleton's functions lock, they lock under its lock already.
 - **It waits for nothing.** No `Parallel` or `Concurrent` is read in it (none is even named), it cannot `return`,
-  and the singleton's functions it calls can reach no wait (the facts `function_waits` uses) and no `Parallel`,
+  and the singleton's functions it calls can reach no wait (the facts `is_resumable` uses) and no `Parallel`,
   `Concurrent`, `ThreadPool`, `Scheduler`, `Lock`, `Program`, `Console`, `File` or `Socket`.
 - **The lock is real.** At least one of the functions it calls takes the lock; a loop calling
   only functions that touch no changing state, or a singleton that takes no lock, is left as it was.
@@ -1283,7 +1283,7 @@ table is one block, twice as large.
 
 **What it does.** A `Dictionary` the program gives whole-number keys
 ([collections.md](collections.md#keyed-by-numbers)) is compiled as its own form of `library/dictionary.spite`, whose
-bodies fold on the key's type as `Items` folds on `fits_vector()`: its keys are a `List` of the numbers, a key is
+bodies fold on the key's type as `Items` folds on `is_fixed_size`: its keys are a `List` of the numbers, a key is
 hashed by one multiply (Knuth's 6364136223846793005) instead of a loop over characters, and a slot's key is compared
 directly, without the 32 bits of hash a text key keeps beside it. No `String` is made for a key, in a lookup or in the
 table. A dictionary given text keys compiles to exactly the code it did before.
@@ -1345,7 +1345,7 @@ amounts to, in the caller, so the walk's template is not called and is not compi
 `--final-classes` shows no `fill_<attribute>` function for it.
 
 A walked row over sparse columns is the same struct again. Its line is chosen for each attribute while
-compiling (`attribute.class == Entity`, `attribute.class.fits_vector()`), `attribute.index` is written in as a
+compiling (`attribute.class == Entity`, `attribute.class.is_fixed_size`), `attribute.index` is written in as a
 constant, and `Column<attribute.class>()` is the one singleton for that class, so nothing is looked up by name or
 place at run time. An attribute made by a construction of a class that could be a `Vector` item and holds nothing
 counted (`Entity(entity)`) is **made in the frame**: a struct beside the row, its defaults set and its
@@ -1410,7 +1410,7 @@ when no caller passes it a counted object.
 ### An `Items`' storage is chosen while compiling
 
 **What it does.** `Items<T>` ([collections.md](collections.md#itemst-the-storage-chosen-for-you)) is one
-class in `library/items.spite` whose every body that touches an item folds on `$element_type.fits_vector()`.
+class in `library/items.spite` whose every body that touches an item folds on `$element_type.is_fixed_size`.
 For a `T` that fits, only the inline branches are compiled (the item functions of `InlineMemory<T>`, borrowed
 reads, a `Vector`'s layout); for any other, only the reference branches (`TypedMemory<T>`, counted references,
 a `List`'s layout). A chain of its templates is fused into one loop and `parallel_each_` is split across the

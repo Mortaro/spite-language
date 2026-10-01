@@ -356,7 +356,7 @@ calls the allocator directly.
 Compiling grows linearly with the program: every whole-program step (reading, formatting, analysis, template
 instances, call effects, tree shaking) works on each class a fixed number of times, and anything looked up by
 name is found through a table, never by walking every class again. The measure is a data-heavy program: a
-`Symbol<Item>` walk over a folder of small record classes, each one `fill(item)` of 10 to 30 assignments, with
+walk over a folder of small record classes, each one `fill(item)` of 10 to 30 assignments, with
 `Filler<record.class>` made for each, and the items kept in a `Dictionary` keyed by number. CPU seconds of the
 compiler alone (`--c-source --run=false`, so no C compiler), on Windows with clang:
 
