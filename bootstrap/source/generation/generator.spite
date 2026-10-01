@@ -27122,7 +27122,6 @@ func spelled_out_abbreviations(): List<String> {
     return [
         "cnt"
         "buf"
-        "buff"
         "addr"
         "mgr"
         "evt"
@@ -27249,7 +27248,6 @@ func unabbreviated_words(): List<String> {
 func spelled_out_words(): List<String> {
     return [
         "count"
-        "buffer"
         "buffer"
         "address"
         "manager"

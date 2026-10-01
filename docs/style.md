@@ -656,7 +656,7 @@ error, and nothing is left to the moron's taste. The `--development`-only "skipp
   | Abbreviation | Full word | | Abbreviation | Full word |
   |---|---|---|---|---|
   | `cnt` | `count` | | `pwd` | `password` |
-  | `buf`/`buff` | `buffer` | | `usr` | `user` |
+  | `buf` | `buffer` | | `usr` | `user` |
   | `addr` | `address` | | `repo` | `repository` |
   | `mgr` | `manager` | | `qty` | `quantity` |
   | `evt` | `event` | | `amt` | `amount` |
