@@ -27,15 +27,13 @@ rows pending: 228 (`map_` over a predicate is an error pointing at `filter_`/`co
 function values and plain `List.map(function)` go), 213 (the default build compiles fastest; hot builds compile
 like it, reversing D299's `-O3`, so D299 leaves 239; run-speed-only passes are skipped unless measured to speed up
 the whole build), 153 (no `--` separator; settings kebab on the command line, snake in code; a name colliding with
-a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242. 155 by D336.
+a compiler flag is an error). Narrowed by D244 and one-way: 93, 179, 138. Added: 240-242. 155 by D336, 197 by D346.
 
 ## Confirm quickly
 
 Each has one answer the principle implies: the moron (anyone who uses Spite, SPITE.md) never has to decide, the
 language does. Yes, or reopen.
 
-197. **A flush per printed line** (5x to a file): the language chooses, with no per-program buffer setting (for
-     example per line to a terminal, buffered to a file, always flushed at exit and at a crash).
 166. **The file watcher's quiet period** (`FileSystemWatcher`): fixed by the language at 100 ms, not an argument.
 212. **`--run=false` and a stale executable** (D244): never leave one. The build writes a fresh executable or
      deletes the old one; "teach `--executable --run=false`" is out.
