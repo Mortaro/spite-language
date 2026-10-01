@@ -660,7 +660,7 @@ The details:
   `3.7` read into an `Integer` is `3`; JSON has one number type and the class already says which one it wants.
 - **Infinity and not-a-number crash `JsonWriter`**: JSON
   (RFC 8259) holds neither, and a float became one through a division by zero or an overflow the program did not
-  guard, which is the developer's mistake ([failure.md](failure.md)); floats themselves keep them,
+  guard, which is the moron's mistake ([failure.md](failure.md)); floats themselves keep them,
   and `BinaryWriter` writes their bits like any other. The crash shows the value and the attribute's path,
   `Class.attribute`, with `[index]` or `["key"]` for an element: `shown=inf	path=Order.price` (and the
   same for negative infinity and not-a-number; `conformance/stage6/json_infinity`). A program that wants `null`
