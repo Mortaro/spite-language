@@ -12,7 +12,7 @@ func NullableValues() {
     var nobody = find("nobody")
     describe(nobody)
     var names = Dictionary<String>()
-    names.set("first", "ada")
+    names["first"] = "ada"
     switch names["first"] {
         String: console.print("found {names["first"]}")
         Null: console.print("missing")

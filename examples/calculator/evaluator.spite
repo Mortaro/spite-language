@@ -3,7 +3,7 @@ var variables = Dictionary<Float>()
 var current_tree: Expression? = null
 
 func assign(name: String, value: Float) {
-    variables.set(name, value)
+    variables[name] = value
 }
 
 func evaluate_tree(tree: Expression): Float {

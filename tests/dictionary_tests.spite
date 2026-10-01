@@ -8,22 +8,22 @@ func test_a_missing_key_is_null() {
 
 func test_set_replaces_a_value() {
     var ages = Dictionary<Integer>()
-    ages.set("ada", 36)
-    ages.set("ada", 37)
+    ages["ada"] = 36
+    ages["ada"] = 37
     crash ages.count() == 1
     crash ages["ada"] == 37
 }
 
 func test_keys_keep_insertion_order() {
     var ages = Dictionary<Integer>()
-    ages.set("grace", 85)
-    ages.set("ada", 36)
+    ages["grace"] = 85
+    ages["ada"] = 36
     crash ages.keys().join(",") == "grace,ada"
 }
 
 func test_remove_forgets_the_key() {
     var ages = Dictionary<Integer>()
-    ages.set("ada", 36)
+    ages["ada"] = 36
     ages.remove("ada")
     crash not ages.has("ada")
 }
@@ -32,7 +32,7 @@ func test_growth_keeps_every_key_and_its_order() {
     var squares = Dictionary<Integer>()
     var index = 0
     while index < 1000 {
-        squares.set("number {index}", index * index)
+        squares["number {index}"] = index * index
         index = index + 1
     }
     crash squares.count() == 1000
@@ -49,10 +49,10 @@ func test_growth_keeps_every_key_and_its_order() {
 
 func test_removal_keeps_the_order_of_the_rest() {
     var ages = Dictionary<Integer>()
-    ages.set("grace", 85)
-    ages.set("ada", 36)
-    ages.set("alan", 41)
-    ages.set("edsger", 72)
+    ages["grace"] = 85
+    ages["ada"] = 36
+    ages["alan"] = 41
+    ages["edsger"] = 72
     ages.remove("ada")
     ages.remove("nobody")
     crash ages.keys().join(",") == "grace,alan,edsger"
@@ -62,11 +62,11 @@ func test_removal_keeps_the_order_of_the_rest() {
 
 func test_a_removed_key_comes_back_at_the_end() {
     var ages = Dictionary<Integer>()
-    ages.set("grace", 85)
-    ages.set("ada", 36)
-    ages.set("alan", 41)
+    ages["grace"] = 85
+    ages["ada"] = 36
+    ages["alan"] = 41
     ages.remove("grace")
-    ages.set("grace", 86)
+    ages["grace"] = 86
     crash ages.keys().join(",") == "ada,alan,grace"
     crash ages["grace"] == 86
     crash ages.count() == 3
@@ -76,13 +76,13 @@ func test_many_removals_and_insertions_stay_consistent() {
     var numbers = Dictionary<Integer>()
     var index = 0
     while index < 500 {
-        numbers.set("key {index}", index)
+        numbers["key {index}"] = index
         index = index + 1
     }
     index = 0
     while index < 500 {
         numbers.remove("key {index}")
-        numbers.set("again {index}", index)
+        numbers["again {index}"] = index
         index = index + 2
     }
     crash numbers.count() == 500

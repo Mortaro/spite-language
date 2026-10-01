@@ -212,7 +212,7 @@ func register(): Long {
 }
 
 func handle_message(window: Long, message: UnsignedInteger, word: UnsignedLong, long_word: Long): Long {
-    var found = windows.get(window)
+    var found = windows[window]
     if found {
         return found.handle_message(message, word, long_word)
     }

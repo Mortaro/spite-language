@@ -67,7 +67,7 @@ func scan_names(line: String) {
         }
         if not inside and start >= 0 {
             var name = line.slice(start, position)
-            mentioned_names.set(name, true)
+            mentioned_names[name] = true
             start = -1
         }
         position = position + 1
@@ -254,7 +254,7 @@ func any_kept(guard: String, shaker: TreeShaker): Boolean {
 }
 
 func add_shaken_macro(name: String) {
-    shaken_macros.set(name, true)
+    shaken_macros[name] = true
 }
 
 func include_maths_library(macro_name: String) {

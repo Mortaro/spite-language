@@ -3,7 +3,7 @@ var console = Console()
 func NumberKeys() {
     var ages = Dictionary<String>()
     ages[7] = "seven"
-    ages.set(3, "three")
+    ages[3] = "three"
     ages[42] = "forty-two"
     ages[7] = "SEVEN"
     crash ages[7]

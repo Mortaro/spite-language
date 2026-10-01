@@ -385,7 +385,7 @@ func IndexReadsDoc() {
         index = index + 1
     }
     var ages = Dictionary<Integer>()
-    ages.set("ada", 36)
+    ages["ada"] = 36
     crash ages["ada"]
     console.print("ada is", ages["ada"])
 }
@@ -396,6 +396,34 @@ ada 3
 bo 2
 cy 2
 ada is 36
+```
+
+A read kept in a local is narrowed like any other value, so a `Dictionary` is looked up once: `var age =
+ages[name]` reads the key, and `if age` or `assert age` narrows the local. This is not a copy made only to narrow
+it, since the local holds what the read answered, not a second name for the path:
+
+```gdscript title=kept_read/kept_read.spite entry
+var console = Console()
+
+func KeptRead() {
+    var ages = Dictionary<Integer>()
+    ages["ada"] = 36
+    show_next_year(ages, "ada")
+    show_next_year(ages, "bo")
+}
+
+func show_next_year(ages: Dictionary<Integer>, name: String) {
+    var age = ages[name]
+    if age {
+        console.print(name, "turns", age + 1)
+    } else {
+        console.print(name, "is not listed")
+    }
+}
+```
+```output
+ada turns 37
+bo is not listed
 ```
 
 ### An index reads nothing
@@ -582,7 +610,7 @@ var console = Console()
 var prices = Dictionary<Integer>()
 
 func LeavingIf() {
-    prices.set("apple", 3)
+    prices["apple"] = 3
     var apple = price_or_zero("apple")
     var pear = price_or_zero("pear")
     console.print(apple, pear)
@@ -820,7 +848,7 @@ var console = Console()
 var names = Dictionary<String>()
 
 func CrashGuard() {
-    names.set("ada", "Ada Lovelace")
+    names["ada"] = "Ada Lovelace"
     var name_length = full_name_length("ada")
     console.print(name_length)
     var description = describe(3)
@@ -1175,7 +1203,8 @@ whole is: `crash names[position] and ages[position]` proves both elements, as tw
   'tracker' itself ('assert tracker') and use it directly" (`diagnostics/copy_to_narrow`). Its scope: a `var` whose
   value is a bare name or member path of a `T?` type, which is then narrowed,
   is never assigned again, and whose source is not assigned later in the function either (a snapshot taken
-  before the source changes is not a copy for narrowing).
+  before the source changes is not a copy for narrowing). A local holding what a `[]` read answered (`var age =
+  ages[name]`, `var cell = grid[row].cells[column]`) is not a copy: it is narrowed instead of reading the key twice.
 - A check on something that cannot be null proves nothing and is an error naming the fix: `assert tracker`
   written twice, or `crash` on a path an earlier `crash` already narrowed (`diagnostics/check_proves_nothing`).
   For a `[]` read the message names what proved it, so the

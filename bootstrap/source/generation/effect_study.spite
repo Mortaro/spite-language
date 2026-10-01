@@ -25,10 +25,10 @@ func take_parameters(declared: List<Syntax.Statements.Parameter>) {
         crash table
         crash parameter.type_reference
         var parameter_class = table.type_class_name(parameter.type_reference, class_name)
-        local_classes.set(parameter.name, parameter_class)
-        local_types.set(parameter.name, parameter_class)
+        local_classes[parameter.name] = parameter_class
+        local_types[parameter.name] = parameter_class
         var parameter_element = table.element_class_name(parameter.type_reference, class_name)
-        local_elements.set(parameter.name, parameter_element)
+        local_elements[parameter.name] = parameter_element
         index = index + 1
     }
 }
@@ -78,18 +78,18 @@ func study_declaration(declaration: Syntax.Statements.VariableDeclaration) {
     study_expression(declaration.value)
     take_value(declaration.value)
     var source = classify(declaration.value)
-    local_sources.set(declaration.name, source)
+    local_sources[declaration.name] = source
     crash table
     var declared_class = table.declared_class_name(declaration, class_name)
     if declared_class.is_empty() {
         declared_class = returned_class(declaration.value)
     }
-    local_classes.set(declaration.name, declared_class)
+    local_classes[declaration.name] = declared_class
     var declared_element = table.declared_element_name(declaration, class_name)
     if declared_element.is_empty() {
         declared_element = literal_element(declaration.value)
     }
-    local_elements.set(declaration.name, declared_element)
+    local_elements[declaration.name] = declared_element
 }
 
 func literal_element(value: Syntax.Expressions.Expression): String {
@@ -131,7 +131,7 @@ func study_assignment(assignment: Syntax.Statements.AssignmentStatement) {
     if target_name {
         if parameters.contains(target_name.name) or local_sources.has(target_name.name) {
             var source = classify(assignment.value)
-            local_sources.set(target_name.name, source)
+            local_sources[target_name.name] = source
             return
         }
         assert not in_constructor
@@ -333,10 +333,10 @@ func keep_parameters(declared: List<Syntax.Statements.Parameter>, body: List<Syn
         uses.study(body)
         var position_text: String = index
         if not uses.assigned {
-            recorded.kept_values.set(position_text, true)
+            recorded.kept_values[position_text] = true
         }
         if uses.list_kept {
-            recorded.kept_lists.set(position_text, true)
+            recorded.kept_lists[position_text] = true
         }
         index = index + 1
     }

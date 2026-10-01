@@ -34,7 +34,7 @@ func Unions() {
     console.print(name, pick_name)
     var lookup = Dictionary<Shape>()
     var round = Circle(1)
-    lookup.set("round", round)
+    lookup["round"] = round
     if lookup["round"] {
         var found_description = describe(lookup["round"])
         console.print(found_description)

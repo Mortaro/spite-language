@@ -83,7 +83,7 @@ func deduplicated_digest(items: List<String>): String {
     while index < items.count() {
         var item = items[index]
         if not seen.has(item) {
-            seen.set(item, true)
+            seen[item] = true
             total = total + text_hash(item)
         }
         index = index + 1

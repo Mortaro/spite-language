@@ -16,7 +16,7 @@ func study(class_files: List<Discovery.DiscoveredClass>, studying_generator: Gen
     var index = 0
     while index < class_files.count() {
         var discovered = class_files[index]
-        class_names.set(discovered.qualified_dotted, true)
+        class_names[discovered.qualified_dotted] = true
         index = index + 1
     }
     index = 0
@@ -266,19 +266,19 @@ func record_fields(statements: List<Syntax.Statements.Statement>, class_name: St
         if declared {
             var declared_class = declared_class_name(declared, class_name)
             if not declared_class.is_empty() {
-                field_classes.set("{class_name}#{declared.name}", declared_class)
+                field_classes["{class_name}#{declared.name}"] = declared_class
             }
             var declared_element = declared_element_name(declared, class_name)
             if not declared_element.is_empty() {
-                element_classes.set("{class_name}#{declared.name}", declared_element)
+                element_classes["{class_name}#{declared.name}"] = declared_element
             }
             if holds_plain_value(declared) {
-                plain_fields.set("{class_name}#{declared.name}", true)
+                plain_fields["{class_name}#{declared.name}"] = true
             } else {
-                counted_field_names.set(declared.name, true)
+                counted_field_names[declared.name] = true
             }
             if not makes_its_own(declared) {
-                shared_defaults.set("{class_name}#{declared.name}", true)
+                shared_defaults["{class_name}#{declared.name}"] = true
             }
         }
         var function = shape.as_function_declaration(statements[index])
@@ -307,7 +307,7 @@ func record_type_fields(declared_type: Syntax.Statements.TypeDeclaration, class_
             if recorded and recorded != field_class {
                 field_class = "*"
             }
-            type_field_classes.set(key, field_class)
+            type_field_classes[key] = field_class
         }
         index = index + 1
     }
@@ -375,7 +375,7 @@ func record_return(function: Syntax.Statements.FunctionDeclaration, class_name: 
     assert function.return_type
     var returned_class = type_class_name(function.return_type, class_name)
     assert not returned_class.is_empty()
-    return_classes.set("{class_name}#{function.name}", returned_class)
+    return_classes["{class_name}#{function.name}"] = returned_class
 }
 
 func declared_class_name(declaration: Syntax.Statements.VariableDeclaration, from_class: String): String {
@@ -498,13 +498,13 @@ func effects_named(class_name: String, name: String): FunctionEffects {
         return by_function[key]
     }
     var created = FunctionEffects(key)
-    by_function.set(key, created)
+    by_function[key] = created
     function_keys.append(key)
     var any_key = "*#{name}"
     var any = by_function[any_key]
     if not any {
         var gathered = FunctionEffects(any_key)
-        by_function.set(any_key, gathered)
+        by_function[any_key] = gathered
         function_keys.append(any_key)
     }
     crash by_function[any_key]
@@ -655,7 +655,7 @@ func thread_reached_functions(): Dictionary<Boolean> {
         var key = waiting.remove_last()
         crash key
         if not seen.has(key) {
-            seen.set(key, true)
+            seen[key] = true
             if by_function[key] {
                 add_callees(by_function[key], waiting)
             }
@@ -753,10 +753,10 @@ func reached_classes(entries: List<String>): Dictionary<Boolean> {
         var key = waiting.remove_last()
         crash key
         if not seen.has(key) {
-            seen.set(key, true)
+            seen[key] = true
             var hash = key.index_of("#")
             var reached_class = key.slice(0, hash)
-            classes.set(reached_class, true)
+            classes[reached_class] = true
             if by_function[key] {
                 add_callees(by_function[key], waiting)
             }
@@ -772,7 +772,7 @@ func reached_functions(entries: List<String>): Dictionary<Boolean> {
         var key = waiting.remove_last()
         crash key
         if not seen.has(key) {
-            seen.set(key, true)
+            seen[key] = true
             if by_function[key] {
                 add_placed_callees(by_function[key], waiting)
             }
@@ -858,7 +858,7 @@ func reached_accesses(entries: List<String>): List<String> {
         var key = waiting.remove_last()
         crash key
         if not seen.has(key) {
-            seen.set(key, true)
+            seen[key] = true
             if by_function[key] {
                 by_function[key].member_reads.each(accesses.append)
                 by_function[key].member_writes.each(accesses.append)

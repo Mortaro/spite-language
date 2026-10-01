@@ -5,7 +5,7 @@ var added = 0
 var last = ""
 
 func add(name: String, size: Integer) {
-    sizes.set(name, size)
+    sizes[name] = size
     count_one()
 }
 

@@ -42,9 +42,9 @@ func report_by_shelf() {
     while index < books.count() {
         var shelf: String = books[index].shelf
         if counts[shelf] {
-            counts.set(shelf, counts[shelf] + 1)
+            counts[shelf] = counts[shelf] + 1
         } else {
-            counts.set(shelf, 1)
+            counts[shelf] = 1
         }
         index = index + 1
     }

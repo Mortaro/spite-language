@@ -17,3 +17,7 @@ func negate(): Point {
     flipped.height = -_height
     return flipped
 }
+
+func get_type(): String {
+    return "point"
+}

@@ -151,7 +151,7 @@ func _read_headers(connection: Socket, headers: Dictionary<String>): Boolean {
         var value = line.slice(colon + 1, line_length)
         var lowered = name.lower_case()
         var trimmed = value.trim()
-        headers.set(lowered, trimmed)
+        headers[lowered] = trimmed
         count = count + 1
     }
     return false

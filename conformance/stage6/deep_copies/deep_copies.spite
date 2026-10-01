@@ -6,7 +6,7 @@ func DeepCopies() {
     team.members.append(ada)
     var grace = Member("grace", 5)
     team.members.append(grace)
-    team.scores.set("first", 10)
+    team.scores["first"] = 10
     team.captain = team.members[0]
     var shallow = team.copy()
     var deep = team.deep_copy()
@@ -14,7 +14,7 @@ func DeepCopies() {
     team.members[0].level = 99
     var alan = Member("alan", 1)
     team.members.append(alan)
-    team.scores.set("first", 11)
+    team.scores["first"] = 11
     crash shallow.members[0]
     crash shallow.scores["first"]
     crash deep.members[0]

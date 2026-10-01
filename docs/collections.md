@@ -74,9 +74,9 @@ var console = Console()
 
 func DictionaryTasks() {
     var inventory = Dictionary<Integer>()
-    inventory.set("sword", 1)
-    inventory.set("potion", 4)
-    inventory.set("potion", 6)
+    inventory["sword"] = 1
+    inventory["potion"] = 4
+    inventory["potion"] = 6
     var inventory_count = inventory.count()
     console.print("count", inventory_count)
     var has_shield = inventory.has("shield")
@@ -119,7 +119,7 @@ var names = Dictionary<String>()
 func NumberKeysTasks() {
     names[3] = "fern"
     names[11] = "moss"
-    names.set(7, "reed")
+    names[7] = "reed"
     names.remove(11)
     crash names[7]
     console.print("seven", names[7])

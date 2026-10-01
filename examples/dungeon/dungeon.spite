@@ -11,8 +11,8 @@ func Dungeon() {
     monsters.append(goblin)
     var orc = Monster("Orc", 50)
     monsters.append(orc)
-    settings.set("volume", 80)
-    settings.set("difficulty", 2)
+    settings["volume"] = 80
+    settings["difficulty"] = 2
     console.print("player age", player.age)
     if environment.serve {
         while tick < 3 {

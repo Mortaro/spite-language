@@ -229,11 +229,13 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Use the operator, not its function
 
-- Built (D315). Unconfirmed (proposed by Claude, not decided by Mortaro): the error wording; the keyword exception
-  (`get_type()` stays a call because `.type` does not parse; Mortaro may prefer letting a keyword follow `.`); a union
-  receiver covered only when every member offers the operator; an `equals` that `==` would not call exempt; only
-  calls written in the source are checked (a call the compiler writes for a member template is not); a
-  `Dictionary`'s `set(key, value)` is not covered, since D315's table lists only `get(key)`.
+- Built (D315, D365). Unconfirmed (proposed by Claude, not decided by Mortaro): the error wording; a union receiver
+  covered only when every member offers the operator; an `equals` that `==` would not call exempt; only calls
+  written in the source are checked (a call the compiler writes for a member template is not).
+- Unconfirmed (proposed by Claude, not decided by Mortaro), built as described in failure.md: the narrowed read
+  local of D365 is any `var` whose value is a path reading through a `[]` anywhere (`grid[row].cells[column]` too),
+  not only a `Dictionary` key. A `.` makes the next word a member name in the lexer, so it holds everywhere a word
+  follows a `.` (namespaces, type paths, codegen paths), not only after a value.
 
 ### Operators
 

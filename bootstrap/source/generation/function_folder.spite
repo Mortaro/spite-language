@@ -171,7 +171,7 @@ func struct_key(body: String, references: List<Integer>): String {
 }
 
 func struct_token(name: String, references: List<Integer>): String {
-    var position = struct_index.get(name)
+    var position = struct_index[name]
     if position {
         references.append(position)
         return "@S"
@@ -281,17 +281,17 @@ func classified(name: String, own: String, references: List<Integer>, locals: Di
     if name == own {
         return "@0"
     }
-    var called = function_index.get(name)
+    var called = function_index[name]
     if called {
         references.append(called)
         return "@F"
     }
-    var layout = struct_index.get(name)
+    var layout = struct_index[name]
     if layout {
         crash struct_classes[layout]
         return "@S{struct_classes[layout]}"
     }
-    var literal = literal_values.get(name)
+    var literal = literal_values[name]
     if literal {
         return "@L{literal}"
     }
@@ -403,7 +403,7 @@ func choose_kept(classes: List<Integer>) {
     var index = 0
     while index < classes.count() {
         var group_key = classes[index].to_string()
-        var kept = kept_by_group.get(group_key)
+        var kept = kept_by_group[group_key]
         if classes[index] < 0 {
             index = index + 1
         } else if kept {

@@ -36,7 +36,7 @@ func PassedFunctions() {
     console.print(joined_labels)
     var team = Dictionary<Person>()
     var grace = Person("Grace", 85)
-    team.set("lead", grace)
+    team["lead"] = grace
     team.each(introduce)
     var team_ages = team.sum(age_of)
     console.print(team_ages)

@@ -4,7 +4,7 @@ var cooked = ["bread"]
 var never_cooked_id = "cake"
 
 func CrashCompound() {
-    recipes.set("bread", "flour, water")
+    recipes["bread"] = "flour, water"
     var checked = check("bread", 1)
     console.print("checked", checked)
     finish("cake")

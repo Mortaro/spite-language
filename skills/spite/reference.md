@@ -438,7 +438,7 @@ func is_alive(): Boolean {
 
 - A `Symbol` parameter named inside its function's name answers every attribute:
   `func set_attribute(attribute: Symbol, value: attribute.class) { attributes[attribute] = value }` makes
-  `person.set_age(2)` and `person.set_name("x")` work. An exact function always wins.
+  `person.age = 2` and `person.name = "x"` work. An exact function always wins.
 - `attribute: Symbol<Label>` ranges over another class's members, read as `label.attributes[attribute]`, and the
   plural (`show_attributes(label)` for `show_attribute`) calls the template once per attribute, in order.
 - In a generic class, `if $value_type == List { }` (also `Dictionary`, `Null` for any `T?`, `Symbol` for any enum or `Symbol`, `Enum` for an enum only,

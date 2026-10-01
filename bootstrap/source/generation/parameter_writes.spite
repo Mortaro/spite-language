@@ -15,7 +15,8 @@ func answer(generator: Generator, owner: Analysis.ClassInfo, function: Analysis.
     }
     var index = 0
     while index < round_keys.count() {
-        settled.set(round_keys[index], true)
+        var round_key = round_keys[index]
+        settled[round_key] = true
         index = index + 1
     }
     return writes(function.c_name, slot)
@@ -24,7 +25,7 @@ func answer(generator: Generator, owner: Analysis.ClassInfo, function: Analysis.
 func summarize(generator: Generator, owner: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
     var key = function.c_name
     assert not settled.has(key) and not studied.has(key) and not studying.has(key)
-    studying.set(key, true)
+    studying[key] = true
     round_keys.append(key)
     if function.has_body {
         var study = ParameterWriteStudy(generator, this, owner, function)
@@ -33,7 +34,7 @@ func summarize(generator: Generator, owner: Analysis.ClassInfo, function: Analys
         summarize_supplied(function)
     }
     studying.remove(key)
-    studied.set(key, true)
+    studied[key] = true
 }
 
 func summarize_supplied(function: Analysis.FunctionInfo) {
@@ -80,7 +81,7 @@ func summarize_supplied(function: Analysis.FunctionInfo) {
 func record(key: String, slot: String, reason: String) {
     var slot_key = "{key}#{slot}"
     assert not reasons.has(slot_key)
-    reasons.set(slot_key, reason)
+    reasons[slot_key] = reason
     grew = true
 }
 

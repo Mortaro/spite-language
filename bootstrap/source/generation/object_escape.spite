@@ -42,14 +42,14 @@ func take_parameters(function: Analysis.FunctionInfo) {
 }
 
 func take_parameter(parameter: Analysis.ParamInfo) {
-    var parameter_type = parameter.get_type()
+    var parameter_type = parameter.type
     learn_type(parameter.name, parameter_type)
 }
 
 func learn_type(name: String, spite_type: Analysis.SpiteType) {
     var learned = class_of_type(spite_type)
     assert learned
-    local_classes.set(name, learned.c_name)
+    local_classes[name] = learned.c_name
 }
 
 func class_of_type(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
@@ -80,7 +80,7 @@ func follow_local(name: String, information: Analysis.ClassInfo, returning: Bool
     followed_class = information
     reassign_fresh = true
     return_allowed = returning
-    local_classes.set(name, information.c_name)
+    local_classes[name] = information.c_name
 }
 
 func learn_block(statements: List<Syntax.Statements.Statement>) {
@@ -117,7 +117,7 @@ func learn_declaration(declaration: Syntax.Statements.VariableDeclaration) {
     crash declaration.value
     var learned = class_of(declaration.value)
     assert learned
-    local_classes.set(declaration.name, learned.c_name)
+    local_classes[declaration.name] = learned.c_name
 }
 
 func class_of(expression: Syntax.Expressions.Expression): Analysis.ClassInfo? {
@@ -148,7 +148,7 @@ func named_class(name: String): Analysis.ClassInfo? {
     }
     var field = studied().find_field(name)
     assert field
-    var field_type = field.get_type()
+    var field_type = field.type
     return class_of_type(field_type)
 }
 
@@ -158,7 +158,7 @@ func field_class(member: Syntax.Expressions.MemberExpression): Analysis.ClassInf
     assert object_class
     var field = object_class.find_field(member.name)
     assert field
-    var field_type = field.get_type()
+    var field_type = field.type
     return class_of_type(field_type)
 }
 

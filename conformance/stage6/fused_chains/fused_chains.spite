@@ -84,10 +84,10 @@ func compare_dictionary_chain() {
     var by_name = Dictionary<Team>()
     var eve = Person("eve", 40, false)
     var red = Team("red", 4, true, eve)
-    by_name.set("red", red)
+    by_name["red"] = red
     var fay = Person("fay", 20, false)
     var blue = Team("blue", 3, false, fay)
-    by_name.set("blue", blue)
+    by_name["blue"] = blue
     var fused_age = by_name.filter_active().map_lead().sum_age()
     console.print("dictionary filter, map, sum", fused_age)
 }

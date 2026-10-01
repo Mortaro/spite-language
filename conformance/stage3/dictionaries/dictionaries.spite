@@ -3,10 +3,10 @@ var ages = Dictionary<Integer>()
 var labels = Dictionary<String>()
 
 func Dictionaries() {
-    ages.set("ada", 36)
-    ages.set("grace", 85)
+    ages["ada"] = 36
+    ages["grace"] = 85
     ages["alan"] = 41
-    ages.set("ada", 37)
+    ages["ada"] = 37
     crash ages["ada"]
     var ages_count = ages.count()
     var has_ada = ages.has("ada")
@@ -28,7 +28,7 @@ func Dictionaries() {
     crash values.count() == 2
     var values_count = values.count()
     console.print(values_count, values[0] + values[1])
-    labels.set("x{1}", "first{1}")
+    labels["x{1}"] = "first{1}"
     labels["y"] = "second"
     crash labels["x1"]
     crash labels["y"]
@@ -39,9 +39,9 @@ func Dictionaries() {
     console.print(y_label, q_label)
     var pets = Dictionary<Animal>()
     var dog = Animal("dog")
-    pets.set("rex", dog)
+    pets["rex"] = dog
     var cat = Animal("cat")
-    pets.set("tom", cat)
+    pets["tom"] = cat
     if pets["rex"] {
         console.print(pets["rex"].kind)
     }
