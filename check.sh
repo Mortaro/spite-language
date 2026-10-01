@@ -963,7 +963,7 @@ echo "number parameters: a function taking Number is compiled per number class, 
   echo "FAILED: counted_loops does not write its C"; exit 1; }
 if ! grep -qE "^spite_temp_[0-9]+\[index_\] = \(spite_temp_[0-9]+\[index_\] \* 2\.0\);$" "$work/counted.c" \
    || ! grep -qE "^if \(spite_temp_[0-9]+ <= spite_temp_[0-9]+\) \{$" "$work/counted.c" \
-   || [ "$(grep -cE "^while \(\(\(index_ < (List_Integer_count|\(\(__typeof__\(&List_Integer_count\)\)&[A-Za-z_]+_count\))\(values_\)\)\)\) \{$" "$work/counted.c")" != "2" ]; then
+   || [ "$(grep -cE "^while \(\(\(index_ < (List_Integer_count|spite_folded_List_Integer_count)\(values_\)\)\)\) \{$" "$work/counted.c")" != "2" ]; then
   echo "FAILED: counted_loops should read its plain lists without range checks, except in add_from and double_up"; exit 1
 fi
 echo "counted loops: a plain list's loop reads the count once and its items unchecked"
@@ -1057,6 +1057,8 @@ for attempt in $(seq 1 100); do
   sleep 0.2
 done
 $listening || hot_fail "the program never listened on $port"
+# the port is served before the entry runs, and the entry sets visits to 1: it has to have run first
+for attempt in $(seq 1 100); do grep -q "^hello, visit 1" "$work/hot_reload/output.txt" && break; sleep 0.2; done
 expect 'program.visits = 42' '{"ok":true,"value":"42","type":"Integer"}'
 sed -i 's/hello, visit {visits}/welcome back, visit {visits}/' "$hot_folder/hot_counter.spite"
 reloaded=$(ask reload)   # the watcher may swap the code in first, and then there is nothing left for reload to do

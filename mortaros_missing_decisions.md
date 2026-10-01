@@ -40,6 +40,12 @@ D244; 134 narrowed by D348; 183, 210, 214 and 217 moved to "Confirm quickly" as 
 
 ## Silent today (D244)
 
+250. **A heap the C library finds corrupted on Linux and macOS** ends in `SIGABRT` with glibc's own line (`free():
+     invalid pointer`), and no `spite.fault` line or Spite frames; Windows reports `heap-corruption` with frames
+     ([failure.md](docs/failure.md#what-a-native-fault-reports)). Options: (a) the fault handler also takes
+     `SIGABRT`, reported as `abort` (any `abort()`, not only the heap's); (b) as `heap-corruption` when the C
+     library's message says so; (c) leave it to the C library. Recommend (a): the frames are the useful part.
+     Blocks nothing; `native_fault_heap` pins today's Linux output.
 236. **Text read as an enum by name** answers the first value when none matches. Options: (a)
      `"calm".to_mood(): Mood?`, as `to_integer()` answers `Integer?`; (b) `Mood.values['calm']`; (c) halting on no
      match. Recommend (a). Blocks: reading enums from files.
