@@ -1,0 +1,10 @@
+var total = 0
+var last = ""
+
+func advance(tick: Tick) {
+    var scratch = Items<Label>()
+    var label = Label()
+    scratch.append(label)
+    total = total + tick.ends_at + scratch.count()
+    last = label.text
+}

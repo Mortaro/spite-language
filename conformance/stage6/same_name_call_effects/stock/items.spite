@@ -1,0 +1,9 @@
+singleton
+
+var count = 0
+
+func Items() {
+    var reader = JsonReader<List<Integer>>("[1, 2]")
+    var read = reader.read_or_crash()
+    count = read.count()
+}

@@ -24,10 +24,10 @@ func take_parameters(declared: List<Syntax.Statements.Parameter>) {
         parameters.append(parameter.name)
         crash table
         crash parameter.type_reference
-        var parameter_class = table.type_class_name(parameter.type_reference)
+        var parameter_class = table.type_class_name(parameter.type_reference, class_name)
         local_classes.set(parameter.name, parameter_class)
         local_types.set(parameter.name, parameter_class)
-        var parameter_element = table.element_class_name(parameter.type_reference)
+        var parameter_element = table.element_class_name(parameter.type_reference, class_name)
         local_elements.set(parameter.name, parameter_element)
         index = index + 1
     }
@@ -80,12 +80,12 @@ func study_declaration(declaration: Syntax.Statements.VariableDeclaration) {
     var source = classify(declaration.value)
     local_sources.set(declaration.name, source)
     crash table
-    var declared_class = table.declared_class_name(declaration)
+    var declared_class = table.declared_class_name(declaration, class_name)
     if declared_class.is_empty() {
         declared_class = returned_class(declaration.value)
     }
     local_classes.set(declaration.name, declared_class)
-    var declared_element = table.declared_element_name(declaration)
+    var declared_element = table.declared_element_name(declaration, class_name)
     if declared_element.is_empty() {
         declared_element = literal_element(declaration.value)
     }
@@ -223,8 +223,10 @@ func study_construction(construction: Syntax.Expressions.GenericCallExpression) 
     study_expressions(construction.arguments)
     construction.arguments.each(take_value)
     var argument_keys = classified(construction.arguments)
-    var constructed = called_name(construction.callee)
-    var effect_call = EffectCall(constructed, constructed, argument_keys)
+    crash table
+    var constructed = table.class_identity(construction.callee, class_name)
+    var constructor_name = called_name(construction.callee)
+    var effect_call = EffectCall(constructed, constructor_name, argument_keys)
     calls.append(effect_call)
 }
 
@@ -245,7 +247,7 @@ func study_call(call: Syntax.Expressions.CallExpression) {
         var callee_class = class_name
         crash table
         if table.names_a_class(callee_identifier.name) {
-            callee_class = callee_identifier.name
+            callee_class = table.class_identity(call.callee, class_name)
         }
         var effect_call = EffectCall(callee_class, callee_identifier.name, argument_keys)
         calls.append(effect_call)
@@ -253,7 +255,7 @@ func study_call(call: Syntax.Expressions.CallExpression) {
     }
     var member = shape.as_member(call.callee)
     if member {
-        study_method_call(member, argument_keys)
+        study_method_call(member, call.callee, argument_keys)
         return
     }
     study_expression(call.callee)
@@ -263,7 +265,11 @@ func study_call(call: Syntax.Expressions.CallExpression) {
     add_key("release")
 }
 
-func study_method_call(member: Syntax.Expressions.MemberExpression, argument_keys: List<String>) {
+func study_method_call(
+    member: Syntax.Expressions.MemberExpression,
+    callee: Syntax.Expressions.Expression,
+    argument_keys: List<String>,
+) {
     crash member.object
     study_expression(member.object)
     if member.name == "call_function" {
@@ -287,11 +293,12 @@ func study_method_call(member: Syntax.Expressions.MemberExpression, argument_key
     }
     var receiver_class = owner_class(member.object)
     crash table
-    if table.names_a_class(member.name) {
-        receiver_class = member.name
+    var constructs = table.names_a_class(member.name)
+    if constructs {
+        receiver_class = table.class_identity(callee, class_name)
     }
     var effect_call = EffectCall(receiver_class, member.name, argument_keys)
-    if receiver_class == "*" {
+    if receiver_class == "*" and not constructs {
         mark_dispatch(effect_call, member.object)
     }
     calls.append(effect_call)
@@ -368,8 +375,9 @@ func owner_class(expression: Syntax.Expressions.Expression): String {
     var constructed = shape.as_generic_call(expression)
     if constructed {
         crash constructed.callee
-        var constructed_name = called_name(constructed.callee)
-        return known_or_any(constructed_name)
+        crash table
+        var constructed_class = table.class_identity(constructed.callee, class_name)
+        return known_or_any(constructed_class)
     }
     var called = shape.as_call(expression)
     if called {
@@ -415,7 +423,8 @@ func call_owner(called: Syntax.Expressions.CallExpression): String {
     var callee_identifier = shape.as_identifier(called.callee)
     if callee_identifier {
         if table.names_a_class(callee_identifier.name) {
-            return known_or_any(callee_identifier.name)
+            var called_class = table.class_identity(called.callee, class_name)
+            return known_or_any(called_class)
         }
         if parameters.contains(callee_identifier.name) or local_sources.has(callee_identifier.name) {
             return "*"
@@ -427,7 +436,8 @@ func call_owner(called: Syntax.Expressions.CallExpression): String {
         return "*"
     }
     if table.names_a_class(member.name) {
-        return known_or_any(member.name)
+        var constructed_class = table.class_identity(called.callee, class_name)
+        return known_or_any(constructed_class)
     }
     crash member.object
     var receiver_class = owner_class(member.object)
