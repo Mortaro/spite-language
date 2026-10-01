@@ -68,6 +68,9 @@ for a design):
 
 - Reference cycles leak without a word unless the program runs with `--debug-memory`, which prints the allocation
   balance (memory.md, "Cycles leak").
+- A `--hot-reload` build's watcher thread keeps running while the singletons are destroyed at exit: `start()` now
+  waits until it is watching, so it no longer asks for `HotReload` after the teardown, but a file change landing
+  during the teardown would still run `compile_changes()` on the destroyed `HotReload`.
 - Signed arithmetic wraps in production builds and unsigned arithmetic wraps in every build (D249).
 - A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` never ends
   (concurrency.md, "Choosing where Concurrents resume").
