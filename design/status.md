@@ -49,6 +49,13 @@ when a page gains a rule that is not built yet, add it here.
 - Unconfirmed proposals by Claude (removed from the page, still awaiting Mortaro): names of the bitwise functions (D117) and their rules, names of the maths functions and constants and their lowering, names of the bit-reinterpretation functions (D215), the `type` keyword allowed as a parameter name, the error texts for `from_` declarations, Go's answer for smallest-signed `/ -1`, the signed-overflow message and unsigned exemption (D205), the reach of text casting to every place a `String` is wanted (D223), the lone-hole error wording, the enum-from-text cast, the generic walk of enums, the shape-member behaviour, the class-test forms for generic classes and codegen values (D123).
 - Exact error texts still quote decision numbers: the `from_` declaration and `from_` call errors contain "(D293)" (lines 925 and 928); the compiler text must change with the page.
 
+### Every number fits `Number`
+- Built: `type Number`, every number class fitting it, `$value_type == Number`, a generic constrained by it
+  (`conformance/stage6/number_type`). NOT BUILT: a function taking `value: Number` is not yet compiled per number
+  class (D321), so an operator on it is still the error the page states, and a number passed to it is boxed.
+- Unconfirmed proposals by Claude: the member list, and a `type`'s own name in a required signature standing for
+  the class that fits.
+
 ### Numeric types (REPL and text reading)
 - No status facts removed beyond the above.
 
@@ -300,6 +307,29 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - "Decided by Mortaro, being implemented" item 9 (open_questions.md) is the source of the `.functions` rule.
 - Removed clause: a `load`-ed root "would extend the deferred compile-time class generation" (deferred, not built).
 
+### Reflection known while compiling (D316, D317, D318, D323, D326)
+- Built: constants, folding, `each`/`map` unrolling, specialisation per reflection argument, bound attributes,
+  types from constants, `Spite.Namespace.instances`, enum `.values`, `[]` by name, `Spite.Attribute<T>` template
+  spelling, `filter_<member>_<function>(arguments)` on any list, `source_files`/`source_directories`;
+  `package_folder` removed.
+- Not built: `function.call_with(arguments.map(made))` (D317), `.read_attributes`/`.written_attributes` (item 109),
+  `Spite.Namespace.enums`, the plural `map_<members>` rule (D317, D328: `String.pluralize` is merged), and the
+  compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
+  (`engine/renderer/renderer.spite` is `Engine.Renderer` beside the namespace `Engine.Renderer`) is exactly that
+  pair, so the rule needs Mortaro to say whether the entry file is exempt.
+- Run time only through the old tables: `.is_stateful`, `.is_list` and the other kind questions, `.owner`,
+  `.index`, `.is_mutated` and `.returned_literal` answer only on a constant; read on a run-time object they are
+  "has no attribute".
+- Specialisation is limited to functions of the calling class; a function whose body needs the reflection
+  parameter's run-time value (passes it on to something that is not a reflection parameter, calls a function of
+  it) is not specialised and walks at run time as before. A parameter of an enum type is not specialised (rule 5
+  of the proposal names enums too).
+- The old mechanisms still work side by side: `Symbol<...>` templates and plural walks, `Symbol<$T.f>` argument
+  walks, name patterns, folder walks, `$T.has_function(...)` and the other name-keyed questions, `source_folder()`.
+  Unconfirmed (proposed by Claude): specialisation names `<function>_for_<member>`, a constant local being a
+  local never assigned again whose run-time value no statement needs, and a folded `assert` on a constant never
+  being an "always holds" error.
+
 ### Functions of `Spite.Class`, and why there are no static functions
 - The three override rules (the functions a class file can override are exactly those `Spite.Class` declares; an
   ordinary instance function whose name collides is a diagnostic naming `Spite.Class`; the override is evaluated at
@@ -399,7 +429,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   mapping (`mmap`) is held to compiling only; only Windows runs.
 
 ### Watch files and folders
-- The `Watcher` name and members are proposed, unconfirmed (mortaros_missing_decisions.md asks for the final name).
+- `watch_for_changes(target: Directory or File)` is declared over a union of the two classes in the watcher's own
+  file (`FileSystemWatcher.Target`), since the compiler has no inline union type; it becomes `Directory or File`
+  when that exists. The quiet period is still open (mortaros_missing_decisions.md 166).
 - Linux (`inotify`) and macOS (`kqueue`) watchers are held to compiling by check.sh; only Windows runs.
 
 ### Run a process
@@ -470,7 +502,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Not built, removed from the page (migration to do when it lands): remove `Directory.files()` and
   `Directory.folders()` and move their callers to `entries().filter_files()` / `filter_folders()`: the compiler's
   discovery in `bootstrap/source/discovery/program_discovery.spite` and `git_load.spite`,
-  `library/linux/watcher.spite`, `library/mac/watcher.spite`, `scripts/docs_corpus`, and the example under "List a
+  `library/linux/file_system_watcher.spite`, `library/mac/file_system_watcher.spite`, `scripts/docs_corpus`, and the example under "List a
   directory" in standard_library.md.
 - Open question for Mortaro: `Spite.Namespace`'s `.classes` and `.namespaces` have the same shape (one node's
   children split by kind) and may get the same treatment; undecided.

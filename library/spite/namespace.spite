@@ -3,6 +3,7 @@ var _name_with_namespaces: Symbol = 'unnamed'
 var _parent: Spite.Namespace? = null
 var _classes = List<Spite.Class>()
 var _namespaces = List<Spite.Namespace>()
+var _source_paths: List<String>? = null
 
 func Namespace(starting_name: Symbol, starting_name_with_namespaces: Symbol) {
     _name = starting_name
@@ -27,6 +28,20 @@ func get_classes(): List<Spite.Class> {
 
 func get_namespaces(): List<Spite.Namespace> {
     return _namespaces
+}
+
+func get_source_directories(): List<Directory> {
+    var directories = List<Directory>()
+    if not _source_paths {
+        return directories
+    }
+    var index = 0
+    while index < _source_paths.count() {
+        var directory = Directory(_source_paths[index])
+        directories.append(directory)
+        index = index + 1
+    }
+    return directories
 }
 
 func equals(other: String): Boolean {

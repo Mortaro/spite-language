@@ -93,7 +93,7 @@ prototype (`bootstrap/source/generation/tree_shaker.spite`). So is every class n
 `struct` and the `typedef` that names it, its `___allocate`, `___init`, `___default`, `___retain`, `___release`
 and `_copy`, its singleton slot and that slot's lock, its reflection class object and the lines in `main` that
 would free that object at exit, and every text literal, static table and prototype only dropped code named. A
-program that never makes a `Watcher`, `Socket`, `Process`, `HotReload`, `ThreadPool` or `Scheduler` has none of
+program that never makes a `FileSystemWatcher`, `Socket`, `Process`, `HotReload`, `ThreadPool` or `Scheduler` has none of
 their C. The compiler does this itself rather than leaving dead code for the C compiler to find, so it holds
 whichever C compiler you bring, and a C compiler cannot find most of it anyway, since a function it is not told
 is private has to stay in the executable.
@@ -119,7 +119,7 @@ class, is still compiled and checked, so a mistake in it is still reported; it j
 
 The same pass decides which native symbols are looked up. A `DynamicLibrary` looks up every symbol the program
 calls when it opens, and a symbol is looked up only when a function that calls it survived the shaking: a
-program that never uses `Watcher` does not look up `ReadDirectoryChangesW`, though `library/windows/watcher.spite`
+program that never uses `FileSystemWatcher` does not look up `ReadDirectoryChangesW`, though `library/windows/file_system_watcher.spite`
 opens the same `kernel32.dll` as `Program.sleep`. **What you notice.** Fewer allocations under `--debug-memory`,
 since each lookup makes two short-lived strings, and a missing symbol that only unused code names does not stop
 the program when the library opens. An inspectable build is not shaken, so it looks up every symbol.
@@ -245,6 +245,18 @@ order exists at run time: walking one costs exactly the calls it expands to, and
 notice.** Nothing: reflection may be as detailed as it likes, because a program that never reads it carries none
 of it. The list behind `.instances` is the compiler's bookkeeping, like the list of singletons to destroy at
 exit, so `--debug-memory` does not count it.
+
+### Reflection on constants folds and unrolls
+
+**What it does.** A reflection object the compiler can identify (a class named in the code, `$T`, `value.class`
+of a class-typed value, and everything read from them) is a constant
+([reflection.md](reflection.md#reflection-known-while-compiling)). A question asked of it is a literal, `each` over
+its list is one call per element, `map` is a list literal, and a function handed one is compiled once for it, so
+`Monster.attributes.each(show)` makes no list, no `Spite.Attribute` objects and no boxed values: `show_for_health`
+reads `health` directly. A local that holds a constant is not made at all when nothing needs its value at run time.
+
+**When.** Every build. **What you notice.** Fewer allocations under `--debug-memory` than the same walk over a
+run-time list, and one copy per element in `--final-classes`.
 
 ### Template chains run as one loop
 
@@ -1481,7 +1493,7 @@ long text needs anyway (where its characters are, and how many).
 **What it does.** A maths function of a number class ([standard_library.md](standard_library.md#maths))
 whose operands are all constants is worked out by the compiler, and the C gets the answer: `(0.5).sine()` is
 `(0x1.eaee880000000p-2f)` in the C, not a call. A constant here is a decimal or whole literal, a negated one, a
-number class's constant (`Float.pi()`), or another folded call, so `Float.pi().sine()` and
+number class's constant (`Float.pi`), or another folded call, so `Float.pi.sine()` and
 `(2.0).square_root().square_root()` fold too. The answer is written as a hexadecimal float, which the C compiler
 reads back to exactly those bits, and infinity and not-a-number as `__builtin_inf()` and `__builtin_nan("0x...")`
 with the same sign and payload.

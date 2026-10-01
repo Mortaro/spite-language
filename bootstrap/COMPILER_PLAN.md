@@ -21,7 +21,9 @@ progress log before it ends. `docs/` is the language (D193); this file is the co
 - `bash check.sh` is the green bar: builds the seed with whatever `CC` names (else the first of `cc`, `clang`,
   `gcc`), proves the fixpoint, then runs every program under `conformance/` and `examples/` (exact output and
   balanced `allocations == frees`), `tests/`, every program under `diagnostics/` (exact compile errors) and every
-  titled code block in `docs/`. It leaves the freshly built compiler at `.spite/spite_development.exe`.
+  titled code block in `docs/`. It leaves the freshly built compiler at `.spite/spite_development.exe`. Everything
+  after generation 2 runs as jobs side by side, one per processor (`CHECK_JOBS=N` sets how many, `1` runs them one
+  at a time), and the report prints every result in a fixed order, so a failure never hides another.
 - `bash check.sh --update-seed` refreshes the committed seed after an intended compiler change.
 - One feature = one conformance (or diagnostics) program = one commit. Run `check.sh` per feature, not per file.
 - `conformance/<stage>/<name>/<name>.spite` plus `expected_output.txt`; `diagnostics/<name>/<name>.spite` plus

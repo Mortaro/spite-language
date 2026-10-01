@@ -1,0 +1,15 @@
+var console = Console()
+var total = 0
+
+func update_each(amount: Integer, label: String) {
+    total = total + amount
+    console.print(label, total)
+}
+
+func render_each(scale: Float) {
+    console.print("render", scale)
+}
+
+func reset() {
+    total = 0
+}

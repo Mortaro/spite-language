@@ -352,35 +352,35 @@ func constant_value(name: String, is_float: Boolean): Double {
         return float_constant_value(name)
     }
     switch name {
-        "pi": return Double.pi()
-        "tau": return Double.tau()
-        "euler_number": return Double.euler_number()
-        "infinity": return Double.infinity()
-        "not_a_number": return Double.not_a_number()
-        "largest": return Double.largest()
+        "pi": return Double.pi
+        "tau": return Double.tau
+        "euler_number": return Double.euler_number
+        "infinity": return Double.infinity
+        "not_a_number": return Double.not_a_number
+        "largest": return Double.largest
         _: {
             if name != "smallest" {
                 return 0.0
             }
-            return Double.smallest()
+            return Double.smallest
         }
     }
 }
 
 func float_constant_value(name: String): Double {
-    var narrow = Float.smallest()
+    var narrow = Float.smallest
     if name == "pi" {
-        narrow = Float.pi()
+        narrow = Float.pi
     } else if name == "tau" {
-        narrow = Float.tau()
+        narrow = Float.tau
     } else if name == "euler_number" {
-        narrow = Float.euler_number()
+        narrow = Float.euler_number
     } else if name == "infinity" {
-        narrow = Float.infinity()
+        narrow = Float.infinity
     } else if name == "not_a_number" {
-        narrow = Float.not_a_number()
+        narrow = Float.not_a_number
     } else if name == "largest" {
-        narrow = Float.largest()
+        narrow = Float.largest
     }
     var wide: Double = narrow
     return wide

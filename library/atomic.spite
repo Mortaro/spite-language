@@ -4,7 +4,7 @@ var _heap = Memory.Heap()
 var _cell = _heap.allocate(8)
 
 func Atomic(starting: $value_type) {
-    crash $value_type == Integer or $value_type == Long or $value_type == Short or $value_type == Tiny or $value_type == UnsignedInteger or $value_type == UnsignedLong or $value_type == UnsignedShort or $value_type == Byte or $value_type == Boolean
+    crash $value_type == Number and $value_type != Float and $value_type != Double or $value_type == Boolean
     var raw = _raw(starting)
     _cell.write_long_atomically(0, raw)
 }
