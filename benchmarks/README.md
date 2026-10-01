@@ -100,8 +100,8 @@ time, since starting a process took up to two seconds on the loaded machine):
 
 | the compiler built | CPU ms |
 |---|---|
-| one file, `-O0` (the default build) | 5 875 |
-| one file, `-O1` (what `check.sh` builds) | 1 938 |
+| one file, `-O0` (the default build; `check.sh` builds generation 2 this way, from translation units) | 5 875 |
+| one file, `-O1` | 1 938 |
 | one file, `-O2` (the old `--optimized`) | 1 656 |
 | one file, `-O3` | 1 766 |
 | eight translation units, `-O3 -flto=thin` (`--optimized`) | 1 766 |
