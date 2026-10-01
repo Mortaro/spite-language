@@ -1,0 +1,32 @@
+var console = Console()
+
+func NumberParameter() {
+    var widened = doubled(4)
+    var halved = doubled(1.25)
+    console.print(widened, halved)
+    var bigger = larger(3, 9)
+    var heavier = larger(2.5, 1.5)
+    console.print(bigger, heavier)
+    var held = List<Number>()
+    held.append(7)
+    held.append(0.5)
+    var long: Long = 40000000000
+    held.append(long)
+    var index = 0
+    while index < held.count() {
+        var value = doubled(held[index])
+        console.print(value)
+        index = index + 1
+    }
+}
+
+func doubled(value: Number): Number {
+    return value + value
+}
+
+func larger(first: Number, second: Number): Number {
+    if first > second {
+        return first
+    }
+    return second
+}

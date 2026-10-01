@@ -1,0 +1,9 @@
+var count = 0
+
+func Gadget(starting_count: Integer) {
+    count = starting_count
+}
+
+func to_string(): String {
+    return "gadget {count}"
+}

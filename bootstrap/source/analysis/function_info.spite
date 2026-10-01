@@ -27,6 +27,7 @@ var lent_sources = ""
 var held_parameters = List<String>()
 var lent_element = ""
 var result_slot = false
+var specialised_from = ""
 var specialisation_position = -1
 var symbol_chain_method = ""
 var symbol_chain_arguments = List<String>()

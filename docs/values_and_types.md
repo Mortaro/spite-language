@@ -349,9 +349,42 @@ func NumberTypeDoc() {
 a number not a number
 ```
 
-Read through a value typed `Number` at run time (a parameter `value: Number`), the conversions work, but an
-operator is an error, since the class the operand must be is not known there: take the value through a codegen
-value `Number` constrains instead.
+A parameter can be typed `Number` too, and its operators are the number's own. The function is compiled once for
+each number class that reaches it ([optimizations.md](optimizations.md#a-function-taking-a-type-is-compiled-per-class)),
+so in the copy that takes an `Integer`, `value + value` is an `Integer` addition, checked like any other:
+
+```gdscript title=number_parameter_doc/number_parameter_doc.spite entry
+var console = Console()
+
+func NumberParameterDoc() {
+    var twice_four = twice(4)
+    var twice_half = twice(0.5)
+    console.print(twice_four, twice_half)
+    var bigger = larger(3, 9)
+    console.print(bigger)
+}
+
+func twice(value: Number): Number {
+    return value + value
+}
+
+func larger(first: Number, second: Number): Number {
+    if first > second {
+        return first
+    }
+    return second
+}
+```
+```output
+8 1
+9
+```
+
+Since each copy is compiled for its class, `value + 0.5` is the error it would be on an `Integer` when an `Integer`
+reaches it. A value whose class is known only while the program runs (read from a `List<Number>`) reaches the copy
+for its class. In a `--hot-reload` or REPL build, where new code may bring a class later, the function is compiled
+once as written, and an operator there tests both classes while the program runs: the right side is turned into
+the left side's class, and if it does not fit exactly, the program halts naming the operation.
 
 ## `String`
 
@@ -740,6 +773,13 @@ func show(item: Renderable) {
 == banner 12 ==
 ```
 
+`show` above is compiled twice, once for `Badge` and once for `Banner`: a function that takes a `type` gets a
+copy for each class that reaches it, and in that copy `item` is that class, so `item.render(12)` is a direct call.
+A number, `Boolean` or enum value passed to it arrives as the plain value. When the class is known only as the
+program runs (a value read from a `List<Anything>`, say), the call tests the value's class against every class the
+program ever gives that `type` and runs the matching copy. A class that never reaches the function gets no copy,
+so nothing is compiled for it.
+
 A `type` can also be the element of a variadic parameter, `...items: List<Renderable>`, so a call takes any number
 of values of any classes that fit ([functions_and_operators.md](functions_and_operators.md#variadic-arguments)).
 
@@ -1072,11 +1112,17 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   operator: the compiler's own arithmetic answers it, so the class fits. `Boolean` and `Memory.Address` do not fit,
   and neither does anything else unless it declares those functions. `$value_type == Number` is decided while
   compiling ([metaprogramming.md](metaprogramming.md#codegen-values-)). A generic constrained by `Number` is compiled
-  once per number class it is given, with plain values and no box. Through a value typed `Number` at run time, a
-  conversion is called on the value's class, and an operator is an error: `'+' on a value read as 'Number' needs
-  the class that fits the type, which is not known while compiling: take the value through a codegen value the type
-  constrains, 'generic $value_type: Number'` (`diagnostics/number_type_mistakes`,
-  `conformance/stage6/number_type`).
+  once per number class it is given, with plain values and no box. **A parameter typed `Number` takes the
+  operators `+`, `-`, `*`, `/`, `<`, `>`, `<=` and `>=`**: the function is compiled once per number class that
+  reaches it, and in each copy the operator is that class's arithmetic, with that class's rules (an `Integer` copy
+  of `value + 0.5` is the "would be cut to fit" error). A conversion is called on the value's class. In a
+  `--hot-reload`, `--repl` or `--repl-port` build the function is compiled as written, and an operator on a value
+  typed `Number` tests the classes of both sides while the program runs: the right side is turned into the left
+  side's class, and a value that does not fit it exactly halts the program with `spite: '<operation>' needs its
+  right side to fit in <class>, at <place>` (`diagnostics/number_type_mistakes`, `conformance/stage6/number_type`,
+  `conformance/stage6/number_parameter`). A `type` that does not require an operator's function still refuses the
+  operator: `'+' on a value read as '<type>' needs the class that fits the type, which is not known while
+  compiling: take the value through a codegen value the type constrains, 'generic $value_type: <type>'`.
 - None of it costs anything at run time: a number stays a plain machine value, a cast is the one conversion written
   inline, a bitwise function is the single operation, and a number class's Spite functions (`to_string()`, a reopening's
   `doubled()`) are emitted only when the program calls them.
@@ -1191,8 +1237,8 @@ else it is an error saying to call it. Tested through a `type`, a class that fit
 by the test itself, so a value read back from a `Dictionary<AnyStorage>` can be narrowed before this function
 has stored one (`conformance/stage6/generic_class_test`).
 **A codegen value bound to a class is a class test too**: inside `Fetch<$wanted_type>`, `if item == $wanted_type { found = item }` narrows `item`
-to the bound class, as `if item == Health` would. A binding that is a number, `Boolean` or enum tests for its boxed
-class, since that is what such a value is inside a `type`, and the narrowed name is the plain value again;
+to the bound class, as `if item == Health` would. A binding that is a number, `Boolean` or enum tests for its
+class, since such a value keeps it inside a `type`, and the narrowed name is the plain value again;
 `String`, a `List` or a `Dictionary` test for their own classes. Where the value's static type already answers,
 the test is decided while compiling instead: a `Health` against `$wanted_type` bound to `Health` is `true`, bound
 to `Label` is `false`, and a union that does not hold the bound class is `false` rather than the "never true"
@@ -1268,6 +1314,19 @@ and it makes the respond-to check expressible as an ordinary type rather than as
 of values of any classes that fit, written one by one. A generic can be written over a `type` or a class, and is
 in the end compiled separately for each class. Each class that is passed is admitted to the shape, and each call on an
 element is compiled once per admitted class ([Variadic arguments](functions_and_operators.md#variadic-arguments)).
+
+**A function that takes a `type` is compiled once for each class that reaches it**, following calls through the
+whole program. A call whose argument's class is known while compiling runs the copy made for that class: there the
+parameter is that class, a number, `Boolean` or enum value arrives unboxed, calls through it are direct, a class
+test on it is decided while compiling, and a copy that passes the parameter on reaches the copy made for the same
+class. A value whose class is known only at run time (from a list, a dictionary, parsed data) goes through a test
+of its class against the closed set of classes the program admits to that `type`, which runs the matching copy;
+no general version of the function is in the program. The function as written is still compiled, so every error
+in it is reported against the `type` it names; a class test that only a copy decides is not the "decided while
+compiling" error. Not copied: a parameter the function assigns to, a `T?` of a `type`, a row of borrowed items, a
+function that waits, and the functions of `List`, `Dictionary` and the other containers of the library. A
+`--repl`, `--repl-port` or `--hot-reload` build compiles the function as written and no copies, since a class the
+compiler has not seen may reach it later.
 
 **A shape's members behave as a class's do**: a required function
 read without calling it is a function value bound to the value, dispatched on the value's class when it is

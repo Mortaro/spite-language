@@ -471,8 +471,8 @@ hello
 
 Inside a generic class, a codegen value bound to a class tests for that class: `item == $wanted_type`. A value
 read through a `type` that accepts anything is narrowed to the bound class, so a function can find the first
-value of the class it was made for without a generic function (there are none). A number is boxed when it goes
-into a `type`, so `Find<Integer>` finds it too. Where the value's own type already answers (a `Health` tested
+value of the class it was made for without a generic function (there are none). A number held as a `type`
+keeps its class, so `Find<Integer>` finds it too. Where the value's own type already answers (a `Health` tested
 against `$wanted_type` bound to `Health`, or a union that does not hold the bound class) the test is decided
 while compiling, and it is never the "never true" error, since another binding may make it true. The same goes
 for any class test inside a generic class: one that can never be true for one instantiation (`held == Health` in
