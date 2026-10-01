@@ -44,9 +44,10 @@ In other languages you choose elegant or fast. In Spite you write the elegant on
 fast one.
 
 **The proof, measured.** Five programs in [benchmarks/versus_c](benchmarks/README.md#spite-against-c) each have a
-twin written in C the way a C programmer would, Spite built `--optimized` against C at `-O3`:
+twin written in C the way a C programmer would, Spite built `--optimized` against C at `-O3`. Each number is
+how many times as long Spite takes as the C: 1.00 would be equal, and lower is better.
 
-| program | Spite / C |
+| program | Spite's time relative to C (lower is better) |
 |---|---|
 | 100 000 particles stepped in place, 300 ticks | 1.06 |
 | 5 million steps of `Vector3` maths | 1.25 |
@@ -55,8 +56,8 @@ twin written in C the way a C programmer would, Spite built `--optimized` agains
 | 5 million lookups in a dictionary of 500 000 integer keys | 1.96 |
 
 The `Vector3` row is the argument in one line. `Vector3` is a class, so every `scaled`, `+` and `cross` made a new
-object, and the program ran at 4.33 times C. Then the compiler learned to keep an object that never leaves its
-function in the frame, and the same source, unchanged, ran at 1.25. Nobody rewrote it. The last three rows are
+object, and the program took 4.33 times as long as C. Then the compiler learned to keep an object that never leaves its
+function in the frame, and the same source, unchanged, took 1.25 times as long. Nobody rewrote it. The last three rows are
 where Spite still loses, and nobody has studied why yet: they are the baseline to beat.
 
 ## One way to do each thing
@@ -199,8 +200,9 @@ page by page, is in [design/status.md](design/status.md).
 
 ## Questions
 
-**How fast is it?** As fast as C on a plain loop over packed items (1.06), and 1.25 to 1.96 times C on the other
-four programs measured against hand-written C, above. No comparison with Rust, Go or Zig has been measured.
+**How fast is it?** About as fast as C on a plain loop over packed items: it takes 1.06 times as long as
+hand-written C. On the other four programs measured against hand-written C, above, Spite takes 1.25 to 1.96 times
+as long as C (1.00 would be equal; lower is better). No comparison with Rust, Go or Zig has been measured.
 [benchmarks/README.md](benchmarks/README.md)
 
 **How fast does it compile?** The compiler compiles itself to C in 1.7 seconds of CPU; a default build of the
@@ -238,6 +240,11 @@ compile time, and a fault prints where it happened. Two objects holding each oth
 
 **How do errors work without exceptions?** A compile error, `assert` (the function answers "nothing"), or `crash`
 (the program halts and shows the line and the values). [docs/failure.md](docs/failure.md)
+
+**How do I test?** With `crash`, and no framework: a test is a function whose `crash` lines are the facts it
+checks, run by a short test package that finds every test through reflection. The first broken fact stops the run
+and reports its line and the values there. How to write and run tests, and why this beats a framework:
+[docs/testing.md](docs/testing.md)
 
 **What does concurrency look like?** `Concurrent(f)` and `Parallel(f)` at the call site, no `async`; reading the
 handle is the wait. Built on Windows. [docs/concurrency.md](docs/concurrency.md)

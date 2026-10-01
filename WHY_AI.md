@@ -22,9 +22,9 @@ designed so a moron's code still comes out correct and fast. That is the case fo
   [docs/optimizations.md](docs/optimizations.md).
 - When the source changes, the optimisations are redone. Nothing goes stale.
 - Measured, Spite `--optimized` against hand-written C at `-O3`
-  ([benchmarks/README.md](benchmarks/README.md#spite-against-c)): particles stepped in place 1.06 times C;
-  `Vector3` maths 1.25; quicksort 1.30; text building 1.62; integer-keyed dictionary 1.96. The `Vector3` program
-  went from 4.33 to 1.25 with no change to its source, when the compiler learned to keep non-escaping objects in
+  ([benchmarks/README.md](benchmarks/README.md#spite-against-c)), as Spite's run time over C's (1.00 would be
+  equal; lower is better): particles stepped in place 1.06; `Vector3` maths 1.25; quicksort 1.30; text building
+  1.62; integer-keyed dictionary 1.96. The `Vector3` program went from 4.33 to 1.25 with no change to its source, when the compiler learned to keep non-escaping objects in
   the frame.
 - Not yet: a `List` of a class is still a list of references. The goal is that every list gets its packed layout
   and that the compiler reports any it could not optimise.
@@ -107,7 +107,7 @@ designed so a moron's code still comes out correct and fast. That is the case fo
 
 | Question | Answer |
 |---|---|
-| Speed | 1.06 to 1.96 times hand-written C on five programs; no measured comparison with Rust, Go or Zig |
+| Speed | takes 1.06 to 1.96 times as long as hand-written C on five programs (1.00 would be equal; lower is better); no measured comparison with Rust, Go or Zig |
 | Compile speed | the compiler compiles itself to C in 1.7 s CPU; a default build of a 209 206-line program, C included, about 15 s |
 | Builds | default `-O0` for iteration (3 to 7 times slower at run time); `--optimized` is `-O3` with link-time optimisation |
 | Maturity | experimental; first decision 2026-09-19, over 340 decisions since; syntax still changes |

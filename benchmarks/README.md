@@ -62,11 +62,11 @@ bash benchmarks/versus_c/run.sh [compiler] [program ...]
 SPITE_FLAGS=--tune-for-this-machine C_FLAGS=-march=native bash benchmarks/versus_c/run.sh
 ```
 
-The Spite side is built with `--optimized`, the C side with `-O3`; the ratio is Spite's time over C's, so 1.00 is
-as fast as C. Best of seven interleaved runs, clang 19.1.5 on Mortaro's Windows machine (32 logical processors)
+The Spite side is built with `--optimized`, the C side with `-O3`; the ratio is Spite's time over C's: how many times
+as long Spite takes, so 1.00 is as fast as C and lower is better. Best of seven interleaved runs, clang 19.1.5 on Mortaro's Windows machine (32 logical processors)
 while other sessions were compiling on it:
 
-| program | Spite µs | C µs | Spite/C | tuned Spite/C |
+| program | Spite µs | C µs | Spite time / C time (lower is better) | tuned, Spite time / C time |
 |---|---|---|---|---|
 | `vector_maths`: 5 million steps of `scaled`, `+`, `cross`, `normalized` and `dot` on `Vector3` | 83 298 | 66 526 | 1.25 | not re-measured |
 | `particles`: 100 000 particles in a `Vector<Particle>`, 300 ticks of `each_step()` | 59 873 | 56 381 | 1.06 | 1.05 |
@@ -77,7 +77,7 @@ while other sessions were compiling on it:
 "tuned" is both sides with `-march=native` (`--tune-for-this-machine`), which sped both sides up by about the same
 (particles 10-15%, the rest within the noise), so the ratios hardly move. What the ratios say: a plain loop over a
 `Vector` of items is C (1.06). `Vector3` is a class, so every `scaled`, `+`, `cross` and `normalized` allocated its
-answer, and that was four times C (290 598 µs, 4.33); since escape analysis puts an answer that never leaves its
+answer, and that took four times as long as C (290 598 µs, 4.33); since escape analysis puts an answer that never leaves its
 function in the frame ([optimizations.md](../docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)),
 it is 83 298 µs against C's 66 526, 1.25 (1.26 on a second run; measured 2026-09-27 after the merge, the other rows
 are from before it). Where the dictionary, the text and

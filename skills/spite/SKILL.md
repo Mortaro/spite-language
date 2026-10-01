@@ -27,6 +27,11 @@ it lists costs a compile round trip to rediscover. The full documentation is
 5. To inspect a running program, run it with `--hot-reload --repl-port=4000` and ask it
    (`spite connect 4000 --command="..."`): read any value by its path, set breakpoints, save a file to reload it.
    Every answer is one JSON line.
+6. Test with `crash`: a test is a `test_` function in a `..._tests.spite` file, each fact one `crash` line, run by
+   a test package of its own (`spite game_tests`; with the runner in testing.md, `spite game_tests split` runs the
+   tests whose name holds `split`). The first failure ends the run with the line and the values there: fix that
+   one and run again.
+   [docs/testing.md](https://github.com/Mortaro/spite-language/blob/master/docs/testing.md)
 
 ## Rules that matter most
 
