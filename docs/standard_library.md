@@ -43,9 +43,9 @@ REPL can look at any of it.
 | `Concurrent`, `Parallel`, `ThreadPool` | run a function while waiting, or on the thread pool; the handle is the value | [concurrency.md](concurrency.md) |
 | `ThreadLocal<T>`, `Lock`, `ThreadSlot` | a value per thread, and a lock | [concurrency.md](concurrency.md#a-value-per-thread-and-a-lock) |
 | `Atomic<T>` | a whole number or `Boolean` threads share without a lock | [concurrency.md](concurrency.md#a-number-every-thread-shares-atomict) |
-| `Socket` | TCP over IPv4: listen, connect, lines and bytes, waiting or not | [below](#socket) |
-| `UdpSocket` | UDP datagrams over IPv4 | [below](#udpsocket) |
-| `HttpServer`, `HttpClient`, `HttpRequest`, `HttpResponse` | HTTP/1.1, one exchange per connection | [below](#http) |
+| `Socket` | TCP over IPv4 and IPv6: listen, connect, lines and bytes, waiting or not | [below](#socket) |
+| `UdpSocket` | UDP datagrams over IPv4 and IPv6 | [below](#udpsocket) |
+| `HttpServer`, `HttpClient`, `HttpRequest`, `HttpResponse` | HTTP/1.1, connections kept alive | [below](#http) |
 | `Base64`, `Deflate`, `Zlib`, `Gzip` | bytes as base64 and base64url text; bytes compressed as raw DEFLATE, zlib and gzip | [below](#bytes-base64-compression-hashes-and-passwords) |
 | `Sha256`, `SecureRandom`, `Argon2` | SHA-256 and HMAC-SHA256; bytes from the operating system's secure random source; password hashes as PHC strings | [below](#bytes-base64-compression-hashes-and-passwords) |
 | `Memory.Address`, `Memory.Heap`, `Memory.Arena`, `TypedMemory<T>` | a place in memory, the allocators that own it, and values of any type there: the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
@@ -68,9 +68,9 @@ other repository
 ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)). `library/windows/`, `library/linux/` and
 `library/mac/` are not brand packages: they are how a standard class is written for one system.
 
-The library has UDP and HTTP/1.1 ([below](#udpsocket)), SHA-256 and HMAC, Argon2id, secure random bytes, base64
-and base64url, and DEFLATE, zlib and gzip ([below](#bytes-base64-compression-hashes-and-passwords)). WebSocket,
-TLS and IPv6 belong to it as well.
+The library has TCP and UDP over IPv4 and IPv6 and HTTP/1.1 with kept-alive connections ([below](#socket)),
+SHA-256 and HMAC, Argon2id, secure random bytes, base64 and base64url, and DEFLATE, zlib and gzip
+([below](#bytes-base64-compression-hashes-and-passwords)). WebSocket and TLS belong to it as well.
 
 ## `String`
 
@@ -615,13 +615,13 @@ waited at least 4 ms: true
 
 ## `Socket`
 
-`Socket()` is a TCP connection over IPv4, the same on Windows (winsock), Linux and macOS. `--repl-port` and
-`spite connect` are written with it, and so is a game server. It is public library surface.
+`Socket()` is a TCP connection over IPv4 or IPv6, the same on Windows (winsock), Linux and macOS. `--repl-port`
+and `spite connect` are written with it, and so is a game server. It is public library surface.
 
 | Member | Does |
 |---|---|
-| `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host, port)` | listens on `127.0.0.1`, on every interface, or on the one interface a host name or IPv4 address names; `false` when it cannot |
-| `connect_locally(port)`, `connect(host, port)` | connects to `127.0.0.1`, or to a host name (`"example.com"`, `"localhost"`) or IPv4 address (`"192.168.1.20"`); `false` when the name does not resolve or nobody answers |
+| `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host, port)` | listens on `127.0.0.1`, on every interface of both IPv4 and IPv6, or on the one interface a host name or address names (a name with both kinds of address, like `"localhost"`, listens on its IPv4 one); `false` when it cannot |
+| `connect_locally(port)`, `connect(host, port)` | connects to `127.0.0.1`, or to a host name (`"example.com"`, `"localhost"`), an IPv4 address (`"192.168.1.20"`) or an IPv6 address (`"::1"`, `"2001:db8::7"`), trying each address a name resolves to in turn, its IPv4 ones first; `false` when the name does not resolve or nobody answers |
 | `accept_client(): Socket?` | waits for the next client |
 | `read_line(): String?` | waits for a whole line, without its line break |
 | `read_bytes(address, count): Integer` | waits until at least one byte has arrived, puts up to `count` at `address`, and answers how many |
@@ -662,15 +662,15 @@ Addresses are `Memory.Address`es, so a buffer is `heap.allocate(bytes)` and its 
 
 ## `UdpSocket`
 
-`UdpSocket()` sends and receives UDP datagrams over IPv4, the same on Windows, Linux and macOS. A datagram is a `List<Byte>`, and one call is one datagram.
+`UdpSocket()` sends and receives UDP datagrams over IPv4 and IPv6, the same on Windows, Linux and macOS. A datagram is a `List<Byte>`, and one call is one datagram.
 
 | Member | Does |
 |---|---|
-| `open()`, `open_locally(port)`, `open_everywhere(port)` | opens on a port the system picks (a client), or on `port` of `127.0.0.1` or of every interface; `false` when the port is taken |
-| `send_to(host, port, bytes): Boolean` | sends one datagram to a host name or IPv4 address; `false` when the name does not resolve or the system refuses it |
+| `open()`, `open_locally(port)`, `open_everywhere(port)` | opens on a port the system picks (a client), or on `port` of `127.0.0.1` or of every interface of both IPv4 and IPv6; `false` when the port is taken |
+| `send_to(host, port, bytes): Boolean` | sends one datagram to a host name or an IPv4 or IPv6 address; a name with both kinds of address is sent to its IPv4 one; `false` when the name does not resolve to an address the socket can reach (an IPv6 one from `open_locally`) or the system refuses it |
 | `receive(): List<Byte>?` | waits for the next datagram; `null` when the socket is closed |
 | `receive_now(): List<Byte>?` | the next datagram if one has arrived, otherwise `null` at once |
-| `sender_host(): String`, `sender_port(): Integer` | who sent the datagram received last, to answer with `send_to` |
+| `sender_host(): String`, `sender_port(): Integer` | who sent the datagram received last, to answer with `send_to`: an IPv4 address as `"127.0.0.1"`, an IPv6 one in its shortest form (`"::1"`, `"2001:db8::7"`) |
 | `close()` | closes it |
 
 A datagram can arrive empty, which is a list of no bytes, not `null`. UDP itself neither orders nor repeats lost
@@ -678,21 +678,35 @@ datagrams; reliable channels are the program's.
 
 ## HTTP
 
-`HttpServer` and `HttpClient` speak HTTP/1.1 over `Socket`.
-A message is an `HttpRequest` (`method`, `path`, `headers`, `body`) or an `HttpResponse` (`status`, `headers`,
-`body`); `header(name)` reads a header whatever its case and `set_header(name, value)` writes one, and
+`HttpServer` and `HttpClient` speak HTTP/1.1 over `Socket`, keeping a connection open for the next exchange.
+A message is an `HttpRequest` (`method`, `path`, `version`, `headers`, `body`) or an `HttpResponse` (`status`,
+`headers`, `body`); `header(name)` reads a header whatever its case and `set_header(name, value)` writes one, and
 `reason()` is the response's reason phrase. Bodies are text.
 
 | Member | Does |
 |---|---|
 | `HttpServer.listen_locally(port)`, `listen_everywhere(port)` | listens, like `Socket` |
-| `HttpServer.next_request(): HttpRequest?` | waits for the next well-formed request; a malformed one is answered `400 Bad Request` and skipped, and a body over `largest_body` (1 MiB) counts as malformed; `null` when the listener fails |
-| `HttpServer.respond(request, response)` | writes the response with its `content-length` and closes the connection |
-| `HttpClient.send(host, port, request): HttpResponse?` | connects, sends the request with `host` and `content-length`, and reads the response, whether its body is sized, chunked or ends when the connection closes; `null` when nobody answers or the response is malformed |
+| `HttpServer.next_request(): HttpRequest?` | waits for the next well-formed request, on a new connection or on one kept open; a malformed one is answered `400 Bad Request` and its connection closed, and a body over `largest_body` (1 MiB) counts as malformed; `null` when the listener fails or is closed |
+| `HttpServer.respond(request, response)` | writes the response with its `content-length`, and keeps the connection open for the client's next request unless the client asked to close it |
+| `HttpServer.close()` | stops listening and closes every connection kept open |
+| `HttpClient.send(host, port, request): HttpResponse?` | sends the request with `host` and `content-length` over a connection kept open to that host and port, or a new one, and reads the response, whether its body is sized, chunked or ends when the connection closes; `null` when nobody answers or the response is malformed |
+| `HttpClient.close()` | closes the connections it keeps open |
 
-Each exchange is one connection (`connection: close`): no keep-alive, no pipelining, and a server's requests
-with a chunked body are refused. Inside a `Concurrent`, `next_request` and `send` wait the way `Socket` does,
-so a server serves while its program runs ([concurrency.md](concurrency.md#what-the-compiler-does-at-a-wait)).
+**Connections are kept alive.** HTTP/1.1 keeps a connection open between exchanges, and both sides do: a server
+answers `connection: keep-alive` and waits on every open connection and on its listener at once, and a client
+keeps the connection after a response and sends its next request to the same host and port over it. A connection
+closes when either side says `connection: close` (a request that sets that header gets its answer and then the
+close), when an HTTP/1.0 client does not ask for `keep-alive`, when a response's body ends with the connection,
+and when it has been idle too long: a server closes one after `idle_limit` milliseconds (5000) without a request,
+and keeps at most `largest_waiting` (64) open, closing each further one after its answer; a client keeps at most
+`largest_idle` (8). A kept connection the server has closed meanwhile is noticed when the client's next request
+gets no answer at all, and that request is sent once more over a new connection. Requests on one connection are
+answered in order, and requests a client sent before reading the answers (pipelining) are read one at a time.
+A response to `HEAD`, and a `204` or `304`, carries no body. A server still refuses a request with a chunked body.
+
+Inside a `Concurrent`, `next_request` and `send` wait the way `Socket` does, so a server serves while its program
+runs ([concurrency.md](concurrency.md#what-the-compiler-does-at-a-wait)). A server reads one request at a time:
+while a client is slow to send the rest of a request, the other connections wait for it.
 
 ## Bytes: base64, compression, hashes and passwords
 
@@ -896,7 +910,7 @@ library through `DynamicLibrary`. What each member answers is in the section of 
 | `Clock()` | a singleton: `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant`; `elapsed_nanoseconds()` is the monotonic clock, with a nanosecond unit and no allocation per reading; see [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation) |
 | `Console()` | a singleton: `print(...values)`, `write(...values)`, `error(...values)`, `debug(...values)`, `flush()`, `read_line(): String?`; see [Console](#console), and below |
 | `FileSystemWatcher()` | `watch_for_changes(target: Directory or File): Boolean`, `changes(): List<String>`, `wait_for_changes()`; see [Watch files and folders](#watch-files-and-folders), which is the rule. `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload)) |
-| `Socket()` | public library surface: `listen_locally(port): Boolean`, `listen_everywhere(port): Boolean`, `listen_at(host, port): Boolean`, `connect_locally(port): Boolean`, `connect(host, port): Boolean`, `accept_client(): Socket?`, `read_line(): String?`, `read_bytes(address, count): Integer`, `write_line(text): Boolean`, `write_bytes(address, count): Boolean`, the calls that never wait `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer` and `write_bytes_now(address, count): Integer`, `closed: Boolean`, `close()`: TCP over IPv4 on every system ([Socket](#socket), and below); `--repl-port` and `spite connect` use `listen_locally` and `connect_locally` ([REPL and live reload](repl.md#repl-and-live-reload)) |
+| `Socket()` | public library surface: `listen_locally(port): Boolean`, `listen_everywhere(port): Boolean`, `listen_at(host, port): Boolean`, `connect_locally(port): Boolean`, `connect(host, port): Boolean`, `accept_client(): Socket?`, `read_line(): String?`, `read_bytes(address, count): Integer`, `write_line(text): Boolean`, `write_bytes(address, count): Boolean`, the calls that never wait `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer` and `write_bytes_now(address, count): Integer`, `closed: Boolean`, `close()`: TCP over IPv4 and IPv6 on every system ([Socket](#socket), and below); `--repl-port` and `spite connect` use `listen_locally` and `connect_locally` ([REPL and live reload](repl.md#repl-and-live-reload)) |
 | `Concurrent(function)`, `Parallel(function)` | the handle stands in for what the function returned, and reading it is the wait; `finished: Boolean` never waits; dropping the handle waits for it; there is no `wait()` and no `join()`; see [concurrency.md](concurrency.md) |
 | `ThreadPool()` | the singleton every `Parallel` runs on: `size(): Integer` worker threads, `worker_index(): Integer` (`-1` off the pool); see [The thread pool](concurrency.md#the-thread-pool) |
 | `ThreadLocal<T>()`, `Lock()`, `ThreadSlot()` | one value per thread, `get(): T?`, `set(value)`; a lock, `while_locked(function)`, `lock()`, `unlock()`; the raw per-thread `Long` both are built on, `read()`, `write(value)`; see [A value per thread, and a lock](concurrency.md#a-value-per-thread-and-a-lock) |
@@ -1007,12 +1021,19 @@ In detail:
 `library/socket.spite` holds everything but the calls into each system's library, which `library/windows/`,
 `linux/` and `mac/socket.spite` reopen the class with:
 
-- **Addresses.** `listen_locally` and `connect_locally` build `127.0.0.1` themselves, `listen_everywhere` builds
-  `0.0.0.0`, and `listen_at` and `connect` resolve the host with the system's `getaddrinfo`, asking for IPv4 and a
-  stream socket and taking the first answer; a name that does not resolve answers `false`. Resolving waits in
-  place, like connecting. The listening queue is 64 connections deep.
+- **Addresses.** `listen_locally` and `connect_locally` build `127.0.0.1` themselves, and `listen_everywhere`
+  builds `::` on a socket that takes IPv4 connections too (`IPV6_V6ONLY` off), or `0.0.0.0` where the system has
+  no IPv6. `listen_at` and `connect` resolve the host with the system's `getaddrinfo`, asking for any family and a
+  stream socket, and put the IPv4 answers first, in the order the system gives them, then the IPv6 ones: `listen_at`
+  listens on the first, and `connect` tries them in turn until one connects. A name that does not resolve answers `false`. Resolving waits in place, like
+  connecting. The listening queue is 64 connections deep. `UdpSocket` uses the same addresses: `open` and
+  `open_everywhere` take both families on one IPv6 socket, sending to an IPv4 address as `::ffff:` and the address,
+  and a sender's address is written as RFC 5952 gives it, with an IPv4 address inside `::ffff:` written as IPv4 and
+  a link-local one's scope after a `%`.
 - **Waiting calls.** `accept_client`, `read_line` and `read_bytes` reach `Socket.accept_handle` and
-  `Socket.receive_into`, which are the compiler's waits ([concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting)):
+  `Socket.receive_into`, and `HttpServer.next_request` reaches `Socket.first_readable` (the system's `poll`, or
+  `WSAPoll`, over the listener and every kept connection, for at most `idle_limit` or one second), which are the
+  compiler's waits ([concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting)):
   in a `Concurrent` they return to the event loop while a helper thread makes the call. `write_line` and
   `write_bytes` send until everything is sent, in place, as before.
 - **Calls that never wait** (`_now`) are ordinary calls, not waits, so they add nothing to a state machine. Linux

@@ -1,12 +1,12 @@
 var handle: Long = -1
+var _family = 0
 var _sender_host = ""
 var _sender_port = 0
 var heap = Memory.Heap()
 var _addresses = Socket()
 
 func open(): Boolean {
-    var address = _addresses.any_address(0)
-    return _bound(address)
+    return open_everywhere(0)
 }
 
 func open_locally(port: Integer): Boolean {
@@ -15,13 +15,17 @@ func open_locally(port: Integer): Boolean {
 }
 
 func open_everywhere(port: Integer): Boolean {
-    var address = _addresses.any_address(port)
-    return _bound(address)
+    var address = _addresses.any_ipv6_address(port)
+    if _bound(address) {
+        return true
+    }
+    var fallback = _addresses.any_address(port)
+    return _bound(fallback)
 }
 
 func send_to(host: String, port: Integer, bytes: List<Byte>): Boolean {
     crash handle != -1
-    var address = _addresses.resolved_address(host, port)
+    var address = _destination(host, port)
     if address == 0 {
         return false
     }
@@ -64,7 +68,8 @@ func drop() {
 func _bound(address: Memory.Address): Boolean {
     close()
     _addresses.start_sockets()
-    handle = _open_handle()
+    _family = _addresses.read_family(address)
+    handle = _open_handle(_family)
     var bound = handle != -1 and _bind(address)
     heap.free(address)
     if not bound {
@@ -73,10 +78,42 @@ func _bound(address: Memory.Address): Boolean {
     return bound
 }
 
+func _destination(host: String, port: Integer): Memory.Address {
+    var addresses = _addresses.resolved_addresses(host, port, 2)
+    var ipv4 = _addresses.ipv4_family()
+    var chosen: Memory.Address = 0
+    var index = 0
+    while index < addresses.count() {
+        var address = addresses[index]
+        var family = _addresses.read_family(address)
+        if chosen == 0 and (family == ipv4 or _family != ipv4) {
+            chosen = address
+        }
+        index = index + 1
+    }
+    var destination: Memory.Address = 0
+    if chosen != 0 {
+        destination = _addresses.empty_address()
+        if _family != ipv4 and _addresses.read_family(chosen) == ipv4 {
+            _addresses.write_family(destination, _family)
+            destination.write_byte(18, 255)
+            destination.write_byte(19, 255)
+            var source = chosen + 4
+            var target = destination + 20
+            source.copy_to(target, 4)
+        } else {
+            chosen.copy_to(destination, 28)
+        }
+        _addresses.write_port(destination, port)
+    }
+    _addresses.free_addresses(addresses)
+    return destination
+}
+
 func _received(): List<Byte>? {
     var buffer = heap.allocate(65536)
-    var sender = heap.allocate(20)
-    sender.write_integer(16, 16)
+    var sender = heap.allocate(32)
+    sender.write_integer(28, 28)
     var received = _receive_from(buffer, 65536, sender)
     if received < 0 {
         heap.free(buffer)
@@ -87,14 +124,8 @@ func _received(): List<Byte>? {
     bytes.reserve(received)
     buffer.copy_to(bytes.items, received)
     bytes.item_count = received
-    var first: Integer = sender.read_byte(4)
-    var second: Integer = sender.read_byte(5)
-    var third: Integer = sender.read_byte(6)
-    var fourth: Integer = sender.read_byte(7)
-    _sender_host = "{first}.{second}.{third}.{fourth}"
-    var port_high: Integer = sender.read_byte(2)
-    var port_low: Integer = sender.read_byte(3)
-    _sender_port = port_high * 256 + port_low
+    _sender_host = _addresses.address_text(sender)
+    _sender_port = _addresses.read_port(sender)
     heap.free(buffer)
     heap.free(sender)
     return bytes

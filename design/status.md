@@ -355,7 +355,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   spelling, `filter_<member>_<function>(arguments)` on any list, `source_files`/`source_directories`;
   `package_folder` removed.
 - Not built: `function.call_with(...)` spreading a walk into one call (D317): its proposed argument,
-  `arguments.map(made)`, is a `map(function)`, which D346 removes, so it waits for a spelling from Mortaro; `.read_attributes`/`.written_attributes` (item 109),
+  `arguments.map(made)`, is a `map(function)`, which D355 removes, so it waits for a spelling from Mortaro; `.read_attributes`/`.written_attributes` (item 109),
   `Spite.Namespace.enums`, the plural `map_<members>` rule (D317, D328: `String.pluralize` is merged), and the
   compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
   (`engine/renderer/renderer.spite` is `Engine.Renderer` beside the namespace `Engine.Renderer`) is exactly that
@@ -452,7 +452,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ## [standard_library.md](../docs/standard_library.md)
 
 ### What belongs in the standard library
-- WebSocket, TLS and IPv6 are decided as standard library members and are not built. Built: UDP, HTTP/1.1, SHA-256,
+- WebSocket and TLS are decided as standard library members and are not built. Built: TCP and UDP over IPv4 and
+  IPv6, HTTP/1.1 with kept-alive connections, SHA-256,
   HMAC, Argon2id, secure random bytes, base64, base64url, DEFLATE, zlib, gzip.
 - The names of the hashing, password, random, base64, compression, UDP and HTTP/1.1 classes and functions were
   proposed by Claude and are unconfirmed by Mortaro.
@@ -483,14 +484,28 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - The `Clock` names are proposed, unconfirmed.
 
 ### `Socket`
-- Names proposed by Claude, unconfirmed. IPv6 is not built (TCP is IPv4 only). WebSocket is to grow from `Socket`
-  and is not built.
+- Names proposed by Claude, unconfirmed. WebSocket is to grow from `Socket` and is not built.
+- IPv6 (proposed by Claude, unconfirmed): `listen_everywhere` listens on `::` with IPv4 mapped in, falling back to
+  `0.0.0.0`; `listen_locally`/`connect_locally` stay `127.0.0.1`; a name's IPv4 addresses come before its IPv6
+  ones, so `listen_at("localhost")` keeps listening on `127.0.0.1` and `connect` tries IPv4 first (a refused `::1`
+  costs Windows two seconds). Only the Windows build runs it; Linux and macOS (`IPV6_V6ONLY` 26 and 27, `AF_INET6` 10 and 30,
+  the macOS `sin6_len` byte) are held to compiling.
+- `Socket.drop()` now closes an open connection when its last reference goes; until now an unreferenced `Socket`
+  kept its system handle open.
+- The address helpers `Socket` shares with `UdpSocket` (`any_address`, `resolved_addresses`, `address_text`,
+  `first_readable`, ...) are public functions of `Socket` with no reason for a program to call them (D241).
 
 ### `UdpSocket`
-- Names proposed, unconfirmed.
+- Names proposed, unconfirmed. Sending to a name with both an IPv4 and an IPv6 address picks the IPv4 one (proposed by
+  Claude, unconfirmed: a datagram cannot tell which one answers).
+- `receive()` is not one of the compiler's waits: inside a `Concurrent` it blocks the program's thread.
 
 ### HTTP
-- Names proposed, unconfirmed. Not built: TLS (HTTPS), WebSocket, IPv6.
+- Names proposed, unconfirmed. Not built: TLS (HTTPS), WebSocket, request bodies sent chunked to the server.
+- Keep-alive (proposed by Claude, unconfirmed): the numbers `idle_limit` 5000 ms, `largest_waiting` 64 and
+  `largest_idle` 8, `HttpRequest.version`, and sending a request again once over a new connection when a kept one
+  answered nothing (which can repeat a `POST` the server took before closing). The server reads one request at a
+  time, so a client slow to send its request holds the others up.
 
 ### Bytes: base64, compression, hashes and passwords
 - Class and function names proposed, unconfirmed. Removed clause: the `Argon2` defaults are those of the C# library
@@ -536,7 +551,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Proposed by Claude, unconfirmed, removed as bookkeeping but the behaviour stays on the page: how the templates are
   written, chains fused by one generated function, passed-function details (library-class functions bound as
   values), the dictionary key-kind rules, the Vector and Items readings.
-- D346 is built: `map(function)` on a list, an `Items` or a `Vector` is an error naming `map_<member>()` and a
+- D355 is built: `map(function)` on a list, an `Items` or a `Vector` is an error naming `map_<member>()` and a
   read-only attribute; `map_` over a `Boolean` member names `filter_`, `count_`, `any_` and `all_`; a class-qualified
   function value (`Monster.is_alive`) names an instance's function. The error texts are proposed by Claude,
   unconfirmed. `map_<member>` still takes the singular member name until the plural rule (D317) is built. A `while`

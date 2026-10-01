@@ -988,7 +988,7 @@ a resumable version (`bootstrap/source/generation/state_machine.spite`):
   over.
 - **The waits at the bottom** are small state machines the generator writes: `Program.sleep` registers a deadline
   and is over when the clock passes it; `Console.read_line_into`, `File.read_into`, `File.write_text`,
-  `File.write_from`, `Socket.accept_handle` and `Socket.receive_into` start their one system call on a helper thread
+  `File.write_from`, `Socket.accept_handle`, `Socket.receive_into` and `Socket.first_readable` start their one system call on a helper thread
   and are over when it flags that it returned; `Scheduler.wait_for(frame)`, under reading or dropping a
   `Concurrent`, is over when that frame has finished.
 

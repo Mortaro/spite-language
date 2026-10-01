@@ -1,19 +1,25 @@
 var _sockets = DynamicLibrary("ws2_32.dll", 'identity', "")
 
-func _open_handle(): Long {
-    return _sockets.socket_as_long(2, 2, 17)
+func _open_handle(family: Integer): Long {
+    var opened = _sockets.socket_as_long(family, 2, 17)
+    if opened != -1 and family == _addresses.ipv6_family() {
+        _addresses.allow_ipv4_too(opened)
+    }
+    return opened
 }
 
 func _bind(address: Memory.Address): Boolean {
-    return _sockets.bind(handle, address, 16) == 0
+    var length = _addresses.address_length(address)
+    return _sockets.bind(handle, address, length) == 0
 }
 
 func _send(address: Memory.Address, buffer: Memory.Address, count: Integer): Integer {
-    return _sockets.sendto(handle, buffer, count, 0, address, 16)
+    var length = _addresses.address_length(address)
+    return _sockets.sendto(handle, buffer, count, 0, address, length)
 }
 
 func _receive_from(buffer: Memory.Address, count: Integer, sender: Memory.Address): Integer {
-    var length_slot = sender + 16
+    var length_slot = sender + 28
     return _sockets.recvfrom(handle, buffer, count, 0, sender, length_slot)
 }
 
