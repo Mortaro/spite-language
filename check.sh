@@ -529,7 +529,7 @@ echo "class comparisons: a class known while compiling is compared by its id, wi
   echo "FAILED: counted_loops does not write its C"; exit 1; }
 if ! grep -qE "^spite_temp_[0-9]+\[index_\] = \(spite_temp_[0-9]+\[index_\] \* 2\.0\);$" "$work/counted.c" \
    || ! grep -qE "^if \(spite_temp_[0-9]+ <= spite_temp_[0-9]+\) \{$" "$work/counted.c" \
-   || [ "$(grep -cE "^while \(\(\(index_ < (List_Integer_count|\(\(__typeof__\(&List_Integer_count\)\)&[A-Za-z_]+_count)\(values_\)\)\)\) \{$" "$work/counted.c")" != "2" ]; then
+   || [ "$(grep -cE "^while \(\(\(index_ < (List_Integer_count|\(\(__typeof__\(&List_Integer_count\)\)&[A-Za-z_]+_count\))\(values_\)\)\)\) \{$" "$work/counted.c")" != "2" ]; then
   echo "FAILED: counted_loops should read its plain lists without range checks, except in add_from and double_up"; exit 1
 fi
 echo "counted loops: a plain list's loop reads the count once and its items unchecked"
