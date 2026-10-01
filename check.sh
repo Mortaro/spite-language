@@ -248,7 +248,8 @@ func TwoVersions() {
     return "the program modded its own version"
 }
 ' > "$pinned_work/two_versions/mods/greeter.spite"
-  two_versions=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" two_versions < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '')
+  two_versions=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" two_versions < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '
+')
   if [ "$two_versions" != "$(printf 'the program modded its own version
 hello from a later commit')" ]; then
     echo "FAILED: two commits of one repository are not two libraries, each read by the package that pinned it"; echo "$two_versions" | head -5; exit 1
@@ -263,7 +264,8 @@ func OnePackageTwoPins() {
     console.print(said)
 }
 ' "$pinned" "$later" > "$pinned_work/one_package_two_pins/one_package_two_pins.spite"
-  two_pins=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" one_package_two_pins < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '')
+  two_pins=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" one_package_two_pins < /dev/null 2>&1 | grep -v '^fetched ' | tr -d '
+')
   [ "$two_pins" = "hello from a later commit" ] || {
     echo "FAILED: one package pinning two commits of one repository does not read them as two loads, the later reopening the earlier"; echo "$two_pins" | head -5; exit 1; }
   mkdir -p "$pinned_work/mixed_pins"
@@ -273,7 +275,8 @@ func OnePackageTwoPins() {
     load "../plugin_repo@%s/plugin"
 }
 ' "$pinned" "$later" "$plugin_commit" > "$pinned_work/mixed_pins/mixed_pins.spite"
-  mixed=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" mixed_pins --run=false 2>&1 | tr -d '')
+  mixed=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" mixed_pins --run=false 2>&1 | tr -d '
+')
   echo "$mixed" | grep -q "error: .* reads that commit as part of the version from $pinned: a commit's files are read once, into one version" || {
     echo "FAILED: a commit one package reads alone and another reads into its version is not an error naming both"; echo "$mixed" | head -5; exit 1; }
   echo "git load: two commits of one repository are two libraries, and one package's two commits are two loads in order"
@@ -863,6 +866,61 @@ kill -0 $settings_program 2>/dev/null && settings_fail "the program kept running
 wait $settings_program || settings_fail "the program ended with exit code $?"
 echo "live settings: a function added to Integer, a new setting read from the command line, a setting's default and a Build field's default were swapped in while the program ran"
 
+# A reload keeps load order (docs/repl.md#what-a-reload-can-change): a copy of conformance/stage6/live_load_order
+# loads two folders, and the later one reopens Monster, replacing a function, an attribute's default and the
+# constructor. Editing what the later load replaces changes nothing, editing the replacement goes live, deleting it
+# brings the earlier declaration back, and a replacement added while the program runs goes live; the same with the
+# whole overriding file. A Build field the program's own build.spite declares stays the program's. Every wait has a
+# timeout.
+order_folder="$work/live_load_order/live_load_order"
+mkdir -p "$work/live_load_order"; cp -r conformance/stage6/live_load_order "$order_folder"; rm -f "$order_folder/expected_output.txt"
+order_port=$((port + 6))
+"$work/generation_two.exe" "$order_folder" --executable --run=false --hot-reload --repl-port=$order_port --executable-path="$work/live_load_order/live_load_order.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED load order: live_load_order does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/live_load_order/live_load_order.exe" > "$work/live_load_order/output.txt" 2>&1 < /dev/null &
+order_program=$!
+order_fail() { kill $order_program 2>/dev/null; echo "FAILED load order: $1"; head -5 "$work/live_load_order/output.txt"; exit 1; }
+order_ask() { timeout 120 "$work/generation_two.exe" connect $order_port --command="$1" 2>&1 | tr -d '\r'; }
+order_seen() {   # $1: what the reload did, $2: what the reload must answer, $3: what check() must answer after it
+  local answer; answer=$(order_ask wait_reload)
+  case "$answer" in *'"ok":true'*"$2"*) ;; *) order_fail "after $1 a reload answered $answer, without $2" ;; esac
+  answer=$(order_ask 'check()')
+  [ "$answer" == "{\"ok\":true,\"value\":\"$3\",\"type\":\"String\"}" ] || order_fail "after $1 check() answered $answer, not $3"
+}
+order_file_seen() {   # a new or deleted file: reload compiles it unless the watcher already has, then as order_seen
+  case "$(order_ask reload)" in *'"ok":true'*) ;; *) order_fail "a reload after $1 failed" ;; esac
+  order_seen "$@"
+}
+listening=false
+for attempt in $(seq 1 100); do
+  timeout 10 "$work/generation_two.exe" connect $order_port --command=help > /dev/null 2>&1 && { listening=true; break; }
+  kill -0 $order_program 2>/dev/null || break
+  sleep 0.2
+done
+$listening || order_fail "the program never listened on $order_port"
+sed -i 's/base tone/base tone again/' "$order_folder/base/build.spite"
+order_seen "editing a Build field the program declares too" "no code the program runs changed, so nothing was rebuilt" "mod describes, base taunts, mod made, 5, program tone"
+sed -i 's/program tone/program tone again/' "$order_folder/build.spite"
+order_seen "editing the program's Build field" "rebuilt Build" "mod describes, base taunts, mod made, 5, program tone again"
+rm "$order_folder/build.spite"
+order_file_seen "deleting the program's build.spite" "rebuilt Build" "mod describes, base taunts, mod made, 5, base tone again"
+base="$order_folder/base/monster.spite"; mod="$order_folder/mod/monster.spite"
+sed -i 's/base describes/base describes again/; s/^var level = 1$/var level = 2/; s/base made/base built/' "$base"
+order_seen "editing what the later load replaces" "rebuilt Monster" "mod describes, base taunts, mod made, 5, base tone again"
+sed -i 's/mod describes/mod describes again/; s/^var level = 5$/var level = 6/; s/mod made/mod built/' "$mod"
+order_seen "editing the replacements" "rebuilt Monster" "mod describes again, base taunts, mod built, 6, base tone again"
+printf 'func taunt(): String {\n    return "mod taunts"\n}\n' > "$mod"
+order_seen "deleting the replacements and adding one" "rebuilt Monster" "base describes again, mod taunts, base built, 2, base tone again"
+rm "$mod"
+order_file_seen "deleting the overriding file" "rebuilt Monster" "base describes again, base taunts, base built, 2, base tone again"
+printf 'func describe(): String {\n    return "mod describes anew"\n}\n' > "$mod"
+order_file_seen "adding an overriding file" "rebuilt Monster" "mod describes anew, base taunts, base built, 2, base tone again"
+order_ask exit > /dev/null
+for attempt in $(seq 1 50); do kill -0 $order_program 2>/dev/null || break; sleep 0.2; done
+kill -0 $order_program 2>/dev/null && order_fail "the program kept running after exit"
+wait $order_program || order_fail "the program ended with exit code $?"
+echo "load order: a reload kept the later load's function, attribute and constructor over edits to the earlier ones, swapped in edits to them, brought the earlier ones back when they or their file were deleted, and kept the program's own Build field"
+
 # Breakpoints (docs/repl.md#breakpoints): a program that ticks in a loop runs with --hot-reload and --repl-port; a
 # breakpoint is compiled into it, the loop stops there with its locals readable, goes on, and the breakpoint is
 # cleared again. A prompt call that meets a breakpoint answers that it stopped. Every wait has a timeout.
@@ -963,6 +1021,18 @@ for program in .spite/docs/hot_counter conformance/stage6/kept_templates conform
     esac
   done
 done
+# A class two loaded folders declare is compiled from both, in load order, whichever of them changed.
+order_copy="$fast_root/live_load_order"
+cp -r conformance/stage6/live_load_order "$order_copy"
+"$work/generation_two.exe" "$order_copy" --executable --run=false --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/live_load_order.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED fast reload: live_load_order does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
+for file in "$order_copy/base/monster.spite" "$order_copy/mod/monster.spite"; do
+  answer=$(SPITE_RELOAD_CHECK="$file" "$work/generation_two.exe" reload "$order_copy" --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/live_load_order.exe" 2>&1 | tr -d '\r')
+  case "$answer" in
+    "reload check: the fast reload matches a whole compile, rebuilt Monster"*) fast_checked=$((fast_checked + 1)) ;;
+    *) echo "FAILED fast reload: live_load_order/$file: $answer" | head -c 600; echo; exit 1 ;;
+  esac
+done
 hot_copy="$fast_root/hot_counter"
 fall_back() {
   local answer
@@ -990,8 +1060,10 @@ for printed_program in conformance/stage3/interpolation conformance/stage6/symbo
   printed="$work/final/$printed_name"   # a program is a folder named like its entry file (D89)
   "$work/generation_two.exe" "$printed_program" --run=false --final-classes="$printed" > /dev/null 2>&1 || {
     echo "FAILED: --final-classes could not write $printed_program out"; exit 1; }
-  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '' | grep -v '^allocations: ')
-  if [ "$printed_output" != "$(tr -d '' < "$printed_program/expected_output.txt")" ]; then
+  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '
+' | grep -v '^allocations: ')
+  if [ "$printed_output" != "$(tr -d '
+' < "$printed_program/expected_output.txt")" ]; then
     echo "FAILED: the printed $printed_name does not run like the one it was printed from"; echo "$printed_output" | head -6; exit 1
   fi
 done

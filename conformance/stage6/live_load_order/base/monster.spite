@@ -1,0 +1,14 @@
+var name = ""
+var level = 1
+
+func Monster() {
+    name = "base made"
+}
+
+func describe(): String {
+    return "base describes"
+}
+
+func taunt(): String {
+    return "base taunts"
+}

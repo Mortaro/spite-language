@@ -1134,7 +1134,11 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
         return
     }
     File("{library_base}.files").write(state)
-    console.print("rebuilt {reload_rebuilt.join(", ")}")
+    if reload_rebuilt.is_empty() {
+        console.print("no code the program runs changed, so nothing was rebuilt")
+    } else {
+        console.print("rebuilt {reload_rebuilt.join(", ")}")
+    }
     if not reload_generator.migration_notes.is_empty() {
         var notes = reload_generator.migration_notes.join("\n")
         console.print(notes)
