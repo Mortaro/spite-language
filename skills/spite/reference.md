@@ -586,6 +586,13 @@ address read with `terminated_text()`. Keep the `ForeignCallback` in an attribut
 registration and unregister in its `drop()`: C may call only while it is kept. A handed-over function follows a
 `Parallel`'s rules (its own value attributes, locals, singletons). A COM-style interface is a `Memory.Heap` block
 whose first word points at a table filled with `TypedMemory<Long>` and each `ForeignCallback`'s `address`.
+Bindings: any library with a C ABI (C, C++ through `extern "C"`, Rust `extern "C"` in a `cdylib`, Zig `export`,
+Go `//export` with `-buildmode=c-shared`) is called this way, so bind a large, mature or security-critical library
+(compression, cryptography, a graphics API, a platform SDK) instead of rewriting it, and write in Spite whatever is
+small. One class owns the `DynamicLibrary` and answers only Spite shapes: snake_case full-word functions, a Spite enum
+the binding declares for each status or mode C answers as a number (mapped with `if`/`switch` in one place), handles
+kept in its own `Long` attributes, `String` and `type` values; no address, handle, `_as_long` or C constant reaches a
+caller. Not built: C variadics, structs returned by value, reading a header's types.
 Game maths (docs/game_maths.md): `Vector2`, `Vector3`, `Vector4` are made with their parts, `Vector3(1.0, 2.0, 3.0)`,
 read as `x_value`, `y_value`, `z_value`, `w_value` (never `.x`), with `+ - * /` part by part, `scaled(factor)`,
 `dot`, `cross`, `length()`, `normalized()`, `distance_to`, `linear_interpolate(target, amount)`. `Matrix4()` and

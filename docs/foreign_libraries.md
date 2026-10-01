@@ -6,6 +6,27 @@ binding file and no generated shim. The standard library reaches the operating s
 `Directory`, `Process`, `Console` and the rest are Spite over the C runtime, reached through `DynamicLibrary`, so
 what a program can do with it, the library already does.
 
+This is also why Spite does not need a large ecosystem of its own. A mature library written in another language,
+a compression or cryptography implementation, a physics engine, a graphics API, a platform SDK, is one binding
+away: a short Spite class that calls it and answers in Spite's own shapes ([writing a binding](#writing-a-binding)).
+
+## Which languages this reaches
+
+Anything that exports functions through the C ABI, the calling convention every operating system's libraries
+already share:
+
+- **C**, directly.
+- **C++** through the functions it declares `extern "C"`: a class, a template or an overloaded name has no C ABI,
+  so a C++ library is reached through its C interface, which most mature ones ship.
+- **Rust** through `#[no_mangle] pub extern "C" fn`, built as a `cdylib`.
+- **Zig** through `export fn`, built as a dynamic library.
+- **Go** through `//export` functions built with `-buildmode=c-shared` (cgo).
+- **Others** that build a shared library with C exports: Odin, Nim, D, Swift's `@_cdecl`, Fortran's
+  `bind(C)`, and the libraries of the operating system itself.
+
+Spite needs the library's `.dll`, `.so` or `.dylib`, never its source or its build system. A header is optional:
+it adds constants, struct checks and exact argument widths ([what crosses](#what-crosses)).
+
 ## Calling a function
 
 ```gdscript title=foreign_call/foreign_call.spite entry
@@ -301,6 +322,65 @@ call; one with no context, an atomic load and a direct call. Making a `ForeignCa
 function value. A program that passes no function to C and makes no `ForeignCallback` carries none of it: no
 trampoline, no class, no atomic counts.
 
+## Writing a binding
+
+A foreign library is called from one class, its binding, and the rest of the program calls that class. The moron
+should not have to think of C at all (D350), so a binding answers only in Spite's shapes:
+
+- **Spite names.** Every function the binding offers is snake_case and full words, whatever C calls it; the naming
+  rule handles the call itself.
+- **Spite enums for C's numbers.** A status, a mode or a sign C answers as a number becomes a Spite enum the
+  binding declares, with Spite names, each value mapped from its C number in one place (D351).
+- **No C types past the binding.** A handle stays in a `Long` attribute of the binding's object, text crosses as
+  `String`, a struct as a `type`; a caller never sees an address, a handle, a `_as_long` or a C constant.
+- **Spite where Spite can.** Whatever can be written in Spite is written in Spite, so bind what is large, mature or
+  security-critical (compression, cryptography, a graphics API, a platform SDK), not a ten-line function.
+
+`strcmp` answers a negative number, zero or a positive number. The binding turns that into an enum, and the caller
+never learns C was involved:
+
+```gdscript title=text_order/collation.spite
+singleton
+
+enum Order {
+    'before'
+    'same'
+    'after'
+}
+
+var c_runtime = DynamicLibrary("ucrtbase.dll", 'identity', "")
+
+func order(first: String, second: String): Order {
+    var difference = c_runtime.strcmp(first, second)
+    if difference < 0 {
+        return 'before'
+    }
+    if difference > 0 {
+        return 'after'
+    }
+    return 'same'
+}
+```
+
+```gdscript title=text_order/text_order.spite entry
+var console = Console()
+var collation = Collation()
+
+func TextOrder() {
+    var first = collation.order("apple", "banana")
+    var second = collation.order("pear", "pear")
+    console.print(first, second)
+}
+```
+```output
+before same
+```
+
+A binding for several systems names each system's file in its `windows/`, `linux/` and `mac/` reopenings, as the
+standard library does below. A library that keeps a Spite function to call later is handed a `ForeignCallback`
+kept in the binding's object ([above](#for-as-long-as-the-program-keeps-it-foreigncallback)), and the binding's
+`drop()` tells the library to stop, so a caller never handles one either.
+
 ## Each operating system reopens what it changes
 
 There is no platform layer. `library/` holds what every system shares, and `library/windows/`, `library/linux/`
@@ -346,6 +426,24 @@ allocation, are declared in Spite as a `func` with a signature and no body, whic
 as its own reopening ([compiler.md](compiler.md#inspect-merged-classes)). `library/dynamic_library.spite` holds the
 rest: the `singleton` line, `file_name` and `handle`, the constructor and `drop()`. Nothing the compiler supplies stays
 hidden or ties Spite to C: these bodies are Spite over the few operations each backend lowers.
+
+## What is not supported yet
+
+- **Reading a header's types.** A header gives constants, prototypes and struct sizes, but `user32.Input` as the
+  C type through reflection is not built, so a binding declares each struct as a `type` itself.
+- **A C enum answered as the binding's Spite enum** (D351). Today the binding maps the number with an `if` or a
+  `switch`, as `Collation` does above; with a header, a C `enum` result is still made from the header's values
+  (D272), which D351 replaces.
+- **C's variadic functions** (`printf`), **structs returned by value**, **a C union past its first member** and
+  **function-like macros**. Bind a fixed-argument variant, or a function that fills a struct the program passes.
+- **A naming rule of the program's own**, and the calls as reopenable Spite (`missing_function`). The three rules
+  above, and `'identity'` with C's own spelling, are what there is.
+- **Callbacks** are built, with these gaps: C's one-byte `bool` is taken as a `Byte`, an enum or a struct passed
+  by value to a callback is not, and a trampoline's widths are not checked against the header.
+- **Systems other than Windows.** Only Windows runs today ([design/status.md](../design/status.md)), so a binding
+  naming a `.so` or `.dylib` compiles but has never run.
+- **Languages without a C ABI.** A C++ class, a Rust trait or a Go interface is reached only through C functions
+  its library exports; a library with none needs a small C, Rust or Zig shim of the moron's own outside Spite.
 
 ## Rules in full
 

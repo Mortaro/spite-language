@@ -189,6 +189,15 @@ does and the compiler can be rebuilt from one committed C file. The compiler is 
 itself: generation 2 and generation 3 must be byte identical, every time the tests run. The goal is a backend of
 Spite's own, without C; optimisations live in the Spite compiler, not in the C compiler, for that reason.
 
+## No big ecosystem needed on day one
+
+A young language usually waits years for its libraries. Spite does not have to: any mature library with a C ABI,
+written in C, C++, Rust, Zig or Go, is one binding away. `DynamicLibrary` calls its exported functions as members
+with no C written, and the binding, a short Spite class, wraps it so the rest of the program reads like Spite:
+Spite names, Spite enums for C's status numbers, no handle or address in sight. Compression, cryptography, a
+graphics API or a platform SDK is bound, not rewritten. The catch: a library has to export plain C functions, and
+only Windows runs today. [docs/foreign_libraries.md](docs/foreign_libraries.md#writing-a-binding)
+
 ## Not yet
 
 Spite is weeks old: its first decision is dated 2026-09-19. Only Windows runs today; the Linux and macOS parts of
@@ -247,7 +256,9 @@ with it; `--debug-memory` counts every allocation. No language server or editor 
 [docs/repl.md](docs/repl.md)
 
 **Is there a package manager?** No, by design: a dependency is a git URL pinned to a commit in a `load` line, and
-the ordinary compile fetches it. No registry, manifest or lockfile. [docs/packages.md](docs/packages.md)
+the ordinary compile fetches it. No registry, manifest or lockfile. The ecosystem of Spite packages is small, but
+it does not have to be large: a mature library from another language with a C ABI is one binding away, wrapped so
+callers see only Spite. [docs/packages.md](docs/packages.md), [docs/foreign_libraries.md](docs/foreign_libraries.md#writing-a-binding)
 
 **How big is the standard library?** About a hundred files, all of them Spite: text, lists, dictionaries, files,
 folders, processes, sockets, HTTP, JSON and binary, time and time zones, game maths, hashing and compression.

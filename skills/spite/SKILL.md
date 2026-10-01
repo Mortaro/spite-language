@@ -50,6 +50,15 @@ it lists costs a compile round trip to rediscover. The full documentation is
   reference as `Weak<T>`.
 - Singletons are bound once beside the attributes (`var console = Console()`), never called inline.
 
+## Using a library from another language
+
+Spite does not need its own copy of every mature library: anything exporting a C ABI (C, C++ through
+`extern "C"`, Rust, Zig, Go with cgo exports) is called through `DynamicLibrary` with no C written. Bind instead
+of rewriting when the library is large, mature or security-critical (compression, cryptography, a graphics API, a
+platform SDK); write it in Spite when it is small. Wrap it in one class that answers only Spite shapes: snake_case
+full-word names, a Spite enum for each number C uses as a status or mode, handles kept inside the class, and no C
+type, address or constant reaching a caller. Details in reference.md and docs/foreign_libraries.md.
+
 ## Installing this skill in a project
 
 Copy this folder (`SKILL.md` and `reference.md`) into the project's `.claude/skills/spite/`, or into

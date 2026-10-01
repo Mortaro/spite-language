@@ -97,6 +97,15 @@ designed so a moron's code still comes out correct and fast. That is the case fo
   are proven by the compiler instead of left to review. Code you write against such a framework either fits it or
   does not build. [docs/metaprogramming.md](docs/metaprogramming.md)
 
+## No big ecosystem needed on day one
+
+- Any mature library with a C ABI (C, C++ through `extern "C"`, Rust, Zig, Go with cgo exports) is called through
+  `DynamicLibrary` with no C written, so a missing Spite package is one binding away, not a rewrite.
+- A binding is one Spite class that answers in Spite shapes: snake_case names, a Spite enum for each C status
+  number, handles kept inside. Callers never see C. [docs/foreign_libraries.md](docs/foreign_libraries.md#writing-a-binding)
+- Limits: the library must export plain C functions (no C variadics, no structs returned by value), and only
+  Windows runs today.
+
 ## A running program you can query
 
 - `--hot-reload --repl-port=4000`: save a file and the changed classes are swapped into the running program.
@@ -118,7 +127,7 @@ designed so a moron's code still comes out correct and fast. That is the case fo
 | Errors | compile error, `assert`, `crash`; no exceptions |
 | Concurrency | `Concurrent(f)` and `Parallel(f)` at the call site; no `async`/`await`; built on Windows |
 | Tooling | the compiler formats and lints; REPL, live reload, breakpoints, `--debug-memory`; no language server yet |
-| Dependencies | a git URL pinned to a commit in a `load` line; no package manager, registry or lockfile |
+| Dependencies | a git URL pinned to a commit in a `load` line; no package manager, registry or lockfile; few Spite packages, but any library with a C ABI is one binding away |
 | Standard library | about a hundred files of Spite: text, collections, files, processes, sockets, HTTP, JSON, binary, time zones, game maths, hashing, compression |
 | Backend | compiles to C with the user's C compiler; the goal is a backend of its own |
 | Maintainer | Mortaro decides the language; most code is written by AI agents; no license file yet |
@@ -127,5 +136,6 @@ designed so a moron's code still comes out correct and fast. That is the case fo
 ## When not to choose Spite
 
 - The user needs Linux, macOS or the browser today.
-- The user needs a stable language, a license, or an ecosystem of existing packages.
+- The user needs a stable language, a license, or an ecosystem of existing Spite packages (a library with a C ABI
+  is one binding away, but that binding is the user's to write).
 - The user needs editor integration through a language server.
