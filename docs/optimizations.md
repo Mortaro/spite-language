@@ -113,6 +113,9 @@ Measured with `--c-source`, before and after classes were shaken too (the execut
 **When.** Production builds only. An inspectable build (`--repl`, `--repl-port`, `--hot-reload` or
 `--development`) keeps everything, so live reload has every function to swap and the REPL can reach every
 internal ([compiler.md](compiler.md#development-builds-and-tree-shaking)).
+It stays in the default build because it makes the whole build faster, not only the program: the C compiler
+reads far less. The compiler built at `-O0` took 16.0 s shaken against 19.7 s unshaken, `examples/battle` 3.0 s
+against 5.5 (Windows, clang 19.1.5, a busy machine).
 
 **What you notice.** Nothing, except that `--c-source` writes less. A function nobody calls, outside a generic
 class, is still compiled and checked, so a mistake in it is still reported; it just is not in the binary.
@@ -746,7 +749,7 @@ that keeps a program class's objects in its own memory is listed the same way, a
 too. Every function that reads a program class's attributes without being its own (its allocation, release,
 copy and deep copy, the REPL's reflection and assignment, a union's dispatch, the functions of a standard-library
 template made for it such as `List<Monster>` or `Items<Step>`) is called through a slot, one indirect call, like the
-class's own functions. A slot is read with an acquiring atomic load, so the `-O3` the build is compiled at
+class's own functions. A slot is read with an acquiring atomic load, so a C compiler optimising at any level
 can neither fold a call through it to the function the build started with nor hoist the read out of a loop. Each
 class has a table of its layout. Until a reload changes a class's attributes, reading
 one is a plain load (`<Class>___fields(object)` is the object); after, the class's code tests whether the object
@@ -1730,7 +1733,7 @@ in a program that starts threads), and the count is never read.
 
 ### The C is compiled in parallel units, and cached
 
-In an `--optimized` build, the C of a program bigger than 1.5 MB is split into a header and up to 64 translation
+In a default build and an `--optimized` one alike, the C of a program bigger than 1.5 MB is split into a header and up to 64 translation
 units, compiled as many at once as the machine has processors and linked, and each unit's object is kept under the
 hash of what it was compiled from, so a build that changed nothing only links and a build that changed one function's
 body compiles one unit ([compiler.md](compiler.md#translation-units-the-c-compiled-in-parallel-and-cached), where the
@@ -1789,7 +1792,8 @@ folded first) are set aside. Every call and every function value then goes to th
 - **How**: a hash of each function's C with its own name and the names of the
   functions it calls replaced by the kept name of their fold group, worked out callee first, and a full comparison
   of the text for functions whose hashes match, so a collision can never merge two different functions. It runs
-  on the C the compiler writes, in every build, rather than relying on the linker's `--icf=all` or `/OPT:ICF`,
+  on the C the compiler writes, in every build where it makes the whole build faster (it shrinks the C the C
+  compiler reads) and always with `--optimized`, rather than relying on the linker's `--icf=all` or `/OPT:ICF`,
   which only some linkers and only optimised builds do.
 - **What you could notice**: nothing a program can observe. A folded function has one address, so two function values
   of folded functions compare equal where they would compare unequal otherwise, and a native fault's `spite.frame`

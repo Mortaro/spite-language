@@ -127,17 +127,21 @@ C), built from a copy, with its edit in `engine/column.spite`; the synthetic pro
 
 | program | C | build | one file | cold | warm | one edit |
 |---|---|---|---|---|---|---|
-| the compiler (`bootstrap`) | 7.2 MB | default (`-O0`) | 11 295 | 10 382 | 6 713 | 5 507 |
+| the compiler (`bootstrap`) | 7.2 MB | default (`-O0`) | 18 989 | 22 467 | 12 799 | 13 298 |
 | the compiler (`bootstrap`) | 7.2 MB | `--optimized` | 37 673 | 14 495 | 11 392 | 13 348 |
-| `kal_character` | 14.1 MB | default (`-O0`) | 26 071 | 23 546 | 23 971 | 27 202 |
+| `kal_character` | 14.1 MB | default (`-O0`), one file only | 26 071 | 23 546 | 23 971 | 27 202 |
 | `kal_character` | 14.1 MB | `--optimized` | 80 127 | 45 670 | 30 696 | 67 173 |
-| synthetic, 209 206 lines | 20.5 MB | default (`-O0`) | 16 512 | 15 534 | 14 983 | 14 556 |
+| synthetic, 209 206 lines | 20.5 MB | default (`-O0`) | 31 577 | 32 067 | 17 417 | 19 939 |
 | synthetic, 209 206 lines | 20.5 MB | `--optimized` | 181 193 | 49 965 | 34 260 | 37 330 |
 
-A default build is one file whatever the size (its "cold", "warm" and "edit" are the same build again, and their
-spread is the machine's noise): splitting the compiler's C at `-O0` made a cold build slower, since every unit
-reads the whole 1 MB header and `-O0` spends its time reading. Forced to 4, 8, 16 and 32 units it took 6.4-11.5,
-9.8-10.2, 9.7-14.7 and 15.9-29.9 s against 6.1-6.3 s from one file. An `--optimized` build is split: the compiler
+The two default rows of the compiler and the synthetic program were measured again on 2026-09-30, when default
+builds started splitting by the same size rule, with the machine busier than for the other rows (the compiler's
+`--optimized` one-file build took 140.9 s in that run). Split at `-O0`, a cold build costs about what one file
+does (22.5 s against 19.0 for the compiler, 32.1 against 31.6 for the synthetic program), since every unit reads
+the whole header and `-O0` spends its time reading; a warm build or a one-function edit then compiles one unit or
+none, 12.8 and 13.3 s against 19.0 for the compiler, 17.4 and 19.9 s against 31.6 for the synthetic program. The
+`kal_character` default row is from before, built from one file whatever the number (its spread is the machine's
+noise). An `--optimized` build is split: the compiler
 cold in 14.5 s instead of 37.7 (forced to 4, 8, 16 and 32 units: 23-26, 13-22, 23-26 and 27-32 s, so eight is the
 size rule's choice for it), and a warm or one-edit build is then the Spite compile plus ThinLTO's link, which
 optimises the whole program again every time. `kal_character`'s edit is slower than its warm build because

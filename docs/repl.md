@@ -397,9 +397,9 @@ Monster`); with `--repl` or `--repl-port`, `reload` swaps in what changed right 
 swapped in (or refused), with what `last_reload` would then say, so a tool that saves a file never polls. A program
 built without `--hot-reload` has none of this: no watcher, no swapping, and `reload` answers that it was not
 built for it. `--hot-reload` keeps every function (it implies `--development`), since a new version of a class
-may call one nothing called before, and it is compiled at `--optimized`'s level. It is still slower than a
-release build, since every call goes through a slot a reload can re-point: a `--hot-reload` build is for seeing
-and changing a running program, and speed is measured on release builds.
+may call one nothing called before, and it compiles like the default build, at `-O0`, so a reload is quick. It is
+slower than a release build, since its C is not optimised and every call goes through a slot a reload can
+re-point: a `--hot-reload` build trades run speed for live information, and speed is measured on release builds.
 
 ```gdscript title=hot_counter/monster.spite
 var name = ""
@@ -1017,10 +1017,10 @@ own. [Live reload](#live-reload---hot-reload) above teaches it; this section hol
   --hot-reload, which swaps its code while it runs, and this one was not`, from a branch folded on the `Build`
   constant. As with `--repl-port`, a `--hot-reload` build swaps where the program waits and at each loop's check
   point. `spite program --hot-reload` runs the program attached to the terminal, like a REPL build.
-- **A `--hot-reload` build is optimised.** Its executable and every reload library are compiled at `--optimized`'s
-  level (`-O3`) whether or not `--optimized` is given, so swapped-in code runs as fast as the code it replaces;
-  every call still goes through a slot, so the build is slower than a release build. It is one C file, so it has no link-time
-  optimisation, and it keeps every run-time check of an inspectable build. Every call of a function a reload can
+- **A `--hot-reload` build compiles like the default build.** Its executable and every reload library are compiled
+  at `-O0`, so the first build and every reload are as quick as a default build's; given `--optimized` too, both
+  are compiled at `-O3`. It is one C file, so it has no link-time optimisation, and it keeps every
+  run-time check of an inspectable build. Every call of a function a reload can
   replace still goes through its slot: the slot is read with an acquiring atomic load, which the C compiler may
   neither fold to the function the build started with nor hoist out of a loop, and a reload writes it with a
   sequentially consistent store.
