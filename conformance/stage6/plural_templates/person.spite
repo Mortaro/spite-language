@@ -1,0 +1,9 @@
+var name = ""
+var health = 0
+var child = ""
+
+func Person(new_name: String, new_health: Integer, new_child: String) {
+    name = new_name
+    health = new_health
+    child = new_child
+}

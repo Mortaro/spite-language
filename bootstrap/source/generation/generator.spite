@@ -5482,6 +5482,19 @@ func register_template(declaration: Syntax.Statements.FunctionDeclaration, infor
     }
     var padded_name = "_{declaration.name}_"
     var position = padded_name.index_of("_{symbol_parameter}_")
+    var plural_word = symbol_parameter.pluralize()
+    var plural_position = padded_name.index_of("_{plural_word}_")
+    if position < 0 and plural_position >= 0 and plural_word != symbol_parameter and has_element_templates(information) {
+        var plural_prefix = declaration.name.slice(0, plural_position)
+        var plural_name_length = declaration.name.length()
+        var plural_word_length = plural_word.length()
+        var plural_suffix = declaration.name.slice(plural_position + plural_word_length, plural_name_length)
+        var plural_template = Analysis.TemplateInfo(declaration, symbol_parameter, plural_prefix, plural_suffix)
+        plural_template.range = symbol_range_of(declaration, symbol_parameter)
+        plural_template.plural = true
+        information.templates.append(plural_template)
+        return true
+    }
     if position < 0 {
         var passed_range = symbol_range_of(declaration, symbol_parameter)
         if not passed_range {
@@ -5510,6 +5523,11 @@ func register_template(declaration: Syntax.Statements.FunctionDeclaration, infor
     information.templates.append(template)
     check_hole_enum(information, template)
     return true
+}
+
+func has_element_templates(information: Analysis.ClassInfo): Boolean {
+    var dotted = information.qualified_dotted
+    return dotted == "List" or dotted == "Vector" or dotted == "Items" or dotted == "Dictionary"
 }
 
 func symbol_range_of(declaration: Syntax.Statements.FunctionDeclaration, symbol_parameter: String): Syntax.Types.Type? {
@@ -6116,6 +6134,12 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
     while index < information.templates.count() {
         var template = information.templates[index]
         var member_name = template.member_name_for(name)
+        if not member_name.is_empty() and has_element_templates(information) and not information.codegen_types.is_empty() {
+            var listed_element = information.codegen_types.first()
+            crash listed_element
+            var walked_names = element_member_names(listed_element)
+            member_name = template_member_name(template, name, walked_names)
+        }
         var range_owner = template_range_owner(information, template)
         if not member_name.is_empty() and not information.is_container and not range_owner.is_empty() {
             var member_type = template_member_type(information, template, member_name)
@@ -6612,6 +6636,17 @@ func bound_member_is_function(): Boolean {
     }
     var owner_shape = find_union_by_c_name(bound_member_owner_c_name)
     crash owner_shape
+    if not owner_shape.is_shape {
+        var first_class = owner_shape.members.first()
+        crash first_class
+        if first_class.find_field(bound_field_name) {
+            return false
+        }
+        if not first_class.find_function(bound_field_name) {
+            return false
+        }
+        return true
+    }
     if not find_required_function(owner_shape, bound_field_name) {
         return false
     }
@@ -13962,7 +13997,7 @@ func spread_template(
     var index = 0
     while index < class_information.templates.count() {
         var template = class_information.templates[index]
-        if template.range and template.member_name_for(callee.name) == "{template.symbol_parameter}s" {
+        if template.range and not template.plural and template.member_name_for(callee.name) == "{template.symbol_parameter}s" {
             if template_range_owner(class_information, template) == "function" {
                 return template
             }
@@ -14464,6 +14499,218 @@ func element_template_of(list_class: Analysis.ClassInfo, name: String): Analysis
     return null
 }
 
+func readable_member_names(element_class: Analysis.ClassInfo): List<String> {
+    var member_names = List<String>()
+    var index = 0
+    while index < element_class.fields.count() {
+        var field_name = element_class.fields[index].name
+        if not field_name.starts_with("_") {
+            member_names.append(field_name)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < element_class.declared_functions.count() {
+        var function = element_class.declared_functions[index]
+        var outside_readable = not function.name.starts_with("_")
+        if outside_readable and not function.is_constructor and function.parameters.is_empty() {
+            member_names.append(function.name)
+            if function.name.starts_with("get_") {
+                var name_length = function.name.length()
+                var read_name = function.name.slice(4, name_length)
+                member_names.append(read_name)
+            }
+        }
+        index = index + 1
+    }
+    return member_names
+}
+
+func plain_union_of(element: Analysis.SpiteType): Analysis.UnionInfo? {
+    var unioned = type_shape.as_union(element)
+    assert unioned
+    var found = find_union_by_c_name(unioned.c_name)
+    assert found
+    assert not found.is_shape
+    assert not found.members.is_empty()
+    return found
+}
+
+func union_member_type(information: Analysis.UnionInfo, member_name: String): Analysis.SpiteType? {
+    var first_class = information.members.first()
+    crash first_class
+    var common = member_type_of(first_class, member_name)
+    assert common
+    var index = 1
+    while index < information.members.count() {
+        var other = member_type_of(information.members[index], member_name)
+        assert other
+        assert types_equal(other, common)
+        index = index + 1
+    }
+    return common
+}
+
+func union_member_names(information: Analysis.UnionInfo): List<String> {
+    var common_names = List<String>()
+    var first_class = information.members.first()
+    crash first_class
+    var first_names = readable_member_names(first_class)
+    var index = 0
+    while index < first_names.count() {
+        var member_name = first_names[index]
+        if union_member_type(information, member_name) and not common_names.contains(member_name) {
+            common_names.append(member_name)
+        }
+        index = index + 1
+    }
+    return common_names
+}
+
+func union_member_class(information: Analysis.UnionInfo, word: String): Analysis.ClassInfo? {
+    var index = 0
+    while index < information.members.count() {
+        var member_class = information.members[index]
+        var plural = snake_words(member_class.simple_name).pluralize()
+        if plural == word {
+            return member_class
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func union_class_filter(
+    list_class: Analysis.ClassInfo,
+    member_class: Analysis.ClassInfo,
+    name: String,
+): Analysis.FunctionInfo? {
+    var existing = list_class.find_function(name)
+    if existing {
+        return existing
+    }
+    var kept = member_class.qualified_dotted
+    var lines = List<String>()
+    lines.append("func {name}(): List<{kept}> \{")
+    lines.append("    var kept = List<{kept}>()")
+    lines.append("    var index = 0")
+    lines.append("    while index < item_count \{")
+    lines.append("        var item = values.read_value(items, index)")
+    lines.append("        if item == {kept} \{")
+    lines.append("            kept.append(item)")
+    lines.append("        }")
+    lines.append("        index = index + 1")
+    lines.append("    }")
+    lines.append("    return kept")
+    lines.append("}")
+    var source = lines.join("\n")
+    return register_fused_function(list_class, source, name)
+}
+
+func element_member_type(element: Analysis.SpiteType, member_name: String): Analysis.SpiteType? {
+    var element_class = element_class_of(element)
+    if element_class {
+        return member_type_of(element_class, member_name)
+    }
+    var element_union = plain_union_of(element)
+    if element_union {
+        return union_member_type(element_union, member_name)
+    }
+    var element_shape = shape_of(element)
+    assert element_shape
+    return shape_member_type(element_shape, member_name)
+}
+
+func element_member_names(element: Analysis.SpiteType): List<String> {
+    var element_class = element_class_of(element)
+    if element_class {
+        return readable_member_names(element_class)
+    }
+    var element_union = plain_union_of(element)
+    if element_union {
+        return union_member_names(element_union)
+    }
+    var member_names = List<String>()
+    var element_shape = shape_of(element)
+    if element_shape {
+        var index = 0
+        while index < element_shape.shape_fields.count() {
+            member_names.append(element_shape.shape_fields[index].name)
+            index = index + 1
+        }
+    }
+    return member_names
+}
+
+func asks_question(template_prefix: String): Boolean {
+    return template_prefix == "filter_" or template_prefix == "any_" or template_prefix == "all_" or template_prefix == "count_" or template_prefix == "remove_where_"
+}
+
+func is_question_name(member_name: String): Boolean {
+    return member_name.starts_with("is_") or member_name.starts_with("has_") or member_name.starts_with("can_")
+}
+
+func plural_members(member_names: List<String>, word: String): List<String> {
+    var found = List<String>()
+    var index = 0
+    while index < member_names.count() {
+        var member_name = member_names[index]
+        if not is_question_name(member_name) and member_name.pluralize() == word and not found.contains(member_name) {
+            found.append(member_name)
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func template_member_name(template: Analysis.TemplateInfo, name: String, member_names: List<String>): String {
+    var word = template.member_name_for(name)
+    if word.is_empty() {
+        return word
+    }
+    if not template.plural {
+        var question = "is_{word}"
+        if asks_question(template.prefix) and not member_names.contains(word) and member_names.contains(question) {
+            return question
+        }
+        return word
+    }
+    if is_question_name(word) and member_names.contains(word) {
+        return word
+    }
+    var found = plural_members(member_names, word)
+    if found.count() != 1 {
+        return ""
+    }
+    var member_name = found[0]
+    if member_name.pluralize().singularize() != member_name {
+        return ""
+    }
+    return member_name
+}
+
+func plural_member_problem(
+    template: Analysis.TemplateInfo,
+    name: String,
+    member_names: List<String>,
+    element_label: String,
+): String {
+    var word = template.member_name_for(name)
+    var found = plural_members(member_names, word)
+    if found.count() > 1 {
+        return "'{name}' could collect '{found.join("' or '")}' of '{element_label}', since each is '{word}' in the plural: rename one of them"
+    }
+    if found.count() == 1 {
+        var member_name = found[0]
+        var singular = word.singularize()
+        return "'{name}' would collect '{member_name}', but its plural '{word}' gives back '{singular}', not '{member_name}': add the word to the irregulars by reopening 'String.Inflection', or rename '{member_name}'"
+    }
+    if member_names.contains(word) and word.pluralize() != word {
+        return "'{name}' answers every '{word}', so it is written in the plural: '{template.prefix}{word.pluralize()}{template.suffix}'"
+    }
+    return ""
+}
+
 func instantiate_element_template(
     list_class: Analysis.ClassInfo,
     element: Analysis.SpiteType,
@@ -14471,18 +14718,43 @@ func instantiate_element_template(
     name: String,
     caller: Analysis.ClassInfo,
 ): Analysis.FunctionInfo? {
-    var member_name = template.member_name_for(name)
+    var member_names = element_member_names(element)
+    var member_name = template_member_name(template, name, member_names)
+    if template.plural and member_name.is_empty() {
+        var plural_label = type_display_name(element)
+        var plural_problem = plural_member_problem(template, name, member_names, plural_label)
+        if not plural_problem.is_empty() {
+            report(plural_problem)
+            return null
+        }
+        member_name = template.member_name_for(name)
+    }
     var element_class = element_class_of(element)
     var element_shape = shape_of(element)
+    var element_union = plain_union_of(element)
     var member_type: Analysis.SpiteType? = null
     if element_class {
         member_type = member_type_of(element_class, member_name)
     } else if element_shape {
         member_type = shape_member_type(element_shape, member_name)
+    } else if element_union {
+        member_type = union_member_type(element_union, member_name)
     }
     var element_label = type_display_name(element)
-    if not member_type and element_class {
-        var chained = chained_element_template(list_class, element_class, template, name)
+    if element_union and template.prefix == "filter_" and template.suffix.is_empty() {
+        var member_class = union_member_class(element_union, member_name)
+        if member_class {
+            if member_type {
+                report(
+                    "'{name}' could keep the '{member_class.simple_name}' items of '{element_label}' or filter by their attribute '{member_name}': rename the attribute",
+                )
+                return null
+            }
+            return union_class_filter(list_class, member_class, name)
+        }
+    }
+    if not member_type and not element_shape {
+        var chained = chained_element_template(list_class, element, template, name)
         if chained {
             return chained
         }
@@ -14538,6 +14810,12 @@ func element_member_is_field(element: Analysis.SpiteType, member_name: String): 
     if element_class {
         return is_field_of(element_class, member_name)
     }
+    var element_union = plain_union_of(element)
+    if element_union {
+        var first_class = element_union.members.first()
+        crash first_class
+        return is_field_of(first_class, member_name)
+    }
     var element_shape = shape_of(element)
     crash element_shape
     if find_required_function(element_shape, member_name) {
@@ -14550,6 +14828,10 @@ func element_owner_c_name(element: Analysis.SpiteType): String {
     var element_class = element_class_of(element)
     if element_class {
         return element_class.c_name
+    }
+    var element_union = plain_union_of(element)
+    if element_union {
+        return element_union.c_name
     }
     var element_shape = shape_of(element)
     crash element_shape
@@ -14613,29 +14895,7 @@ func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
     assert element_class_ref
     var element_class = find_class_by_c_name(element_class_ref.c_name)
     assert element_class
-    var member_names = List<String>()
-    var index = 0
-    while index < element_class.fields.count() {
-        var field_name = element_class.fields[index].name
-        if not field_name.starts_with("_") {
-            member_names.append(field_name)
-        }
-        index = index + 1
-    }
-    index = 0
-    while index < element_class.declared_functions.count() {
-        var function = element_class.declared_functions[index]
-        var outside_readable = not function.name.starts_with("_")
-        if outside_readable and not function.is_constructor and function.parameters.is_empty() {
-            member_names.append(function.name)
-            if function.name.starts_with("get_") {
-                var name_length = function.name.length()
-                var read_name = function.name.slice(4, name_length)
-                member_names.append(read_name)
-            }
-        }
-        index = index + 1
-    }
+    var member_names = readable_member_names(element_class)
     var template_index = 0
     while template_index < list_class.templates.count() {
         var template = list_class.templates[template_index]
@@ -14649,7 +14909,11 @@ func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
             if member_type {
                 var is_field = is_field_of(element_class, member_name)
                 var requirement = member_requirement(template.prefix, is_field, member_name, member_type)
-                var name = "{template.prefix}{member_name}{template.suffix}"
+                var word = member_name
+                if template.plural and not is_question_name(member_name) {
+                    word = member_name.pluralize()
+                }
+                var name = "{template.prefix}{word}{template.suffix}"
                 if requirement.is_empty() and not list_class.find_function(name) {
                     var kept = instantiate_template(
                         list_class,
@@ -15723,7 +15987,8 @@ func fused_step(
     }
     var template = element_template_of(base_list, name)
     assert template
-    var member_name = template.member_name_for(name)
+    var step_member_names = element_member_names(current_type)
+    var member_name = template_member_name(template, name, step_member_names)
     var element_class = element_class_of(current_type)
     assert element_class
     var member_type = member_type_of(element_class, member_name)
@@ -24235,7 +24500,7 @@ func walk_template(information: Analysis.ClassInfo, call_name: String): Analysis
     var index = 0
     while index < information.templates.count() {
         var template = information.templates[index]
-        if template.range and not template.passed and template.member_name_for(call_name) == "{template.symbol_parameter}s" {
+        if template.range and not template.passed and not template.plural and template.member_name_for(call_name) == "{template.symbol_parameter}s" {
             return template
         }
         index = index + 1
@@ -27178,7 +27443,7 @@ func report_template_walk(
     assert is_counter_step(step, counter)
     var core = loop.body.copy()
     core.remove_last()
-    var element_text = walked_element(core, list_text, counter)
+    var element_text = range_element(core, list_text, counter)
     if element_text != "{list_text}[{counter}]" {
         core.remove_first()
         var mentioned = List<String>()
@@ -27255,7 +27520,7 @@ func walked_list(loop: Syntax.Statements.WhileStatement, counter: String): Synta
     return count_call.object
 }
 
-func walked_element(core: List<Syntax.Statements.Statement>, list_text: String, counter: String): String {
+func range_element(core: List<Syntax.Statements.Statement>, list_text: String, counter: String): String {
     var indexed = "{list_text}[{counter}]"
     var first = core.first()
     var read = shape.as_variable_declaration(first)
@@ -31225,6 +31490,19 @@ func generate_union_dispatch(
         expected_types = parameter_types_of(first_function.parameters)
     } else {
         var first_field = first_member.find_field(member_name)
+        var getter_name = "get_{member_name}"
+        if not first_field and first_member.find_function(getter_name) {
+            return generate_union_dispatch(
+                information,
+                getter_name,
+                true,
+                object_result,
+                object_ast,
+                arguments_ast,
+                scope,
+                class_information,
+            )
+        }
         if not first_field {
             report(
                 "'{first_member.simple_name}' has no attribute '{member_name}', so it cannot be read on union '{information.simple_name}'",
@@ -40826,7 +41104,14 @@ func is_reflection_type(spite_type: Analysis.SpiteType): Boolean {
     if not class_ref {
         return false
     }
-    var reflection_names = ["Spite_Class", "Spite_Namespace", "Spite_Function", "Spite_Argument", "Spite_Attribute"]
+    var reflection_names = [
+        "Spite_Class"
+        "Spite_Namespace"
+        "Spite_Function"
+        "Spite_Argument"
+        "Spite_Attribute"
+        "Spite_Access"
+    ]
     return reflection_names.contains(class_ref.c_name)
 }
 
@@ -40881,6 +41166,10 @@ func reflection_word(name: String): Boolean {
         "is_resumable"
         "is_mutated"
         "returned_literal"
+        "accesses"
+        "target"
+        "is_read"
+        "is_written"
         "element_type"
         "value_type"
         "camel_case_name"
@@ -41299,6 +41588,7 @@ func reflected_member_of(object: Reflected, name: String, class_information: Ana
         "function": return reflected_function_member(object, name, class_information)
         "argument": return reflected_argument_member(object, name)
         "attribute": return reflected_attribute_member(object, name)
+        "access": return reflected_access_member(object, name)
         "enum": {
             assert name == "name"
             return reflected_text(object.name, true)
@@ -41602,6 +41892,7 @@ func reflected_function_member(object: Reflected, name: String, class_informatio
             return reflected_class(returned)
         }
         "arguments": return reflected_arguments_of(owner, function)
+        "accesses": return reflected_accesses(owner, function)
         "is_resumable": {
             var resumable = class_function_waits(owner, function.name, class_information)
             return reflected_truth(resumable)
@@ -41689,6 +41980,156 @@ func reflected_attribute_member(object: Reflected, name: String): Reflected? {
         }
         _: return null
     }
+}
+
+func reflected_accesses(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo): Reflected {
+    var read_names = List<String>()
+    var visited = List<String>()
+    collect_function_reads(owner, function, true, read_names, visited)
+    var accesses = List<Reflected>()
+    var index = 0
+    while index < owner.fields.count() {
+        var field = owner.fields[index]
+        var slot = "@{field.name}"
+        var written = parameter_writes.answer(this, owner, function, slot)
+        note_fact("asks writes {function.c_name} {slot} {written}")
+        var read = read_names.contains(field.name)
+        if read or written {
+            var attribute = Reflected("attribute")
+            attribute.owner = owner
+            attribute.name = field.name
+            attribute.described_type = field.get_type()
+            attribute.position = index
+            var attribute_access = reflected_access(attribute, read, written)
+            accesses.append(attribute_access)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var position: String = index
+        var mutated = parameter_writes.answer(this, owner, function, position)
+        note_fact("asks writes {function.c_name} {position} {mutated}")
+        var used = read_names.contains(parameter.name)
+        if used or mutated {
+            var argument = Reflected("argument")
+            argument.owner = owner
+            argument.function = function
+            argument.name = parameter.name
+            argument.described_type = parameter.get_type()
+            argument.position = index
+            var argument_access = reflected_access(argument, used, mutated)
+            accesses.append(argument_access)
+        }
+        index = index + 1
+    }
+    return reflected_list(accesses)
+}
+
+func reflected_access(target: Reflected, read: Boolean, written: Boolean): Reflected {
+    var access = Reflected("access")
+    access.name = target.name
+    access.is_read = read
+    access.is_written = written
+    access.elements.append(target)
+    return access
+}
+
+func reflected_access_member(object: Reflected, name: String): Reflected? {
+    switch name {
+        "is_read": return reflected_truth(object.is_read)
+        "is_written": return reflected_truth(object.is_written)
+        "target": {
+            var target = object.elements.first()
+            crash target
+            return target
+        }
+        _: return null
+    }
+}
+
+func collect_function_reads(
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    every_name: Boolean,
+    names: List<String>,
+    visited: List<String>,
+) {
+    assert not visited.contains(function.c_name)
+    visited.append(function.c_name)
+    var mentioned = List<String>()
+    collect_read_block(function.body, mentioned)
+    var index = 0
+    while index < mentioned.count() {
+        var name = mentioned[index]
+        var kept = every_name
+        if owner.find_field(name) {
+            kept = true
+        }
+        if kept and not names.contains(name) {
+            names.append(name)
+        }
+        var own = owner.find_function(name)
+        if own {
+            if not own.is_constructor {
+                collect_function_reads(owner, own, false, names, visited)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func collect_read_block(statements: List<Syntax.Statements.Statement>, names: List<String>) {
+    var index = 0
+    while index < statements.count() {
+        collect_read_statement(statements[index], names)
+        index = index + 1
+    }
+}
+
+func collect_read_statement(statement: Syntax.Statements.Statement, names: List<String>) {
+    switch statement {
+        Syntax.Statements.AssignmentStatement: {
+            collect_target_reads(statement.target, names)
+            collect_optional_names(statement.value, names)
+        }
+        Syntax.Statements.IfStatement: {
+            collect_optional_names(statement.condition, names)
+            collect_read_block(statement.then_branch, names)
+            collect_read_block(statement.else_branch, names)
+        }
+        Syntax.Statements.WhileStatement: {
+            collect_optional_names(statement.condition, names)
+            collect_read_block(statement.body, names)
+        }
+        Syntax.Statements.SwitchStatement: {
+            collect_optional_names(statement.subject, names)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                collect_read_block(statement.cases[case_index].body, names)
+                case_index = case_index + 1
+            }
+        }
+        _: collect_statement_names(statement, names)
+    }
+}
+
+func collect_target_reads(target: Syntax.Expressions.Expression?, names: List<String>) {
+    assert target
+    var member = shape.as_member(target)
+    if member {
+        collect_target_reads(member.object, names)
+        return
+    }
+    var indexed = shape.as_index(target)
+    if indexed {
+        collect_target_reads(indexed.object, names)
+        collect_optional_names(indexed.index, names)
+        return
+    }
+    assert not shape.as_identifier(target)
+    collect_mentioned_names(target, names)
 }
 
 func reflected_index(
@@ -41963,7 +42404,11 @@ func reflected_chain(
     class_information: Analysis.ClassInfo,
 ): Reflected? {
     if arguments.is_empty() {
-        return reflected_member_of(element, chain, class_information)
+        var direct = reflected_member_of(element, chain, class_information)
+        if direct {
+            return direct
+        }
+        return reflected_member_of(element, "is_{chain}", class_information)
     }
     var words = chain.split("_")
     var split = 1
@@ -42100,6 +42545,7 @@ func matches_parameter(constant: Reflected, parameter_type: Analysis.SpiteType):
         "Spite_Function": return constant.kind == "function"
         "Spite_Argument": return constant.kind == "argument"
         "Spite_Attribute": return constant.kind == "attribute"
+        "Spite_Access": return constant.kind == "access"
         _: return false
     }
 }
@@ -43086,7 +43532,7 @@ func reflected_construction(
 
 func chained_element_template(
     list_class: Analysis.ClassInfo,
-    element_class: Analysis.ClassInfo,
+    element: Analysis.SpiteType,
     template: Analysis.TemplateInfo,
     name: String,
 ): Analysis.FunctionInfo? {
@@ -43112,11 +43558,12 @@ func chained_element_template(
         }
         var member_name = member_words.join("_")
         var method_name = method_words.join("_")
-        var member_type = member_type_of(element_class, member_name)
+        var member_type = element_member_type(element, member_name)
         if member_type {
             var method = chained_method(member_type, method_name)
             if method {
-                return instantiate_chained(list_class, element_class, template, member_name, method, name)
+                var owner_c_name = element_owner_c_name(element)
+                return instantiate_chained(list_class, owner_c_name, template, member_name, method, name)
             }
         }
         split = split + 1
@@ -43138,7 +43585,7 @@ func chained_method(member_type: Analysis.SpiteType, method_name: String): Analy
 
 func instantiate_chained(
     list_class: Analysis.ClassInfo,
-    element_class: Analysis.ClassInfo,
+    owner_c_name: String,
     template: Analysis.TemplateInfo,
     member_name: String,
     method: Analysis.FunctionInfo,
@@ -43155,7 +43602,7 @@ func instantiate_chained(
     }
     chained_method_name = method.name
     var returned = method.get_return_type()
-    return instantiate_template(list_class, template, member_name, returned, element_class.c_name, name, null)
+    return instantiate_template(list_class, template, member_name, returned, owner_c_name, name, null)
 }
 
 func note_source_path(information: Analysis.ClassInfo, path: String) {

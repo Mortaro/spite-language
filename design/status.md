@@ -332,10 +332,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Reflection known while compiling (D316, D317, D318, D323, D326)
 - The pages (metaprogramming.md, reflection.md) now teach only the D316 model. Shown there as untitled snippets because
-  they do not compile yet: the plural `map_<members>()` (today `map_name()` still compiles, and is no longer taught),
-  `filter_<members>()` on a list of a union and its narrowing (D330: `entries().filter_files()` is "'Entry' has no
-  attribute ... 'files'"), `function.accesses` and `Spite.Access` with dictionary member templates (D335),
-  `Spite.Namespace.enums`, `call_with`, a function taking `value: Number` (D321), and a class's own `get_`/`set_` template spelled `attribute: Spite.Attribute<Person>`:
+  they do not compile yet: the plural `map_<members>()` of the library (the plural rule is built for a template
+  whose name holds its parameter in the plural, but `library/list.spite` still declares `map_member`, so
+  `map_name()` still compiles), `Spite.Namespace.enums`, `call_with`, a function taking `value: Number` (D321), and a class's own `get_`/`set_` template spelled `attribute: Spite.Attribute<Person>`:
   inside `Person` it is "unknown identifier 'attributes'" (only `attribute: Symbol` reads `attributes[attribute]`
   today, and `this.attributes` is refused).
 - Still teaching the old forms, to migrate once the compiler reaches them: memory.md's titled engine programs
@@ -354,9 +353,27 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   types from constants, `Spite.Namespace.instances`, enum `.values`, `[]` by name, `Spite.Attribute<T>` template
   spelling, `filter_<member>_<function>(arguments)` on any list, `source_files`/`source_directories`;
   `package_folder` removed.
+- Built (D317, D328, D330, D335): a member template whose name holds its parameter in the plural
+  (`collect_members(member: Spite.Attribute<$element_type>)`) finds its member by `String.pluralize()`, with the
+  singular, two-members and does-not-inflect-back errors (`conformance/stage6/plural_templates`,
+  `diagnostics/plural_templates`); a list of a union keeps one member class with `filter_<classes>()`, answering a
+  list of that class, and templates an attribute every member has (`Directory` and `File` gained `name`); the
+  question templates name `is_<word>` as `<word>`; a `Dictionary` takes the member templates over its values.
+  Proposed by Claude, unconfirmed: the plural rule is read only on `List`, `Vector`, `Items` and `Dictionary`
+  templates (a class's own templates keep the old plural walk until it goes); a question member (`is_`, `has_`,
+  `can_`) is never inflected, and `map_` over one is D369's error; `filter_is_<word>` stays the same template as `filter_<word>`; `health` was
+  added to the uncountable words, since metaprogramming.md reads `map_health` as `health`; the error texts.
+  Not built: `String.Inflection`, the table a program reopens to add words (the compiler inflects with its own
+  copy of `String`, so a program's words would not reach it either).
+- Built (D335): `function.accesses`, a constant dictionary of `Spite.Access` (`is_read`, `is_written`, `target`),
+  attributes then arguments, following calls to the same class's functions (`conformance/stage6/function_accesses`,
+  reflection.md's `access_report`). Proposed by Claude, unconfirmed: that order; calling a function on an attribute
+  counts as reading it; a write through `this.f()` is followed but a read through it is not; the union's name
+  `Spite.Access.Target`. Not built: `.accesses` on a run-time function object (it answers only on a constant).
 - Not built: `function.call_with(...)` spreading a walk into one call (D317): its proposed argument,
-  `arguments.map(made)`, is a `map(function)`, which D355 removes, so it waits for a spelling from Mortaro; `.read_attributes`/`.written_attributes` (item 109),
-  `Spite.Namespace.enums`, the plural `map_<members>` rule (D317, D328: `String.pluralize` is merged), and the
+  `arguments.map(made)`, is a `map(function)`, which D369 removes, so it waits for a spelling from Mortaro;
+  `Spite.Namespace.enums`, the library's `map_members` (the rule is built; `list.spite`, `vector.spite` and
+  `items.spite` and every `map_<member>` call still use the singular), and the
   compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
   (`engine/renderer/renderer.spite` is `Engine.Renderer` beside the namespace `Engine.Renderer`) is exactly that
   pair, so the rule needs Mortaro to say whether the entry file is exempt.
@@ -551,11 +568,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Proposed by Claude, unconfirmed, removed as bookkeeping but the behaviour stays on the page: how the templates are
   written, chains fused by one generated function, passed-function details (library-class functions bound as
   values), the dictionary key-kind rules, the Vector and Items readings.
-- D355 is built: `map(function)` on a list, an `Items` or a `Vector` is an error naming `map_<member>()` and a
+- D369 is built: `map(function)` on a list, an `Items` or a `Vector` is an error naming `map_<member>()` and a
   read-only attribute; `map_` over a `Boolean` member names `filter_`, `count_`, `any_` and `all_`; a class-qualified
   function value (`Monster.is_alive`) names an instance's function. The error texts are proposed by Claude,
-  unconfirmed. `map_<member>` still takes the singular member name until the plural rule (D317) is built. A `while`
-  collecting what a passed function answers is no longer reported by the loop rule.
+  unconfirmed. A `while` collecting what a passed function answers is no longer reported by the loop rule.
 
 ### Member templates over an enum value
 - Whole section decided and NOT built: `filter_<value>`, `count_<value>`, `any_<value>`, `all_<value>` and
