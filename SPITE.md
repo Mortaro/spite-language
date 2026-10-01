@@ -7,7 +7,7 @@ what is hated, why, and what to do instead: a list of dislikes without alternati
 
 When Mortaro rejects something new, add it here with its reason.
 
-**The moron** is anyone who uses Spite: a human, Mortaro himself, or an AI. When Mortaro says "the moron" he means
+**The moron** is anyone who uses Spite: a human, Mortaro himself, or an AI. Rust has Rustaceans; Spite has morons. When Mortaro says "the moron" he means
 all of them at once, and the docs say "the moron" wherever another language's docs would say the user, the
 programmer or the developer. Design for the moron: the language decides, so the moron never has to.
 
