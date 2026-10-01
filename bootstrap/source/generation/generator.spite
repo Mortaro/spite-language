@@ -16723,9 +16723,12 @@ func union_member_links(spite_type: Analysis.SpiteType): String {
         var member = information.members[index]
         var walkable = not member.is_value_class and not member.is_generic_template
         if walkable and member.c_name != "SpiteString" and not boxed_value_types.has(member.c_name) {
-            var retained = "{member.c_name}___retain(({member.c_name}*)value)"
+            var held_object = member_value_code("value", spite_type, member)
+            var retained = "{member.c_name}___retain({held_object})"
+            var held_present = present_code("value", inner)
+            var held_test = value_class_test("value", spite_type, member)
             links.append(
-                "if (value != 0 && {class_id_test("value", member)}) \{ reflected->spite_held = {retained}; reflected->spite_release_held = (void (*)(void*)){member.c_name}___release; reflected->spite_held_attributes = (void* (*)(void*)){ensure_attributes_function(member)}; reflected->spite_held_functions = (void* (*)(void*)){ensure_functions_function(member)}; reflected->spite_held_bytes = {ensure_byte_count_function(member)}(); reflected->spite_held_class = (void* (*)(void)){ensure_class_object(member.simple_name, member.namespace_dotted, member.c_name)}; }",
+                "if ({held_present} && {held_test}) \{ reflected->spite_held = {retained}; reflected->spite_release_held = (void (*)(void*)){member.c_name}___release; reflected->spite_held_attributes = (void* (*)(void*)){ensure_attributes_function(member)}; reflected->spite_held_functions = (void* (*)(void*)){ensure_functions_function(member)}; reflected->spite_held_bytes = {ensure_byte_count_function(member)}(); reflected->spite_held_class = (void* (*)(void)){ensure_class_object(member.simple_name, member.namespace_dotted, member.c_name)}; }",
             )
         }
         index = index + 1
