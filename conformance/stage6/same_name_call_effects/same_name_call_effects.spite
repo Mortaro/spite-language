@@ -1,0 +1,15 @@
+var console = Console()
+var stock = Stock.Items()
+var ticks = Vector<Tick>()
+var timers = Timers()
+
+func SameNameCallEffects() {
+    var tick = Tick()
+    ticks.append(tick)
+    var index = 0
+    while index < ticks.count() {
+        timers.advance(ticks[index])
+        index = index + 1
+    }
+    console.print(timers.total, stock.count, timers.last)
+}
