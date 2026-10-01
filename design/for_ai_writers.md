@@ -227,7 +227,7 @@ func is_alive(): Boolean {
   writes the item: the writes would land on the copy and vanish (D244). A library function or a union parameter
   is not lent an item: pass the attributes it needs.
   A class kept in a `Vector` may not use `this` as a value, nor have a `drop()`.
-- A `Vector` or an `Items` takes no passed function (`each(f)`, `map(f)`, ...): its items are borrowed, or text.
+- A `Vector` or an `Items` takes no passed function (`each(f)`, `filter(f)`, ...): its items are borrowed, or text.
   Numbers go in a `List`, which takes them all: `numbers.each(found.append)`, `weights.filter(is_heavy).sum(double_of)`.
 - A row of borrowed items for a system: `var row: Moving = {position: positions[index], velocity:
   velocities[index]}` (`Moving` a `type`), then `mover.update_each(row)`. The row costs nothing (it lives in the
@@ -311,20 +311,23 @@ func is_alive(): Boolean {
   items.count()`, `total = total + items[index].price`, `index = index + 1`) is an error naming
   `items.sum_price()`: `this 'while' walks every element of 'items' only to add up 'price': write 'var total =
   items.sum_price()'`. The same goes for a `while` that only passes each element to one function of yours:
-  `say_hello(names[index])` is `names.each(say_hello)`, and likewise `map`, `filter`, `count`, `sum`, `find`,
+  `say_hello(names[index])` is `names.each(say_hello)`, and likewise `filter`, `count`, `sum`, `find`,
   `any` and `all`, on a list of anything, numbers and text included. Keep `while` for loops that need the index,
   pass more than the element, or walk state.
 - A template sees only the element and the list, never your class: `names.each_say_hello()` looks for a member
   `say_hello` of each name, and says `a template reads a member of each element, never a function of this class,
   so pass this class's 'say_hello' instead: 'each(say_hello)'`. To call a function of yours with each element, pass it: `names.each(say_hello)`,
-  `names.map(measure)`, `names.filter(is_short)`, and `any`, `all`, `count`, `find` (the first element it is true
+  `names.filter(is_short)`, and `any`, `all`, `count`, `find` (the first element it is true
   for, a `T?`), `sort_by` and `sum` the same way, on a list or dictionary of anything, chained with the member
-  templates or not (`people.filter_active().map(greeter.label)`). The function takes the element as its only
-  argument and is bound to its owner: `greeter.label` is `greeter`'s, and a library value's works the same:
+  templates or not (`people.filter_active().each(greeter.greet)`). The function takes the element as its only
+  argument and is bound to its owner: `greeter.greet` is `greeter`'s, and a library value's works the same:
   `keys.filter(counts.has)`, `words.filter(greeting.contains)`. `counts.get` answers `T?`, so it cannot order a
   `sort_by`: pass a function of yours that narrows it. A function that needs more than the element
-  (`print_statement(statement, depth)`) keeps its `while`; `map(f)` of a function that returns nothing is an
-  error naming `each(f)`.
+  (`print_statement(statement, depth)`) keeps its `while`. There is no `map(f)`: a value collected from each
+  element is a read-only attribute of its class (`get_doubled()`), collected with `map_doubled()`, and a value
+  that needs more than the element is collected by a `while`. `map_` on a `Boolean` member (`map_is_alive()`)
+  is an error naming `filter_`, `count_`, `any_` and `all_`. `Monster.is_alive` is no function value (a class is
+  its `Spite.Class` object, which has no `is_alive`): pass an instance's, `monster.is_alive`.
 - `enum`, `union` and `type` declarations take no `=`, one entry per line, no commas:
 
   ```gdscript
@@ -653,7 +656,7 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 | `list.add(x)`, `list.pop()` | `List has no method 'add', which does not say where` | `append`/`prepend`, `remove_last()`/`remove_first()` |
 | `Heap<Node>`, `&Node` | `there is no 'Heap<T>'`, `Spite has no '&Type'` | `Node`: every class is a reference already |
 | `if value do name { }` | `Spite has no 'do'` | `if value { }`: the name itself is narrowed inside |
-| `items.map(item => item * 2)` | `expected ')' to close the argument list` | no lambdas: pass a named function, `items.map(doubled)` |
+| `items.map(item => item * 2)` | `expected ')' to close the argument list` | no lambdas and no `map(function)`: give the element's class a read-only attribute, `get_doubled()`, and write `items.map_doubled()` |
 | `value == null`, `value != null` | `'null' is not a value to compare against or pass around` | `if value { } else { }`, `assert value`, `crash value`, or `switch` |
 | `task.wait()`, `await task` | `an Integer has no function 'wait'` | read the handle: it is the result, and reading it waits |
 | `new Date()`, `DateTime.Now`, `datetime.now()` | | `clock.now()`, an `Instant`; shown through a zone from `TimeZones()`, never stored as a local reading |

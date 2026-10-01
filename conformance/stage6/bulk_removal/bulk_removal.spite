@@ -103,8 +103,7 @@ func remove_by_mask() {
     }
     velocities.truncate(kept)
     entities.remove_where(despawns.marked)
-    var survivors = entities.map(identity_number)
-    var joined = survivors.join(", ")
+    var joined = entities.join(", ")
     var total = velocities.sum_across()
     var rows = velocities.count()
     console.print("survivors", joined, "across", total, "rows", rows)
@@ -120,8 +119,4 @@ func is_light(weight: Float): Boolean {
 
 func identity(weight: Float): Float {
     return weight
-}
-
-func identity_number(number: Integer): Integer {
-    return number
 }

@@ -1562,7 +1562,7 @@ compile time that it is never kept past its use. The rules:
     which is a double free under `--debug-memory` and heap corruption in production
     (`conformance/stage6/narrowed_lends`, `diagnostics/lent_escapes`);
   - **it is called by name only**: a lending function is never made a function value (`var find =
-    lookup.of`, `entities.map(lookup.of)`), whose caller would let go of an item it does not own, with the error `'of' lends its
+    lookup.of`, `entities.each(lookup.of)`), whose caller would let go of an item it does not own, with the error `'of' lends its
     caller an item of 'Column<Justify>().values', which only a call written by name can borrow: a function
     value's caller would let go of an item it does not own, so 'of' is not made a function value; call 'of(...)'
     by name where the item is wanted`, and its class does not fit a `type` requiring that function: `'Lookup'

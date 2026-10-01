@@ -46,9 +46,6 @@ These hold up the D316/D317 migration, the game engine package or the game port.
      `argument.is_mutated` already covers. And the marker attributes `Resource.World`/`Resource.MainThread`: keep
      them as attributes the runner reads, or a class-level marker? D205, as D261 was. Recommend (a) now, (b) when
      `Changed<T>` needs it. Blocks: the game engine's `Changed<T>` and field skipping, the game port's L6.
-228. **Predicates in the plural rule** (proposal 12.2): `monsters.map_is_alive()` keeps the predicate's own name,
-     or `map_` over a predicate is an error pointing at `filter_`/`count_`? Blocks: renaming `map_<member>` to the
-     plural across `library/`, conformance and the game engine package.
 213. **The default build's `-O` level**: `-O0` (fast to build, 3-7x slower to run), `-O1`, or units at `-O1`?
      (`--hot-reload` is already `-O3` by D299.) Blocks: the game port's iteration speed.
 222. **A foreign status enum** (D272, not built): a C function returning a C `enum` answers a Spite enum made from
@@ -103,7 +100,7 @@ These hold up the D316/D317 migration, the game engine package or the game port.
      reopen.
 10. **Confirm the rows marked "(proposed by Claude, unconfirmed)" from 2026-09-23/24**: the tree shaker, `nan`
     printing as `nan`, the REPL's command names and output, `Environment`'s sources and their order, the containers
-    row, D105 (how a chain fuses). D91's member templates stay under D317 with `map_` in the plural (228).
+    row, D105 (how a chain fuses). D91's member templates stay under D317 with `map_` in the plural.
 238. **Algorithm and format names in the library** (D324 settled `Http`/`Udp`): `Sha256`, `Argon2`, `Base64`,
      `Zlib`, `Gzip`, and the rest Claude proposed (`Deflate`, `SecureRandom`, `Reload` (D290), `Memory.Inspector`
      (D291)). Keep them, or spell them some other way? Blocks nothing yet; renames grow with their callers.

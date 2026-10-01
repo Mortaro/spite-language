@@ -15,7 +15,7 @@ in [section 8](#8-what-mortaro-settled-on-the-first-review); the rest is propose
 | `filter_<member>`, `sum_<member>`, `count_<member>`... (D15, D91) | **stay** | same reason |
 | `map_<member>` | **stays, named in the plural**: `classes.map_names()` | it answers the members' values, so the name says so ([section 5](#5-plural-member-templates)) |
 | `get_<attribute>`/`set_<attribute>`, `to_<type>()` (D311) | **stay** | same reason |
-| The plural walk, `show_attributes(label, lines)` | **goes**: `label.attributes.each(...)` / `.map(...)` | a loop in disguise; nobody ever calls the singular by name |
+| The plural walk, `show_attributes(label, lines)` | **goes**: `label.attributes.each(...)` | a loop in disguise; nobody ever calls the singular by name |
 | `Symbol<$T.run_each>` over a function's arguments (D114) | **goes**: `$T.functions['run_each'].arguments` | the arguments are a list on a `Spite.Function` |
 | `Symbol<$T.phase_each>` name patterns and holes (D116, D180) | **goes**: `$T.functions.filter_ends_with("_each")` | selection by filter; a name is never built from text |
 | `Symbol<System>`, every folder named `system` (D115) | **goes**: an explicit filter over `Spite.Namespace.instances`, then `namespace.classes` | a folder is a namespace, not IO |
@@ -255,11 +255,11 @@ it inflects every member name the class has with `String.pluralize` and picks th
 - **The singular where the plural differs** is an error naming the plural: `'map_name' answers every 'name', so it
   is written in the plural: 'map_names'`.
 - **Two members with one plural** (`datum` and `data`, both `data`) is an error naming both and asking to rename
-  one, or to pass a function instead: `map(datum_of)`.
+  one.
 - **A name `pluralize` cannot inflect so that `singularize` gives it back** is an error naming the member and the fix:
   add the word to the irregulars table by reopening `String.Inflection`, or rename the member.
-- **A name that is a predicate** (`is_alive`, `has_target`, `can_fly`) has no plural: `monsters.map_is_alive()` is
-  written with the member's own name, since inflecting it would give `is_alives`.
+- **A predicate is never mapped** (Mortaro, 2026-09-30): the plural rule applies to nouns only, and `map_` over a
+  `Boolean` member (`monsters.map_is_alive()`) is a compile error naming `filter_`, `count_`, `any_` and `all_`.
   A multi-word name inflects its last word: `camel_case_names`, `child_nodes`.
 
 **For the `String` library:** `pluralize()` and `singularize()` in `library/string.spite`, rules and a table of
@@ -612,7 +612,8 @@ Mechanical once the compiler accepts both forms.
 1. **Pairing a function with an attribute by name** (JSON's `json_key_<attribute>`, D273). With names never built,
    the writer selects the `json_key_` functions and needs one that pairs with the attribute. `find_by_suffix(name)`
    as above, or should the override move off names (a function taking the attribute, `json_key(attribute)`)?
-2. **Predicates in the plural rule.** `monsters.map_is_alive()` keeps the predicate's name, as proposed, or is
-   `map_` over a predicate an error pointing at `filter_`/`count_`?
+2. **Predicates in the plural rule.** Settled by Mortaro on 2026-09-30: `map_` over a predicate is an error
+   pointing at `filter_`, `count_` and `any_`/`all_`, and there is no `List.map(function)` at all (the examples
+   above that still call `.map(...)` with a function await a spelling).
 3. **Reflection objects answering their name's text functions** (`functions.filter_ends_with("_each")`), with
    member templates passing arguments on. Or keep the element strict and write `filter_name_ends_with("_each")`?

@@ -705,7 +705,6 @@ which fits a list of anything, numbers and `String` included:
 | `if item.m { return true }`, the loop followed by `return false` | `return list.any_m()` |
 | `if not item.m { return false }`, the loop followed by `return true` | `return list.all_m()` |
 | `f(item)` | `list.each(f)` |
-| `result.append(f(item))`, or `var value = f(item)` then `result.append(value)` | `var result = list.map(f)` |
 | `if f(item) { result.append(item) }` | `var result = list.filter(f)` |
 | `if f(item) { total = total + 1 }` | `var total = list.count(f)` |
 | `total = total + f(item)` | `var total = list.sum(f)` |
