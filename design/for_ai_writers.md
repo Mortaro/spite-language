@@ -178,8 +178,8 @@ func is_alive(): Boolean {
   (natural), `logarithm_base_2()`, `logarithm_base_10()`, `floor()`, `ceiling()`, `round()`, `truncate()`,
   `absolute()`, `minimum(other)`, `maximum(other)`, `clamp(low, high)`, `is_finite()`, `is_infinite()`,
   `is_not_a_number()`; on a whole number `absolute()`, `minimum`, `maximum`, `clamp`. Constants are asked of the
-  class: `Float.pi()`, `tau()`, `euler_number()`, `infinity()`, `not_a_number()`, `largest()`, `smallest()` (the most
-  negative), and `Integer.largest()`, `Long.smallest()` and so on. Each is the C library's function, called
+  class, as get-only attributes read without parentheses: `Float.pi`, `tau`, `euler_number`, `infinity`,
+  `not_a_number`, `largest`, `smallest` (the most negative), and `Integer.largest`, `Long.smallest` and so on. Each is the C library's function, called
   inline; do not write your own `sine` or square root from a series. Nothing halts: `(-1.0).square_root()` is
   `nan`.
 - Everything that is not a number, a `Boolean` or an enum value is a reference: passing, assigning and storing share
@@ -347,6 +347,10 @@ func is_alive(): Boolean {
   object literal `{ label: "x" }`, with those attributes and functions.
 - `Anything` is the built-in empty `type`, the counterpart of `Nothing`: `component: Anything` and
   `List<Anything>()` accept any object (a number is boxed). Never declare an empty `type` of your own.
+- `Number` is the library `type` every number class fits (`Tiny` to `Double`, not `Boolean`): its operators and
+  `to_long()`, `to_double()`. Write number code as `generic $number_type: Number`, and ask
+  `$value_type == Number` (never ten comparisons) to tell a number apart in a walk. Inside a `type`, its own name
+  in a signature is the class that fits.
 
 ## Nothing, null, and failure
 
@@ -619,10 +623,10 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 | `a << 3`, `a >> 3`, `a & mask`, `a \| mask`, `a ^ mask`, `~a` | `Spite has no '<<': bits are functions on the whole numbers` (each names its function) | `a.shifted_left(3)`, `a.shifted_right(3)`, `a.bits_and(mask)`, `a.bits_or(mask)`, `a.bits_exclusive_or(mask)`, `a.bits_inverted()` |
 | `x.sqrt()`, `x.sin()`, `x.atan2(y)`, `x.pow(y)`, `x.abs()`, `a.min(b)`, `x.ceil()`, `x.isnan()`, ... | `Float has no function 'sqrt': Spite spells it 'square_root', since no name is abbreviated` | every name in full: `square_root()`, `sine()`, `cosine()`, `tangent()`, `arc_sine()`, `arc_cosine()`, `arc_tangent()`, `power(y)`, `exponential()`, `logarithm()`, `logarithm_base_2()`, `logarithm_base_10()`, `absolute()`, `minimum(b)`, `maximum(b)`, `ceiling()`, `truncate()`, `is_not_a_number()`, `is_infinite()`, `is_finite()`; `floor()`, `round()` and `clamp(low, high)` keep their names |
 | `Math.atan2(y, x)`, `atan2f(y, x)` | `Spite has no 'Math'` | `y.arc_tangent_over(x)`: the angle of the point `(x, y)` |
-| `Math.sqrt(x)`, `Math.PI` | `Spite has no 'Math': maths is a function of the number itself, like 'value.square_root()'` | `x.square_root()`, `Float.pi()` |
+| `Math.sqrt(x)`, `Math.PI` | `Spite has no 'Math': maths is a function of the number itself, like 'value.square_root()'` | `x.square_root()`, `Float.pi` |
 | `sqrt(x)`, `sqrtf(x)`, `pow(x, y)` | `this class has no function 'sqrt': maths is a function of the number itself` | `x.square_root()`, `x.power(y)` |
-| `M_PI`, `f32::consts::PI`, `FLT_MAX`, `INT_MAX`, `INFINITY`, `NAN` | `unknown identifier 'M_PI'` | `Float.pi()` (`Double.pi()` for the 64-bit one), `Float.largest()`, `Integer.largest()`, `Float.infinity()`, `Float.not_a_number()` |
-| `angle.pi()` | `'pi()' is a constant of the class Float, not of a value` | `Float.pi()` |
+| `M_PI`, `f32::consts::PI`, `FLT_MAX`, `INT_MAX`, `INFINITY`, `NAN` | `unknown identifier 'M_PI'` | `Float.pi` (`Double.pi` for the 64-bit one), `Float.largest`, `Integer.largest`, `Float.infinity`, `Float.not_a_number` |
+| `angle.pi`, `Float.pi()` | `'pi' is a constant of the class Float, not of a value` | `Float.pi` |
 | `count++`, `count += 1` | `Spite has no '++': write 'count = count + 1'` | `count = count + 1` |
 | `condition ? a : b` | `Spite has no 'condition ? a : b'` | an `if` with an `else`, or a function that returns one or the other |
 | `int`, `Int`, `bool`, `Bool`, `to_int()` | `'Int' is spelled 'Integer'`, `'int' abbreviates: write 'integer'` | `Integer`, `Boolean`, `to_integer()`: no name is abbreviated, the language's own included (D122) |

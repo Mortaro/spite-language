@@ -126,7 +126,7 @@ built yet. In short:
 | Reflection (`Spite.Class`, `Spite.Attribute`, `Spite.Function`, `Spite.Namespace`), read-only | implemented |
 | Memory: reference counting, the `Memory` namespace (`Memory.Address`, `Memory.Heap`, `Memory.Arena`), an allocator per object, `TypedMemory`, tree-shaken output | implemented; `Vector<T>` and `Memory.Frame` planned |
 | `Build` (compile time) and `Environment` (run time), the visible launcher | implemented |
-| Standard library in Spite: `String`, `List`, `Dictionary`, `JsonWriter`/`JsonReader`, `BinaryWriter`/`BinaryReader`, `File`, `Directory`, `Watcher`, `Process`, `Program`, `Console`, `Socket`, time (`Instant`, `Date`, `TimeZones`) | implemented |
+| Standard library in Spite: `String`, `List`, `Dictionary`, `JsonWriter`/`JsonReader`, `BinaryWriter`/`BinaryReader`, `File`, `Directory`, `FileSystemWatcher`, `Process`, `Program`, `Console`, `Socket`, time (`Instant`, `Date`, `TimeZones`) | implemented |
 | Concurrency: `Concurrent` (compile-time state machines, hidden async IO) and `Parallel` (the thread pool), singletons made safe by the compiler | implemented on Windows; checking what a `Parallel` function reaches is not built |
 | Foreign libraries (`DynamicLibrary`), one folder per operating system | implemented; Linux and macOS folders compile but have never run |
 | REPL: `--repl`, `--repl-port`, `spite connect`; live reload (`--hot-reload`) | implemented; live reload runs on Windows ([docs/repl.md](docs/repl.md)) |

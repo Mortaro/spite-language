@@ -480,6 +480,7 @@ watcher has swapped the save in.
 | `environment.spite`: a setting added, removed or given a new default | the whole program is compiled again, `Environment` moves to its new attributes, and every setting is read again the way it is when the program starts: from the command line it was started with, the environment, or the new default |
 | `build.spite`: a field added, removed or given a new default | the whole program is compiled again, and the program's code sees the new value: in a `--hot-reload` build a `Build` field the program declares is read while it runs |
 | a file deleted | the program is compiled without it, as for any other change |
+| a function, attribute or constructor that a later `load` reopens ([monkey patching](packages.md#monkey-patching-mods)) | the reload keeps load order, as a fresh start would: an edit to the earlier declaration changes nothing while the later one replaces it, an edit to the later one goes live, deleting the later one (or its file) brings the earlier one back, and a replacement a later load gains goes live; a `Build` field the program's own `build.spite` declares stays the program's ([Build options](compiler.md#build-options)). When nothing the program runs changed, the answer says `no code the program runs changed, so nothing was rebuilt` |
 | a new class | its functions are compiled into the new code, and `classes` and `describe` see it: the REPL's tables of classes, singletons and enums are swapped in with the code |
 
 A refused reload leaves the program exactly as it was, so a save that caught a file half-written is harmless: the
@@ -681,7 +682,7 @@ worked out while compiling, so the check folds away with the branch it guards.
   with the operating system's loader, the one `DynamicLibrary` uses, hands it the addresses of the program's
   functions, and re-points the slots. Nothing runs halfway through a step. The library is compiled on a helper
   thread while the program keeps running, so a game keeps drawing frames while its code is rebuilt.
-- **The watcher is the standard library's [`Watcher`](standard_library.md#watch-files-and-folders)**, the one any
+- **The watcher is the standard library's [`FileSystemWatcher`](standard_library.md#watch-files-and-folders)**, the one any
   program can use, started on a thread of its own: `ReadDirectoryChangesW` on Windows, `inotify` on Linux and
   `kqueue` on macOS, with no polling. The thread sits in `wait_for_changes()`, which the operating system wakes;
   a burst of changes is waited out until 100 ms pass without one, so a save that writes a file in pieces reloads
@@ -1108,10 +1109,16 @@ own. [Live reload](#live-reload---hot-reload) above teaches it; this section hol
   class and its callers are rebuilt). A deleted function keeps its last code for whatever still holds it, a
   function value or the REPL, and the answer names it. An attribute's default value (through the `_init` slot, for
   instances made afterwards).
+- **A reload keeps load order.** Every reload, fast or whole, compiles a class from all the files that declare or
+  reopen it, in load order, so the declaration that is live after it is the one a fresh start would choose: the
+  last loaded, except a `Build` field the program's own `build.spite` declares, which stays the program's. Editing a
+  declaration a later load replaces changes nothing; deleting the replacement swaps the earlier one back in. A
+  reload whose compile changes no code the program runs answers `no code the program runs changed, so nothing was
+  rebuilt`.
 - **What a reload refuses.** A file that does not compile is refused, with the compiler's error, and
   the program keeps all of its code, so a save caught half-written is harmless.
 - **Watching.** `HotReload` (`library/hot_reload.spite`) watches through the standard library's
-  `Watcher` ([System classes](standard_library.md#system-classes)), the one watcher any program uses:
+  `FileSystemWatcher` ([System classes](standard_library.md#system-classes)), the one watcher any program uses:
   `ReadDirectoryChangesW` with overlapped I/O from `kernel32.dll` on Windows, `inotify` and `poll` from `libc.so.6`
   on Linux, and `kqueue`/`kevent` on each folder and file from `libSystem.dylib` on macOS, with no polling. On a
   thread of its own, it calls `wait_for_changes()`, which returns once 100 ms pass without a change, then compiles

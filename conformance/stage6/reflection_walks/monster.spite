@@ -1,0 +1,3 @@
+var name = "troll"
+var health = 10
+var speed = 1.5

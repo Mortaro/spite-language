@@ -1,0 +1,12 @@
+var console = Console()
+
+func NumberTypeMistakes() {
+    var flags = Summer<Boolean>()
+    var flag = flags.twice(true)
+    var widened = doubled(4)
+    console.print(flag, widened)
+}
+
+func doubled(value: Number): Number {
+    return value + value
+}

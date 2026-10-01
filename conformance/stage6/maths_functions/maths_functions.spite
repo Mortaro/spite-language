@@ -58,7 +58,7 @@ func edges() {
     var zero: Double = 0.0
     var not_a_number = negative.square_root()
     console.print("square_root of -1 {not_a_number}, logarithm of 0 {zero.logarithm()}, of -1 {negative.logarithm()}")
-    console.print("arc_sine of pi {Double.pi().arc_sine()} {not_a_number.is_not_a_number()}")
+    console.print("arc_sine of pi {Double.pi.arc_sine()} {not_a_number.is_not_a_number()}")
     var huge: Double = 1000.0
     var overflowed = huge.exponential()
     console.print(
@@ -77,15 +77,15 @@ func edges() {
 }
 
 func constants() {
-    console.print("Float pi {Float.pi()} tau {Float.tau()} euler_number {Float.euler_number()}")
-    console.print("Double pi {Double.pi()} tau {Double.tau()} euler_number {Double.euler_number()}")
-    console.print("Float infinity {Float.infinity()} not a number {Float.not_a_number()}")
-    console.print("Float largest {Float.largest()} smallest {Float.smallest()}")
-    console.print("Double largest {Double.largest()} smallest {Double.smallest()}")
-    var infinite = Double.infinity()
+    console.print("Float pi {Float.pi} tau {Float.tau} euler_number {Float.euler_number}")
+    console.print("Double pi {Double.pi} tau {Double.tau} euler_number {Double.euler_number}")
+    console.print("Float infinity {Float.infinity} not a number {Float.not_a_number}")
+    console.print("Float largest {Float.largest} smallest {Float.smallest}")
+    console.print("Double largest {Double.largest} smallest {Double.smallest}")
+    var infinite = Double.infinity
     var negative_infinite = -infinite
     console.print(
-        "Double infinity {infinite} {negative_infinite} {infinite.is_infinite()} {Double.not_a_number().is_finite()}",
+        "Double infinity {infinite} {negative_infinite} {infinite.is_infinite()} {Double.not_a_number.is_finite()}",
     )
 }
 
@@ -95,18 +95,16 @@ func whole_numbers() {
     console.print(
         "Integer absolute {count.absolute()} minimum {count.minimum(other)} maximum {count.maximum(other)} clamp {count.clamp(-3, 3)}",
     )
-    console.print("Integer largest {Integer.largest()} smallest {Integer.smallest()}")
-    var lowest = Integer.smallest()
+    console.print("Integer largest {Integer.largest} smallest {Integer.smallest}")
+    var lowest = Integer.smallest
     console.print("absolute of the smallest wraps to itself: {lowest.absolute()}")
     var tiny: Tiny = -128
-    console.print("Tiny {Tiny.largest()} {Tiny.smallest()} {tiny.absolute()}")
+    console.print("Tiny {Tiny.largest} {Tiny.smallest} {tiny.absolute()}")
     var byte: Byte = 200
-    console.print("Byte {Byte.largest()} {Byte.smallest()} {byte.absolute()} {byte.clamp(10, 100)} {byte.minimum(300)}")
+    console.print("Byte {Byte.largest} {Byte.smallest} {byte.absolute()} {byte.clamp(10, 100)} {byte.minimum(300)}")
     var long: Long = -9000000000
-    console.print("Long {Long.largest()} {Long.smallest()} {long.absolute()} {long.maximum(4)}")
-    console.print(
-        "UnsignedLong {UnsignedLong.largest()} Short {Short.smallest()} UnsignedShort {UnsignedShort.largest()}",
-    )
+    console.print("Long {Long.largest} {Long.smallest} {long.absolute()} {long.maximum(4)}")
+    console.print("UnsignedLong {UnsignedLong.largest} Short {Short.smallest} UnsignedShort {UnsignedShort.largest}")
     var high = 10
     console.print("clamp with low above high {other.clamp(high, 1)}")
 }

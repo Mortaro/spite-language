@@ -1,0 +1,35 @@
+var console = Console()
+
+func ReflectionSources() {
+    load "package"
+    load "mod"
+    var monster = Creatures.Monster()
+    monster.hurt()
+    monster.harden()
+    console.print(monster.health, monster.armor)
+    var described = monster.class
+    var files = described.source_files
+    files.each(show_file)
+    crash described.namespace
+    var directories = described.namespace.source_directories
+    directories.each(show_directory)
+}
+
+func show_file(file: File) {
+    var shown = inside_program(file.path)
+    console.print("file", shown)
+}
+
+func show_directory(directory: Directory) {
+    var shown = inside_program(directory.path)
+    console.print("directory", shown)
+}
+
+func inside_program(path: String): String {
+    var marker = "reflection_sources/"
+    var start = path.index_of(marker)
+    crash start >= 0
+    var path_length = path.length()
+    var marker_length = marker.length()
+    return path.slice(start + marker_length, path_length)
+}

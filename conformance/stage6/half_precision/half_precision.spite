@@ -17,9 +17,9 @@ func HalfPrecision() {
         0.33333334
     ]
     values.each(show)
-    var infinite = Float.infinity()
+    var infinite = Float.infinity
     show(infinite)
-    var nothing = Float.not_a_number()
+    var nothing = Float.not_a_number
     show(nothing)
     var one: Float = 1.0
     console.print("bits of 1.0 {one.bits()}")

@@ -644,7 +644,7 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
     prints each version into its own folder; the commit is 7 digits, more when two versions share them. Two
     spellings of one commit share nothing but agree. Built by discovering the program twice when a repository is
     pinned at two commits: the first pass learns which package pins what, the second puts each version's
-    classes under its own name. The duplicate code costs nothing because identical C functions are folded into one
+    classes under its own name. The duplicate code costs nothing because identical functions are folded into one
     ([optimizations.md](optimizations.md#identical-functions-are-folded-into-one)).
   - Compile time only: a git load costs what a folder load costs at run time, nothing.
 - Because patching is dangerous to read, the toolchain writes a **final class** folder: every class after all codegen, with the

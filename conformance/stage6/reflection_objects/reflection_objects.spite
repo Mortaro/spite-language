@@ -1,0 +1,48 @@
+var console = Console()
+
+func ReflectionObjects() {
+    var hammer = Shop.Tools.Hammer()
+    var till = Shop.Counter.Till()
+    till.add(2)
+    var heavy = hammer.heavy()
+    console.print(heavy, till.coins)
+    var tools = Shop.Tools
+    console.print(tools.name, tools.name_with_namespaces, tools.parent)
+    var shop_names = Shop.namespaces.map_name()
+    var joined_shop_names = shop_names.join(", ")
+    console.print("Shop holds", joined_shop_names)
+    var every = Spite.Namespace.instances.map_name_with_namespaces()
+    var joined_every = every.join(", ")
+    console.print("every namespace:", joined_every)
+    if namespace {
+        console.print("the entry class is in a namespace")
+    } else {
+        console.print("the entry class is in no namespace")
+    }
+    console.print(Monster.is_singleton, Console.is_singleton, Monster.is_fixed_size, Monster.is_stateful)
+    var alive = Monster.functions['alive']
+    if alive {
+        console.print(alive.name, "answers", alive.returns, "and is resumable:", alive.is_resumable)
+    }
+    var greeting = Monster.functions['greeting']
+    if greeting {
+        console.print("greeting returns", greeting.returned_literal)
+    }
+    if not Monster.functions['missing'] {
+        console.print("no function 'missing'")
+    }
+    var hurt = Monster.functions['hurt']
+    if hurt {
+        var arguments_count = hurt.arguments.count()
+        console.print("hurt takes", arguments_count, "and", hurt.arguments[1].name, "is a", hurt.arguments[1].class)
+    }
+    var phases = Phase.values
+    var phase_count = phases.count()
+    console.print("phases", phase_count, Phase.values[1])
+    var found = Phase.values.find_by_name('finish')
+    console.print("found", found)
+    var console_attribute = ReflectionObjects.attributes['console']
+    if console_attribute {
+        console.print(console_attribute.name, "holds a singleton:", console_attribute.is_singleton)
+    }
+}

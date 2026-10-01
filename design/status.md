@@ -49,6 +49,13 @@ when a page gains a rule that is not built yet, add it here.
 - Unconfirmed proposals by Claude (removed from the page, still awaiting Mortaro): names of the bitwise functions (D117) and their rules, names of the maths functions and constants and their lowering, names of the bit-reinterpretation functions (D215), the `type` keyword allowed as a parameter name, the error texts for `from_` declarations, Go's answer for smallest-signed `/ -1`, the signed-overflow message and unsigned exemption (D205), the reach of text casting to every place a `String` is wanted (D223), the lone-hole error wording, the enum-from-text cast, the generic walk of enums, the shape-member behaviour, the class-test forms for generic classes and codegen values (D123).
 - Exact error texts still quote decision numbers: the `from_` declaration and `from_` call errors contain "(D293)" (lines 925 and 928); the compiler text must change with the page.
 
+### Every number fits `Number`
+- Built: `type Number`, every number class fitting it, `$value_type == Number`, a generic constrained by it
+  (`conformance/stage6/number_type`). NOT BUILT: a function taking `value: Number` is not yet compiled per number
+  class (D321), so an operator on it is still the error the page states, and a number passed to it is boxed.
+- Unconfirmed proposals by Claude: the member list, and a `type`'s own name in a required signature standing for
+  the class that fits.
+
 ### Numeric types (REPL and text reading)
 - No status facts removed beyond the above.
 
@@ -300,6 +307,29 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - "Decided by Mortaro, being implemented" item 9 (open_questions.md) is the source of the `.functions` rule.
 - Removed clause: a `load`-ed root "would extend the deferred compile-time class generation" (deferred, not built).
 
+### Reflection known while compiling (D316, D317, D318, D323, D326)
+- Built: constants, folding, `each`/`map` unrolling, specialisation per reflection argument, bound attributes,
+  types from constants, `Spite.Namespace.instances`, enum `.values`, `[]` by name, `Spite.Attribute<T>` template
+  spelling, `filter_<member>_<function>(arguments)` on any list, `source_files`/`source_directories`;
+  `package_folder` removed.
+- Not built: `function.call_with(arguments.map(made))` (D317), `.read_attributes`/`.written_attributes` (item 109),
+  `Spite.Namespace.enums`, the plural `map_<members>` rule (D317, D328: `String.pluralize` is merged), and the
+  compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
+  (`engine/renderer/renderer.spite` is `Engine.Renderer` beside the namespace `Engine.Renderer`) is exactly that
+  pair, so the rule needs Mortaro to say whether the entry file is exempt.
+- Run time only through the old tables: `.is_stateful`, `.is_list` and the other kind questions, `.owner`,
+  `.index`, `.is_mutated` and `.returned_literal` answer only on a constant; read on a run-time object they are
+  "has no attribute".
+- Specialisation is limited to functions of the calling class; a function whose body needs the reflection
+  parameter's run-time value (passes it on to something that is not a reflection parameter, calls a function of
+  it) is not specialised and walks at run time as before. A parameter of an enum type is not specialised (rule 5
+  of the proposal names enums too).
+- The old mechanisms still work side by side: `Symbol<...>` templates and plural walks, `Symbol<$T.f>` argument
+  walks, name patterns, folder walks, `$T.has_function(...)` and the other name-keyed questions, `source_folder()`.
+  Unconfirmed (proposed by Claude): specialisation names `<function>_for_<member>`, a constant local being a
+  local never assigned again whose run-time value no statement needs, and a folded `assert` on a constant never
+  being an "always holds" error.
+
 ### Functions of `Spite.Class`, and why there are no static functions
 - The three override rules (the functions a class file can override are exactly those `Spite.Class` declares; an
   ordinary instance function whose name collides is a diagnostic naming `Spite.Class`; the override is evaluated at
@@ -331,7 +361,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### Two versions of one repository
 
 - D334 (one package pinning two commits reads them as two loads in load order) was decided by Mortaro on 2026-09-30 and built; the error for a commit read into two different versions was proposed by Claude, unconfirmed.
-- Not built: identical code folding, so the code two versions share unchanged is written twice today (`optimizations.md#identical-functions-are-folded-into-one`).
 - D296 (two versions are two libraries) was decided by Mortaro on 2026-09-30, built as proposed by Claude, unconfirmed.
 
 ### Final classes
@@ -399,7 +428,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   mapping (`mmap`) is held to compiling only; only Windows runs.
 
 ### Watch files and folders
-- The `Watcher` name and members are proposed, unconfirmed (mortaros_missing_decisions.md asks for the final name).
+- `watch_for_changes(target: Directory or File)` is declared over a union of the two classes in the watcher's own
+  file (`FileSystemWatcher.Target`), since the compiler has no inline union type; it becomes `Directory or File`
+  when that exists. The quiet period is still open (mortaros_missing_decisions.md 166).
 - Linux (`inotify`) and macOS (`kqueue`) watchers are held to compiling by check.sh; only Windows runs.
 
 ### Run a process
@@ -470,7 +501,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Not built, removed from the page (migration to do when it lands): remove `Directory.files()` and
   `Directory.folders()` and move their callers to `entries().filter_files()` / `filter_folders()`: the compiler's
   discovery in `bootstrap/source/discovery/program_discovery.spite` and `git_load.spite`,
-  `library/linux/watcher.spite`, `library/mac/watcher.spite`, `scripts/docs_corpus`, and the example under "List a
+  `library/linux/file_system_watcher.spite`, `library/mac/file_system_watcher.spite`, `scripts/docs_corpus`, and the example under "List a
   directory" in standard_library.md.
 - Open question for Mortaro: `Spite.Namespace`'s `.classes` and `.namespaces` have the same shape (one node's
   children split by kind) and may get the same treatment; undecided.
@@ -669,7 +700,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Whole page
 
-- The page had a Status column and "Built" / "Planned" parts. Every optimisation on the page is built except: the planned forms of "Thread safety for singletons, the rest of the plan", most of "Copies that cost nothing" (only the pieces listed below are built), all of "Identical functions are folded into one", and the three items of "Other optimisations". The partly built ones are listed below. The old "Planned" intro said: decided by Mortaro, not built yet; when one is built it moves up into the built part in the same change.
+- The page had a Status column and "Built" / "Planned" parts. Every optimisation on the page is built except: the planned forms of "Thread safety for singletons, the rest of the plan", most of "Copies that cost nothing" (only the pieces listed below are built), and the three items of "Other optimisations". The partly built ones are listed below. The old "Planned" intro said: decided by Mortaro, not built yet; when one is built it moves up into the built part in the same change.
 - The old "Adding one" section (removed, maintainer note) said: every optimisation the compiler starts making is added to this page in the same change, with what it does, when, whether it is built and what a user could notice (D185, D102); an unremovable cost is written down; one that contradicts the rules on another page is recorded in `mortaros_missing_decisions.md`.
 - Every optimisation whose old status line read "proposed by Claude, unconfirmed" still awaits Mortaro's confirmation: tree shaking of classes, slots and statics; native symbol lookup only when reached; reads in a row overlap (and its scheduler cost); the lock forms (padding, unlocked calls to itself, locked writes from outside, read-only held objects, no lock for functions that touch no changing state); the thread-safety forms and their order and the one-touch rule; the skipped lock while no task runs (D267); the readers' side (D266); the counted loop's single lock (D265); held arguments (D270); reading a singleton's unchanging attribute in place (D271); text joined in one piece; discarded defaults; function values describing arguments on demand; list templates reading uncounted; numbers written in place into text; dictionary hashing; number-keyed dictionaries (decided by Claude under D205, readings unconfirmed); reading through a `type` uncounted; borrowed rows in the frame (plus the Symbol walk, sparse rows, lent list elements, lent arguments, lent items passed to calls); `Items` storage; short text (the size 15 and the layout); proven reads (D225, D277); the walked `crash` read; frame objects (decided under D205/D214); parallel translation units and the object cache; `-O3` with ThinLTO; identical function folding (how, and function-value equality).
 - The default `-O0` build was "Mortaro's choice to keep" (recorded as a decision, not a reason).
@@ -708,8 +739,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Identical functions are folded into one
 
-- The whole section is not built (decided by Mortaro 2026-09-30, D296). The compiler does not fold identical generated C functions; it relies on whatever the C compiler and linker do.
-- Proposed by Claude, unconfirmed: the hashing scheme (hash of each function's C with names replaced by fold-group names, callee first, full text comparison on a hash match); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values.
+- Built (D296, D340). Proposed by Claude, unconfirmed: the normalisation details (layout equality by attribute order and type, numbered temporaries, texts by content, a site shared by two versions or instances reporting the first one met); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values; no folding in `--hot-reload` builds and the REPL.
+- Not folded yet: a function that differs only in which class of another layout it passes around by reference (a `List<A>` and a `List<B>` of two unrelated classes whose items are only retained and released); a boxed text constant (`spite_lit_N_box`) compares by its name, not its text; a site of a foreign callback still writes its place into the function.
 
 ### Other optimisations
 

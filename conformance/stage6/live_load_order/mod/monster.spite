@@ -1,0 +1,9 @@
+var level = 5
+
+func Monster() {
+    name = "mod made"
+}
+
+func describe(): String {
+    return "mod describes"
+}
