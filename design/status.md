@@ -99,6 +99,14 @@ for a design):
 - Text assigned to an enum that names none of its values becomes the enum's first value (values_and_types.md).
 - A Windows `__fastfail` (`0xC0000409`), or a corrupted heap on Linux and macOS (the C library's own message and
   `SIGABRT`), ends the program without Spite's report or frames ("What a native fault reports").
+- **A fast reload checked against the baseline a busy machine left** differs from a whole compile: `check.sh`'s
+  "moving objects" step (`docs/repl.md`'s `live_party`) fails on Linux about one run in three while other work loads
+  the machine, and passes alone. After the held rename the output reads `rebuilt Hero, Spite.DebugInstance` where a
+  quiet run rebuilds `Hero` alone, and the final `SPITE_RELOAD_CHECK` reports `rebuilt Hero against Hero, Build,
+  Spite.DebugInstance; only the whole compile writes spite_overflowed ...`: the watcher's reload and the prompt's
+  `reload` seem to race over the companion files (`.reload_baseline`, `.reload_files`). Not yet run down; seen with
+  gcc and clang. Repro: `bash check.sh` on a four-core Linux machine, or `job_moving_objects` alone beside four C
+  compiles.
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers
   `values[row].copy()`, the caller sets `layout.width` on it, and the copy dies. Proposed by Claude, unconfirmed: a
   compile error when an object only this function holds (escape analysis already proves a function's result fresh)
