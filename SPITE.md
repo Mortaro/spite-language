@@ -58,6 +58,13 @@ but we can be more permissive instead of all that rust noise."
 than a reader expects is the only real surprise; code that runs faster is a free win and needs no announcement.
 *Instead:* optimise freely and silently. Report only what could *not* be optimised, and why.
 
+**Value classes against reference classes.** "thinking of value class versus reference class is wrong, this is a
+compiler concern, not a moron's concern. We only have a class; the compiler should know how to optimise things
+always."
+*Instead:* there are only classes, every object behaves as a shared object, and the compiler chooses registers, the
+stack, inline storage or the heap with counting per use, whichever keeps that behaviour cheapest. Work the compiler
+could have proven unnecessary, done every time, is a bug; so is any measured gap against hand-written C (D398).
+
 **Anything that requires user discipline to work.** "Users are morons, they will forget." A rule that depends on
 someone remembering to call something is a rule that fails.
 *Instead:* the compiler does it. REPL drains are injected wherever the program already waits (D37); decomposition
