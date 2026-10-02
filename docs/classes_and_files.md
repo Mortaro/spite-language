@@ -468,6 +468,30 @@ adds settings to `Environment`, a member template to `List`, a function to `Inte
 ([packages.md](packages.md#monkey-patching-mods)). The program's entry class is the one class nothing may
 reopen.
 
+## A class name means one class
+
+A class may not hide another class. If `physics/plugin.spite` (`Physics.Plugin`) sat beside a root
+`plugin.spite` (`Plugin`), the name `Plugin` would mean one class inside `Physics` and the other everywhere else,
+and a reader would have to work out which one each line reaches. So that is an error naming both, asking for a
+clearer name. It holds against the classes of a package the program loads, and against the standard library: a
+class of your own named like a library class is an error naming the library's class, since a `Vector3` or a `Color`
+of your own is most likely one the library already has. To add what the library's class lacks, reopen it.
+
+```gdscript title=own_vector/geometry/vector3.spite
+var height = 0.0
+```
+```gdscript title=own_vector/own_vector.spite entry error
+var console = Console()
+
+func OwnVector() {
+    var point = Geometry.Vector3()
+    console.print(point.height)
+}
+```
+```diagnostic
+the class 'Geometry.Vector3' is named like the standard library's class 'Vector3': use 'Vector3', reopening it to add what it lacks, or give this class a clearer name
+```
+
 ## Rules in full
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge cases, the
@@ -533,6 +557,21 @@ constructor` (`diagnostics/file_scope_statement`).
 The program's entry class may not be reopened by another file
 ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading),
 `diagnostics/entry_class_reopened`).
+
+**A class never hides another class.** A class hides another when both end in the same name and the other's
+namespace encloses this one's, so that inside this one's namespace the name reaches this one instead:
+`Physics.Plugin` hides a root `Plugin`, and `Game.Memory.Heap` hides `Memory.Heap`. That is an error naming both:
+"physics/plugin.spite: error: the class 'Physics.Plugin' hides the class 'Plugin' (plugin.spite): inside 'Physics'
+the name 'Plugin' would mean this class, so give one of them a clearer name" (`diagnostics/hidden_class`). It holds
+within the program, between the program and the packages it loads, and between two packages. Two classes of one
+name in namespaces side by side (`Physics.Plugin` and `Audio.Plugin`) hide nothing, and neither does an `enum`,
+`union` or `type` declared inside a class, which is named through that class.
+
+**A class named like a class of the standard library is an error** wherever it is, naming the library's class to
+use: "the class 'Geometry.Vector3' is named like the standard library's class 'Vector3': use 'Vector3', reopening it
+to add what it lacks, or give this class a clearer name" (`diagnostics/named_like_library`). Only the last name
+counts, so a `Function` of your own is refused for `Spite.Function`. A file with the library class's whole dotted
+name is not a new class but a reopening of it ([Reopening a class](#reopening-a-class)).
 
 ### Constructor rules
 

@@ -5152,13 +5152,6 @@ func find_class(name: String, current_namespace: String): Analysis.ClassInfo? {
         if inside {
             return inside
         }
-        if segments.last() == name {
-            var joined_segments = segments.join(".")
-            var folder_entry = find_class_by_qualified(joined_segments)
-            if folder_entry {
-                return folder_entry
-            }
-        }
         segments.remove_last()
     }
     return find_class_by_qualified(name)
@@ -5243,9 +5236,6 @@ func find_class_at_level(name: String, version: String, segments: List<String>, 
     if inside {
         return inside
     }
-    if level > 0 and segments[level - 1] == name {
-        return find_class_by_qualified(namespace)
-    }
     return null
 }
 
@@ -5260,9 +5250,6 @@ func nearest_declaring_owner(name: String, current_namespace: String): String {
             return owner
         }
         if find_class_by_qualified("{owner}.{name}") {
-            return ""
-        }
-        if segments.last() == name and find_class_by_qualified(owner) {
             return ""
         }
         segments.remove_last()

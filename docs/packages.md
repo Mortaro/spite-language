@@ -11,10 +11,13 @@ func Game() {
 
 - The program's own folder is a root like any loaded one: every folder inside it is a namespace, recursively,
   with no `load` needed ([programs.md](programs.md)).
-- The loaded folder itself does **not** appear in the namespace; folders *inside* it do. A file named like its
-  folder is that folder's entry point: `package/engine/renderer/renderer.spite` becomes `Engine.Renderer()`,
-  and `package/engine/renderer/debug.spite` (a sibling file in the same folder) becomes
-  `Engine.Renderer.Debug()`.
+- The loaded folder itself does **not** appear in the namespace; folders *inside* it do, and every folder is
+  only a namespace: `package/engine/renderer.spite` is `Engine.Renderer()`, and
+  `package/engine/physics/body.spite` is `Engine.Physics.Body()`. No file is special: a file named like its
+  folder is an ordinary class inside it, so `package/engine/physics/physics.spite` is `Engine.Physics.Physics()`,
+  reopened by another root's `engine/physics/physics.spite` like any class. A file and a folder of one name side
+  by side, `engine/renderer.spite` beside `engine/renderer/`, would make `Engine.Renderer` both a class and a
+  namespace, so that is an error ([the rules in full](#packages-namespaces-and-loading)).
 - `load` only ever takes a literal string: a variable or expression there is an error, so the compiler
   always knows every bundle statically. The one exception is the launcher, the Spite program that loads the
   standard library and then yours ([programs.md](programs.md#how-a-program-is-loaded)): its `load` may also use
@@ -28,16 +31,15 @@ func Game() {
   annotation, a generic argument (`Remove<Component.Requested>`), a `type` or `union` member, a `==` class test
   and an enum inside a class (`Component.Requested.Size`), so from `window/system/` the name reaches
   `window/component/requested.spite` without writing `Window.` (`conformance/stage6/relative_namespaces`).
-  A folder's entry file owns the folder as its namespace, so `click_test/click_test.spite` reaches
+  A class's folder is where the walk starts, so `click_test/click_test.spite` (`ClickTest.ClickTest`) reaches
   `click_test/system/verify.spite` as `System.Verify()` (`conformance/stage6/folder_class_namespace`).
 - A generic class is found the same way, so it may live in any folder: `Asset.Pack<Asset.Texture>("textures")`
   and, from inside `game/`, `Pack<Rule>("rules")` for `game/pack.spite` both work
   (`conformance/stage6/namespaced_generics`). A generic name that finds nothing is one error, and the lines that
   use what it would have made are not reported again (`diagnostics/failed_constructor`).
 - A `type`, `union` or `enum` is part of the walk at the level of the class that declares it: one declared in
-  the using class wins over every class, and one declared in a folder's entry file wins over a class further
-  out. So `type Healing` in `system/regenerate.spite` is what `Healing` means there, even when the program's
-  entry class is also `Healing` (`conformance/stage6/nearest_type`). The library is held to the same walk, so a
+  the using class wins over every class. So `type Healing` in `system/regenerate.spite` is what `Healing` means
+  there, even when the program's entry class is also `Healing` (`conformance/stage6/nearest_type`). The library is held to the same walk, so a
   program's own class `Entry` does not hide the union `Entry` that `library/directory.spite` declares:
 
 ```gdscript title=own_entry_class/entry.spite
@@ -75,7 +77,7 @@ func describe(): String {
     return "a wild monster"
 }
 ```
-```gdscript title=package_demo/package/engine/renderer/renderer.spite
+```gdscript title=package_demo/package/engine/renderer.spite
 func render(): String {
     return "rendering the scene"
 }
@@ -439,9 +441,22 @@ There are no imports. Everything lives in one global namespace, populated by loa
 - The loaded folder is a package root and does **not** appear in the namespace. Folders inside it do:
 
 ```
-package/engine/renderer/renderer.spite   ->  Engine.Renderer()   (a file named like its folder is the folder's entrypoint)
-package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
+package/engine/renderer.spite            ->  Engine.Renderer()
+package/engine/physics/body.spite        ->  Engine.Physics.Body()
+package/engine/physics/physics.spite     ->  Engine.Physics.Physics()   (no file is special: every folder is a namespace)
 ```
+
+- **Every folder is a namespace and nothing else; no file is special.** A file named like its folder is an ordinary
+  class inside the folder's namespace (`Engine.Physics.Physics`), reopened by a file of the same path in a later
+  root like any other class (`conformance/stage6/folder_namesake`).
+- **A class and a namespace never share a dotted name.** A file and a folder of one name side by side,
+  `engine/renderer.spite` beside `engine/renderer/`, is "engine/renderer.spite: error: 'Engine.Renderer' is this
+  class and also the namespace of the folder 'engine/renderer': a dotted name means one thing, so rename the file
+  or the folder" (`diagnostics/class_and_namespace`). Every root merges into the same namespaces, so a file in one
+  root and a folder in another clash the same way, and a folder named like a class of the standard library is
+  "'Color' is a class of the standard library and also the namespace of the folder 'game/color': a dotted name
+  means one thing, so rename the folder". A class may not hide another class either
+  ([A class name means one class](classes_and_files.md#a-class-name-means-one-class)).
 
 - `spite game` **loads the program's folder as a root** (a program is named by its folder): the program's
   folder is a real root exactly like a `load`-ed one, so every subfolder inside it is a namespace, recursively,
@@ -477,18 +492,17 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   A dotted name (`Component.Requested`) takes the same walk, in every position a name is written: constructor
   call, parameter, return type, attribute or local annotation, generic argument, `type`/`union` member, class test
   and a class's enum (`conformance/stage6/relative_namespaces`).
-  A class's own namespace holds the classes named under it, so for a folder's entry file it is that folder:
-  `click_test/click_test.spite` (`ClickTest`) reaches `click_test/system/verify.spite` as `System.Verify()`
-  (`conformance/stage6/folder_class_namespace`).
+  A class's own namespace holds only what it declares (its `enum`, `union` and `type`), and its folder holds its
+  sibling classes and folders: `click_test/click_test.spite` (`ClickTest.ClickTest`) reaches
+  `click_test/system/verify.spite` as `System.Verify()` (`conformance/stage6/folder_class_namespace`).
   A name the walk does not find is `unknown type 'Server.Component.Eye'` at the line that writes it, in every
   position above, a `type`'s attribute included; when dropping its leading parts names a class, or a plain name
   is the last part of exactly one class, the error says which: `unknown type 'Server.Component.Eye': did you mean
   'Component.Eye'?`. The usual slip is an environment's folder written into the name, when the folder joins
   the program's own namespaces (`diagnostics/unknown_type_in_shape`, `diagnostics/unknown_type_suggestion`).
   A `type`, `union` or `enum` sits in the walk at the level of the class that declares it, so the nearest
-  declaration wins: one in the using class before any class, one in a folder's entry file before a class further
-  out, so `type Healing` in `system/regenerate.spite` is what `Healing` means there even when the program's entry
-  class is `Healing`, and a program's class `Entry` does not hide `Directory`'s union `Entry`
+  declaration wins: one in the using class before any class, so `type Healing` in `system/regenerate.spite` is
+  what `Healing` means there even when the program's entry class is `Healing`, and a program's class `Entry` does not hide `Directory`'s union `Entry`
   (`conformance/stage6/nearest_type`).
   From outside its class a declared type is named through its owner, generic arguments included
   (`List<Recipes.Cookbook.Buildable>`, `conformance/stage6/nested_type_from_outside`). **When an error prints

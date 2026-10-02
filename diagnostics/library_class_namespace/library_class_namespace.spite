@@ -1,0 +1,6 @@
+var console = Console()
+
+func LibraryClassNamespace() {
+    var palette = Color.Palette()
+    console.print(palette.name)
+}

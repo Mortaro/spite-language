@@ -40,8 +40,12 @@ commands are in [repl.md](https://github.com/Mortaro/spite-language/blob/master/
 
 A program lives in its own folder, and `spite game` runs it: `launcher/launcher.spite` loads `library/`, then the
 target system's folder of it, then `game/`, whose every sub folder is a
-namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
-folder's own class). `load "folder"` inside a function loads another package (the path is relative to the file,
+namespace and nothing else (`game/engine/renderer/shader.spite` is `Engine.Renderer.Shader`, and
+`game/engine/physics/physics.spite` is `Engine.Physics.Physics`: no file is special). A file and a folder of one
+name side by side (`engine/renderer.spite` beside `engine/renderer/`) is an error, since a dotted name means one
+thing. A class that hides another class visible from an enclosing namespace (`Physics.Plugin` beside a root
+`Plugin`) is an error naming both, and so is a class named like a standard-library class (`Geometry.Vector3`,
+`Game.Function` for `Spite.Function`): use the library's class, reopening it to add what it lacks. `load "folder"` inside a function loads another package (the path is relative to the file,
 or absolute: `load "D:/Projects/engine/core"`); a file at the same namespace path
 reopens the class: same-named functions, attributes and enums replace (an enum declared again is its whole new
 list of values), the rest are added. `Build` is the exception: a field the program's own `build.spite` declares keeps the

@@ -1,0 +1,14 @@
+var console = Console()
+
+func FolderNamesake() {
+    load "kal"
+    load "mod"
+    var physics = Physics.Physics()
+    var step = physics.step()
+    console.print(step)
+    var gravity = physics.gravity()
+    console.print(gravity)
+    var body = Physics.Body()
+    var falling = body.fall()
+    console.print(falling)
+}

@@ -2,6 +2,7 @@ var mangled_name = ""
 var simple_name = ""
 var namespace_dotted = ""
 var qualified_dotted = ""
+var plain_dotted = ""
 var source_file: Syntax.SourceFile? = null
 var pinned_versions = List<String>()
 

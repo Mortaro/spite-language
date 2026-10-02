@@ -406,11 +406,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   check then differed); a function value taken through a `type` (its typed call is the shape's dispatcher); every
   function of a `--hot-reload` build (a reload would leave the table stale, and the reload check has no facts for
   what a function reads).
-- Not built: `function.call_with(arguments.map(made))` (D317),
-  `Spite.Namespace.enums`, and the
-  compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
-  (`engine/renderer/renderer.spite` is `Engine.Renderer` beside the namespace `Engine.Renderer`) is exactly that
-  pair, so the rule needs Mortaro to say whether the entry file is exempt.
+- Not built: `function.call_with(arguments.map(made))` (D317) and `Spite.Namespace.enums`.
 - Run time only through the old tables: `.is_stateful`, `.is_list` and the other kind questions, `.owner`,
   `.index`, `.is_mutated` and `.returned_literal` answer only on a constant; read on a run-time object they are
   "has no attribute".

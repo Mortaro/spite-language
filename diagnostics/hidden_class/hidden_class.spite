@@ -1,0 +1,6 @@
+var console = Console()
+
+func HiddenClass() {
+    var plugin = Physics.Plugin()
+    console.print(plugin.name)
+}

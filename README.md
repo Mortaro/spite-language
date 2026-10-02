@@ -29,10 +29,10 @@ practice:
 - **Every optimisation is written down.** What the compiler does behind your back is listed in
   [docs/optimizations.md](docs/optimizations.md), so it surprises nobody.
 
-A file is a class named after it, and a program is a folder: `arena/arena.spite` is the entry, and its constructor
+A file is a class named after it, and a program is a folder: `battle/battle.spite` is the entry, and its constructor
 runs the program.
 
-```gdscript title=arena/monster.spite
+```gdscript title=battle/monster.spite
 var name = ""
 var health = 0
 
@@ -45,10 +45,10 @@ func alive(): Boolean {
     return health > 0
 }
 ```
-```gdscript title=arena/arena.spite entry
+```gdscript title=battle/battle.spite entry
 var console = Console()
 
-func Arena() {
+func Battle() {
     var monsters = [Monster("slime", 12), Monster("ghost", 0), Monster("troll", 30)]
     var standing = monsters.filter_alive().sum_health()
     console.print("health still standing:", standing)

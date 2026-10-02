@@ -57,6 +57,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
         return failure(error_message)
     }
     read_settings()
+    check_class_names()
     if has_error {
         return failure(error_message)
     }
@@ -906,8 +907,8 @@ func read_and_add_file(path: String, segments: List<String>) {
 
 func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, stem: String) {
     var qualified = compute_qualified(segments, stem)
-    var simple_name = compute_simple_name(segments, stem)
-    var namespace_dotted = compute_namespace(segments, stem)
+    var simple_name = pascal_case(stem)
+    var namespace_dotted = compute_namespace(segments)
     if not current_checkout.is_empty() {
         crash loads_from_repositories.identities[current_checkout]
         loads_from_repositories.versions.note_defined(qualified, loads_from_repositories.identities[current_checkout])
@@ -951,7 +952,79 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
         return
     }
     var discovered = DiscoveredClass(mangled_name, simple_name, namespace_dotted, qualified_dotted, parsed_file)
+    discovered.plain_dotted = compute_qualified(segments, stem)
     class_files.append(discovered)
+}
+
+func check_class_names() {
+    var index = 0
+    while index < class_files.count() and not has_error {
+        check_class_name(class_files[index])
+        index = index + 1
+    }
+}
+
+func check_class_name(checked: DiscoveredClass) {
+    var checked_in_library = library_classes.contains(checked.qualified_dotted)
+    var index = 0
+    while index < class_files.count() and not has_error {
+        var other = class_files[index]
+        var other_in_library = library_classes.contains(other.qualified_dotted)
+        if other.plain_dotted.starts_with("{checked.plain_dotted}.") and not (checked_in_library and other_in_library) {
+            report_class_and_namespace(checked, other, checked_in_library)
+        } else if other.simple_name == checked.simple_name and other.plain_dotted != checked.plain_dotted and not checked_in_library {
+            report_same_name(checked, other, other_in_library)
+        }
+        index = index + 1
+    }
+}
+
+func report_class_and_namespace(class_file: DiscoveredClass, inside: DiscoveredClass, class_in_library: Boolean) {
+    var levels = inside.plain_dotted.split(".").count() - class_file.plain_dotted.split(".").count()
+    var folder = directory_of(inside.file.path)
+    while levels > 1 {
+        folder = directory_of(folder)
+        levels = levels - 1
+    }
+    has_error = true
+    if class_in_library {
+        error_message = "{inside.file.path}: error: '{class_file.plain_dotted}' is a class of the standard library and also the namespace of the folder '{folder}': a dotted name means one thing, so rename the folder"
+        return
+    }
+    error_message = "{class_file.file.path}: error: '{class_file.plain_dotted}' is this class and also the namespace of the folder '{folder}': a dotted name means one thing, so rename the file or the folder"
+}
+
+func report_same_name(checked: DiscoveredClass, other: DiscoveredClass, other_in_library: Boolean) {
+    if other_in_library {
+        has_error = true
+        error_message = "{checked.file.path}: error: the class '{checked.plain_dotted}' is named like the standard library's class '{other.plain_dotted}': use '{other.plain_dotted}', reopening it to add what it lacks, or give this class a clearer name"
+        return
+    }
+    report_hidden_class(checked, other)
+}
+
+func report_hidden_class(inner: DiscoveredClass, outer: DiscoveredClass) {
+    var inner_prefix = inner.plain_dotted.split(".")
+    var outer_prefix = outer.plain_dotted.split(".")
+    var hidden_name = ""
+    while not inner_prefix.is_empty() and not outer_prefix.is_empty() and inner_prefix[inner_prefix.count() - 1] == outer_prefix[outer_prefix.count() - 1] {
+        var shared = outer_prefix.remove_last()
+        inner_prefix.remove_last()
+        crash shared
+        if hidden_name.is_empty() {
+            hidden_name = shared
+        } else {
+            hidden_name = "{shared}.{hidden_name}"
+        }
+        var inner_namespace = inner_prefix.join(".")
+        var outer_namespace = outer_prefix.join(".")
+        var hides = not inner_namespace.is_empty() and (outer_namespace.is_empty() or inner_namespace.starts_with("{outer_namespace}."))
+        if hides {
+            has_error = true
+            error_message = "{inner.file.path}: error: the class '{inner.plain_dotted}' hides the class '{outer.plain_dotted}' ({outer.file.path}): inside '{inner_namespace}' the name '{hidden_name}' would mean this class, so give one of them a clearer name"
+            return
+        }
+    }
 }
 
 func reopen_with_supplied_members() {
@@ -1660,35 +1733,13 @@ func pascal_join(segments: List<String>): String {
     return result
 }
 
-func compute_namespace(segments: List<String>, stem: String): String {
-    if segments.is_empty() {
-        return ""
-    }
-    var last_segment = segments[segments.count() - 1]
-    if last_segment == stem {
-        var leading_segments = all_but_last(segments)
-        return pascal_join(leading_segments)
-    }
+func compute_namespace(segments: List<String>): String {
     return pascal_join(segments)
-}
-
-func compute_simple_name(segments: List<String>, stem: String): String {
-    if segments.is_empty() {
-        return pascal_case(stem)
-    }
-    if segments.last() == stem {
-        return pascal_case(stem)
-    }
-    return pascal_case(stem)
 }
 
 func compute_qualified(segments: List<String>, stem: String): String {
     if segments.is_empty() {
         return pascal_case(stem)
-    }
-    var last_segment = segments[segments.count() - 1]
-    if last_segment == stem {
-        return pascal_join(segments)
     }
     return "{pascal_join(segments)}.{pascal_case(stem)}"
 }
