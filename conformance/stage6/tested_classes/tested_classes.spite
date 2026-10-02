@@ -1,0 +1,24 @@
+var console = Console()
+
+func TestedClasses() {
+    var held = List<Anything>()
+    var coin = Coin()
+    held.append(coin)
+    held.append(3)
+    var index = 0
+    while index < held.count() {
+        var text = described(held[index])
+        console.print(text)
+        index = index + 1
+    }
+}
+
+func described(item: Anything): String {
+    if item == Ghost {
+        return item.haunt()
+    }
+    if item == Coin {
+        return item.shine()
+    }
+    return "something else"
+}

@@ -1,0 +1,5 @@
+var name = "boo"
+
+func haunt(): String {
+    return name
+}

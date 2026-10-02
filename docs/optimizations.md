@@ -613,7 +613,8 @@ sides that reaches the left side's class's own operator
 ([values_and_types.md](values_and_types.md#every-number-fits-number)).
 
 **What you notice.** More functions in the generated C, named `<function>___for_<position>_<class>`, one per class that
-reaches it; a class that never does gets none.
+reaches it; a class that never does gets none, even when the function tests for it (`item == Ghost`), and a class the
+program only tests for is not in the C at all.
 
 ### Boxing only where a value travels as a shape
 

@@ -10199,7 +10199,9 @@ func known_membership(subject_type: Analysis.SpiteType, tested_class: Analysis.C
 func check_tested_member(information: Analysis.UnionInfo, tested_class: Analysis.ClassInfo) {
     assert not information.has_member(tested_class.c_name)
     if information.is_shape {
-        admit_to_union(information, tested_class)
+        if not specialises_shapes() {
+            admit_to_union(information, tested_class)
+        }
         return
     }
     report("'{tested_class.simple_name}' is not a member of union '{information.simple_name}', so this is never true")

@@ -1,0 +1,5 @@
+var worth = 1
+
+func shine(): String {
+    return "a coin worth {worth}"
+}

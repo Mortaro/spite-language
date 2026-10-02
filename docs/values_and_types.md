@@ -1440,7 +1440,10 @@ literals. `.class` read through a `type`-shaped or union-typed value is answered
 time, so it names the class the value really is (`Widget`), not the shape it is being read through (`Labeled`).
 An object literal has no class of its own, so it answers `Object`. A call through a `type` compares that tag
 against the classes admitted to the shape (only the classes the program actually passes to it), so nothing
-is registered or looked up by name at run time.
+is registered or looked up by name at run time. A class test admits nothing: `item == Ghost` on an `Anything` that
+no `Ghost` ever reaches is false for every value, and the program carries no copy, no case and no code for `Ghost`
+because of it (`conformance/stage6/tested_classes`). A `--repl`, `--repl-port` or `--hot-reload` build, where code
+the compiler has not seen may bring a `Ghost` later, admits it.
 
 **A `type` may require functions, not only attributes**, matched by shape
 exactly as an attribute-only `type` is:

@@ -79,7 +79,8 @@ when a page gains a rule that is not built yet, add it here.
 - NOT BUILT: text and a `Symbol` stored as a `type` are still heap boxes; a `type` with attributes (a row) and a
   union stay pointers.
 - NOT BUILT: the closed set tested for a run-time value is every class the program admits to the `type`, not the
-  classes that reach that particular spot.
+  classes that reach that particular spot. A class test no longer admits a class (D???), so a class the program only
+  tests for is not emitted; a class the program admits but never instantiates still is.
 - NOT BUILT: a nullable `type` parameter, a parameter the function assigns to, a function that waits, and the
   functions of the library's containers keep the version as written; in a program that runs a `Concurrent`, a
   run-time value reaches the version as written.

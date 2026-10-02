@@ -86,7 +86,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   admitted to the `type`; (c) a nullable `type` parameter compiled per class plus the null case, the tag carrying
   "no value" (D369 item 246); (d) a parameter the function assigns, a function that waits, the library containers'
   functions, and a program with a `Concurrent` all get copies instead of the version as written; (e) a class that is
-  never instantiated is not emitted. Files: generator.spite copy and dispatch regions, `dispatch_classes.spite`,
+  never instantiated is not emitted (a class only tested for no longer is, D???; one admitted by a flow that never
+  carries an instance still is). Files: generator.spite copy and dispatch regions, `dispatch_classes.spite`,
   `type_shape.spite`, `tree_shaker.spite`. **L** (a, c, e are M each; b, d are the long part). No dependencies.
 - **M3 List storage by concrete class** (D331, D222 study in proposals/one_list.md). Step 1: a list over a type or
   union stored as one array per concrete class plus an order array; step 2: `filter_<classes>()` answers from that

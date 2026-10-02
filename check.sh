@@ -979,6 +979,14 @@ if grep -q "___for_0_" "$work/number_parameter_hot.c" || ! grep -q "^Number_Numb
   echo "FAILED: a --hot-reload build should compile doubled as written, its '+' a switch over the classes that fit Number"; exit 1
 fi
 echo "number parameters: a function taking Number is compiled per number class, its operators plain arithmetic"
+# A class test admits nothing to a type (docs/values_and_types.md#inline-types-and-duck-typing-in-full): tested_classes
+# asks 'item == Ghost' on an Anything no Ghost ever reaches, so its production C has no copy, no case and no Ghost.
+"$work/generation_two.exe" conformance/stage6/tested_classes --check --c-source --c-path="$work/tested_classes.c" > /dev/null 2>&1 || {
+  echo "FAILED: tested_classes does not write its C"; exit 1; }
+if grep -q "Ghost" "$work/tested_classes.c" || ! grep -q "TestedClasses_described___for_0_Coin(" "$work/tested_classes.c"; then
+  echo "FAILED: tested_classes should hold no Ghost, a class only tested for, and a copy for the Coin that reaches"; exit 1
+fi
+echo "tested classes: a class only tested for is not admitted to the type, so it is not in the program"
 # A loop over a list of plain values that cannot change its size reads the count once and its items without a range
 # check (docs/optimizations.md): counted_loops' scale_in_place is a plain C loop the C compiler can vectorise, and
 # scale_into checks the list it writes once, before the loop; add_from, whose counter starts at a parameter, is not.
