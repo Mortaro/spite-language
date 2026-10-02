@@ -291,6 +291,17 @@ func study_method_call(
         var grown_key = growing_key(grown)
         add_key(grown_key)
     }
+    if reads_allocator(member.object) {
+        crash table
+        var allocators = table.allocator_classes()
+        var allocator_index = 0
+        while allocator_index < allocators.count() {
+            var allocator_call = EffectCall(allocators[allocator_index], member.name, argument_keys)
+            calls.append(allocator_call)
+            allocator_index = allocator_index + 1
+        }
+        return
+    }
     var receiver_class = owner_class(member.object)
     crash table
     var constructs = table.names_a_class(member.name)
@@ -302,6 +313,27 @@ func study_method_call(
         mark_dispatch(effect_call, member.object)
     }
     calls.append(effect_call)
+}
+
+func reads_allocator(receiver: Syntax.Expressions.Expression): Boolean {
+    var read = shape.as_member(receiver)
+    if not read or read.name != "allocator" {
+        return false
+    }
+    crash read.object
+    var described = shape.as_member(read.object)
+    if described {
+        return described.name == "memory"
+    }
+    var own = shape.as_identifier(read.object)
+    if not own or own.name != "memory" {
+        return false
+    }
+    if parameters.contains("memory") or local_sources.has("memory") or local_classes.has("memory") {
+        return false
+    }
+    crash table
+    return not table.plain_fields.has("{class_name}#memory") and not table.counted_field_names.has("memory")
 }
 
 func mark_dispatch(effect_call: EffectCall, receiver: Syntax.Expressions.Expression) {

@@ -69,6 +69,12 @@ func type_identity(path: List<String>, from_class: String): String {
     return "{shape_owner}.{joined}"
 }
 
+func allocator_classes(): List<String> {
+    crash generator
+    crash generator.allocator_union
+    return generator.allocator_union.members.map_qualified_dotteds()
+}
+
 func effects_of(class_name: String, name: String): List<String> {
     var own = by_function["{class_name}#{name}"]
     if own {

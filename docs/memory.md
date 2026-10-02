@@ -1311,7 +1311,10 @@ there from the start. Setting it after the object was used is a compile error na
   union whose members all answer them. A class that keeps memory for its object (a buffer, a block of items)
   allocates and frees it through `memory.allocator`, so it follows its object into any allocator; growing it
   is allocating the new size, copying, and freeing the old, except on the heap, where `heap.resize` grows it
-  in place (`library/list.spite`'s `_resized`). The errors:
+  in place (`library/list.spite`'s `_resized`). What such a call may do is what the `allocate` or `free` of each
+  of the program's allocators does: an item borrowed from a `Vector` stays readable past a `List`'s growth
+  unless one of them changes the size of the collection it is borrowed from (`diagnostics/allocator_resizes`).
+  The errors:
   - on a number or a `String`: `only an object has an allocator of its own, and this is a value of type
     Integer, which the compiler places itself`;
   - on a value that is not a name or a path of names: `only a named object answers its allocator: give this
