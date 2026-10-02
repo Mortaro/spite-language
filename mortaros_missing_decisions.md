@@ -15,4 +15,9 @@ D374 (2026-10-01). Earlier answers are listed in each row of `design/decisions.m
 
 ## Open
 
-No open questions.
+250. **A heap the C library finds corrupted on Linux and macOS** ends in `SIGABRT` with glibc's own line (`free():
+     invalid pointer`), and no `spite.fault` line or Spite frames; Windows reports `heap-corruption` with frames
+     ([failure.md](docs/failure.md#what-a-native-fault-reports)). Options: (a) the fault handler also takes
+     `SIGABRT`, reported as `abort` (any `abort()`, not only the heap's); (b) as `heap-corruption` when the C
+     library's message says so; (c) leave it to the C library. Recommend (a): the frames are the useful part.
+     Blocks nothing; `native_fault_heap` pins today's Linux output.

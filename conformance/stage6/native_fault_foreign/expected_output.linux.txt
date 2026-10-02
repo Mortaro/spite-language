@@ -1,0 +1,7 @@
+spite.fault	access-violation	-	-	-	address=0x0	signal=11	at=fixture.dll+0x...	foreign=read_integer_at	library=conformance/stage6/native_fault_foreign/fixture.dll	from=conformance/stage6/native_fault_foreign/native_fault_foreign.spite:13
+spite.frame	conformance/stage6/native_fault_foreign/native_fault_foreign.spite:11	NativeFaultForeign	read_nothing
+spite.frame	conformance/stage6/native_fault_foreign/native_fault_foreign.spite:4	NativeFaultForeign	NativeFaultForeign
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
+Segmentation fault
+before the fault 5

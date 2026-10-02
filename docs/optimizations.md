@@ -1820,11 +1820,12 @@ shared.
 
 Two versions of one dependency are two different libraries
 ([packages.md](packages.md#two-versions-of-one-repository)), and what that duplicates must cost nothing. So the
-compiler folds every function it generates that is identical to another once both are normalised: the same
-statements over types of the same layout, calling functions that are themselves folded together. Every call and
-every function value then goes to the one that is kept, cast to the folded function's type where the two are
-written over different types. The compiler does this itself, in every build, rather than leaving it to the C
-compiler or the linker.
+compiler folds every function it generates that is identical to another once both are normalised: the same statements
+over types of the same layout, calling functions that are themselves folded together. Every call and every function
+value then goes to the one that is kept, cast to the folded function's type where the two are written over different
+types; a call of such a function goes through a pointer to the kept one that nothing writes, which every C compiler
+accepts without a warning and turns back into a direct call when it optimises. The compiler does this itself, in
+every build, rather than leaving it to the C compiler or the linker.
 
 - **When it applies**: to every generated function, whoever wrote it: two versions of one package, two instances of a
   generic class over classes of the same layout (`Column<Position>` and `Column<Velocity>` when both hold the same

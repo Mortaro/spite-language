@@ -3,7 +3,14 @@
 #   spite thing                  build .spite/build/thing/thing.exe in the working folder and run it
 #   spite thing --c-source       write .spite/build/thing/thing.c as well
 here="$(cd "$(dirname "$0")/.." && pwd)"
-seed="$here/bootstrap/seed/spite_compiler.c"
+# The seed is the compiler's C for the system it runs on, since the compiler knows that system as it was compiled.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) system=windows ;;
+    Linux)                system=linux ;;
+    Darwin)               system=mac ;;
+    *)                    system="$(uname -s)" ;;
+esac
+seed="$here/bootstrap/seed/$system/spite_compiler.c"
 binary="$here/.spite/spite.exe"   # not in bin/, or it would shadow this launcher on PATH
 
 find_c_compiler() {
@@ -32,11 +39,16 @@ if [ -n "$SPITE_CC" ] || [ -z "$CC" ]; then
 fi
 export CC
 
+if [ ! -f "$seed" ]; then
+    echo "spite: there is no seed for this system ($system): bootstrap/seed/ has one for $(ls "$here/bootstrap/seed" | grep -v README | tr '\n' ' ')" >&2
+    exit 1
+fi
+
 if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
     echo "spite: building the compiler" >&2
     mkdir -p "$here/.spite"
     maths_library="-lm"   # the compiler folds maths with the C library's own, which Linux and macOS keep in libm
-    case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) maths_library="" ;; esac
+    [ "$system" == "windows" ] && maths_library=""
     # Another build may be running the old compiler, or building its own copy, at this moment: each build writes
     # its own file and swaps it in, so none of them fails on a file in use. Windows refuses to overwrite a running
     # executable but lets it be renamed, so the old one is moved aside first.
@@ -54,7 +66,7 @@ fi
 # `--prefixes=/Game/` would reach the program as `--prefixes=C:/Program Files/Git/Game/`. The launcher writes its own
 # paths as Windows paths and turns the rewriting off, so every other argument arrives exactly as it was typed.
 windows_paths=false
-case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) windows_paths=true; export MSYS2_ARG_CONV_EXCL="*" ;; esac
+[ "$system" == "windows" ] && { windows_paths=true; export MSYS2_ARG_CONV_EXCL="*"; }
 
 # `spite connect <port> [--command="..."]` talks to a program running with --repl-port; nothing in it is a path.
 if [ "$1" == "connect" ]; then
