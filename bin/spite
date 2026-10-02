@@ -1,7 +1,8 @@
 #!/bin/bash
 # Runs the Spite compiler, rebuilding it first if the sources moved on.
 #   spite thing                  build .spite/build/thing/thing.exe in the working folder and run it
-#   spite thing --c-source       write .spite/build/thing/thing.c as well
+#   spite thing --check          only check that it compiles
+#   spite thing --build          build it without running it
 here="$(cd "$(dirname "$0")/.." && pwd)"
 # The seed is the compiler's C for the system it runs on, since the compiler knows that system as it was compiled.
 case "$(uname -s)" in
@@ -99,7 +100,7 @@ if [ "$1" == "format" ]; then
     exec "$binary" "${arguments[@]}"
 fi
 
-# `spite thing` is the common case: every output is a Build field (--c-source, --executable, --run=false, ...).
+# `spite thing` is the common case: every output is a Build field (--check, --build, --executable-path, ...).
 # The first argument not starting with - is the program's folder; the compiler's three path flags are made
 # absolute, and every other argument (a program's settings, its other arguments) is passed through as typed.
 arguments=()

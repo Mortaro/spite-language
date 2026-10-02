@@ -76,10 +76,12 @@ maths_library="-lm"
 # (docs/compiler.md): how the executable is made changes nothing in the C, which is what the generations compare.
 compile_compiler() {
   rm -f .spite/build/bootstrap/bootstrap.c bootstrap/bootstrap.c
-  if [ -n "$3" ]; then
+  if [ "$1" == "$work/seed.exe" ] && $seed_before_check; then
     "$1" bootstrap --run=false --c-source --executable --translation-units="$jobs" --executable-path="$3" || return 1
+  elif [ -n "$3" ]; then
+    SPITE_TRANSLATION_UNITS="$jobs" "$1" bootstrap --build --c-source --executable-path="$3" || return 1
   else
-    "$1" bootstrap --run=false --c-source || return 1
+    "$1" bootstrap --check --c-source || return 1
   fi
   produced=.spite/build/bootstrap/bootstrap.c
   [ -f "$produced" ] || produced=bootstrap/bootstrap.c
@@ -90,6 +92,11 @@ compile_compiler() {
   done
   rm -f "$produced"
 }
+
+# A seed written before --check and --build replaced --run=false still takes the old flags, and only those
+# (design/self_hosting.md#the-seeds-own-flags); every generation after it takes the new ones.
+seed_before_check=false
+grep -q -F -e '--executable --run=false' "$seed" && seed_before_check=true
 
 # The seed only has to write the compiler's C once, so it is compiled without optimisation: that takes a tenth of
 # the time, and the slower seed still finishes far sooner.
@@ -102,6 +109,10 @@ cat "$work/writing.txt"
 echo "2/4 the seed compiles the compiler sources (generation 2)"
 compile_compiler "$work/seed.exe" "$work/generation_two.c" "$work/generation_two.exe" || { echo "FAILED: the seed could not compile the compiler sources"; exit 1; }
 cp "$work/generation_two.exe" .spite/spite_development.exe   # the freshly built compiler, handy for trying things by hand
+# bin/spite builds its compiler from the seed, and a seed from before --check and --build cannot compile a program
+# against today's library/build.spite, so until the seeds are written again it runs generation 2 instead
+# (design/self_hosting.md#the-seeds-own-flags).
+$seed_before_check && cp "$work/generation_two.exe" .spite/spite.exe
 
 # Everything below that only needs generation 2 is one job of a pool, and the pool runs `jobs` of them at once:
 # generation 3, the corpus and examples, the documentation's programs, the diagnostics, the benchmarks, the tests,
@@ -185,7 +196,7 @@ job_documentation() {
   name=$(basename "$folder")
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")
   if [ -f "$folder/must_fail.txt" ]; then
-    actual=$("$work/generation_two.exe" "$folder" --run=false $flags 2>&1 >/dev/null | tr -d '\r')
+    actual=$("$work/generation_two.exe" "$folder" --check $flags 2>&1 >/dev/null | tr -d '\r')
     expected=$(tr -d '\r' < "$folder/expected_diagnostic.txt")
     [ -n "$actual" ] && [ "${actual#*$expected}" != "$actual" ] && exit 0
     echo "FAILED docs: $name wanted an error saying '$expected'"; echo "$actual" | head -4; exit 1
@@ -195,7 +206,7 @@ job_documentation() {
   if [ -f "$folder/system.txt" ] && [ "$(tr -d '\r\n' < "$folder/system.txt")" != "$system" ]; then
     local only
     only=$(tr -d '\r\n' < "$folder/system.txt")
-    actual=$("$work/generation_two.exe" "$folder" --run=false --c-source --c-path="$work/docs_$name.c" --target-operating-system="$only" $flags 2>&1) &&
+    actual=$("$work/generation_two.exe" "$folder" --check --c-source --c-path="$work/docs_$name.c" --target-operating-system="$only" $flags 2>&1) &&
       actual=$("$CC_BIN" -fsyntax-only -w "$work/docs_$name.c" 2>&1) && exit 0
     echo "FAILED docs: $name does not compile for $only"; echo "$actual" | head -6; exit 1
   fi
@@ -215,7 +226,7 @@ job_diagnostic() {
   local folder=$1 name flags actual expected
   name=$(basename "$folder")
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")
-  actual=$(cd "$work/unformatted" && "$repository/$work/generation_two.exe" "$folder" --run=false $flags 2>&1 >/dev/null | tr -d '\r')
+  actual=$(cd "$work/unformatted" && "$repository/$work/generation_two.exe" "$folder" --check $flags 2>&1 >/dev/null | tr -d '\r')
   expected=$(tr -d '\r' < "$folder/expected_errors.txt")
   [ "$actual" == "$expected" ] && exit 0
   echo "FAILED diagnostics: $name"; echo "$actual" | head -8; exit 1
@@ -230,7 +241,7 @@ job_benchmark() {
     errors=$("$CC_BIN" -fsyntax-only -w "$folder/twin.c" 2>&1) || {
       echo "FAILED: the C twin of benchmark $name does not compile"; echo "$errors" | head -5; exit 1; }
   fi
-  errors=$("$work/generation_two.exe" "$folder" --run=false --c-source --c-path="$work/benchmark_$name.c" 2>&1) || {
+  errors=$("$work/generation_two.exe" "$folder" --check --c-source --c-path="$work/benchmark_$name.c" 2>&1) || {
     echo "FAILED: benchmark $name does not compile"; echo "$errors" | head -5; exit 1; }
   errors=$("$CC_BIN" -fsyntax-only -w "$work/benchmark_$name.c" 2>&1) || {
     echo "FAILED: the C of benchmark $name does not compile"; echo "$errors" | head -5; exit 1; }
@@ -253,9 +264,9 @@ job_tests() {
 # counts is only in a --debug-memory build, so the compiler builds itself once more with it.
 job_compiler_memory() {
   local self_leaks
-  "$work/generation_two.exe" bootstrap --run=false --debug-memory --executable --translation-units="$jobs" --executable-path="$work/generation_two_debug.exe" || {
+  SPITE_TRANSLATION_UNITS="$jobs" "$work/generation_two.exe" bootstrap --build --debug-memory --executable-path="$work/generation_two_debug.exe" || {
     echo "FAILED: the compiler does not build itself with --debug-memory"; exit 1; }
-  self_leaks=$("$work/generation_two_debug.exe" bootstrap --run=false 2>&1 > /dev/null | head -5)   # no output: compile only
+  self_leaks=$("$work/generation_two_debug.exe" bootstrap --check 2>&1 > /dev/null | head -5)   # no output: compile only
   if [ -n "$self_leaks" ]; then echo "FAILED: the compiler leaks while compiling itself"; echo "$self_leaks"; exit 1; fi
 }
 
@@ -266,7 +277,7 @@ job_compiler_memory() {
 job_target() {
   local system=$1 program=$2 name errors
   name=$(basename "$program")
-  "$work/generation_two.exe" "$program" --run=false --c-source --c-path="$work/target_${system}_$name.c" --target-operating-system="$system" || {
+  "$work/generation_two.exe" "$program" --check --c-source --c-path="$work/target_${system}_$name.c" --target-operating-system="$system" || {
     echo "FAILED: $program does not compile with library/$system"; exit 1; }
   errors=$("$CC_BIN" -fsyntax-only -w "$work/target_${system}_$name.c" 2>&1) || {
     echo "FAILED: the C of $program written for library/$system does not compile"; echo "$errors" | head -5; exit 1; }
@@ -288,7 +299,7 @@ job_fast_reload() {
   name=$(basename "$program"); copy="$fast_root/$name"
   cp -r "$program" "$copy"
   flags=""; [ -f "$copy/flags.txt" ] && flags=$(tr -d '\r\n' < "$copy/flags.txt")
-  errors=$("$work/generation_two.exe" "$copy" --executable --run=false --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/$name.exe" $flags 2>&1) || {
+  errors=$("$work/generation_two.exe" "$copy" --build --hot-reload --repl-port=$checked_port --executable-path="$work/fast_reload/$name.exe" $flags 2>&1) || {
     echo "FAILED fast reload: $name does not build with --hot-reload"; echo "$errors" | head -5; exit 1; }
   local files=("$copy"/*.spite)
   # a class two loaded folders declare is compiled from both, in load order, whichever of them changed
@@ -328,7 +339,7 @@ job_final_classes() {
   local printed_program=$1 printed_name printed printed_output
   printed_name=$(basename "$printed_program")
   printed="$work/final/$printed_name"   # a program is a folder named like its entry file (D89)
-  "$work/generation_two.exe" "$printed_program" --run=false --final-classes="$printed" > /dev/null 2>&1 || {
+  "$work/generation_two.exe" "$printed_program" --check --final-classes="$printed" > /dev/null 2>&1 || {
     echo "FAILED: --final-classes could not write $printed_program out"; exit 1; }
   printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '\r' | grep -v '^allocations: ')
   if [ "$printed_output" != "$(tr -d '\r' < "$printed_program/expected_output.txt")" ]; then
@@ -347,7 +358,7 @@ job_launcher() {
   fi
   # A built program run directly reads its settings in kebab-case, like the compiler, and refuses the snake_case
   # spelling of a declared one rather than ignoring it.
-  bin/spite conformance/stage6/kebab_setting --executable --run=false --executable-path="$work/kebab_direct.exe" > /dev/null 2>&1 || {
+  bin/spite conformance/stage6/kebab_setting --build --executable-path="$work/kebab_direct.exe" > /dev/null 2>&1 || {
     echo "FAILED: kebab_setting does not build"; exit 1; }
   direct=$("$work/kebab_direct.exe" --player-name=bo --hard-mode 2>&1 | tr -d '\r')
   if [ "$direct" != "player bo hard mode true" ]; then echo "FAILED: a program run directly misread its settings"; echo "$direct" | head -5; exit 1; fi
@@ -516,7 +527,7 @@ echo "absolute load: a program loads a folder named by its absolute path"
 mkdir -p "$work/error_list/broken_package" "$work/error_list/many_errors"
 { printf 'func run() {\n'; for i in $(seq 1 30); do printf '    missing_%d()\n' "$i"; done; printf '}\n'; } > "$work/error_list/broken_package/thing.spite"
 printf 'func ManyErrors() {\n    load "../broken_package"\n    var thing = Thing()\n    thing.run()\n    own_missing()\n}\n' > "$work/error_list/many_errors/many_errors.spite"
-listed=$(cd "$work/error_list" && "$repository/$work/generation_two.exe" many_errors --run=false 2>&1 | tr -d '\r')
+listed=$(cd "$work/error_list" && "$repository/$work/generation_two.exe" many_errors --check 2>&1 | tr -d '\r')
 if [ "$(echo "$listed" | wc -l)" != "27" ] || [ "$(echo "$listed" | head -1)" != "many_errors/many_errors.spite:5: error: this class has no function 'own_missing' (in ManyErrors.ManyErrors)" ] \
    || [ "$(echo "$listed" | tail -1)" != "and 5 more in broken_package" ]; then
   echo "FAILED: the program's own errors are not listed first, with a loaded package's capped at 25"; echo "$listed" | head -3; echo "$listed" | tail -2; exit 1
@@ -564,17 +575,17 @@ func longest(): String {
     echo "FAILED: a git load did not build the pinned commit, once fetched and then from .spite/git/ with no git work"
     echo "$first_build" | head -5; echo "$second_build" | head -5; exit 1
   fi
-  hot=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" git_load --hot-reload --executable --run=false --executable-path="$repository/$work/git_load_hot.exe" 2>&1 | tr -d '\r')
+  hot=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" git_load --hot-reload --build --executable-path="$repository/$work/git_load_hot.exe" 2>&1 | tr -d '\r')
   [ -z "$hot" ] || { echo "FAILED: a --hot-reload build of a program with a git load"; echo "$hot" | head -5; exit 1; }
   printf 'var console = Console()\n\nfunc UnknownCommit() {\n    load "../engine_repo@0000000/engine"\n}\n' > "$pinned_work/unknown_commit/unknown_commit.spite"
-  unknown=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" unknown_commit --run=false 2>&1 | tr -d '\r')
+  unknown=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" unknown_commit --check 2>&1 | tr -d '\r')
   echo "$unknown" | grep -q "^unknown_commit/unknown_commit.spite:4: error: 'load \"../engine_repo@0000000/engine\"': .*engine_repo has no commit 0000000" || {
     echo "FAILED: a git load of a commit the repository does not hold is not an error at its line"; echo "$unknown" | head -5; exit 1; }
-  missing_git=$(cd "$pinned_work" && PATH=/nothing "$repository/$work/generation_two.exe" unknown_commit --run=false 2>&1 | tr -d '\r')
+  missing_git=$(cd "$pinned_work" && PATH=/nothing "$repository/$work/generation_two.exe" unknown_commit --check 2>&1 | tr -d '\r')
   echo "$missing_git" | grep -q "with git, and there is no 'git' on the PATH" || {
     echo "FAILED: a git load without git on the PATH is not an error naming it"; echo "$missing_git" | head -5; exit 1; }
   echo "// changed" >> "$checkout/engine/greeter.spite"
-  edited=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" git_load --run=false 2>&1 | tr -d '\r')
+  edited=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" git_load --check 2>&1 | tr -d '\r')
   echo "$edited" | grep -q "is not what the commit $pinned of .*engine_repo holds: a checkout is read-only" || {
     echo "FAILED: a changed checkout is not an error"; echo "$edited" | head -5; exit 1; }
   echo "git load: a load pinned to a commit of a local repository is checked out into .spite/git/ once, and stays that commit"
@@ -669,7 +680,7 @@ func OnePackageTwoPins() {
     load "../plugin_repo@%s/plugin"
 }
 ' "$pinned" "$later" "$plugin_commit" > "$pinned_work/mixed_pins/mixed_pins.spite"
-  mixed=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" mixed_pins --run=false 2>&1 | tr -d '\r')
+  mixed=$(cd "$pinned_work" && "$repository/$work/generation_two.exe" mixed_pins --check 2>&1 | tr -d '\r')
   echo "$mixed" | grep -q "error: .* reads that commit as part of the version from $pinned: a commit's files are read once, into one version" || {
     echo "FAILED: a commit one package reads alone and another reads into its version is not an error naming both"; echo "$mixed" | head -5; exit 1; }
   echo "git load: two commits of one repository are two libraries, and one package's two commits are two loads in order"
@@ -692,13 +703,13 @@ echo "run mode: the thread pool runs without --debug-memory"
 # compiled in parallel, each object cached by the hash of what it was compiled from (docs/compiler.md). The same
 # program built from four units must run the same, and built again it compiles no unit: only the link runs.
 split="$work/parallel_stages_split.exe"
-units_output=$("$work/generation_two.exe" "$stages" --translation-units=4 --debug-memory --executable-path="$split" < /dev/null 2>&1 | tr -d '\r')
+units_output=$(SPITE_TRANSLATION_UNITS=4 "$work/generation_two.exe" "$stages" --debug-memory --executable-path="$split" < /dev/null 2>&1 | tr -d '\r')
 if [ "$(echo "$units_output" | grep -v '^allocations: ')" != "$(tr -d '\r' < "$stages/expected_output.txt")" ] \
    || ! echo "$units_output" | grep -qE '^allocations: ([0-9]+) frees: \1$'; then
   echo "FAILED: parallel_stages built from four translation units"; echo "$units_output" | head -5; exit 1
 fi
 objects_before=$(ls .spite/objects | grep -c '\.o$')
-"$work/generation_two.exe" "$stages" --translation-units=4 --debug-memory --executable --run=false --executable-path="$split" > /dev/null 2>&1 || {
+SPITE_TRANSLATION_UNITS=4 "$work/generation_two.exe" "$stages" --debug-memory --build --executable-path="$split" > /dev/null 2>&1 || {
   echo "FAILED: parallel_stages could not be built again from its cached units"; exit 1; }
 if [ "$(ls .spite/objects | grep -c '\.o$')" != "$objects_before" ]; then
   echo "FAILED: building parallel_stages again compiled a unit whose object was cached"; exit 1
@@ -708,7 +719,7 @@ echo "translation units: a program built from four units runs the same, and buil
 # C is split into units and linked with link-time optimisation: an --optimized native_fault_foreign from four units.
 # Only Windows walks the stack of an --optimized build; Linux and macOS walk frame pointers, which it does not keep.
 walked_frames=true; [ "$system" == "windows" ] || walked_frames=false
-faulted=$("$work/generation_two.exe" conformance/stage6/native_fault_foreign --optimized --translation-units=4 --executable-path="$work/native_fault_units.exe" < /dev/null 2>&1 | tr -d '\r')
+faulted=$(SPITE_TRANSLATION_UNITS=4 "$work/generation_two.exe" conformance/stage6/native_fault_foreign --optimized --executable-path="$work/native_fault_units.exe" < /dev/null 2>&1 | tr -d '\r')
 if ! echo "$faulted" | grep -qE "^spite.fault	[a-z]+-violation	-	-	-	address=0x0	.*	at=fixture.dll\+0x[0-9a-f]+	foreign=read_integer_at	library=conformance/stage6/native_fault_foreign/fixture.dll	from=conformance/stage6/native_fault_foreign/native_fault_foreign.spite:13$" \
    || { $walked_frames && ! echo "$faulted" | grep -q "^spite.frame	"; } || ! echo "$faulted" | grep -q "^before the fault 5$"; then
   echo "FAILED: native_fault_foreign built --optimized from four translation units"; echo "$faulted" | head -8; exit 1
@@ -763,7 +774,7 @@ func refuse(value: Integer) {
     assert value < 0
 }
 SPITE
-"$work/generation_two.exe" "$work/crash_while_asserting" --optimized --executable --run=false --executable-path="$work/crash_while_asserting.exe" > "$job_errors" 2>&1 || {
+"$work/generation_two.exe" "$work/crash_while_asserting" --optimized --build --executable-path="$work/crash_while_asserting.exe" > "$job_errors" 2>&1 || {
   echo "FAILED: could not build crash_while_asserting"; head -5 "$job_errors"; exit 1; }
 timeout 60 "$work/crash_while_asserting.exe" < /dev/null > "$work/crash_while_asserting.txt" 2>&1
 crashed=$?
@@ -781,7 +792,7 @@ echo "crash reports: a crash while a pool thread keeps failing asserts reports t
 # Parallel takes its cheapest safe form (atomics for a counter, nothing for one that never changes or that no
 # Parallel reaches), so no lock at all.
 job_production_c() {
-"$work/generation_two.exe" examples/hello --run=false --c-source --c-path="$work/hello_shaken.c" > /dev/null 2>&1 || {
+"$work/generation_two.exe" examples/hello --check --c-source --c-path="$work/hello_shaken.c" > /dev/null 2>&1 || {
   echo "FAILED: examples/hello does not write its C"; exit 1; }
 if grep -qE "struct (FileSystemWatcher|Socket|Process|HotReload|ThreadPool|Scheduler|ForeignCallback) \{|(FileSystemWatcher|Socket|ThreadPool|Scheduler)___allocate|spite_singleton_(ThreadPool|Scheduler)_cache|spite_callback_" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C still carries library classes it never uses"; exit 1
@@ -799,7 +810,7 @@ fi
 # one function, called through a pointer cast to the folded one's type, and an instance over a class of another
 # layout keeps its own.
 folded="$work/folded_functions.c"
-"$work/generation_two.exe" conformance/stage6/folded_functions --run=false --c-source --c-path="$folded" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/folded_functions --check --c-source --c-path="$folded" > /dev/null 2>&1 || {
   echo "FAILED: folded_functions does not write its C"; exit 1; }
 if grep -q "^float Column__Velocity_total_across(.*) {" "$folded" || ! grep -q "^float Column__Position_total_across(Column__Position\* self) {" "$folded" \
    || ! grep -q "^static __typeof__(&Column__Velocity_total_across) spite_folded_Column__Velocity_total_across = ((__typeof__(&Column__Velocity_total_across))&Column__Position_total_across);$" "$folded" \
@@ -811,13 +822,13 @@ fi
 if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C includes math.h or a maths function it never calls"; exit 1
 fi
-"$work/generation_two.exe" conformance/stage6/singleton_forms --run=false --c-source --c-path="$work/singleton_forms.c" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/singleton_forms --check --c-source --c-path="$work/singleton_forms.c" > /dev/null 2>&1 || {
   echo "FAILED: singleton_forms does not write its C"; exit 1; }
 if ! grep -q "^#define HitCounter___atomic 1$" "$work/singleton_forms.c" || grep -q "SpiteGuard [A-Za-z_]*___guard" "$work/singleton_forms.c"; then
   echo "FAILED: singleton_forms should make HitCounter atomic and lock no singleton"; exit 1
 fi
 locks="$work/singleton_lock_calls.c"
-"$work/generation_two.exe" conformance/stage6/singleton_lock_calls --run=false --c-source --c-path="$locks" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/singleton_lock_calls --check --c-source --c-path="$locks" > /dev/null 2>&1 || {
   echo "FAILED: singleton_lock_calls does not write its C"; exit 1; }
 if ! grep -q "_Alignas(64) int64_t owner" "$locks" || ! grep -q "^Registry_count_one___unguarded(self);" "$locks" \
    || ! grep -q "^#define Registry___outside_enter() spite_guard_enter(&Registry___guard)" "$locks" || grep -q "Rules___guard" "$locks" \
@@ -827,7 +838,7 @@ fi
 # A locked singleton's function that touches none of its changing state takes no lock, so pool work calling it
 # never waits on a function of the same singleton that polls that work.
 stateless="$work/singleton_stateless_calls.c"
-"$work/generation_two.exe" conformance/stage6/singleton_stateless_calls --run=false --c-source --c-path="$stateless" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/singleton_stateless_calls --check --c-source --c-path="$stateless" > /dev/null 2>&1 || {
   echo "FAILED: singleton_stateless_calls does not write its C"; exit 1; }
 if ! grep -q "^int32_t Workshop_build___unguarded(Workshop\* self) {" "$stateless" || grep -q "Workshop_make_piece___unguarded" "$stateless"; then
   echo "FAILED: singleton_stateless_calls should lock Workshop.build and not Workshop.make_piece"; exit 1
@@ -835,7 +846,7 @@ fi
 # D265: a counted loop calling one locked singleton takes its lock once around the loop and calls the unlocked body;
 # a loop polling another singleton for what a Parallel posts keeps a lock per call, or it would never see the post.
 coarse="$work/coarse_locks.c"
-"$work/generation_two.exe" conformance/stage6/coarse_locks --run=false --c-source --c-path="$coarse" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/coarse_locks --check --c-source --c-path="$coarse" > /dev/null 2>&1 || {
   echo "FAILED: coarse_locks does not write its C"; exit 1; }
 if ! grep -q "^#define spite_coarse_0_enter() spite_guard_enter(&Tally___guard)$" "$coarse" \
    || ! grep -q "^Tally_add___unguarded(self->tally_, 1);$" "$coarse" || grep -q "Mailbox_take___unguarded(self->mailbox_" "$coarse" \
@@ -845,7 +856,7 @@ fi
 # D266: a locked singleton's function that only reads takes the readers' side of its lock, a count on the reading
 # thread's own cache line, and a function that writes waits for the readers to leave.
 reads="$work/singleton_reads.c"
-"$work/generation_two.exe" conformance/stage6/singleton_reads --run=false --c-source --c-path="$reads" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/singleton_reads --check --c-source --c-path="$reads" > /dev/null 2>&1 || {
   echo "FAILED: singleton_reads does not write its C"; exit 1; }
 if ! grep -q "^int64_t\* spite_reading = spite_read_enter(&Column__Transform___guard, Column__Transform___readers);$" "$reads" \
    || ! grep -q "^spite_guard_enter_writing(&Column__Transform___guard, Column__Transform___readers);$" "$reads"; then
@@ -853,7 +864,7 @@ if ! grep -q "^int64_t\* spite_reading = spite_read_enter(&Column__Transform___g
 fi
 # D267: while no task is in flight a locked function runs unlocked, and a task it starts takes the lock it skipped.
 unshared="$work/unshared_locks.c"
-"$work/generation_two.exe" conformance/stage6/unshared_locks --run=false --c-source --c-path="$unshared" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/unshared_locks --check --c-source --c-path="$unshared" > /dev/null 2>&1 || {
   echo "FAILED: unshared_locks does not write its C"; exit 1; }
 if ! grep -A1 "^Parallel__Integer\* Ledger_start_posting(Ledger\* self, int32_t count_) {$" "$unshared" \
      | grep -q "^if (spite_skipped_depth < 16 && __atomic_load_n(&spite_tasks_in_flight, __ATOMIC_ACQUIRE) == 0) {$" \
@@ -863,7 +874,7 @@ fi
 # D269: a row borrows a reference column's element when nothing the rest of its block runs can let go of it, holding
 # the column's readers' side for the block in a program with threads; a system that reads the column counts it.
 lent_elements="$work/lent_list_elements_parallel.c"
-"$work/generation_two.exe" conformance/stage6/lent_list_elements_parallel --run=false --c-source --c-path="$lent_elements" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/lent_list_elements_parallel --check --c-source --c-path="$lent_elements" > /dev/null 2>&1 || {
   echo "FAILED: lent_list_elements_parallel does not write its C"; exit 1; }
 if ! grep -q "^#define spite_lend_0_enter() int64_t\* spite_lend_0 = spite_read_enter(&Column__Trail___guard, Column__Trail___readers)$" "$lent_elements" \
    || ! grep -q "^#define spite_lend_0_read(lent, counted, receiver, index) lent(receiver, index)$" "$lent_elements" \
@@ -872,14 +883,14 @@ if ! grep -q "^#define spite_lend_0_enter() int64_t\* spite_lend_0 = spite_read_
 fi
 # D270: a parameter passed on is not counted again; D271: a singleton's attribute nothing reassigns is read in place.
 held="$work/held_arguments.c"
-"$work/generation_two.exe" conformance/stage6/held_arguments --run=false --c-source --c-path="$held" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/held_arguments --check --c-source --c-path="$held" > /dev/null 2>&1 || {
   echo "FAILED: held_arguments does not write its C"; exit 1; }
 if ! grep -q "^int32_t Packer_pack___held_0(Packer\* self, Bag\* bag_, int32_t value_) {$" "$held" \
    || ! grep -q "^int32_t Packer_swap_in___held_1(Packer\* self, Bag\* bag_, Bag\* other_) {$" "$held"; then
   echo "FAILED: held_arguments should pass held bags uncounted, except to the parameter swap_in assigns"; exit 1
 fi
 attribute_reads="$work/singleton_attribute_reads.c"
-"$work/generation_two.exe" conformance/stage6/singleton_attribute_reads --run=false --c-source --c-path="$attribute_reads" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/singleton_attribute_reads --check --c-source --c-path="$attribute_reads" > /dev/null 2>&1 || {
   echo "FAILED: singleton_attribute_reads does not write its C"; exit 1; }
 if ! grep -q "while (((index_ < List_String_count((self->registry_)->names_)))) {" "$attribute_reads" \
    || ! grep -q "Registry___outside_read_enter(); Board\* " "$attribute_reads"; then
@@ -888,7 +899,7 @@ fi
 echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock, a row borrows a reference column's element, a held argument is not counted again, a singleton's fixed attribute is read in place"
 # D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
 # division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no check for it.
-"$work/generation_two.exe" conformance/stage6/division_by_zero --run=false --c-source --c-path="$work/division.c" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/division_by_zero --check --c-source --c-path="$work/division.c" > /dev/null 2>&1 || {
   echo "FAILED: division_by_zero does not write its C"; exit 1; }
 if grep -q "whole / pieces" "$work/division.c" || ! grep -q "total / parts" "$work/division.c"; then
   echo "FAILED: division_by_zero should check 'total / parts' and not the proven 'whole / pieces'"; exit 1
@@ -896,7 +907,7 @@ fi
 echo "division: a proven divisor carries no zero check"
 # Every '.class' a program compares is known once generics are resolved: walked_class_fold tests 'attribute.class'
 # in an attribute walk and 'given == known.class' on an Anything, and its C makes no Spite.Class object at all.
-"$work/generation_two.exe" conformance/stage6/walked_class_fold --run=false --c-source --c-path="$work/walked_class.c" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/walked_class_fold --check --c-source --c-path="$work/walked_class.c" > /dev/null 2>&1 || {
   echo "FAILED: walked_class_fold does not write its C"; exit 1; }
 if grep -q "spite_class_object_" "$work/walked_class.c"; then
   echo "FAILED: walked_class_fold should compare classes without making a Spite.Class object"; exit 1
@@ -907,7 +918,7 @@ echo "class comparisons: a class known while compiling is compared by its id, wi
 # values back from a List<Anything>. The production C holds a copy per class, no general version of either function,
 # no box for a plain value passed straight to them, and a kind_of that tests the class of a value read at run time.
 copies="$work/shape_copies.c"
-"$work/generation_two.exe" conformance/stage6/shape_copies --run=false --c-source --c-path="$copies" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/shape_copies --check --c-source --c-path="$copies" > /dev/null 2>&1 || {
   echo "FAILED: shape_copies does not write its C"; exit 1; }
 if ! grep -q "^SpiteString ShapeCopies_describe___for_0_Integer(ShapeCopies\* self, int32_t item_) {$" "$copies" \
    || ! grep -q "^SpiteString ShapeCopies_kind_of___for_0_Level_Level(ShapeCopies\* self, Level_Level item_) {$" "$copies" \
@@ -917,7 +928,7 @@ if ! grep -q "^SpiteString ShapeCopies_describe___for_0_Integer(ShapeCopies\* se
    || ! grep -q "^SpiteString ShapeCopies_kind_of(ShapeCopies\* self, Nothing_Anything item_) {$" "$copies"; then
   echo "FAILED: shape_copies should call a copy of each function per class, with no general version and no box"; exit 1
 fi
-"$work/generation_two.exe" conformance/stage6/shape_copies --run=false --hot-reload --c-source --c-path="$work/shape_copies_hot.c" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/shape_copies --check --hot-reload --c-source --c-path="$work/shape_copies_hot.c" > /dev/null 2>&1 || {
   echo "FAILED: shape_copies does not write its --hot-reload C"; exit 1; }
 if grep -q "___for_0_" "$work/shape_copies_hot.c"; then
   echo "FAILED: a --hot-reload build should compile a function taking a type as written, with no copies"; exit 1
@@ -927,7 +938,7 @@ echo "shape copies: a function taking a type is compiled per class, with no gene
 # (docs/optimizations.md): tagged_values prints numbers, stores them in a List<Anything> and debugs an enum value,
 # and its production C calls no box maker for any of them; only text made at run time is boxed.
 tagged="$work/tagged_values.c"
-"$work/generation_two.exe" conformance/stage6/tagged_values --run=false --c-source --c-path="$tagged" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/tagged_values --check --c-source --c-path="$tagged" > /dev/null 2>&1 || {
   echo "FAILED: tagged_values does not write its C"; exit 1; }
 if grep -qE "spite_box_(Spite(Integer|Long|Double|Float|Boolean)|TaggedValues_Level)\(" "$tagged" \
    || ! grep -q "^typedef SpiteTagged Nothing_Anything;$" "$tagged" \
@@ -942,7 +953,7 @@ echo "tagged values: a number, Boolean or enum value held as a type is tagged in
 # operator dispatch or box; a --hot-reload build
 # compiles the function as written, its operator a switch over the classes that fit Number.
 numbers="$work/number_parameter.c"
-"$work/generation_two.exe" conformance/stage6/number_parameter --run=false --c-source --c-path="$numbers" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/number_parameter --check --c-source --c-path="$numbers" > /dev/null 2>&1 || {
   echo "FAILED: number_parameter does not write its C"; exit 1; }
 if ! grep -q "^Number_Number NumberParameter_doubled___for_0_Integer(NumberParameter\* self, int32_t value_) {$" "$numbers" \
    || ! grep -q "^Number_Number NumberParameter_larger___for_0_Float_1_Float(NumberParameter\* self, float first_, float second_) {$" "$numbers" \
@@ -950,7 +961,7 @@ if ! grep -q "^Number_Number NumberParameter_doubled___for_0_Integer(NumberParam
    || grep -qE "___general|___operate_|spite_box_|spite_operand_misfit|___for_0_(Double|Short|Byte)" "$numbers"; then
   echo "FAILED: number_parameter should compile doubled and larger per number class, with no general version and no box"; exit 1
 fi
-"$work/generation_two.exe" conformance/stage6/number_parameter --run=false --hot-reload --c-source --c-path="$work/number_parameter_hot.c" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/number_parameter --check --hot-reload --c-source --c-path="$work/number_parameter_hot.c" > /dev/null 2>&1 || {
   echo "FAILED: number_parameter does not write its --hot-reload C"; exit 1; }
 if grep -q "___for_0_" "$work/number_parameter_hot.c" || ! grep -q "^Number_Number Number_Number___operate_add(" "$work/number_parameter_hot.c"; then
   echo "FAILED: a --hot-reload build should compile doubled as written, its '+' a switch over the classes that fit Number"; exit 1
@@ -959,7 +970,7 @@ echo "number parameters: a function taking Number is compiled per number class, 
 # A loop over a list of plain values that cannot change its size reads the count once and its items without a range
 # check (docs/optimizations.md): counted_loops' scale_in_place is a plain C loop the C compiler can vectorise, and
 # scale_into checks the list it writes once, before the loop; add_from, whose counter starts at a parameter, is not.
-"$work/generation_two.exe" conformance/stage6/counted_loops --run=false --c-source --c-path="$work/counted.c" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/counted_loops --check --c-source --c-path="$work/counted.c" > /dev/null 2>&1 || {
   echo "FAILED: counted_loops does not write its C"; exit 1; }
 if ! grep -qE "^spite_temp_[0-9]+\[index_\] = \(spite_temp_[0-9]+\[index_\] \* 2\.0\);$" "$work/counted.c" \
    || ! grep -qE "^if \(spite_temp_[0-9]+ <= spite_temp_[0-9]+\) \{$" "$work/counted.c" \
@@ -968,9 +979,9 @@ if ! grep -qE "^spite_temp_[0-9]+\[index_\] = \(spite_temp_[0-9]+\[index_\] \* 2
 fi
 echo "counted loops: a plain list's loop reads the count once and its items unchecked"
 # D211: live reload watches every folder a program loads, and a loop's check point is one load of a flag.
-"$work/generation_two.exe" conformance/stage6/load_on_build --run=false --hot-reload --c-source --c-path="$work/watched.c" --flavor=salty > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/load_on_build --check --hot-reload --c-source --c-path="$work/watched.c" --flavor=salty > /dev/null 2>&1 || {
   echo "FAILED: load_on_build does not write its C with --hot-reload"; exit 1; }
-"$work/generation_two.exe" conformance/stage3/lists --run=false --repl-port=4000 --c-source --c-path="$work/checked_loops.c" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage3/lists --check --repl-port=4000 --c-source --c-path="$work/checked_loops.c" > /dev/null 2>&1 || {
   echo "FAILED: lists does not write its C with --repl-port"; exit 1; }
 if ! grep -qF 'load_on_build/kitchen\nconformance/stage6/load_on_build/salty\nconformance/stage6/load_on_build/kitchen/garnish/pepper' "$work/watched.c" \
    || ! grep -q "if (__atomic_load_n(&spite_check_point_wanted, __ATOMIC_RELAXED) != 0)" "$work/checked_loops.c"; then
@@ -980,12 +991,12 @@ echo "live reload: every loaded folder is watched, and a loop's check point is o
 # A --hot-reload build keeps every function and, with a REPL, every member template that fits a reachable list:
 # kept_templates (run above with --development) must build that way too, its lists of Parallel and ThreadLocal
 # and its two unrelated dictionaries included (docs/collections.md#how-the-member-templates-are-written).
-"$work/generation_two.exe" conformance/stage6/kept_templates --executable --run=false --hot-reload --repl-port=4000 --executable-path="$work/kept_templates_hot.exe" > "$job_errors" 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/kept_templates --build --hot-reload --repl-port=4000 --executable-path="$work/kept_templates_hot.exe" > "$job_errors" 2>&1 || {
   echo "FAILED: kept_templates does not build with --hot-reload --repl-port"; head -5 "$job_errors"; exit 1; }
 echo "live reload: a build that keeps every function compiles the library's templates it keeps"
 # Maths on constants is worked out while compiling (docs/optimizations.md): every folded_ value in maths_folding is
 # a literal in its C, and the program itself holds each one to the bits the C library computes at run time.
-"$work/generation_two.exe" conformance/stage6/maths_folding --run=false --c-source --c-path="$work/folding.c" > /dev/null 2>&1 || {
+"$work/generation_two.exe" conformance/stage6/maths_folding --check --c-source --c-path="$work/folding.c" > /dev/null 2>&1 || {
   echo "FAILED: maths_folding does not write its C"; exit 1; }
 if grep -E "(float|double) folded_[a-z_]*_ = " "$work/folding.c" | grep -v "_wide_ = " | grep -qE "Spite(Float|Double)_[a-z_0-9]+\(" \
    || ! grep -qE "float folded_sine_ = \(0x1\.[0-9a-f]+p-2f\);" "$work/folding.c"; then
@@ -1003,7 +1014,7 @@ sessions=0
 for wire in .spite/docs/*/wire.txt; do
   [ -f "$wire" ] || continue
   folder=$(dirname "$wire"); name=$(basename "$folder")
-  "$work/generation_two.exe" "$folder" --executable --run=false --repl-port=$port --executable-path="$work/wire_$name.exe" > "$job_errors" 2>&1 || {
+  "$work/generation_two.exe" "$folder" --build --repl-port=$port --executable-path="$work/wire_$name.exe" > "$job_errors" 2>&1 || {
     echo "FAILED wire: $name does not build with --repl-port"; head -5 "$job_errors"; exit 1; }
   "$work/wire_$name.exe" > "$work/wire_$name.txt" 2>&1 < /dev/null &
   served=$!
@@ -1043,7 +1054,7 @@ job_hot_reload() {
 hot_folder="$work/hot_reload/hot_counter"
 [ -d .spite/docs/hot_counter ] || { echo "FAILED live reload: docs/repl.md has no hot_counter program"; exit 1; }
 mkdir -p "$work/hot_reload"; cp -r .spite/docs/hot_counter "$hot_folder"
-"$work/generation_two.exe" "$hot_folder" --executable --run=false --hot-reload --repl-port=$port --executable-path="$work/hot_reload/hot_counter.exe" > "$job_errors" 2>&1 || {
+"$work/generation_two.exe" "$hot_folder" --build --hot-reload --repl-port=$port --executable-path="$work/hot_reload/hot_counter.exe" > "$job_errors" 2>&1 || {
   echo "FAILED live reload: hot_counter does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
 "$work/hot_reload/hot_counter.exe" > "$work/hot_reload/output.txt" 2>&1 < /dev/null &
 served=$!
@@ -1111,7 +1122,7 @@ party_folder="$work/live_party/live_party"
 [ -d .spite/docs/live_party ] || { echo "FAILED moving objects: docs/repl.md has no live_party program"; exit 1; }
 mkdir -p "$work/live_party"; cp -r .spite/docs/live_party "$party_folder"
 party_port=$((port + 2))
-"$work/generation_two.exe" "$party_folder" --executable --run=false --hot-reload --repl-port=$party_port --executable-path="$work/live_party/live_party.exe" > "$job_errors" 2>&1 || {
+"$work/generation_two.exe" "$party_folder" --build --hot-reload --repl-port=$party_port --executable-path="$work/live_party/live_party.exe" > "$job_errors" 2>&1 || {
   echo "FAILED moving objects: live_party does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
 "$work/live_party/live_party.exe" > "$work/live_party/output.txt" 2>&1 < /dev/null &
 party=$!
@@ -1172,7 +1183,7 @@ job_live_enums() {
 enum_folder="$work/live_enum/live_enum"
 mkdir -p "$work/live_enum"; cp -r conformance/stage6/live_enum "$enum_folder"; rm -f "$enum_folder/expected_output.txt"
 enum_port=$((port + 3))
-"$work/generation_two.exe" "$enum_folder" --executable --run=false --hot-reload --repl-port=$enum_port --executable-path="$work/live_enum/live_enum.exe" > "$job_errors" 2>&1 || {
+"$work/generation_two.exe" "$enum_folder" --build --hot-reload --repl-port=$enum_port --executable-path="$work/live_enum/live_enum.exe" > "$job_errors" 2>&1 || {
   echo "FAILED live enums: live_enum does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
 "$work/live_enum/live_enum.exe" > "$work/live_enum/output.txt" 2>&1 < /dev/null &
 enum_program=$!
@@ -1220,7 +1231,7 @@ job_live_settings() {
 settings_folder="$work/live_settings/live_settings"
 mkdir -p "$work/live_settings"; cp -r conformance/stage6/live_settings "$settings_folder"; rm -f "$settings_folder/expected_output.txt"
 settings_port=$((port + 5))
-"$work/generation_two.exe" "$settings_folder" --executable --run=false --hot-reload --repl-port=$settings_port --executable-path="$work/live_settings/live_settings.exe" > "$job_errors" 2>&1 || {
+"$work/generation_two.exe" "$settings_folder" --build --hot-reload --repl-port=$settings_port --executable-path="$work/live_settings/live_settings.exe" > "$job_errors" 2>&1 || {
   echo "FAILED live settings: live_settings does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
 "$work/live_settings/live_settings.exe" --volume=7 > "$work/live_settings/output.txt" 2>&1 < /dev/null &
 settings_program=$!
@@ -1268,7 +1279,7 @@ job_load_order() {
 order_folder="$work/live_load_order/live_load_order"
 mkdir -p "$work/live_load_order"; cp -r conformance/stage6/live_load_order "$order_folder"; rm -f "$order_folder/expected_output.txt"
 order_port=$((port + 7))
-"$work/generation_two.exe" "$order_folder" --executable --run=false --hot-reload --repl-port=$order_port --executable-path="$work/live_load_order/live_load_order.exe" > "$job_errors" 2>&1 || {
+"$work/generation_two.exe" "$order_folder" --build --hot-reload --repl-port=$order_port --executable-path="$work/live_load_order/live_load_order.exe" > "$job_errors" 2>&1 || {
   echo "FAILED load order: live_load_order does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
 "$work/live_load_order/live_load_order.exe" > "$work/live_load_order/output.txt" 2>&1 < /dev/null &
 order_program=$!
@@ -1341,7 +1352,7 @@ func tick(amount: Integer) {
 }
 SPITE
 break_port=$((port + 4))
-"$work/generation_two.exe" "$break_folder" --executable --run=false --hot-reload --repl-port=$break_port --executable-path="$work/live_break/ticker.exe" > "$job_errors" 2>&1 || {
+"$work/generation_two.exe" "$break_folder" --build --hot-reload --repl-port=$break_port --executable-path="$work/live_break/ticker.exe" > "$job_errors" 2>&1 || {
   echo "FAILED breakpoints: the ticker does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
 "$work/live_break/ticker.exe" > "$work/live_break/output.txt" 2>&1 < /dev/null &
 ticker=$!
@@ -1435,7 +1446,7 @@ for seed_folder in bootstrap/seed/*/; do
   if [ "$seed_system" != "$system" ]; then
     written="$work/seed_$seed_system.c"
     rm -f .spite/build/bootstrap/bootstrap.c
-    "$work/generation_two.exe" bootstrap --run=false --c-source --target-operating-system="$seed_system" &&
+    "$work/generation_two.exe" bootstrap --check --c-source --target-operating-system="$seed_system" &&
       cp .spite/build/bootstrap/bootstrap.c "$written" || { echo "FAILED: generation 2 could not write the seed for $seed_system"; exit 1; }
   fi
   if ! cmp -s "$written" "$seed_folder/spite_compiler.c"; then

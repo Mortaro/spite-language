@@ -7,7 +7,7 @@
 # which only compiles them. Run from anywhere:
 #   bash benchmarks/versus_c/run.sh [compiler] [program ...]
 # The compiler defaults to .spite/spite_development.exe, the one check.sh last built. SPITE_FLAGS is added
-# to the Spite build and C_FLAGS to the C build, so --tune-for-this-machine is compared with -march=native.
+# to the Spite build and C_FLAGS to the C build.
 cd "$(dirname "$0")/../.." || exit 1
 compiler=${1:-.spite/spite_development.exe}
 shift
@@ -41,7 +41,7 @@ printf "| %-18s | %10s | %10s | %7s |\n" "program" "Spite µs" "C µs" "Spite/C"
 printf "|%s|%s|%s|%s|\n" "--------------------" "------------" "------------" "---------"
 for name in "${names[@]}"; do
     folder="benchmarks/versus_c/$name"
-    "$compiler" "$folder" --executable --run=false --optimized $SPITE_FLAGS --executable-path="$work/${name}_spite.exe" > "$work/$name.log" 2>&1 || {
+    "$compiler" "$folder" --build --optimized $SPITE_FLAGS --executable-path="$work/${name}_spite.exe" > "$work/$name.log" 2>&1 || {
         echo "FAILED: $name does not build"; head -5 "$work/$name.log"; continue; }
     "$CC_BIN" -O3 $C_FLAGS -w "$folder/twin.c" -o "$work/${name}_c.exe" $maths_library 2> "$work/$name.log" || {
         echo "FAILED: $name/twin.c does not build"; head -5 "$work/$name.log"; continue; }

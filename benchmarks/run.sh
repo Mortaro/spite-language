@@ -25,7 +25,7 @@ names=("$@")
 [ ${#names[@]} -eq 0 ] && names=(fused_chain dictionary_keys number_keys text_building reflection_walks function_values small_allocations parallel_calls stress console_lines vector_items serialisation vector_rows sparse_rows maths_stopgaps game_maths half_precision items_storage lent_arguments matched_rows plain_loops bulk_removal singleton_locks singleton_reads singleton_unshared lent_elements held_arguments singleton_attributes)
 printf "| %-18s | %8s | %12s | %s\n" "benchmark" "best ms" "allocations" "output"
 for name in "${names[@]}"; do
-    "$compiler" "benchmarks/$name" --run=false --c-source --c-path="$work/$name.c" > "$work/$name.log" 2>&1 || {
+    "$compiler" "benchmarks/$name" --check --c-source --c-path="$work/$name.c" > "$work/$name.log" 2>&1 || {
         echo "FAILED: $name does not compile"; head -5 "$work/$name.log"; continue; }
     "$CC" -O2 -w "$work/$name.c" -o "$work/$name.exe" $maths_library 2> "$work/$name.log" || {
         echo "FAILED: $name's C does not compile"; head -5 "$work/$name.log"; continue; }
@@ -39,7 +39,7 @@ for name in "${names[@]}"; do
     done
     # the program built again with --debug-memory's table, which only that build's C carries, for the number of
     # allocations it makes
-    "$compiler" "benchmarks/$name" --run=false --c-source --debug-memory --c-path="$work/${name}_counted.c" > "$work/$name.log" 2>&1 || continue
+    "$compiler" "benchmarks/$name" --check --c-source --debug-memory --c-path="$work/${name}_counted.c" > "$work/$name.log" 2>&1 || continue
     "$CC" -O2 -w "$work/${name}_counted.c" -o "$work/${name}_counted.exe" $maths_library 2> "$work/$name.log" || continue
     allocations=$("$work/${name}_counted.exe" 2>&1 | tr -d '\r' | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1/')
     printf "| %-18s | %8s | %12s | %s\n" "$name" "$best" "$allocations" "$output"

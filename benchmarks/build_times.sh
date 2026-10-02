@@ -5,7 +5,7 @@
 # With no program named it times the compiler itself (bootstrap) and a generated program of about 200 000 lines
 # (written to .spite/build_times/synthetic by the awk below); name another folder (a copy of an engine's
 # example, say) to time that too. Every build is timed four ways, with and without --optimized:
-#   one file   --translation-units=1, the whole C in one file and one C compiler process, as before
+#   one file   SPITE_TRANSLATION_UNITS=1, the whole C in one file and one C compiler process, as before
 #   cold       translation units, with the object cache emptied first
 #   warm       the same build again: every unit's object is found in the cache, only the link runs
 #   one edit   then one function body changed (its last `+ 1` made `+ 2`), and built again
@@ -87,8 +87,8 @@ printf "|%s|%s|%s|%s|%s|%s|\n" "--------------" "-------------" "-----------" "-
 for program in "${programs[@]}"; do
     name=$(basename "$program")
     for optimized in false true; do
-        flags="--executable --run=false --optimized=$optimized --executable-path=$repository/$work/$name.exe"
-        one_file=$(milliseconds "$compiler" "$program" $flags --translation-units=1)
+        flags="--build --optimized=$optimized --executable-path=$repository/$work/$name.exe"
+        one_file=$(SPITE_TRANSLATION_UNITS=1 milliseconds "$compiler" "$program" $flags)
         rm -rf .spite/objects
         cold=$(milliseconds "$compiler" "$program" $flags)
         warm=$(milliseconds "$compiler" "$program" $flags)

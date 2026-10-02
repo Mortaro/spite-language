@@ -1,0 +1,5 @@
+var console = Console()
+
+func RemovedExecutableFlag() {
+    console.print("never compiled")
+}

@@ -1,5 +1,5 @@
 serving: given to the compiler, so the other branch was never generated
-workers 3 name server run true
+workers 3 name server check false
 the name was read when the program ran
 --worker-stack-size set worker_stack_size to 256
 built for the system that compiled it

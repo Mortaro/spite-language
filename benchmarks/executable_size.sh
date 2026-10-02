@@ -25,7 +25,7 @@ names=("$@")
 printf "| %-24s | %12s | %10s |\n" "program" "bytes" "functions"
 for name in "${names[@]}"; do
     base=$(basename "$name")
-    "$compiler" "$name" --optimized --run=false --executable --c-source --c-path="$work/$base.c" --executable-path="$work/$base.exe" > "$work/$base.log" 2>&1 || {
+    "$compiler" "$name" --optimized --build --c-source --c-path="$work/$base.c" --executable-path="$work/$base.exe" > "$work/$base.log" 2>&1 || {
         echo "FAILED: $name does not build"; head -5 "$work/$base.log"; continue; }
     bytes=$(wc -c < "$work/$base.exe")
     functions=$(grep -cE '^[A-Za-z_][A-Za-z_0-9]*\*? [A-Za-z_][A-Za-z_0-9]*\(.*\) \{' "$work/$base.c")

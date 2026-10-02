@@ -196,21 +196,11 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Compiler driver and outputs (D327, D348, D349, D356, D361, D366, D369 items 134 and 138)
 
-- **C1 `--check` and `--build` replace `--run=false`** (D348). `--check` writes no C and no executable; a build
-  never leaves a stale executable. Files: `bootstrap.spite`, `library/build.spite`, `bin/spite`, `check.sh`, docs
-  and the skill's command table. **S.** No dependencies.
 - **C2 `--format` replaces `spite format`** (D369 item 138). Remove the `format` subcommand from `bin/spite` (lines
   79 to 88) and the compiler's `format` mode; `spite game --format` rewrites files without building. What
-  `--format --check` means is Q11. **S.** Depends on C1.
-- **C3 `--c-source` leaves the moron's flags** (D369 item 134). Kept as the compiler's own debugging output
-  (`check.sh` uses it), gone from usage text, docs and the skill. **S.** No dependencies.
-- **C4 Translation units and machine tuning stop being settings** (D349). Remove `tune_for_this_machine` and
-  `translation_units` from `library/build.spite`; the compiler chooses units by measurement and tunes default and
-  hot-reload builds for the building machine, `--optimized` stays portable. Files: `bootstrap.spite`,
-  `bootstrap/source/translation/*.spite`, `check.sh` (passes `--translation-units`). **M.** Depends on landing
-  `wip/fastbuild`.
+  `--format --check` means is Q11. **S.** No dependencies (C1 is built).
 - **C5 `--optimized` level by measurement, from `-O2`** (D356). Today `-O3` (`bootstrap.spite` lines 902 to 925).
-  **S** for `-O2`, **M** for the measurement (Q12). Depends on landing `wip/fastbuild`.
+  **S** for `-O2`, **M** for the measurement (Q12). No dependencies (`wip/fastbuild` has landed).
 - **C6 The object cache cleans itself** (D327). LRU eviction of `.spite/objects` past a size cap. Files:
   `bootstrap/source/translation/unit_build.spite`. **S.** No dependencies.
 - **C7 `--final-classes` shows the winning source** (D366, open question 10, status "Final classes"). Each final
@@ -338,7 +328,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Skills and docs
 
-- **D1 `skills/spite/` kept current.** `reference.md` still teaches `--run=false`, `spite format`, `Weak<T>`,
+- **D1 `skills/spite/` kept current.** `reference.md` still teaches `spite format`, `Weak<T>`,
   `Symbol<...>` walks, `$T.has_function(...)`, `function_waits(...)`, `names.map(measure)`, enum reopening that
   appends, and `get_at` beside `[]`. Each item above updates it in the same commit; a first pass now fixes what is
   already decided and built (D315 once landed, `map_members`, `filter_files`, `to_<type>()`). **S** now, then part
@@ -356,9 +346,9 @@ and formatting patterns (time.md); running and testing the macOS folders.
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R2, R3, R6, R8, M1, M2, M4, M6, M7, N1, N3, N4, E1, E2, E4, L1, L4, L5, L6, L7, C1, C3, C6,
+2. No dependencies: R2, R3, R6, R8, M1, M2, M4, M6, M7, N1, N3, N4, E1, E2, E4, L1, L4, L5, L6, L7, C2, C5, C6,
    C7, K1, K2, F3, S4, S8, S9, P1, P2, X1, B1 to B16, D1's first pass.
-3. After step 2: R5 (Q1), L2 (L1), C2 (C1), C4 and C5 (fastbuild), S7 (operators), P3 (linux), K3 (with K2), C8
+3. After step 2: R5 (Q1), L2 (L1), S7 (operators), P3 (linux), K3 (with K2), C8
    (K1), N2 (N1), K6 (K2), E3 (Q2).
 4. After R5: R1, J1, L3, R4 (with S7).
 5. After J1: J2, S5. After L3: F1 (Q3), S6 (with L4). After F1: F2.
@@ -382,7 +372,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 2 Types and storage | M2, M1, M7, M4, M3, then M6 and M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
 | 3 Arithmetic | N4, N3, N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E2, E1, E4, E3 (after Q2), E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
-| 5 Driver and toolchain | C1, C3, C2, C6, C4, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
+| 5 Driver and toolchain | C2, C6, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
 | 6 Waiting, IO and library | K1, F3, S4, S8, K2, K3, K6, S7, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
 | 7 Language rules | L4, L6, L5, L1, L2, L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | P1, P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |

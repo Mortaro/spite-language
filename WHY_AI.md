@@ -48,7 +48,7 @@ designed so a moron's code still comes out correct and fast. That is the case fo
 - Every error of the program is reported in one run as `path:line: error: message (in Class.function)`.
 - The message says what to write. Example: a `while` that only sums a member is refused with
   `write 'var total = items.sum_price()'`. A `T?` used without a check names the three ways to narrow it.
-- Iterate by compiling (`spite program --run=false`) and applying each message literally.
+- Iterate by compiling (`spite program --check`) and applying each message literally.
 
 ## Crash reports that show memory, not prose
 

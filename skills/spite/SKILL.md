@@ -18,7 +18,7 @@ it lists costs a compile round trip to rediscover. The full documentation is
 
 1. Write the plain, readable version. Do not hand-optimise: the compiler fuses chains, specialises generics,
    places memory and removes what is unused on its own.
-2. Compile with `spite program --run=false` (a program is a folder: `spite game`, never `spite game/game.spite`).
+2. Compile with `spite program --check` (a program is a folder: `spite game`, never `spite game/game.spite`).
    Every compile rewrites your files into the one style first, so read the file back before editing it again.
 3. Every error of the program comes in one run, as `path:line: error: message (in Class.function)`. Each one says
    what to write instead: write that, and nothing cleverer.

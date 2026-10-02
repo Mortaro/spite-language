@@ -59,7 +59,6 @@ starting the process (slow and noisy on Windows) is not counted, and both must p
 
 ```
 bash benchmarks/versus_c/run.sh [compiler] [program ...]
-SPITE_FLAGS=--tune-for-this-machine C_FLAGS=-march=native bash benchmarks/versus_c/run.sh
 ```
 
 The Spite side is built with `--optimized`, the C side with `-O3`; the ratio is Spite's time over C's, so 1.00 is
@@ -74,7 +73,7 @@ while other sessions were compiling on it:
 | `text_building`: 3 million appends, a million words joined | 157 732 | 97 193 | 1.62 | 1.70 |
 | `sorting`: quicksort of 2 million `Integer`s in a `List<Integer>` | 164 259 | 126 411 | 1.30 | 1.36 |
 
-"tuned" is both sides with `-march=native` (`--tune-for-this-machine`), which sped both sides up by about the same
+"tuned" is both sides with `-march=native`, measured when a release build could still be tuned for the machine (it now stays portable), which sped both sides up by about the same
 (particles 10-15%, the rest within the noise), so the ratios hardly move. What the ratios say: a plain loop over a
 `Vector` of items is C (1.06). `Vector3` is a class, so every `scaled`, `+`, `cross` and `normalized` allocated its
 answer, and that was four times C (290 598 µs, 4.33); since escape analysis puts an answer that never leaves its
@@ -95,7 +94,7 @@ The Spite programs' own C (`--c-source`), built at each optimisation level, best
 | `text_building` | 496 976 | 178 327 | 155 558 | 160 818 |
 | `sorting` | 496 780 | 164 525 | 167 291 | 165 973 |
 
-The compiler compiling itself (`spite bootstrap --run=false`), best of five, in CPU milliseconds (the process's own
+The compiler compiling itself (`spite bootstrap --check`), best of five, in CPU milliseconds (the process's own
 time, since starting a process took up to two seconds on the loaded machine):
 
 | the compiler built | CPU ms |
@@ -217,7 +216,7 @@ Each step is one commit; `before` is the compiler before it. Best of nine interl
 | stress | 190 | 200 | 150 049 | 150 049 |
 
 Only `fused_chain` walks a list of objects through a template, and it is the one that moved; the rest is noise.
-Compiling the compiler (`spite bootstrap --run=false --c-source`, the compiler built with `clang -O1`, best of
+Compiling the compiler (`spite bootstrap --check --c-source`, the compiler built with `clang -O1`, best of
 seven): 2 352 ms before this work, 2 198 ms after step 1, 1 953 ms after step 2. Finding a class by its name
 or its C name was a walk over every class, and is now one dictionary lookup.
 
