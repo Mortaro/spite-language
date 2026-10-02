@@ -1,0 +1,1 @@
+diagnostics/spinning_loop/spinning_loop.spite:6: error: this 'while true' never ends: nothing inside it returns, asserts or crashes, and it calls nothing, so the program would spin here for good: leave it with a 'return' ('if done { return }'), or loop 'while' a condition (in SpinningLoop.SpinningLoop)

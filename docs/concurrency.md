@@ -288,8 +288,9 @@ each load took a frame of its own: true
 ```
 
 The `program.sleep(1)` in the frame never resumes the loads; only `run_ready()` does. That also means a loop that
-polls `finished` and never calls `run_ready()` never ends, since nothing moves the `Concurrent` on. It is the one
-mistake this mode allows. Which systems to start this way is asked while compiling, with
+polls `finished` and never calls `run_ready()` could never end, since nothing moves the `Concurrent` on, so it
+halts instead: a `Concurrent` found unfinished a million times in a row while no `Concurrent` was stepped stops the
+program with a crash report at the scheduler's count. Which systems to start this way is asked while compiling, with
 `$system_type.functions['update_each'].is_resumable` ([metaprogramming.md](metaprogramming.md#asking-a-question-while-compiling)),
 so a system never says that it does IO.
 
@@ -342,6 +343,16 @@ to make or pass around. The workers take work in the order it was started. Readi
 picked up yet runs it on the reading thread instead of waiting behind the queue, so a `Parallel` started from
 inside another one cannot wait for a worker that is busy waiting for it. At exit the pool finishes what is queued
 and stops its threads.
+
+**Work that can never finish is a compile error.** A pool thread is lent to a piece of work until it returns, so
+work that runs forever takes a thread away for good, and there is no `Thread(function)` for it: a loop tied to
+one thread (a window's messages) runs on the program's own thread as one step per frame, and whatever waits
+(accepting connections, reading a socket) waits through a call that gives its thread back. So a `while true` with
+no `return`, `assert` or `crash` inside it, in the function a `Parallel` runs or in any function that work
+reaches, whose function never waits, is `'Parallel(counter.count_forever)' runs 'Counter.count_forever' on the
+thread pool, and this loop never ends and never waits, so the work never finishes and keeps its thread for good:
+return from the loop once the work is done, or run the loop on the program's own thread`
+(`diagnostics/endless_parallel_work`). It is reported at the loop, once per function.
 
 | `ThreadPool()` | |
 |---|---|
@@ -797,7 +808,7 @@ carries none of it; the compiler's side of each is on
 | The program | Carries at run time |
 |---|---|
 | uses none of it | nothing: no scheduler, no state machine, no helper thread, no pool, no lock, plain reference counts; every wait is the plain blocking call |
-| makes a `Concurrent`, or has two reads in a row | the `Scheduler` singleton and its event loop; a second, resumable copy of each function a `Concurrent` reaches that waits (the plain copy is dropped when nothing calls it); one heap frame per waiting call made inside a `Concurrent`; one short-lived operating-system thread per blocking call made while something else could run; atomic reference counts everywhere |
+| makes a `Concurrent`, or has two reads in a row | the `Scheduler` singleton and its event loop; a second, resumable copy of each function a `Concurrent` reaches that waits (the plain copy is dropped when nothing calls it); one heap frame per waiting call made inside a `Concurrent`; one short-lived operating-system thread per blocking call made while something else could run; atomic reference counts everywhere; one count the scheduler adds to at each read of `finished` that answers `false` and clears at each step |
 | makes a `Parallel` or runs a `parallel_each_` pass | the `ThreadPool` singleton, whose workers start at the first `Parallel` and never again; about two dozen allocations per `Parallel` and one per pass; atomic reference counts everywhere; for each program singleton a `Parallel` can reach and that changes, atomics or a lock per call (about 2 ns when one thread takes it, far more when several contend: [what it costs](#what-a-singletons-lock-costs)), or one per counted loop of calls |
 | calls `Scheduler().resume_only_when_asked()` or `run_ready()` | one `Boolean` the scheduler reads at each wait, and each function it calls; neither is there otherwise |
 | makes a `ThreadLocal` or a `Lock` | one system per-thread slot or lock each, freed with it |
@@ -886,6 +897,14 @@ It is the program's one pool: any code hands work to it by `Parallel(function)` 
 never blocks and whose value joins on first use; no submission starts an operating-system thread of its own, and
 there is no second pool to create or pass around.
 
+- **Work that never finishes.** For each `Parallel(function)` in the program's own code (not `library/`), every
+  function the work reaches through calls whose class is known is read for a `while true` with no `return`,
+  `assert` or `crash` anywhere inside it. Such a loop in a function that never waits (none of its calls reaches a call that waits and gives
+  its thread back, such as a socket read) is the error at the loop, once per function:
+  `'Parallel(<work>)' runs '<Class>.<function>' on the thread pool, and this loop never ends and never waits, so the
+  work never finishes and keeps its thread for good: return from the loop once the work is done, or run the loop
+  on the program's own thread` (`diagnostics/endless_parallel_work`). A function that waits anywhere is left alone,
+  as is a loop that can leave. Checked while compiling; nothing runs for it.
 - **Size and start.** The first `Parallel` starts one worker thread for every core but one
   (`GetActiveProcessorCount`, `sysconf`), at least one; the program's own thread keeps the last core. It never
   starts another, and a program that makes no `Parallel` starts none. `size()` says how many; `worker_index()`
@@ -1034,8 +1053,12 @@ functions for a program that wants `Concurrent`s to resume only between its own 
   state machine (reading its value or dropping it), which steps every frame until that one has finished,
   because it may be waiting on another `Concurrent`: a join never waits for a loop the program has stopped.
   Inside a state machine a wait is a point it returns from, as before.
-- **Not detected:** a loop that polls `finished` and never calls `run_ready()` does not end. It is not a deadlock
-  the scheduler can see (the program is running), so it is documented rather than caught.
+- **A poll that can never see the end halts.** Every read of `finished` that answers `false` counts, and stepping
+  any `Concurrent` (`run_ready()`, a join, or a wait that resumes them) sets the count back to zero. Between two
+  steps a `Concurrent` cannot move, so a loop that polls `finished` without stepping one, under
+  `resume_only_when_asked()` or with no wait in it at all, could only spin forever: at a million polls in a row
+  it halts with `spite.crash ... library/scheduler.spite:<line> Scheduler polled_unfinished
+  unfinished_polls_with_no_frame_stepped=1000000` (`check.sh`, "polling").
 - `conformance/stage6/frames_between_waits`: an engine-shaped loop whose stages join a `Parallel`, sleep and
   write to a socket while a `Concurrent` reads that socket with `read_bytes` three times; the reader resumes only
   at `run_ready()`, never inside a stage. Without `resume_only_when_asked()` the same program's reader resumes

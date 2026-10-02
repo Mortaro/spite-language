@@ -1,0 +1,14 @@
+var console = Console()
+var w = 2.0
+
+func AxisNames() {
+    var x = 3.0
+    var y = 4.0
+    var point = Vector3(x, y, w)
+    var z = scaled_z(point, w)
+    console.print("{point.x} {point.y} {z}")
+}
+
+func scaled_z(vector: Vector3, factor: Float): Float {
+    return vector.z * factor
+}

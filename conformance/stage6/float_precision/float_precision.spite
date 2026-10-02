@@ -1,0 +1,38 @@
+var console = Console()
+
+func FloatPrecision() {
+    var tenth: Float = 0.1
+    var same = tenth == 0.1
+    var scaled = tenth * 3.0
+    var below = scaled < 0.3
+    console.print("tenth", tenth, "equal", same, "scaled", scaled, "below", below)
+    var wide: Double = 0.1
+    var wide_same = wide == 0.1
+    console.print("wide", wide, "equal", wide_same)
+    var values = [0.5, 1.5, 0.5, 2.5]
+    var total = add_up(values)
+    var halves = count_halves(values)
+    console.print("total", total, "halves", halves)
+}
+
+func add_up(values: List<Float>): Float {
+    var total = 0.0
+    var index = 0
+    while index < values.count() {
+        total = total + values[index] * 2.0
+        index = index + 1
+    }
+    return total
+}
+
+func count_halves(values: List<Float>): Integer {
+    var count = 0
+    var index = 0
+    while index < values.count() {
+        if values[index] == 0.5 {
+            count = count + 1
+        }
+        index = index + 1
+    }
+    return count
+}

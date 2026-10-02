@@ -1,0 +1,13 @@
+var level = 0
+
+func Lamp(start: Integer) {
+    level = start
+}
+
+func brighter(): Integer {
+    return level + 1
+}
+
+func dimmer(): Integer {
+    return level - 1
+}

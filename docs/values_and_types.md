@@ -202,6 +202,13 @@ its function is the source's `to_<type>()`, so `count.to_float()` is the call fo
 `registry.append(this)`. Reading your own members through it is an error, because a class already reads them by
 name: write `name`, not `this.name`.
 
+A decimal is worked out for speed, and its last bits are never a promise. A decimal literal is a `Float`, so
+`tenth * 3.0` with a `Float` `tenth` multiplies in `Float` precision, and `tenth == 0.1` is `true` after `var tenth:
+Float = 0.1`. Inside a loop the compiler may fuse a multiply and an add into one step and add up a sum in another
+order, which is what lets a loop over decimals run several at a time; `Float.not_a_number` and the infinities still
+behave as they always do. A loop that compares decimals with `==` or `!=` keeps every step in the order written,
+so what an exact comparison sees is exact.
+
 ### Bitwise functions
 
 There are no bitwise operator symbols. Every whole-number class (`Tiny` to `UnsignedLong`, not `Float`, `Double`
@@ -1219,6 +1226,16 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   error: `this.name` is "a class reads its own attributes by name: write 'name', not 'this.name'", and
   `this.to_string()` is "a class calls its own functions by name: write 'to_string()', not 'this.to_string()'".
 - A decimal literal is a decimal in what is emitted (`1.0`, not `1`), so `1.0 / 3.0` divides as decimals.
+- **A decimal literal beside a `Float` is a `Float`**: an operator or comparison whose one side is a decimal literal
+  (or its negation) and whose other side is a `Float` that is not a literal works in `Float` precision, so after
+  `var tenth: Float = 0.1`, `tenth == 0.1` is `true`. Beside a `Double` the literal is a `Double`, and two literals
+  together keep the precision of a `Double` until they are stored (`conformance/stage6/float_precision`).
+- **The last bits of a decimal result are never a guarantee.** In a loop whose count is read once
+  ([optimizations.md](optimizations.md#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked)), the
+  compiler lets the C compiler fuse a multiply and an add and reorder a sum of decimals; not-a-number and the
+  infinities still come out where they did. A loop that compares a decimal with
+  `==` or `!=` (or a value whose type the compiler does not know there) keeps its operations as written, so an
+  exact comparison sees exact values; nothing that writes to a file can run inside such a loop.
 - **Every number class fits the library's `type Number`** (`library/number.spite`): `sum`, `subtract`, `multiply`,
   `divide`, `less_than` and `greater_than`, each taking and answering the class itself (`Boolean` for the two
   comparisons), and `to_long(): Long` and `to_double(): Double`. A number class declares no function for an

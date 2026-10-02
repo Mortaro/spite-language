@@ -806,6 +806,7 @@ func parse_switch_case_body(): List<Syntax.Statements.Statement> {
 }
 
 func parse_assert_statement(): Syntax.Statements.Statement {
+    var column = current().column
     advance()
     var first_token = position
     var value = parse_expression()
@@ -813,10 +814,12 @@ func parse_assert_statement(): Syntax.Statements.Statement {
     consume_statement_terminator()
     var statement = Syntax.Statements.AssertStatement(value)
     statement.condition_text = condition_text
+    statement.column = column
     return statement
 }
 
 func parse_crash_statement(): Syntax.Statements.Statement {
+    var column = current().column
     advance()
     var value: Syntax.Expressions.Expression = Syntax.Expressions.FalseLiteral()
     var first_token = position
@@ -828,6 +831,7 @@ func parse_crash_statement(): Syntax.Statements.Statement {
     var statement = Syntax.Statements.AssertStatement(value)
     statement.is_crash = true
     statement.condition_text = condition_text
+    statement.column = column
     return statement
 }
 

@@ -20,18 +20,10 @@ func show_copies() {
     var snapshot = original.copy()
     var deep = original.deep_copy()
     var during = heap.live_allocations()
-    snapshot.x_value = 10.0
+    snapshot.x = 10.0
     deep.move_by(snapshot)
     var total = snapshot.length_squared() + deep.length_squared()
-    console.print(
-        "copies made on the heap:",
-        during - before,
-        "total",
-        total,
-        "original",
-        original.x_value,
-        original.y_value,
-    )
+    console.print("copies made on the heap:", during - before, "total", total, "original", original.x, original.y)
 }
 
 func stepped(count: Integer): Point {
@@ -67,7 +59,7 @@ func show_sections() {
 func show_sharing() {
     var first = Point(1.0, 1.0)
     var second = first
-    second.x_value = 5.0
+    second.x = 5.0
     console.print("shared:", first, second)
 }
 

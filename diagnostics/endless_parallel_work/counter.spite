@@ -1,0 +1,19 @@
+var console = Console()
+
+func count_forever(): Integer {
+    var counted = 0
+    while true {
+        counted = counted + 1
+        console.print(counted)
+    }
+}
+
+func count_to_ten(): Integer {
+    var counted = 0
+    while true {
+        counted = counted + 1
+        if counted == 10 {
+            return counted
+        }
+    }
+}

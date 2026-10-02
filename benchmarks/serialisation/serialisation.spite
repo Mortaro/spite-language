@@ -94,11 +94,5 @@ func binary_units(bytes: List<Byte>): Integer {
 }
 
 func text_size(texts: List<String>): Long {
-    var size: Long = 0
-    var index = 0
-    while index < texts.count() {
-        size = size + texts[index].length()
-        index = index + 1
-    }
-    return size
+    return texts.sum_length()
 }

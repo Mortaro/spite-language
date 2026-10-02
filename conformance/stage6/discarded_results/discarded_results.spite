@@ -1,0 +1,14 @@
+var console = Console()
+var grid = Grid()
+
+func DiscardedResults() {
+    grid[1] = 5
+    shared()[3] = 4
+    shared().label = "kept"
+    var label = grid.label
+    console.print(grid.total, label, grid.changes)
+}
+
+func shared(): Grid {
+    return grid
+}

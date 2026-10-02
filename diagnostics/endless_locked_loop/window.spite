@@ -1,10 +1,12 @@
 singleton
 
+var console = Console()
 var drawn = 0
 
 func run() {
     while true {
         drawn = drawn + 1
+        console.print(drawn)
     }
 }
 

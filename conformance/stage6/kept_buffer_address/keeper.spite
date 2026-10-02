@@ -1,0 +1,9 @@
+var longs = TypedMemory<Long>()
+var last: Memory.Address = 0
+var writes = 0
+
+func write_value(address: Memory.Address, index: Integer, value: Long) {
+    last = address
+    longs.write_value(address, index, value)
+    writes = writes + 1
+}

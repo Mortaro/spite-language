@@ -1,0 +1,24 @@
+var stem = ""
+var last_used: Long = 0
+var newest_change: Long = 0
+var marked = false
+var bytes: Long = 0
+var names = List<String>()
+
+func CachedStem(starting_stem: String) {
+    stem = starting_stem
+}
+
+func record(name: String, size: Long, changed: Long) {
+    names.append(name)
+    bytes = bytes + size
+    if name.ends_with(".used") {
+        marked = true
+        last_used = changed
+    } else if changed > newest_change {
+        newest_change = changed
+    }
+    if not marked {
+        last_used = newest_change
+    }
+}

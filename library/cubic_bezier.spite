@@ -8,14 +8,14 @@ var end_x: Float = 1.0
 var end_y: Float = 1.0
 
 func CubicBezier(start: Vector2, first_handle: Vector2, second_handle: Vector2, end: Vector2) {
-    start_x = start.x_value
-    start_y = start.y_value
-    first_handle_x = first_handle.x_value
-    first_handle_y = first_handle.y_value
-    second_handle_x = second_handle.x_value
-    second_handle_y = second_handle.y_value
-    end_x = end.x_value
-    end_y = end.y_value
+    start_x = start.x
+    start_y = start.y
+    first_handle_x = first_handle.x
+    first_handle_y = first_handle.y
+    second_handle_x = second_handle.x
+    second_handle_y = second_handle.y
+    end_x = end.x
+    end_y = end.y
 }
 
 func point_at(amount: Float): Vector2 {

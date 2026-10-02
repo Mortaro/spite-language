@@ -7,6 +7,8 @@ var cache_folder = ""
 var running_limit = 4
 var compiled_units = 0
 var reused_units = 0
+var cache_limit: Long = 1073741824
+var used_stems = List<String>()
 
 func UnitBuild(compiler: String, folder: String) {
     c_compiler = compiler
@@ -15,7 +17,9 @@ func UnitBuild(compiler: String, folder: String) {
 
 func built(header_code: String, units: List<String>, output_path: String): Boolean {
     var header_text = "{header_code}\n"
-    var header_name = "{hash_of(header_text)}.h"
+    var header_stem = hash_of(header_text)
+    var header_name = "{header_stem}.h"
+    mark_used(header_stem)
     write_once("{cache_folder}/{header_name}", header_text)
     var settings = "{c_compiler} {compile_arguments.join(" ")}"
     var objects = List<String>()
@@ -26,6 +30,7 @@ func built(header_code: String, units: List<String>, output_path: String): Boole
         var key = hash_of("{settings}\n{unit_source}")
         var object_path = "{cache_folder}/{key}.o"
         objects.append(object_path)
+        mark_used(key)
         if not File(object_path).exists() and not missing.contains(key) {
             write_once("{cache_folder}/{key}.c", unit_source)
             missing.append(key)
@@ -37,7 +42,76 @@ func built(header_code: String, units: List<String>, output_path: String): Boole
     if not compiled_all(missing) {
         return false
     }
-    return linked(objects, output_path)
+    var linked_all = linked(objects, output_path)
+    evict_least_recently_used()
+    return linked_all
+}
+
+# ../docs/compiler.md#translation-units-the-c-compiled-in-parallel-and-cached
+func mark_used(stem: String) {
+    used_stems.append(stem)
+    File("{cache_folder}/{stem}.used").write("1")
+}
+
+func evict_least_recently_used() {
+    var stems = cached_stems()
+    var total: Long = 0
+    var index = 0
+    while index < stems.count() {
+        total = total + stems[index].bytes
+        index = index + 1
+    }
+    var oldest_first = stems.sort_by_last_used()
+    index = 0
+    while total > cache_limit and index < oldest_first.count() {
+        var cached = oldest_first[index]
+        if not used_stems.contains(cached.stem) {
+            remove_stem(cached)
+            total = total - cached.bytes
+        }
+        index = index + 1
+    }
+}
+
+func cached_stems(): List<CachedStem> {
+    var stems = List<CachedStem>()
+    var folder = Directory(cache_folder)
+    var names = folder.entry_names(false)
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var dot = name.index_of(".")
+        var size = File("{cache_folder}/{name}").size()
+        var changed = File("{cache_folder}/{name}").modified_nanoseconds()
+        if dot > 0 and size and changed {
+            var stem = name.slice(0, dot)
+            var cached = stem_named(stems, stem)
+            cached.record(name, size, changed)
+        }
+        index = index + 1
+    }
+    return stems
+}
+
+func stem_named(stems: List<CachedStem>, stem: String): CachedStem {
+    var index = 0
+    while index < stems.count() {
+        if stems[index].stem == stem {
+            return stems[index]
+        }
+        index = index + 1
+    }
+    var made = CachedStem(stem)
+    stems.append(made)
+    return made
+}
+
+func remove_stem(cached: CachedStem) {
+    var index = 0
+    while index < cached.names.count() {
+        File("{cache_folder}/{cached.names[index]}").remove()
+        index = index + 1
+    }
 }
 
 func write_once(path: String, text: String) {
@@ -129,7 +203,9 @@ func linked(objects: List<String>, output_path: String): Boolean {
         index = index + 1
     }
     var response = quoted.join("\n")
-    var response_path = "{cache_folder}/{hash_of(response)}.objects"
+    var response_stem = hash_of(response)
+    mark_used(response_stem)
+    var response_path = "{cache_folder}/{response_stem}.objects"
     write_once(response_path, "{response}\n")
     var arguments = List<String>()
     arguments.append("@{response_path}")

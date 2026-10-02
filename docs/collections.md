@@ -426,7 +426,9 @@ passed instead, [below](#passing-a-function-for-each-element)). `chores.count_do
 the chores whose `done` is true, `items.sum_price()` adds up their prices, and `repositories.map_names()` collects
 their names. A **member** is an attribute or a function that takes no arguments (the two are the same to a
 template, since reading an attribute already goes through its getter), and a template is compiled only for the
-names a program calls.
+names a program calls. Text has members too: `names.map_upper_cases()` collects every name in capitals,
+`names.filter_is_empty()` keeps the empty ones and `names.sort_by_length()` sorts them by length
+(`conformance/stage6/text_member_templates`).
 
 | Template | Result | The member must |
 |---|---|---|
@@ -735,7 +737,7 @@ classes are no different: `keys.filter(counts.has)` asks the dictionary `counts`
 the element as its only argument: `filter`, `any`, `all`, `count` and `find` want one returning `Boolean` (`find`
 answers the first element it is true for, or `null`), `sum` one returning a number, `sort_by` one returning a
 number or text. There is no `map(function)`: a value collected from each element is a member of the element
-([above](#member-templates-loops-you-do-not-write)), named and collected with `map_<member>()`. This works on a list of anything (text and numbers included, which
+([above](#member-templates-loops-you-do-not-write)), named and collected with `map_<member>()`. This works on a list of anything (numbers included, which
 have no members of their own for a template to name) and on a `Dictionary`, through its values.
 
 ```gdscript title=passed_function/greeter.spite
@@ -1051,7 +1053,8 @@ makes the key list, two index lists and the result (`sort_by(f)` is the same tem
 `filter_<member>` call. The parameter names a member of the *element*, not of the list (whose own attributes are
 its buffer), because it says so: `Spite.AttributeDeclaration<$element_type>` is a [template](metaprogramming.md#templates)'s
 `Spite.AttributeDeclaration<Label>`, one mechanism for both. `item.attributes[member]` reads it: the field, or a call to the
-zero-argument function, which is "the value held in that field" applied to members. The generator binds the template to the
+zero-argument function, which is "the value held in that field" applied to members. A `String` element's
+members are `String`'s own zero-argument functions (`upper_case`, `length`, `is_empty`, ...). The generator binds the template to the
 element's member and checks [the table](#member-templates-loops-you-do-not-write) before it compiles the body, so a member that does not fit is still
 the error naming the member, its type and what the template needs; it writes none of the templates' C. Only the
 names a program calls are compiled. A `--repl`/`--repl-port` build compiles every template that fits every

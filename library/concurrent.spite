@@ -21,6 +21,9 @@ func Concurrent(starting_work: Spite.Function<$result_type>) {
 
 func get_finished(): Boolean {
     _collect()
+    if not _finished {
+        _scheduler.polled_unfinished()
+    }
     return _finished
 }
 

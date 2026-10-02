@@ -1,0 +1,9 @@
+var console = Console()
+
+func SpinningLoop() {
+    console.print("waiting")
+    var spins = 0
+    while true {
+        spins = spins + 1
+    }
+}

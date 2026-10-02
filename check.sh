@@ -723,6 +723,36 @@ if [ "$(ls .spite/objects | grep -c '\.o$')" != "$objects_before" ]; then
   echo "FAILED: building parallel_stages again compiled a unit whose object was cached"; exit 1
 fi
 echo "translation units: a program built from four units runs the same, and building it again only links"
+# The object cache evicts what was used least recently once it passes its size cap (docs/compiler.md): an entry
+# last used long ago that alone passes the cap is removed by the next build, and nothing the build uses goes with it.
+stale=.spite/objects/0.o
+ls .spite/objects | grep '\.o$' > "$work/objects_kept.txt"
+truncate -s 1100M "$stale" && touch -d "2000-01-01" "$stale" || { echo "FAILED: could not make a stale object to evict"; exit 1; }
+SPITE_TRANSLATION_UNITS=4 "$work/generation_two.exe" "$stages" --debug-memory --build --executable-path="$split" > /dev/null 2>&1 || {
+  rm -f "$stale"; echo "FAILED: parallel_stages could not be built beside a stale object past the cache's cap"; exit 1; }
+if [ -f "$stale" ]; then
+  rm -f "$stale"; echo "FAILED: a build left the object cache past its cap with a stale object in it"; exit 1
+fi
+evicted=$(ls .spite/objects | grep '\.o$' | sort | comm -23 <(sort "$work/objects_kept.txt") -)
+if [ -n "$evicted" ]; then
+  echo "FAILED: evicting one stale object took others with it:"; echo "$evicted" | head -5; exit 1
+fi
+echo "object cache: past its cap, a build evicts what was used least recently and keeps what it uses"
+# A loop that polls a Concurrent's finished while nothing steps its frame never ends, so it halts instead
+# (docs/concurrency.md#choosing-where-concurrents-resume). The report names the scheduler's attributes, whose values
+# (a thread, an event) differ per run and per system, so only its start is compared.
+mkdir -p "$work/polled_without_steps"
+printf '%s\n' 'var console = Console()' 'var program = Program()' 'var scheduler = Scheduler()' '' \
+  'func PolledWithoutSteps() {' '    scheduler.resume_only_when_asked()' '    var napping = Concurrent(nap)' \
+  '    var frames = 0' '    while not napping.finished {' '        frames = frames + 1' '    }' \
+  '    console.print("never printed", frames)' '}' '' 'func nap(): Integer {' '    program.sleep(1)' '    return 1' '}' \
+  > "$work/polled_without_steps/polled_without_steps.spite"
+polled=$(limited "$work/generation_two.exe" "$work/polled_without_steps" --executable-path="$work/polled_without_steps.exe" < /dev/null 2>&1 | tr -d '\r')
+if ! echo "$polled" | grep -qE "^spite.crash	[0-9a-f]{8}	library/scheduler.spite:[0-9]+	Scheduler	polled_unfinished	unfinished_polls_with_no_frame_stepped=1000000	" \
+   || echo "$polled" | grep -q "never printed"; then
+  echo "FAILED: a loop polling an unfinished Concurrent that nothing steps did not halt"; echo "$polled" | head -5; exit 1
+fi
+echo "polling: a Concurrent polled a million times while no frame is stepped halts instead of hanging"
 # The fault handler and its function table are written after every function (D255), and must still report when the
 # C is split into units and linked with link-time optimisation: an --optimized native_fault_foreign from four units.
 # Only Windows walks the stack of an --optimized build; Linux and macOS walk frame pointers, which it does not keep.
@@ -750,7 +780,7 @@ done
 echo "threads: eight threads asking for the same class objects make each once, five runs balanced"
 # A crash reports the asserts that failed before it, as the ring stood when it crashed (D244). A pool thread that keeps
 # failing a guard assert while the program's thread crashes must not keep the report printing (that streamed every
-# failed assert and never exited), so the crash ends with its crash line, at most 32 assert lines and an earlier count.
+# failed assert and never exited), so the crash ends with its crash line, at most 32 assert lines, an earlier count and the call chain.
 mkdir -p "$work/crash_while_asserting"
 cat > "$work/crash_while_asserting/crash_while_asserting.spite" <<'SPITE'
 var console = Console()
@@ -770,7 +800,7 @@ func check(value: Integer) {
 
 func guard_forever(): Integer {
     var index = 0
-    while true {
+    while index >= 0 {
         refuse(index)
         var text: String = index
         index = index + text.length()
@@ -784,12 +814,16 @@ func refuse(value: Integer) {
 SPITE
 "$work/generation_two.exe" "$work/crash_while_asserting" --optimized --build --executable-path="$work/crash_while_asserting.exe" > "$job_errors" 2>&1 || {
   echo "FAILED: could not build crash_while_asserting"; head -5 "$job_errors"; exit 1; }
+if ! grep -qE "	13	5	CrashWhileAsserting	check	crash	value > 0	" "$work/crash_while_asserting.crashes" \
+   || ! grep -qE "	27	5	CrashWhileAsserting	refuse	assert-predicate	value < 0	" "$work/crash_while_asserting.crashes"; then
+  echo "FAILED: the .crashes map should give each site's line and column"; exit 1
+fi
 timeout 60 "$work/crash_while_asserting.exe" < /dev/null > "$work/crash_while_asserting.txt" 2>&1
 crashed=$?
 reported=$(tr -d '\r' < "$work/crash_while_asserting.txt")
 if [ "$crashed" != "1" ] || [ "$(echo "$reported" | grep -c '^spite.crash	')" != "1" ] \
    || [ "$(echo "$reported" | grep -c '^spite.assert	[0-9a-f]\{8\}	')" -gt 32 ] \
-   || ! echo "$reported" | tail -1 | grep -qE '^spite.assert	earlier=[0-9]+$'; then
+   || ! echo "$reported" | grep -v '^spite.frame	' | tail -1 | grep -qE '^spite.assert	earlier=[0-9]+$'; then
   echo "FAILED: a crash while another thread fails asserts (exit $crashed, $(echo "$reported" | wc -l) lines)"; echo "$reported" | head -3; exit 1
 fi
 echo "crash reports: a crash while a pool thread keeps failing asserts reports the ring as it stood and exits"
@@ -984,7 +1018,7 @@ echo "number parameters: a function taking Number is compiled per number class, 
 # scale_into checks the list it writes once, before the loop; add_from, whose counter starts at a parameter, is not.
 "$work/generation_two.exe" conformance/stage6/counted_loops --check --c-source --c-path="$work/counted.c" > /dev/null 2>&1 || {
   echo "FAILED: counted_loops does not write its C"; exit 1; }
-if ! grep -qE "^spite_temp_[0-9]+\[index_\] = \(spite_temp_[0-9]+\[index_\] \* 2\.0\);$" "$work/counted.c" \
+if ! grep -qE "^spite_temp_[0-9]+\[index_\] = \(spite_temp_[0-9]+\[index_\] \* 2\.0f\);$" "$work/counted.c" \
    || ! grep -qE "^if \(spite_temp_[0-9]+ <= spite_temp_[0-9]+\) \{$" "$work/counted.c" \
    || [ "$(grep -cE "^while \(\(\(index_ < (List_Integer_count|spite_folded_List_Integer_count)\(values_\)\)\)\) \{$" "$work/counted.c")" != "2" ]; then
   echo "FAILED: counted_loops should read its plain lists without range checks, except in add_from and double_up"; exit 1

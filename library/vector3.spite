@@ -1,115 +1,107 @@
-var x_value: Float = 0.0
-var y_value: Float = 0.0
-var z_value: Float = 0.0
+var x: Float = 0.0
+var y: Float = 0.0
+var z: Float = 0.0
 
 func Vector3(starting_x: Float, starting_y: Float, starting_z: Float) {
-    x_value = starting_x
-    y_value = starting_y
-    z_value = starting_z
+    x = starting_x
+    y = starting_y
+    z = starting_z
 }
 
 func sum(other: Vector3): Vector3 {
-    return Vector3(x_value + other.x_value, y_value + other.y_value, z_value + other.z_value)
+    return Vector3(x + other.x, y + other.y, z + other.z)
 }
 
 func subtract(other: Vector3): Vector3 {
-    return Vector3(x_value - other.x_value, y_value - other.y_value, z_value - other.z_value)
+    return Vector3(x - other.x, y - other.y, z - other.z)
 }
 
 func multiply(other: Vector3): Vector3 {
-    return Vector3(x_value * other.x_value, y_value * other.y_value, z_value * other.z_value)
+    return Vector3(x * other.x, y * other.y, z * other.z)
 }
 
 func divide(other: Vector3): Vector3 {
-    return Vector3(x_value / other.x_value, y_value / other.y_value, z_value / other.z_value)
+    return Vector3(x / other.x, y / other.y, z / other.z)
 }
 
 func negate(): Vector3 {
-    return Vector3(-x_value, -y_value, -z_value)
+    return Vector3(-x, -y, -z)
 }
 
 func equals(other: Vector3): Boolean {
-    return x_value == other.x_value and y_value == other.y_value and z_value == other.z_value
+    return x == other.x and y == other.y and z == other.z
 }
 
 func scaled(factor: Float): Vector3 {
-    return Vector3(x_value * factor, y_value * factor, z_value * factor)
+    return Vector3(x * factor, y * factor, z * factor)
 }
 
 func dot(other: Vector3): Float {
-    return x_value * other.x_value + y_value * other.y_value + z_value * other.z_value
+    return x * other.x + y * other.y + z * other.z
 }
 
 func cross(other: Vector3): Vector3 {
-    return Vector3(
-        y_value * other.z_value - z_value * other.y_value,
-        z_value * other.x_value - x_value * other.z_value,
-        x_value * other.y_value - y_value * other.x_value,
-    )
+    return Vector3(y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x)
 }
 
 func length_squared(): Float {
-    return x_value * x_value + y_value * y_value + z_value * z_value
+    return x * x + y * y + z * z
 }
 
 func length(): Float {
-    var squared = x_value * x_value + y_value * y_value + z_value * z_value
+    var squared = x * x + y * y + z * z
     return squared.square_root()
 }
 
 func normalized(): Vector3 {
-    var squared = x_value * x_value + y_value * y_value + z_value * z_value
+    var squared = x * x + y * y + z * z
     if squared == 0.0 {
         return Vector3(0.0, 0.0, 0.0)
     }
     var inverse_length = 1.0 / squared.square_root()
-    return Vector3(x_value * inverse_length, y_value * inverse_length, z_value * inverse_length)
+    return Vector3(x * inverse_length, y * inverse_length, z * inverse_length)
 }
 
 func distance_to(other: Vector3): Float {
-    var x_part = other.x_value - x_value
-    var y_part = other.y_value - y_value
-    var z_part = other.z_value - z_value
+    var x_part = other.x - x
+    var y_part = other.y - y
+    var z_part = other.z - z
     var squared = x_part * x_part + y_part * y_part + z_part * z_part
     return squared.square_root()
 }
 
 func distance_squared_to(other: Vector3): Float {
-    var x_part = other.x_value - x_value
-    var y_part = other.y_value - y_value
-    var z_part = other.z_value - z_value
+    var x_part = other.x - x
+    var y_part = other.y - y
+    var z_part = other.z - z
     return x_part * x_part + y_part * y_part + z_part * z_part
 }
 
 func linear_interpolate(target: Vector3, amount: Float): Vector3 {
-    return Vector3(
-        x_value + (target.x_value - x_value) * amount,
-        y_value + (target.y_value - y_value) * amount,
-        z_value + (target.z_value - z_value) * amount,
-    )
+    return Vector3(x + (target.x - x) * amount, y + (target.y - y) * amount, z + (target.z - z) * amount)
 }
 
 func minimum(other: Vector3): Vector3 {
-    var x_part = x_value.minimum(other.x_value)
-    var y_part = y_value.minimum(other.y_value)
-    var z_part = z_value.minimum(other.z_value)
+    var x_part = x.minimum(other.x)
+    var y_part = y.minimum(other.y)
+    var z_part = z.minimum(other.z)
     return Vector3(x_part, y_part, z_part)
 }
 
 func maximum(other: Vector3): Vector3 {
-    var x_part = x_value.maximum(other.x_value)
-    var y_part = y_value.maximum(other.y_value)
-    var z_part = z_value.maximum(other.z_value)
+    var x_part = x.maximum(other.x)
+    var y_part = y.maximum(other.y)
+    var z_part = z.maximum(other.z)
     return Vector3(x_part, y_part, z_part)
 }
 
 func absolute(): Vector3 {
-    var x_part = x_value.absolute()
-    var y_part = y_value.absolute()
-    var z_part = z_value.absolute()
+    var x_part = x.absolute()
+    var y_part = y.absolute()
+    var z_part = z.absolute()
     return Vector3(x_part, y_part, z_part)
 }
 
 func to_string(): String {
-    return "({x_value}, {y_value}, {z_value})"
+    return "({x}, {y}, {z})"
 }

@@ -1,4 +1,4 @@
-spite.assert	3cc28d57
+spite.assert	3cc28d57	answered=nothing
 hello ada
 hello bo
 done
