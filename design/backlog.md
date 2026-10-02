@@ -99,7 +99,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   number, boolean and null (names proposed by Claude, unconfirmed), read by `JsonReader` and walked with `switch`.
   Files: `library/json_reader.spite`, a new value class, docs json.md. **M.** No dependencies.
 
-### Types, monomorphisation and storage (D321, D331, D332, D355, D367, D368, D370, D398, D399, D400, D401)
+### Types, monomorphisation and storage (D321, D331, D332, D355, D367, D368, D370, D398, D399, D400, D401, D402)
 
 - **M1 D321 leftovers** (status "Inline types and duck typing"). (a) text and `Symbol` stored as a `type` are
   tagged, not boxed; (b) the closed set at a run-time spot is the classes that reach that spot, not every class
@@ -158,6 +158,10 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **M15 `Items<T>` folds into `List<T>`** (D401). The storage `Items<T>` chooses becomes `List<T>`'s own (M3, M10);
   migrate `library/items.spite`, collections.md's "`Items<T>`: the storage chosen for you" and its rules, and its
   users. **M.** With M14, after M3.
+- **M16 A list's layout chosen from how it is iterated** (D402). From every iteration over a `List<T>` and its
+  `function.accesses`, choose array of structs, struct of arrays or a hot/cold split per list; report the choice
+  (M4) and guard it with benchmarks. This is what lets a large package's component columns become plain lists, so
+  it gates M13 (D399's bar). **L.** After M3 and M10.
 - **M13 Enforce the ban on layout internals outside `library/`** (D399). A compile error naming the higher-level
   alternative. **S.** Last: only after M3, M9 and M10 make plain classes and lists as fast as hand-chosen layouts
   and downstream packages have migrated with benchmarks showing no slowdown.
