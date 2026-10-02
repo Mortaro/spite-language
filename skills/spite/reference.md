@@ -328,7 +328,7 @@ func is_alive(): Boolean {
 - The yes-or-no ones (`filter_`, `count_`, `any_`, `all_`, `remove_where_`) also take a value of the enum of the
   one member typed with it: `posts.filter_published()` keeps the posts whose `stage == 'published'`. Two members
   whose enums list the value, or a member of that name, is an error.
-- A `while` that only walks a list doing what one of these does (`var index = 0`, `while index <
+- A `while` that only walks a list, a `Vector` or an `Items` doing what one of these does (`var index = 0`, `while index <
   items.count()`, `total = total + items[index].price`, `index = index + 1`) is an error naming
   `items.sum_price()`: `this 'while' walks every element of 'items' only to add up 'price': write 'var total =
   items.sum_price()'`. The same goes for a `while` that only passes each element to one function of yours:

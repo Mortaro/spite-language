@@ -7,6 +7,7 @@ var returned_after = ""
 var value_names = List<String>()
 var passed_functions = List<String>()
 var tests = false
+var keeps_elements = false
 
 func TemplateWalk(walk_purpose: String, walk_replacement: String) {
     purpose = walk_purpose

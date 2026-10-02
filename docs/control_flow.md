@@ -701,7 +701,7 @@ a constant, and an `if` doing more than return are left alone. Compile time only
 
 **A `while` that only walks every element of a list, doing what a member template does, is a compile error naming
 the template**; `while` stays for loops over state. The shape is exact: the statement before the loop is `var counter = 0`; the condition is
-`counter < list.count()` with `list` a name or a path of type `List<T>`; the last statement is
+`counter < list.count()` with `list` a name or a path of type `List<T>`, `Vector<T>` or `Items<T>`; the last statement is
 `counter = counter + 1`; the counter is read nowhere else in the body and not at all after the loop; and the
 rest of the body reads `list[counter]` (directly, or through one `var item = list[counter]` first) and is
 exactly one of these, with `m` and `n` members of `T` that are not private (an attribute or a function taking
@@ -727,6 +727,11 @@ which fits a list of anything, numbers and `String` included:
 | `if f(item) { return item }`, the loop followed by `return null` | `return list.find(f)` |
 | `if f(item) { return true }`, the loop followed by `return false` | `return list.any(f)` |
 | `if not f(item) { return false }`, the loop followed by `return true` | `return list.all(f)` |
+
+On a `Vector<T>` or an `Items<T>` the rows that name a member template are the rule, and the rows that pass a
+function or append the element itself (`copy()`, `filter_m()`) are not: a `Vector` and an `Items` take no passed
+function, and an item appended to a list is the error for keeping a borrowed item instead
+(`diagnostics/vector_template_walk`).
 
 `result` must be a local declared `List<...>()` earlier in the same block and `total` one declared `0`, neither
 mentioned between its declaration and the loop, and `value` may not mention the counter or the element. The

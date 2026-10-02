@@ -602,7 +602,7 @@ but 'count_' needs it to return Boolean (to add up a numeric member use 'sum_sta
 ```
 
 **A `while` that only does what a template does is an error naming the template**: a
-counter walking a list from `0` to its `count()`, doing nothing with each element but what one template does
+counter walking a list, a `Vector` or an `Items` from `0` to its `count()`, doing nothing with each element but what one template does
 with one of its members, or what `each`, `filter`, `count`, `sum`, `find`, `any` or `all` does with a
 function passed the element, on a list of anything, numbers and text included. Loops that need the index, pass
 more than the element, stop early for another reason, or walk state keep their `while`. The exact shape the

@@ -1,0 +1,12 @@
+var name = ""
+var weight = 0
+var sealed = false
+
+func Crate(new_name: String, new_weight: Integer) {
+    name = new_name
+    weight = new_weight
+}
+
+func seal() {
+    sealed = true
+}

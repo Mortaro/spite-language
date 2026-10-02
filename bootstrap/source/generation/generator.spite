@@ -29694,9 +29694,9 @@ func report_template_walk(
     var probe = generate_expression(list_expression, scope, class_information)
     rewind_temporaries(saved_counter)
     var probe_type = probe.type
-    var listed = type_shape.as_list(probe_type)
-    assert listed
-    var element = listed.element
+    var walked_element = walked_element_type(probe_type, walk)
+    assert walked_element
+    var element = walked_element
     assert walk.members.is_empty() or not is_codegen_type_of(class_information, element)
     assert walked_members_exist(element, walk.members)
     assert passed_functions_fit(walk, scope, class_information)
@@ -29732,6 +29732,19 @@ func is_codegen_type_of(class_information: Analysis.ClassInfo, spite_type: Analy
         index = index + 1
     }
     return false
+}
+
+func walked_element_type(walked_type: Analysis.SpiteType, walk: TemplateWalk): Analysis.SpiteType? {
+    var listed = type_shape.as_list(walked_type)
+    if listed {
+        return listed.element
+    }
+    var walked_class = class_behind(walked_type)
+    assert walked_class
+    var holds_items = walked_class.qualified_dotted == "Vector" or is_items_class(walked_class)
+    assert holds_items and not walked_class.codegen_types.is_empty()
+    assert walk.passed_functions.is_empty() and not walk.keeps_elements
+    return walked_class.codegen_types[0]
 }
 
 func walked_list(loop: Syntax.Statements.WhileStatement, counter: String): Syntax.Expressions.Expression? {
@@ -30077,6 +30090,7 @@ func walk_by_call(
     if appended_text == element_text {
         var copied = TemplateWalk("to copy it", "var {result} = {list_text}.copy()")
         copied.result_name = result
+        copied.keeps_elements = true
         return copied
     }
     var mapped_member = element_member(appended, element_text)
@@ -30202,6 +30216,7 @@ func walk_by_kept(
         )
         kept.members.append(tested)
         kept.result_name = result
+        kept.keeps_elements = true
         return kept
     }
     var mapped_member = element_member(appended, element_text)

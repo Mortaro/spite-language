@@ -1,0 +1,106 @@
+var console = Console()
+var crates = Vector<Crate>()
+var trails = Items<Trail>()
+
+func VectorTemplateWalk() {
+    var apples = Crate("apples", 3)
+    crates.append(apples)
+    var trail = Trail(4)
+    trails.append(trail)
+    seal_all()
+    var names = crate_names()
+    var weight = total_weight()
+    var sealed = sealed_count()
+    var every_sealed = all_sealed()
+    var lengths = total_length()
+    var any_open = any_trail_open()
+    var marks = trail.lefts.count()
+    var weights = weights_by_index()
+    var joined = names.join(", ")
+    var weights_joined = weights.join(", ")
+    console.print(joined, weights_joined, weight, sealed, every_sealed, lengths, any_open, marks)
+}
+
+func seal_all() {
+    var index = 0
+    while index < crates.count() {
+        crates[index].seal()
+        index = index + 1
+    }
+}
+
+func crate_names(): List<String> {
+    var names = List<String>()
+    var index = 0
+    while index < crates.count() {
+        var crate = crates[index]
+        names.append(crate.name)
+        index = index + 1
+    }
+    return names
+}
+
+func total_weight(): Integer {
+    var total = 0
+    var index = 0
+    while index < crates.count() {
+        total = total + crates[index].weight
+        index = index + 1
+    }
+    return total
+}
+
+func sealed_count(): Integer {
+    var counted = 0
+    var index = 0
+    while index < crates.count() {
+        if crates[index].sealed {
+            counted = counted + 1
+        }
+        index = index + 1
+    }
+    return counted
+}
+
+func all_sealed(): Boolean {
+    var index = 0
+    while index < crates.count() {
+        if not crates[index].sealed {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func total_length(): Integer {
+    var total = 0
+    var index = 0
+    while index < trails.count() {
+        total = total + trails[index].length
+        index = index + 1
+    }
+    return total
+}
+
+func any_trail_open(): Boolean {
+    var index = 0
+    while index < trails.count() {
+        if trails[index].open {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func weights_by_index(): List<Integer> {
+    var weights = List<Integer>()
+    var index = 0
+    while index < crates.count() {
+        var crate = crates[index]
+        weights.append(crate.weight * index)
+        index = index + 1
+    }
+    return weights
+}
