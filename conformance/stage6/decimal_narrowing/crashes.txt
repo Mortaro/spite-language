@@ -1,0 +1,1 @@
+this program is meant to crash: a decimal outside the whole number type it is assigned to halts instead of giving a value C leaves undefined

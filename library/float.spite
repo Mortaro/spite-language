@@ -23,7 +23,7 @@ func to_half_precision(): UnsignedShort {
         half = shifted.bits() - magic
     } else {
         var odd = magnitude.shifted_right(13).bits_and(1)
-        var rounded = magnitude + 3355447295 + odd
+        var rounded = magnitude.wrapping_sum(3355447295).wrapping_sum(odd)
         half = rounded.shifted_right(13)
     }
     var result: UnsignedShort = half.bits_or(sign_part)

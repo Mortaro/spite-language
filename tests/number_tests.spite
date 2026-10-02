@@ -4,12 +4,12 @@ func test_an_integer_divides_toward_zero() {
     crash 7 % 2 == 1
 }
 
-func test_a_narrow_type_wraps_rather_than_crashing() {
-    var wide = 128
+func test_a_narrow_type_keeps_a_value_that_fits() {
+    var wide = 127
     var small: Tiny = wide
-    crash small == -128
+    crash small == 127
     var never_negative: Byte = 255
-    never_negative = never_negative + 1
+    never_negative = never_negative.wrapping_sum(1)
     crash never_negative == 0
 }
 
@@ -90,6 +90,6 @@ func test_infinity_and_not_a_number_read_as_words() {
 }
 
 func test_a_large_unsigned_long_reads_as_positive() {
-    var largest: UnsignedLong = -1
+    var largest = UnsignedLong.largest
     crash largest.to_string() == "18446744073709551615"
 }

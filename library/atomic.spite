@@ -27,7 +27,9 @@ func add(amount: $value_type): $value_type {
     crash $value_type != Boolean
     var raw_amount = _raw(amount)
     var raw = _cell.add_long_atomically(0, raw_amount)
-    return _value(raw)
+    var before_raw = raw.wrapping_subtract(raw_amount)
+    var before = _value(before_raw)
+    return before + amount
 }
 
 func exchange(value: $value_type): $value_type {

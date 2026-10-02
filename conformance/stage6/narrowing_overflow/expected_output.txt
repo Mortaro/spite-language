@@ -1,0 +1,2 @@
+spite: 200, an Integer, does not fit in a Tiny, at conformance/stage6/narrowing_overflow/narrowing_overflow.spite:12 in NarrowingOverflow.shrunk
+200

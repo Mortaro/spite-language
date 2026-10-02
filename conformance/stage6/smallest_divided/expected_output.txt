@@ -1,0 +1,2 @@
+spite: 'lowest / divisor' does not fit in an Integer (-2147483648 / -1), at conformance/stage6/smallest_divided/smallest_divided.spite:7 in SmallestDivided.SmallestDivided
+0 -7

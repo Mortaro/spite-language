@@ -31,7 +31,7 @@ Integer absolute 7 minimum -7 maximum 3 clamp -3
 Integer largest 2147483647 smallest -2147483648
 absolute of the smallest wraps to itself: -2147483648
 Tiny 127 -128 -128
-Byte 255 0 200 100 44
+Byte 255 0 200 100 200
 Long 9223372036854775807 -9223372036854775808 9000000000 4
 UnsignedLong 18446744073709551615 Short -32768 UnsignedShort 65535
 clamp with low above high 1

@@ -1,1 +1,1 @@
-this program is meant to crash: signed arithmetic that does not fit halts in a --debug-memory build, naming the operation, the operands and the line
+this program is meant to crash: signed arithmetic that does not fit halts in every build, naming the operation, the operands and the line

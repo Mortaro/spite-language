@@ -210,7 +210,7 @@ func _compress(state: Memory.Address, block: Memory.Address, schedule: Memory.Ad
         var small_late = _small_sigma(late, 17, 19, 10)
         var sixteen_back = schedule.read_unsigned_integer(index * 4 - 64)
         var seven_back = schedule.read_unsigned_integer(index * 4 - 28)
-        var word = sixteen_back + small_early + seven_back + small_late
+        var word = sixteen_back.wrapping_sum(small_early).wrapping_sum(seven_back).wrapping_sum(small_late)
         schedule.write_unsigned_integer(index * 4, word)
         index = index + 1
     }
@@ -232,21 +232,21 @@ func _compress(state: Memory.Address, block: Memory.Address, schedule: Memory.Ad
         crash _round_constants[round]
         var constant = _round_constants[round]
         var scheduled = schedule.read_unsigned_integer(round * 4)
-        var first_sum = working_h + big_e + choice + constant + scheduled
+        var first_sum = working_h.wrapping_sum(big_e).wrapping_sum(choice).wrapping_sum(constant).wrapping_sum(scheduled)
         var big_a = _big_sigma(working_a, 2, 13, 22)
         var both_ab = working_a.bits_and(working_b)
         var both_ac = working_a.bits_and(working_c)
         var both_bc = working_b.bits_and(working_c)
         var majority = both_ab.bits_exclusive_or(both_ac).bits_exclusive_or(both_bc)
-        var second_sum = big_a + majority
+        var second_sum = big_a.wrapping_sum(majority)
         working_h = working_g
         working_g = working_f
         working_f = working_e
-        working_e = working_d + first_sum
+        working_e = working_d.wrapping_sum(first_sum)
         working_d = working_c
         working_c = working_b
         working_b = working_a
-        working_a = first_sum + second_sum
+        working_a = first_sum.wrapping_sum(second_sum)
         round = round + 1
     }
     _add_to(state, 0, working_a)
@@ -275,7 +275,7 @@ func _big_sigma(value: UnsignedInteger, first: Integer, second: Integer, third: 
 
 func _add_to(state: Memory.Address, at: Integer, value: UnsignedInteger) {
     var held = state.read_unsigned_integer(at)
-    var sum = held + value
+    var sum = held.wrapping_sum(value)
     state.write_unsigned_integer(at, sum)
 }
 

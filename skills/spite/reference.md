@@ -170,9 +170,11 @@ func is_alive(): Boolean {
   `clicks.to_string()`. Arithmetic is done in the left side's type, so write the wider operand first: `total * count` with a `Long`
   `total`, never `count * total`, which is an error (so is an `Integer` plus a `Float`); a literal on the right that
   fits is fine. A constant that overflows `Integer` (`65536 * 65536`) is an error: write the number. Comparisons follow
-  the same rule: `count < total` with a `Long` `total` is an error, write `total > count`. A value converted to a narrower type wraps, and so does
-  unsigned arithmetic (use `UnsignedInteger`/`UnsignedLong` for a hash); signed `+ - *` that does not fit halts
-  naming the line in a `--debug-memory` or development build and wraps in production. A whole number divided by zero (`/` or `%`) halts naming the line, and a divisor written as zero is an error; after `assert divisor != 0` the check is gone. Floats keep infinity and not-a-number.
+  the same rule: `count < total` with a `Long` `total` is an error, write `total > count`. Nothing wraps silently: `+ - *`, unary
+  `-` and the smallest signed value `/ -1` that do not fit their type halt naming the line in every build, signed
+  and unsigned alike, and so does a value assigned, passed or returned into a narrower type it does not fit (a
+  number written there that does not fit is a compile error). Where wrapping is the point (a hash), call
+  `a.wrapping_sum(b)`, `a.wrapping_subtract(b)` or `a.wrapping_multiply(b)`, which keep the low bits. A whole number divided by zero (`/` or `%`) halts naming the line, and a divisor written as zero is an error; after `assert divisor != 0` the check is gone. Floats keep infinity and not-a-number.
 - Bits are functions on the whole numbers, never symbols: `value.shifted_left(count)`, `shifted_right(count)`
   (arithmetic on a signed type, logical on an unsigned one), `bits_and(mask)`, `bits_or(mask)`,
   `bits_exclusive_or(mask)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`.

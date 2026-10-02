@@ -108,9 +108,16 @@ func read(input: BinaryInput): $value_type {
             input.fail()
         }
         return flag == 1
-    } else if $value_type == Byte or $value_type == Tiny {
+    } else if $value_type == Byte {
         var small: $value_type = input.read_byte()
         return small
+    } else if $value_type == Tiny {
+        var stored = input.read_byte()
+        if stored > 127 {
+            stored = stored - 256
+        }
+        var tiny: $value_type = stored
+        return tiny
     } else if $value_type == Short {
         var short: $value_type = input.read_short()
         return short

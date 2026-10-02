@@ -424,7 +424,7 @@ func unit_of(name: String): Integer {
     var name_length = name.length()
     while index < name_length {
         var code: UnsignedLong = name.code_at(index)
-        hash = hash.bits_exclusive_or(code) * prime
+        hash = hash.bits_exclusive_or(code).wrapping_multiply(prime)
         index = index + 1
     }
     var buckets: UnsignedLong = unit_count

@@ -46,7 +46,7 @@ when a page gains a rule that is not built yet, add it here.
 
 ### Numbers are classes, and `this`
 - Open: both the assignment cast (`var half: Float = count`) and the call form `count.to_float()` are allowed "for now"; the call form may be limited later. Page says both are allowed.
-- Unconfirmed proposals by Claude (removed from the page, still awaiting Mortaro): names of the bitwise functions (D117) and their rules, names of the maths functions and constants and their lowering, names of the bit-reinterpretation functions (D215), the `type` keyword allowed as a parameter name, the error texts for `from_` declarations, Go's answer for smallest-signed `/ -1`, the signed-overflow message and unsigned exemption (D205), the reach of text casting to every place a `String` is wanted (D223), the lone-hole error wording, the enum-from-text cast, the generic walk of enums, the shape-member behaviour, the class-test forms for generic classes and codegen values (D123).
+- Unconfirmed proposals by Claude (removed from the page, still awaiting Mortaro): names of the bitwise functions (D117) and their rules, names of the maths functions and constants and their lowering, names of the bit-reinterpretation functions (D215), the `type` keyword allowed as a parameter name, the error texts for `from_` declarations, the overflow and narrowing messages, the names `wrapping_subtract` and the wrapping functions' reading (D359), the reach of text casting to every place a `String` is wanted (D223), the lone-hole error wording, the enum-from-text cast, the generic walk of enums, the shape-member behaviour, the class-test forms for generic classes and codegen values (D123).
 - Exact error texts still quote decision numbers: the `from_` declaration and `from_` call errors contain "(D293)" (lines 925 and 928); the compiler text must change with the page.
 
 ### Every number fits `Number`
@@ -94,7 +94,6 @@ for a design):
 - A `--hot-reload` build's watcher thread keeps running while the singletons are destroyed at exit: `start()` now
   waits until it is watching, so it no longer asks for `HotReload` after the teardown, but a file change landing
   during the teardown would still run `compile_changes()` on the destroyed `HotReload`.
-- Signed arithmetic wraps in production builds and unsigned arithmetic wraps in every build (D249).
 - A REPL `exit` answered at the same wait as the command before it ends the program before its loop sees that
   command: on Linux, concurrency.md's `frame_loop` session (`program.running = false`, then `exit`) lost its
   `stopped` line in 3 of 5 runs, so `check.sh` fails its wire replay intermittently. The program's last output is
@@ -146,12 +145,13 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - **A `crash` on a `Build` field is not folded.** Only codegen questions fold in an `assert` or `crash`, so a `crash`
   on a `Build` field that is false halts at run time instead of being D250's compile error (optimizations.md,
   "Deciding conditions at compile time").
-- **The smallest signed value divided by `-1`** wraps to itself in every build, a development build included, where
-  every other signed result that does not fit halts (D249).
+- **`absolute()` of the smallest signed value** answers that value itself (`Integer.smallest.absolute()` is
+  negative): it is a supplied macro with no line to name, so it is not yet checked like `-value` is (D359).
+- **A change of signedness at the same width or wider** (`var bits: UnsignedInteger = count` with a negative
+  `count`) keeps the bits unchecked: D162's "wider" leaves signedness out, and the hashes read words this way.
+  Whether it should halt, with a named function for reading the bits, waits for Mortaro (D359; proposed by Claude).
 - **A `while true` that can never leave** ends its function's paths for the missing-`return` check, and nothing
   reports it outside a locked singleton function: a hang.
-- **A wider value assigned, passed or returned into a narrower name** (`var small: Tiny = wide`) wraps in every build;
-  only operators are checked (D162, D251).
 - **Two threads writing one number attribute of an instance they share** is not refused: the reach rules (D35, D179)
   allow plain-value attributes, and the result is whichever write lands last.
 - **Two `Concurrent`s that each wait for the other** never end, and nothing reports it (optimizations.md, "Hidden
@@ -831,7 +831,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - An appended item made in place: today `var slow = Velocity(1.0, 0.5)` then `velocities.append(slow)` makes an ordinary object, copies its attributes into the vector's block and lets the object go, so filling a vector allocates once per item for a moment. Writing the constructor's attributes straight into the block is not built.
 - A build report of what could not be optimised (D36) is not built.
 
-### Signed arithmetic is checked only while developing
+### Arithmetic is checked in every build
 
 - Not built: leaving out the overflow check where a proof already bounds the operands.
 
@@ -879,12 +879,11 @@ recorded below.
   `memory.md#borrowed-items-of-a-vectort--implemented`, `metaprogramming.md#codegen-values---implemented`,
   `json.md#json-is-reflection-not-a-library--implemented`.
 
-### Signed arithmetic is checked while developing
+### Arithmetic that does not fit halts
 
-- The check is built; the proof that would drop it is planned. No range fact removes the development check, not even a
+- The check is built in every build; the proof that would drop it is planned. No range fact removes it, not even a
   counted loop's `index = index + 1`; dropping the check where a proof bounds the operands is not built (see
-  optimizations.md, "Signed arithmetic is checked only while developing"). The table row said "built; the proof
-  planned".
+  optimizations.md, "Arithmetic is checked in every build"). The table row says "nothing yet".
 
 ### A list's templates read their elements uncounted
 
@@ -980,8 +979,8 @@ The section listed proofs that are not built. Each, with what it said:
 - A foreign function's status is handled while compiling (D272, decided by Mortaro; design proposed by Claude,
   unconfirmed): a C enum result becomes a Spite enum that must be switched over. Not built: today a call answers an
   `Integer` and `crash result == 0` compiles (foreign_libraries.md, "Foreign libraries", partial).
-- An overflow check left out where a proof bounds the operands (optimizations.md, "Signed arithmetic is checked only
-  while developing").
+- An overflow check left out where a proof bounds the operands (optimizations.md, "Arithmetic is checked in every
+  build").
 - A write to a copy that dies unread is an error (proposed by Claude, unconfirmed): escape analysis already proves a
   result fresh (failure.md, "Nothing fails silently", still open).
 - Frame objects holding text, lists or objects, their attributes let go at the end of the frame (optimizations.md,

@@ -90,3 +90,13 @@ D374 (2026-10-01). Earlier answers are listed in each row of `design/decisions.m
      as "a wait never stops the other `Concurrent`s". Recommendation: (a) for servers and listeners, with (c) as the
      rule everywhere else, since it keeps one way to start concurrent work and needs no proof that can silently stop
      applying. Blocks: rewriting concurrency.md to lead with plain IO, and any claim that a plain server is concurrent.
+
+265. **A change of signedness that does not fit** (D359, D162; [values_and_types.md](docs/values_and_types.md#arithmetic-that-does-not-fit-halts)).
+     Arithmetic and narrowing now halt, but `var bits: UnsignedInteger = count` with a negative `Integer` `count`, or any
+     change of signedness at the same width or wider, still keeps the bits, since D162 leaves
+     signedness out of "wider" and the hashes read their words this way (`var word: UnsignedLong = block.read_long(at)`).
+     Options: (a) **keep it**: a same-width signedness change is a reading of the bits, as today. (b) **check it too**,
+     so `-1` into an `UnsignedInteger` halts, and add a named function for reading the bits, as `bits()` reads a
+     `Float`'s (say `Long.bits_as_unsigned()` and `UnsignedLong.bits_as_signed()`), which the hashes would call.
+     Recommendation: (b), since a negative count turning into four billion is the silent wrap D359 forbids, and the
+     bit readings are few and all in `library/`. Blocks: nothing; today's reading is (a).

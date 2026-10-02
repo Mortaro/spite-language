@@ -1471,19 +1471,23 @@ cannot change `parts` and are dropped across one that may. The check, where it s
 branch the CPU predicts. What you can observe: nothing but speed; in `conformance/stage6/division_by_zero`, the
 proven `whole / pieces` carries no check in its C.
 
-### Signed arithmetic is checked only while developing
+### Arithmetic is checked in every build
 
-In a `--debug-memory` or an inspectable build, every `+`, `-` and `*` done in `Tiny`, `Short`,
-`Integer` or `Long` is the C compiler's overflow builtin in that type, and an answer that does not fit halts
-([values_and_types.md](values_and_types.md#numeric-types)). A production build (the
-ordinary one and `--optimized`) emits the plain operator, so its C is the same as without the check and
-the answer wraps. The unsigned whole numbers are never checked. What you can observe: in a development build, a
-halt instead of a wrapped answer; in a production build, nothing. **Cost, measured** (best of seven runs, each
-benchmark built with `--development` without and with the check, C at `-O2`, on a machine other
-work was loading): `plain_loops` 201 to 216 ms, `fused_chain` 240 to 345 ms, `game_maths` 180 to 189 ms,
-`dictionary_keys` 177 to 179 ms. The compiler built with `--debug-memory` compiling itself carries 1 506 checked
-operations and took 5.2 s without the checks and 4.7 s with them, best of eight: inside the noise. The check is left
-out where a proof already bounds the operands, as a proven divisor leaves out its zero check.
+Every `+`, `-` and `*` done in a whole number, signed or unsigned, is the C compiler's overflow builtin in that type,
+and an answer that does not fit halts ([values_and_types.md](values_and_types.md#numeric-types)); so is a `-` in
+front of a whole number, the smallest signed value divided by `-1`, and a value put into a narrower name (a compare
+against the narrower type's range and a branch). The ordinary build and `--optimized` check exactly as
+`--debug-memory` does: there is no unchecked mode, so a benchmark measures the program as it ships. The
+`wrapping_sum`, `wrapping_subtract` and `wrapping_multiply` functions are one plain C operation on the bits, so a
+hash written with them costs what it did with the wrapping operator. What you can observe: a halt instead of a
+wrapped answer, and a loop whose sum the C compiler vectorised before may no longer be vectorised, since each
+addition can now stop the program. **Cost, measured** (best of seven interleaved runs, each benchmark built with
+`--optimized` before and after, gcc, on a four-processor Linux machine other work was loading): `plain_loops` 321
+to 349 ms (its `Integer` sum, vectorised before, 248 to 666 microseconds a pass), `dictionary_keys` 134 to 142 ms,
+`number_keys` 201 to 211 ms, `number_dictionary` 135 to 148 ms, `text_building` 59 to 62 ms, `sorting` 294 to 295
+ms, `particles` 92 to 92 ms, `vector_maths` 110 to 109 ms, `stress` 40 to 42 ms, `game_maths`, `half_precision`
+and `vector_items` within a millisecond. The check is left out where a constant or a proof already bounds the
+operands, as a proven divisor leaves out its zero check.
 
 ### Short text lives inside the `String`
 

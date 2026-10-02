@@ -1,0 +1,1 @@
+this program is meant to crash: the smallest signed value divided by -1 does not fit, and halts like every other signed result that does not fit

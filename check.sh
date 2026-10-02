@@ -791,9 +791,12 @@ fi
 if grep -qE "AllocationTable|spite_debug_|spite_live_allocation|SPITE_DEBUG_MEMORY" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C carries --debug-memory's table or an allocation counter"; exit 1
 fi
-# Signed arithmetic is checked for overflow only in a --debug-memory or inspectable build: production is the plain operator.
-if grep -qE "__builtin_(add|sub|mul)_overflow|spite_overflowed" "$work/hello_shaken.c"; then
-  echo "FAILED: examples/hello's C checks arithmetic for overflow in a production build"; exit 1
+# Arithmetic is checked for overflow in every build, production included (D360): integer_overflow's production C
+# checks its multiplication, and its wrapping by name is the plain operator on the bits.
+"$work/generation_two.exe" conformance/stage6/integer_overflow --run=false --c-source --c-path="$work/overflow_production.c" > /dev/null 2>&1 || {
+  echo "FAILED: integer_overflow does not write its C"; exit 1; }
+if ! grep -q "__builtin_mul_overflow" "$work/overflow_production.c" || ! grep -q "spite_overflowed(" "$work/overflow_production.c"; then
+  echo "FAILED: integer_overflow's production C does not check its arithmetic for overflow"; exit 1
 fi
 # Identical functions are folded into one (D296): two instances of a generic over classes of the same layout keep
 # one function, called through a pointer cast to the folded one's type, and an instance over a class of another

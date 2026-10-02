@@ -70,6 +70,7 @@ func decimal_members(type_name: String): List<String> {
 func whole_members(type_name: String): List<String> {
     var operation = "written by the generator: a comparison or two"
     var constant = "written by the generator: the value itself"
+    var wrapping = "written by the generator: the operator on the bits, keeping the low ones"
     return [
         "func absolute(): {type_name}"
         operation
@@ -79,11 +80,21 @@ func whole_members(type_name: String): List<String> {
         operation
         "func clamp(low: {type_name}, high: {type_name}): {type_name}"
         operation
+        "func wrapping_sum(other: {type_name}): {type_name}"
+        wrapping
+        "func wrapping_subtract(other: {type_name}): {type_name}"
+        wrapping
+        "func wrapping_multiply(other: {type_name}): {type_name}"
+        wrapping
         "func largest(): {type_name}"
         constant
         "func smallest(): {type_name}"
         constant
     ]
+}
+
+func is_wrapping(name: String): Boolean {
+    return name == "wrapping_sum" or name == "wrapping_subtract" or name == "wrapping_multiply"
 }
 
 func bit_view_members(stem: String): List<String> {
@@ -110,7 +121,7 @@ func bit_view_body(c_name: String, from_c_type: String, to_c_type: String): Stri
 }
 
 func is_member(name: String): Boolean {
-    return not library_name(name).is_empty() or is_constant(name) or is_predicate(name) or name == "clamp"
+    return not library_name(name).is_empty() or is_constant(name) or is_predicate(name) or name == "clamp" or is_wrapping(name)
 }
 
 func is_constant(name: String): Boolean {
@@ -331,6 +342,16 @@ func whole_body(c_name: String, name: String, c_type: String): String {
     if name == "smallest" {
         return "#define {c_name}() (({c_type}){limit}_MIN)"
     }
+    if is_wrapping(name) {
+        var symbol = "+"
+        if name == "wrapping_subtract" {
+            symbol = "-"
+        }
+        if name == "wrapping_multiply" {
+            symbol = "*"
+        }
+        return "#define {c_name}(self, other) (({c_type})((uint64_t)(self) {symbol} (uint64_t)(other)))"
+    }
     if name == "absolute" and is_unsigned {
         return "#define {c_name}(self) (({c_type})(self))"
     }
@@ -390,7 +411,7 @@ func operand_count(name: String): Integer {
     if name == "clamp" {
         return 2
     }
-    if is_binary(name) {
+    if is_binary(name) or is_wrapping(name) {
         return 1
     }
     return 0

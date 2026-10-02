@@ -13,33 +13,35 @@ assignment, a function argument (toward the parameter type), and `return` (towar
 | `Long` | `int64_t` | | `UnsignedLong` | `uint64_t` |
 | `Float` (default decimal) | `float` (32-bit) | | `Double` | `double` (64-bit) |
 
-An integer literal is `Integer`; one too big for `Integer` becomes `Long` automatically. Converting between numeric
-types **wraps** on overflow (plain C narrowing, not a crash or a saturate), and so does arithmetic on the unsigned
-whole numbers, which is what a hash or a noise function wants:
+An integer literal is `Integer`; one too big for `Integer` becomes `Long` automatically. **A number never
+silently wraps.** Arithmetic whose answer does not fit its type halts, unsigned exactly as signed, and so does a
+wider value put into a narrower name ([below](#arithmetic-that-does-not-fit-halts)). Where wrapping is the point,
+as in a hash or a noise function, the code says so with a function named for it: `wrapping_sum`,
+`wrapping_subtract` and `wrapping_multiply` on every whole number keep the low bits of the answer:
 
 ```gdscript title=numeric_overflow/numeric_overflow.spite entry
 var console = Console()
 
 func NumericOverflow() {
     var wide = 200
-    var tiny_value: Tiny = wide
-    console.print("wraps to", tiny_value)
+    var cut: Byte = wide
+    console.print("fits", cut)
     var hash: UnsignedInteger = 4000000000
-    hash = hash * 3
+    hash = hash.wrapping_multiply(3)
     console.print("wraps to", hash)
 }
 ```
 ```output
-wraps to -56
+fits 200
 wraps to 3410065408
 ```
 
-### Signed arithmetic that does not fit halts while you develop
+### Arithmetic that does not fit halts
 
-`+`, `-` and `*` on a signed whole number (`Tiny`, `Short`, `Integer`, `Long`) whose answer does not fit its type
-is a developer's mistake, like dividing by zero. A build you develop with (`--debug-memory`,
-`--development`, `--hot-reload`, `--repl` or `--repl-port`) checks each one and halts at the first that does not fit,
-naming the operation, the type, the operands and the line:
+`+`, `-` and `*` on a whole number (`Tiny`, `Short`, `Integer`, `Long`, `Byte`, `UnsignedShort`,
+`UnsignedInteger`, `UnsignedLong`) whose answer does not fit its type is a developer's mistake, like dividing by
+zero. Every build checks each one, the one you ship included, and halts at the first that does not fit, naming
+the operation, the type, the operands and the line:
 
 ```gdscript
 func scaled(amount: Integer, factor: Integer): Integer {
@@ -50,9 +52,34 @@ func scaled(amount: Integer, factor: Integer): Integer {
 spite: 'amount * factor' does not fit in an Integer (2000000000 * 2), at game/game.spite:17 in Game.scaled
 ```
 
-A production build (the ordinary one and `--optimized`) has no check and wraps, so the checks cost nothing where
-the program ships. The fix is a wider type written first (`Long` for a total of `Integer`s), or an unsigned type
-when wrapping is what you meant ([the rules](#numeric-types)).
+The same holds for `-` in front of a value (`-lowest` with the smallest `Integer`, or any unsigned value but `0`),
+for the smallest signed value divided by `-1`, and for a value put into a narrower name, by assignment, as an
+argument or by `return`: `var small: Tiny = count` halts when `count` is 200 (`spite: 200, an Integer, does not fit
+in a Tiny, at ...`), and so does a decimal outside the whole number it is put into. A number written into a name
+it does not fit (`var small: Byte = 300`) is a compile error. The compiler leaves a check out wherever it can
+prove the answer fits ([proofs.md](proofs.md#arithmetic-that-does-not-fit-halts)), so what remains costs little.
+The fix is a wider type written first (`Long` for a total of `Integer`s), or, when wrapping is what you meant, the
+function that says so:
+
+```gdscript title=wrapping_by_name/wrapping_by_name.spite entry
+var console = Console()
+
+func WrappingByName() {
+    var hash: UnsignedLong = 1469598103934665603
+    var text = "spite"
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        var mixed = hash.bits_exclusive_or(code)
+        hash = mixed.wrapping_multiply(1099511628211)
+        index = index + 1
+    }
+    console.print(hash)
+}
+```
+```output
+16868922117198771000
+```
 
 ### Wider arithmetic goes wider operand first
 
@@ -984,9 +1011,8 @@ they are built on are [the table at the top of this page](#numeric-types-and-the
 
 An integer literal defaults to `Integer`; one too large to fit becomes a `Long` instead. A decimal literal
 defaults to `Float`. All of them follow the same right-side-casts-toward-left-side rule as everything else
-(`var tiny: Tiny = some_integer_variable` narrows with an ordinary cast); converting between two numeric types
-wraps on overflow (an out-of-range value assigned into a narrower type keeps its low bits, the same as a plain
-C cast) rather than crashing or saturating. `List<T>`, `Dictionary<T>`, `T?`, and generics all work
+(`var tiny: Tiny = some_integer_variable` narrows with an ordinary cast); a value that does not fit the narrower
+type halts, as [Arithmetic that does not fit halts](#arithmetic-that-does-not-fit-halts) says, rather than wrapping or saturating. `List<T>`, `Dictionary<T>`, `T?`, and generics all work
 with every numeric type; so does `String` conversion both ways: text is read as a number through `String`'s one
 `to_<name>()` method per type, `to_tiny()`, `to_short()`, `to_integer()`, `to_long()`, `to_byte()`,
 `to_unsigned_short()`, `to_unsigned_integer()`, `to_unsigned_long()`, `to_float()`, `to_double()`, each answering a
@@ -999,18 +1025,41 @@ same goes for the compiler's own readings of text: an integer literal too large 
 and a remote REPL command assigning or passing a number that does not parse is refused. `count()`, `length()`, and
 `index_of()` always return `Integer`, never a wider type.
 
-**Signed arithmetic that does not fit halts in a development build.** In a `--debug-memory` or an
-inspectable build (`--development`, `--hot-reload`, `--repl`, `--repl-port`), every `+`, `-` and `*` whose
-left side (the type the arithmetic is done in) is `Tiny`, `Short`, `Integer` or `Long` is compiled with the C
-compiler's overflow builtin (`__builtin_add_overflow`, `__builtin_sub_overflow`, `__builtin_mul_overflow`) in that
-type, and an answer that does not fit halts, since it is the moron's mistake: `spite: 'amount * factor'
-does not fit in an Integer (2000000000 * 2), at game/game.spite:17 in Game.scaled`
-(`conformance/stage6/integer_overflow`). A production build (the ordinary one and `--optimized`) emits the plain C
-operator, so the check costs nothing there and the answer wraps. The unsigned whole numbers (`Byte`,
-`UnsignedShort`, `UnsignedInteger`, `UnsignedLong`) are modular in every build: their arithmetic wraps, which is
-what the hashes (`Dictionary`'s, the allocation table's) and `Noise` rely on. A constant expression that overflows
-is still a compile error, and `/` and `%` keep the check described next. Measured on the compiler compiling itself with
-`--debug-memory` (every signed `+`, `-` and `*` of the compiler checked): see [optimizations.md](optimizations.md#signed-arithmetic-is-checked-only-while-developing).
+**Arithmetic that does not fit halts, in every build.** Every `+`, `-` and `*` whose left side (the type the
+arithmetic is done in) is a whole number, signed (`Tiny`, `Short`, `Integer`, `Long`) or unsigned (`Byte`,
+`UnsignedShort`, `UnsignedInteger`, `UnsignedLong`), is compiled with the C compiler's overflow builtin
+(`__builtin_add_overflow`, `__builtin_sub_overflow`, `__builtin_mul_overflow`) in that type, and an answer that
+does not fit halts, since it is the moron's mistake: `spite: 'amount * factor' does not fit in an Integer
+(2000000000 * 2), at game/game.spite:17 in Game.scaled` (`conformance/stage6/integer_overflow`); an unsigned one
+prints its operands unsigned (`spite: 'left - 1' does not fit in an UnsignedInteger (0 - 1), at ...`,
+`conformance/stage6/unsigned_overflow`). There is no build, flag or mode in which the operators wrap: the
+ordinary build and `--optimized` check exactly as `--debug-memory` does. The same check covers:
+  - `-` in front of a whole number that is not a literal: `-value` halts for the smallest signed value and for any
+    unsigned value but `0`, printed as `(0 - value)`.
+  - The smallest signed value divided by `-1` (`spite: 'lowest / divisor' does not fit in an Integer
+    (-2147483648 / -1), at ...`, `conformance/stage6/smallest_divided`); its remainder, `%` by `-1`, is `0`.
+  - A value put into a narrower name, by assignment, as an argument or by `return`: narrower is wider
+    turned around (fewer bits, or a whole number under a `Float`/`Double`), and the value is checked against the
+    whole range of the name's type (`spite: 200, an Integer, does not fit in a Tiny, at ...`,
+    `conformance/stage6/narrowing_overflow`). A decimal is checked the same way, so not-a-number, an infinity and
+    anything outside the range halts instead of becoming a value C leaves undefined (`spite: 99999997952, a Float,
+    does not fit in an Integer, at ...`, `conformance/stage6/decimal_narrowing`); inside the range its fraction is
+    cut as before. `to_<type>()` on a number checks the same way. A change of signedness at the same width or wider
+    (`var bits: UnsignedLong = word` with a `Long` `word`) keeps the same bits and is not checked.
+  - An attribute of a singleton counted from many threads (`hits = hits + 1`) checks the atomic addition's answer.
+  - A number written where it does not fit is a compile error naming the range:
+    `300 does not fit in a Byte, whose numbers run from 0 to 255: store it in a wider type, or use a number that
+    fits` (`diagnostics/literal_does_not_fit`).
+
+**Wrapping is a function named for it.** Every whole number has `wrapping_sum(other)`, `wrapping_subtract(other)`
+and `wrapping_multiply(other)`, which work in the receiver's type, take `other` as a parameter of that type, and
+keep the low bits of the answer (`UnsignedInteger 4000000000.wrapping_multiply(3)` is `3410065408`,
+`Long.largest.wrapping_sum(1)` is `Long.smallest`). Each is one C operation on the bits
+(`conformance/stage6/wrapping_functions`). The hashes and codecs of the library (`Dictionary`'s and the
+allocation table's hash, `Sha256`, `Argon2`, `Noise`) call them where they wrap on purpose. A constant expression
+that overflows is still a compile error, and `/` and `%` keep the check described next. The compiler leaves a check
+out where it can prove the answer fits, and what that costs is measured in
+[optimizations.md](optimizations.md#arithmetic-is-checked-in-every-build).
 
 **Division by zero follows Go.** A whole-number `/` or `%` whose divisor is zero halts
 the program, naming the operation and the line (`spite: 'total / parts' divided by zero, at
@@ -1020,8 +1069,8 @@ game/game.spite:22 in Game.share`), since dividing by zero is the moron's mistak
 which always halts the program` (`diagnostics/division_by_constant_zero`). Where a proof already shows the
 divisor is not zero (`assert parts != 0`, `crash parts != 0`, `if parts != 0 { }`, `parts > 0`, or a `while`
 condition saying so, kept or undone by a call as any proof is), no check is emitted
-([optimizations.md](optimizations.md#a-proven-divisor-is-not-checked)). As in Go, the smallest signed value divided
-by `-1` wraps to itself and its remainder is `0`, where C would trap. Float division stays IEEE 754: `x / 0.0` is infinity or not-a-number.
+([optimizations.md](optimizations.md#a-proven-divisor-is-not-checked)). The smallest signed value divided by `-1`
+does not fit and halts as above, and its remainder is `0`, where C would trap. Float division stays IEEE 754: `x / 0.0` is infinity or not-a-number.
 `%` on a `Float` or `Double` is the remainder of the division truncated toward zero, so it keeps the sign of the
 left side as a whole number's does (`-7.5 % 2.0` is `-1.5`, `730.5 % 360.0` is `10.5`), and `x % 0.0` is
 not-a-number.
@@ -1075,7 +1124,7 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   inlined in an optimised build. The rules, so no undefined C behaviour reaches a program:
   - `shifted_right` is **arithmetic on a signed type** (the sign bit is copied in: an `Integer` -20 shifted right by 2
     is -5) and **logical on an unsigned one** (zeros come in). `shifted_left` always brings zeros in, and a bit
-    moved past the top is lost, so the result wraps like any narrowing (a `Tiny` 1 shifted left by 7 is -128).
+    moved past the top is lost, so the result keeps the low bits, as a bit operation does (a `Tiny` 1 shifted left by 7 is -128).
   - **A count of the width or more shifts every bit out**: the answer is 0, or -1 for a negative signed value
     shifted right. **A negative count halts the program**, naming the function and the count
     (`spite: UnsignedShort.shifted_right was given the count -2, and a shift count is 0 or more`).

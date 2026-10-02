@@ -123,14 +123,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Arithmetic (D359, D360, D357, D369 item 249)
 
-- **N1 Overflow halts in every build, unsigned too, with wrapping only by name** (D359, D360; failure.md's open
-  list). Today only signed `+ - *` are checked, and only outside `--optimized` (generator.spite around lines 10120
-  and 10760). Add: unsigned operations, production builds, the smallest signed value divided by `-1`, a wider value
-  assigned, passed or returned into a narrower name (D162, D251), and `wrapping_sum`/`wrapping_multiply` (and
-  subtract) on the number classes (`maths_primitives.spite`, the number files in `library/`). Move the hashes and
-  codecs that rely on wrapping (`sha256.spite`, `argon2.spite`, `deflate.spite`, `zlib.spite`, `gzip.spite`,
-  `dictionary.spite`'s hash, `noise.spite`) to the named functions. **L.** No dependencies.
-- **N2 Checks proven away** (D360; proofs.md "Signed arithmetic is checked while developing"). Drop the check
+- **N2 Checks proven away** (D360; proofs.md "Arithmetic that does not fit halts"). Drop the check
   where a range fact bounds the operands: counted loop counters, indexes already bounded, constants, known ranges;
   what stays is listed in M4's report. Update docs/proofs.md and docs/optimizations.md. Files: generator.spite
   proof regions, `call_effects.spite`. **L.** Depends on N1; benchmarks measured on `--optimized` builds only.

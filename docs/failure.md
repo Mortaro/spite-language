@@ -19,8 +19,9 @@ What that already means in practice:
   made again ([a call may undo a proof](#a-call-may-undo-a-proof)).
 - A guard `assert` stops a function only where its result can say "nothing"; a function answering a number, a
   `Boolean`, a text or an object writes its answer down ([below](#a-default-that-looks-like-an-answer-is-an-error)).
-- A developer's mistake halts naming the line: a whole number divided by zero, signed arithmetic that does not
-  fit while you develop ([values_and_types.md](values_and_types.md#signed-arithmetic-that-does-not-fit-halts-while-you-develop)),
+- A developer's mistake halts naming the line: a whole number divided by zero, arithmetic that does not fit,
+  signed or unsigned, and a value too big for the narrower name it is put into, in every build
+  ([values_and_types.md](values_and_types.md#arithmetic-that-does-not-fit-halts)),
   a `crash` that fails, a native fault ([below](#what-a-native-fault-reports)).
 - A failed `crash` names what is missing instead of printing a default that reads like a real zero
   ([what a crash reports](#what-a-crash-reports)).
@@ -1070,7 +1071,8 @@ to fix, not a style to document.
 | a failed `crash` printing a default that reads as a real zero | the report names the missing link, index and count, or key | [what a crash reports](#what-a-crash-reports-1) |
 | a native fault ending the program with nothing printed | `spite.fault` with the place, the last foreign call and the stack | [what a native fault reports](#what-a-native-fault-reports-1) |
 | a whole number divided by zero | halts naming the line; a zero written as the divisor is a compile error | [values_and_types.md](values_and_types.md#numeric-types) |
-| signed arithmetic that does not fit | halts naming the operation in a development build | [values_and_types.md](values_and_types.md#signed-arithmetic-that-does-not-fit-halts-while-you-develop) |
+| arithmetic that does not fit, signed or unsigned, and the wrap it would make | halts naming the operation and the operands, in every build; wrapping only by `wrapping_sum`, `wrapping_subtract` and `wrapping_multiply` | [values_and_types.md](values_and_types.md#arithmetic-that-does-not-fit-halts) |
+| a value too big for the narrower name it is assigned, passed or returned to | halts naming the value and both types; a number written there that does not fit is a compile error | [values_and_types.md](values_and_types.md#arithmetic-that-does-not-fit-halts) |
 | a wider operand cut to fit, in arithmetic or a comparison | compile error naming the operation turned around | [values_and_types.md](values_and_types.md#wider-arithmetic-goes-wider-operand-first) |
 | a constant that overflows its type | compile error | [values_and_types.md](values_and_types.md#numeric-types) |
 | a `Float` gone to infinity written as JSON | crash naming the attribute | [json.md](json.md) |
@@ -1357,8 +1359,8 @@ tend to be useless: they carry a message the program has no action to take on.
 
 **What `crash` is for**: what the compiler can prove away, so a program written with
 its help never meets it; what leaves the program unable to work at all; and a developer's mistake: a whole
-number divided by zero ([values_and_types.md](values_and_types.md)), signed arithmetic that does not fit its
-type in a development build ([values_and_types.md](values_and_types.md#numeric-types)), a `Float` gone to infinity that `JsonWriter`
+number divided by zero ([values_and_types.md](values_and_types.md)), arithmetic that does not fit its
+type, or a value its narrower name cannot hold ([values_and_types.md](values_and_types.md#numeric-types)), a `Float` gone to infinity that `JsonWriter`
 is asked to write ([json.md](json.md)). A condition the program can meet in normal use (a missing file,
 a user's bad input, an absent record) answers `T?` or an empty value, never a crash, and a library
 `crash` must be one the compiler can show the program how to avoid, or a bug in the program that made the value.
