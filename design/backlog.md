@@ -99,7 +99,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   number, boolean and null (names proposed by Claude, unconfirmed), read by `JsonReader` and walked with `switch`.
   Files: `library/json_reader.spite`, a new value class, docs json.md. **M.** No dependencies.
 
-### Types, monomorphisation and storage (D321, D331, D332, D355, D367, D368, D370)
+### Types, monomorphisation and storage (D321, D331, D332, D355, D367, D368, D370, D398)
 
 - **M1 D321 leftovers** (status "Inline types and duck typing"). (a) text and `Symbol` stored as a `type` are
   tagged, not boxed; (b) the closed set at a run-time spot is the classes that reach that spot, not every class
@@ -137,6 +137,17 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **M7 Identical-function folding leftovers** (D340; status "Identical functions"). Fold a function differing only
   in which class of another layout it passes by reference, compare a boxed text constant by its text, and stop
   writing a foreign callback's site into the function. Files: `function_folder.spite`. **M.** No dependencies.
+- **M8 Benchmark gap analysis** (D398). For each benchmark, compare the generated C with the hand-written C and rank
+  every source of extra work by measured cost: allocation, reference counting, checks, the library's algorithm,
+  missing aliasing hints. The ranking orders M9 to M11. Files: `benchmarks/`. **M.** No dependencies; first.
+- **M9 Escape analysis removes allocations and counting** (D398). An object proven not to escape or not to be
+  shared lives in registers or on the stack, with no reference count. Files: `object_escape.spite`,
+  `object_frames.spite`, `placement.spite`. **L.** After M8.
+- **M10 Inline storage chosen by the compiler** (D398, D331). An object held by one owner is laid inside it; the
+  moron never chooses `Vector<T>` for it, and the number classes lose `var _memory = Memory.Bytes(n)`. **L.** After
+  M9, with M3.
+- **M11 Aliasing hints from ownership** (D398, D354, D380). Emit `restrict` where ownership proves two pointers
+  never alias. Files: generator.spite parameter emission. **M.** After E3.
 
 ### Arithmetic (D359, D360, D357, D369 item 249)
 
