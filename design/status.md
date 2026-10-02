@@ -147,9 +147,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - **A frame buffer's uses are matched by name.** Placing an allocation in the frame accepts `read_value`,
   `write_value`, `release_value` and `swap_values` on any receiver, not only `TypedMemory`'s, so a program's own
   `write_value` that keeps the address would pass (memory.md, "Placement: the compiler decides where memory lives").
-- **A `crash` on a `Build` field is not folded.** Only codegen questions fold in an `assert` or `crash`, so a `crash`
-  on a `Build` field that is false halts at run time instead of being D250's compile error (optimizations.md,
-  "Deciding conditions at compile time").
 - **`absolute()` of the smallest signed value** answers that value itself (`Integer.smallest.absolute()` is
   negative): it is a supplied macro with no line to name, so it is not yet checked like `-value` is (D359).
 - **A change of signedness at the same width or wider** (`var bits: UnsignedInteger = count` with a negative

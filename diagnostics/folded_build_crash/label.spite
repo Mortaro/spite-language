@@ -1,0 +1,3 @@
+func text(): String {
+    return "x"
+}

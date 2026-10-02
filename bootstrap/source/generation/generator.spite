@@ -35635,11 +35635,15 @@ func asks_while_compiling(expression: Syntax.Expressions.Expression): Boolean {
             if argument_count_call(expression.left) or argument_count_call(expression.right) {
                 return true
             }
-            if shape.as_generic_identifier(expression.left) {
+            if shape.as_generic_identifier(expression.left) or shape.as_generic_identifier(expression.right) {
+                return true
+            }
+            if reads_build_field(expression.left) or reads_build_field(expression.right) {
                 return true
             }
             return is_symbol_class_read(expression.left)
         }
+        Syntax.Expressions.MemberExpression: return reads_build_field(expression)
         Syntax.Expressions.CallExpression: {
             crash expression.callee
             var member = shape.as_member(expression.callee)
@@ -35651,6 +35655,14 @@ func asks_while_compiling(expression: Syntax.Expressions.Expression): Boolean {
         }
         _: return false
     }
+}
+
+func reads_build_field(expression: Syntax.Expressions.Expression): Boolean {
+    var member = shape.as_member(expression)
+    if not member {
+        return false
+    }
+    return is_hardcoded_setting_name(member.name)
 }
 
 func is_symbol_class_read(expression: Syntax.Expressions.Expression): Boolean {

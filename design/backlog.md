@@ -336,7 +336,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   (`parameter_writes.spite`, `parameter_write_study.spite`). **S.**
 - **B3** The guard lint sees only literal defaults; a lent-element function is not checked. **S.**
 - **B4** A frame buffer's uses are matched by name, not by `TypedMemory` receiver (`placement.spite`). **S.**
-- **B5** A `crash` or `assert` on a `Build` field or a class test is not folded (D250). **S.**
 - **B6** A `while true` that can never leave is not reported (with L7). **M.**
 - **B7** Two threads writing one number attribute of a shared instance is not refused (D35, D179). **M.**
 - **B8** Two `Concurrent`s waiting on each other never end (with K2). **M.**
