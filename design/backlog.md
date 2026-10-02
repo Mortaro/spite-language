@@ -267,8 +267,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **S3 HTTP leftovers** (status "HTTP"). Request bodies sent chunked to the server; the server reading one request
   at a time so a slow client holds the others; the client's resend of a `POST` over a new connection. Files:
   `library/http_server.spite`, `http_client.spite`. **M.** Benefits from K5.
-- **S4 `UdpSocket.port`** (D369 item 250). A get-only `port`, the port the system gave it (`getsockname`). Files:
-  `library/udp_socket.spite` and its system folders. **S.** No dependencies.
 - **S5 Helpers stop looking public** (D241; status "Socket"). `Socket`'s address helpers (`any_address`,
   `resolved_addresses`, `address_text`, `first_readable`), `BinaryInput`/`BinaryOutput`, `NumberText`,
   `ColorText`, `JsonCursor`, `ZoneRules` and the other helpers are folded into the class they serve or made

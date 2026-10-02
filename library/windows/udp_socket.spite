@@ -36,3 +36,14 @@ func _ready_now(): Boolean {
 func _close_handle() {
     _sockets.closesocket(handle)
 }
+
+func _local_port(): Integer {
+    var address = heap.allocate(32)
+    address.write_integer(28, 28)
+    var length_slot = address + 28
+    var asked = _sockets.getsockname(handle, address, length_slot)
+    var port = _addresses.read_port(address)
+    heap.free(address)
+    crash asked == 0
+    return port
+}
