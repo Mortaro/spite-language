@@ -23,9 +23,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 ### Reflection migration (D316, D317, D318, D335, D330; status.md "Reflection known while compiling")
 
 - **R1 Plural collection leftovers** (D317, D328). The library's templates collect with `map_members` and every
-  call is plural (built on master, `4291cca`). Left: `library/spite/debug_instance.spite` still walks with
-  `Symbol<$value_type>`: a walk with `each` specialises there now, but its function takes only the attribute, so
-  the value and the parts must reach it through fields of the singleton (or a decided way to pass them); and `String.Inflection`, the irregulars table a program reopens,
+  call is plural (built on master, `4291cca`), and `Spite.DebugInstance` walks with `each`. Left: `String.Inflection`, the irregulars table a program reopens,
   which the compiler must read from the program's `String` rather than its own copy (`library/string.spite`,
   the inflection lookup near generator.spite's plural errors). **S.** No dependencies left.
 - **R4 Dictionary member templates over values** (D335). Built through the compiler; `library/dictionary.spite`
@@ -64,19 +62,18 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Serialization (D319, D320, D384)
 
-- **J1 JSON and binary as library Spite specialised per class** (D319, D384). The writer and reader are ordinary
-  library Spite walking each class's constant attributes, compiled once per class, shown in `--final-classes`, skipping private attributes and attributes holding a singleton
-  (`Spite.Attribute.is_singleton` exists). Today `json_writer.spite`, `json_reader.spite` and `binary_format.spite`
-  walk with `Symbol<$value_type>` plurals and `$value_type.has_function("json_key_{attribute.name}")`, a name built
-  from text. Rewrite them over `attributes.each(...)` specialised per class (D384), delete the `json_key_` checks in
-  generator.spite (around lines 1766 to 1936) and `diagnostics/json_split`'s decision number. **L.** Depends on R5
-  (specialisation).
+- **J1 Binary as library Spite specialised per class** (D319, D384). The JSON pair and `Spite.DebugInstance` walk
+  with `each`, and all four serializers skip private and singleton attributes. Left: `binary_format.spite` still
+  walks a class's attributes and an enum's values with `Symbol<$value_type>` plurals, since an `each` walk would
+  keep the cursor in `BinaryFormat`, a singleton every thread shares (status.md, json.md). Waits on
+  `mortaros_missing_decisions.md` item 280. **M.**
 - **J2 Rename map keyed by attribute objects** (D320, D329). `JsonWriter<Monster>({Monster.attributes['health']:
   "hp"})`, the reader taking the same map, every serializer the same kind; a constant map folds into literal keys
   and a generated `switch`, a run-time map fills a key table once per serializer. Needs a `Dictionary` keyed by
   `Spite.Attribute` (hashing an attribute object). The REPL's `reload {...}` text parsing (D333) moves to the real
   map once the prompt evaluates map literals (P1). Errors for a missing, private or singleton attribute.
-  Files: `library/dictionary.spite`, `library/spite/attribute.spite`, the J1 files. **M.** Depends on J1.
+  Files: `library/dictionary.spite`, `library/spite/attribute.spite`, `json_writer.spite`, `json_reader.spite`,
+  `binary_format.spite`. **M.** Waits on `mortaros_missing_decisions.md` item 283 (how the map is passed).
 - **J3 Reading JSON whose shape is not known.** A program that inspects an unknown file (a tool, an importer) has
   no value to read it into: `JsonReader<T>` needs a class. Add an untyped value, a union of object, list, text,
   number, boolean and null (names proposed by Claude, unconfirmed), read by `JsonReader` and walked with `switch`.

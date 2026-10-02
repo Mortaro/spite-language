@@ -1001,11 +1001,12 @@ In detail:
   declares its own is shown by it wherever it appears. A `List` is `[a, b]`, a `Dictionary` is `{"key": value}`,
   text is quoted with `\"`, `\\` and `\n` escaped, a `Symbol` or enum value is written the way Spite writes it
   (`'calm'`), a number and a `Boolean` as they print, and an absent `T?` is `null`. A `Spite.Class` is its name.
-- **Private attributes are left out.** The walk is the plural attribute template ([Symbol codegen](metaprogramming.md#templates)) run from
-  `Spite.DebugInstance`, and a walk sees every attribute, private ones included, so `Spite.DebugInstance` skips
-  each one whose name starts with `_`: it is the class's own business. The test is on a name known while
-  compiling, so it folds, and a private attribute costs nothing in the text. The JSON and binary writers and
-  readers skip them the same way.
+- **Private attributes are left out.** The walk is `value.attributes.each(debug_attribute)` run from
+  `Spite.DebugInstance` ([reflection.md](reflection.md#a-class-and-an-instance-of-it)), and a walk sees every
+  attribute, private ones included, so `Spite.DebugInstance` skips each one whose name starts with `_`: it is the
+  class's own business. The test is on a name known while compiling, so it folds, and a private attribute costs
+  nothing in the text. The JSON and binary writers and readers skip them the same way, and attributes holding a
+  singleton too ([json.md](json.md#what-each-type-becomes)); `to_debug()` shows those.
 - **A cycle ends at an object already being shown**: it is written `Name {...}`, so `first.next.next` pointing
   back at `first` shows `Node { value: 1, next: Node { value: 2, next: Node {...} } }`. Each class keeps the
   objects it is in the middle of showing, compared with `==` (identity, unless the class defines `equals`), and
@@ -1019,8 +1020,8 @@ In detail:
   lists as `List<String>(...)`), which it builds from `Spite.Attribute`'s `.value` through `value.to_string()`,
   and the documented sessions depend on it.
 - **What it costs**: in a program that calls `debug`, one generated `to_debug()` per class it shows, which
-  builds the text as `String`s; `to_debug()` reads fields through Symbol templates, not through `Spite.Attribute`,
-  so it boxes nothing. Every attribute it shows counts as read.
+  builds the text as `String`s; the walk is compiled once per attribute, so each `attribute.value` is a typed read
+  of the field and nothing is boxed. Every attribute it shows counts as read.
 
 `conformance/stage6/debug_values`.
 

@@ -467,8 +467,8 @@ func is_alive(): Boolean {
   `helper.describe(attribute)`, is compiled once for it too). A member by name is `[]` and answers a `T?`
   (`Runner.functions['run_each']`); a selection is a member template (`Runner.functions.filter_name_ends_with("_each")`).
   A name is selected, never built from text. There are no `Symbol` walks. A walk sees private `_` attributes and
-  reads and writes them through the walked attribute; a serializer skips them with
-  `if not attribute.name.starts_with("_")`, which folds. A number's, `Boolean`'s or `String`'s `.attributes` is empty.
+  reads and writes them through the walked attribute; a serializer skips them, and attributes holding a singleton,
+  with `if not attribute.name.starts_with("_") and not attribute.is_singleton`, which folds. A number's, `Boolean`'s or `String`'s `.attributes` is empty.
 - A **template** is a function whose `Spite.AttributeDeclaration<Label>` parameter is a word of its name:
   `func show_attribute(attribute: Spite.AttributeDeclaration<Label>, label: Label)` answers `show_text(label)` and
   `show_copies(label)`, reading the member as `label.attributes[attribute]` (a member that is a function taking
@@ -604,8 +604,10 @@ if `null` is wanted. **Between Spite programs, and for files a Spite program rea
 a quarter of JSON's size and more than ten times faster, with no keys, so both ends must be built from the same
 classes. `read_memory(address, count)` reads straight from a socket's buffer. To catch two ends built from
 different classes, write `writer.schema()` (a `Long` the compiler works out from the classes, free to ask) once at
-the start of a file or connection and compare it with `reader.schema()` before reading. Attributes named `_...` are left out
-of both. A union, a `type` (`Anything` included) or a function value anywhere in what they see is a compile error at
+the start of a file or connection and compare it with `reader.schema()` before reading. Attributes named `_...`
+and attributes holding a singleton are left out of both. A JSON key that is not an attribute's name comes from a map
+given to the serializer, keyed by the attribute (`{MeshRecord.attributes['minimum_level_of_detail']: "min_lod"}`);
+a class never declares `json_key_<attribute>()`, which is an error. A union, a `type` (`Anything` included) or a function value anywhere in what they see is a compile error at
 the line that makes the writer or reader (`JsonWriter cannot write 'Owner': 'Owner.pet' is the union Pet, ...`):
 keep what they see to the kinds above ([json.md](https://github.com/Mortaro/spite-language/blob/master/docs/json.md)). `Json` no longer exists: it is the two classes above.
 Measure with `clock.elapsed_nanoseconds()`, the monotonic clock: a `Long`, no allocation, subtract two readings.

@@ -1,6 +1,8 @@
 generic $value_type
 
 var text = ""
+var _key = ""
+var _cursor: JsonCursor? = null
 
 func JsonReader(new_text: String) {
     text = new_text
@@ -84,10 +86,15 @@ func parse(cursor: JsonCursor): $value_type {
             var key = cursor.read_text()
             cursor.expect(":")
             cursor.matched = false
-            read_attributes(created, key, cursor)
-            if not cursor.matched {
-                read_camel_attributes(created, key, cursor)
+            _key = key
+            _cursor = cursor
+            if $value_type.namespace != Spite {
+                created.attributes.each(read_attribute)
+                if not cursor.matched {
+                    created.attributes.each(read_camel_attribute)
+                }
             }
+            _cursor = null
             if not cursor.matched {
                 cursor.skip_value()
             }
@@ -119,30 +126,26 @@ func read_symbol(cursor: JsonCursor): $value_type {
     return found
 }
 
-func read_attribute(attribute: Symbol<$value_type>, created: $value_type, key: String, cursor: JsonCursor) {
-    if not attribute.name.starts_with("_") {
-        if $value_type.has_function("json_key_{attribute.name}") {
-            if key == $value_type.returned_text("json_key_{attribute.name}") {
-                store_value(attribute, created, cursor)
-            }
-        } else if key == attribute.name {
-            store_value(attribute, created, cursor)
+func read_attribute(attribute: Spite.Attribute) {
+    if not attribute.name.starts_with("_") and not attribute.is_singleton {
+        if _key == attribute.name {
+            store_value(attribute)
         }
     }
 }
 
-func read_camel_attribute(attribute: Symbol<$value_type>, created: $value_type, key: String, cursor: JsonCursor) {
-    if not attribute.name.starts_with("_") {
-        if not $value_type.has_function("json_key_{attribute.name}") {
-            if key == attribute.camel_case_name or key == attribute.pascal_case_name {
-                store_value(attribute, created, cursor)
-            }
+func read_camel_attribute(attribute: Spite.Attribute) {
+    if not attribute.name.starts_with("_") and not attribute.is_singleton {
+        if _key == attribute.camel_case_name or _key == attribute.pascal_case_name {
+            store_value(attribute)
         }
     }
 }
 
-func store_value(attribute: Symbol<$value_type>, created: $value_type, cursor: JsonCursor) {
+func store_value(attribute: Spite.Attribute) {
+    crash _cursor
     var attribute_json = JsonReader<attribute.class>("")
-    created.attributes[attribute] = attribute_json.parse(cursor)
-    cursor.matched = true
+    attribute.value = attribute_json.parse(_cursor)
+    crash _cursor
+    _cursor.matched = true
 }

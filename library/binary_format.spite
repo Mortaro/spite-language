@@ -95,7 +95,7 @@ func write_dictionary(value: $value_type, output: BinaryOutput) {
 }
 
 func write_attribute(attribute: Symbol<$value_type>, value: $value_type, output: BinaryOutput) {
-    if not attribute.name.starts_with("_") {
+    if not attribute.name.starts_with("_") and not attribute.is_singleton {
         var format = BinaryFormat<attribute.class>()
         format.write(value.attributes[attribute], output)
     }
@@ -226,7 +226,7 @@ func read_dictionary(input: BinaryInput): $value_type {
 }
 
 func read_attribute(attribute: Symbol<$value_type>, created: $value_type, input: BinaryInput) {
-    if not attribute.name.starts_with("_") {
+    if not attribute.name.starts_with("_") and not attribute.is_singleton {
         var format = BinaryFormat<attribute.class>()
         created.attributes[attribute] = format.read(input)
     }
