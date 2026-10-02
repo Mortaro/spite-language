@@ -28552,6 +28552,23 @@ func foreign_library_attributes(information: Analysis.ClassInfo): List<String> {
     return names
 }
 
+func typed_memory_attributes(information: Analysis.ClassInfo): List<String> {
+    var names = List<String>()
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.type
+        var class_ref = type_shape.as_class_ref(field_type)
+        if class_ref {
+            if class_ref.c_name.starts_with("TypedMemory__") {
+                names.append(field.name)
+            }
+        }
+        index = index + 1
+    }
+    return names
+}
+
 func address_parameter_names(function: Analysis.FunctionInfo): List<String> {
     var names = List<String>()
     var index = 0
@@ -36911,8 +36928,9 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     key_flows_ignored = function.kept_for_prompt
     var outer_fact_owner = fact_owner
     fact_owner = information.c_name
-    study_lent_parameters_of(information)
     placement.foreign_libraries = foreign_library_attributes(information)
+    placement.typed_memories = typed_memory_attributes(information)
+    study_lent_parameters_of(information)
     var waiting = waiting_kind(information, function)
     if not waiting.is_empty() {
         waiting_classes.append(information)

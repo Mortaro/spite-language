@@ -613,13 +613,14 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 - **Proves.** An address from `allocate(n)` never outlives its block.
 - **Rule.** `var name = heap.allocate(size)` whose block later calls `heap.free(name)` at its own level, with every
-  use in between an address primitive, a `TypedMemory` read or write, or a call to a function of the same class that
+  use in between an address primitive, a read or write through a `TypedMemory` attribute of the class (a
+  function of the same name on anything else is any other use), or a call to a function of the same class that
   provably keeps the parameter; neither name is assigned again.
 - **Buys.** No allocation: a slot of the frame, and `free` does nothing.
 - **Falls back.** The heap, for a size over 256 bytes known only at run time, any other use, a recursive call, or a
   `--hot-reload` build.
 - **See.** [memory.md: Placement](memory.md#placement-the-compiler-decides-where-memory-lives);
-  `conformance/stage6/lent_buffers`.
+  `conformance/stage6/lent_buffers`, `conformance/stage6/kept_buffer_address`.
 
 ### Objects that never leave their function live in the frame
 

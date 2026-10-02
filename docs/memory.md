@@ -1191,7 +1191,8 @@ is the same whichever it makes:
 - **Frame:** `var name = heap.allocate(bytes)` in a function, when a later statement of the same block
   is `heap.free(name)` and every other use of `name` reads or writes through it (`name.read_long(offset)`, also
   as `(name + offset)`), copies or compares with it (`copy_to`, `compare_bytes`), turns it into `text`, or hands
-  it to a `TypedMemory`'s `read_value`, `write_value` or `release_value`, or lends it to a function of the same
+  it to a `TypedMemory`'s `read_value`, `write_value` or `release_value` (a `TypedMemory` the class binds; the same
+  names on any other class are an ordinary call, `conformance/stage6/kept_buffer_address`), or lends it to a function of the same
   class, called by its bare name, whose `Memory.Address` parameter is proven to keep nothing (the same rules,
   applied to the parameter in that function's body, and to the functions it lends it on to; a recursive lend and a
   `--hot-reload` build, whose functions can be swapped, prove nothing), or, in a file of `library/` only, lends it
