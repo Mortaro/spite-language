@@ -1,0 +1,15 @@
+var console = Console()
+
+func AxisNames() {
+    var corner = Corner()
+    corner.x = 3
+    corner.y = 4
+    var w = 2
+    var stretched = corner.stretched(w)
+    console.print(stretched)
+    var position = Vector3(1.0, 2.0, 3.0)
+    var z = position.z
+    console.print(position.x, position.y, z)
+    var rotation = Quaternion()
+    console.print(rotation.w)
+}

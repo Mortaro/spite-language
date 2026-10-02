@@ -56,10 +56,10 @@ func multiply(other: Matrix4): Matrix4 {
 }
 
 func transform(vector: Vector4): Vector4 {
-    var x_part = column_0_row_0 * vector.x_value + column_1_row_0 * vector.y_value + column_2_row_0 * vector.z_value + column_3_row_0 * vector.w_value
-    var y_part = column_0_row_1 * vector.x_value + column_1_row_1 * vector.y_value + column_2_row_1 * vector.z_value + column_3_row_1 * vector.w_value
-    var z_part = column_0_row_2 * vector.x_value + column_1_row_2 * vector.y_value + column_2_row_2 * vector.z_value + column_3_row_2 * vector.w_value
-    var w_part = column_0_row_3 * vector.x_value + column_1_row_3 * vector.y_value + column_2_row_3 * vector.z_value + column_3_row_3 * vector.w_value
+    var x_part = column_0_row_0 * vector.x + column_1_row_0 * vector.y + column_2_row_0 * vector.z + column_3_row_0 * vector.w
+    var y_part = column_0_row_1 * vector.x + column_1_row_1 * vector.y + column_2_row_1 * vector.z + column_3_row_1 * vector.w
+    var z_part = column_0_row_2 * vector.x + column_1_row_2 * vector.y + column_2_row_2 * vector.z + column_3_row_2 * vector.w
+    var w_part = column_0_row_3 * vector.x + column_1_row_3 * vector.y + column_2_row_3 * vector.z + column_3_row_3 * vector.w
     return Vector4(x_part, y_part, z_part, w_part)
 }
 
@@ -141,52 +141,52 @@ func inverse(): Matrix4? {
 }
 
 func transform_point(point: Vector3): Vector3 {
-    var x_part = column_0_row_0 * point.x_value + column_1_row_0 * point.y_value + column_2_row_0 * point.z_value + column_3_row_0
-    var y_part = column_0_row_1 * point.x_value + column_1_row_1 * point.y_value + column_2_row_1 * point.z_value + column_3_row_1
-    var z_part = column_0_row_2 * point.x_value + column_1_row_2 * point.y_value + column_2_row_2 * point.z_value + column_3_row_2
+    var x_part = column_0_row_0 * point.x + column_1_row_0 * point.y + column_2_row_0 * point.z + column_3_row_0
+    var y_part = column_0_row_1 * point.x + column_1_row_1 * point.y + column_2_row_1 * point.z + column_3_row_1
+    var z_part = column_0_row_2 * point.x + column_1_row_2 * point.y + column_2_row_2 * point.z + column_3_row_2
     return Vector3(x_part, y_part, z_part)
 }
 
 func project_point(point: Vector3): Vector3 {
-    var x_part = column_0_row_0 * point.x_value + column_1_row_0 * point.y_value + column_2_row_0 * point.z_value + column_3_row_0
-    var y_part = column_0_row_1 * point.x_value + column_1_row_1 * point.y_value + column_2_row_1 * point.z_value + column_3_row_1
-    var z_part = column_0_row_2 * point.x_value + column_1_row_2 * point.y_value + column_2_row_2 * point.z_value + column_3_row_2
-    var w_part = column_0_row_3 * point.x_value + column_1_row_3 * point.y_value + column_2_row_3 * point.z_value + column_3_row_3
+    var x_part = column_0_row_0 * point.x + column_1_row_0 * point.y + column_2_row_0 * point.z + column_3_row_0
+    var y_part = column_0_row_1 * point.x + column_1_row_1 * point.y + column_2_row_1 * point.z + column_3_row_1
+    var z_part = column_0_row_2 * point.x + column_1_row_2 * point.y + column_2_row_2 * point.z + column_3_row_2
+    var w_part = column_0_row_3 * point.x + column_1_row_3 * point.y + column_2_row_3 * point.z + column_3_row_3
     var inverse_w = 1.0 / w_part
     return Vector3(x_part * inverse_w, y_part * inverse_w, z_part * inverse_w)
 }
 
 func transform_direction(direction: Vector3): Vector3 {
-    var x_part = column_0_row_0 * direction.x_value + column_1_row_0 * direction.y_value + column_2_row_0 * direction.z_value
-    var y_part = column_0_row_1 * direction.x_value + column_1_row_1 * direction.y_value + column_2_row_1 * direction.z_value
-    var z_part = column_0_row_2 * direction.x_value + column_1_row_2 * direction.y_value + column_2_row_2 * direction.z_value
+    var x_part = column_0_row_0 * direction.x + column_1_row_0 * direction.y + column_2_row_0 * direction.z
+    var y_part = column_0_row_1 * direction.x + column_1_row_1 * direction.y + column_2_row_1 * direction.z
+    var z_part = column_0_row_2 * direction.x + column_1_row_2 * direction.y + column_2_row_2 * direction.z
     return Vector3(x_part, y_part, z_part)
 }
 
 func set_translation(offset: Vector3) {
     set_identity()
-    column_3_row_0 = offset.x_value
-    column_3_row_1 = offset.y_value
-    column_3_row_2 = offset.z_value
+    column_3_row_0 = offset.x
+    column_3_row_1 = offset.y
+    column_3_row_2 = offset.z
 }
 
 func set_scale(factor: Vector3) {
     set_identity()
-    column_0_row_0 = factor.x_value
-    column_1_row_1 = factor.y_value
-    column_2_row_2 = factor.z_value
+    column_0_row_0 = factor.x
+    column_1_row_1 = factor.y
+    column_2_row_2 = factor.z
 }
 
 func set_rotation(rotation: Quaternion) {
-    var x_x = rotation.x_value * rotation.x_value
-    var y_y = rotation.y_value * rotation.y_value
-    var z_z = rotation.z_value * rotation.z_value
-    var x_y = rotation.x_value * rotation.y_value
-    var x_z = rotation.x_value * rotation.z_value
-    var y_z = rotation.y_value * rotation.z_value
-    var w_x = rotation.w_value * rotation.x_value
-    var w_y = rotation.w_value * rotation.y_value
-    var w_z = rotation.w_value * rotation.z_value
+    var x_x = rotation.x * rotation.x
+    var y_y = rotation.y * rotation.y
+    var z_z = rotation.z * rotation.z
+    var x_y = rotation.x * rotation.y
+    var x_z = rotation.x * rotation.z
+    var y_z = rotation.y * rotation.z
+    var w_x = rotation.w * rotation.x
+    var w_y = rotation.w * rotation.y
+    var w_z = rotation.w * rotation.z
     column_0_row_0 = 1.0 - 2.0 * (y_y + z_z)
     column_0_row_1 = 2.0 * (x_y + w_z)
     column_0_row_2 = 2.0 * (x_z - w_y)
@@ -207,18 +207,18 @@ func set_rotation(rotation: Quaternion) {
 
 func set_transform(translation: Vector3, rotation: Quaternion, scale: Vector3) {
     set_rotation(rotation)
-    column_0_row_0 = column_0_row_0 * scale.x_value
-    column_0_row_1 = column_0_row_1 * scale.x_value
-    column_0_row_2 = column_0_row_2 * scale.x_value
-    column_1_row_0 = column_1_row_0 * scale.y_value
-    column_1_row_1 = column_1_row_1 * scale.y_value
-    column_1_row_2 = column_1_row_2 * scale.y_value
-    column_2_row_0 = column_2_row_0 * scale.z_value
-    column_2_row_1 = column_2_row_1 * scale.z_value
-    column_2_row_2 = column_2_row_2 * scale.z_value
-    column_3_row_0 = translation.x_value
-    column_3_row_1 = translation.y_value
-    column_3_row_2 = translation.z_value
+    column_0_row_0 = column_0_row_0 * scale.x
+    column_0_row_1 = column_0_row_1 * scale.x
+    column_0_row_2 = column_0_row_2 * scale.x
+    column_1_row_0 = column_1_row_0 * scale.y
+    column_1_row_1 = column_1_row_1 * scale.y
+    column_1_row_2 = column_1_row_2 * scale.y
+    column_2_row_0 = column_2_row_0 * scale.z
+    column_2_row_1 = column_2_row_1 * scale.z
+    column_2_row_2 = column_2_row_2 * scale.z
+    column_3_row_0 = translation.x
+    column_3_row_1 = translation.y
+    column_3_row_2 = translation.z
 }
 
 func translation_part(): Vector3 {
@@ -242,12 +242,12 @@ func scale_part(): Vector3 {
 func rotation_part(): Quaternion {
     var scale = scale_part()
     var rotation = Quaternion()
-    if scale.x_value == 0.0 or scale.y_value == 0.0 or scale.z_value == 0.0 {
+    if scale.x == 0.0 or scale.y == 0.0 or scale.z == 0.0 {
         return rotation
     }
-    var inverse_x = 1.0 / scale.x_value
-    var inverse_y = 1.0 / scale.y_value
-    var inverse_z = 1.0 / scale.z_value
+    var inverse_x = 1.0 / scale.x
+    var inverse_y = 1.0 / scale.y
+    var inverse_z = 1.0 / scale.z
     var rotation_0_0 = column_0_row_0 * inverse_x
     var rotation_0_1 = column_0_row_1 * inverse_x
     var rotation_0_2 = column_0_row_2 * inverse_x
@@ -277,15 +277,15 @@ func set_look_at(eye: Vector3, target: Vector3, up: Vector3) {
     var sideways = forward.cross(up)
     var side = sideways.normalized()
     var true_up = side.cross(forward)
-    column_0_row_0 = side.x_value
-    column_1_row_0 = side.y_value
-    column_2_row_0 = side.z_value
-    column_0_row_1 = true_up.x_value
-    column_1_row_1 = true_up.y_value
-    column_2_row_1 = true_up.z_value
-    column_0_row_2 = -forward.x_value
-    column_1_row_2 = -forward.y_value
-    column_2_row_2 = -forward.z_value
+    column_0_row_0 = side.x
+    column_1_row_0 = side.y
+    column_2_row_0 = side.z
+    column_0_row_1 = true_up.x
+    column_1_row_1 = true_up.y
+    column_2_row_1 = true_up.z
+    column_0_row_2 = -forward.x
+    column_1_row_2 = -forward.y
+    column_2_row_2 = -forward.z
     column_0_row_3 = 0.0
     column_1_row_3 = 0.0
     column_2_row_3 = 0.0

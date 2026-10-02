@@ -44,8 +44,8 @@ func _check_point(curve: CubicBezier, height: Float, x_wanted: Float): Boolean {
         var amount: Float = steps
         amount = amount / 10000.0
         var point = curve.point_at(amount)
-        var across = point.x_value - x_wanted
-        var up = point.y_value - height
+        var across = point.x - x_wanted
+        var up = point.y - height
         found = across.absolute() < 0.001 and up.absolute() < 0.002
         steps = steps + 1
     }
@@ -116,5 +116,5 @@ func near(value: Float): Float {
 }
 
 func near_vector(vector: Vector2): String {
-    return "({near(vector.x_value)}, {near(vector.y_value)})"
+    return "({near(vector.x)}, {near(vector.y)})"
 }

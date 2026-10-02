@@ -29,7 +29,7 @@ func three() {
     positions.append(second)
     crash positions.count() == 2
     var stored = positions[1]
-    console.print("in a Vector column {stored.x_value} {positions.count()}")
+    console.print("in a Vector column {stored.x} {positions.count()}")
 }
 
 func two_and_four() {

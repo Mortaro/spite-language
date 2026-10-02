@@ -123,9 +123,9 @@ func is_alive(): Boolean {
 - A variable, parameter or attribute never has the name of a function of its class: `var stem = file_stem(path)`,
   never `var file_stem = file_stem(path)` (`the variable 'file_stem' has the name of a function of this class`).
 - `snake_case` for variables, attributes, parameters, functions and enum values; `PascalCase` for classes,
-  enums, unions and types; never a single letter; never an abbreviation (`message` not `msg`, `index` not `idx`,
+  enums, unions and types; never a single letter but the axis names `x`, `y`, `z`, `w`; never an abbreviation (`message` not `msg`, `index` not `idx`,
   `value` not `val`). The error names the word to write: `'msg' abbreviates: write 'message' instead of 'msg'`,
-  `the variable 'x' is a single letter`, `the variable 'myValue' must be written in snake_case`. The language's own
+  `the variable 'n' is a single letter`, `the variable 'myValue' must be written in snake_case`. The language's own
   type names follow the rule: `Integer`, `Boolean`, never `Int`, `Bool`. Folder names are snake_case too.
 - A local that is never read is an error (`'total' is never read: remove it`). Assigning is not reading, and no
   spelling silences it. A parameter the signature needs but the body ignores is named `_name` (`the parameter
@@ -631,7 +631,7 @@ registration and unregister in its `drop()`: C may call only while it is kept. A
 `Parallel`'s rules (its own value attributes, locals, singletons). A COM-style interface is a `Memory.Heap` block
 whose first word points at a table filled with `TypedMemory<Long>` and each `ForeignCallback`'s `address`.
 Game maths (docs/game_maths.md): `Vector2`, `Vector3`, `Vector4` are made with their parts, `Vector3(1.0, 2.0, 3.0)`,
-read as `x_value`, `y_value`, `z_value`, `w_value` (never `.x`), with `+ - * /` part by part, `scaled(factor)`,
+read as `x`, `y`, `z`, `w`, with `+ - * /` part by part, `scaled(factor)`,
 `dot`, `cross`, `length()`, `normalized()`, `distance_to`, `linear_interpolate(target, amount)`. `Matrix4()` and
 `Quaternion()` are the identity and are set in place: `matrix.set_transform(translation, rotation, scale)`,
 `set_perspective(field_of_view, aspect, near, far)` (Vulkan: y down, depth 0 to 1), `set_look_at`,

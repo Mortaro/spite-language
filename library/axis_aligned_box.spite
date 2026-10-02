@@ -6,12 +6,12 @@ var highest_y: Float = 0.0
 var highest_z: Float = 0.0
 
 func AxisAlignedBox(starting_lowest: Vector3, starting_highest: Vector3) {
-    lowest_x = starting_lowest.x_value
-    lowest_y = starting_lowest.y_value
-    lowest_z = starting_lowest.z_value
-    highest_x = starting_highest.x_value
-    highest_y = starting_highest.y_value
-    highest_z = starting_highest.z_value
+    lowest_x = starting_lowest.x
+    lowest_y = starting_lowest.y
+    lowest_z = starting_lowest.z
+    highest_x = starting_highest.x
+    highest_y = starting_highest.y
+    highest_z = starting_highest.z
 }
 
 func lowest(): Vector3 {
@@ -31,7 +31,7 @@ func size(): Vector3 {
 }
 
 func contains(point: Vector3): Boolean {
-    return point.x_value >= lowest_x and point.x_value <= highest_x and point.y_value >= lowest_y and point.y_value <= highest_y and point.z_value >= lowest_z and point.z_value <= highest_z
+    return point.x >= lowest_x and point.x <= highest_x and point.y >= lowest_y and point.y <= highest_y and point.z >= lowest_z and point.z <= highest_z
 }
 
 func intersects(other: AxisAlignedBox): Boolean {
