@@ -1,0 +1,30 @@
+var console = Console()
+
+func Utf8Text() {
+    var greeting = "olá, 世界 😀"
+    var bytes = greeting.to_bytes()
+    var back = bytes.to_utf8_text()
+    crash back
+    console.print(back, back == greeting)
+    var nothing = List<Byte>()
+    show("empty", nothing)
+    show("a lone continuation byte", [128])
+    show("a cut sequence", [195])
+    show("an overlong slash", [192, 175])
+    show("an overlong three-byte form", [224, 128, 175])
+    show("a surrogate", [237, 160, 128])
+    show("past U+10FFFF", [244, 144, 128, 128])
+    show("U+10FFFF", [244, 143, 191, 191])
+    show("a zero byte", [104, 0, 105])
+    show("plain", [104, 105])
+}
+
+func show(label: String, bytes: List<Byte>) {
+    var text = bytes.to_utf8_text()
+    if text {
+        var length = text.length()
+        console.print(label, "is text of", length, "bytes")
+    } else {
+        console.print(label, "is not UTF-8")
+    }
+}

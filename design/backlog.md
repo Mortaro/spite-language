@@ -279,8 +279,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **S7 `Dictionary`'s `[]` is `get_at`/`set_at`** (D369 item 220). Rename `get`/`set` in
   `library/dictionary.spite` and the compiler's lowering of `d[key]`, and the operator errors from
   `cloud/operators`. **S.** Depends on landing `cloud/operators`.
-- **S8 `bytes.to_utf8_text(): String?`** (D370 item 237). `null` for invalid UTF-8. Files: `library/list.spite` or
-  `string.spite`. **S.** No dependencies.
 - **S9 Collection leftovers** (status "Standard library metaprogramming", "Deep copy"). `sort_by_`, `find_by_` and
   a program's own templates on `Vector` and `Items`; the `while`-does-a-template rule over `Vector` loops;
   `deep_copy()` of unions, shapes and self-referring structures; a `String`'s or number's function held as a value.

@@ -712,8 +712,12 @@ while a client is slow to send the rest of a request, the other connections wait
 
 ## Bytes: base64, compression, hashes and passwords
 
-These classes work on `List<Byte>`, and `text.to_bytes()` gives a text's bytes. Each is written in Spite in
-`library/`, so a program that uses none of them carries none of them.
+These classes work on `List<Byte>`, and `text.to_bytes()` gives a text's bytes. `bytes.to_utf8_text()` turns
+bytes back into text: it answers a `String?`, `null` when the bytes are not valid UTF-8 (a stray continuation
+byte, a cut sequence, an overlong form, a surrogate or a value past U+10FFFF), so bytes from outside are never
+taken for text they do not spell; on a list of anything but `Byte` it is a compile error
+(`conformance/stage6/utf8_text`). Each is written in Spite in `library/`, so a program that uses none of them
+carries none of them.
 
 | Class | Member | Does |
 |---|---|---|

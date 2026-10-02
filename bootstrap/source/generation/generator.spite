@@ -14582,6 +14582,7 @@ func generate_list_method(
         "join"
         "copy"
         "reserve"
+        "to_utf8_text"
     ]
     if public_names.contains(name) {
         var function = list_class_of(element).find_function(name)

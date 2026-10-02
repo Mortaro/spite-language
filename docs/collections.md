@@ -43,6 +43,7 @@ var empty = List<String>()
 | `clear()` / `reverse()` | | in place; `clear()` keeps the buffer's capacity |
 | `join(separator)` | `String` | every element becomes text: a `String`, a number, a `Boolean`, an enum value |
 | `copy()` / `deep_copy()` | `List<T>` | one level, or all the way down ([memory.md](memory.md)) |
+| `to_utf8_text()` | `String?` | a `List<Byte>` only: the text those bytes spell, or `null` when they are not valid UTF-8 ([standard_library.md](standard_library.md#bytes-base64-compression-hashes-and-passwords)) |
 
 `append`, `remove_last`, `list[index]` and their kin take the same time however long the list is; `prepend`,
 `insert`, `remove_first` and `remove_at` move every later element, and `contains` looks at each in turn. An empty

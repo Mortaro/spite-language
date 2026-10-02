@@ -186,6 +186,80 @@ func join(separator: String): String {
     return joined
 }
 
+func to_utf8_text(): String? {
+    crash $element_type == Byte
+    var index = 0
+    while index < item_count {
+        var sequence_length = _utf8_length_at(index)
+        assert sequence_length != 0
+        index = index + sequence_length
+    }
+    if item_count == 0 {
+        return ""
+    }
+    return items.text(item_count)
+}
+
+func _utf8_length_at(index: Integer): Integer {
+    var lead: Integer = values.read_value(items, index)
+    var length = _utf8_length_of(lead)
+    if length <= 1 {
+        return length
+    }
+    if index + length > item_count {
+        return 0
+    }
+    var second: Integer = values.read_value(items, index + 1)
+    if second < _utf8_lowest_second(lead) or second > _utf8_highest_second(lead) {
+        return 0
+    }
+    var position = 2
+    while position < length {
+        var following: Integer = values.read_value(items, index + position)
+        if following < 128 or following > 191 {
+            return 0
+        }
+        position = position + 1
+    }
+    return length
+}
+
+func _utf8_length_of(lead: Integer): Integer {
+    if lead < 128 {
+        return 1
+    }
+    if lead >= 194 and lead <= 223 {
+        return 2
+    }
+    if lead >= 224 and lead <= 239 {
+        return 3
+    }
+    if lead >= 240 and lead <= 244 {
+        return 4
+    }
+    return 0
+}
+
+func _utf8_lowest_second(lead: Integer): Integer {
+    if lead == 224 {
+        return 160
+    }
+    if lead == 240 {
+        return 144
+    }
+    return 128
+}
+
+func _utf8_highest_second(lead: Integer): Integer {
+    if lead == 237 {
+        return 159
+    }
+    if lead == 244 {
+        return 143
+    }
+    return 191
+}
+
 func write_text(text: String, address: Memory.Address, position: Long): Long {
     var index = 0
     while index < text.length() {
