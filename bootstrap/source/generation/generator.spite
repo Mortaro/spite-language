@@ -29912,11 +29912,15 @@ func check_value_name(name: String, what: String) {
         )
         return
     }
-    if bare.length() == 1 {
+    if bare.length() == 1 and not is_axis_name(bare) {
         report("the {what} '{name}' is a single letter: give it a name that says what it holds")
         return
     }
     check_abbreviations(bare)
+}
+
+func is_axis_name(name: String): Boolean {
+    return name == "x" or name == "y" or name == "z" or name == "w"
 }
 
 func check_reflection_name(name: String, what: String, information: Analysis.ClassInfo) {

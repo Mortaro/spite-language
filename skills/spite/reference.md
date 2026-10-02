@@ -123,9 +123,9 @@ func is_alive(): Boolean {
 - A variable, parameter or attribute never has the name of a function of its class: `var stem = file_stem(path)`,
   never `var file_stem = file_stem(path)` (`the variable 'file_stem' has the name of a function of this class`).
 - `snake_case` for variables, attributes, parameters, functions and enum values; `PascalCase` for classes,
-  enums, unions and types; never a single letter; never an abbreviation (`message` not `msg`, `index` not `idx`,
-  `value` not `val`). The error names the word to write: `'msg' abbreviates: write 'message' instead of 'msg'`,
-  `the variable 'x' is a single letter`, `the variable 'myValue' must be written in snake_case`. The language's own
+  enums, unions and types; never a single letter except the axis names `x`, `y`, `z`, `w`; never an abbreviation
+  (`message` not `msg`, `index` not `idx`, `value` not `val`). The error names the word to write: `'msg' abbreviates: write 'message' instead of 'msg'`,
+  `the variable 'n' is a single letter`, `the variable 'myValue' must be written in snake_case`. The language's own
   type names follow the rule: `Integer`, `Boolean`, never `Int`, `Bool`. Folder names are snake_case too.
 - A local that is never read is an error (`'total' is never read: remove it`). Assigning is not reading, and no
   spelling silences it. A parameter the signature needs but the body ignores is named `_name` (`the parameter
