@@ -168,7 +168,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   one place a reader finds (D240's table). Files: `library/memory/heap.spite`, `address.spite`, `prelude.spite`.
   **L.** Pairs with C9.
 
-### Language rules (D364, D371 to D374, D369 item 236, D336)
+### Language rules (D364, D371 to D374, D369 item 236, D336, D386)
 
 - **L1 Every folder is a namespace, no special entry file** (D364). `engine/physics/physics.spite` is
   `Physics.Physics`; loads name a root only; the class and namespace clash error fires only for a file and a folder
@@ -194,6 +194,10 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **L7 Work that can never finish in a `Parallel` is an error** (D336). A loop with no exit and no wait inside work
   given to a `Parallel`; related to failure.md's "a `while true` that can never leave". Files: generator.spite
   `Parallel` checks, `wait_facts.spite`. **M.** No dependencies.
+- **L8 Enum values numbered with `=`** (D386). `admin = 99` on its own line; an unnumbered value counts on from the
+  one before, the first from 0; two values with one number are a compile error; the numbers are the identity for
+  bindings, binary files and the network, storage stays the smallest class that fits. Files: the parser's enum
+  form, the checker, codegen, docs values_and_types.md (enums) and foreign_libraries.md. **M.** No dependencies.
 
 ### Compiler driver and outputs (D327, D348, D349, D356, D361, D366, D369 items 134 and 138, D385)
 
@@ -262,9 +266,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 ### Foreign libraries (D351, D369 items 93, 211 and 233)
 
 - **F1 A C enum result is a Spite enum written in Spite** (D351, replacing D272's generated enum). The binding's
-  enum maps each value to its C number (spelling, Q3); a number the enum does not list crashes at the boundary; the
+  enum maps each value to its C number (numbered with `=`, D386); a number the enum does not list crashes at the boundary; the
   result must be used and switched with every value. Files: generator.spite foreign-call region,
-  `library/dynamic_library.spite`, docs/foreign_libraries.md (still describes D272). **M.** Depends on L3, Q3.
+  `library/dynamic_library.spite`, docs/foreign_libraries.md (still describes D272). **M.** Depends on L3, L8.
 - **F2 Bindings checked against a header** (D369 items 93 and 233). With a header, argument and result types and
   enum numbers checked, the error naming the C type; how the header is read is the compiler's choice. **M.**
   Depends on F1.
@@ -372,7 +376,7 @@ Each line can start once everything before it that it names is done; lines with 
 3. After step 2: R5 (Q1), L2 (L1), C2 (C1), C4 and C5 (fastbuild), S7 (operators), P3 (linux), K3 (with K2), C8
    (K1), N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4 (with S7).
-5. After J1: J2, S5. After L3: F1 (Q3), S6 (with L4). After F1: F2.
+5. After J1: J2, S5. After L3 and L8: F1, S6 (with L4). After F1: F2.
 6. After M1, M2 and M6: M5. After M1, R3 and M4: M3.
 7. After R1, R5, R6 and J1: R7, the end of the reflection migration.
 8. Whenever owners decide: S2 (Q13) and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
@@ -414,11 +418,6 @@ unconfirmed).
   (b) collect into a `List<Anything>` with `each`, then `call_with(list)`, which travels as a shape and costs a
   dispatch; (c) a read-only attribute on `Spite.Argument` collected with `map_<members>()`, which only works when
   the value depends on the argument alone. Recommendation: (a), the only one that is free at run time.
-- **Q3 How a binding's Spite enum names each value's C number** (`mortaros_missing_decisions.md` item 253) (D351). Options: (a) a number written beside each
-  value in the enum (new syntax, allowed only where a binding uses it); (b) the enum declares
-  `func foreign_number(): Integer` with a `switch` (possible once D371 lets enums declare functions) and the
-  compiler inverts it; (c) the binding writes a function from `Integer` to the enum by hand, which D351 wanted the
-  compiler to do. Recommendation: (b), no new syntax and readable as Spite.
 - **Q5 Does D374 cover the standard library, superseding D284?** (`mortaros_missing_decisions.md` item 255) D374 makes any class shadowing a visible class
   an error, which already refuses a program's `Game.Math.Vector3` beside the library's `Vector3`, more strictly
   than D284's attribute matching with zero false positives. Recommendation: yes, one rule; record a row
