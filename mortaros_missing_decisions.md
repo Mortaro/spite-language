@@ -11,7 +11,7 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
@@ -21,8 +21,6 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      a `List<Anything>` with `each`, then `call_with(list)`, which travels as a shape and costs a dispatch; (c) a
      read-only attribute on `Spite.Argument` collected with `map_<members>()`, which only works when the value
      depends on the argument alone. Recommendation: (a), the only one that is free at run time.
-260. **Where the optimisation report goes** (D36, D332). Recommendation: always written beside the build in
-     `.spite/build/<program>/`, one line per refusal with its source line, no flag to ask for it.
 262. **What "measured for each program" means for `--optimized`** (D356). There is no workload to time in an
      ordinary build. Recommendation: `-O2` everywhere now; measure `-O3` only where a program carries a benchmark,
      until a decided way to declare one exists.

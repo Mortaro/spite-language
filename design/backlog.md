@@ -103,9 +103,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   array; step 3: partitions per value filter, only where a production benchmark wins (D322). Files:
   `library/list.spite`, `items.spite`, `vector.spite`, generator.spite list layout, `placement.spite`. **L.**
   Depends on M1(b), R3, M4.
-- **M4 The optimisation report** (D36, D332; status "Other optimisations"). A build lists what could not be
+- **M4 The optimisation report** (D36, D332, D389; status "Other optimisations"). A build lists what could not be
   optimised and why: every list falling back to references (D332's to-do list), copies not elided, objects not
-  placed in the frame, and later every remaining overflow check (N2). Form and place undecided (Q10). Files:
+  placed in the frame, and later every remaining overflow check (N2). Written only when asked, by `--optimization-report` (name unconfirmed), in `--final-classes`' place and style, each entry linking its source line (D389). Files:
   generator.spite (a collector), `bootstrap.spite` (writing it). **M.** No dependencies; M3 and N2 report into it.
 - **M5 Vectors and maths generic over `Number`** (D355, D381). `Vector2`, `Vector3`, `Vector4` and `Quaternion` (and
   `Matrix3`/`Matrix4`, `Plane`, `Ray`, `AxisAlignedBox`, `CubicBezier` where it makes sense) take `generic
@@ -418,8 +418,6 @@ unconfirmed).
   (b) collect into a `List<Anything>` with `each`, then `call_with(list)`, which travels as a shape and costs a
   dispatch; (c) a read-only attribute on `Spite.Argument` collected with `map_<members>()`, which only works when
   the value depends on the argument alone. Recommendation: (a), the only one that is free at run time.
-- **Q10 Where the optimisation report goes** (`mortaros_missing_decisions.md` item 260) (D36, D332). Recommendation: always written beside the build in
-  `.spite/build/<program>/`, one line per refusal with its source line, no flag to ask for it.
 - **Q12 What "measured for each program" means for `--optimized`** (`mortaros_missing_decisions.md` item 262) (D356). There is no workload to time in an
   ordinary build. Recommendation: `-O2` everywhere now; measure `-O3` only where a program carries a benchmark,
   until a decided way to declare one exists.
