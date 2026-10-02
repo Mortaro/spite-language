@@ -6,12 +6,12 @@ var direction_y: Float = 0.0
 var direction_z: Float = -1.0
 
 func Ray(starting_origin: Vector3, starting_direction: Vector3) {
-    origin_x = starting_origin.x_value
-    origin_y = starting_origin.y_value
-    origin_z = starting_origin.z_value
-    direction_x = starting_direction.x_value
-    direction_y = starting_direction.y_value
-    direction_z = starting_direction.z_value
+    origin_x = starting_origin.x
+    origin_y = starting_origin.y
+    origin_z = starting_origin.z
+    direction_x = starting_direction.x
+    direction_y = starting_direction.y
+    direction_z = starting_direction.z
 }
 
 func origin(): Vector3 {

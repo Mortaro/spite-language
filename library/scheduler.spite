@@ -10,6 +10,7 @@ var commands: Spite.Function<Nothing>? = null
 var reloads: Spite.Function<Nothing>? = null
 var paused = false
 var resumes_when_asked = false
+var unfinished_polls_with_no_frame_stepped = 0
 var wake: Long = 0
 
 func start() {
@@ -39,6 +40,7 @@ func begin(frame: Long) {
 }
 
 func run_frame(frame: Memory.Address): Boolean {
+    unfinished_polls_with_no_frame_stepped = 0
     frame.write_integer(12, 1)
     var done = step_frame(frame)
     if done {
@@ -52,6 +54,11 @@ func run_frame(frame: Memory.Address): Boolean {
 
 func frame_done(frame: Memory.Address): Boolean {
     return frame.read_integer(12) == 2
+}
+
+func polled_unfinished() {
+    unfinished_polls_with_no_frame_stepped = unfinished_polls_with_no_frame_stepped + 1
+    crash unfinished_polls_with_no_frame_stepped < 1000000
 }
 
 func run_ready(): Integer {

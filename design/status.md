@@ -111,8 +111,6 @@ for a design):
   command: on Linux, concurrency.md's `frame_loop` session (`program.running = false`, then `exit`) lost its
   `stopped` line in 3 of 5 runs, so `check.sh` fails its wire replay intermittently. The program's last output is
   dropped without a word; `exit` should let the program reach its next wait first.
-- A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` never ends
-  (concurrency.md, "Choosing where Concurrents resume").
 - A generic singleton that holds state is not made safe for threads (classes_and_files.md, "Safe for threads
   without a keyword"): only its first fetch is locked. `Spite.DebugInstance<T>` keeps the objects it is showing and
   the parts of the text in attributes, so three `Parallel`s calling `to_debug()` on a class at once double-free
@@ -131,26 +129,19 @@ for a design):
   program's own threads may run: the swap pauses the scheduler's tasks, not a thread the program started itself, so a
   thread reading an object of the class while it moves could read its old attributes. The move should wait for every
   thread to reach a point where it holds nothing, as the swap of code does for the main loop.
-- Reading `.functions` (or `has_function`, `function_waits`, `argument_count`) on a `Spite.Class` in any function the
-  compiler compiles, even one of the standard library no program calls, turns on a flag for the whole program, and
-  programs that walk classes with Symbol templates then compile differently or not at all
-  (`conformance/stage6/binary_schema`, `symbol_class_function`, `numbers_are_classes` and `sparse_rows`' allocation
-  count all changed when `library/read_evaluate_print_loop.spite` read it in a function only a REPL build calls). The
-  flag should be set only by code that is kept. Found building D301, whose `describe` avoids it.
 
 Also open, each a bug under D244, found cataloguing the compiler's proofs (proofs.md):
 
 - **A function that lends a list element (D269) is not checked for a guard `assert`** (D106), as other functions are.
-- **A frame buffer's uses are matched by name.** Placing an allocation in the frame accepts `read_value`,
-  `write_value`, `release_value` and `swap_values` on any receiver, not only `TypedMemory`'s, so a program's own
-  `write_value` that keeps the address would pass (memory.md, "Placement: the compiler decides where memory lives").
 - **`absolute()` of the smallest signed value** answers that value itself (`Integer.smallest.absolute()` is
   negative): it is a supplied macro with no line to name, so it is not yet checked like `-value` is (D359).
 - **A change of signedness at the same width or wider** (`var bits: UnsignedInteger = count` with a negative
   `count`) keeps the bits unchecked: D162's "wider" leaves signedness out, and the hashes read words this way.
   Whether it should halt, with a named function for reading the bits, waits for Mortaro (D359; proposed by Claude).
-- **A `while true` that can never leave** ends its function's paths for the missing-`return` check, and nothing
-  reports it outside a locked singleton function: a hang.
+- **A `while true` that can never leave but calls something** ends its function's paths for the missing-`return`
+  check, and is reported only in work a `Parallel` reaches (when its function never waits) and in a locked singleton
+  function: elsewhere a call inside it may end the program, so it is left alone, and one that never does is a hang.
+  Only a loop that calls nothing is refused everywhere (control_flow.md).
 - **Two threads writing one number attribute of an instance they share** is refused only when the instance is a
   local handed to the `Parallel` (concurrency.md, "A task may keep what was handed to it"); `Parallel(own_function)`,
   a parameter, an attribute, or a local used before the `Parallel` still race, the result whichever write lands last.
@@ -174,9 +165,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Failure: three outcomes and no others
 
-- The heading was tagged `[partial]`. Not built, from the decided design: the call chain in a crash report, and the
-  default each failed `assert` returned (D25); an assert's values in the ring (D33); the column of a `.crashes` line,
-  which is written as `0`; crash ids that compare across targets other than native (targets.md: other targets are not
+- The heading was tagged `[partial]`. Not built, from the decided design: an assert's values in the ring (D33; a
+  ring entry is still only a pointer to its site's fixed line); the call chain of an `--optimized` crash on Linux and
+  macOS, which keep no frame pointers there (D25); crash ids that compare across targets other than native (targets.md: other targets are not
   built, so "the same id on the server bundle and the browser bundle" is decided, not built); the wrong-target compile
   error (D20) is planned (targets.md).
 - Not built, proposed by Claude and unconfirmed (D26 refinement), removed from the page: the trace would record
@@ -284,7 +275,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Not built: the heap asking the operating system for pages itself, and `copy_to` and `compare_bytes` as plain Spite through `DynamicLibrary`. Today `Memory.Heap`'s four functions (`allocate`, `resize`, `free`, `live_allocations`) are bodies the compiler supplies over the C library's `realloc` and `free` (with the live-allocation counter), and `copy_to` and `compare_bytes` are written in place as `memmove` and `memcmp`. `library/memory/heap.spite` declares only `singleton`, so the "zero hidden code" goal is not reached for the heap yet. (Was decided as D178 and D147.) The heading was tagged "implemented; OS pages planned".
 
 ### Allocators: `.memory.allocator`
-- Only partly built (heading was "implemented for objects; a list's buffer and a vector's block planned"). Works for objects. Not built: a list's buffer following its list's allocator (a list placed in an arena keeps its buffer of references on the heap); likewise a `Vector<T>`'s block of items stays on the heap wherever the vector object is (a class reading its own allocator, open item 175, is unresolved); `Memory.Frame` (open item 173 in mortaros_missing_decisions.md); `reset()` on an arena (no `reset()` because resetting under live objects is the undecided safety rule of item 173); reading `.memory.allocator` back. The page states the list-buffer and vector-block facts as plain behaviour ("stays on the heap") and does not mention `Memory.Frame`, `reset()` or reading the allocator back.
+- Only partly built. Built: objects, a class reading its own allocator (`memory.allocator`, D353), a `List`'s buffer and a `Vector`'s or `Items`' block following their object, and reading `.memory.allocator` back (the readings in the D??? row "a class reads its own allocator" are proposed by Claude, unconfirmed). Not built: `Memory.Frame` and the escape rule (D352, D369 item 173); `reset()` on an arena. A `Dictionary` given an allocator keeps its table and its two lists on the heap (the page says so as plain behaviour). Of D353's "every fact the compiler knows as get-only reflection", only `.memory.address`, `.bytes`, `.section` and `.allocator` exist: which facts a layout answers, and under what names, is not decided. The page does not mention `Memory.Frame` or `reset()`.
 
 ### Where a value lives: `.memory` (overview section, "Choosing an allocator")
 - The overview previously said a `Vector`'s block of items "stays on the heap for now" and pointed to "what is not built yet"; both now state only the plain fact (see the allocators note above).
@@ -610,10 +601,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Rule details (which templates, how a name is read, error texts) are proposed by Claude, unconfirmed.
 
 ### Vector<T>
-- Not built, removed from the page: an allocator's effect on the block of items. `velocities.memory.allocator =
-  arena` places the `Vector` object in the arena but the block of items stays on the heap, because a class cannot
-  read its own `.memory` yet. Open: the proposal (mortaros_missing_decisions item 175) that `memory.allocator` is
-  readable inside a class, so the block follows the object, is unresolved.
 - The class named `Vector` in `examples/vectors`, `conformance/stage6/operators` and `benchmarks/small_allocations`
   was renamed `Displacement`; page no longer records this.
 
@@ -707,7 +694,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Names are provisional (D214): `ForeignCallback`, `where_context`, `'no_context'`, `'context_first'`, `'context_last'`, `address`, `context`. Decided by Claude under D205 (D231 to D234), not confirmed by Mortaro.
 - Not built: checking a trampoline's widths against the header's declaration (C has no way to name a declared function's parameter types, and the compiler reads no header itself); a `Boolean` as C's one-byte `bool` (workaround: write a `Byte`); an enum value or a struct passed by value to a callback; a function value handed to C inside a `type` (workaround: write the `ForeignCallback`'s `address` into a `Long` attribute instead).
 - Not built: the check at `return` that D183 leaves unbuilt for a `Parallel` is unbuilt for callbacks too.
-- Not built: a late call on a context trampoline is not detected (needs a registry every such program would carry, against D177).
 - The page says the handover a `Parallel` allows (D207's handover) is not offered for callbacks; the page's wording "the handover a `Parallel` allows" paraphrases D207, check it.
 - `check.sh` greps `examples/hello`'s C for any trampoline, `ForeignCallback` class or `SPITE_THREADS` (the cost claim).
 
@@ -760,7 +746,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Outputs, Flags and settings, and other rules (decision status removed)
 - Decided by Mortaro, recorded only as decisions: D143 (inspectable versus production builds), D188 (kebab-case flags), D190 (every compile formats first), D283 (outputs in `.spite/`, "the compiler shouldn't write intermediate files beside the source"), the default build's `-O0`.
-- Proposed by Claude and still unconfirmed by Mortaro (the page now states them as the rules): the spellings of the output fields (D128, D129); the `.spite/build/<path>` and `.spite/elsewhere/<name>_<number>` layout; `.spite/` never being part of a program (D283); the unit count rule (768 KiB per unit, power of two, at most 64, which D349's "chosen from measurements" keeps as measured on one machine); `optimized` as `-O3` with `-flto=thin`/`-flto=auto`; the readings of the flag rules (kebab form in messages); the inspectable-build readings; where a program runs; the launcher passing arguments untouched (`cygpath -m`, `MSYS2_ARG_CONV_EXCL`; fixes a bug found converting a game's data); how many errors are listed (A94, from a game port); the formatting readings of D190. D260 (unique `<name>_<number>.c` and the "C compiler reported success but no executable" error) was decided by Claude under D244.
+- Proposed by Claude and still unconfirmed by Mortaro (the page now states them as the rules): the spellings of the output fields (D128, D129); the `.spite/build/<path>` and `.spite/elsewhere/<name>_<number>` layout; `.spite/` never being part of a program (D283); the unit count rule (768 KiB per unit, power of two, at most 64, which D349's "chosen from measurements" keeps as measured on one machine); `optimized` adding `-flto=thin`/`-flto=auto` (its `-O3` is D390's); the readings of the flag rules (kebab form in messages); the inspectable-build readings; where a program runs; the launcher passing arguments untouched (`cygpath -m`, `MSYS2_ARG_CONV_EXCL`; fixes a bug found converting a game's data); how many errors are listed (A94, from a game port); the formatting readings of D190. D260 (unique `<name>_<number>.c` and the "C compiler reported success but no executable" error) was decided by Claude under D244.
 - Removed the history that `.spite-cache/` was the name of `.spite/` before D283 (the compiler still skips an old `.spite-cache/` folder; the page now says "an old `.spite-cache/` folder, which can be deleted").
 - Removed check.sh mentions: it proves the fixpoint by comparing the single-file C; it runs every program of `conformance/`, `examples/` and the docs pages with `--debug-memory` and requires the allocation balance; it uses `--target-operating-system=linux` to hold the Linux folders to compiling; it proves the `--final-classes` output runs as the same program; it runs `conformance/stage6/working_directory` from another folder and a copy from inside it, and `conformance/stage6/launcher_arguments` through `bin/spite` with `--prefixes=/Game/Legacy/`, `/usr/share` and `a b` beside the compiler's flags; it compiles the deliberately unformatted `diagnostics/` inputs from a copy so formatting lands on the copy; `.spite/` also holds check.sh's work folders in the language repository.
 - Removed "the one the corpus runs" (the default `-O0` build is the one the corpus uses).
@@ -809,7 +795,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 - The page had a Status column and "Built" / "Planned" parts. Every optimisation on the page is built except: the planned forms of "Thread safety for singletons, the rest of the plan", most of "Copies that cost nothing" (only the pieces listed below are built), and the three items of "Other optimisations". The partly built ones are listed below. The old "Planned" intro said: decided by Mortaro, not built yet; when one is built it moves up into the built part in the same change.
 - The old "Adding one" section (removed, maintainer note) said: every optimisation the compiler starts making is added to this page in the same change, with what it does, when, whether it is built and what a user could notice (D185, D102); an unremovable cost is written down; one that contradicts the rules on another page is recorded in `mortaros_missing_decisions.md`.
-- Every optimisation whose old status line read "proposed by Claude, unconfirmed" still awaits Mortaro's confirmation: tree shaking of classes, slots and statics; native symbol lookup only when reached; reads in a row overlap (and its scheduler cost); the lock forms (padding, unlocked calls to itself, locked writes from outside, read-only held objects, no lock for functions that touch no changing state); the thread-safety forms and their order and the one-touch rule; the skipped lock while no task runs (D267); the readers' side (D266); the counted loop's single lock (D265); held arguments (D270); reading a singleton's unchanging attribute in place (D271); text joined in one piece; discarded defaults; function values describing arguments on demand; list templates reading uncounted; numbers written in place into text; dictionary hashing; number-keyed dictionaries (decided by Claude under D205, readings unconfirmed); reading through a `type` uncounted; borrowed rows in the frame (plus the Symbol walk, sparse rows, lent list elements, lent arguments, lent items passed to calls); `Items` storage; short text (the size 15 and the layout); proven reads (D225, D277); the walked `crash` read; frame objects (decided under D205/D214); parallel translation units and the object cache; `-O3` with ThinLTO; identical function folding (how, and function-value equality).
+- Every optimisation whose old status line read "proposed by Claude, unconfirmed" still awaits Mortaro's confirmation: tree shaking of classes, slots and statics; native symbol lookup only when reached; reads in a row overlap (and its scheduler cost); the lock forms (padding, unlocked calls to itself, locked writes from outside, read-only held objects, no lock for functions that touch no changing state); the thread-safety forms and their order and the one-touch rule; the skipped lock while no task runs (D267); the readers' side (D266); the counted loop's single lock (D265); held arguments (D270); reading a singleton's unchanging attribute in place (D271); text joined in one piece; discarded defaults; function values describing arguments on demand; list templates reading uncounted; numbers written in place into text; dictionary hashing; number-keyed dictionaries (decided by Claude under D205, readings unconfirmed); reading through a `type` uncounted; borrowed rows in the frame (plus the Symbol walk, sparse rows, lent list elements, lent arguments, lent items passed to calls); `Items` storage; short text (the size 15 and the layout); proven reads (D225, D277); the walked `crash` read; frame objects (decided under D205/D214); parallel translation units and the object cache; ThinLTO on `--optimized` (its `-O3` is D390's); identical function folding (how, and function-value equality).
 - The default `-O0` build was "Mortaro's choice to keep" (recorded as a decision, not a reason).
 
 ### Deciding conditions at compile time
@@ -841,7 +827,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### Copies that cost nothing
 
 - Built: a copy only used as a value is a frame slot (classes of numbers, `Boolean`s, enum values, singletons); an allocator set right after construction; leaving out the count on a frame object passed by name to a program function that never assigns the parameter (D270).
-- Not built: frame objects of classes that hold text, lists or other objects (their attributes let go at the end of the frame); an attribute object laid inline in a frame-held object where the attribute is never shared.
+- Built: a local of a class holding text, lists or other objects in the frame, its attributes let go where its scope ends (the readings in the D??? row "frame objects holding text, lists or objects" are proposed by Claude, unconfirmed). Not built: such a class as a result written into the caller's slot, a temporary or a copy used as a value; an attribute object laid inline in a frame-held object where the attribute is never shared.
 - Not built as general rules: a copy used only once passed by value instead of allocated; a copy that is never changed sharing the original when cheaper; every object that never escapes laid inline or in registers; reference counting left out wherever ownership is provable (only the frame-object and held-argument cases above exist).
 
 ### Identical functions are folded into one
@@ -851,7 +837,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Other optimisations
 
-- A list's buffer in its list's allocator (D154): today a `List` given an allocator is made there, but its buffer of references still comes from the heap, and so does a `Vector<T>`'s block of items. Not built.
 - An appended item made in place: today `var slow = Velocity(1.0, 0.5)` then `velocities.append(slow)` makes an ordinary object, copies its attributes into the vector's block and lets the object go, so filling a vector allocates once per item for a moment. Writing the constructor's attributes straight into the block is not built.
 - A build report of what could not be optimised (D36) is not built.
 
@@ -860,13 +845,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Not built: leaving out the overflow check where a proof bounds the operands other than a counter stepped by one
   under a `<` or `>` and constants (an index already bounded, a `bits_and` mask put into a `Byte`, an attribute).
 
-### Objects that never leave their function live in the frame
-
-- Objects of classes holding text, lists or other objects are not placed in the frame yet (see "Copies that cost nothing").
-
 ### A loop over plain values reads its count once and its items unchecked
 
-- Open question (`mortaros_missing_decisions.md` item 210): a `Float` expression with a decimal literal is worked out in `double` precision in the C, which halves the vector width. In `float` the two benchmark loops would take about 100 and 70 microseconds, but some results would change in their last bits. Not done; waiting for Mortaro.
+- With gcc a decimal sum in such a loop still adds in order: gcc has no setting for one loop (only `__attribute__((optimize))` per function), so D357's reordering reaches clang builds only.
 
 ### Allocation is the C library's, counted only where read
 
@@ -1008,8 +989,8 @@ The section listed proofs that are not built. Each, with what it said:
   (optimizations.md, "Arithmetic is checked in every build").
 - A write to a copy that dies unread is an error (proposed by Claude, unconfirmed): escape analysis already proves a
   result fresh (failure.md, "Nothing fails silently", still open).
-- Frame objects holding text, lists or objects, their attributes let go at the end of the frame (optimizations.md,
-  "Copies that cost nothing").
+- Frame objects holding text, lists or objects as a result, a temporary or a copy, and an attribute object laid
+  inline (optimizations.md, "Copies that cost nothing").
 - A singleton hands out only safe values (D183's check at `return`), and D184's per-thread forms (optimizations.md,
   "Thread safety for singletons, the rest of the plan").
 - Whether a function runs in pieces (D229, `function_runs_in_pieces`): decided, and on no page and not in the

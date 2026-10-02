@@ -1,0 +1,5 @@
+diagnostics/allocator_reads/allocator_reads.spite:6: error: only an object has an allocator of its own, and this is a value of type Integer, which the compiler places itself (in AllocatorReads.AllocatorReads)
+diagnostics/allocator_reads/allocator_reads.spite:7: error: only a named object answers its allocator: give this object a name with 'var' first (in AllocatorReads.AllocatorReads)
+diagnostics/allocator_reads/allocator_reads.spite:10: error: 'Pool' is a generic class, and an allocator is a class of its own that is not generic, like 'Memory.Arena' (in AllocatorReads.AllocatorReads)
+diagnostics/allocator_reads/allocator_reads.spite:13: error: 'WideAllocator' is not an allocator: an allocator answers 'allocate(bytes: Long): Memory.Address' and 'free(address: Memory.Address)', like 'Memory.Arena' (in AllocatorReads.AllocatorReads)
+diagnostics/allocator_reads/counter.spite:6: error: 'memory.allocator' is the allocator of the object a function runs on, and 'Counter' is not made as an object of its own: only an object has an allocator (in Counter.where)

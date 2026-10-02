@@ -1,2 +1,6 @@
 spite.crash	26b57b59	conformance/stage6/crash_missing_item/crash_missing_item.spite:13	CrashMissingItem	read	clip.keys[start + 1] is missing: index 3, count 2	frame=1
+spite.frame	conformance/stage6/crash_missing_item/crash_missing_item.spite:11	CrashMissingItem	read
+spite.frame	conformance/stage6/crash_missing_item/crash_missing_item.spite:3	CrashMissingItem	CrashMissingItem
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
 key 0

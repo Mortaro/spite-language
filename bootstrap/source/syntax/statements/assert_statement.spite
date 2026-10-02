@@ -2,6 +2,7 @@ var value: Syntax.Expressions.Expression? = null
 var is_crash = false
 var condition_text = ""
 var line = 0
+var column = 0
 
 func AssertStatement(assert_value: Syntax.Expressions.Expression) {
     value = assert_value

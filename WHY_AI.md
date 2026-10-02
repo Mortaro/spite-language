@@ -38,7 +38,7 @@ designed so a moron's code still comes out correct and fast. That is the case fo
 - Every compile formats the files first. There is one style, so output is deterministic and diffs are minimal.
   Re-read a file after compiling it.
 - Names are checked: full words only (`'msg' abbreviates: write 'message' instead of 'msg'`), `snake_case` and
-  `PascalCase` by kind, no single letters.
+  `PascalCase` by kind, no single letters but the axis names `x`, `y`, `z`, `w`.
 - Unused locals and attributes are errors. Checks that prove what is already proven are errors.
 - Habits from other languages are errors that name the Spite form: `&&` (`Spite writes 'and' and 'or' as words`),
   `for`, `new`, `self.`, `import`, `// comments`, `value == null`, `task.wait()`. The list is in

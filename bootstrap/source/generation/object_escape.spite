@@ -15,6 +15,7 @@ var reassign_any = false
 var claim_name = ""
 var claim_owner: Analysis.ClassInfo? = null
 var claim_function: Analysis.FunctionInfo? = null
+var counted_allowed = false
 
 func ObjectEscape(frame_table: ObjectFrames, generation: Generator, studied_class: Analysis.ClassInfo) {
     table = frame_table
@@ -322,7 +323,8 @@ func fresh_resolved(resolved: ResolvedCall): Analysis.ClassInfo? {
 func fresh_construction(made: Analysis.ClassInfo, suffix: String): Analysis.ClassInfo? {
     var frame_table = frames()
     var generation = generating()
-    assert frame_table.frames_class(generation, made)
+    var as_local = counted_allowed and suffix == "___make" and frame_table.frames_local_class(generation, made)
+    assert as_local or frame_table.frames_class(generation, made)
     claim_name = "{made.c_name}{suffix}"
     claim_owner = made
     claim_function = null

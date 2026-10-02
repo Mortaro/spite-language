@@ -1,0 +1,25 @@
+var title = ""
+var tags = List<String>()
+var holder = Person("nobody in particular, for now")
+
+func Badge(new_title: String) {
+    title = new_title
+}
+
+func tag(label: String) {
+    tags.append(label)
+}
+
+func count_tags(): Integer {
+    return tags.count()
+}
+
+func hand_to(new_holder: String) {
+    holder = Person(new_holder)
+}
+
+func described(): String {
+    var tag_count = tags.count()
+    var holder_name = holder.name
+    return "{title}, held by {holder_name}, with {tag_count} tags"
+}

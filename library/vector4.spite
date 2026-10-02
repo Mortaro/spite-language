@@ -1,120 +1,115 @@
-var x_value: Float = 0.0
-var y_value: Float = 0.0
-var z_value: Float = 0.0
-var w_value: Float = 0.0
+var x: Float = 0.0
+var y: Float = 0.0
+var z: Float = 0.0
+var w: Float = 0.0
 
 func Vector4(starting_x: Float, starting_y: Float, starting_z: Float, starting_w: Float) {
-    x_value = starting_x
-    y_value = starting_y
-    z_value = starting_z
-    w_value = starting_w
+    x = starting_x
+    y = starting_y
+    z = starting_z
+    w = starting_w
 }
 
 func sum(other: Vector4): Vector4 {
-    return Vector4(x_value + other.x_value, y_value + other.y_value, z_value + other.z_value, w_value + other.w_value)
+    return Vector4(x + other.x, y + other.y, z + other.z, w + other.w)
 }
 
 func subtract(other: Vector4): Vector4 {
-    return Vector4(x_value - other.x_value, y_value - other.y_value, z_value - other.z_value, w_value - other.w_value)
+    return Vector4(x - other.x, y - other.y, z - other.z, w - other.w)
 }
 
 func multiply(other: Vector4): Vector4 {
-    return Vector4(x_value * other.x_value, y_value * other.y_value, z_value * other.z_value, w_value * other.w_value)
+    return Vector4(x * other.x, y * other.y, z * other.z, w * other.w)
 }
 
 func divide(other: Vector4): Vector4 {
-    return Vector4(x_value / other.x_value, y_value / other.y_value, z_value / other.z_value, w_value / other.w_value)
+    return Vector4(x / other.x, y / other.y, z / other.z, w / other.w)
 }
 
 func negate(): Vector4 {
-    return Vector4(-x_value, -y_value, -z_value, -w_value)
+    return Vector4(-x, -y, -z, -w)
 }
 
 func equals(other: Vector4): Boolean {
-    return x_value == other.x_value and y_value == other.y_value and z_value == other.z_value and w_value == other.w_value
+    return x == other.x and y == other.y and z == other.z and w == other.w
 }
 
 func scaled(factor: Float): Vector4 {
-    return Vector4(x_value * factor, y_value * factor, z_value * factor, w_value * factor)
+    return Vector4(x * factor, y * factor, z * factor, w * factor)
 }
 
 func dot(other: Vector4): Float {
-    return x_value * other.x_value + y_value * other.y_value + z_value * other.z_value + w_value * other.w_value
+    return x * other.x + y * other.y + z * other.z + w * other.w
 }
 
 func length_squared(): Float {
-    return x_value * x_value + y_value * y_value + z_value * z_value + w_value * w_value
+    return x * x + y * y + z * z + w * w
 }
 
 func length(): Float {
-    var squared = x_value * x_value + y_value * y_value + z_value * z_value + w_value * w_value
+    var squared = x * x + y * y + z * z + w * w
     return squared.square_root()
 }
 
 func normalized(): Vector4 {
-    var squared = x_value * x_value + y_value * y_value + z_value * z_value + w_value * w_value
+    var squared = x * x + y * y + z * z + w * w
     if squared == 0.0 {
         return Vector4(0.0, 0.0, 0.0, 0.0)
     }
     var inverse_length = 1.0 / squared.square_root()
-    return Vector4(
-        x_value * inverse_length,
-        y_value * inverse_length,
-        z_value * inverse_length,
-        w_value * inverse_length,
-    )
+    return Vector4(x * inverse_length, y * inverse_length, z * inverse_length, w * inverse_length)
 }
 
 func distance_to(other: Vector4): Float {
-    var x_part = other.x_value - x_value
-    var y_part = other.y_value - y_value
-    var z_part = other.z_value - z_value
-    var w_part = other.w_value - w_value
+    var x_part = other.x - x
+    var y_part = other.y - y
+    var z_part = other.z - z
+    var w_part = other.w - w
     var squared = x_part * x_part + y_part * y_part + z_part * z_part + w_part * w_part
     return squared.square_root()
 }
 
 func distance_squared_to(other: Vector4): Float {
-    var x_part = other.x_value - x_value
-    var y_part = other.y_value - y_value
-    var z_part = other.z_value - z_value
-    var w_part = other.w_value - w_value
+    var x_part = other.x - x
+    var y_part = other.y - y
+    var z_part = other.z - z
+    var w_part = other.w - w
     return x_part * x_part + y_part * y_part + z_part * z_part + w_part * w_part
 }
 
 func linear_interpolate(target: Vector4, amount: Float): Vector4 {
     return Vector4(
-        x_value + (target.x_value - x_value) * amount,
-        y_value + (target.y_value - y_value) * amount,
-        z_value + (target.z_value - z_value) * amount,
-        w_value + (target.w_value - w_value) * amount,
+        x + (target.x - x) * amount,
+        y + (target.y - y) * amount,
+        z + (target.z - z) * amount,
+        w + (target.w - w) * amount,
     )
 }
 
 func minimum(other: Vector4): Vector4 {
-    var x_part = x_value.minimum(other.x_value)
-    var y_part = y_value.minimum(other.y_value)
-    var z_part = z_value.minimum(other.z_value)
-    var w_part = w_value.minimum(other.w_value)
+    var x_part = x.minimum(other.x)
+    var y_part = y.minimum(other.y)
+    var z_part = z.minimum(other.z)
+    var w_part = w.minimum(other.w)
     return Vector4(x_part, y_part, z_part, w_part)
 }
 
 func maximum(other: Vector4): Vector4 {
-    var x_part = x_value.maximum(other.x_value)
-    var y_part = y_value.maximum(other.y_value)
-    var z_part = z_value.maximum(other.z_value)
-    var w_part = w_value.maximum(other.w_value)
+    var x_part = x.maximum(other.x)
+    var y_part = y.maximum(other.y)
+    var z_part = z.maximum(other.z)
+    var w_part = w.maximum(other.w)
     return Vector4(x_part, y_part, z_part, w_part)
 }
 
 func absolute(): Vector4 {
-    var x_part = x_value.absolute()
-    var y_part = y_value.absolute()
-    var z_part = z_value.absolute()
-    var w_part = w_value.absolute()
+    var x_part = x.absolute()
+    var y_part = y.absolute()
+    var z_part = z.absolute()
+    var w_part = w.absolute()
     return Vector4(x_part, y_part, z_part, w_part)
 }
 
 func to_string(): String {
-    return "({x_value}, {y_value}, {z_value}, {w_value})"
+    return "({x}, {y}, {z}, {w})"
 }

@@ -196,6 +196,14 @@ stopped at 2
 `while value` on a `T?` narrows the body the way `if value` does, which is how a linked chain is walked
 ([failure.md](failure.md#narrowing-a-path)).
 
+A `while true` is left only by a `return` (or an `assert` or `crash` that fails). One with none of them inside it,
+that calls nothing either, can only spin until the program is killed, so it is an error: `this 'while true' never
+ends: nothing inside it returns, asserts or crashes, and it calls nothing, so the program would spin here for good:
+leave it with a 'return' ('if done { return }'), or loop 'while' a condition` (`diagnostics/spinning_loop`). A
+`while true` that calls something may still be how a program runs until it exits, so it is left alone, except in
+work given to a `Parallel`, where a loop that never ends and never waits is an error
+([concurrency.md](concurrency.md#the-thread-pool)).
+
 None of this costs anything at run time beyond the branches and loops it compiles to: every rule on this page
 is checked while compiling. Only a REPL build adds a check point to each loop
 ([the rules](#control-flow-in-full) say which builds).
@@ -608,6 +616,14 @@ the statement: a statement ends with its line, so remove it, or put it on a line
 (`diagnostics/left_over_after_return`). An `if`, `while` or `switch` ends with the `}` that closes it (after its
 `else` chain, for an `if`), and a word after that `}` on the same line is `'console' is left over after the '}'
 that closes this statement: ...` (`diagnostics/left_over_after_block`).
+
+**A `while true` that can never leave and calls nothing is a compile error.** No `return`, `assert` or `crash`
+anywhere inside its body, and no call (a function, a method, a constructor) in it: `this 'while true' never ends:
+nothing inside it returns, asserts or crashes, and it calls nothing, so the program would spin here for good: leave
+it with a 'return' ('if done { return }'), or loop 'while' a condition` (`diagnostics/spinning_loop`). One that
+calls something is left alone, since a call may end the program, except in work a `Parallel` runs
+([concurrency.md](concurrency.md#the-thread-pool)), and inside a locked singleton function
+([concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting)).
 
 There is deliberately no `break`/`continue`: `while` is the only loop construct Spite has, full stop.
 Neither is a keyword, but either written as a statement of its own is an error naming the form (`Spite has no

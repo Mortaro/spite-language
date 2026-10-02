@@ -1,0 +1,14 @@
+var console = Console()
+var store = Store()
+
+func AllocatorResizes() {
+    var first = Position()
+    store.positions.append(first)
+    var place = store.positions[0]
+    crash place
+    var growing = Growing()
+    var names = List<String>()
+    names.memory.allocator = growing
+    names.append("one")
+    console.print(place.left)
+}

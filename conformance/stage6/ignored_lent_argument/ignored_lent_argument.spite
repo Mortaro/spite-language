@@ -1,0 +1,17 @@
+var console = Console()
+var positions = Column<Position>()
+var velocities = Column<Velocity>()
+var runner = Runner<Mover>()
+
+func IgnoredLentArgument() {
+    var position = Position()
+    positions.values.append(position)
+    var velocity = Velocity(2.5)
+    velocities.values.append(velocity)
+    runner.run(0)
+    runner.run(0)
+    crash positions.values[0]
+    crash velocities.values[0]
+    console.print("left", positions.values[0].left, "across", velocities.values[0].across)
+    console.print("moved", runner.system.moved)
+}

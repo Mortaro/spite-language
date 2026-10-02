@@ -1,0 +1,59 @@
+var console = Console()
+var heap = Memory.Heap()
+
+func AllocatorReads() {
+    var arena = Memory.Arena(4096)
+    var before = heap.live_allocations()
+    var scores = List<Integer>()
+    scores.memory.allocator = arena
+    var velocities = Vector<Velocity>()
+    velocities.memory.allocator = arena
+    var steps = Items<Velocity>()
+    steps.memory.allocator = arena
+    var index = 0
+    while index < 40 {
+        scores.append(index)
+        var moving = Velocity(1.0, 0.5)
+        velocities.append(moving)
+        var step = Velocity(2.0, 1.5)
+        steps.append(step)
+        index = index + 1
+    }
+    var during = heap.live_allocations()
+    console.print("heap allocations while filling three storages in the arena:", during - before)
+    var score_count = scores.count()
+    var velocity_count = velocities.count()
+    var step_count = steps.count()
+    var across_total = velocities.sum_across()
+    var down_total = steps.sum_down()
+    crash scores[39]
+    console.print(score_count, velocity_count, step_count, scores[39], across_total, down_total)
+    var scores_in_arena = scores.memory.allocator == Memory.Arena
+    console.print("scores in the arena:", scores_in_arena)
+    var counting = CountingAllocator()
+    var names = List<String>()
+    names.memory.allocator = counting
+    index = 0
+    while index < 10 {
+        names.append("name {index}")
+        index = index + 1
+    }
+    console.print("allocations through the counting allocator:", counting.allocations, "frees:", counting.frees)
+    var plain = List<Integer>()
+    plain.append(1)
+    var plain_on_heap = plain.memory.allocator == Memory.Heap
+    console.print("plain list on the heap:", plain_on_heap)
+    var on_heap = Notes()
+    var in_arena = Notes()
+    in_arena.memory.allocator = arena
+    var counted = Notes()
+    counted.memory.allocator = counting
+    var first_place = on_heap.where()
+    var second_place = in_arena.where()
+    var third_place = counted.where()
+    console.print(first_place, second_place, third_place)
+    var allocator = in_arena.memory.allocator
+    var given = allocator.allocate(32)
+    allocator.free(given)
+    console.print("an allocator read back answers allocate and free")
+}

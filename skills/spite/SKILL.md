@@ -86,7 +86,7 @@ can be bound: C as it is, C++ through `extern "C"`, Rust through `extern "C" fn`
 - A file is a class named after the file; a program is a folder whose entry file is named after the folder. A file
   holds declarations only, in a fixed order; every `var` has a default.
 - Full words only: `message`, never `msg`; `Integer`, never `Int`. `snake_case` values and functions, `PascalCase`
-  types. No single letters.
+  types. No single letters except the axis names `x`, `y`, `z`, `w`.
 - No `for`, `break` or `continue`. Prefer the list templates (`monsters.filter_alive().sum_health()`,
   `names.each(say_hello)`); a `while` that only does what a template does is an error naming the template.
 - No exceptions and no error values. Absence is a `T?` the caller must narrow (`if`, `assert`, `crash`, `switch`).

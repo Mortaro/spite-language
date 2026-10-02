@@ -1,96 +1,96 @@
-var x_value: Float = 0.0
-var y_value: Float = 0.0
+var x: Float = 0.0
+var y: Float = 0.0
 
 func Vector2(starting_x: Float, starting_y: Float) {
-    x_value = starting_x
-    y_value = starting_y
+    x = starting_x
+    y = starting_y
 }
 
 func sum(other: Vector2): Vector2 {
-    return Vector2(x_value + other.x_value, y_value + other.y_value)
+    return Vector2(x + other.x, y + other.y)
 }
 
 func subtract(other: Vector2): Vector2 {
-    return Vector2(x_value - other.x_value, y_value - other.y_value)
+    return Vector2(x - other.x, y - other.y)
 }
 
 func multiply(other: Vector2): Vector2 {
-    return Vector2(x_value * other.x_value, y_value * other.y_value)
+    return Vector2(x * other.x, y * other.y)
 }
 
 func divide(other: Vector2): Vector2 {
-    return Vector2(x_value / other.x_value, y_value / other.y_value)
+    return Vector2(x / other.x, y / other.y)
 }
 
 func negate(): Vector2 {
-    return Vector2(-x_value, -y_value)
+    return Vector2(-x, -y)
 }
 
 func equals(other: Vector2): Boolean {
-    return x_value == other.x_value and y_value == other.y_value
+    return x == other.x and y == other.y
 }
 
 func scaled(factor: Float): Vector2 {
-    return Vector2(x_value * factor, y_value * factor)
+    return Vector2(x * factor, y * factor)
 }
 
 func dot(other: Vector2): Float {
-    return x_value * other.x_value + y_value * other.y_value
+    return x * other.x + y * other.y
 }
 
 func length_squared(): Float {
-    return x_value * x_value + y_value * y_value
+    return x * x + y * y
 }
 
 func length(): Float {
-    var squared = x_value * x_value + y_value * y_value
+    var squared = x * x + y * y
     return squared.square_root()
 }
 
 func normalized(): Vector2 {
-    var squared = x_value * x_value + y_value * y_value
+    var squared = x * x + y * y
     if squared == 0.0 {
         return Vector2(0.0, 0.0)
     }
     var inverse_length = 1.0 / squared.square_root()
-    return Vector2(x_value * inverse_length, y_value * inverse_length)
+    return Vector2(x * inverse_length, y * inverse_length)
 }
 
 func distance_to(other: Vector2): Float {
-    var x_part = other.x_value - x_value
-    var y_part = other.y_value - y_value
+    var x_part = other.x - x
+    var y_part = other.y - y
     var squared = x_part * x_part + y_part * y_part
     return squared.square_root()
 }
 
 func distance_squared_to(other: Vector2): Float {
-    var x_part = other.x_value - x_value
-    var y_part = other.y_value - y_value
+    var x_part = other.x - x
+    var y_part = other.y - y
     return x_part * x_part + y_part * y_part
 }
 
 func linear_interpolate(target: Vector2, amount: Float): Vector2 {
-    return Vector2(x_value + (target.x_value - x_value) * amount, y_value + (target.y_value - y_value) * amount)
+    return Vector2(x + (target.x - x) * amount, y + (target.y - y) * amount)
 }
 
 func minimum(other: Vector2): Vector2 {
-    var x_part = x_value.minimum(other.x_value)
-    var y_part = y_value.minimum(other.y_value)
+    var x_part = x.minimum(other.x)
+    var y_part = y.minimum(other.y)
     return Vector2(x_part, y_part)
 }
 
 func maximum(other: Vector2): Vector2 {
-    var x_part = x_value.maximum(other.x_value)
-    var y_part = y_value.maximum(other.y_value)
+    var x_part = x.maximum(other.x)
+    var y_part = y.maximum(other.y)
     return Vector2(x_part, y_part)
 }
 
 func absolute(): Vector2 {
-    var x_part = x_value.absolute()
-    var y_part = y_value.absolute()
+    var x_part = x.absolute()
+    var y_part = y.absolute()
     return Vector2(x_part, y_part)
 }
 
 func to_string(): String {
-    return "({x_value}, {y_value})"
+    return "({x}, {y})"
 }

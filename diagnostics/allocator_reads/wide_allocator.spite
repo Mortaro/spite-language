@@ -1,0 +1,9 @@
+var heap = Memory.Heap()
+
+func allocate(bytes: Integer): Memory.Address {
+    return heap.allocate(bytes)
+}
+
+func free(address: Memory.Address) {
+    heap.free(address)
+}

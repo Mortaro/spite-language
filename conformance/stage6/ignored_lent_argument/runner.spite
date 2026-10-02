@@ -1,0 +1,26 @@
+generic $system_type
+
+enum Phase {
+    'update'
+}
+
+var system = $system_type()
+var found = List<Integer>()
+
+func run(index: Integer) {
+    found.clear()
+    found.append(index)
+    found.append(index)
+    run_phases_each()
+}
+
+func run_phase_each(phase: Symbol<$system_type.phase_each>) {
+    system.phase_each(made_arguments(found))
+}
+
+func made_argument(argument: Symbol<$system_type.phase_each>, rows: List<Integer>): argument.class {
+    crash rows[argument.index]
+    var stored_row = rows[argument.index]
+    crash Column<argument.class>().values[stored_row]
+    return Column<argument.class>().values[stored_row]
+}

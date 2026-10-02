@@ -1,2 +1,6 @@
 spite.crash	47470228	library/vector.spite:37	Vector	remove_at	index=1	item_count=0	items=...	capacity=4
+spite.frame	library/vector.spite:36	Vector	remove_at
+spite.frame	conformance/stage6/vector_remove_out_of_range/vector_remove_out_of_range.spite:3	VectorRemoveOutOfRange	VectorRemoveOutOfRange
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
 removed 0 1

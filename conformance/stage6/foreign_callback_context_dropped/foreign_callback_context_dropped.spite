@@ -1,0 +1,17 @@
+var console = Console()
+var plain = DynamicLibrary("conformance/stage6/foreign_callback_context_dropped/fixture.dll", 'identity', "")
+
+func ForeignCallbackContextDropped() {
+    keep_and_tick()
+    var second = Ticker("second")
+    var replacing = ForeignCallback(second.ticked, 'context_last')
+    console.print("the first callback is dropped and its place is taken", replacing.address != 0)
+    plain.tick(2)
+}
+
+func keep_and_tick() {
+    var first = Ticker("first")
+    var ticking = ForeignCallback(first.ticked, 'context_last')
+    plain.keep_tick(ticking.address, ticking.context)
+    plain.tick(1)
+}

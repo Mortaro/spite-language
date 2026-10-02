@@ -1,0 +1,1 @@
+diagnostics/allocator_resizes/allocator_resizes.spite:12: error: 'place' is borrowed from 'store.positions', and 'names.append()' on line 12 may move the items of 'store.positions', so 'place' is not read after it: read 'store.positions[index]' again after that line, or keep 'place.copy()', an independent object (in AllocatorResizes.AllocatorResizes)

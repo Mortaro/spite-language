@@ -1,0 +1,3 @@
+tenth 0.1 equal true scaled 0.3 below false
+wide 0.1 equal true
+total 10 halves 2

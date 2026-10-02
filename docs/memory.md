@@ -978,10 +978,10 @@ an arena holds the arena, so the arena cannot go while anything made in it is al
 - **Only right after it is made.** A constructor, `List<T>()` or `.copy()` on one line, and the allocator on the
   next. To move an object that was already used, copy it and set the copy's allocator, as `kept` does below.
 - **Only an object.** A number or a `String` is placed by the compiler, not by an allocator.
-- **A list holds references**: giving a `List` an allocator places the list itself there,
-  and each element lives wherever it was made. A `Vector` holds its items inline
-  ([collections.md](collections.md#vectort-items-inline)); giving one an allocator places the vector object, and
-  its block of items stays on the heap.
+- **A list holds references**: giving a `List` an allocator places the list there, and its buffer of
+  references too, while each element lives wherever it was made. A `Vector` holds its items inline
+  ([collections.md](collections.md#vectort-items-inline)); giving one an allocator places the vector object and
+  its block of items.
 - **It costs nothing where it is not used**: only a class some line gives an allocator
   grows, by sixteen bytes per object.
 
@@ -1022,6 +1022,46 @@ spark ember heap allocations: 1
 ```
 
 The one heap allocation is the arena's first block; both particles are inside it.
+
+### An object reads its own allocator
+
+`value.memory.allocator` answers where an object was made: `Memory.Heap` unless a line said otherwise.
+Inside a class, the object a function runs on reads its own as `memory.allocator`, and that is how a `List`
+keeps its buffer in the list's arena: `library/list.spite` grows its buffer with
+`memory.allocator.allocate(bytes)` and gives the old one back with `memory.allocator.free(address)`. The answer
+is one of the program's allocators, so `== Memory.Arena` asks which, as for a
+[union](values_and_types.md#unions).
+
+```gdscript title=arena_scores/arena_scores.spite entry
+var console = Console()
+var heap = Memory.Heap()
+
+func ArenaScores() {
+    var arena = Memory.Arena(4096)
+    var before = heap.live_allocations()
+    var scores = List<Integer>()
+    scores.memory.allocator = arena
+    var score = 0
+    while score < 100 {
+        scores.append(score)
+        score = score + 1
+    }
+    var during = heap.live_allocations()
+    var in_arena = scores.memory.allocator == Memory.Arena
+    console.print("heap allocations:", during - before, "in the arena:", in_arena)
+    var plain = List<Integer>()
+    plain.append(1)
+    var on_heap = plain.memory.allocator == Memory.Heap
+    console.print("plain list on the heap:", on_heap)
+}
+```
+```output
+heap allocations: 1 in the arena: true
+plain list on the heap: true
+```
+
+The list grew six times, and every buffer came from the arena's one block. An arena never gives memory back
+one piece at a time, so the smaller buffers a list grew out of stay in the arena until the arena goes.
 
 ## Rules in full
 
@@ -1191,7 +1231,8 @@ is the same whichever it makes:
 - **Frame:** `var name = heap.allocate(bytes)` in a function, when a later statement of the same block
   is `heap.free(name)` and every other use of `name` reads or writes through it (`name.read_long(offset)`, also
   as `(name + offset)`), copies or compares with it (`copy_to`, `compare_bytes`), turns it into `text`, or hands
-  it to a `TypedMemory`'s `read_value`, `write_value` or `release_value`, or lends it to a function of the same
+  it to a `TypedMemory`'s `read_value`, `write_value` or `release_value` (a `TypedMemory` the class binds; the same
+  names on any other class are an ordinary call, `conformance/stage6/kept_buffer_address`), or lends it to a function of the same
   class, called by its bare name, whose `Memory.Address` parameter is proven to keep nothing (the same rules,
   applied to the parameter in that function's body, and to the functions it lends it on to; a recursive lend and a
   `--hot-reload` build, whose functions can be swapped, prove nothing), or, in a file of `library/` only, lends it
@@ -1215,7 +1256,10 @@ is the same whichever it makes:
   (the same proof as for a buffer's slot, run on each parameter and on the object a function is called on), compared, asked for
   its `.memory`, given a new fresh object, and returned only from a function that answers its class (copied to
   the heap there). Its `.memory.section` is `'stack'`. Not in the inspectable builds, nor in a function that waits
-  ([optimizations.md](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)).
+  ([optimizations.md](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)). A local made
+  by its constructor lives in the frame on the same terms when its class also holds text, lists, dictionaries or
+  other objects (and is not a container): what it holds is let go where the local's scope ends, and returning it
+  moves it to the heap, attributes and all.
 - **Heap:** everything else.
 
 There is no way to ask for the stack by name: it would be a second way to
@@ -1255,9 +1299,34 @@ there from the start. Setting it after the object was used is a compile error na
   count reaches zero; the allocator therefore outlives everything made in it. **Tree-shaken**: only a class
   some line gives an allocator carries the two hidden pointers (16 bytes per object of that class), and nothing
   else in the program changes; there is no run-time registry and no current-allocator state.
-- **Lists:** a `List` given an allocator is made there itself; each element lives wherever it was made,
-  since a list holds references. A list's buffer of references stays on the heap, and so does a `Vector<T>`'s
-  block of items, wherever the vector object is.
+- **Lists:** a `List` given an allocator is made there, and so is its buffer of references, each time it grows;
+  each element lives wherever it was made, since a list holds references. A `Vector<T>`'s block of items and an
+  `Items<T>`' storage follow their object the same way. A `Dictionary` given an allocator is made there, and its
+  table and its lists of keys and values stay on the heap.
+- **Reading it back:** `value.memory.allocator`, for a name or a path of names, answers the allocator the object
+  was made in, `Memory.Heap` unless a line said otherwise (an object the compiler placed in a frame answers
+  `Memory.Heap`, the allocator it is made in once it leaves). Inside a class, `memory.allocator` is the
+  allocator of the object the function runs on, unless the class has an attribute of its own named `memory`.
+  The answer is one of the program's allocators, a union of `Memory.Heap` and every class that is an allocator:
+  `allocator == Memory.Arena` asks which and narrows, and `allocate` and `free` can be called on it as on any
+  union whose members all answer them. A class that keeps memory for its object (a buffer, a block of items)
+  allocates and frees it through `memory.allocator`, so it follows its object into any allocator; growing it
+  is allocating the new size, copying, and freeing the old, except on the heap, where `heap.resize` grows it
+  in place (`library/list.spite`'s `_resized`). What such a call may do is what the `allocate` or `free` of each
+  of the program's allocators does: an item borrowed from a `Vector` stays readable past a `List`'s growth
+  unless one of them changes the size of the collection it is borrowed from (`diagnostics/allocator_resizes`).
+  The errors:
+  - on a number or a `String`: `only an object has an allocator of its own, and this is a value of type
+    Integer, which the compiler places itself`;
+  - on a value that is not a name or a path of names: `only a named object answers its allocator: give this
+    object a name with 'var' first`;
+  - `memory.allocator` inside a singleton or a number: `'memory.allocator' is the allocator of the object a
+    function runs on, and 'Counter' is not made as an object of its own: only an object has an allocator`.
+- **An allocator is not generic:** an instance of a generic class is never an allocator, since the program's
+  allocators are known before any generic class is made: `'Pool' is a generic class, and an
+  allocator is a class of its own that is not generic, like 'Memory.Arena'`. A class is an allocator only
+  when `allocate` takes one `Long` and answers a `Memory.Address`, and `free` takes one `Memory.Address` and
+  answers nothing; with other parameters it is not one (`'Console' is not an allocator`, above).
 
 #### Borrowed items of a `Vector<T>`
 
@@ -1515,7 +1584,9 @@ compile time that it is never kept past its use. The rules:
     `Stream<$system_type, $row_type>` fill the one argument of its row type this way
     (`conformance/stage6/streamed_rows`).
   Any other body is the template's ordinary call; a call none of whose arguments borrows is left as
-  it was. **The call may not resize what it borrows from**: a call whose call effects may append to or remove
+  it was. A parameter the function ignores, named `_position`, is filled and passed like the others, and a
+  local written for it drops the underscore, since the call reads it
+  (`conformance/stage6/ignored_lent_argument`). **The call may not resize what it borrows from**: a call whose call effects may append to or remove
   from a borrowed argument's collection is `'Position' fits a Vector, so the items of 'Column<Position>().values'
   are borrowed: 'position' is borrowed from 'Column<Position>().values' for the one call
   'system.phase_each(made_arguments(found))' stands for, and 'system.update_each()' on line 20 may move the items

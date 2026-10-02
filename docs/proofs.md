@@ -114,6 +114,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Reading functions share the lock](#reading-functions-share-the-lock) | readers never contend | the plain lock |
 | [A counted loop takes the lock once](#a-counted-loop-takes-a-singletons-lock-once) | one lock per loop | one lock per call |
 | [A lock that would wait forever](#a-lock-that-would-wait-forever-is-an-error) | refuses a hang | none |
+| [A loop that can never end](#a-loop-that-can-never-end-is-an-error) | refuses a spin or a lost pool thread | none |
 | [What a `Parallel` may reach](#what-a-parallel-may-reach) | refuses a data race | none |
 | [Which calls suspend](#which-calls-suspend-a-concurrent) | state machines, no fibers | the wait runs in place |
 | [Other refusals](#other-refusals-built-on-an-analysis) | refuses dead code and leaks | none |
@@ -614,23 +615,26 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 - **Proves.** An address from `allocate(n)` never outlives its block.
 - **Rule.** `var name = heap.allocate(size)` whose block later calls `heap.free(name)` at its own level, with every
-  use in between an address primitive, a `TypedMemory` read or write, or a call to a function of the same class that
+  use in between an address primitive, a read or write through a `TypedMemory` attribute of the class (a
+  function of the same name on anything else is any other use), or a call to a function of the same class that
   provably keeps the parameter; neither name is assigned again.
 - **Buys.** No allocation: a slot of the frame, and `free` does nothing.
 - **Falls back.** The heap, for a size over 256 bytes known only at run time, any other use, a recursive call, or a
   `--hot-reload` build.
 - **See.** [memory.md: Placement](memory.md#placement-the-compiler-decides-where-memory-lives);
-  `conformance/stage6/lent_buffers`.
+  `conformance/stage6/lent_buffers`, `conformance/stage6/kept_buffer_address`.
 
 ### Objects that never leave their function live in the frame
 
-- **Proves.** A fresh object of a class of numbers never outlives the call that made it.
+- **Proves.** A fresh object never outlives the call that made it.
 - **Rule.** The class's attributes are all numbers, `Boolean`s, enums or singletons; it has no `drop()`, is not a
   singleton, its constructor keeps nothing and nothing reads its `.instances`. Four places qualify: a **local** only
   read and written through its attributes, compared, passed to functions proven to keep nothing, or returned from a
   function answering its class; a **result** of a function whose every `return` is fresh, written into the caller's
   slot through a hidden `___into` version; a **temporary** (`(a + b).length()`); and a **copy used as a value**
-  (`var local = other.copy()`). "Keeps nothing" is proven per parameter from the function's source.
+  (`var local = other.copy()`). "Keeps nothing" is proven per parameter from the function's source. A local made
+  by its constructor qualifies also when its class holds text, lists or other objects (still no `drop()`, not a
+  container): those attributes are let go where its scope ends, and `return` moves it to the heap whole.
 - **Buys.** No allocation; `.memory.section` answers `'stack'`. `benchmarks/game_maths` from 3 200 046 allocations
   to 37.
 - **Falls back.** An ordinary heap object when it is stored, returned as another type, given a second name, passed to
@@ -638,7 +642,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   `Concurrent`), made into a function value, or named in a text hole other than `{name.attribute}`; in inspectable
   builds; and in a function that waits.
 - **See.** [optimizations.md: Objects that never leave their function live in the
-  frame](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame); `conformance/stage6/frame_objects`.
+  frame](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame); `conformance/stage6/frame_objects`,
+  `conformance/stage6/frame_held_attributes`.
 
 ### Local and variadic lists in the frame
 
@@ -876,6 +881,19 @@ counter, one load per call, not a proof: [optimizations.md](optimizations.md#whi
   a locked function for work that calls back into it.
 - **See.** [concurrency.md: Rules in full](concurrency.md#rules-in-full); `diagnostics/locked_wait`,
   `diagnostics/endless_locked_loop`.
+
+### A loop that can never end is an error
+
+- **Proves.** A `while true` can never be left: nothing inside it returns, asserts or crashes.
+- **Rule.** Such a loop is an error when it calls nothing at all, anywhere; and in any function the work of a
+  `Parallel` reaches through calls whose class is known, when that function never waits.
+- **Buys.** A spin, or a pool thread lost for good, becomes a build error.
+- **Falls back.** Not seen: a loop that calls something outside `Parallel` work (a call may end the program), work
+  reached through a function value, a union or an unknown receiver, and a function that waits anywhere. Give such
+  a loop a `return`.
+- **See.** [control_flow.md: `while` is the only loop](control_flow.md#while-is-the-only-loop),
+  [concurrency.md: The thread pool](concurrency.md#the-thread-pool); `diagnostics/spinning_loop`,
+  `diagnostics/endless_parallel_work`.
 
 ### What a `Parallel` may reach
 
