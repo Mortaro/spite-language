@@ -1255,7 +1255,10 @@ is the same whichever it makes:
   (the same proof as for a buffer's slot, run on each parameter and on the object a function is called on), compared, asked for
   its `.memory`, given a new fresh object, and returned only from a function that answers its class (copied to
   the heap there). Its `.memory.section` is `'stack'`. Not in the inspectable builds, nor in a function that waits
-  ([optimizations.md](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)).
+  ([optimizations.md](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)). A local made
+  by its constructor lives in the frame on the same terms when its class also holds text, lists, dictionaries or
+  other objects (and is not a container): what it holds is let go where the local's scope ends, and returning it
+  moves it to the heap, attributes and all.
 - **Heap:** everything else.
 
 There is no way to ask for the stack by name: it would be a second way to

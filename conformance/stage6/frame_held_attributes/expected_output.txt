@@ -1,0 +1,6 @@
+visitor badge, printed at the front desk, held by ada, who keeps losing her badges, with 1 tags
+allocations while it lives: 3 in the stack
+tags counted: 2000 left alive after the loop: 0
+second badge, held by nobody in particular, for now, with 2 tags
+returned badge 1 on the heap
+kept 1 on the heap

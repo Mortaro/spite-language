@@ -1772,8 +1772,19 @@ except by asking.
 
 **When.** Every build but the inspectable ones (`--repl`, `--repl-port`, `--hot-reload`, `--development`), where every
 object stays an ordinary heap object that reflection and reloading can see, and not in a function that waits. Objects
-of classes holding text, lists or other objects are not placed in the frame, since their attributes would have to be
-let go at the end of the frame ([Copies that cost nothing](#copies-that-cost-nothing)).
+of classes holding text, lists or other objects are placed in the frame only as a local (below).
+
+**Locals holding text, lists or objects.** An instance of a class whose attributes include text, a list, a
+dictionary or another object lives in the frame too when it is a **local** made by its constructor (`var badge =
+Badge("visitor")`), under the same conditions otherwise: no `drop()`, not a singleton, not a container, a
+constructor that keeps nothing, no `.instances` read, and the same rule for what lets it go. What it holds is
+counted as always; only the object itself is not allocated. Its attributes are let go where the local's scope
+ends (at the end of its block, a `return` or each pass of a loop), and before a new fresh object is copied in
+when the local is given one. `return badge` from a function that answers its class moves the object to the heap
+in one allocation, its attributes with it, and nothing is counted up or down. A result written into the caller's
+slot, a temporary and a copy used as a value stay limited to classes of numbers.
+`conformance/stage6/frame_held_attributes` pins it: a loop making 1 000 such objects, each with a list of tags
+and a held object, allocates 3 029 times in all (4 032 without).
 
 **What you notice.** Fewer allocations under `--debug-memory`, and `value.memory.section` answering `'stack'` for a
 local that lives in the frame ([memory.md](memory.md#where-a-value-lives-memory)). `benchmarks/game_maths` (a million

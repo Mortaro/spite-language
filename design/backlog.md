@@ -174,9 +174,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `library/weak.spite` and the weak table in generator.spite (around line 7230), migrate 7 `Weak<` uses and
   memory.md's "Cycles leak". **L.** No dependencies.
 - **E4 Frame objects holding text, lists or objects** (status "Copies that cost nothing", proofs "Objects that
-  never leave"). Their attributes let go at the end of the frame; an attribute object laid inline where never
-  shared; an appended item made in place in a `Vector`'s block. Files: `object_frames.spite`, `owned_local.spite`,
-  `placement.spite`. **L.** No dependencies.
+  never leave"). Locals are built; left: such objects as a result into the caller's slot, a temporary and a copy;
+  an attribute object laid inline where never shared; an appended item made in place in a `Vector`'s block.
+  Files: `object_frames.spite`, `owned_local.spite`, `placement.spite`. **M.** No dependencies.
 - **E5 The heap and copies as Spite** (D147, D178, D240; status "The floor"). `Memory.Heap` asks the system for
   pages itself; `copy_to` and `compare_bytes` through `DynamicLibrary`; the remaining backend primitives listed in
   one place a reader finds (D240's table). Files: `library/memory/heap.spite`, `address.spite`, `prelude.spite`.

@@ -828,7 +828,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### Copies that cost nothing
 
 - Built: a copy only used as a value is a frame slot (classes of numbers, `Boolean`s, enum values, singletons); an allocator set right after construction; leaving out the count on a frame object passed by name to a program function that never assigns the parameter (D270).
-- Not built: frame objects of classes that hold text, lists or other objects (their attributes let go at the end of the frame); an attribute object laid inline in a frame-held object where the attribute is never shared.
+- Built: a local of a class holding text, lists or other objects in the frame, its attributes let go where its scope ends (the readings in the D??? row "frame objects holding text, lists or objects" are proposed by Claude, unconfirmed). Not built: such a class as a result written into the caller's slot, a temporary or a copy used as a value; an attribute object laid inline in a frame-held object where the attribute is never shared.
 - Not built as general rules: a copy used only once passed by value instead of allocated; a copy that is never changed sharing the original when cheaper; every object that never escapes laid inline or in registers; reference counting left out wherever ownership is provable (only the frame-object and held-argument cases above exist).
 
 ### Identical functions are folded into one
@@ -845,10 +845,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 - Not built: leaving out the overflow check where a proof bounds the operands other than a counter stepped by one
   under a `<` or `>` and constants (an index already bounded, a `bits_and` mask put into a `Byte`, an attribute).
-
-### Objects that never leave their function live in the frame
-
-- Objects of classes holding text, lists or other objects are not placed in the frame yet (see "Copies that cost nothing").
 
 ### A loop over plain values reads its count once and its items unchecked
 
@@ -994,8 +990,8 @@ The section listed proofs that are not built. Each, with what it said:
   (optimizations.md, "Arithmetic is checked in every build").
 - A write to a copy that dies unread is an error (proposed by Claude, unconfirmed): escape analysis already proves a
   result fresh (failure.md, "Nothing fails silently", still open).
-- Frame objects holding text, lists or objects, their attributes let go at the end of the frame (optimizations.md,
-  "Copies that cost nothing").
+- Frame objects holding text, lists or objects as a result, a temporary or a copy, and an attribute object laid
+  inline (optimizations.md, "Copies that cost nothing").
 - A singleton hands out only safe values (D183's check at `return`), and D184's per-thread forms (optimizations.md,
   "Thread safety for singletons, the rest of the plan").
 - Whether a function runs in pieces (D229, `function_runs_in_pieces`): decided, and on no page and not in the

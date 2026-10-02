@@ -235,6 +235,23 @@ func framed_object(name: String): Boolean {
     return parent.framed_object(name)
 }
 
+func framed_local(name: String): OwnedLocal? {
+    if entry_names.contains(name) {
+        var index = owned.count() - 1
+        while index >= 0 {
+            var owned_local = owned[index]
+            crash owned_local
+            if owned_local.name == name {
+                return owned_local
+            }
+            index = index - 1
+        }
+        return null
+    }
+    assert parent
+    return parent.framed_local(name)
+}
+
 func set_override(name: String, code: String) {
     override_names.append(name)
     override_codes.append(code)

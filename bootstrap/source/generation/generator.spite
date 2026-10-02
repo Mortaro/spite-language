@@ -12227,6 +12227,7 @@ func frames_local_object(
         return false
     }
     var study = object_study(scope, class_information)
+    study.counted_allowed = true
     var made = study.fresh_class(declaration.value)
     if not made {
         return false
@@ -12246,6 +12247,7 @@ func frames_local_object(
     }
     var returning = current_return_c_name == made.c_name
     var follower = object_study(scope, class_information)
+    follower.counted_allowed = true
     follower.follow_local(declaration.name, made, returning)
     if not follower.stays_after(borrow_statements, borrow_index + 1) {
         return false
@@ -12271,6 +12273,9 @@ func frames_local_object(
     crash owned_local
     owned_local.framed = true
     owned_local.framed_object = true
+    if object_frames.holds_counted(this, made) and not in_result {
+        owned_local.framed_cleanup = "{made.c_name}___unframe({c_value_name(declaration.name)})"
+    }
     scope.check_last(current_line)
     check_value_name(declaration.name, "variable")
     return true
@@ -12309,14 +12314,26 @@ func stores_framed_object(
     var c_name = held_reference.c_name
     var local = c_value_name(name)
     var study = object_study(scope, class_information)
+    study.counted_allowed = true
     var made = study.fresh_class(assignment.value)
+    var held_class = find_class_by_c_name(c_name)
+    crash held_class
+    var counted = object_frames.holds_counted(this, held_class)
     if made {
         if made.c_name == c_name {
             var slot = next_object_slot()
             builder.add_user("{c_name} {slot};")
             var into = generate_into(assignment.value, study, "&{slot}", scope, class_information)
             if into_claimed {
-                builder.add_user("{c_name}___copy_fields({local}, {into.code});")
+                var filled = next_temporary()
+                builder.add_user("{c_name}* {filled} = {into.code};")
+                if counted {
+                    builder.add_user("{c_name}___unframe({local});")
+                }
+                builder.add_user("{c_name}___copy_fields({local}, {filled});")
+                if counted {
+                    builder.add_user("{c_name}___unframe({filled});")
+                }
                 return true
             }
         }
@@ -12324,6 +12341,9 @@ func stores_framed_object(
     var value_code = coerce_for_store(assignment.value, held_type, scope, class_information)
     var temporary = next_temporary()
     builder.add_user("{c_name}* {temporary} = {value_code};")
+    if counted {
+        builder.add_user("{c_name}___unframe({local});")
+    }
     builder.add_user("{c_name}___copy_fields({local}, {temporary});")
     builder.add_user("{release_call(held_type, temporary)};")
     return true
@@ -12376,6 +12396,17 @@ func returns_object_in_frame(
     ensure_frame_helpers(returned_class)
     scope.mark_used(framed_name)
     var moved = next_temporary()
+    if object_frames.holds_counted(this, returned_class) {
+        var framed_local = scope.framed_local(framed_name)
+        crash framed_local
+        builder.add_user("{c_name}* {moved} = {c_name}___moved({c_value_name(framed_name)});")
+        var cleanup = framed_local.framed_cleanup
+        framed_local.framed_cleanup = ""
+        emit_scope_drops(scope, true)
+        framed_local.framed_cleanup = cleanup
+        builder.add_user("return {moved};")
+        return true
+    }
     builder.add_user("{c_name}* {moved} = {c_name}___allocate();")
     builder.add_user("{c_name}___copy_fields({moved}, {c_value_name(framed_name)});")
     emit_scope_drops(scope, true)
@@ -13892,6 +13923,14 @@ func ensure_frame_helpers(information: Analysis.ClassInfo) {
     builder.add_prototype("static void {c_name}___copy_fields({c_name}* target, {c_name}* source);")
     builder.add_prototype("static {c_name}* {c_name}___make_into({into_parameters});")
     builder.add_prototype("static {c_name}* {c_name}___copy_into({c_name}* self, {c_name}* spite_result);")
+    var counted = object_frames.holds_counted(this, information)
+    if counted {
+        builder.add_prototype("static void {c_name}___unframe({c_name}* self);")
+        builder.add_prototype("static {c_name}* {c_name}___moved({c_name}* source);")
+        builder.add_support(
+            "static {c_name}* {c_name}___moved({c_name}* source) \{\n{c_name}* self = ({c_name}*)SPITE_MALLOC(sizeof({c_name}));\n*self = *source;\nself->header.ref_count = 1;\n#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(self, {class_id_text});\n#endif\nreturn self;\n}",
+        )
+    }
     framed_positions[c_name] = builder.support_count()
     builder.add_support(
         "static {c_name}* {c_name}___framed({c_name}* self) \{\nself->header.ref_count = SPITE_FRAMED_COUNT;\nself->header.class_id = {class_id_text};\nreturn self;\n}",
@@ -13899,14 +13938,31 @@ func ensure_frame_helpers(information: Analysis.ClassInfo) {
     var copy_lines = List<String>()
     copy_lines.append("static void {c_name}___copy_fields({c_name}* target, {c_name}* source) \{")
     var field_index = 0
+    var unframe_lines = List<String>()
+    unframe_lines.append("static void {c_name}___unframe({c_name}* self) \{")
     while field_index < information.fields.count() {
-        var field_code = c_value_name(information.fields[field_index].name)
-        copy_lines.append("target->{field_code} = source->{field_code};")
+        var copied_field = information.fields[field_index]
+        var field_code = c_value_name(copied_field.name)
+        var copied_type = copied_field.type
+        if type_needs_drop(copied_type) {
+            var source_place = field_place("source", information, copied_field.name)
+            copy_lines.append("target->{field_code} = {retain_call(copied_type, source_place)};")
+            var released_place = field_place("self", information, copied_field.name)
+            unframe_lines.append("{release_call(copied_type, released_place)};")
+        } else {
+            copy_lines.append("target->{field_code} = source->{field_code};")
+        }
         field_index = field_index + 1
     }
     copy_lines.append("}")
+    unframe_lines.append("(void)self;")
+    unframe_lines.append("}")
     var joined_copy_lines = copy_lines.join("\n")
     builder.add_support(joined_copy_lines)
+    if counted {
+        var joined_unframe_lines = unframe_lines.join("\n")
+        builder.add_support(joined_unframe_lines)
+    }
     var make_lines = List<String>()
     make_lines.append("static {c_name}* {c_name}___make_into({into_parameters}) \{")
     make_lines.append("{c_name}___framed(self);")
