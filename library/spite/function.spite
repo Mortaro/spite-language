@@ -2,6 +2,8 @@ var _name: Symbol = 'unnamed'
 var _arguments = List<Spite.Argument>()
 var _returns = Spite.Class('Nothing')
 var _waits = false
+var _returned_literal = ""
+var _has_returned_literal = false
 var _accessed = ""
 var _accessed_names: List<Symbol>? = null
 var _accessed_classes: List<Spite.Class>? = null
@@ -34,6 +36,11 @@ func waits(): Boolean {
 
 func get_is_resumable(): Boolean {
     return _waits
+}
+
+func get_returned_literal(): String {
+    crash _has_returned_literal
+    return _returned_literal
 }
 
 func get_accesses(): Dictionary<Spite.Access> {

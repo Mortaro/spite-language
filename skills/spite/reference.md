@@ -459,7 +459,8 @@ func is_alive(): Boolean {
   `Spite.AttributeDeclaration`, no value); an instance's are bound (`Spite.Function`, `Spite.Attribute` with
   `.value` and `.owner`). Members are ordinary lists, so "for every attribute" is a walk:
   `Monster.attributes.each(describe)` with `func describe(attribute: Spite.Attribute)`, unrolled while compiling into
-  one call per attribute, each copy typed by its attribute. A member by name is `[]` and answers a `T?`
+  one call per attribute, each copy typed by its attribute (a function of another object handed a constant,
+  `helper.describe(attribute)`, is compiled once for it too). A member by name is `[]` and answers a `T?`
   (`Runner.functions['run_each']`); a selection is a member template (`Runner.functions.filter_name_ends_with("_each")`).
   A name is selected, never built from text. There are no `Symbol` walks. A walk sees private `_` attributes and
   reads and writes them through the walked attribute; a serializer skips them with
@@ -515,7 +516,7 @@ func is_alive(): Boolean {
 - Reflection: `value.class` (a `Spite.Class`: `.name`, `.namespace` (a `Spite.Namespace?`; narrow it before
   reading its members: `assert value.class.namespace` narrows the path itself and its prefixes for the rest of
   the block; its members are `.name_with_namespaces`, `.parent`, `.classes`,
-  `.namespaces`), `.functions`), `value.attributes`
+  `.namespaces`, `.enums`), `.functions`), `value.attributes`
   (`.name`, `.class`, `.value`: the value itself, an `Anything?` whose text is `.value.to_string()`), `value.functions` (`.name`, `.arguments`, `.returns`, `call_function()` for
   functions that take nothing and return `Nothing`), a function named without calling it (`shouter.shout`, a
   `Spite.Function<String, String>` bound to `shouter`, called as `change(text)`), `Monster.instances` (live instances), and

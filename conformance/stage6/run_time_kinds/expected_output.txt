@@ -1,0 +1,17 @@
+Gadget stateful true list false
+  0 power false false false false
+  1 marks true false false false
+  boost
+   0 amount mutated false
+   1 into mutated true
+  greeting
+  says grr
+  remember
+   0 amount mutated false
+  to_debug
+Rock stateful false list false
+  0 weight false false false false
+  1 shade false true false false
+  2 resting_on false false true false
+  heavy
+  to_debug

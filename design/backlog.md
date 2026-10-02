@@ -24,19 +24,16 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 - **R1 Plural collection leftovers** (D317, D328). The library's templates collect with `map_members` and every
   call is plural (built on master, `4291cca`). Left: `library/spite/debug_instance.spite` still walks with
-  `Symbol<$value_type>` because `Debug<attribute.class>()` is unknown in `--hot-reload` and test builds and a
-  `Spite` class's function is never specialised; and `String.Inflection`, the irregulars table a program reopens,
+  `Symbol<$value_type>`: a walk with `each` specialises there now, but its function takes only the attribute, so
+  the value and the parts must reach it through fields of the singleton (or a decided way to pass them); and `String.Inflection`, the irregulars table a program reopens,
   which the compiler must read from the program's `String` rather than its own copy (`library/string.spite`,
-  the inflection lookup near generator.spite's plural errors). **S.** Depends on R5 (specialising `Spite` classes).
+  the inflection lookup near generator.spite's plural errors). **S.** No dependencies left.
 - **R4 Dictionary member templates over values** (D335). Built through the compiler; `library/dictionary.spite`
   declares none of them. Check they go through declared library templates like `List`'s (D240: nothing hidden).
   **S.** No dependencies.
 - **R5 The rest of the object model** (D316, D317; status "Not built" and "Run time only through the old tables").
-  `Spite.Namespace.enums`; a class's own `get_`/`set_` template spelled
-  `attribute: Spite.Attribute<Person>` inside `Person` (today "unknown identifier 'attributes'"); the kind
-  questions (`.is_stateful`, `.is_list`, `.owner`, `.index`, `.is_mutated`, `.returned_literal`) on run-time
-  objects; specialisation beyond the calling class, of enum parameters, and of functions of `Spite` classes; the
-  two narrowing gaps (`var run = $T.functions['run_each']` then `if run`, and `crash Spite.Class.instances[...]`).
+  Specialisation of enum parameters (which calls it covers needs Mortaro); `.owner`, `.element_type` and
+  `.value_type` on run-time objects (`.owner` with R8).
   Files: generator.spite reflection and specialisation regions, `specialisation.spite`, `reflected.spite`,
   `library/spite/*.spite`. **L.** No dependencies.
 - **R8 Declarations and bound members are different classes** (D391). `Spite.FunctionDeclaration` and

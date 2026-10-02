@@ -3,6 +3,7 @@ var _name_with_namespaces: Symbol = 'unnamed'
 var _parent: Spite.Namespace? = null
 var _classes = List<Spite.Class>()
 var _namespaces = List<Spite.Namespace>()
+var _enums = List<Spite.Class>()
 var _source_paths: List<String>? = null
 
 func Namespace(starting_name: Symbol, starting_name_with_namespaces: Symbol) {
@@ -28,6 +29,10 @@ func get_classes(): List<Spite.Class> {
 
 func get_namespaces(): List<Spite.Namespace> {
     return _namespaces
+}
+
+func get_enums(): List<Spite.Class> {
+    return _enums
 }
 
 func get_source_directories(): List<Directory> {

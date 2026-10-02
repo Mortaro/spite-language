@@ -1,0 +1,10 @@
+func SpecialisedElsewhere() {
+    var troll = Monster()
+    var shower = Shower<Monster>()
+    shower.show_all(troll)
+    var helper = Helper()
+    crash Monster.attributes['health']
+    helper.describe(Monster.attributes['health'])
+    crash Monster.attributes['name']
+    helper.describe(Monster.attributes['name'])
+}

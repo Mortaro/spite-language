@@ -1,0 +1,7 @@
+Shop declares 2 enums
+Status 3
+Side 2
+Grip 2
+Shop at run time has 2 enums
+  Status
+  Side

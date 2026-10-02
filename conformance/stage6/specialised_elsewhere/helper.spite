@@ -1,0 +1,6 @@
+var console = Console()
+
+func describe(attribute: Spite.Attribute) {
+    var made = attribute.class()
+    console.print("helper", attribute.name, made)
+}

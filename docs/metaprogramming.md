@@ -300,7 +300,7 @@ copies is 4
 A template over a class's own members is how a class answers `set_age`, `get_age` and the rest without writing
 each one. An exact function always wins over a template, for that one name and direction:
 
-```gdscript
+```gdscript title=own_accessors/person.spite
 var age = 0
 var name = ""
 
@@ -316,9 +316,23 @@ func set_name(new_name: String) {
     name = new_name.upper_case()
 }
 ```
+```gdscript title=own_accessors/own_accessors.spite entry
+var console = Console()
+
+func OwnAccessors() {
+    var person = Person()
+    person.name = "ann"
+    person.age = 30
+    console.print(person.name, person.age)
+}
+```
+```output
+ANN 30
+```
 
 Writing `person.name` goes through `set_name`, while reading it goes through the `get_attribute` template, since no
-exact `get_name` exists. A template whose parameter is not a word of its name is not a template: it is an ordinary
+exact `get_name` exists. Inside the class, `attributes[attribute]` is that member of the object the function runs
+on, read or written directly, so the template never calls itself. A template whose parameter is not a word of its name is not a template: it is an ordinary
 function taking a `Spite.Attribute`, which a walk calls or a caller hands a constant to.
 
 ### Member templates
@@ -817,7 +831,9 @@ instance is an ordinary function that costs what its body costs. `--final-classe
   `attribute.name`, `attribute.camel_case_name` and `attribute.pascal_case_name` are text constants, and
   `attribute.index` is the member's place in declaration order.
 - **`owner.attributes[attribute]` is that member of the `owner` passed in**: the field, read or written, or a call to
-  the function. A class reads its own members by name, `attributes[attribute]`, never `this.attributes[attribute]`.
+  the function. A class reads its own members by name, `attributes[attribute]`, never `this.attributes[attribute]`,
+  and that is the field itself, read or written without its getter or setter, so a `get_` or `set_` template over
+  its own class never calls itself.
 - **`Owner` may be a codegen value**: `member: Spite.AttributeDeclaration<$element_type>` is how `library/list.spite` writes
   its member templates. When that value is not a class or a `type` (a number, a `T?`, a `List`), the template
   answers nothing.

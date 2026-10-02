@@ -2,6 +2,11 @@ var _name: Symbol = 'Nothing'
 var _namespace: Spite.Namespace? = null
 var _singleton = false
 var _fits_vector = false
+var _stateful = false
+var _list = false
+var _dictionary = false
+var _optional = false
+var _enum = false
 var _source_folder = ""
 var _source_paths: List<String>? = null
 var _attributes = List<Spite.Attribute>()
@@ -52,6 +57,26 @@ func get_is_singleton(): Boolean {
 
 func get_is_fixed_size(): Boolean {
     return _fits_vector
+}
+
+func get_is_stateful(): Boolean {
+    return _stateful
+}
+
+func get_is_list(): Boolean {
+    return _list
+}
+
+func get_is_dictionary(): Boolean {
+    return _dictionary
+}
+
+func get_is_optional(): Boolean {
+    return _optional
+}
+
+func get_is_enum(): Boolean {
+    return _enum
 }
 
 func has_function(name: String): Boolean {

@@ -1,0 +1,7 @@
+enum Status {
+    'open'
+    'paid'
+    'shipped'
+}
+
+var total = 0

@@ -1,0 +1,4 @@
+name "troll"
+health 10
+helper health 0
+helper name 

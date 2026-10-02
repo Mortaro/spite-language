@@ -1,0 +1,28 @@
+enum Mood {
+    'calm'
+}
+
+var console = Console()
+
+func NamespaceEnums() {
+    var count = Shop.enums.count()
+    console.print("Shop declares", count, "enums")
+    Shop.enums.each(describe)
+    Shop.Tools.enums.each(describe)
+    var order = Shop.Order()
+    var anything: Anything = order
+    crash anything.class.namespace
+    var listed = anything.class.namespace.enums
+    var listed_count = listed.count()
+    console.print(anything.class.namespace, "at run time has", listed_count, "enums")
+    listed.each(show)
+}
+
+func describe(declared: Spite.Class) {
+    var values = declared.values.count()
+    console.print(declared.name, values)
+}
+
+func show(declared: Spite.Class) {
+    console.print(" ", declared)
+}

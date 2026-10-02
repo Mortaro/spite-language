@@ -1,0 +1,12 @@
+enum Shade {
+    'dark'
+    'light'
+}
+
+var weight = 3
+var shade: Shade = 'dark'
+var resting_on: Rock? = null
+
+func heavy(): Boolean {
+    return weight > 2 and shade == 'dark' and not resting_on
+}

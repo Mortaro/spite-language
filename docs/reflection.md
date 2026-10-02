@@ -829,7 +829,9 @@ prints its `.name`, and printing a `Spite.Namespace` its dotted name.
 **A namespace is an instance of `Spite.Namespace`**: the tree of folders made readable, `.parent` walking up,
 `.classes` and `.namespaces` walking down. `.namespace` and `.parent` are `Spite.Namespace?`, and the chain ends
 at `null`; there is no root object. `Spite.Namespace.instances` is every namespace of the program's own classes,
-parents first, in the order the classes were found. **A class and a namespace with the same dotted name is a compile
+parents first, in the order the classes were found. `.enums` is the enums declared in the files directly in the
+namespace's folder, each a `Spite.Class`, in the order those files were loaded; an enum at the root of a program
+is in no namespace's list. **A class and a namespace with the same dotted name is a compile
 error.**
 
 **`.source_files` and `.source_directories` are where a class and a namespace come from**: a `File` for every file
@@ -915,14 +917,15 @@ on the spot is "only a named value has memory of its own: give this value a name
   list with a literal name or number; `count()`, `is_empty()`, `first()`, `last()`, `filter(function)` and the member
   templates on a constant list; a text function on a constant name; `==`, `!=`, `and`, `or` and `not` of constants;
   and a `var` initialised with a constant and never assigned again, when the function never needs its value at run
-  time. `filter(function)` asks a function whose body is one `return`, with its parameter bound to each element.
+  time, `null` from a `[]` that finds nothing included. `filter(function)` asks a function whose body is one `return`, with its parameter bound to each element.
 - **What folds.** A question on a constant is `true` or `false` in the generated code, a count is a number and a
   name is a literal. An `if`, `assert` or `crash` on a constant keeps only what runs, and one that always holds is
-  not an error. `[]` with a literal name answers a constant `T?`: present, a narrowing `if` or `assert` on it folds
-  to nothing; absent, its branch is never compiled.
+  not an error. `[]` with a literal name answers a constant `T?`: present, a narrowing `if`, `assert` or `crash` on it
+  folds to nothing and still narrows that path for what follows; absent, its branch is never compiled.
 - **`each(function)` over a constant list is unrolled** when the function is one of the class's own, takes one
   parameter, and every element fits it: one call per element, and no list.
-- **A function of the class called with a constant for a reflection parameter is compiled once for it**, a
+- **A function called with a constant for a reflection parameter is compiled once for it**, whether it is the
+  calling class's own or one called on another object (`helper.describe(attribute)`), a
   *specialisation* named `<function>_for_<member>` in `--final-classes` (a number is added when two would share a
   name). Inside it the parameter is the constant: `attribute.class` and `argument.class` are types, `part()` makes
   an instance of a constant class `part`, `monster.attributes[attribute]` reads and writes the field, and a function
@@ -934,7 +937,11 @@ on the spot is "only a named value has memory of its own: give this value a name
   every class in a `--repl`, `--repl-port` or `--development` build. A run-time function's `.accesses` comes from
   a table of every function the program makes an object for, emitted only when some code reads `.accesses` at run
   time. A standard library function, a function value taken through a `type` and every function of a `--hot-reload`
-  build are not in it, and asking them halts. Its `attribute.value` is `Anything?`, a number
+  build are not in it, and asking them halts. A run-time object answers the questions a constant does
+  (`.is_stateful`, `.is_list`, `.index`, `argument.is_mutated` and the rest); the answers to the kind questions,
+  `.is_mutated` and `.returned_literal` are written into the tables only when some code asks one of them at run
+  time, and `.returned_literal` of a function whose body is not one `return` of a text literal halts. A run-time
+  `attribute.value` is `Anything?`, a number
   held with its class's tag and text boxed. Handing one to a function whose result is typed by its reflection parameter is the error shown
   [above](#known-only-at-run-time); naming a type through a reflection object that is not a constant is "'<path>'
   is not a class known while compiling, so it cannot be a type here"; and using a specialisation's parameter as a

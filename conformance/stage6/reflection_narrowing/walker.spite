@@ -1,0 +1,5 @@
+var steps = 0
+
+func run_each(amount: Integer) {
+    steps = steps + amount
+}

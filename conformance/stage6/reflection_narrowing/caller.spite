@@ -1,0 +1,10 @@
+generic $target_type
+
+func call(target: $target_type): String {
+    var run = $target_type.functions['run_each']
+    if run {
+        target.run_each(3)
+        return "{$target_type.name} runs"
+    }
+    return "{$target_type.name} has no run_each"
+}
