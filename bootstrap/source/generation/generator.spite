@@ -396,6 +396,9 @@ var allocated_class_names = List<String>()
 var made_in_names = List<String>()
 var copied_in_names = List<String>()
 var given_back_names = List<String>()
+var allocator_union: Analysis.UnionInfo? = null
+var allocator_read_names = List<String>()
+var framed_positions = Dictionary<Integer>()
 var placed_names = List<String>()
 var placed_frames = List<String>()
 var placed_receiver_names = List<String>()
@@ -863,6 +866,7 @@ func generate(
     resolve_classes(discovery.class_files)
     classes_resolved = true
     check_pending_constraints()
+    make_allocator_union()
     report_shadowed_functions(discovery.class_files)
     call_effects.study(discovery.class_files, this)
     var string_layout_code = string_layout()
@@ -990,6 +994,7 @@ func generate(
         report_unused_attributes()
     }
     finish_allocated_classes()
+    finish_allocator_reads()
     slot_live_supports()
     emit_live_support()
     emit_migrations()
@@ -12354,6 +12359,7 @@ func frames_local_object(
         return false
     }
     var study = object_study(scope, class_information)
+    study.counted_allowed = true
     var made = study.fresh_class(declaration.value)
     if not made {
         return false
@@ -12373,6 +12379,7 @@ func frames_local_object(
     }
     var returning = current_return_c_name == made.c_name
     var follower = object_study(scope, class_information)
+    follower.counted_allowed = true
     follower.follow_local(declaration.name, made, returning)
     if not follower.stays_after(borrow_statements, borrow_index + 1) {
         return false
@@ -12398,6 +12405,9 @@ func frames_local_object(
     crash owned_local
     owned_local.framed = true
     owned_local.framed_object = true
+    if object_frames.holds_counted(this, made) and not in_result {
+        owned_local.framed_cleanup = "{made.c_name}___unframe({c_value_name(declaration.name)})"
+    }
     scope.check_last(current_line)
     check_value_name(declaration.name, "variable")
     return true
@@ -12436,14 +12446,26 @@ func stores_framed_object(
     var c_name = held_reference.c_name
     var local = c_value_name(name)
     var study = object_study(scope, class_information)
+    study.counted_allowed = true
     var made = study.fresh_class(assignment.value)
+    var held_class = find_class_by_c_name(c_name)
+    crash held_class
+    var counted = object_frames.holds_counted(this, held_class)
     if made {
         if made.c_name == c_name {
             var slot = next_object_slot()
             builder.add_user("{c_name} {slot};")
             var into = generate_into(assignment.value, study, "&{slot}", scope, class_information)
             if into_claimed {
-                builder.add_user("{c_name}___copy_fields({local}, {into.code});")
+                var filled = next_temporary()
+                builder.add_user("{c_name}* {filled} = {into.code};")
+                if counted {
+                    builder.add_user("{c_name}___unframe({local});")
+                }
+                builder.add_user("{c_name}___copy_fields({local}, {filled});")
+                if counted {
+                    builder.add_user("{c_name}___unframe({filled});")
+                }
                 return true
             }
         }
@@ -12451,6 +12473,9 @@ func stores_framed_object(
     var value_code = coerce_for_store(assignment.value, held_type, scope, class_information)
     var temporary = next_temporary()
     builder.add_user("{c_name}* {temporary} = {value_code};")
+    if counted {
+        builder.add_user("{c_name}___unframe({local});")
+    }
     builder.add_user("{c_name}___copy_fields({local}, {temporary});")
     builder.add_user("{release_call(held_type, temporary)};")
     return true
@@ -12503,6 +12528,17 @@ func returns_object_in_frame(
     ensure_frame_helpers(returned_class)
     scope.mark_used(framed_name)
     var moved = next_temporary()
+    if object_frames.holds_counted(this, returned_class) {
+        var framed_local = scope.framed_local(framed_name)
+        crash framed_local
+        builder.add_user("{c_name}* {moved} = {c_name}___moved({c_value_name(framed_name)});")
+        var cleanup = framed_local.framed_cleanup
+        framed_local.framed_cleanup = ""
+        emit_scope_drops(scope, true)
+        framed_local.framed_cleanup = cleanup
+        builder.add_user("return {moved};")
+        return true
+    }
     builder.add_user("{c_name}* {moved} = {c_name}___allocate();")
     builder.add_user("{c_name}___copy_fields({moved}, {c_value_name(framed_name)});")
     emit_scope_drops(scope, true)
@@ -14019,20 +14055,46 @@ func ensure_frame_helpers(information: Analysis.ClassInfo) {
     builder.add_prototype("static void {c_name}___copy_fields({c_name}* target, {c_name}* source);")
     builder.add_prototype("static {c_name}* {c_name}___make_into({into_parameters});")
     builder.add_prototype("static {c_name}* {c_name}___copy_into({c_name}* self, {c_name}* spite_result);")
+    var counted = object_frames.holds_counted(this, information)
+    if counted {
+        builder.add_prototype("static void {c_name}___unframe({c_name}* self);")
+        builder.add_prototype("static {c_name}* {c_name}___moved({c_name}* source);")
+        builder.add_support(
+            "static {c_name}* {c_name}___moved({c_name}* source) \{\n{c_name}* self = ({c_name}*)SPITE_MALLOC(sizeof({c_name}));\n*self = *source;\nself->header.ref_count = 1;\n#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(self, {class_id_text});\n#endif\nreturn self;\n}",
+        )
+    }
+    framed_positions[c_name] = builder.support_count()
     builder.add_support(
         "static {c_name}* {c_name}___framed({c_name}* self) \{\nself->header.ref_count = SPITE_FRAMED_COUNT;\nself->header.class_id = {class_id_text};\nreturn self;\n}",
     )
     var copy_lines = List<String>()
     copy_lines.append("static void {c_name}___copy_fields({c_name}* target, {c_name}* source) \{")
     var field_index = 0
+    var unframe_lines = List<String>()
+    unframe_lines.append("static void {c_name}___unframe({c_name}* self) \{")
     while field_index < information.fields.count() {
-        var field_code = c_value_name(information.fields[field_index].name)
-        copy_lines.append("target->{field_code} = source->{field_code};")
+        var copied_field = information.fields[field_index]
+        var field_code = c_value_name(copied_field.name)
+        var copied_type = copied_field.type
+        if type_needs_drop(copied_type) {
+            var source_place = field_place("source", information, copied_field.name)
+            copy_lines.append("target->{field_code} = {retain_call(copied_type, source_place)};")
+            var released_place = field_place("self", information, copied_field.name)
+            unframe_lines.append("{release_call(copied_type, released_place)};")
+        } else {
+            copy_lines.append("target->{field_code} = source->{field_code};")
+        }
         field_index = field_index + 1
     }
     copy_lines.append("}")
+    unframe_lines.append("(void)self;")
+    unframe_lines.append("}")
     var joined_copy_lines = copy_lines.join("\n")
     builder.add_support(joined_copy_lines)
+    if counted {
+        var joined_unframe_lines = unframe_lines.join("\n")
+        builder.add_support(joined_unframe_lines)
+    }
     var make_lines = List<String>()
     make_lines.append("static {c_name}* {c_name}___make_into({into_parameters}) \{")
     make_lines.append("{c_name}___framed(self);")
@@ -22480,6 +22542,12 @@ func generate_member_read_raw(
     if attribute_read {
         return generate_expression(attribute_read, scope, class_information)
     }
+    if member.name == "allocator" {
+        var allocator_answer = allocator_read(member, scope, class_information)
+        if allocator_answer {
+            return allocator_answer
+        }
+    }
     var folded_member = folded_reflection(member, scope, class_information)
     if folded_member {
         return folded_member
@@ -27827,8 +27895,14 @@ func allocator_class_of(allocator_type: Analysis.SpiteType): Analysis.ClassInfo?
         var found = find_class_by_c_name(reference.c_name)
         if found {
             assert found.qualified_dotted != "Memory.Heap"
-            if found.find_function("allocate") and found.find_function("free") {
+            if is_allocator_member(found) {
                 return found
+            }
+            if found.is_instantiated and is_allocator_class(found) {
+                report(
+                    "'{type_display_name(allocator_type)}' is a generic class, and an allocator is a class of its own that is not generic, like 'Memory.Arena'",
+                )
+                return null
             }
         }
     }
@@ -27837,6 +27911,158 @@ func allocator_class_of(allocator_type: Analysis.SpiteType): Analysis.ClassInfo?
         "'{display_name}' is not an allocator: an allocator answers 'allocate(bytes: Long): Memory.Address' and 'free(address: Memory.Address)', like 'Memory.Arena'",
     )
     return null
+}
+
+func is_allocator_class(candidate: Analysis.ClassInfo): Boolean {
+    if candidate.is_generic_template or candidate.is_value_class {
+        return false
+    }
+    var allocating = candidate.find_function("allocate")
+    var freeing = candidate.find_function("free")
+    if not allocating or not freeing {
+        return false
+    }
+    if allocating.parameters.count() != 1 or freeing.parameters.count() != 1 {
+        return false
+    }
+    var allocated_from = allocating.parameters[0].type
+    var freed_from = freeing.parameters[0].type
+    if type_display_name(allocated_from) != "Long" or type_display_name(freed_from) != "Memory.Address" {
+        return false
+    }
+    var allocated = allocating.return_type
+    var freed = freeing.return_type
+    return type_display_name(allocated) == "Memory.Address" and type_shape.is_void(freed)
+}
+
+func is_allocator_member(candidate: Analysis.ClassInfo): Boolean {
+    crash allocator_union
+    return allocator_union.has_member(candidate.c_name)
+}
+
+func make_allocator_union() {
+    var no_member_types = List<Syntax.Types.Type>()
+    var information = Analysis.UnionInfo("Spite_Allocator", "allocator", "", "", no_member_types)
+    var index = 0
+    while index < classes.count() {
+        var candidate = classes[index]
+        if is_allocator_class(candidate) {
+            information.members.append(candidate)
+        }
+        index = index + 1
+    }
+    unions.append(information)
+    allocator_union = information
+    var name = information.c_name
+    builder.add_typedef("typedef void* {name};")
+    builder.add_prototype("{name} {name}___retain({name} self);")
+    builder.add_prototype("void {name}___release({name} self);")
+    builder.add_support(
+        "{name} {name}___retain({name} self) \{\nif (self != 0) SPITE_COUNT_UP(((SpiteHeader*)self)->ref_count);\nreturn self;\n}",
+    )
+    emit_union_release(information)
+}
+
+func allocator_read(
+    member: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    crash member.object
+    var own_memory = shape.as_identifier(member.object)
+    if own_memory {
+        assert own_memory.name == "memory" and not scope.lookup_type("memory") and not class_information.find_field("memory")
+        if class_information.is_singleton or class_information.is_value_class {
+            report(
+                "'memory.allocator' is the allocator of the object a function runs on, and '{class_information.simple_name}' is not made as an object of its own: only an object has an allocator",
+            )
+            return missing_allocator()
+        }
+        return allocator_of(class_information, "self")
+    }
+    var memory = shape.as_member(member.object)
+    assert memory
+    assert memory.name == "memory"
+    crash memory.object
+    var saved_counter = temporary_counter
+    var probe = generate_expression(memory.object, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var described_type = probe.type
+    var described_ref = type_shape.as_class_ref(described_type)
+    if described_ref {
+        var described = find_class_by_c_name(described_ref.c_name)
+        if described {
+            assert not described.find_field("memory") and not described.find_function("get_memory")
+        }
+    }
+    var placed_class = owning_class_of(described_type)
+    if not placed_class {
+        report(
+            "only an object has an allocator of its own, and this is a value of type {type_display_name(described_type)}, which the compiler places itself",
+        )
+        return missing_allocator()
+    }
+    if not is_name_path(memory.object) {
+        report("only a named object answers its allocator: give this object a name with 'var' first")
+        return missing_allocator()
+    }
+    var object_result = generate_expression(memory.object, scope, class_information)
+    return allocator_of(placed_class, object_result.code)
+}
+
+func missing_allocator(): ExpressionResult {
+    crash allocator_union
+    var union_type = union_type_of(allocator_union)
+    return ExpressionResult("((Spite_Allocator)0)", union_type)
+}
+
+func owning_class_of(described_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var placed_c_name = ""
+    var reference = type_shape.as_class_ref(described_type)
+    if reference {
+        placed_c_name = reference.c_name
+    }
+    var listed = type_shape.as_list(described_type)
+    if listed {
+        var listed_element = listed.element
+        placed_c_name = ensure_list(listed_element)
+    }
+    var dictionary = type_shape.as_dictionary(described_type)
+    if dictionary {
+        placed_c_name = ensure_dictionary(dictionary)
+    }
+    var placed_class = find_class_by_c_name(placed_c_name)
+    assert placed_class
+    assert not placed_class.is_singleton and not placed_class.is_value_class
+    return placed_class
+}
+
+func allocator_of(placed_class: Analysis.ClassInfo, object_code: String): ExpressionResult {
+    var heap_class = find_class_by_qualified("Memory.Heap")
+    crash heap_class
+    singleton_call(heap_class)
+    if not allocator_read_names.contains(placed_class.c_name) {
+        allocator_read_names.append(placed_class.c_name)
+    }
+    crash allocator_union
+    var union_type = union_type_of(allocator_union)
+    return ExpressionResult("SPITE_ALLOCATOR_{placed_class.c_name}({object_code})", union_type)
+}
+
+func finish_allocator_reads() {
+    var index = 0
+    while index < allocator_read_names.count() {
+        var c_name = allocator_read_names[index]
+        var heap = "((Spite_Allocator)spite_singleton_Memory_Heap())"
+        if allocated_class_names.contains(c_name) {
+            builder.add_prototype(
+                "#define SPITE_ALLOCATOR_{c_name}(object) ((object)->spite_allocator != 0 ? (Spite_Allocator)(object)->spite_allocator : {heap})",
+            )
+        } else {
+            builder.add_prototype("#define SPITE_ALLOCATOR_{c_name}(object) ((void)(object), {heap})")
+        }
+        index = index + 1
+    }
 }
 
 func mark_names_used_in(expression: Syntax.Expressions.Expression, scope: Scope) {
@@ -27965,6 +28191,13 @@ func finish_allocated_class(information: Analysis.ClassInfo) {
             "{information.c_name}___init_constructed(self);\nself->spite_allocator = 0;",
         )
         builder.replace_support(information.constructed_allocate_position, constructed_on_heap)
+    }
+    if framed_positions.has(information.c_name) {
+        var framed_position = framed_positions[information.c_name]
+        crash framed_position
+        var framed = builder.support_at(framed_position)
+        var framed_on_heap = framed.replace("return self;", "self->spite_allocator = 0;\nreturn self;")
+        builder.replace_support(framed_position, framed_on_heap)
     }
     var released = builder.support_at(information.release_position)
     var given_back = released.replace(

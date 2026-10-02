@@ -1,0 +1,12 @@
+var heap = Memory.Heap()
+var store = Store()
+
+func allocate(bytes: Long): Memory.Address {
+    var extra = Position()
+    store.positions.append(extra)
+    return heap.allocate(bytes)
+}
+
+func free(address: Memory.Address) {
+    heap.free(address)
+}

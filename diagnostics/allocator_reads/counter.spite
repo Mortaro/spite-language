@@ -1,0 +1,7 @@
+singleton
+
+var total = 0
+
+func where(): Boolean {
+    return memory.allocator == Memory.Heap
+}

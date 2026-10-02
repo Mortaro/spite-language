@@ -625,13 +625,15 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 ### Objects that never leave their function live in the frame
 
-- **Proves.** A fresh object of a class of numbers never outlives the call that made it.
+- **Proves.** A fresh object never outlives the call that made it.
 - **Rule.** The class's attributes are all numbers, `Boolean`s, enums or singletons; it has no `drop()`, is not a
   singleton, its constructor keeps nothing and nothing reads its `.instances`. Four places qualify: a **local** only
   read and written through its attributes, compared, passed to functions proven to keep nothing, or returned from a
   function answering its class; a **result** of a function whose every `return` is fresh, written into the caller's
   slot through a hidden `___into` version; a **temporary** (`(a + b).length()`); and a **copy used as a value**
-  (`var local = other.copy()`). "Keeps nothing" is proven per parameter from the function's source. A generic
+  (`var local = other.copy()`). "Keeps nothing" is proven per parameter from the function's source. A local made
+  by its constructor qualifies also when its class holds text, lists or other objects (still no `drop()`, not a
+  container): those attributes are let go where its scope ends, and `return` moves it to the heap whole. A generic
   class qualifies per instance: a constructor whose codegen values are inferred is fresh where the types of its
   arguments are known (numbers, names in scope and their attributes), and in a `return` of a function answering
   that instance, which only that instance can be.
@@ -643,7 +645,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   `Concurrent`), made into a function value, or named in a text hole other than `{name.attribute}`; in inspectable
   builds; and in a function that waits.
 - **See.** [optimizations.md: Objects that never leave their function live in the
-  frame](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame); `conformance/stage6/frame_objects`.
+  frame](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame); `conformance/stage6/frame_objects`,
+  `conformance/stage6/frame_held_attributes`.
 
 ### Local and variadic lists in the frame
 

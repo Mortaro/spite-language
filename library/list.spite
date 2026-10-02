@@ -469,7 +469,9 @@ func sort_by_member(member: Spite.AttributeDeclaration<$element_type>): List<$el
 
 func drop() {
     clear()
-    heap.free(items)
+    if items != 0 {
+        memory.allocator.free(items)
+    }
 }
 
 func reserve(wanted: Integer) {
@@ -479,7 +481,7 @@ func reserve(wanted: Integer) {
             grown = wanted
         }
         var bytes = values.value_bytes()
-        items = heap.resize(items, bytes * grown)
+        items = _resized(bytes * capacity, bytes * grown)
         capacity = grown
     }
 }
@@ -491,9 +493,21 @@ func make_room() {
             grown = 4
         }
         var bytes = values.value_bytes()
-        items = heap.resize(items, bytes * grown)
+        items = _resized(bytes * capacity, bytes * grown)
         capacity = grown
     }
+}
+
+func _resized(old_bytes: Long, new_bytes: Long): Memory.Address {
+    if memory.allocator == Memory.Heap {
+        return heap.resize(items, new_bytes)
+    }
+    var moved = memory.allocator.allocate(new_bytes)
+    if items != 0 {
+        items.copy_to(moved, old_bytes)
+        memory.allocator.free(items)
+    }
+    return moved
 }
 
 func move_items(from: Integer, to: Integer, moved_count: Integer) {

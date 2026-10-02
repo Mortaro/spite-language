@@ -1316,7 +1316,7 @@ under `Vector<T>`](#vectort-items-inline), which is normative. The readings:
   `names.each(f)` as `'each' passes each item to a function, which a Vector never does: keep the values in a
   'List<String>' to pass them on` (`diagnostics/text_items_passed`).
 - **Its allocator.** `velocities.memory.allocator = arena` on the next line places the `Vector` object in the
-  arena, as for any object.
+  arena, as for any object, and its block of items with it, each time it grows.
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/plain_items`,
 `diagnostics/text_items_passed`, `conformance/stage6/vector_items`, `conformance/stage6/plain_items`.

@@ -274,7 +274,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Not built: the heap asking the operating system for pages itself, and `copy_to` and `compare_bytes` as plain Spite through `DynamicLibrary`. Today `Memory.Heap`'s four functions (`allocate`, `resize`, `free`, `live_allocations`) are bodies the compiler supplies over the C library's `realloc` and `free` (with the live-allocation counter), and `copy_to` and `compare_bytes` are written in place as `memmove` and `memcmp`. `library/memory/heap.spite` declares only `singleton`, so the "zero hidden code" goal is not reached for the heap yet. (Was decided as D178 and D147.) The heading was tagged "implemented; OS pages planned".
 
 ### Allocators: `.memory.allocator`
-- Only partly built (heading was "implemented for objects; a list's buffer and a vector's block planned"). Works for objects. Not built: a list's buffer following its list's allocator (a list placed in an arena keeps its buffer of references on the heap); likewise a `Vector<T>`'s block of items stays on the heap wherever the vector object is (a class reading its own allocator, open item 175, is unresolved); `Memory.Frame` (open item 173 in mortaros_missing_decisions.md); `reset()` on an arena (no `reset()` because resetting under live objects is the undecided safety rule of item 173); reading `.memory.allocator` back. The page states the list-buffer and vector-block facts as plain behaviour ("stays on the heap") and does not mention `Memory.Frame`, `reset()` or reading the allocator back.
+- Only partly built. Built: objects, a class reading its own allocator (`memory.allocator`, D353), a `List`'s buffer and a `Vector`'s or `Items`' block following their object, and reading `.memory.allocator` back (the readings in the D??? row "a class reads its own allocator" are proposed by Claude, unconfirmed). Not built: `Memory.Frame` and the escape rule (D352, D369 item 173); `reset()` on an arena. A `Dictionary` given an allocator keeps its table and its two lists on the heap (the page says so as plain behaviour). Of D353's "every fact the compiler knows as get-only reflection", only `.memory.address`, `.bytes`, `.section` and `.allocator` exist: which facts a layout answers, and under what names, is not decided. The page does not mention `Memory.Frame` or `reset()`.
 
 ### Where a value lives: `.memory` (overview section, "Choosing an allocator")
 - The overview previously said a `Vector`'s block of items "stays on the heap for now" and pointed to "what is not built yet"; both now state only the plain fact (see the allocators note above).
@@ -600,10 +600,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Rule details (which templates, how a name is read, error texts) are proposed by Claude, unconfirmed.
 
 ### Vector<T>
-- Not built, removed from the page: an allocator's effect on the block of items. `velocities.memory.allocator =
-  arena` places the `Vector` object in the arena but the block of items stays on the heap, because a class cannot
-  read its own `.memory` yet. Open: the proposal (mortaros_missing_decisions item 175) that `memory.allocator` is
-  readable inside a class, so the block follows the object, is unresolved.
 - The class named `Vector` in `examples/vectors`, `conformance/stage6/operators` and `benchmarks/small_allocations`
   was renamed `Displacement`; page no longer records this.
 
@@ -836,7 +832,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### Copies that cost nothing
 
 - Built: a copy only used as a value is a frame slot (classes of numbers, `Boolean`s, enum values, singletons); an allocator set right after construction; leaving out the count on a frame object passed by name to a program function that never assigns the parameter (D270).
-- Not built: frame objects of classes that hold text, lists or other objects (their attributes let go at the end of the frame); an attribute object laid inline in a frame-held object where the attribute is never shared.
+- Built: a local of a class holding text, lists or other objects in the frame, its attributes let go where its scope ends (the readings in the D??? row "frame objects holding text, lists or objects" are proposed by Claude, unconfirmed). Not built: such a class as a result written into the caller's slot, a temporary or a copy used as a value; an attribute object laid inline in a frame-held object where the attribute is never shared.
 - Not built as general rules: a copy used only once passed by value instead of allocated; a copy that is never changed sharing the original when cheaper; every object that never escapes laid inline or in registers; reference counting left out wherever ownership is provable (only the frame-object and held-argument cases above exist).
 
 ### Identical functions are folded into one
@@ -846,7 +842,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Other optimisations
 
-- A list's buffer in its list's allocator (D154): today a `List` given an allocator is made there, but its buffer of references still comes from the heap, and so does a `Vector<T>`'s block of items. Not built.
 - An appended item made in place: today `var slow = Velocity(1.0, 0.5)` then `velocities.append(slow)` makes an ordinary object, copies its attributes into the vector's block and lets the object go, so filling a vector allocates once per item for a moment. Writing the constructor's attributes straight into the block is not built.
 - A build report of what could not be optimised (D36) is not built.
 
@@ -854,10 +849,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 - Not built: leaving out the overflow check where a proof bounds the operands other than a counter stepped by one
   under a `<` or `>` and constants (an index already bounded, a `bits_and` mask put into a `Byte`, an attribute).
-
-### Objects that never leave their function live in the frame
-
-- Objects of classes holding text, lists or other objects are not placed in the frame yet (see "Copies that cost nothing").
 
 ### A loop over plain values reads its count once and its items unchecked
 
@@ -1003,8 +994,8 @@ The section listed proofs that are not built. Each, with what it said:
   (optimizations.md, "Arithmetic is checked in every build").
 - A write to a copy that dies unread is an error (proposed by Claude, unconfirmed): escape analysis already proves a
   result fresh (failure.md, "Nothing fails silently", still open).
-- Frame objects holding text, lists or objects, their attributes let go at the end of the frame (optimizations.md,
-  "Copies that cost nothing").
+- Frame objects holding text, lists or objects as a result, a temporary or a copy, and an attribute object laid
+  inline (optimizations.md, "Copies that cost nothing").
 - A singleton hands out only safe values (D183's check at `return`), and D184's per-thread forms (optimizations.md,
   "Thread safety for singletons, the rest of the plan").
 - Whether a function runs in pieces (D229, `function_runs_in_pieces`): decided, and on no page and not in the

@@ -1,0 +1,18 @@
+var console = Console()
+var counter = Counter()
+
+func AllocatorReads() {
+    var count = 3
+    var place = count.memory.allocator
+    var made = Particle("spark").memory.allocator
+    var pool = Pool<Integer>()
+    var spark = Particle("spark")
+    spark.memory.allocator = pool
+    var wide = WideAllocator()
+    var ember = Particle("ember")
+    ember.memory.allocator = wide
+    var on_heap = counter.where()
+    var place_on_heap = place == Memory.Heap
+    var made_on_heap = made == Memory.Heap
+    console.print(place_on_heap, made_on_heap, spark.name, ember.name, on_heap, counter.total)
+}

@@ -125,3 +125,16 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      and `check.sh` compiles it. Options: (a) a comment may also link an existing `.spite` file, with no anchor;
      (b) allow that only inside a `--final-classes` folder; (c) name the source some other way than a comment.
      Recommend (a): one comment form, a link that resolves. Blocks C7.
+288. **What a frame is for frame arenas** (D352, D369 item 173; backlog E1). The docs never say what "a frame" is or
+     how `Memory.Frame` is spelled. Options: (a) a loop pass the compiler finds (a frame loop ending in a wait such as
+     `program.sleep`), reset by the compiler; (b) a singleton `Memory.Frame()` whose frame the program ends
+     explicitly; (c) a function's call frame, which placement already covers. Recommend (a), with an object that
+     would outlive the frame a compile error naming `copy()`. Blocks backlog E1.
+289. **Which geometry classes become generic over `Number`** (D355, D381). `Vector2`, `Vector3` and `Vector4` are.
+     Making `Quaternion`, the matrices, `Plane`, `Ray`, `AxisAlignedBox`, `Frustum` and `CubicBezier` generic too
+     makes every user write `Quaternion<Float>()`. Options: (a) all of them; (b) `Quaternion` and the matrices only,
+     for `Double` precision; (c) none beyond the vectors. Recommend (b).
+290. **A whole-number vector's fractional answers** (D381, D244). `Vector3(3, 4, 12).normalized()` answers
+     `(0, 0, 0)`: the components stay `Integer`. Options: (a) the fractional members answer the vector of the
+     number's fractional class (`Vector3<Float>` for `Integer`); (b) a compile error on `normalized()` of a
+     whole-number vector, naming the conversion; (c) keep it. Recommend (a); (c) is a silent wrong value.

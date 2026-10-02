@@ -1,0 +1,11 @@
+generic $item_type
+
+var heap = Memory.Heap()
+
+func allocate(bytes: Long): Memory.Address {
+    return heap.allocate(bytes)
+}
+
+func free(address: Memory.Address) {
+    heap.free(address)
+}

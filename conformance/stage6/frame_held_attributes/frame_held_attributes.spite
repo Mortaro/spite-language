@@ -1,0 +1,65 @@
+var console = Console()
+var heap = Memory.Heap()
+var kept = List<Badge>()
+
+func FrameHeldAttributes() {
+    show_local()
+    show_loop()
+    show_reassigned()
+    var returned = made_and_returned("returned badge")
+    var returned_tags = returned.count_tags()
+    var returned_memory = returned.memory
+    console.print(returned.title, returned_tags, "on the", returned_memory.section)
+    show_kept()
+}
+
+func show_local() {
+    var before = heap.live_allocations()
+    var badge = Badge("visitor badge, printed at the front desk")
+    badge.tag("blue")
+    badge.hand_to("ada, who keeps losing her badges")
+    var during = heap.live_allocations()
+    var described = badge.described()
+    var badge_memory = badge.memory
+    console.print(described)
+    console.print("allocations while it lives:", during - before, "in the", badge_memory.section)
+}
+
+func show_loop() {
+    var before = heap.live_allocations()
+    var total = 0
+    var round = 0
+    while round < 1000 {
+        var badge = Badge("round badge, long enough to need a block")
+        badge.tag("first tag, also long enough to need a block")
+        badge.tag("second")
+        total = total + badge.count_tags()
+        round = round + 1
+    }
+    var after = heap.live_allocations()
+    console.print("tags counted:", total, "left alive after the loop:", after - before)
+}
+
+func show_reassigned() {
+    var badge = Badge("first badge")
+    badge.tag("one")
+    badge = Badge("second badge")
+    badge.tag("two")
+    badge.tag("three")
+    var described = badge.described()
+    console.print(described)
+}
+
+func made_and_returned(title: String): Badge {
+    var badge = Badge(title)
+    badge.tag("kept by the caller")
+    return badge
+}
+
+func show_kept() {
+    var stored = Badge("stored badge")
+    kept.append(stored)
+    var stored_memory = stored.memory
+    var kept_count = kept.count()
+    console.print("kept", kept_count, "on the", stored_memory.section)
+}

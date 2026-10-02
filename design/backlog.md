@@ -143,27 +143,22 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   proofs survive calls (`call_effects.spite`), and a sum the C compiler could vectorise; what stays is listed in M4's
   report. Update docs/proofs.md and docs/optimizations.md. **M.** Benchmarks measured on `--optimized` builds only.
 
-### Memory (D352, D353, D354, D380, D369 item 173, D147, D178)
+### Memory (D352, D354, D380, D369 item 173, D147, D178)
 
 - **E1 Frame arenas and the escape rule** (D352, D369 item 173; status "Allocators"). `Memory.Frame`, its reset
   chosen by the compiler per use (once a frame, a ring, or none), and storing a frame-arena object where it outlives
   the frame a compile error naming `copy()`, with a generation check in debug builds as backstop. Files:
   `library/memory/arena.spite`, a new `library/memory/frame.spite`, `placement.spite`, `object_escape.spite`.
   **L.** No dependencies.
-- **E2 A class reads its own allocator; buffers follow it** (D353, D154). `memory.allocator` inside a class, a
-  `List`'s buffer and a `Vector`'s or `Items`' block placed with their object, reading `.memory.allocator` back, and
-  every fact the compiler knows (layout, size, allocator) as get-only reflection, shaken when unread. Files:
-  `library/list.spite`, `vector.spite`, `items.spite`, `typed_memory.spite`, `library/spite/memory.spite`,
-  generator.spite allocator handling (around lines 26200 to 26700). **M.** No dependencies; E1 benefits.
 - **E3 Storage owns its items; `Weak` goes** (D354, D380). List, dictionary and vector slots and non-nullable
   attributes own; a `T?` attribute or local holding an object owned elsewhere is weak, narrowed before use; a
   second owner is a compile error naming `copy()`; trees own children through attributes. Remove
   `library/weak.spite` and the weak table in generator.spite (around line 7230), migrate 7 `Weak<` uses and
   memory.md's "Cycles leak". **L.** No dependencies.
 - **E4 Frame objects holding text, lists or objects** (status "Copies that cost nothing", proofs "Objects that
-  never leave"). Their attributes let go at the end of the frame; an attribute object laid inline where never
-  shared; an appended item made in place in a `Vector`'s block. Files: `object_frames.spite`, `owned_local.spite`,
-  `placement.spite`. **L.** No dependencies.
+  never leave"). Locals are built; left: such objects as a result into the caller's slot, a temporary and a copy;
+  an attribute object laid inline where never shared; an appended item made in place in a `Vector`'s block.
+  Files: `object_frames.spite`, `owned_local.spite`, `placement.spite`. **M.** No dependencies.
 - **E5 The heap and copies as Spite** (D147, D178, D240; status "The floor"). `Memory.Heap` asks the system for
   pages itself; `copy_to` and `compare_bytes` through `DynamicLibrary`; the remaining backend primitives listed in
   one place a reader finds (D240's table). Files: `library/memory/heap.spite`, `address.spite`, `prelude.spite`.
@@ -321,7 +316,7 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M4, M5, M7, N1, E1, E2, E4, C7, K2, S9, P1, P2, X1, the remaining B items, E3,
+2. No dependencies: R8, M1, M4, M5, M7, N1, E1, E4, C7, K2, S9, P1, P2, X1, the remaining B items, E3,
    D1's first pass.
 3. After step 2: R5, K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4, R8, then R9.
@@ -345,7 +340,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 1 Reflection and serialization | R5, R1, R4, J1, J2, R8, R7 | generator.spite reflection, specialisation and template regions; `specialisation.spite`, `reflected*.spite`, `template_walk.spite`, `namespace_walk.spite`, `old_spellings.spite`; `library/spite/*`, `json_*`, `binary_*`, `dictionary.spite`; stage6 walk programs; docs reflection, metaprogramming, json |
 | 2 Types and storage | M1, M7, M4, M3, M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
 | 3 Arithmetic | N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
-| 4 Memory | E2, E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
+| 4 Memory | E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
 | 6 Waiting, IO and library | K2, K1, K3, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
 | 7 Language rules | L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |

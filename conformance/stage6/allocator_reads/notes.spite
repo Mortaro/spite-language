@@ -1,0 +1,9 @@
+func where(): String {
+    if memory.allocator == Memory.Arena {
+        return "arena"
+    }
+    if memory.allocator == CountingAllocator {
+        return "counting allocator"
+    }
+    return "heap"
+}
