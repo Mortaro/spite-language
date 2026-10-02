@@ -439,7 +439,9 @@ asking their `.accesses` at run time halts.
 ### `Spite.Memory`
 
 `value.memory` is where a named value lives: `.address: Long`, `.bytes: Long` and `.section` (`'heap'`,
-`'stack'` or `'constant'`). It is [memory.md](memory.md#where-a-value-lives-memory)'s.
+`'stack'` or `'constant'`). It is [memory.md](memory.md#where-a-value-lives-memory)'s. An object's
+`value.memory.allocator` (and `memory.allocator` inside its class) is the allocator it was made in
+([memory.md](memory.md#an-object-reads-its-own-allocator)).
 
 ## Members are lists
 

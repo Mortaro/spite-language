@@ -1,0 +1,7 @@
+heap allocations while filling three storages in the arena: 1
+40 40 40 39 40 60
+scores in the arena: true
+allocations through the counting allocator: 4 frees: 2
+plain list on the heap: true
+heap arena counting allocator
+an allocator read back answers allocate and free

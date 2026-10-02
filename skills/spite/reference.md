@@ -546,6 +546,10 @@ func is_alive(): Boolean {
   `var spark = Particle()` then `spark.memory.allocator = arena` (`var arena = Memory.Arena(65536)` beforehand)
   makes it in the arena from the start. Later, it is an error (`'spark' was already used, so its allocator can no
   longer change`): copy it and set the copy's allocator. A number or a `String` gets none.
+- `spark.memory.allocator` reads it back, and inside a class `memory.allocator` is the object's own: one of the
+  program's allocators (`Memory.Heap` unless set), so `== Memory.Arena` asks which, and `allocate`/`free` call
+  it. A `List`'s buffer, a `Vector`'s and an `Items`' block follow their object's allocator. An allocator is a
+  class that is not generic with `allocate(bytes: Long): Memory.Address` and `free(address: Memory.Address)`.
 
 ## Built in classes
 

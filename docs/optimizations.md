@@ -462,6 +462,13 @@ arena's blocks are. A class some line gives an allocator is sixteen bytes larger
 the allocator, and the function that gives the memory back), on every object of that class, heap ones included;
 no other class changes. Setting `Memory.Heap()` is the default and costs nothing.
 
+A `List`, a `Vector<T>` and an `Items<T>` given an allocator take their buffer from it too, through
+`memory.allocator` ([memory.md](memory.md#an-object-reads-its-own-allocator)): filling one allocates nothing
+on the heap past the arena's blocks. On the heap a buffer still grows in place (`resize`); in any other
+allocator it grows by allocating the new size, copying and freeing the old, so in an arena the smaller buffers
+stay until the arena goes. A class that never reads its allocator is unchanged, and one that reads it but is
+never given one answers `Memory.Heap` with no hidden pointers: reading it is one comparison with the heap.
+
 ### Singletons: made on first use, never counted
 
 **What it does.** A singleton is made the first time something asks for it, not when the program starts, so a
@@ -1868,9 +1875,6 @@ every build, rather than leaving it to the C compiler or the linker.
 
 ### Other optimisations
 
-- **A list's buffer in its list's allocator**: a `List` given an allocator is made there, and its buffer of references
-  comes from that allocator too, and so does a `Vector<T>`'s block of items
-  ([memory.md](memory.md#allocators-memoryallocator)).
 - **An appended item made in place**: `var slow = Velocity(1.0, 0.5)` and then `velocities.append(slow)` writes the
   constructor's attributes straight into the vector's block, when the object is used for nothing else, so filling
   a vector allocates only when the block grows
