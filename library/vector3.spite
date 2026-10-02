@@ -1,105 +1,120 @@
-var x: Float = 0.0
-var y: Float = 0.0
-var z: Float = 0.0
+generic $number_type: Number
 
-func Vector3(starting_x: Float, starting_y: Float, starting_z: Float) {
+var x: $number_type = 0
+var y: $number_type = 0
+var z: $number_type = 0
+
+func Vector3(starting_x: $number_type, starting_y: $number_type, starting_z: $number_type) {
     x = starting_x
     y = starting_y
     z = starting_z
 }
 
-func sum(other: Vector3): Vector3 {
+func sum(other: Vector3<$number_type>): Vector3<$number_type> {
     return Vector3(x + other.x, y + other.y, z + other.z)
 }
 
-func subtract(other: Vector3): Vector3 {
+func subtract(other: Vector3<$number_type>): Vector3<$number_type> {
     return Vector3(x - other.x, y - other.y, z - other.z)
 }
 
-func multiply(other: Vector3): Vector3 {
+func multiply(other: Vector3<$number_type>): Vector3<$number_type> {
     return Vector3(x * other.x, y * other.y, z * other.z)
 }
 
-func divide(other: Vector3): Vector3 {
+func divide(other: Vector3<$number_type>): Vector3<$number_type> {
     return Vector3(x / other.x, y / other.y, z / other.z)
 }
 
-func negate(): Vector3 {
+func negate(): Vector3<$number_type> {
     return Vector3(-x, -y, -z)
 }
 
-func equals(other: Vector3): Boolean {
+func equals(other: Vector3<$number_type>): Boolean {
     return x == other.x and y == other.y and z == other.z
 }
 
-func scaled(factor: Float): Vector3 {
+func scaled(factor: $number_type): Vector3<$number_type> {
     return Vector3(x * factor, y * factor, z * factor)
 }
 
-func dot(other: Vector3): Float {
+func dot(other: Vector3<$number_type>): $number_type {
     return x * other.x + y * other.y + z * other.z
 }
 
-func cross(other: Vector3): Vector3 {
+func cross(other: Vector3<$number_type>): Vector3<$number_type> {
     return Vector3(y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x)
 }
 
-func length_squared(): Float {
+func length_squared(): $number_type {
     return x * x + y * y + z * z
 }
 
-func length(): Float {
+func length(): $number_type {
     var squared = x * x + y * y + z * z
-    return squared.square_root()
+    return _square_root(squared)
 }
 
-func normalized(): Vector3 {
+func normalized(): Vector3<$number_type> {
     var squared = x * x + y * y + z * z
-    if squared == 0.0 {
-        return Vector3(0.0, 0.0, 0.0)
+    if squared == 0 {
+        return Vector3<$number_type>(0, 0, 0)
     }
-    var inverse_length = 1.0 / squared.square_root()
-    return Vector3(x * inverse_length, y * inverse_length, z * inverse_length)
+    if $number_type == Float or $number_type == Double {
+        var one: $number_type = 1
+        var inverse_length = one / squared.square_root()
+        return Vector3(x * inverse_length, y * inverse_length, z * inverse_length)
+    }
+    var size = _square_root(squared)
+    return Vector3(x / size, y / size, z / size)
 }
 
-func distance_to(other: Vector3): Float {
+func distance_to(other: Vector3<$number_type>): $number_type {
     var x_part = other.x - x
     var y_part = other.y - y
     var z_part = other.z - z
     var squared = x_part * x_part + y_part * y_part + z_part * z_part
-    return squared.square_root()
+    return _square_root(squared)
 }
 
-func distance_squared_to(other: Vector3): Float {
+func distance_squared_to(other: Vector3<$number_type>): $number_type {
     var x_part = other.x - x
     var y_part = other.y - y
     var z_part = other.z - z
     return x_part * x_part + y_part * y_part + z_part * z_part
 }
 
-func linear_interpolate(target: Vector3, amount: Float): Vector3 {
+func linear_interpolate(target: Vector3<$number_type>, amount: $number_type): Vector3<$number_type> {
     return Vector3(x + (target.x - x) * amount, y + (target.y - y) * amount, z + (target.z - z) * amount)
 }
 
-func minimum(other: Vector3): Vector3 {
+func minimum(other: Vector3<$number_type>): Vector3<$number_type> {
     var x_part = x.minimum(other.x)
     var y_part = y.minimum(other.y)
     var z_part = z.minimum(other.z)
     return Vector3(x_part, y_part, z_part)
 }
 
-func maximum(other: Vector3): Vector3 {
+func maximum(other: Vector3<$number_type>): Vector3<$number_type> {
     var x_part = x.maximum(other.x)
     var y_part = y.maximum(other.y)
     var z_part = z.maximum(other.z)
     return Vector3(x_part, y_part, z_part)
 }
 
-func absolute(): Vector3 {
+func absolute(): Vector3<$number_type> {
     var x_part = x.absolute()
     var y_part = y.absolute()
     var z_part = z.absolute()
     return Vector3(x_part, y_part, z_part)
+}
+
+func _square_root(squared: $number_type): $number_type {
+    if $number_type == Float or $number_type == Double {
+        return squared.square_root()
+    }
+    var root: $number_type = squared.to_double().square_root()
+    return root
 }
 
 func to_string(): String {

@@ -45,11 +45,11 @@ func set_from_view_projection(matrix: Matrix4) {
     far.normalize()
 }
 
-func contains_point(point: Vector3): Boolean {
+func contains_point(point: Vector3<Float>): Boolean {
     return intersects_sphere(point, 0.0)
 }
 
-func intersects_sphere(center: Vector3, radius: Float): Boolean {
+func intersects_sphere(center: Vector3<Float>, radius: Float): Boolean {
     var reach = 0.0 - radius
     return left.signed_distance_to(center) >= reach and right.signed_distance_to(center) >= reach and bottom.signed_distance_to(center) >= reach and top.signed_distance_to(center) >= reach and near.signed_distance_to(center) >= reach and far.signed_distance_to(center) >= reach
 }

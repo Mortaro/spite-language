@@ -1,94 +1,109 @@
-var x: Float = 0.0
-var y: Float = 0.0
+generic $number_type: Number
 
-func Vector2(starting_x: Float, starting_y: Float) {
+var x: $number_type = 0
+var y: $number_type = 0
+
+func Vector2(starting_x: $number_type, starting_y: $number_type) {
     x = starting_x
     y = starting_y
 }
 
-func sum(other: Vector2): Vector2 {
+func sum(other: Vector2<$number_type>): Vector2<$number_type> {
     return Vector2(x + other.x, y + other.y)
 }
 
-func subtract(other: Vector2): Vector2 {
+func subtract(other: Vector2<$number_type>): Vector2<$number_type> {
     return Vector2(x - other.x, y - other.y)
 }
 
-func multiply(other: Vector2): Vector2 {
+func multiply(other: Vector2<$number_type>): Vector2<$number_type> {
     return Vector2(x * other.x, y * other.y)
 }
 
-func divide(other: Vector2): Vector2 {
+func divide(other: Vector2<$number_type>): Vector2<$number_type> {
     return Vector2(x / other.x, y / other.y)
 }
 
-func negate(): Vector2 {
+func negate(): Vector2<$number_type> {
     return Vector2(-x, -y)
 }
 
-func equals(other: Vector2): Boolean {
+func equals(other: Vector2<$number_type>): Boolean {
     return x == other.x and y == other.y
 }
 
-func scaled(factor: Float): Vector2 {
+func scaled(factor: $number_type): Vector2<$number_type> {
     return Vector2(x * factor, y * factor)
 }
 
-func dot(other: Vector2): Float {
+func dot(other: Vector2<$number_type>): $number_type {
     return x * other.x + y * other.y
 }
 
-func length_squared(): Float {
+func length_squared(): $number_type {
     return x * x + y * y
 }
 
-func length(): Float {
+func length(): $number_type {
     var squared = x * x + y * y
-    return squared.square_root()
+    return _square_root(squared)
 }
 
-func normalized(): Vector2 {
+func normalized(): Vector2<$number_type> {
     var squared = x * x + y * y
-    if squared == 0.0 {
-        return Vector2(0.0, 0.0)
+    if squared == 0 {
+        return Vector2<$number_type>(0, 0)
     }
-    var inverse_length = 1.0 / squared.square_root()
-    return Vector2(x * inverse_length, y * inverse_length)
+    if $number_type == Float or $number_type == Double {
+        var one: $number_type = 1
+        var inverse_length = one / squared.square_root()
+        return Vector2(x * inverse_length, y * inverse_length)
+    }
+    var size = _square_root(squared)
+    return Vector2(x / size, y / size)
 }
 
-func distance_to(other: Vector2): Float {
+func distance_to(other: Vector2<$number_type>): $number_type {
     var x_part = other.x - x
     var y_part = other.y - y
     var squared = x_part * x_part + y_part * y_part
-    return squared.square_root()
+    return _square_root(squared)
 }
 
-func distance_squared_to(other: Vector2): Float {
+func distance_squared_to(other: Vector2<$number_type>): $number_type {
     var x_part = other.x - x
     var y_part = other.y - y
     return x_part * x_part + y_part * y_part
 }
 
-func linear_interpolate(target: Vector2, amount: Float): Vector2 {
+func linear_interpolate(target: Vector2<$number_type>, amount: $number_type): Vector2<$number_type> {
     return Vector2(x + (target.x - x) * amount, y + (target.y - y) * amount)
 }
 
-func minimum(other: Vector2): Vector2 {
+func minimum(other: Vector2<$number_type>): Vector2<$number_type> {
     var x_part = x.minimum(other.x)
     var y_part = y.minimum(other.y)
     return Vector2(x_part, y_part)
 }
 
-func maximum(other: Vector2): Vector2 {
+func maximum(other: Vector2<$number_type>): Vector2<$number_type> {
     var x_part = x.maximum(other.x)
     var y_part = y.maximum(other.y)
     return Vector2(x_part, y_part)
 }
 
-func absolute(): Vector2 {
+func absolute(): Vector2<$number_type> {
     var x_part = x.absolute()
     var y_part = y.absolute()
     return Vector2(x_part, y_part)
+}
+
+func _square_root(squared: $number_type): $number_type {
+    if $number_type == Float or $number_type == Double {
+        return squared.square_root()
+    }
+    var root: $number_type = squared.to_double().square_root()
+    return root
 }
 
 func to_string(): String {

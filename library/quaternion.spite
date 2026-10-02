@@ -26,7 +26,7 @@ func set_parts(starting_x: Float, starting_y: Float, starting_z: Float, starting
     w = starting_w
 }
 
-func set_axis_angle(axis: Vector3, angle: Float) {
+func set_axis_angle(axis: Vector3<Float>, angle: Float) {
     var unit = axis.normalized()
     var half_angle = angle * 0.5
     var half_sine = half_angle.sine()
@@ -36,7 +36,7 @@ func set_axis_angle(axis: Vector3, angle: Float) {
     w = half_angle.cosine()
 }
 
-func set_euler(angles: Vector3, order: Quaternion.RotationOrder) {
+func set_euler(angles: Vector3<Float>, order: Quaternion.RotationOrder) {
     var around_x = Quaternion()
     around_x.set_single_axis(0, angles.x)
     var around_y = Quaternion()
@@ -133,7 +133,7 @@ func equals(other: Quaternion): Boolean {
     return x == other.x and y == other.y and z == other.z and w == other.w
 }
 
-func rotate(vector: Vector3): Vector3 {
+func rotate(vector: Vector3<Float>): Vector3<Float> {
     var twice_x = 2.0 * (y * vector.z - z * vector.y)
     var twice_y = 2.0 * (z * vector.x - x * vector.z)
     var twice_z = 2.0 * (x * vector.y - y * vector.x)

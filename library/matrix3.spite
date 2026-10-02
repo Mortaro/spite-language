@@ -34,7 +34,7 @@ func multiply(other: Matrix3): Matrix3 {
     return product
 }
 
-func transform(vector: Vector3): Vector3 {
+func transform(vector: Vector3<Float>): Vector3<Float> {
     var x_part = column_0_row_0 * vector.x + column_1_row_0 * vector.y + column_2_row_0 * vector.z
     var y_part = column_0_row_1 * vector.x + column_1_row_1 * vector.y + column_2_row_1 * vector.z
     var z_part = column_0_row_2 * vector.x + column_1_row_2 * vector.y + column_2_row_2 * vector.z

@@ -98,12 +98,11 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   optimised and why: every list falling back to references (D332's to-do list), copies not elided, objects not
   placed in the frame, and later every remaining overflow check (N2). Written only when asked, by `--optimization-report` (name unconfirmed), in `--final-classes`' place and style, each entry linking its source line (D389). Files:
   generator.spite (a collector), `bootstrap.spite` (writing it). **M.** No dependencies; M3 and N2 report into it.
-- **M5 Vectors and maths generic over `Number`** (D355, D381). `Vector2`, `Vector3`, `Vector4` and `Quaternion` (and
-  `Matrix3`/`Matrix4`, `Plane`, `Ray`, `AxisAlignedBox`, `CubicBezier` where it makes sense) take `generic
-  $number_type` constrained by `Number`, inferred from the constructor (`Vector3(1, 2, 3)` is
-  `Vector3<Integer>`), one packed copy per class; every member answers the vector's own class, whole numbers truncated like
-  integer division (D381); game_maths.md points grid code at `length_squared()` and notes `normalized()` snaps
-  toward a grid direction. Migrate `examples/`, the corpus and the game engine package. **L.** Depends on M1(c).
+- **M5 The rest of the maths generic over `Number`** (D355, D381). `Vector2`, `Vector3` and `Vector4` are built
+  (D???); left: whether `Quaternion` (and `Matrix3`/`Matrix4`, `Plane`, `Ray`, `AxisAlignedBox`, `Frustum`,
+  `CubicBezier`) take `generic $number_type` too, which would make `Quaternion()` and `Matrix4()` name their class
+  (`Quaternion<Float>()`), so it waits for Mortaro; and migrating the game engine package to `Vector3<Float>`.
+  **M.** No dependencies.
 - **M7 Identical-function folding leftovers** (D340; status "Identical functions"). Fold a function differing only
   in which class of another layout it passes by reference, compare a boxed text constant by its text, and stop
   writing a foreign callback's site into the function. Files: `function_folder.spite`. **M.** No dependencies.
@@ -344,12 +343,12 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M4, M7, N1, N3, E1, E2, E4, L7, C5, C6, C7, K2, F3, S9, P1, P2, X1, B1
+2. No dependencies: R8, M1, M4, M5, M7, N1, N3, E1, E2, E4, L7, C5, C6, C7, K2, F3, S9, P1, P2, X1, B1
    to B16, E3, D1's first pass.
 3. After step 2: R5, K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4, R8, then R9.
 5. After J1: J2, S5. After L3: F1, S6 (with L4). After F1: F2.
-6. After M1: M5. After M1 and M4: M3.
+6. After M1 and M4: M3.
 7. After R1, R5 and J1: R7, the end of the reflection migration.
 8. S2 and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
    items sharing their files.
@@ -366,7 +365,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | Stream | Items, in order | Files it owns |
 |---|---|---|
 | 1 Reflection and serialization | R5, R1, R4, J1, J2, R8, R7 | generator.spite reflection, specialisation and template regions; `specialisation.spite`, `reflected*.spite`, `template_walk.spite`, `namespace_walk.spite`, `old_spellings.spite`; `library/spite/*`, `json_*`, `binary_*`, `dictionary.spite`; stage6 walk programs; docs reflection, metaprogramming, json |
-| 2 Types and storage | M1, M7, M4, M3, then M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
+| 2 Types and storage | M1, M7, M4, M3, M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
 | 3 Arithmetic | N3, N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E2, E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C6, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |

@@ -55,7 +55,7 @@ func multiply(other: Matrix4): Matrix4 {
     return product
 }
 
-func transform(vector: Vector4): Vector4 {
+func transform(vector: Vector4<Float>): Vector4<Float> {
     var x_part = column_0_row_0 * vector.x + column_1_row_0 * vector.y + column_2_row_0 * vector.z + column_3_row_0 * vector.w
     var y_part = column_0_row_1 * vector.x + column_1_row_1 * vector.y + column_2_row_1 * vector.z + column_3_row_1 * vector.w
     var z_part = column_0_row_2 * vector.x + column_1_row_2 * vector.y + column_2_row_2 * vector.z + column_3_row_2 * vector.w
@@ -140,14 +140,14 @@ func inverse(): Matrix4? {
     return inverted
 }
 
-func transform_point(point: Vector3): Vector3 {
+func transform_point(point: Vector3<Float>): Vector3<Float> {
     var x_part = column_0_row_0 * point.x + column_1_row_0 * point.y + column_2_row_0 * point.z + column_3_row_0
     var y_part = column_0_row_1 * point.x + column_1_row_1 * point.y + column_2_row_1 * point.z + column_3_row_1
     var z_part = column_0_row_2 * point.x + column_1_row_2 * point.y + column_2_row_2 * point.z + column_3_row_2
     return Vector3(x_part, y_part, z_part)
 }
 
-func project_point(point: Vector3): Vector3 {
+func project_point(point: Vector3<Float>): Vector3<Float> {
     var x_part = column_0_row_0 * point.x + column_1_row_0 * point.y + column_2_row_0 * point.z + column_3_row_0
     var y_part = column_0_row_1 * point.x + column_1_row_1 * point.y + column_2_row_1 * point.z + column_3_row_1
     var z_part = column_0_row_2 * point.x + column_1_row_2 * point.y + column_2_row_2 * point.z + column_3_row_2
@@ -156,21 +156,21 @@ func project_point(point: Vector3): Vector3 {
     return Vector3(x_part * inverse_w, y_part * inverse_w, z_part * inverse_w)
 }
 
-func transform_direction(direction: Vector3): Vector3 {
+func transform_direction(direction: Vector3<Float>): Vector3<Float> {
     var x_part = column_0_row_0 * direction.x + column_1_row_0 * direction.y + column_2_row_0 * direction.z
     var y_part = column_0_row_1 * direction.x + column_1_row_1 * direction.y + column_2_row_1 * direction.z
     var z_part = column_0_row_2 * direction.x + column_1_row_2 * direction.y + column_2_row_2 * direction.z
     return Vector3(x_part, y_part, z_part)
 }
 
-func set_translation(offset: Vector3) {
+func set_translation(offset: Vector3<Float>) {
     set_identity()
     column_3_row_0 = offset.x
     column_3_row_1 = offset.y
     column_3_row_2 = offset.z
 }
 
-func set_scale(factor: Vector3) {
+func set_scale(factor: Vector3<Float>) {
     set_identity()
     column_0_row_0 = factor.x
     column_1_row_1 = factor.y
@@ -205,7 +205,7 @@ func set_rotation(rotation: Quaternion) {
     column_3_row_3 = 1.0
 }
 
-func set_transform(translation: Vector3, rotation: Quaternion, scale: Vector3) {
+func set_transform(translation: Vector3<Float>, rotation: Quaternion, scale: Vector3<Float>) {
     set_rotation(rotation)
     column_0_row_0 = column_0_row_0 * scale.x
     column_0_row_1 = column_0_row_1 * scale.x
@@ -221,11 +221,11 @@ func set_transform(translation: Vector3, rotation: Quaternion, scale: Vector3) {
     column_3_row_2 = translation.z
 }
 
-func translation_part(): Vector3 {
+func translation_part(): Vector3<Float> {
     return Vector3(column_3_row_0, column_3_row_1, column_3_row_2)
 }
 
-func scale_part(): Vector3 {
+func scale_part(): Vector3<Float> {
     var x_squared = column_0_row_0 * column_0_row_0 + column_0_row_1 * column_0_row_1 + column_0_row_2 * column_0_row_2
     var x_part = x_squared.square_root()
     var y_squared = column_1_row_0 * column_1_row_0 + column_1_row_1 * column_1_row_1 + column_1_row_2 * column_1_row_2
@@ -271,7 +271,7 @@ func rotation_part(): Quaternion {
     return rotation
 }
 
-func set_look_at(eye: Vector3, target: Vector3, up: Vector3) {
+func set_look_at(eye: Vector3<Float>, target: Vector3<Float>, up: Vector3<Float>) {
     var toward = target - eye
     var forward = toward.normalized()
     var sideways = forward.cross(up)

@@ -171,7 +171,7 @@ func near(value: Float): Float {
     return whole / 10000.0 + 0.0
 }
 
-func near_vector(vector: Vector3): String {
+func near_vector(vector: Vector3<Float>): String {
     return "({near(vector.x)}, {near(vector.y)}, {near(vector.z)})"
 }
 

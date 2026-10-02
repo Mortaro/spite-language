@@ -5,7 +5,7 @@ var direction_x: Float = 0.0
 var direction_y: Float = 0.0
 var direction_z: Float = -1.0
 
-func Ray(starting_origin: Vector3, starting_direction: Vector3) {
+func Ray(starting_origin: Vector3<Float>, starting_direction: Vector3<Float>) {
     origin_x = starting_origin.x
     origin_y = starting_origin.y
     origin_z = starting_origin.z
@@ -14,15 +14,15 @@ func Ray(starting_origin: Vector3, starting_direction: Vector3) {
     direction_z = starting_direction.z
 }
 
-func origin(): Vector3 {
+func origin(): Vector3<Float> {
     return Vector3(origin_x, origin_y, origin_z)
 }
 
-func direction(): Vector3 {
+func direction(): Vector3<Float> {
     return Vector3(direction_x, direction_y, direction_z)
 }
 
-func point_at(along: Float): Vector3 {
+func point_at(along: Float): Vector3<Float> {
     return Vector3(origin_x + direction_x * along, origin_y + direction_y * along, origin_z + direction_z * along)
 }
 
@@ -62,7 +62,7 @@ func hit_box(box: AxisAlignedBox): Float? {
     return leaving
 }
 
-func hit_triangle(first: Vector3, second: Vector3, third: Vector3): Float? {
+func hit_triangle(first: Vector3<Float>, second: Vector3<Float>, third: Vector3<Float>): Float? {
     var first_edge = second - first
     var second_edge = third - first
     var ray_direction = Vector3(direction_x, direction_y, direction_z)

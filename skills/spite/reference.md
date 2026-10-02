@@ -630,8 +630,10 @@ address read with `terminated_text()`. Keep the `ForeignCallback` in an attribut
 registration and unregister in its `drop()`: C may call only while it is kept. A handed-over function follows a
 `Parallel`'s rules (its own value attributes, locals, singletons). A COM-style interface is a `Memory.Heap` block
 whose first word points at a table filled with `TypedMemory<Long>` and each `ForeignCallback`'s `address`.
-Game maths (docs/game_maths.md): `Vector2`, `Vector3`, `Vector4` are made with their parts, `Vector3(1.0, 2.0, 3.0)`,
-read as `x`, `y`, `z`, `w`, with `+ - * /` part by part, `scaled(factor)`,
+Game maths (docs/game_maths.md): `Vector2`, `Vector3`, `Vector4` are generic over a `Number` class taken from their
+parts, `Vector3(1.0, 2.0, 3.0)` a `Vector3<Float>` and `Vector2(5, 1)` a `Vector2<Integer>` (never `Vector3i`), written
+`Vector3<Float>` where a type is named; every member answers the vector's own class (whole numbers truncate).
+Read as `x`, `y`, `z`, `w`, with `+ - * /` part by part, `scaled(factor)`,
 `dot`, `cross`, `length()`, `normalized()`, `distance_to`, `linear_interpolate(target, amount)`. `Matrix4()` and
 `Quaternion()` are the identity and are set in place: `matrix.set_transform(translation, rotation, scale)`,
 `set_perspective(field_of_view, aspect, near, far)` (Vulkan: y down, depth 0 to 1), `set_look_at`,

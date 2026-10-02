@@ -7,7 +7,12 @@ var second_handle_y: Float = 1.0
 var end_x: Float = 1.0
 var end_y: Float = 1.0
 
-func CubicBezier(start: Vector2, first_handle: Vector2, second_handle: Vector2, end: Vector2) {
+func CubicBezier(
+    start: Vector2<Float>,
+    first_handle: Vector2<Float>,
+    second_handle: Vector2<Float>,
+    end: Vector2<Float>,
+) {
     start_x = start.x
     start_y = start.y
     first_handle_x = first_handle.x
@@ -18,7 +23,7 @@ func CubicBezier(start: Vector2, first_handle: Vector2, second_handle: Vector2, 
     end_y = end.y
 }
 
-func point_at(amount: Float): Vector2 {
+func point_at(amount: Float): Vector2<Float> {
     var x_part = _blend(start_x, first_handle_x, second_handle_x, end_x, amount)
     var y_part = _blend(start_y, first_handle_y, second_handle_y, end_y, amount)
     return Vector2(x_part, y_part)

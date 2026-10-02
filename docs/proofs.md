@@ -629,9 +629,13 @@ A short guide by task. Find what you are writing; the entries below say the rest
   read and written through its attributes, compared, passed to functions proven to keep nothing, or returned from a
   function answering its class; a **result** of a function whose every `return` is fresh, written into the caller's
   slot through a hidden `___into` version; a **temporary** (`(a + b).length()`); and a **copy used as a value**
-  (`var local = other.copy()`). "Keeps nothing" is proven per parameter from the function's source.
+  (`var local = other.copy()`). "Keeps nothing" is proven per parameter from the function's source. A generic
+  class qualifies per instance: a constructor whose codegen values are inferred is fresh where the types of its
+  arguments are known (numbers, names in scope and their attributes), and in a `return` of a function answering
+  that instance, which only that instance can be.
 - **Buys.** No allocation; `.memory.section` answers `'stack'`. `benchmarks/game_maths` from 3 200 046 allocations
-  to 37.
+  to 37; `Vector3<Float>`, generic over its number class, stays in the frame as before
+  (`conformance/stage6/generic_vectors`).
 - **Falls back.** An ordinary heap object when it is stored, returned as another type, given a second name, passed to
   a function that keeps it (a foreign or built-in function, a recursive call, a variadic list, a `Parallel` or
   `Concurrent`), made into a function value, or named in a text hole other than `{name.attribute}`; in inspectable

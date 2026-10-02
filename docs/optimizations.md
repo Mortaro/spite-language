@@ -1736,7 +1736,9 @@ and a list do. Four places use it:
   function value (`name.update`, which holds the object), to a variadic list (`console.print(name)`), or naming it
   in a text's hole other than as `{name.attribute}`.
 - **A result, into the caller's slot.** A function whose every `return` gives a fresh object (`return
-  Vector3(...)`, a local that lives in the frame, or another such call) gets a second, hidden version that writes
+  Vector3(...)`, a local that lives in the frame, or another such call; a generic class's constructor whose
+  codegen values are inferred counts, both where its arguments' types are known in the caller and in a `return`
+  of a function answering that class) gets a second, hidden version that writes
   its answer into a slot its caller passes, a calling convention chosen per call site (both versions may exist,
   and neither is visible). So `var moved = velocity.scaled(delta)`, whose `moved` stays in the
   frame, calls the hidden version with `moved`'s slot, and nothing is allocated. `Matrix4.multiply`, which builds
@@ -1752,8 +1754,8 @@ and a list do. Four places use it:
   without the frame slot).
 
 **Which objects.** An instance of a class whose attributes are all numbers, `Boolean`s, enum values or singletons (a
-singleton is bound as an attribute and is never counted), such as `Vector3`, `Matrix4`, `Quaternion`, a program's own
-`Velocity` or a game engine's `Math.Matrix4`, with no `drop()`, that is not a singleton and whose constructor keeps
+singleton is bound as an attribute and is never counted), such as `Vector3<Float>`, `Matrix4`, `Quaternion`, a
+program's own `Velocity` or a game engine's `Math.Matrix4`, with no `drop()`, that is not a singleton and whose constructor keeps
 nothing, and whose class is not read with `.instances` anywhere in the program. What "keeps nothing" means is proven
 from the source of each function, parameter by parameter and for the object it is called on: a parameter kept nowhere
 in the body (not stored, returned, captured, named in another variable, or passed on to a function that keeps it) is

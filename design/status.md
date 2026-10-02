@@ -680,6 +680,11 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - The whole section was tagged implemented; nothing is missing. Open point only: the names and conventions (layout,
   column-major, Vulkan clip space) were proposed by Claude and never confirmed by Mortaro (decision D214 says he picks
   names later). The page states them as decided.
+- Built: `Vector2`, `Vector3` and `Vector4` generic over `Number` (D355, D381, D???). Not decided: whether
+  `Quaternion`, the matrices, `Plane`, `Ray`, `AxisAlignedBox`, `Frustum` and `CubicBezier` are generic too; they hold
+  `Float`s and take `Vector3<Float>`. Proposed by Claude, unconfirmed (D???): `scaled` and `linear_interpolate` take
+  the vector's own class, a whole number's root is taken in `Double` and cut, and a decimal vector's `normalized()`
+  multiplies by the inverse length as before.
 
 ## [foreign_libraries.md](../docs/foreign_libraries.md)
 

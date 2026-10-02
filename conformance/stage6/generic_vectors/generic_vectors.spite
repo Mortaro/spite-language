@@ -1,0 +1,44 @@
+var console = Console()
+
+func GenericVectors() {
+    var tile = Vector3(3, 4, 12)
+    var other = Vector3(1, -2, 2)
+    var added = tile + other
+    var crossed = tile.cross(other)
+    var tile_length = tile.length()
+    var tile_dot = tile.dot(other)
+    console.print(added, crossed, tile_length, tile_dot)
+    var halfway = tile.linear_interpolate(other, 1)
+    var shrunk = tile / other
+    var far = tile.distance_to(other)
+    var far_squared = tile.distance_squared_to(other)
+    console.print(halfway, shrunk, far, far_squared)
+    var snapped = tile.normalized()
+    var zero = Vector3(0, 0, 0)
+    var still_zero = zero.normalized()
+    var positive = other.absolute()
+    var lowest = tile.minimum(other)
+    console.print(snapped, still_zero, positive, lowest)
+    var cells = Vector2<Long>(30000, 40000)
+    var cells_length = cells.length()
+    console.print(cells, cells_length)
+    var precise = Vector4<Double>(1.0, 1.0, 1.0, 1.0)
+    var precise_unit = precise.normalized()
+    var bytes = Vector2<Byte>(200, 50)
+    var bytes_scaled = bytes.scaled(1)
+    console.print(precise_unit, bytes_scaled)
+    var points = Vector<Vector2<Integer>>()
+    var first = Vector2(1, 2)
+    points.append(first)
+    var stored = points[0]
+    crash stored
+    var stored_count = points.count()
+    console.print(stored.y, stored_count)
+    var wide = moved(tile)
+    console.print(wide)
+}
+
+func moved(start: Vector3<Integer>): Vector3<Integer> {
+    var step = Vector3(1, 1, 1)
+    return start + step
+}

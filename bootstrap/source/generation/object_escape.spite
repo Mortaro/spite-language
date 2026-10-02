@@ -229,6 +229,11 @@ func resolve_call(call: Syntax.Expressions.CallExpression): ResolvedCall? {
     var resolved = ResolvedCall()
     var constructed = constructed_class(call.callee)
     if constructed {
+        if constructed.is_generic_template {
+            var instance = inferred_construction(constructed, call)
+            assert instance
+            constructed = instance
+        }
         resolved.owner = constructed
         resolved.function = constructed.constructor
         resolved.constructs = true
@@ -264,8 +269,60 @@ func constructed_class(callee: Syntax.Expressions.Expression): Analysis.ClassInf
     }
     var found = generation.try_resolve_static_path(callee, information.qualified_dotted)
     assert found
-    assert not found.is_generic_template and not found.is_value_class and not found.is_singleton
+    assert not found.is_value_class and not found.is_singleton
     return found
+}
+
+func inferred_construction(template: Analysis.ClassInfo, call: Syntax.Expressions.CallExpression): Analysis.ClassInfo? {
+    assert scope
+    assert call.arguments.all(probes_cleanly)
+    var information = studied()
+    return generating().inferred_instance(template, call.arguments, scope, information)
+}
+
+func probes_cleanly(expression: Syntax.Expressions.Expression): Boolean {
+    if shape.as_integer_literal(expression) or shape.as_float_literal(expression) {
+        return true
+    }
+    var named = shape.as_identifier(expression)
+    if named {
+        crash scope
+        if scope.lookup_type(named.name) {
+            return true
+        }
+        if studied().find_field(named.name) {
+            return true
+        }
+        return false
+    }
+    var member = shape.as_member(expression)
+    if member {
+        crash member.object
+        return probes_cleanly(member.object)
+    }
+    var unary = shape.as_unary(expression)
+    if unary {
+        crash unary.operand
+        return probes_cleanly(unary.operand)
+    }
+    var binary = shape.as_binary(expression)
+    if binary {
+        crash binary.left
+        crash binary.right
+        return probes_cleanly(binary.left) and probes_cleanly(binary.right)
+    }
+    return false
+}
+
+func returned_construction(value: Syntax.Expressions.Expression, returned: Analysis.ClassInfo): Analysis.ClassInfo? {
+    var call = shape.as_call(value)
+    assert call
+    crash call.callee
+    var constructed = constructed_class(call.callee)
+    assert constructed
+    assert constructed.is_generic_template and returned.is_instantiated
+    assert constructed.qualified_dotted == returned.qualified_dotted
+    return fresh_construction(returned, "___make")
 }
 
 func own_constructor_or_none(information: Analysis.ClassInfo, name: String): Boolean {
@@ -379,6 +436,9 @@ func value_is_fresh(value: Syntax.Expressions.Expression, returned: Analysis.Cla
     var named = shape.as_identifier(value)
     if named {
         return returned_local_stays(named.name, returned)
+    }
+    if returned_construction(value, returned) {
+        return true
     }
     var made = fresh_class(value)
     if not made {

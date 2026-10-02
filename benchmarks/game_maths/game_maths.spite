@@ -17,7 +17,7 @@ func GameMaths() {
     console.print("1 000 000 Matrix4 point transforms microseconds", transform_microseconds, "total", transformed)
 }
 
-func vector_pass(): Vector3 {
+func vector_pass(): Vector3<Float> {
     var position = Vector3(0.0, 0.0, 0.0)
     var velocity = Vector3(1.0, 0.5, 0.25)
     var step = 0

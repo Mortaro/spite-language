@@ -749,7 +749,7 @@ func describe(): String {
 var console = Console()
 
 func FitsVectorDoc() {
-    var points = Store<Vector3>()
+    var points = Store<Vector3<Float>>()
     var point_answer = points.describe()
     var lists = Store<List<Integer>>()
     var list_answer = lists.describe()

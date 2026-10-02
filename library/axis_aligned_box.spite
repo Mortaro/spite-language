@@ -5,7 +5,7 @@ var highest_x: Float = 0.0
 var highest_y: Float = 0.0
 var highest_z: Float = 0.0
 
-func AxisAlignedBox(starting_lowest: Vector3, starting_highest: Vector3) {
+func AxisAlignedBox(starting_lowest: Vector3<Float>, starting_highest: Vector3<Float>) {
     lowest_x = starting_lowest.x
     lowest_y = starting_lowest.y
     lowest_z = starting_lowest.z
@@ -14,23 +14,23 @@ func AxisAlignedBox(starting_lowest: Vector3, starting_highest: Vector3) {
     highest_z = starting_highest.z
 }
 
-func lowest(): Vector3 {
+func lowest(): Vector3<Float> {
     return Vector3(lowest_x, lowest_y, lowest_z)
 }
 
-func highest(): Vector3 {
+func highest(): Vector3<Float> {
     return Vector3(highest_x, highest_y, highest_z)
 }
 
-func center(): Vector3 {
+func center(): Vector3<Float> {
     return Vector3((lowest_x + highest_x) * 0.5, (lowest_y + highest_y) * 0.5, (lowest_z + highest_z) * 0.5)
 }
 
-func size(): Vector3 {
+func size(): Vector3<Float> {
     return Vector3(highest_x - lowest_x, highest_y - lowest_y, highest_z - lowest_z)
 }
 
-func contains(point: Vector3): Boolean {
+func contains(point: Vector3<Float>): Boolean {
     return point.x >= lowest_x and point.x <= highest_x and point.y >= lowest_y and point.y <= highest_y and point.z >= lowest_z and point.z <= highest_z
 }
 
@@ -48,7 +48,7 @@ func united(other: AxisAlignedBox): AxisAlignedBox {
     return AxisAlignedBox(united_low, united_high)
 }
 
-func including(point: Vector3): AxisAlignedBox {
+func including(point: Vector3<Float>): AxisAlignedBox {
     var low = Vector3(lowest_x, lowest_y, lowest_z)
     var high = Vector3(highest_x, highest_y, highest_z)
     var grown_low = low.minimum(point)

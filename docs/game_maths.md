@@ -3,7 +3,7 @@
 The standard library has the maths a game engine is built on: `Vector2`, `Vector3` and `Vector4`, `Matrix3` and
 `Matrix4`, and `Quaternion`, with the boxes, planes, frustums and rays that culling and picking need,
 `Color` with the web's colour formats, and the curves, easings, noise and half-precision floats that animation and
-rendering need. They are plain classes in `library/` holding `Float`s and
+rendering need. They are plain classes in `library/` holding numbers and
 nothing else, so a list of them fits a [`Vector<T>`](collections.md) column and a binary writer, and a program that
 uses none of them carries none of their code. They are built on the number classes' own
 maths (`square_root()`, `sine()`, `arc_cosine()`, see [values_and_types.md](values_and_types.md#maths-functions))
@@ -16,6 +16,12 @@ to the rule against single letters, [style.md](style.md#names)). The operators a
 each answering a new vector: `+` is `sum`, `-` `subtract`, `*` and `/` work part by part, unary `-` negates and
 `==` compares every part. Scaling by a number is `scaled(factor)`, since one name is one function and `*` already
 takes a vector.
+
+A vector holds any number class: `Vector2`, `Vector3` and `Vector4` are generic over a class that fits
+[`Number`](values_and_types.md#every-number-fits-number), taken from the parts it is made with, so
+`Vector3(1.0, 2.0, 2.0)` is a `Vector3<Float>`, `Vector2(5, 1)` a `Vector2<Integer>`, and a `Vector3<Double>` keeps
+`Double`'s precision. There is no `Vector3i` or `Vector3d`: the class is written out where a type is named,
+`func move(by: Vector3<Float>)`, and each class is its own packed copy of the code.
 
 ```gdscript title=game_vectors_basics/game_vectors_basics.spite entry
 var console = Console()
@@ -35,6 +41,32 @@ func GameVectorsBasics() {
 (2, 2, 0) 3 (0.33333334, 0.6666667, 0.6666667)
 2 (-2, 0, 1) 2.236068
 (1.5, 2, 1) (1, 2, 0) (0.5, 0, 1)
+```
+
+Every member answers in the vector's own class. On whole numbers that truncates exactly as integer division does:
+`Vector2(5, 1).length()` is `5` and `Vector2(1, 1).length()` is `1`, so grid code compares `length_squared()`,
+which is exact, and `normalized()` snaps toward a grid direction; a part shorter than the whole length becomes `0`,
+so `Vector3(3, 4, 12).normalized()` is `(0, 0, 0)`:
+
+```gdscript title=game_grid_vectors/game_grid_vectors.spite entry
+var console = Console()
+
+func GameGridVectors() {
+    var step = Vector2(5, 1)
+    var diagonal = Vector2(1, 1)
+    var direction = step.normalized()
+    var step_length = step.length()
+    var diagonal_length = diagonal.length()
+    var diagonal_squared = diagonal.length_squared()
+    console.print(direction, step_length, diagonal_length, diagonal_squared)
+    var precise = Vector3<Double>(1.0, 2.0, 2.0)
+    var unit = precise.normalized()
+    console.print(unit)
+}
+```
+```output
+(1, 0) 5 1 2
+(0.3333333333333333, 0.6666666666666666, 0.6666666666666666)
 ```
 
 A constructor call is never an argument and neither is a call, so a chain of vector maths
@@ -276,7 +308,7 @@ The normative rules for this part of the language, in full.
 
 The standard library fills every maths gap a game needs, as a game engine package asks for it.
 
-- **Plain classes of `Float`s** in `library/` (`vector2.spite`, `vector3.spite`, `vector4.spite`, `matrix3.spite`,
+- **Plain classes of numbers** in `library/` (`vector2.spite`, `vector3.spite`, `vector4.spite`, `matrix3.spite`,
   `matrix4.spite`, `quaternion.spite`), with no attribute but their parts, so each fits `Vector<T>` and a
   binary writer. Tree-shaken: a program that names none of them has none of their code, and a program that
   uses `Vector3` carries only the functions it calls. Nothing runs at start-up and nothing is registered.
@@ -284,6 +316,14 @@ The standard library fills every maths gap a game needs, as a game engine packag
   ([style.md](style.md#names)). Matrices: `column_C_row_R`,
   column-major, `Matrix4()` and `Matrix3()` the identity. A vector is made with all its parts
   (`Vector3(1.0, 2.0, 3.0)`); a quaternion and a matrix are made from their defaults and set.
+- **Vectors are generic over their number class**: `generic $number_type: Number`, inferred from the parts
+  (`Vector3(1, 2, 3)` is a `Vector3<Integer>`, `Vector3(1.0, 2.0, 3.0)` a `Vector3<Float>`) and written out where a
+  type is named (`Vector3<Float>`); each class compiles to its own copy, so a `Vector3<Float>` is three `float`s.
+  No `Vector3i`-style name exists. Every member answers the vector's own class and takes it (`scaled(factor)`,
+  `linear_interpolate(target, amount)`): `length()`, `distance_to` and `normalized()` on whole numbers truncate as
+  integer division does (the root is taken in `Double` and cut), and `normalized()` divides each part by the
+  length. Matrices, quaternions, planes, rays, boxes, frustums and curves hold `Float`s and take
+  `Vector2<Float>`, `Vector3<Float>` and `Vector4<Float>`.
 - **Vectors** (`Vector2`, `Vector3`, `Vector4`): `sum`, `subtract`, `multiply`, `divide` (part by part, and so the
   operators `+ - * /`), `negate` (unary `-`), `equals` (`==`, every part exactly), `scaled(factor)`,
   `dot(other)`, `cross(other)` (`Vector3` only), `length()`, `length_squared()`, `normalized()` (the zero vector

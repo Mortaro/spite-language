@@ -24,7 +24,7 @@ func three() {
     chained = chained.scaled(3.0)
     chained = chained - first
     console.print("chained {chained}")
-    var positions = Vector<Vector3>()
+    var positions = Vector<Vector3<Float>>()
     positions.append(first)
     positions.append(second)
     crash positions.count() == 2

@@ -296,7 +296,7 @@ that would take an argument is a collection indexed or filtered instead, so ther
 | `.values` | an enum's values, in order | `Phase.values[1]` is `'update'` |
 | `.is_singleton` | the class has a `singleton` line | `Console.is_singleton` is `true` |
 | `.is_stateful` | a function besides the constructor and `drop()` changes the object, or a singleton it binds does | `Counter.is_stateful` |
-| `.is_fixed_size` | its size is known while compiling, so a `Vector` can hold it inline | `Vector3.is_fixed_size` is `true` |
+| `.is_fixed_size` | its size is known while compiling, so a `Vector` can hold it inline | `Vector3<Float>.is_fixed_size` is `true` |
 | `.is_list`, `.is_dictionary`, `.is_optional`, `.is_enum` | the kind of a type | `$value_type.is_list` |
 | `.element_type` | a list's element, or what an optional holds | `$list_type.element_type` |
 | `.value_type` | a dictionary's value | `$map_type.value_type` |
