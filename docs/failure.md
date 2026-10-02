@@ -1091,6 +1091,9 @@ to fix, not a style to document.
 | a C compile that reports success but leaves no executable, or two builds sharing one generated C file | the build is an error naming the missing file; each output gets its own generated C file | [compiler.md](compiler.md) |
 | two threads writing a singleton at once | the compiler makes the singleton safe; anything else a `Parallel` reaches is an error | [concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting) |
 | a `while true` loop holding a singleton's lock forever | compile error | [concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting) |
+| a loop polling a `Concurrent`'s `finished` while nothing steps it, spinning forever | halts after a million polls in a row with no step | [concurrency.md](concurrency.md#choosing-where-concurrents-resume) |
+| `call_function()` skipping a function that takes arguments | halts naming the function | [testing.md](testing.md) |
+| C calling a function through a `ForeignCallback` that was dropped | halts naming the function and the line that made it | [foreign_libraries.md](foreign_libraries.md) |
 | a peer that hung up read as a count of `-1` | `socket.closed` turns `true`; reads answer `0` or `null` | [standard_library.md](standard_library.md) |
 | an impossible date such as `Date(2023, 2, 29)` rolled over | halts; text from outside is read with `TimeText`, which answers `null` | [time.md](time.md) |
 | a `crash` or `assert` whose site cannot be found again | every build writes `<program>.crashes`, one line per site | [what a crash reports](#what-a-crash-reports-1) |

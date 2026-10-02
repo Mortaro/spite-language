@@ -738,6 +738,21 @@ if [ -n "$evicted" ]; then
   echo "FAILED: evicting one stale object took others with it:"; echo "$evicted" | head -5; exit 1
 fi
 echo "object cache: past its cap, a build evicts what was used least recently and keeps what it uses"
+# A loop that polls a Concurrent's finished while nothing steps its frame never ends, so it halts instead
+# (docs/concurrency.md#choosing-where-concurrents-resume). The report names the scheduler's attributes, whose values
+# (a thread, an event) differ per run and per system, so only its start is compared.
+mkdir -p "$work/polled_without_steps"
+printf '%s\n' 'var console = Console()' 'var program = Program()' 'var scheduler = Scheduler()' '' \
+  'func PolledWithoutSteps() {' '    scheduler.resume_only_when_asked()' '    var napping = Concurrent(nap)' \
+  '    var frames = 0' '    while not napping.finished {' '        frames = frames + 1' '    }' \
+  '    console.print("never printed", frames)' '}' '' 'func nap(): Integer {' '    program.sleep(1)' '    return 1' '}' \
+  > "$work/polled_without_steps/polled_without_steps.spite"
+polled=$(limited "$work/generation_two.exe" "$work/polled_without_steps" --executable-path="$work/polled_without_steps.exe" < /dev/null 2>&1 | tr -d '\r')
+if ! echo "$polled" | grep -qE "^spite.crash	[0-9a-f]{8}	library/scheduler.spite:[0-9]+	Scheduler	polled_unfinished	unfinished_polls_with_no_frame_stepped=1000000	" \
+   || echo "$polled" | grep -q "never printed"; then
+  echo "FAILED: a loop polling an unfinished Concurrent that nothing steps did not halt"; echo "$polled" | head -5; exit 1
+fi
+echo "polling: a Concurrent polled a million times while no frame is stepped halts instead of hanging"
 # The fault handler and its function table are written after every function (D255), and must still report when the
 # C is split into units and linked with link-time optimisation: an --optimized native_fault_foreign from four units.
 # Only Windows walks the stack of an --optimized build; Linux and macOS walk frame pointers, which it does not keep.
