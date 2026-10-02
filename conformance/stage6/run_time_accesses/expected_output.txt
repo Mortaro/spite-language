@@ -1,0 +1,14 @@
+update_each 4 written: 2
+  position true true
+  speed true false
+  trail true true
+  steps true false
+remember 2 written: 1
+  position true false
+  trail true true
+update_each 4 written: 2
+  position true true
+  speed true false
+  trail true true
+  steps true false
+steps is an argument: steps true false

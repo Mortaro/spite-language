@@ -1,0 +1,11 @@
+0 power Integer
+1 _charge Integer
+2 _pet Pet?
+charge after doubling: 10
+walked power 1
+walked _charge 1
+Gadget { power: 1 }
+{"power":1}
+read 4 5
+back 1 5 false
+pets 9 2

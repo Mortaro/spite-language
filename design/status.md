@@ -309,8 +309,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Symbol codegen
 - Every spelling in the rules below is provisional or unconfirmed by Mortaro where the old page said "proposed by Claude, unconfirmed" or "name provisional" (D214): the plural-of-plural forms, `attribute.index`, `attribute.camel_case_name`, `attribute.pascal_case_name`, `Symbol<Row>` over a `type`, the class-text reading (`"{attribute.class}"`, D109 reading applied to text), the `Symbol<Spite.Class>` walk, `package_folder()`, `has_state()`, `argument_class()`, `returned_text()`, `function_waits` (spelling and reading), `function_writes_parameter`, `any_attribute_fits_vector`, `argument_count`, `fits_vector`, the folded `assert`/`crash`, `$T == Enum`, "what survives folding is compiled", the codegen-name reads (`element_type`, `value_type`), `$component_type.name`, the passed-symbol helper, the folder range matching no folder, how the enum for a pattern hole is found (D180 is Mortaro's; the lookup is unconfirmed), the generic-constraint details (D175 is Mortaro's; the details are unconfirmed), and the omitted-values inference and `$name()` default (D236).
-- Not built (decided by Mortaro, D295): an enum value filling the hole of a yes-or-no member template (`entries.filter_files()` reading `entry.kind == 'files'`), with the ambiguity error. The page states the rule in the present tense; `collections.md` links to it with an anchor ending `--planned`.
-- Not built (decided by Mortaro, D278): a walk over another class's attributes sees private `_` attributes and may read and write them through the walked symbol. Today the walk calls only the attributes that class lets others read: a private `_` attribute is skipped rather than raising the private error (skipping was proposed by Claude, unconfirmed). Naming `_x` outside its class stays the private error.
+- Bug (found 2026-10-02): `--final-classes` prints a plural walk over another class (`show_attributes(gadget)`
+  calling `show_attribute(attribute: Symbol<Gadget>, gadget: Gadget)`) twice, so the printed program fails with
+  "declares 'show_attributes' twice".
 - Not built (D229, decided by Mortaro; spelling proposed by the game engine package, provisional): `$system_type.function_runs_in_pieces("<phase>_each")`. It would fold like `has_function`, true when the function with everything it calls is safe to run in pieces in D35's terms (writes no attribute of its own class, touches its arguments only through their own attributes, otherwise only locals and singletons made safe; reads of shared state must not lock per row, D184's read-only and single-owner forms). Nothing in the compiler answers it yet.
 - Not built: constraining a `generic` line by a union ("one of these classes"). The page lists it only as an error ("a constraint names a `type`").
 - History removed from the page: the plural walk replaced the compile-time `for instance.attributes`; `Symbol<Spite.Class>` used to mean the attributes of `Spite.Class`; the template-function clash error was an argument mismatch at line 0 (fixed 2026-09-27); `attribute.class == Entity` folded only for class-typed attributes (fixed 2026-09-27); the `.class` comparison fold used to compare against a made class object, answer `false` and leak it (check.sh greps `conformance/stage6/walked_class_fold`'s C for any class object); a `crash` that folded was once compiled as a value and raised "'$slot_type' is a type here, so it cannot be used as a value" (was D5/D9/D87/D104 history of the `generic` line replacing the `generics` header and the constructor list; the alternatives are in the decision log).
@@ -388,11 +389,17 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   `Debug<attribute.class>()` is compiled unspecialised in `--hot-reload` and test builds, where it is "unknown type
   'attribute.class'", and a function of a `Spite` class is never specialised. Proposed by Claude, unconfirmed: a member whose name is already its own plural
   (`name_with_namespaces`, `bump_stars`) is collected by that name.
-- Built (D335): `function.accesses`, a constant dictionary of `Spite.Access` (`is_read`, `is_written`, `target`),
-  attributes then arguments, following calls to the same class's functions (`conformance/stage6/function_accesses`,
-  reflection.md's `access_report`). Proposed by Claude, unconfirmed: that order; calling a function on an attribute
-  counts as reading it; a write through `this.f()` is followed but a read through it is not; the union's name
-  `Spite.Access.Target`. Not built: `.accesses` on a run-time function object (it answers only on a constant).
+- Built (D335, D362): `function.accesses`, a dictionary of `Spite.Access` (`is_read`, `is_written`, `target`),
+  attributes then arguments, following calls to the same class's functions, on a constant
+  (`conformance/stage6/function_accesses`, reflection.md's `access_report`) and on a run-time function
+  (`conformance/stage6/run_time_accesses`); a runner finds a component's `pinned_to_creating_thread()` through
+  `access.target.class.functions[...]` (`conformance/stage6/pinned_components`). Proposed by Claude, unconfirmed:
+  that order; calling a function on an attribute counts as reading it; the union's name `Spite.Access.Target`; the
+  run-time table and the functions it leaves out. Not built, halting when asked at run time: a function of the
+  standard library (listing them made every class object they mention, and in a `--hot-reload` build its reload
+  check then differed); a function value taken through a `type` (its typed call is the shape's dispatcher); every
+  function of a `--hot-reload` build (a reload would leave the table stale, and the reload check has no facts for
+  what a function reads).
 - Not built: `function.call_with(arguments.map(made))` (D317),
   `Spite.Namespace.enums`, and the
   compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
@@ -418,6 +425,13 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   a class's own `has_function(name)` answers on its instances with no diagnostic, while `Gadget.has_function(...)`
   still answers `Spite.Class`'s; a class's `to_string()`, which `Spite.Class` also declares, is how its instances
   print. With `is_singleton()` now the `singleton` line, no class file overrides a function of `Spite.Class` today.
+- Open, blocking the rules above (found 2026-10-02): `library/spite/class.spite` declares the reflection getters
+  (`get_name`, `get_attributes`, ...), the old questions (`has_function`, `function_waits`, ...) and `to_string()`
+  and `to_debug()`, so "a class file defining one of those names overrides it" would turn every class's own
+  `to_string()` (how its instances print) and every `get_name()` getter into a class-object override that must fold.
+  Which of `Spite.Class`'s members are hooks needs Mortaro: only those a reopening of `Spite.Class` adds; all but
+  the members every object has and the reflection getters (those becoming reserved names like `attributes`); or a
+  spelling that marks a hook.
 - Reopening `Spite.Class` is only partly built. A program's `spite/class.spite` adds and replaces its functions,
   but that changes only what the class objects answer: `is_singleton()` returning `true` does not make
   `List<Integer>()` a singleton, since the `singleton` line decides that. A replacement that no longer reads
@@ -585,9 +599,13 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   values), the dictionary key-kind rules, the Vector and Items readings.
 
 ### Member templates over an enum value
-- Whole section decided and NOT built: `filter_<value>`, `count_<value>`, `any_<value>`, `all_<value>` and
-  `remove_where_<value>` over a named enum's values do not compile yet. The teaching section said "Decided, not
-  built".
+- Built (D295): `filter_<value>`, `count_<value>`, `any_<value>`, `all_<value>` and `remove_where_<value>` over a
+  named enum's values, on a class, a union and a dictionary's values, with the three errors
+  (`conformance/stage6/enum_value_templates`, `diagnostics/enum_value_templates`, collections.md's `post_stages`).
+  A union member answered by an attribute in one class and a getter in another is read through each (it was a C
+  compile error, "'Dog' has no member named 'mood_'"). Not decided, so not built: `count_<classes>()`,
+  `any_<classes>()`, `all_<classes>()` and `remove_where_<classes>()` by member class on a list of a union (D330
+  names only `filter_<classes>()`).
 - Open question for Mortaro: `Spite.Namespace`'s `.classes` and `.namespaces` have the same shape (one node's
   children split by kind) and may get the same treatment; undecided.
 - Rule details (which templates, how a name is read, error texts) are proposed by Claude, unconfirmed.

@@ -95,8 +95,10 @@ func write_dictionary(value: $value_type, output: BinaryOutput) {
 }
 
 func write_attribute(attribute: Symbol<$value_type>, value: $value_type, output: BinaryOutput) {
-    var format = BinaryFormat<attribute.class>()
-    format.write(value.attributes[attribute], output)
+    if not attribute.name.starts_with("_") {
+        var format = BinaryFormat<attribute.class>()
+        format.write(value.attributes[attribute], output)
+    }
 }
 
 func read(input: BinaryInput): $value_type {
@@ -224,6 +226,8 @@ func read_dictionary(input: BinaryInput): $value_type {
 }
 
 func read_attribute(attribute: Symbol<$value_type>, created: $value_type, input: BinaryInput) {
-    var format = BinaryFormat<attribute.class>()
-    created.attributes[attribute] = format.read(input)
+    if not attribute.name.starts_with("_") {
+        var format = BinaryFormat<attribute.class>()
+        created.attributes[attribute] = format.read(input)
+    }
 }

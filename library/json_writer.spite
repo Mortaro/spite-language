@@ -77,14 +77,16 @@ func _written(shown: $value_type): String {
 }
 
 func write_attribute(attribute: Symbol<$value_type>, shown: $value_type, members: List<String>) {
-    var attribute_json = JsonWriter(shown.attributes[attribute])
-    attribute_json.path = "{shown.class.name}.{attribute.name}"
-    var attribute_text = attribute_json.write()
-    if $value_type.has_function("json_key_{attribute.name}") {
-        var key = $value_type.returned_text("json_key_{attribute.name}")
-        members.append("\"{key}\":{attribute_text}")
-    } else {
-        members.append("\"{attribute.name}\":{attribute_text}")
+    if not attribute.name.starts_with("_") {
+        var attribute_json = JsonWriter(shown.attributes[attribute])
+        attribute_json.path = "{shown.class.name}.{attribute.name}"
+        var attribute_text = attribute_json.write()
+        if $value_type.has_function("json_key_{attribute.name}") {
+            var key = $value_type.returned_text("json_key_{attribute.name}")
+            members.append("\"{key}\":{attribute_text}")
+        } else {
+            members.append("\"{attribute.name}\":{attribute_text}")
+        }
     }
 }
 

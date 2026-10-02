@@ -1,0 +1,34 @@
+var console = Console()
+var kept = List<Spite.Function>()
+
+func RunTimeAccesses() {
+    var movement = Movement()
+    var update = Movement.functions['update_each']
+    crash update
+    kept.append(update)
+    var remember = movement.remember
+    kept.append(remember)
+    kept.each(describe)
+    var anything: Anything = movement
+    var kind = anything.class
+    var functions = kind.functions
+    var first = functions.first()
+    crash first
+    describe(first)
+    var steps = update.accesses["steps"]
+    crash steps
+    console.print("steps is an argument:", steps.target.name, steps.is_read, steps.is_written)
+}
+
+func describe(function: Spite.Function) {
+    var accesses = function.accesses
+    var written = accesses.filter_written()
+    var written_count = written.count()
+    var count = accesses.count()
+    console.print(function.name, count, "written:", written_count)
+    accesses.each(describe_access)
+}
+
+func describe_access(access: Spite.Access) {
+    console.print(" ", access.target.name, access.is_read, access.is_written)
+}

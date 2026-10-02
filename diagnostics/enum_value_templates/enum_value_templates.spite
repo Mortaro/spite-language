@@ -1,0 +1,9 @@
+var console = Console()
+
+func EnumValueTemplates() {
+    var posts = List<Post>()
+    var drafts = posts.filter_draft()
+    var published = posts.count_published()
+    var missing = posts.any_deleted()
+    console.print(drafts, published, missing)
+}

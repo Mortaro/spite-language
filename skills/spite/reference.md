@@ -315,6 +315,9 @@ func is_alive(): Boolean {
   not fit is an error naming what the template needs: `count_stars()` on a number member says `but 'count_' needs
   it to return Boolean (to add up a numeric member use 'sum_stars')`, and `each_size()` on an attribute says
   `'each_' needs it to be a function`.
+- The yes-or-no ones (`filter_`, `count_`, `any_`, `all_`, `remove_where_`) also take a value of the enum of the
+  one member typed with it: `posts.filter_published()` keeps the posts whose `stage == 'published'`. Two members
+  whose enums list the value, or a member of that name, is an error.
 - A `while` that only walks a list doing what one of these does (`var index = 0`, `while index <
   items.count()`, `total = total + items[index].price`, `index = index + 1`) is an error naming
   `items.sum_price()`: `this 'while' walks every element of 'items' only to add up 'price': write 'var total =
@@ -453,7 +456,9 @@ func is_alive(): Boolean {
   `Monster.attributes.each(describe)` with `func describe(attribute: Spite.Attribute)`, unrolled while compiling into
   one call per attribute, each copy typed by its attribute. A member by name is `[]` and answers a `T?`
   (`Runner.functions['run_each']`); a selection is a member template (`Runner.functions.filter_name_ends_with("_each")`).
-  A name is selected, never built from text. There are no `Symbol` walks.
+  A name is selected, never built from text. There are no `Symbol` walks. A walk sees private `_` attributes and
+  reads and writes them through the walked attribute; a serializer skips them with
+  `if not attribute.name.starts_with("_")`, which folds. A number's, `Boolean`'s or `String`'s `.attributes` is empty.
 - A **template** is a function whose `Spite.Attribute<Label>` parameter is a word of its name:
   `func show_attribute(attribute: Spite.Attribute<Label>, label: Label)` answers `show_text(label)` and
   `show_copies(label)`, reading the member as `label.attributes[attribute]` (a member that is a function taking

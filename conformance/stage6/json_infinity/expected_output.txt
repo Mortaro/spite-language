@@ -1,2 +1,2 @@
-spite.crash	3595b8e9	library/json_writer.spite:92	JsonWriter	written_decimal	shown=inf	value=inf	path=Order.price
+spite.crash	3595b8e9	library/json_writer.spite:94	JsonWriter	written_decimal	shown=inf	value=inf	path=Order.price
 {"item":"tea","price":2.5}

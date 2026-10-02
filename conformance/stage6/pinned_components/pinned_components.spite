@@ -1,0 +1,23 @@
+var console = Console()
+
+func PinnedComponents() {
+    var systems = Draw.functions.filter_name_ends_with("_each")
+    systems.each(place)
+}
+
+func place(function: Spite.Function) {
+    var written = function.accesses.filter_written()
+    var written_count = written.count()
+    console.print(function.name, "writes", written_count)
+    function.accesses.each(check)
+}
+
+func check(access: Spite.Access) {
+    var target = access.target
+    var pinned = target.class.functions['pinned_to_creating_thread']
+    if pinned {
+        console.print(" ", target.name, "runs on the thread that made it")
+    } else {
+        console.print(" ", target.name, "runs on any thread")
+    }
+}

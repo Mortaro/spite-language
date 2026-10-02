@@ -1,0 +1,5 @@
+var frame = 1
+
+func pinned_to_creating_thread(): Boolean {
+    return true
+}

@@ -1,0 +1,12 @@
+var position = 0
+var speed = 1
+var trail = List<Integer>()
+
+func update_each(steps: Integer) {
+    position = position + speed * steps
+    remember()
+}
+
+func remember() {
+    trail.append(position)
+}
