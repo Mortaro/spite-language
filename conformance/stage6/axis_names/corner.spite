@@ -1,6 +1,0 @@
-var x = 0
-var y = 0
-
-func stretched(factor: Integer): Integer {
-    return x * factor + y * factor
-}

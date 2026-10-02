@@ -1,15 +1,14 @@
 var console = Console()
+var w = 2.0
 
 func AxisNames() {
-    var corner = Corner()
-    corner.x = 3
-    corner.y = 4
-    var w = 2
-    var stretched = corner.stretched(w)
-    console.print(stretched)
-    var position = Vector3(1.0, 2.0, 3.0)
-    var z = position.z
-    console.print(position.x, position.y, z)
-    var rotation = Quaternion()
-    console.print(rotation.w)
+    var x = 3.0
+    var y = 4.0
+    var point = Vector3(x, y, w)
+    var z = scaled_z(point, w)
+    console.print("{point.x} {point.y} {z}")
+}
+
+func scaled_z(vector: Vector3<Float>, factor: Float): Float {
+    return vector.z * factor
 }

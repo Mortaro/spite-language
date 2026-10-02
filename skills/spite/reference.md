@@ -123,8 +123,8 @@ func is_alive(): Boolean {
 - A variable, parameter or attribute never has the name of a function of its class: `var stem = file_stem(path)`,
   never `var file_stem = file_stem(path)` (`the variable 'file_stem' has the name of a function of this class`).
 - `snake_case` for variables, attributes, parameters, functions and enum values; `PascalCase` for classes,
-  enums, unions and types; never a single letter but the axis names `x`, `y`, `z`, `w`; never an abbreviation (`message` not `msg`, `index` not `idx`,
-  `value` not `val`). The error names the word to write: `'msg' abbreviates: write 'message' instead of 'msg'`,
+  enums, unions and types; never a single letter except the axis names `x`, `y`, `z`, `w`; never an abbreviation
+  (`message` not `msg`, `index` not `idx`, `value` not `val`). The error names the word to write: `'msg' abbreviates: write 'message' instead of 'msg'`,
   `the variable 'n' is a single letter`, `the variable 'myValue' must be written in snake_case`. The language's own
   type names follow the rule: `Integer`, `Boolean`, never `Int`, `Bool`. Folder names are snake_case too.
 - A local that is never read is an error (`'total' is never read: remove it`). Assigning is not reading, and no
@@ -182,6 +182,9 @@ func is_alive(): Boolean {
   `bits_exclusive_or(mask)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`.
   The mask is cast to the receiver's type; a count of the width or more shifts everything out, a negative one
   halts. Do not fake them with `/` and `%` by powers of two.
+- A decimal literal beside a `Float` is a `Float` (`tenth == 0.1` is `true` after `var tenth: Float = 0.1`). The
+  last bits of a decimal result are never a promise: loops may fuse multiply-adds and reorder sums, except a loop
+  that compares decimals with `==` or `!=`.
 - Maths is functions on the numbers too, every name in full, never a `Math` class: on a `Float` or `Double`
   `square_root()`, `sine()`, `cosine()`, `tangent()`, `arc_sine()`, `arc_cosine()`, `arc_tangent()`,
   `rise.arc_tangent_over(run)` (C's `atan2(rise, run)`), `power(exponent)`, `exponential()`, `logarithm()`
@@ -312,9 +315,10 @@ func is_alive(): Boolean {
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](https://github.com/Mortaro/spite-language/blob/master/docs/optimizations.md).
-- On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Boolean` member),
+- On a list or dictionary of a class or of text: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Boolean` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<members>()`,
-  `each_<member>()` (a function). A member is an attribute or a function that takes nothing. A member that does
+  `each_<member>()` (a function). A member is an attribute or a function that takes nothing; text has them too
+  (`names.map_upper_cases()`, `names.filter_is_empty()`, `names.sort_by_length()`). A member that does
   not fit is an error naming what the template needs: `count_stars()` on a number member says `but 'count_' needs
   it to return Boolean (to add up a numeric member use 'sum_stars')`, and `each_size()` on an attribute says
   `'each_' needs it to be a function`.
@@ -426,7 +430,8 @@ func is_alive(): Boolean {
     `names[index]`;
   - absence is a bug: `crash condition` halts with
     `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>name=value...`, followed by the
-    asserts that failed before it. Every name and call the condition read is there with its value, whatever its
+    asserts that failed before it (each with `answered=nothing`, `null` or `empty`, what its function gave back)
+    and the call chain as `spite.frame` lines, innermost first. Every name and call the condition read is there with its value, whatever its
     shape: `crash record or cooked.count() > 2` reports `record is null	cooked.count()=1`; a part an `and` or `or`
     skipped is left out. Then come the other texts, numbers and enums in scope (parameters, locals, the object's
     attributes). The condition is not on the line: open the line it names, or `grep <id> program.crashes`. A bare `crash` marks a branch that cannot happen (`crash false` is formatted to it).
@@ -627,7 +632,8 @@ passing `handler.address` as the pointer and `handler.context` as C's user data,
 of a singleton when C gives none (a window procedure; the singleton tells objects apart by the handle C passes). A
 callback takes and returns only numbers, `Boolean` (a 32-bit `BOOL`) and `Memory.Address`; text C passes is an
 address read with `terminated_text()`. Keep the `ForeignCallback` in an attribute of the object that owns the C
-registration and unregister in its `drop()`: C may call only while it is kept. A handed-over function follows a
+registration and unregister in its `drop()`: C may call only while it is kept, and a call after the drop halts
+naming the function. A handed-over function follows a
 `Parallel`'s rules (its own value attributes, locals, singletons). A COM-style interface is a `Memory.Heap` block
 whose first word points at a table filled with `TypedMemory<Long>` and each `ForeignCallback`'s `address`.
 Game maths (docs/game_maths.md): `Vector2`, `Vector3`, `Vector4` are generic over a `Number` class taken from their

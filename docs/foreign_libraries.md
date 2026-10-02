@@ -286,9 +286,9 @@ blocking call. A function value passed for one call is not checked, since it run
 as long as the program keeps it. Keep it in the object that owns what C was given (the window class, the voice,
 the debug messenger) and tell C to stop in that object's `drop()`: attributes are released after `drop()` runs,
 so C has let go before the `ForeignCallback` goes. An attribute holding a `ForeignCallback` counts as read, since
-keeping it is what it is for. After a `'no_context'` one is dropped, a late call from C stops the program with a
-message naming the function; a context one cannot be checked without a registry the program would carry, so it is
-the owner's `drop()` that must unregister first.
+keeping it is what it is for. After one is dropped, a late call from C stops the program with a message naming the
+function and the line that made the `ForeignCallback`, so the owner's `drop()` must still tell C to stop first: the
+check only makes forgetting loud.
 
 **C types.** A trampoline's C signature is the Spite function's, one parameter at a time, each at its width
 ([what crosses](#what-crosses)): numbers as their C types, a `Memory.Address` as a 64-bit address, and a
@@ -747,9 +747,10 @@ What [Calling back into Spite](#calling-back-into-spite) teaches, in full:
   since it only runs on the calling thread.
 - **`ForeignCallback(function, where_context)`** (`library/foreign_callback.spite`) is an ordinary class
   whose constructor the compiler finishes at each construction site: it keeps the function value (and so its
-  owner), and sets `address` to the trampoline and, for `'context_first'` and `'context_last'`, `context` to the
-  function value's own address, which the trampoline turns back into the owner. A context trampoline is written
-  once per C signature and context position, and shared by every construction with that signature. The function
+  owner), and sets `address` to the trampoline and, for `'context_first'` and `'context_last'`, `context` to a
+  ticket: the place of the function value in a table of the living context callbacks, with a count of how many
+  `ForeignCallback`s have held that place, which the trampoline turns back into the function and its owner. A
+  context trampoline is written once per construction site, so it can name the function. The function
   is named directly (`owner.function`, or a function of the class itself), otherwise `ForeignCallback(...) takes
   a function named directly, like 'mixer.voice_ended', and where C passes it back its context: 'no_context',
   'context_first' or 'context_last'`; any other literal is `'somewhere' is not where C passes a callback its
@@ -762,9 +763,13 @@ What [Calling back into Spite](#calling-back-into-spite) teaches, in full:
   String`. A function value passed for one call names its parameters `'argument 1'` and on.
 - **Lifetime**: the `ForeignCallback` keeps the function value; releasing the last reference runs its
   `drop()`. An attribute whose type is `ForeignCallback` or `ForeignCallback?` is never reported as unread, since
-  keeping it is its use. A late call on a context trampoline is not detected (it would need a registry every such
-  program carries); the owner's `drop()` unregisters from C, which runs before its attributes are
-  released.
+  keeping it is its use. The owner's `drop()` unregisters from C, which runs before its attributes are released.
+  `drop()` empties the table's place (one atomic store), and a later `ForeignCallback` may take it with a new count,
+  so a context C kept from a dropped one never reaches the new one's function: a late call stops the program
+  (`spite: C called 'Ticker.ticked' (file.spite:14) after its ForeignCallback was dropped: keep the
+  ForeignCallback for as long as C may call it`, `conformance/stage6/foreign_callback_context_dropped`). The table
+  grows by blocks of 4096 places only when every place is taken, and a program may hold 16 777 216 context
+  callbacks alive at once; one more stops the program, saying so.
 - **`'no_context'`**: the function must belong to a singleton, otherwise `'ForeignCallback(counted,
   'no_context')' gives C no context to find its 'Counter' by, so 'counted' must belong to a singleton: move it into
   a singleton that tells them apart by what C passes, or hand C the context with 'context_first' or
@@ -788,8 +793,9 @@ What [Calling back into Spite](#calling-back-into-spite) teaches, in full:
   handover a `Parallel` allows is not offered here, since C, not the program, decides when the callback runs. A singleton owner is
   not checked that way: its own lock covers its attributes. A callback on another thread never runs the scheduler: every waiting
   call already makes the plain blocking call off the program's thread ([concurrency.md](concurrency.md)).
-- **Cost**: a call-site trampoline is one thread-local load and an indirect call; a context one, an
-  indirect call; a `'no_context'` one, an atomic load and a direct call. A program that passes no function to C
+- **Cost**: a call-site trampoline is one thread-local load and an indirect call; a context one, a table
+  read, an atomic load to check the ticket and an indirect call, and making one takes a short lock; a
+  `'no_context'` one, an atomic load and a direct call. A program that passes no function to C
   and makes no `ForeignCallback` compiles to C with none of it: no trampoline, no `ForeignCallback` class, no
   `SPITE_THREADS`.
 - `conformance/stage6/foreign_callbacks`: a synchronous callback with and without a header, a window-procedure

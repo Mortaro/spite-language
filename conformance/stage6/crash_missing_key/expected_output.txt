@@ -1,2 +1,6 @@
 spite.crash	474c3f17	conformance/stage6/crash_missing_key/crash_missing_key.spite:11	CrashMissingKey	show	scores[player] is missing: key "bea"
+spite.frame	conformance/stage6/crash_missing_key/crash_missing_key.spite:10	CrashMissingKey	show
+spite.frame	conformance/stage6/crash_missing_key/crash_missing_key.spite:3	CrashMissingKey	CrashMissingKey
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
 ann 0

@@ -249,8 +249,7 @@ func guard_choice(position: Integer, shaker: TreeShaker, keeps_all: Boolean): St
 }
 
 func any_kept(guard: String, shaker: TreeShaker): Boolean {
-    var names = guard.split(" ")
-    return names.any(shaker.is_kept_name)
+    return shaker.guard_holds(guard)
 }
 
 func add_shaken_macro(name: String) {
@@ -292,6 +291,7 @@ func render(): String {
         shaker.shaken_macros = shaken_macros
         bodies = shaker.shake_program(typedef_text, prototype_lines, main_function, bodies)
         last_shaker = shaker
+        bodies = guarded(bodies, shaker, false)
         main_function = guarded(main_function, shaker, false)
         var kept_types = shaker.kept_types()
         typedef_text = guarded_types(kept_types, shaker, false)
@@ -305,6 +305,7 @@ func render(): String {
         rendered_bodies = bodies
         bodies = bound(bodies, binding_names)
         var unused_shaker = TreeShaker()
+        bodies = guarded(bodies, unused_shaker, true)
         main_function = guarded(main_function, unused_shaker, true)
         typedef_text = guarded_types(typedef_text, unused_shaker, true)
     }
@@ -372,7 +373,9 @@ func reaching_shaker(): TreeShaker {
 
 func bodies_text(): String {
     var unbound = unbound_bodies_text()
-    return bound(unbound, binding_names)
+    var bodies = bound(unbound, binding_names)
+    var unused_shaker = TreeShaker()
+    return guarded(bodies, unused_shaker, true)
 }
 
 func unbound_bodies_text(): String {

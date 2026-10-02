@@ -26,10 +26,11 @@ func test_a_loop_over_the_count_proves_each_element() {
     var letters = 0
     var index = 0
     while index < names.count() {
-        letters = letters + names[index].length()
+        var place = index + 1
+        letters = letters + names[index].length() * place
         index = index + 1
     }
-    crash letters == 8
+    crash letters == 13
 }
 
 func test_an_element_can_be_narrowed_like_a_path() {

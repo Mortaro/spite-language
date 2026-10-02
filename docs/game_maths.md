@@ -11,8 +11,8 @@ and every name is spelled out in full, except the type names themselves.
 
 ## Vectors
 
-A vector is made with its parts and read through them: `x`, `y`, `z` and `w` (the axis names are the one exception
-to the rule against single letters, [style.md](style.md#names)). The operators are its functions ([functions_and_operators.md](functions_and_operators.md#every-operator-is-a-function)),
+A vector is made with its parts and read through them: `x`, `y`, `z` and `w`, the axis names
+([style.md](style.md#names)). The operators are its functions ([functions_and_operators.md](functions_and_operators.md#every-operator-is-a-function)),
 each answering a new vector: `+` is `sum`, `-` `subtract`, `*` and `/` work part by part, unary `-` negates and
 `==` compares every part. Scaling by a number is `scaled(factor)`, since one name is one function and `*` already
 takes a vector.
@@ -312,8 +312,8 @@ The standard library fills every maths gap a game needs, as a game engine packag
   `matrix4.spite`, `quaternion.spite`), with no attribute but their parts, so each fits `Vector<T>` and a
   binary writer. Tree-shaken: a program that names none of them has none of their code, and a program that
   uses `Vector3` carries only the functions it calls. Nothing runs at start-up and nothing is registered.
-- **Parts.** Vectors and quaternions: `x`, `y`, `z`, `w`, the axis names a single letter may be
-  ([style.md](style.md#names)). Matrices: `column_C_row_R`,
+- **Parts.** Vectors and quaternions: `x`, `y`, `z`, `w`, the axis names, which are the one
+  exception to the rule against single letters ([style.md](style.md#names)). Matrices: `column_C_row_R`,
   column-major, `Matrix4()` and `Matrix3()` the identity. A vector is made with all its parts
   (`Vector3(1.0, 2.0, 3.0)`); a quaternion and a matrix are made from their defaults and set.
 - **Vectors are generic over their number class**: `generic $number_type: Number`, inferred from the parts

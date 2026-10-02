@@ -1,2 +1,6 @@
 spite.crash	782ead56	library/items.spite:50	Items	remove_at	index=-1	items=...	item_count=0	capacity=4
+spite.frame	library/items.spite:49	Items	remove_at
+spite.frame	conformance/stage6/items_remove_out_of_range/items_remove_out_of_range.spite:3	ItemsRemoveOutOfRange	ItemsRemoveOutOfRange
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
 removed 0 1

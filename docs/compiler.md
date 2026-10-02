@@ -249,6 +249,9 @@ after changing one function's body compiles one unit. What the cache cannot save
 function, changes a type, or adds or removes a piece of constant text changes the header (the texts are
 file-level variables numbered in order), and every unit is compiled again.
 
+The cache cleans itself: once `.spite/objects` passes 1 GiB, a build removes what was used least recently until
+it is back under, so it never needs deleting. The cap is the compiler's choice, not a setting.
+
 How many units is the compiler's choice, not a setting: the largest power of two that is no more than one unit per
 768 KiB of C, no more than the number of processors, and at most 64, which the measurements below settled on:
 eight units for the compiler's 7 MB of C on a machine with eight processors or more. A program under 1.5 MB of C
@@ -560,7 +563,12 @@ it. Tree shaking and every other whole-program step run before any output is wri
   preprocessor condition goes to unit 0 inside the same conditions. Each unit, the header and the list of objects
   are named by the FNV-1a hash of their text (a unit's hash covers the C compiler's command and flags too), written
   once, and compiled only when their object is missing; the C compiler runs once per missing unit, as many at once
-  as there are processors, then links the objects (`@` a file listing them). Nothing removes old objects.
+  as there are processors, then links the objects (`@` a file listing them).
+- **The object cache cleans itself.** Each build marks every header, unit and list of objects it uses as used
+  now, and after linking, when everything in `.spite/objects` passes 1 GiB, removes whole entries (a unit's C and
+  object together), the least recently used first, until it is back under 1 GiB, never one the build itself used.
+  The cap is the compiler's choice, not a setting: about thirty builds of the compiler itself, the largest
+  program it caches. Nothing in the cache needs deleting by hand.
 - **`optimized` is `-O3`, and link-time optimisation across units.** A build from several units also passes `-flto=thin` (with `-fuse-ld=lld` except on
   macOS) when `CC --version` names clang, `-flto=auto` when it names gcc, and nothing for another compiler.
 - **A build that is not `--optimized` is tuned for the machine that builds it**: compiling and linking a default

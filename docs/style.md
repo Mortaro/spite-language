@@ -54,8 +54,8 @@ searching for the old name. These are errors, each with the fix:
 - `snake_case` for variables, attributes, parameters, functions, enum values, files and folders (a package's
   root folder too: `window_plugin`, never `window-plugin`); `PascalCase` for classes, enums, unions and
   types.
-- **Never a single letter**, except the axis names `x`, `y`, `z` and `w`, which are the names themselves and
-  abbreviate nothing: a vector's parts are `position.x` and `position.y`.
+- **Never a single letter**, except the axis names `x`, `y`, `z` and `w`, which are the names of what they
+  hold and abbreviate nothing: `position.x`, `var x = 0.0`.
 - **Never an abbreviation.** Every word of a name is checked against a list (`msg`, `idx`, `val`, `cfg`, `tmp`,
   `str`, `len`, `max`, `min`, `init`, `env`, `dir`, `doc`, ...; the full table is in
   [Naming and abbreviations](#naming-and-abbreviations-compile-errors-not-auto-fixed) below),
@@ -620,8 +620,8 @@ error, and nothing is left to the moron's taste. The `--development`-only "skipp
   A function's C name is always joined to its class's. Reflection, `--final-classes`, crash traces and every
   error keep the Spite name (`conformance/stage6/backend_words`).
 - Single-letter names are errors, because they read either as a stray leftover or as a puzzle for whoever reads
-  the code next. The axis names `x`, `y`, `z` and `w` are the one exception, allowed for every kind of name: they
-  are the names of the parts themselves, not abbreviations of anything (`conformance/stage6/axis_names`).
+  the code next. The one exception is the axis names `x`, `y`, `z` and `w`, allowed for any variable, attribute
+  or parameter (`_x` too): they are the names of what they hold, not abbreviations of anything.
 - **Abbreviations.** An identifier is split into `_`-separated words and each word is checked against a
   denylist, suggesting the identifier with every matching word spelled out in full. Kept in one place
   (one table in the linter) so it is easy to extend:

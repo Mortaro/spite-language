@@ -1191,7 +1191,8 @@ is the same whichever it makes:
 - **Frame:** `var name = heap.allocate(bytes)` in a function, when a later statement of the same block
   is `heap.free(name)` and every other use of `name` reads or writes through it (`name.read_long(offset)`, also
   as `(name + offset)`), copies or compares with it (`copy_to`, `compare_bytes`), turns it into `text`, or hands
-  it to a `TypedMemory`'s `read_value`, `write_value` or `release_value`, or lends it to a function of the same
+  it to a `TypedMemory`'s `read_value`, `write_value` or `release_value` (a `TypedMemory` the class binds; the same
+  names on any other class are an ordinary call, `conformance/stage6/kept_buffer_address`), or lends it to a function of the same
   class, called by its bare name, whose `Memory.Address` parameter is proven to keep nothing (the same rules,
   applied to the parameter in that function's body, and to the functions it lends it on to; a recursive lend and a
   `--hot-reload` build, whose functions can be swapped, prove nothing), or, in a file of `library/` only, lends it
@@ -1515,7 +1516,9 @@ compile time that it is never kept past its use. The rules:
     `Stream<$system_type, $row_type>` fill the one argument of its row type this way
     (`conformance/stage6/streamed_rows`).
   Any other body is the template's ordinary call; a call none of whose arguments borrows is left as
-  it was. **The call may not resize what it borrows from**: a call whose call effects may append to or remove
+  it was. A parameter the function ignores, named `_position`, is filled and passed like the others, and a
+  local written for it drops the underscore, since the call reads it
+  (`conformance/stage6/ignored_lent_argument`). **The call may not resize what it borrows from**: a call whose call effects may append to or remove
   from a borrowed argument's collection is `'Position' fits a Vector, so the items of 'Column<Position>().values'
   are borrowed: 'position' is borrowed from 'Column<Position>().values' for the one call
   'system.phase_each(made_arguments(found))' stands for, and 'system.update_each()' on line 20 may move the items

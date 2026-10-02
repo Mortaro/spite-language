@@ -1,0 +1,15 @@
+var console = Console()
+var heap = Memory.Heap()
+var keeper = Keeper()
+var longs = TypedMemory<Long>()
+
+func KeptBufferAddress() {
+    var kept = heap.allocate(16)
+    keeper.write_value(kept, 0, 7)
+    heap.free(kept)
+    var framed = heap.allocate(16)
+    longs.write_value(framed, 0, 9)
+    var read = longs.read_value(framed, 0)
+    heap.free(framed)
+    console.print("kept", keeper.writes, "read", read)
+}

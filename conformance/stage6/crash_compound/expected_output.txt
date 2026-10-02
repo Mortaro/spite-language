@@ -1,2 +1,6 @@
 spite.crash	01478395	conformance/stage6/crash_compound/crash_compound.spite:21	CrashCompound	finish	record is null	cooked.count()=1	never_cooked_id=cake	name=cake
+spite.frame	conformance/stage6/crash_compound/crash_compound.spite:19	CrashCompound	finish
+spite.frame	conformance/stage6/crash_compound/crash_compound.spite:6	CrashCompound	CrashCompound
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
 checked true

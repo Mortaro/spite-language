@@ -1,0 +1,24 @@
+var total = 0
+var changes = 0
+var _label = "none"
+
+func get_at(index: Integer): Integer? {
+    return total + index
+}
+
+func set_at(index: Integer, value: Integer): Integer {
+    total = total + index + value
+    changes = changes + 1
+    return total
+}
+
+func get_label(): String {
+    return _label
+}
+
+func set_label(value: String): String {
+    var previous = _label
+    _label = value
+    changes = changes + 1
+    return "{previous} became {value}"
+}
