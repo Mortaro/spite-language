@@ -1,0 +1,2 @@
+spite: 'steps + 1' does not fit in a Byte (255 + 1), at conformance/stage6/counter_room/counter_room.spite:16 in CounterRoom.CounterRoom
+255 0

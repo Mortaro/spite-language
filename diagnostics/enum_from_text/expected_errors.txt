@@ -1,0 +1,1 @@
+diagnostics/enum_from_text/enum_from_text.spite:10: error: text is not a Mood until it is read as one, and text that names none of its values has none to give: read it with 'to_mood()', which answers 'Mood?', null when the text names none of its values, and narrow it, or declare the value 'Mood?' (in EnumFromText.EnumFromText)

@@ -1,0 +1,30 @@
+var console = Console()
+
+func MaybeBooleanConditions() {
+    halted(true)
+    tested(true)
+    negated(true)
+    answered(true)
+}
+
+func halted(flag: Boolean?) {
+    crash flag
+    console.print("halted")
+}
+
+func tested(flag: Boolean?) {
+    if flag {
+        console.print("tested")
+    }
+    console.print("after")
+}
+
+func negated(flag: Boolean?) {
+    assert not flag
+    console.print("negated")
+}
+
+func answered(flag: Boolean?): Integer {
+    assert flag
+    return 1
+}

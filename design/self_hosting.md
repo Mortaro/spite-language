@@ -10,7 +10,7 @@ which can then compile the sources again and produce the same C: a fixpoint.
 
 ```
 cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
-./spite bootstrap --c-source --run=false    # writes bootstrap/bootstrap.c, equal to the seed when it is current
+./spite bootstrap --check --c-source    # writes .spite/build/bootstrap/bootstrap.c, equal to the seed when it is current
 ```
 
 So the only thing needed to build Spite from nothing is a C compiler. `-lm` links the C library's maths, which
@@ -60,6 +60,37 @@ generation would differ ([compiler.md](../docs/compiler.md#outputs)).
 
 A generation that cannot reproduce itself is not a compiler for this language, so step 2 is the real test; the
 rest is what keeps the language honest about what it says it does.
+
+## What only the compiler's own checks use
+
+Two ways in are not for the moron: they are not in `docs/`, the skill or the usage text, and only `check.sh`, the
+benchmarks and people working on the compiler use them.
+
+- **`--c-source`** (and `--c-path`, which needs it) writes the generated C, the compiler's own debugging output
+  (D369 item 134). It adds the C to whatever the build does: beside the executable a build makes, or, with
+  `--check`, the C and nothing else, which is how `check.sh` writes each generation of the compiler and the C it
+  reads for its checks (`spite bootstrap --check --c-source`). The C goes to `.spite/build/<program>/<program>.c`
+  unless `--c-path` says otherwise; the compiler's own goes to its default path ([above](#how-it-builds)). That
+  `--check` with `--c-source` writes the C is proposed by Claude, unconfirmed: `--check` alone writes nothing.
+- **`SPITE_TRANSLATION_UNITS=<n>`**, an environment variable, forces the number of
+  [translation units](../docs/compiler.md#translation-units-the-c-compiled-in-parallel-and-cached) the compiler
+  otherwise chooses (D349): `check.sh` splits small programs into 4 to hold the split to running the same, and
+  `benchmarks/build_times.sh` builds from one file to compare. Proposed by Claude, unconfirmed.
+
+### The seed's own flags
+
+A seed is the C of the compiler it was written by, so it reads the flags of that compiler. The seeds committed
+before `--check` and `--build` replaced `--run=false` (D348) and translation units and machine tuning stopped
+being settings (D349) read `Build.run`, `Build.executable`, `Build.translation_units` and
+`Build.tune_for_this_machine` in their own code, and `library/build.spite` no longer declares them. So
+`bootstrap/build.spite` declares the four for the compiler's sources alone, and `check.sh` asks the seed for
+generation 2 the old way (`--run=false --c-source --executable --translation-units=<jobs>`) while the seed's C
+still holds its old usage line (`--executable --run=false`), and the new way (`--build --c-source`) once it does
+not. Every later generation is asked the new way. Such a seed cannot compile any other program against today's
+`library/build.spite`, so `bin/spite`, which builds its compiler from the seed, cannot either: until the seeds are
+written again, `check.sh` puts generation 2 in `.spite/spite.exe` for `bin/spite` to run. A seed regenerated from
+these sources reads none of the four, so `bootstrap/build.spite` and the old branch of `check.sh` are deleted with
+the first seed written after them.
 
 ## Layout
 

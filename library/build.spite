@@ -1,14 +1,12 @@
 singleton
 
-var run = true
-var executable = false
+var check = false
+var build = false
 var executable_path = ""
 var c_source = false
 var c_path = ""
 var final_classes = ""
 var optimized = false
-var tune_for_this_machine = false
-var translation_units = 0
 var development = false
 var repl = false
 var repl_port = 0

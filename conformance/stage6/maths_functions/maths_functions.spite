@@ -64,7 +64,7 @@ func edges() {
     console.print(
         "exponential of 1000 {overflowed} finite {overflowed.is_finite()} infinite {overflowed.is_infinite()}",
     )
-    console.print("minimum ignores not a number: {not_a_number.minimum(zero)} {zero.maximum(not_a_number)}")
+    console.print("minimum passes not a number on: {not_a_number.minimum(zero)} {zero.maximum(not_a_number)}")
     console.print("clamp of not a number {not_a_number.clamp(zero, huge)}")
     console.print("clamp with low above high {zero.clamp(huge, negative)}")
     var float_negative: Float = -4.0
@@ -101,7 +101,7 @@ func whole_numbers() {
     var tiny: Tiny = -128
     console.print("Tiny {Tiny.largest} {Tiny.smallest} {tiny.absolute()}")
     var byte: Byte = 200
-    console.print("Byte {Byte.largest} {Byte.smallest} {byte.absolute()} {byte.clamp(10, 100)} {byte.minimum(300)}")
+    console.print("Byte {Byte.largest} {Byte.smallest} {byte.absolute()} {byte.clamp(10, 100)} {byte.minimum(250)}")
     var long: Long = -9000000000
     console.print("Long {Long.largest} {Long.smallest} {long.absolute()} {long.maximum(4)}")
     console.print("UnsignedLong {UnsignedLong.largest} Short {Short.smallest} UnsignedShort {UnsignedShort.largest}")

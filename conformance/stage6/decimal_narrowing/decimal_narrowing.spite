@@ -1,0 +1,10 @@
+var console = Console()
+
+func DecimalNarrowing() {
+    var measured = 3.75
+    var whole: Integer = measured
+    console.print(whole)
+    var huge = 100000000000.0
+    var cut: Integer = huge
+    console.print("never printed", cut)
+}

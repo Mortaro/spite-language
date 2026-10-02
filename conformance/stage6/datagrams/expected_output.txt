@@ -1,7 +1,9 @@
 server open: true, client open: true
+server port: 47811, the client was given a port: true
 nothing has arrived yet
 sent: true
 server got 112,105,110,103 from 127.0.0.1
+the datagram came from the client's port: true
 replied: true, client got 5 bytes
 an empty datagram arrives as 0 bytes
 a second socket on the same port: false

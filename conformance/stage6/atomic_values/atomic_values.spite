@@ -19,8 +19,8 @@ func AtomicValues() {
     var still_ready = ready.read()
     console.print(was_ready, still_ready)
     var small = Atomic<Byte>(250)
-    var wrapped = small.add(10)
-    var matched = small.compare_and_swap(4, 9)
+    var wrapped = small.add(5)
+    var matched = small.compare_and_swap(255, 9)
     var small_now = small.read()
     console.print(wrapped, matched, small_now)
 }

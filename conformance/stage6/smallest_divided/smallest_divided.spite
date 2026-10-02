@@ -1,0 +1,9 @@
+var console = Console()
+
+func SmallestDivided() {
+    var lowest = Integer.smallest
+    var divisor = -1
+    console.print(lowest % divisor, 7 / divisor)
+    var flipped = lowest / divisor
+    console.print("never printed", flipped)
+}

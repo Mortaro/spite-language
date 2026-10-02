@@ -1,0 +1,1 @@
+error: '--run' is not a compiler option: 'spite program' builds the program and runs it, 'spite program --check' only checks that it compiles, and 'spite program --build' builds it without running it

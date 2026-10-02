@@ -103,11 +103,13 @@ func parse(cursor: JsonCursor): $value_type {
 func read_symbol(cursor: JsonCursor): $value_type {
     var name = cursor.read_text()
     if $value_type == Enum {
-        var symbol: $value_type = name
-        if symbol.to_string() != name {
-            cursor.fail("one of the names of {symbol.class.name}")
+        var symbol: $value_type? = name
+        if symbol {
+            return symbol
         }
-        return symbol
+        var unnamed = $value_type()
+        cursor.fail("one of the names of {unnamed.class.name}")
+        return unnamed
     }
     var found = Symbol(name)
     if not found {

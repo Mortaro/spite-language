@@ -45,8 +45,8 @@ It keeps running, even after its entry constructor returns, until a client sends
 
 Leave the loop only when you need to:
 
-- `spite game --run=false` compiles without running, for a program that cannot stay running, or to see every
-  error of the program in one run; `spite format --check game` lists files the formatter would change.
+- `spite game --check` compiles without running or writing anything, for a program that cannot stay running, or
+  to see every error of the program in one run; `spite game --build` writes the executable without running it; `spite format --check game` lists files the formatter would change.
 - A full run from a fresh start, and the tests (`spite tests`, [docs/testing.md](https://github.com/Mortaro/spite-language/blob/master/docs/testing.md)),
   before you call the work done.
 - `--optimized` only to measure speed. A `--hot-reload` build is slower on purpose; never time one.

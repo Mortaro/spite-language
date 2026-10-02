@@ -565,7 +565,7 @@ func finish_jobs(): Integer {
 200 finished, 200 counted, reset: true 0
 ```
 
-`add` wraps like the operating system's own atomic add, in every build. An `Atomic` of anything else (a
+`add` halts when its answer does not fit the type, as `+` does, in every build. An `Atomic` of anything else (a
 `Float`, a `String`, an object) and `add` on an `Atomic<Boolean>` are compile errors where the program calls them
 ([failure.md](failure.md#crash)): share an object through a `Lock`, or give each thread its own.
 
@@ -938,7 +938,8 @@ classes, each system's folder supplying the calls, and each carried only by a pr
   `read()`, `write(value)`, `add(amount)`, `exchange(value)` and `compare_and_swap(expected, desired)` are
   the primitives `read_long_atomically`, `write_long_atomically`, `add_long_atomically`, `exchange_long` and
   `compare_and_swap_long` on that cell, each one sequentially consistent atomic instruction; a narrower `T` is
-  stored widened and read back cut to its width, so `add` wraps in `T` (`Atomic<Byte>(250).add(10)` is `4`), and
+  stored widened and read back at its width; `add` works its answer out in `T` from the value the cell held, so an
+  answer that does not fit halts like `+` (`Atomic<Byte>(250).add(10)` halts, `add(5)` is `255`), and
   `compare_and_swap` compares the value as a `T`, retrying when another thread changed the cell's upper bits in
   between. The constructor holds a `crash` on `$value_type` and `add` one on `Boolean`, which fold, so a wrong `T`
   is a compile error where the program makes it (`diagnostics/atomic_misuse`). A `Parallel` may reach an `Atomic`

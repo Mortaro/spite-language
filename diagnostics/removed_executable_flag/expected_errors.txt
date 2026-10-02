@@ -1,0 +1,1 @@
+error: '--executable' is not a compiler option: 'spite program --build' builds the executable without running it, and 'spite program' builds it and runs it

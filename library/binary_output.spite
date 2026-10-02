@@ -17,12 +17,14 @@ func room(extra: Integer): Memory.Address {
 
 func write_byte(value: Integer) {
     var at = room(1)
-    at.write_byte(0, value)
+    var low_bits = value.bits_and(255)
+    at.write_byte(0, low_bits)
 }
 
 func write_short(value: Integer) {
     var at = room(2)
-    at.write_short(0, value)
+    var low_bits = value.bits_and(65535)
+    at.write_unsigned_short(0, low_bits)
 }
 
 func write_integer(value: Integer) {

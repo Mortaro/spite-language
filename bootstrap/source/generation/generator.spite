@@ -23,6 +23,7 @@ var bare_crash_sites = false
 var crash_parts = List<CrashPart>()
 var crash_values_bounded = false
 var crash_capturing = false
+var asserting_boolean_truth = false
 var crash_capture_counter = 0
 var falling_ends = List<String>()
 var symbol_names = List<String>()
@@ -61,6 +62,12 @@ var remote_loop_port = 0
 var refused_serialiser = false
 var division_check_written = false
 var overflow_check_written = false
+var unsigned_overflow_check_written = false
+var narrowing_check_written = false
+var literal_fit_reported = false
+var errors_reported_at = ""
+var unsigned_narrowing_check_written = false
+var decimal_narrowing_check_written = false
 var decimal_remainders_written = List<String>()
 var index_check_written = false
 var unproven_read_code = ""
@@ -443,6 +450,7 @@ func report(message: String) {
     assert not reported_lines.has(line)
     reported_lines[line] = true
     errors_reported = errors_reported + 1
+    errors_reported_at = "{current_path}:{current_line}"
     var package = error_package(current_path)
     if package.is_empty() {
         list_own_error(line)
@@ -8472,6 +8480,10 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         if not parsed.is_empty() {
             return parsed
         }
+        var named_enum = type_shape.as_enum(inner)
+        if named_enum and type_shape.as_string(from) {
+            return enum_from_text(code, "", named_enum)
+        }
         var inner_code = cast(code, from, inner)
         if type_is_reference(inner) {
             return inner_code
@@ -8516,11 +8528,12 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         return code
     }
     if type_shape.as_string(from) {
-        var to_enum = type_shape.as_enum(to)
-        if to_enum {
-            crash to_enum.values.count() > 0
-            var chosen_code = enum_from_text_lines(to_enum, "spite_enum_text", "spite_enum_value", ";")
-            return "(\{ SpiteString spite_enum_text = {code}; {to_enum.c_name} spite_enum_value = {to_enum.c_name}_{to_enum.values[0]}; {chosen_code} spite_enum_value; })"
+        if type_shape.as_enum(to) {
+            var enum_label = type_display_name(to)
+            report(
+                "text is not {with_article(enum_label)} until it is read as one, and text that names none of its values has none to give: read it with '{enum_reading_name(enum_label)}()', which answers '{enum_label}?', null when the text names none of its values, and narrow it, or declare the value '{enum_label}?'",
+            )
+            return code
         }
         if type_shape.as_scalar(to) {
             var target_label = type_label(to)
@@ -8534,6 +8547,10 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     var to_scalar_plain = type_shape.as_scalar(to)
     if to_scalar_plain {
         if type_shape.as_scalar(from) {
+            var narrowed = checked_narrowing(code, from, to)
+            if not narrowed.is_empty() {
+                return narrowed
+            }
             var conversion = numeric_conversion(from, to)
             if conversion.is_empty() {
                 return "(({c_type_name(to)})({code}))"
@@ -8545,6 +8562,222 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     }
     report_mismatch(from, to, code)
     return code
+}
+
+func checked_narrowing(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): String {
+    var from_scalar = type_shape.as_scalar(from)
+    var to_scalar = type_shape.as_scalar(to)
+    crash from_scalar
+    crash to_scalar
+    if not is_checked_whole_kind(to_scalar.kind) {
+        return ""
+    }
+    var decimal = is_float_kind(from_scalar.kind)
+    if not decimal and not is_checked_whole_kind(from_scalar.kind) {
+        return ""
+    }
+    if not decimal and code_fits(code, to_scalar.kind) {
+        return ""
+    }
+    if not decimal and scalar_bits(from_scalar.kind) <= scalar_bits(to_scalar.kind) {
+        return ""
+    }
+    var value = next_temporary()
+    var outside = outside_condition(value, from_scalar.kind, to_scalar.kind)
+    if outside.is_empty() {
+        return ""
+    }
+    var failure = narrowing_failure(from_scalar.kind)
+    var where = located(current_path, current_line, current_owner, current_function)
+    var from_display = type_display_name(from)
+    var to_display = type_display_name(to)
+    var from_name = with_article(from_display)
+    var to_name = with_article(to_display)
+    var to_c_type = c_type_name(to)
+    var widened = "(double)"
+    if not decimal {
+        widened = operand_cast(from_scalar.kind)
+    }
+    return "(\{ {c_type_name(from)} {value} = {code}; if (__builtin_expect({outside}, 0)) {failure}({widened}{value}, \"{from_name}\", \"{to_name}\", {where}); ({to_c_type}){value}; })"
+}
+
+func code_literal(code: String): Long? {
+    var digits = code
+    while digits.starts_with("(") and digits.ends_with(")") {
+        var length = digits.length()
+        digits = digits.slice(1, length - 1)
+    }
+    var negative = digits.starts_with("-")
+    if negative {
+        var length = digits.length()
+        digits = digits.slice(1, length)
+    }
+    while digits.starts_with("(") and digits.ends_with(")") {
+        var length = digits.length()
+        digits = digits.slice(1, length - 1)
+    }
+    assert not digits.is_empty() and digits.length() <= 18
+    var index = 0
+    while index < digits.length() {
+        var character = digits.slice(index, index + 1)
+        assert "0123456789".contains(character)
+        index = index + 1
+    }
+    var magnitude = digits.to_long()
+    crash magnitude
+    if negative {
+        return -magnitude
+    }
+    return magnitude
+}
+
+func kind_lowest(kind: Analysis.Types.NumericKind): Long {
+    switch kind {
+        'tiny_kind': return -128
+        'short_kind': return -32768
+        'integer_kind': return -2147483648
+        'long_kind': return Long.smallest
+        _: return 0
+    }
+}
+
+func kind_highest(kind: Analysis.Types.NumericKind): Long {
+    switch kind {
+        'tiny_kind': return 127
+        'byte_kind': return 255
+        'short_kind': return 32767
+        'unsigned_short_kind': return 65535
+        'integer_kind': return 2147483647
+        'unsigned_integer_kind': return 4294967295
+        _: return Long.largest
+    }
+}
+
+func code_fits(code: String, kind: Analysis.Types.NumericKind): Boolean {
+    var value = code_literal(code)
+    if not value {
+        return false
+    }
+    if value >= kind_lowest(kind) and value <= kind_highest(kind) or literal_fit_reported or errors_reported_at == "{current_path}:{current_line}" {
+        return true
+    }
+    var kind_name = kind_display_name(kind)
+    report(
+        "{value} does not fit in {with_article(kind_name)}, whose numbers run from {kind_lowest(kind)} to {kind_range_top(kind)}: store it in a wider type, or use a number that fits",
+    )
+    return true
+}
+
+func kind_range_top(kind: Analysis.Types.NumericKind): String {
+    if kind == 'unsigned_long_kind' {
+        return "18446744073709551615"
+    }
+    var highest = kind_highest(kind)
+    return highest.to_string()
+}
+
+func kind_display_name(kind: Analysis.Types.NumericKind): String {
+    switch kind {
+        'tiny_kind': return "Tiny"
+        'byte_kind': return "Byte"
+        'short_kind': return "Short"
+        'unsigned_short_kind': return "UnsignedShort"
+        'integer_kind': return "Integer"
+        'unsigned_integer_kind': return "UnsignedInteger"
+        'long_kind': return "Long"
+        _: return "UnsignedLong"
+    }
+}
+
+func outside_condition(value: String, from: Analysis.Types.NumericKind, to: Analysis.Types.NumericKind): String {
+    var limit = c_limit_name(to)
+    var to_bits = scalar_bits(to)
+    if is_float_kind(from) {
+        if is_unsigned_whole_kind(to) {
+            return "!((double){value} > -1.0 && (double){value} < {power_of_two_text(to_bits)})"
+        }
+        if to_bits == 64 {
+            return "!((double){value} >= -9223372036854775808.0 && (double){value} < 9223372036854775808.0)"
+        }
+        return "!((double){value} > (double){limit}_MIN - 1.0 && (double){value} < (double){limit}_MAX + 1.0)"
+    }
+    var from_signed = is_signed_kind(from)
+    var to_signed = is_signed_kind(to)
+    if from_signed and to_signed {
+        return "{value} < {limit}_MIN || {value} > {limit}_MAX"
+    }
+    if from_signed {
+        return "{value} < 0 || {value} > {limit}_MAX"
+    }
+    return "{value} > {limit}_MAX"
+}
+
+func power_of_two_text(bits: Integer): String {
+    switch bits {
+        8: return "256.0"
+        16: return "65536.0"
+        32: return "4294967296.0"
+        _: return "18446744073709551616.0"
+    }
+}
+
+func c_limit_name(kind: Analysis.Types.NumericKind): String {
+    switch kind {
+        'tiny_kind': return "INT8"
+        'byte_kind': return "UINT8"
+        'short_kind': return "INT16"
+        'unsigned_short_kind': return "UINT16"
+        'integer_kind': return "INT32"
+        'unsigned_integer_kind': return "UINT32"
+        'long_kind': return "INT64"
+        _: return "UINT64"
+    }
+}
+
+func narrowing_failure(kind: Analysis.Types.NumericKind): String {
+    if is_float_kind(kind) {
+        ensure_decimal_narrowing_check()
+        return "spite_narrowed_decimal"
+    }
+    if is_signed_kind(kind) {
+        ensure_narrowing_check()
+        return "spite_narrowed"
+    }
+    ensure_unsigned_narrowing_check()
+    return "spite_narrowed_unsigned"
+}
+
+func ensure_narrowing_check() {
+    assert not narrowing_check_written
+    narrowing_check_written = true
+    builder.add_prototype(
+        "static void spite_narrowed(int64_t value, const char* from, const char* to, const char* where) __attribute__((noreturn, cold));",
+    )
+    builder.add_support(
+        "static void spite_narrowed(int64_t value, const char* from, const char* to, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: %lld, %s, does not fit in %s, at %s\\n\", (long long)value, from, to, where);\nexit(1);\n}",
+    )
+}
+
+func ensure_unsigned_narrowing_check() {
+    assert not unsigned_narrowing_check_written
+    unsigned_narrowing_check_written = true
+    builder.add_prototype(
+        "static void spite_narrowed_unsigned(uint64_t value, const char* from, const char* to, const char* where) __attribute__((noreturn, cold));",
+    )
+    builder.add_support(
+        "static void spite_narrowed_unsigned(uint64_t value, const char* from, const char* to, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: %llu, %s, does not fit in %s, at %s\\n\", (unsigned long long)value, from, to, where);\nexit(1);\n}",
+    )
+}
+
+func ensure_decimal_narrowing_check() {
+    assert not decimal_narrowing_check_written
+    decimal_narrowing_check_written = true
+    builder.add_prototype(
+        "static void spite_narrowed_decimal(double value, const char* from, const char* to, const char* where) __attribute__((noreturn, cold));",
+    )
+    builder.add_support(
+        "static void spite_narrowed_decimal(double value, const char* from, const char* to, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: %.17g, %s, does not fit in %s, at %s\\n\", value, from, to, where);\nexit(1);\n}",
+    )
 }
 
 func numeric_conversion(from: Analysis.SpiteType, to: Analysis.SpiteType): String {
@@ -10051,7 +10284,7 @@ func generate_binary(
             releases.append("{release_call(right_type, right_held)};")
             right_value = right_held
         }
-        right_code = cast(right_value, right_type, left_type)
+        right_code = right_operand_code(binary, right_value, left_type, right_type)
         if not is_boolean_result_operator(binary.operator) and is_wider_right(binary, left_type, right_type) {
             report_wider_right(binary, left_type, right_type)
         }
@@ -10066,7 +10299,7 @@ func generate_binary(
     if not checked.is_empty() {
         code = checked
     }
-    var guarded = checked_overflow(binary, left_code, right_code, left_type)
+    var guarded = checked_overflow(binary, left_code, right_code, left_type, scope)
     if not guarded.is_empty() {
         code = guarded
     }
@@ -10082,6 +10315,18 @@ func generate_binary(
         return ExpressionResult(code, result_type)
     }
     return ExpressionResult(code, left_type)
+}
+
+func right_operand_code(
+    binary: Syntax.Expressions.BinaryExpression,
+    right_value: String,
+    left_type: Analysis.SpiteType,
+    right_type: Analysis.SpiteType,
+): String {
+    if is_wider_right(binary, left_type, right_type) and type_shape.as_scalar(right_type) {
+        return "(({c_type_name(left_type)})({right_value}))"
+    }
+    return cast(right_value, right_type, left_type)
 }
 
 func checked_division(
@@ -10112,27 +10357,45 @@ func checked_division(
         )
         return ""
     }
+    var signed = is_signed_kind(scalar.kind)
+    var nonzero = false
     if constant {
-        return ""
+        if constant != -1 or not signed {
+            return ""
+        }
+        nonzero = true
     }
     var divisor_text = operand_text(binary.right)
     if not divisor_text.is_empty() and scope.is_path_narrowed("~[{divisor_text}]") {
+        nonzero = true
+    }
+    if nonzero and not signed {
         return ""
     }
-    ensure_division_check()
     var c_type = c_type_name(left_type)
     var dividend = next_temporary()
     var divisor = next_temporary()
     var where = located(current_path, current_line, current_owner, current_function)
     var operation = escape_c_string(written)
     var computed = "{dividend} {binary_operator_symbol(binary.operator)} {divisor}"
-    if is_signed_kind(scalar.kind) and binary.operator == 'divide' {
-        computed = "{divisor} == -1 ? ({c_type})(0 - (uint64_t){dividend}) : {dividend} / {divisor}"
+    var negated = next_temporary()
+    var halted = ""
+    if signed and binary.operator == 'divide' {
+        ensure_overflow_check()
+        var divided_display = type_display_name(left_type)
+        var divided_name = with_article(divided_display)
+        computed = "{divisor} == -1 ? {negated} : {dividend} / {divisor}"
+        halted = "{c_type} {negated} = 0; if (__builtin_expect({divisor} == -1 && __builtin_sub_overflow(({c_type})0, {dividend}, &{negated}), 0)) spite_overflowed(\"{operation}\", \"{divided_name}\", \"/\", (int64_t){dividend}, (int64_t){divisor}, {where}); "
     }
-    if is_signed_kind(scalar.kind) and binary.operator == 'modulo' {
+    if signed and binary.operator == 'modulo' {
         computed = "{divisor} == -1 ? ({c_type})0 : {dividend} % {divisor}"
     }
-    return "(\{ {c_type} {dividend} = {left_code}; {c_type} {divisor} = {right_code}; if ({divisor} == 0) spite_divided_by_zero(\"{operation}\", {where}); ({c_type})({computed}); })"
+    var zero = ""
+    if not nonzero {
+        ensure_division_check()
+        zero = "if ({divisor} == 0) spite_divided_by_zero(\"{operation}\", {where}); "
+    }
+    return "(\{ {c_type} {dividend} = {left_code}; {c_type} {divisor} = {right_code}; {zero}{halted}({c_type})({computed}); })"
 }
 
 func checked_overflow(
@@ -10140,21 +10403,22 @@ func checked_overflow(
     left_code: String,
     right_code: String,
     left_type: Analysis.SpiteType,
+    scope: Scope,
 ): String {
-    if not keeps_internals and not debug_memory {
+    if binary.operator != 'add' and binary.operator != 'subtract' and binary.operator != 'multiply' {
         return ""
     }
-    if binary.operator != 'add' and binary.operator != 'subtract' and binary.operator != 'multiply' {
+    if proven_to_fit(binary, scope) {
         return ""
     }
     var scalar = type_shape.as_scalar(left_type)
     if not scalar {
         return ""
     }
-    if not is_signed_kind(scalar.kind) {
+    if not is_checked_whole_kind(scalar.kind) {
         return ""
     }
-    ensure_overflow_check()
+    var failure = overflow_failure(scalar.kind)
     var printer = Syntax.SourcePrinter()
     var expression: Syntax.Expressions.Expression = binary
     var written = printer.source_expression(expression)
@@ -10165,14 +10429,58 @@ func checked_overflow(
     var where = located(current_path, current_line, current_owner, current_function)
     var operation = escape_c_string(written)
     var type_name = type_display_name(left_type)
-    var builtin = "__builtin_add_overflow"
-    if binary.operator == 'subtract' {
-        builtin = "__builtin_sub_overflow"
+    var builtin = overflow_builtin(binary.operator)
+    var shown = operand_cast(scalar.kind)
+    return "(\{ {c_type} {left_value} = {left_code}; {c_type} {right_value} = {right_code}; {c_type} {result}; if (__builtin_expect({builtin}({left_value}, {right_value}, &{result}), 0)) {failure}(\"{operation}\", \"{with_article(type_name)}\", \"{binary_operator_symbol(binary.operator)}\", {shown}{left_value}, {shown}{right_value}, {where}); {result}; })"
+}
+
+func proven_to_fit(binary: Syntax.Expressions.BinaryExpression, scope: Scope): Boolean {
+    crash binary.left
+    crash binary.right
+    if constant_integer(binary.left) and constant_integer(binary.right) {
+        return true
     }
-    if binary.operator == 'multiply' {
-        builtin = "__builtin_mul_overflow"
+    var step = shape.as_integer_literal(binary.right)
+    var counter = shape.as_identifier(binary.left)
+    if not step or not counter {
+        return false
     }
-    return "(\{ {c_type} {left_value} = {left_code}; {c_type} {right_value} = {right_code}; {c_type} {result}; if ({builtin}({left_value}, {right_value}, &{result})) spite_overflowed(\"{operation}\", \"{with_article(type_name)}\", \"{binary_operator_symbol(binary.operator)}\", (int64_t){left_value}, (int64_t){right_value}, {where}); {result}; })"
+    if step.value != 1 {
+        return false
+    }
+    if binary.operator == 'add' {
+        return scope.holds_room("~+[{counter.name}]")
+    }
+    if binary.operator != 'subtract' {
+        return false
+    }
+    return scope.holds_room("~-[{counter.name}]")
+}
+
+func overflow_builtin(operator: Syntax.Expressions.BinaryOperator): String {
+    if operator == 'subtract' {
+        return "__builtin_sub_overflow"
+    }
+    if operator == 'multiply' {
+        return "__builtin_mul_overflow"
+    }
+    return "__builtin_add_overflow"
+}
+
+func operand_cast(kind: Analysis.Types.NumericKind): String {
+    if is_signed_kind(kind) {
+        return "(int64_t)"
+    }
+    return "(uint64_t)"
+}
+
+func overflow_failure(kind: Analysis.Types.NumericKind): String {
+    if is_signed_kind(kind) {
+        ensure_overflow_check()
+        return "spite_overflowed"
+    }
+    ensure_unsigned_overflow_check()
+    return "spite_overflowed_unsigned"
 }
 
 func ensure_overflow_check() {
@@ -10184,6 +10492,25 @@ func ensure_overflow_check() {
     builder.add_support(
         "static void spite_overflowed(const char* operation, const char* type, const char* symbol, int64_t left, int64_t right, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' does not fit in %s (%lld %s %lld), at %s\\n\", operation, type, (long long)left, symbol, (long long)right, where);\nexit(1);\n}",
     )
+}
+
+func ensure_unsigned_overflow_check() {
+    assert not unsigned_overflow_check_written
+    unsigned_overflow_check_written = true
+    builder.add_prototype(
+        "static void spite_overflowed_unsigned(const char* operation, const char* type, const char* symbol, uint64_t left, uint64_t right, const char* where) __attribute__((noreturn, cold));",
+    )
+    builder.add_support(
+        "static void spite_overflowed_unsigned(const char* operation, const char* type, const char* symbol, uint64_t left, uint64_t right, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' does not fit in %s (%llu %s %llu), at %s\\n\", operation, type, (unsigned long long)left, symbol, (unsigned long long)right, where);\nexit(1);\n}",
+    )
+}
+
+func is_unsigned_whole_kind(kind: Analysis.Types.NumericKind): Boolean {
+    return kind == 'byte_kind' or kind == 'unsigned_short_kind' or kind == 'unsigned_integer_kind' or kind == 'unsigned_long_kind'
+}
+
+func is_checked_whole_kind(kind: Analysis.Types.NumericKind): Boolean {
+    return is_signed_kind(kind) or is_unsigned_whole_kind(kind)
 }
 
 func is_signed_kind(kind: Analysis.Types.NumericKind): Boolean {
@@ -10508,7 +10835,7 @@ func report_maybe_boolean(result: ExpressionResult, used_by: String) {
     var maybe = type_shape.as_nullable(result_type)
     assert maybe
     var maybe_inner = maybe.inner
-    assert is_boolean_type(maybe_inner)
+    assert is_boolean_type(maybe_inner) and not asserting_boolean_truth
     report(
         "this is a Boolean? used by {used_by}, which would only test that it is there, not that it is true: prove it is there first ('crash index < flags.count()' proves 'flags[index]') or switch over it",
     )
@@ -10801,7 +11128,13 @@ func operated_lines(
             }
             lines.append("if (spite_right == 0) spite_divided_by_zero(operation, where);")
             if signed and operator == 'divide' {
-                computed = "spite_right == -1 ? ({c_type})(0 - (uint64_t)spite_left) : ({c_type})(spite_left / spite_right)"
+                ensure_overflow_check()
+                var divided_name = type_display_name(member_type)
+                lines.append("{c_type} spite_negated = 0;")
+                lines.append(
+                    "if (spite_right == -1 && __builtin_sub_overflow(({c_type})0, spite_left, &spite_negated)) spite_overflowed(operation, \"{with_article(divided_name)}\", \"/\", (int64_t)spite_left, (int64_t)spite_right, where);",
+                )
+                computed = "spite_right == -1 ? spite_negated : ({c_type})(spite_left / spite_right)"
             }
             if signed and operator == 'modulo' {
                 computed = "spite_right == -1 ? ({c_type})0 : ({c_type})(spite_left % spite_right)"
@@ -10810,22 +11143,15 @@ func operated_lines(
         lines.append("return {ensure_tag(member, member_type)}({computed});")
         return
     }
-    if signed and (keeps_internals or debug_memory) {
-        if not overflow_check_written {
-            ensure_overflow_check()
-        }
-        var builtin = "__builtin_add_overflow"
-        if operator == 'subtract' {
-            builtin = "__builtin_sub_overflow"
-        }
-        if operator == 'multiply' {
-            builtin = "__builtin_mul_overflow"
-        }
+    if is_checked_whole_kind(scalar.kind) {
+        var failure = overflow_failure(scalar.kind)
+        var builtin = overflow_builtin(operator)
         var member_name = type_display_name(member_type)
         var shown = with_article(member_name)
+        var widened = operand_cast(scalar.kind)
         lines.append("{c_type} spite_result;")
         lines.append(
-            "if ({builtin}(spite_left, spite_right, &spite_result)) spite_overflowed(operation, \"{shown}\", \"{symbol}\", (int64_t)spite_left, (int64_t)spite_right, where);",
+            "if ({builtin}(spite_left, spite_right, &spite_result)) {failure}(operation, \"{shown}\", \"{symbol}\", {widened}spite_left, {widened}spite_right, where);",
         )
         computed = "spite_result"
     }
@@ -10993,11 +11319,45 @@ func generate_unary(
         }
     }
     if unary.operator == 'negate' {
+        var negated = checked_negation(unary, operand.code, operand_type)
+        if not negated.is_empty() {
+            return ExpressionResult(negated, operand_type)
+        }
         return ExpressionResult("(-({operand.code}))", operand_type)
     }
     report_maybe_boolean(operand, "'not'")
     var result_type = Analysis.Types.ScalarType('boolean_kind')
     return ExpressionResult("(!{owned_truth(operand, unary.operand)})", result_type)
+}
+
+func checked_negation(
+    unary: Syntax.Expressions.UnaryExpression,
+    code: String,
+    operand_type: Analysis.SpiteType,
+): String {
+    var scalar = type_shape.as_scalar(operand_type)
+    if not scalar {
+        return ""
+    }
+    if not is_checked_whole_kind(scalar.kind) {
+        return ""
+    }
+    crash unary.operand
+    if shape.as_integer_literal(unary.operand) {
+        return ""
+    }
+    var failure = overflow_failure(scalar.kind)
+    var printer = Syntax.SourcePrinter()
+    var expression: Syntax.Expressions.Expression = unary
+    var source_text = printer.source_expression(expression)
+    var operation = escape_c_string(source_text)
+    var c_type = c_type_name(operand_type)
+    var value = next_temporary()
+    var result = next_temporary()
+    var where = located(current_path, current_line, current_owner, current_function)
+    var shown = operand_cast(scalar.kind)
+    var type_name = type_display_name(operand_type)
+    return "(\{ {c_type} {value} = {code}; {c_type} {result}; if (__builtin_expect(__builtin_sub_overflow(({c_type})0, {value}, &{result}), 0)) {failure}(\"{operation}\", \"{with_article(type_name)}\", \"-\", {shown}0, {shown}{value}, {where}); {result}; })"
 }
 
 func generate_argument_list(
@@ -13839,6 +14199,7 @@ func generate_method_call(
     }
     var object_scalar = type_shape.as_scalar(object_result_type)
     if object_scalar {
+        var reported_before = errors_reported
         if is_bits_function(member.name) and arguments_ast.count() == 1 {
             report_wider_bits_operand(
                 member.name,
@@ -13849,7 +14210,8 @@ func generate_method_call(
                 class_information,
             )
         }
-        return generate_value_method(
+        literal_fit_reported = errors_reported > reported_before
+        var value_call = generate_value_method(
             object_scalar.kind,
             member.name,
             object_result,
@@ -13857,6 +14219,8 @@ func generate_method_call(
             scope,
             class_information,
         )
+        literal_fit_reported = false
+        return value_call
     }
     var object_union = type_shape.as_union(object_result_type)
     if object_union {
@@ -14384,6 +14748,15 @@ func generate_value_method(
                     "'{name}' reads or writes the memory at an address, which only library/ does: use a class of the standard library, or 'TypedMemory<T>' for values of any type",
                 )
             }
+            var converted_type = function.return_type
+            var converted_scalar = type_shape.as_scalar(converted_type)
+            if converted_scalar and name.starts_with("to_") and not function.has_body and arguments_ast.is_empty() {
+                var object_type = object_result.type
+                var converted = checked_narrowing(object_result.code, object_type, converted_type)
+                if not converted.is_empty() {
+                    return ExpressionResult(converted, converted_type)
+                }
+            }
             var parameter_types = parameter_types_of(function.parameters)
             var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
             argument_codes.prepend(object_result.code)
@@ -14494,6 +14867,18 @@ func generate_string_method(
             return void_result()
         }
         return generate_written_string_call(written, object_result, object_ast, arguments_ast, scope, class_information)
+    }
+    var read_enum = read_enum_named(name, class_information)
+    if read_enum and arguments_ast.is_empty() {
+        var text_code = object_result.code
+        var release = ""
+        if owns(object_result, object_ast) {
+            release = " SpiteString___release(spite_enum_text);"
+        }
+        var read_enum_type: Analysis.SpiteType = read_enum
+        var read_code = enum_from_text(text_code, release, read_enum)
+        var read_type = nullable_type_of(read_enum_type)
+        return ExpressionResult(read_code, read_type)
     }
     if name == "upper" or name == "lower" {
         report("text has no '{name}()': write '{name}_case()', which names what it does without abbreviating")
@@ -14611,6 +14996,7 @@ func generate_list_method(
         "join"
         "copy"
         "reserve"
+        "to_utf8_text"
     ]
     if public_names.contains(name) {
         var function = list_class_of(element).find_function(name)
@@ -17939,6 +18325,47 @@ func ensure_dictionary_attributes_function(dictionary: Analysis.Types.Dictionary
         "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys_->item_count_; spite_index = spite_index + 1) \{ Spite_Attribute* spite_item = {reflect}({key_text}, {entry}); spite_item->spite_stored_address = (int64_t)(intptr_t)&{entry}; spite_item->spite_stored_bytes = (int64_t)sizeof({c_type_name(element)}); {element_hooks(element, "spite_item", "self")}{attributes_list}_append(result, spite_item); }\nreturn result;\n}",
     )
     return function_c_name
+}
+
+func enum_from_text(code: String, release: String, enum_type: Analysis.Types.EnumType): String {
+    var first_value = enum_type.values.first()
+    crash first_value
+    var enum_spite_type: Analysis.SpiteType = enum_type
+    var nullable_enum = nullable_type_of(enum_spite_type)
+    var nullable_name = c_type_name(nullable_enum)
+    var chosen_code = enum_from_text_lines(
+        enum_type,
+        "spite_enum_text",
+        "spite_enum_value.value",
+        "spite_enum_value.has_value = false;",
+    )
+    return "(\{ SpiteString spite_enum_text = {code}; {nullable_name} spite_enum_value = \{ .has_value = true, .value = {enum_type.c_name}_{first_value} }; {chosen_code}{release} spite_enum_value; })"
+}
+
+func enum_reading_name(enum_label: String): String {
+    var label_words = enum_label.split(".")
+    var last_word = label_words.last()
+    crash last_word
+    return "to_{words_of(last_word).join("_")}"
+}
+
+func read_enum_named(reading: String, class_information: Analysis.ClassInfo): Analysis.Types.EnumType? {
+    assert reading.starts_with("to_")
+    var index = 0
+    while index < enums.count() {
+        var candidate = enums[index]
+        if enum_reading_name(candidate.simple_name) == reading {
+            var no_arguments = List<Syntax.Types.GenericArgument>()
+            var path = List<String>()
+            path.append(candidate.simple_name)
+            var named = Syntax.Types.NamedType(path, no_arguments)
+            var resolved = resolve_named_type(named, class_information.qualified_dotted)
+            assert resolved
+            return type_shape.as_enum(resolved)
+        }
+        index = index + 1
+    }
+    return null
 }
 
 func enum_from_text_lines(enum_type: Analysis.Types.EnumType, text: String, target: String, failure: String): String {
@@ -22376,6 +22803,7 @@ func generate_variable_declaration(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ) {
+    scope.forget_room(declaration.name)
     assert declaration.value
     assert not constant_local(declaration, scope, class_information)
     if pending_allocator {
@@ -26832,6 +27260,10 @@ func report_copy_for_narrowing(
     rewind_temporaries(saved_counter)
     var copied_type = copied.type
     assert not joinable_handle(copied_type)
+    var declared_maybe = type_shape.as_nullable(declared_type)
+    crash declared_maybe
+    var declared_inner = declared_maybe.inner
+    assert type_shape.as_nullable(copied_type) or types_equal(copied_type, declared_inner)
     report(
         "'{name}' only copies '{source}' so it can be narrowed: narrow '{source}' itself ('assert {source}') and use it directly",
     )
@@ -29433,15 +29865,18 @@ func answers_nothing(return_type: Analysis.SpiteType): Boolean {
 
 func report_default_assert(
     assert_statement: Syntax.Statements.AssertStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ) {
     assert not assert_statement.is_crash and not function_information.is_constructor
     var return_type = function_information.return_type
     assert not answers_nothing(return_type)
     crash assert_statement.value
+    var written = truth_written_out(assert_statement.value, scope, class_information)
     var printer = Syntax.SourcePrinter()
-    var condition = printer.source_expression(assert_statement.value)
-    var negated = negated_condition(assert_statement.value)
+    var condition = printer.source_expression(written)
+    var negated = negated_condition(written)
     var leaving = printer.source_expression(negated)
     var name = type_display_name(return_type)
     var answer = example_answer(return_type)
@@ -29456,6 +29891,67 @@ func report_default_assert(
     report(
         "this 'assert' would answer a default {name} ({shown_default(return_type)}) that a caller cannot tell from a real one:{answer_choice}{nullable_choice} or 'crash {condition}' if this is a developer mistake",
     )
+}
+
+func truth_written_out(
+    condition: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Syntax.Expressions.Expression {
+    var joined = shape.as_binary(condition)
+    if joined {
+        if joined.operator == 'logical_and' {
+            crash joined.left and joined.right
+            var left = truth_written_out(joined.left, scope, class_information)
+            var right = truth_written_out(joined.right, scope, class_information)
+            return Syntax.Expressions.BinaryExpression('logical_and', left, right)
+        }
+    }
+    if not reads_maybe_boolean(condition, scope, class_information) {
+        return condition
+    }
+    var compared: Syntax.Expressions.Expression = Syntax.Expressions.TrueLiteral()
+    return Syntax.Expressions.BinaryExpression('equal', condition, compared)
+}
+
+func reads_maybe_boolean(
+    condition: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var indexed = shape.as_index(condition)
+    if indexed {
+        crash indexed.object
+        var path = operand_text(condition)
+        if path.is_empty() or scope.is_path_narrowed(path) {
+            return false
+        }
+        var held_type = lookup_static_type(indexed.object, scope, class_information)
+        if not held_type {
+            return false
+        }
+        var listed = type_shape.as_list(held_type)
+        if not listed {
+            return false
+        }
+        var element = listed.element
+        var maybe_element = type_shape.as_nullable(element)
+        if maybe_element {
+            var element_inner = maybe_element.inner
+            return is_boolean_type(element_inner)
+        }
+        return is_boolean_type(element)
+    }
+    var static_type = lookup_static_type(condition, scope, class_information)
+    if not static_type {
+        return false
+    }
+    var maybe = type_shape.as_nullable(static_type)
+    if not maybe {
+        return false
+    }
+    var maybe_inner = maybe.inner
+    return is_boolean_type(maybe_inner)
 }
 
 func shown_default(return_type: Analysis.SpiteType): String {
@@ -32107,6 +32603,7 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
         narrow_proven_indices(binary.right, scope)
         return
     }
+    narrow_counter_room(binary, scope)
     narrow_nonzero(binary, scope)
     if binary.operator == 'less' {
         narrow_counted_element(condition, scope)
@@ -32165,6 +32662,19 @@ func narrow_not_empty(negated: Syntax.Expressions.UnaryExpression, scope: Scope)
     assert not emptied.is_empty()
     var condition_text = Syntax.SourcePrinter().source_expression(negated)
     scope.narrow_bound_path("{emptied}[0]", condition_text)
+}
+
+func narrow_counter_room(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
+    assert binary.operator == 'less' or binary.operator == 'greater'
+    crash binary.left
+    var counter = shape.as_identifier(binary.left)
+    assert counter
+    assert scope.unnarrowed_type(counter.name)
+    if binary.operator == 'less' {
+        scope.narrow_path("~+[{counter.name}]")
+        return
+    }
+    scope.narrow_path("~-[{counter.name}]")
 }
 
 func narrow_nonzero(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
@@ -34360,12 +34870,19 @@ func generate_assert_statement(
         emit_folded_check(assert_statement, decided == true, scope, class_information, function_information)
         return decided == false
     }
+    asserting_boolean_truth = not assert_statement.is_crash
     var guard = try_nullable_guard(assert_statement.value, scope, class_information)
+    asserting_boolean_truth = false
     var guard_code = ""
     crash_parts = List<CrashPart>()
     if guard {
         guard_code = guard.guard_code
         narrow_by_guard(scope, guard, "'{check_keyword(assert_statement)} {guard.name}'")
+        var guard_inner = guard.inner
+        if not assert_statement.is_crash and is_boolean_type(guard_inner) {
+            var truth = generate_expression(assert_statement.value, scope, class_information)
+            guard_code = "({guard_code}) && ({truth.code})"
+        }
     } else {
         var declarations_at = builder.user_count()
         var parts = List<CrashPart>()
@@ -35090,7 +35607,7 @@ func generate_statement_kind(
         return false
     }
     if assert_statement {
-        report_default_assert(assert_statement, function_information)
+        report_default_assert(assert_statement, scope, class_information, function_information)
         return generate_assert_statement(assert_statement, scope, class_information, function_information)
     }
     var return_statement = shape.as_return_statement(statement)
@@ -37690,6 +38207,35 @@ func expression_state_uses(
     }
 }
 
+func checked_singleton_add(
+    binary: Syntax.Expressions.BinaryExpression,
+    owner: String,
+    place: String,
+    step: String,
+    field_type: Analysis.SpiteType,
+): String {
+    var scalar = type_shape.as_scalar(field_type)
+    crash scalar
+    var failure = overflow_failure(scalar.kind)
+    var printer = Syntax.SourcePrinter()
+    var expression: Syntax.Expressions.Expression = binary
+    var source_text = printer.source_expression(expression)
+    var operation = escape_c_string(source_text)
+    var where = located(current_path, current_line, current_owner, current_function)
+    var c_type = c_type_name(field_type)
+    var builtin = overflow_builtin(binary.operator)
+    var fetch = "__atomic_fetch_add"
+    if binary.operator == 'subtract' {
+        fetch = "__atomic_fetch_sub"
+    }
+    var symbol = binary_operator_symbol(binary.operator)
+    var field_display = type_display_name(field_type)
+    var shown = with_article(field_display)
+    var widened = operand_cast(scalar.kind)
+    var failed = "{failure}(\"{operation}\", \"{shown}\", \"{symbol}\", {widened}spite_before, {widened}spite_step, {where})"
+    return "do \{ {c_type} spite_step = ({step}); {c_type} spite_before; {c_type} spite_after; if ({owner}___atomic) spite_before = {fetch}(&({place}), spite_step, __ATOMIC_SEQ_CST); else spite_before = ({place}); if (__builtin_expect({builtin}(spite_before, spite_step, &spite_after), 0)) {failed}; if (!{owner}___atomic) ({place}) = spite_after; } while (0);"
+}
+
 func emit_atomic_store(
     name: String,
     field_type: Analysis.SpiteType,
@@ -37707,6 +38253,14 @@ func emit_atomic_store(
         if counts and is_identifier_named(binary.left, name) and not is_boolean_type(field_type) {
             mark_attribute_read(class_information, name)
             var step = coerce_for_store(binary.right, field_type, scope, class_information)
+            var field_scalar = type_shape.as_scalar(field_type)
+            if field_scalar {
+                if is_checked_whole_kind(field_scalar.kind) {
+                    var checked_add = checked_singleton_add(binary, owner, place, step, field_type)
+                    builder.add_user(checked_add)
+                    return
+                }
+            }
             if binary.operator == 'subtract' {
                 step = "-({step})"
             }
@@ -38208,15 +38762,15 @@ func program_run_code(): String {
     crash entry_class
     var lines = List<String>()
     lines.append("{entry_class.c_name}* spite_entry_instance = {entry_class.c_name}___allocate();")
-    if remote_loop_port > 0 {
-        remote_loop_start(entry_class, lines)
-    }
     var hot_reload_class = find_class_by_qualified("HotReload")
     if hot_reload {
         crash hot_reload_class
         lines.append(
             "HotReload* spite_hot_reload = {singleton_call(hot_reload_class)}; HotReload_start(spite_hot_reload);",
         )
+    }
+    if remote_loop_port > 0 {
+        remote_loop_start(entry_class, lines)
     }
     if entry_class.constructor {
         lines.append("{entry_class.constructor.c_name}(spite_entry_instance);")

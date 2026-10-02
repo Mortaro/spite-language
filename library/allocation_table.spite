@@ -208,7 +208,7 @@ func grow() {
 
 func slot_of(address: Long): Long {
     var hashed: UnsignedLong = address
-    return hashed * 6364136223846793005 / divisor
+    return hashed.wrapping_multiply(6364136223846793005) / divisor
 }
 
 func next_slot(slot: Long): Long {

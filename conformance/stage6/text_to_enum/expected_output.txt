@@ -1,0 +1,8 @@
+angry is angry
+assigned calm false
+brunch is no mood
+assigned calm false
+calm is calm
+assigned calm true
+dessert
+joined is no course kind

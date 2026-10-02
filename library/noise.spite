@@ -163,10 +163,13 @@ func _hash(cell_x: Integer, cell_y: Integer, cell_z: Integer): UnsignedInteger {
     var first: UnsignedInteger = cell_x
     var second: UnsignedInteger = cell_y
     var third: UnsignedInteger = cell_z
-    var mixed: UnsignedInteger = seed + first * 374761393 + second * 668265263 + third * 2147483647
+    var first_part = first.wrapping_multiply(374761393)
+    var second_part = second.wrapping_multiply(668265263)
+    var third_part = third.wrapping_multiply(2147483647)
+    var mixed = seed.wrapping_sum(first_part).wrapping_sum(second_part).wrapping_sum(third_part)
     var high_bits = mixed.shifted_right(13)
     mixed = mixed.bits_exclusive_or(high_bits)
-    mixed = mixed * 1274126177
+    mixed = mixed.wrapping_multiply(1274126177)
     var top_bits = mixed.shifted_right(16)
     return mixed.bits_exclusive_or(top_bits)
 }

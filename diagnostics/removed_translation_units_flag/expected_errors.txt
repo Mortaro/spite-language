@@ -1,0 +1,1 @@
+error: '--translation-units' is not a compiler option: the compiler chooses how many C files it compiles a program from

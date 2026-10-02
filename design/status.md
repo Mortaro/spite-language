@@ -46,7 +46,7 @@ when a page gains a rule that is not built yet, add it here.
 
 ### Numbers are classes, and `this`
 - Open: both the assignment cast (`var half: Float = count`) and the call form `count.to_float()` are allowed "for now"; the call form may be limited later. Page says both are allowed.
-- Unconfirmed proposals by Claude (removed from the page, still awaiting Mortaro): names of the bitwise functions (D117) and their rules, names of the maths functions and constants and their lowering, names of the bit-reinterpretation functions (D215), the `type` keyword allowed as a parameter name, the error texts for `from_` declarations, Go's answer for smallest-signed `/ -1`, the signed-overflow message and unsigned exemption (D205), the reach of text casting to every place a `String` is wanted (D223), the lone-hole error wording, the enum-from-text cast, the generic walk of enums, the shape-member behaviour, the class-test forms for generic classes and codegen values (D123).
+- Unconfirmed proposals by Claude (removed from the page, still awaiting Mortaro): names of the bitwise functions (D117) and their rules, names of the maths functions and constants and their lowering, names of the bit-reinterpretation functions (D215), the `type` keyword allowed as a parameter name, the error texts for `from_` declarations, the overflow and narrowing messages, the names `wrapping_subtract` and the wrapping functions' reading (D359), the reach of text casting to every place a `String` is wanted (D223), the lone-hole error wording, the enum-from-text cast, the generic walk of enums, the shape-member behaviour, the class-test forms for generic classes and codegen values (D123).
 - Exact error texts still quote decision numbers: the `from_` declaration and `from_` call errors contain "(D293)" (lines 925 and 928); the compiler text must change with the page.
 
 ### Every number fits `Number`
@@ -89,12 +89,20 @@ when a page gains a rule that is not built yet, add it here.
 Moved whole from the old "Still open" list under the rule (each is a bug under D244, recorded so it is not mistaken
 for a design):
 
+- A `Concurrent` or `Parallel` handle whose function answers a `Boolean?` is accepted as a condition by `if`,
+  `while` and `crash` and tests only that a value came back, so a joined `false` runs the `if`'s block (the
+  narrowing of a joined handle skips the "a `Boolean?` cannot be a condition" check; `assert` asks for `true`).
 - Reference cycles leak without a word unless the program runs with `--debug-memory`, which prints the allocation
   balance (memory.md, "Cycles leak").
 - A `--hot-reload` build's watcher thread keeps running while the singletons are destroyed at exit: `start()` now
   waits until it is watching, so it no longer asks for `HotReload` after the teardown, but a file change landing
-  during the teardown would still run `compile_changes()` on the destroyed `HotReload`.
-- Signed arithmetic wraps in production builds and unsigned arithmetic wraps in every build (D249).
+  during the teardown would still run `compile_changes()` on the destroyed `HotReload`, and so would a reload
+  still waiting for the library before it to be swapped in.
+- A `--hot-reload` program takes the size and modification time of its files when it starts, not when the build
+  read them, so a file saved while the build was still compiling looks compiled: `wait_reload` answers at once and
+  the program runs the code before the save until the next save reaches the watcher. The build should record each
+  file's size and modification time beside its hash in `.reload_start`, or the watcher should compile once when it
+  starts (proposed by Claude, unconfirmed).
 - A REPL `exit` answered at the same wait as the command before it ends the program before its loop sees that
   command: on Linux, concurrency.md's `frame_loop` session (`program.running = false`, then `exit`) lost its
   `stopped` line in 3 of 5 runs, so `check.sh` fails its wire replay intermittently. The program's last output is
@@ -103,7 +111,6 @@ for a design):
   (concurrency.md, "Choosing where Concurrents resume").
 - A `Vector`'s and an `Items`' `remove_at` (and `Items.remove_swapping`) do nothing out of range, where a `List`'s now
   halt (collections.md).
-- Text assigned to an enum that names none of its values becomes the enum's first value (values_and_types.md).
 - A Windows `__fastfail` (`0xC0000409`), or a corrupted heap on Linux and macOS (the C library's own message and
   `SIGABRT`), ends the program without Spite's report or frames ("What a native fault reports").
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers
@@ -146,12 +153,13 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - **A `crash` on a `Build` field is not folded.** Only codegen questions fold in an `assert` or `crash`, so a `crash`
   on a `Build` field that is false halts at run time instead of being D250's compile error (optimizations.md,
   "Deciding conditions at compile time").
-- **The smallest signed value divided by `-1`** wraps to itself in every build, a development build included, where
-  every other signed result that does not fit halts (D249).
+- **`absolute()` of the smallest signed value** answers that value itself (`Integer.smallest.absolute()` is
+  negative): it is a supplied macro with no line to name, so it is not yet checked like `-value` is (D359).
+- **A change of signedness at the same width or wider** (`var bits: UnsignedInteger = count` with a negative
+  `count`) keeps the bits unchecked: D162's "wider" leaves signedness out, and the hashes read words this way.
+  Whether it should halt, with a named function for reading the bits, waits for Mortaro (D359; proposed by Claude).
 - **A `while true` that can never leave** ends its function's paths for the missing-`return` check, and nothing
   reports it outside a locked singleton function: a hang.
-- **A wider value assigned, passed or returned into a narrower name** (`var small: Tiny = wide`) wraps in every build;
-  only operators are checked (D162, D251).
 - **Two threads writing one number attribute of an instance they share** is not refused: the reach rules (D35, D179)
   allow plain-value attributes, and the result is whichever write lands last.
 - **Two `Concurrent`s that each wait for the other** never end, and nothing reports it (optimizations.md, "Hidden
@@ -726,7 +734,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ## [compiler.md](../docs/compiler.md)
 
 ### Choose the outputs
-- Open decision: whether `--run=false` alone should build the executable instead of only checking (mortaros_missing_decisions.md item 212). Today it only checks and writes no executable, so a stale executable in `.spite/build/` still runs the old code; the workaround is `--executable --run=false`. The page states only the current behaviour.
+- Proposed by Claude, unconfirmed (D348 built): `--check` with `--build` is an error; `--executable` went with `--run` (`--build` is the one way to build without running); `--check --final-classes=folder` writes the classes and nothing else; a build removes the old executable before compiling, and when the program cannot be read it removes the one at the command line's path or the default one, so a program whose own `build.spite` moves `executable_path` keeps its old executable after a read error.
+- Not done: the committed seeds predate `--check` and `--build`, so `bin/spite` cannot build a program until they are written again (`check.sh` puts generation 2 in its place meanwhile); `bootstrap/build.spite` and the old branch of `check.sh`'s `compile_compiler` go with the next seed ([self_hosting.md](self_hosting.md#the-seeds-own-flags)).
 
 ### Inspect merged classes
 - Not built: `--final-classes` output does not show which root supplied each declaration. It cannot be a comment (a comment is only ever a link to a markdown heading), so it needs a form of its own (open question 10, open_questions.md). The paragraph saying so was removed from the page.
@@ -736,9 +745,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Outputs, Flags and settings, and other rules (decision status removed)
 - Decided by Mortaro, recorded only as decisions: D143 (inspectable versus production builds), D188 (kebab-case flags), D190 (every compile formats first), D283 (outputs in `.spite/`, "the compiler shouldn't write intermediate files beside the source"), the default build's `-O0`.
-- Proposed by Claude and still unconfirmed by Mortaro (the page now states them as the rules): the spellings of the output fields (D128, D129); the `.spite/build/<path>` and `.spite/elsewhere/<name>_<number>` layout; `.spite/` never being part of a program (D283); `translation_units` (behaviour, name and the `0` rule, 768 KiB per unit, power of two, at most 64); `--tune-for-this-machine` (name); `optimized` as `-O3` with `-flto=thin`/`-flto=auto`; the readings of the flag rules (kebab form in messages); the inspectable-build readings; where a program runs; the launcher passing arguments untouched (`cygpath -m`, `MSYS2_ARG_CONV_EXCL`; fixes a bug found converting a game's data); how many errors are listed (A94, from a game port); the formatting readings of D190. D260 (unique `<name>_<number>.c` and the "C compiler reported success but no executable" error) was decided by Claude under D244.
+- Proposed by Claude and still unconfirmed by Mortaro (the page now states them as the rules): the spellings of the output fields (D128, D129); the `.spite/build/<path>` and `.spite/elsewhere/<name>_<number>` layout; `.spite/` never being part of a program (D283); the unit count rule (768 KiB per unit, power of two, at most 64, which D349's "chosen from measurements" keeps as measured on one machine); `optimized` as `-O3` with `-flto=thin`/`-flto=auto`; the readings of the flag rules (kebab form in messages); the inspectable-build readings; where a program runs; the launcher passing arguments untouched (`cygpath -m`, `MSYS2_ARG_CONV_EXCL`; fixes a bug found converting a game's data); how many errors are listed (A94, from a game port); the formatting readings of D190. D260 (unique `<name>_<number>.c` and the "C compiler reported success but no executable" error) was decided by Claude under D244.
 - Removed the history that `.spite-cache/` was the name of `.spite/` before D283 (the compiler still skips an old `.spite-cache/` folder; the page now says "an old `.spite-cache/` folder, which can be deleted").
-- Removed check.sh mentions: it proves the fixpoint by comparing the single-file `--c-source` C; it runs every program of `conformance/`, `examples/` and the docs pages with `--debug-memory` and requires the allocation balance; it uses `--target-operating-system=linux` to hold the Linux folders to compiling; it proves the `--final-classes` output runs as the same program; it runs `conformance/stage6/working_directory` from another folder and a copy from inside it, and `conformance/stage6/launcher_arguments` through `bin/spite` with `--prefixes=/Game/Legacy/`, `/usr/share` and `a b` beside the compiler's flags; it compiles the deliberately unformatted `diagnostics/` inputs from a copy so formatting lands on the copy; `.spite/` also holds check.sh's work folders in the language repository.
+- Removed check.sh mentions: it proves the fixpoint by comparing the single-file C; it runs every program of `conformance/`, `examples/` and the docs pages with `--debug-memory` and requires the allocation balance; it uses `--target-operating-system=linux` to hold the Linux folders to compiling; it proves the `--final-classes` output runs as the same program; it runs `conformance/stage6/working_directory` from another folder and a copy from inside it, and `conformance/stage6/launcher_arguments` through `bin/spite` with `--prefixes=/Game/Legacy/`, `/usr/share` and `a b` beside the compiler's flags; it compiles the deliberately unformatted `diagnostics/` inputs from a copy so formatting lands on the copy; `.spite/` also holds check.sh's work folders in the language repository.
 - Removed "the one the corpus runs" (the default `-O0` build is the one the corpus uses).
 
 ## [repl.md](../docs/repl.md)
@@ -764,9 +773,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - The wire format being JSON is not a promise (D96); the format may become whatever an AI client reads best, binary included.
 
 ### Live reload in detail
-- Decisions D111 (only what changed is rebuilt), D112 (`--hot-reload` as its own flag), D211 (helper-thread compile, reflection follows the reload, watched loaded folders), D283 (library directory `.spite/build/`, pinned checkouts not watched). Levels and mechanisms proposed by Claude, unconfirmed: `-O3` for `--hot-reload` builds, `wait_reload`, `spite reload` command, compile-only-changed-classes, `Concurrent` not overlapping in a `--hot-reload` build (D176), the manifest contents.
+- Decisions D111 (only what changed is rebuilt), D112 (`--hot-reload` as its own flag), D211 (helper-thread compile, reflection follows the reload, watched loaded folders), D283 (library directory `.spite/build/`, pinned checkouts not watched). Mechanisms proposed by Claude, unconfirmed: `wait_reload`, `spite reload` command, compile-only-changed-classes, `Concurrent` not overlapping in a `--hot-reload` build (D176), the manifest contents, one reload at a time (a compile waits for the library before it to be swapped in, also while the program is stopped at a breakpoint).
 - Linux and macOS are untested at run time: only held to compiling by `check.sh`, written the same way as Windows'.
-- History removed: `spite reload` was a `--mode` before D128; a no-change reload used to compile the whole program twice (90 seconds for the large game); class ids were once seeded by display name, so an enum named like a class (`JsonSymbols.Color` beside the library's `Color`) took that class's id; a changed file declaring none of the program's classes used to be answered `unchanged` and silently not applied; the compile error for a loop that never waits and `diagnostics/remote_loop_never_waits` were removed with D174.
+- History removed: `spite reload` was a `--mode` before D128; a no-change reload used to compile the whole program twice (90 seconds for the large game); class ids were once seeded by display name, so an enum named like a class (`JsonSymbols.Color` beside the library's `Color`) took that class's id; a changed file declaring none of the program's classes used to be answered `unchanged` and silently not applied; the compile error for a loop that never waits and `diagnostics/remote_loop_never_waits` were removed with D174; the REPL used to listen before `HotReload` started, and since a file read is a wait it answered commands while `HotReload` read its files, so a `reload` found no state (a fault at `address=0x8`) and a `wait_reload` took a save made then as compiled; a reload used to compile against the files of the code before a swap still on its way, and to read `.reload_files` while the swap rewrote it, so it compiled a change twice or took no file as compiled and answered `wait_reload` before the watcher had seen the save.
 
 ### `--repl-port=<port>`
 - `check.sh` replays every `wire` block in `docs/` (via `scripts/docs_corpus.spite`): builds with `--repl-port`, sends each `$ spite connect ... --command` line, compares each answer with the line under it, requires exit code 0 after `exit` and the program's output to equal its `output` block. Removed from the page as a maintainer note.
@@ -835,9 +844,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - An appended item made in place: today `var slow = Velocity(1.0, 0.5)` then `velocities.append(slow)` makes an ordinary object, copies its attributes into the vector's block and lets the object go, so filling a vector allocates once per item for a moment. Writing the constructor's attributes straight into the block is not built.
 - A build report of what could not be optimised (D36) is not built.
 
-### Signed arithmetic is checked only while developing
+### Arithmetic is checked in every build
 
-- Not built: leaving out the overflow check where a proof already bounds the operands.
+- Not built: leaving out the overflow check where a proof bounds the operands other than a counter stepped by one
+  under a `<` or `>` and constants (an index already bounded, a `bits_and` mask put into a `Byte`, an attribute).
 
 ### Objects that never leave their function live in the frame
 
@@ -883,12 +893,11 @@ recorded below.
   `memory.md#borrowed-items-of-a-vectort--implemented`, `metaprogramming.md#codegen-values---implemented`,
   `json.md#json-is-reflection-not-a-library--implemented`.
 
-### Signed arithmetic is checked while developing
+### Arithmetic that does not fit halts
 
-- The check is built; the proof that would drop it is planned. No range fact removes the development check, not even a
-  counted loop's `index = index + 1`; dropping the check where a proof bounds the operands is not built (see
-  optimizations.md, "Signed arithmetic is checked only while developing"). The table row said "built; the proof
-  planned".
+- Built for a local counter stepped by one under a `<` or `>` and for constants; other range facts (bounded
+  indexes, masks, attributes) do not remove the check yet (see optimizations.md, "Arithmetic is checked in every
+  build").
 
 ### A list's templates read their elements uncounted
 
@@ -984,8 +993,8 @@ The section listed proofs that are not built. Each, with what it said:
 - A foreign function's status is handled while compiling (D272, decided by Mortaro; design proposed by Claude,
   unconfirmed): a C enum result becomes a Spite enum that must be switched over. Not built: today a call answers an
   `Integer` and `crash result == 0` compiles (foreign_libraries.md, "Foreign libraries", partial).
-- An overflow check left out where a proof bounds the operands (optimizations.md, "Signed arithmetic is checked only
-  while developing").
+- An overflow check left out where a range fact other than a counter's bound or a constant bounds the operands
+  (optimizations.md, "Arithmetic is checked in every build").
 - A write to a copy that dies unread is an error (proposed by Claude, unconfirmed): escape analysis already proves a
   result fresh (failure.md, "Nothing fails silently", still open).
 - Frame objects holding text, lists or objects, their attributes let go at the end of the frame (optimizations.md,

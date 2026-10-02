@@ -16,8 +16,8 @@ Float 2 3 0.5 1
 square_root of -1 nan, logarithm of 0 -inf, of -1 nan
 arc_sine of pi nan true
 exponential of 1000 inf finite false infinite true
-minimum ignores not a number: 0 0
-clamp of not a number 0
+minimum passes not a number on: nan nan
+clamp of not a number nan
 clamp with low above high -1
 Float square_root of -4 nan true true
 negative zero 0 -0
@@ -31,7 +31,7 @@ Integer absolute 7 minimum -7 maximum 3 clamp -3
 Integer largest 2147483647 smallest -2147483648
 absolute of the smallest wraps to itself: -2147483648
 Tiny 127 -128 -128
-Byte 255 0 200 100 44
+Byte 255 0 200 100 200
 Long 9223372036854775807 -9223372036854775808 9000000000 4
 UnsignedLong 18446744073709551615 Short -32768 UnsignedShort 65535
 clamp with low above high 1

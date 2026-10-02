@@ -4,7 +4,7 @@ func IntegerOverflow() {
     var small: Tiny = 100
     var fits = small + 27
     var hash: UnsignedInteger = 4000000000
-    var mixed = hash * 3
+    var mixed = hash.wrapping_multiply(3)
     console.print(fits, mixed)
     var lowest = Long.smallest
     var above = lowest + 1

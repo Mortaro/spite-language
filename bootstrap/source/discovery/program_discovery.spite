@@ -1028,11 +1028,6 @@ func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile, kep
         if replaced {
             name = ""
         }
-        var reopened_enum = shape.as_enum_declaration(statement)
-        if reopened_enum {
-            replaced = extend_enum(original, reopened_enum)
-            name = ""
-        }
         if not name.is_empty() {
             var original_index = 0
             while original_index < original.statements.count() {
@@ -1045,32 +1040,6 @@ func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile, kep
         }
         if not replaced {
             original.statements.append(statement)
-        }
-        index = index + 1
-    }
-}
-
-func extend_enum(original: Syntax.SourceFile, reopened: Syntax.Statements.EnumDeclaration): Boolean {
-    var index = 0
-    while index < original.statements.count() {
-        var existing = shape.as_enum_declaration(original.statements[index])
-        if existing {
-            if existing.name == reopened.name {
-                append_enum_values(existing, reopened)
-                return true
-            }
-        }
-        index = index + 1
-    }
-    return false
-}
-
-func append_enum_values(existing: Syntax.Statements.EnumDeclaration, reopened: Syntax.Statements.EnumDeclaration) {
-    var index = 0
-    while index < reopened.values.count() {
-        var value = reopened.values[index]
-        if not existing.values.contains(value) {
-            existing.values.append(value)
         }
         index = index + 1
     }
@@ -1345,9 +1314,22 @@ func check_supplied_settings(build_names: List<String>, environment_names: List<
             error_message = "error: '--format' is not a compiler option: every compile formats the program's own files first, and nothing turns that off. To format files without compiling them: spite format file_or_folder"
         } else if not build_names.contains(name) and not environment_names.contains(name) {
             has_error = true
-            error_message = "error: '{flag_of(name)}' is not a compiler option, and this program declares no setting '{name}' (its Build declares {build_names.join(", ")}). To decide it when compiling, reopen Build in the program's build.spite with 'var {name} = ...'; to read it when the program runs, declare it in environment.spite with 'var {name} = ...'"
+            error_message = removed_flag_error(name)
+            if error_message.is_empty() {
+                error_message = "error: '{flag_of(name)}' is not a compiler option, and this program declares no setting '{name}' (its Build declares {build_names.join(", ")}). To decide it when compiling, reopen Build in the program's build.spite with 'var {name} = ...'; to read it when the program runs, declare it in environment.spite with 'var {name} = ...'"
+            }
         }
         index = index + 1
+    }
+}
+
+func removed_flag_error(name: String): String {
+    switch name {
+        "run": return "error: '--run' is not a compiler option: 'spite program' builds the program and runs it, 'spite program --check' only checks that it compiles, and 'spite program --build' builds it without running it"
+        "executable": return "error: '--executable' is not a compiler option: 'spite program --build' builds the executable without running it, and 'spite program' builds it and runs it"
+        "translation_units": return "error: '--translation-units' is not a compiler option: the compiler chooses how many C files it compiles a program from"
+        "tune_for_this_machine": return "error: '--tune-for-this-machine' is not a compiler option: a default or --hot-reload build is tuned for the machine that builds it, and an --optimized build, the one shipped, runs on any machine"
+        _: return ""
     }
 }
 

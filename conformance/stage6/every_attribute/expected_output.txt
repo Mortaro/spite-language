@@ -1,5 +1,5 @@
 title is text, servings is a number, course is one of a closed list, steps is a list of text, rating is a number or nothing
 soup 9 feast
 soup 4 starter
-dessert starter
+dessert and no course named brunch
 portions is a number portions = 8

@@ -44,8 +44,10 @@ A short guide by task. Find what you are writing; the entries below say the rest
   [Counted loops](#a-counted-loop-reads-its-items-unchecked).
 - **Dividing whole numbers**: prove the divisor with `!= 0` or `> 0` against a written `0`, or divide by a
   constant. [Proven divisor](#a-proven-divisor-is-not-checked).
-- **Arithmetic that could overflow**: no proof removes the development check; write the wider type first.
-  [Overflow](#signed-arithmetic-is-checked-while-developing).
+- **Arithmetic that could overflow**: every build checks it; step a local counter by one under a `<` (or down under
+  a `>`) and that step carries no check; write the wider type first, or call `wrapping_sum`, `wrapping_subtract` or
+  `wrapping_multiply` where wrapping is the point.
+  [Overflow](#arithmetic-that-does-not-fit-halts).
 - **A function that answers something**: end every path with `return` or a bare `crash`; use a guard `assert` only
   in a function whose result can say "nothing". [Every path ends](#every-path-ends-in-a-return),
   [guard `assert`](#a-guard-assert-answers-only-nothing).
@@ -80,7 +82,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A counted loop reads its items unchecked](#a-counted-loop-reads-its-items-unchecked) | no range checks, vectorisable | the ordinary checked loop |
 | [A proven divisor is not checked](#a-proven-divisor-is-not-checked) | no zero check | the zero check |
 | [A divisor written as zero is an error](#a-divisor-written-as-zero-is-an-error) | refuses a certain halt | none |
-| [Signed arithmetic is checked while developing](#signed-arithmetic-is-checked-while-developing) | nothing | the overflow check, in development builds |
+| [Arithmetic that does not fit halts](#arithmetic-that-does-not-fit-halts) | a counter's step and constants unchecked | the overflow check, in every build |
 | [A wider operand is written first](#a-wider-operand-is-written-first) | refuses a silent cut | write the wider side first |
 | [A dictionary's key kind](#a-dictionarys-key-kind-is-decided-while-compiling) | numbers hashed as numbers | text keys; mixing is an error |
 | [Maths on constants](#maths-on-constants-is-worked-out-while-compiling) | no call | the call |
@@ -131,7 +133,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Falls back.** Reading, calling or storing through an unproven `T?` is refused: `this value may be null (it is a
   Monster?), so 'name' cannot be read from it yet: narrow it first with 'if value { }', 'assert value' or 'crash
   value'`. A condition with a call (`if find(name) { }`) is not a path: keep the result in a `var` and narrow the
-  `var`. A `Boolean?` is never a condition; compare it `== true` or `switch` over it. `value == null` is an error.
+  `var`. A `Boolean?` is a condition only in `assert`, where it means "there and `true`"; elsewhere compare it `== true` or
+  `switch` over it. `value == null` is an error.
   What a branch narrows is gone after the branch: two branches' proofs are not merged.
 - **See.** [failure.md: Narrowing](failure.md#narrowing),
   [Narrowing a path](failure.md#narrowing-a-path); `conformance/stage6/path_narrowing`,
@@ -373,8 +376,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Buys.** No compare-and-branch before `/` or `%`.
 - **Falls back.** The check stays and a zero halts naming the line: `spite: 'total / parts' divided by zero, at ...`.
   `parts >= 1`, `parts > 5`, `0 != parts`, a divisor with a call in it (`total / names.count()`) and a `Long`
-  constant outside the `Integer` range are not proofs. As in Go, the smallest signed value divided by `-1` wraps to
-  itself in every build.
+  constant outside the `Integer` range are not proofs. The smallest signed value divided by `-1` halts as
+  [arithmetic that does not fit](#arithmetic-that-does-not-fit-halts) does, even where the divisor is proven.
 - **See.** [optimizations.md: A proven divisor is not checked](optimizations.md#a-proven-divisor-is-not-checked),
   [values_and_types.md: Numeric types](values_and_types.md#numeric-types);
   `conformance/stage6/division_by_zero`.
@@ -389,19 +392,31 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **See.** [values_and_types.md](values_and_types.md#numeric-types);
   `diagnostics/division_by_constant_zero`.
 
-### Signed arithmetic is checked while developing
+### Arithmetic that does not fit halts
 
-- **Proves.** Nothing yet: the check depends only on the build and the type.
-- **Rule.** In a `--debug-memory` or inspectable build (`--development`, `--hot-reload`, `--repl`, `--repl-port`),
-  every `+`, `-` and `*` on `Tiny`, `Short`, `Integer` or `Long` halts if the answer does not fit. A constant
-  expression that does not fit its type is a compile error in every build.
-- **Buys.** A production build carries no check at all.
-- **Falls back.** Production builds wrap, and unsigned types wrap in every build. No range fact removes the
-  development check, not even a counted loop's `index = index + 1`. Write the wider type first where a total may grow.
-- **See.** [values_and_types.md: Signed arithmetic that does not fit halts while you
-  develop](values_and_types.md#signed-arithmetic-that-does-not-fit-halts-while-you-develop),
-  [optimizations.md](optimizations.md#signed-arithmetic-is-checked-only-while-developing);
-  `conformance/stage6/integer_overflow`.
+- **Proves.** A counter stepped by one stays inside its type, and arithmetic on constants fits.
+- **Rule.** In every build, every `+`, `-` and `*` on a whole number, signed or unsigned, a `-` in front of one, the
+  smallest signed value divided by `-1`, and a value put into a narrower name halt if the answer does not fit. The
+  check is left out of `counter + 1` where a condition in force says `counter < bound`, and out of `counter - 1`
+  where one says `counter > bound`: `counter` is a local or a parameter, the condition is a `while`'s, an `if`'s or
+  one side of an `and` in either, and the step comes before any assignment to `counter` in that loop pass. The
+  comparison is done in `counter`'s type, so `bound` is at most its largest value and `counter + 1` fits (and at
+  least its smallest, so `counter - 1` fits). It is also left out where both operands are constants, which the
+  compiler has already worked out (and refused if they do not fit). A constant expression that does not fit its
+  type, or a number written into a name it does not fit, is a compile error.
+- **Buys.** `index = index + 1` in a counted loop is the plain operator, so the loop around it can still be
+  unrolled and vectorised; in the compiler's own C, 1 145 of 2 595 checks go.
+- **Falls back.** The check stays wherever no such condition is in force: a second step in the same pass (the first
+  assignment ends the proof), a step inside a nested loop whose own condition does not bound `counter` (the inner
+  loop may repeat it), `counter + 2`, an attribute (a call could change it), a sum like `total = total + value`,
+  and a value put into a narrower name. Write the wider type first where a total may grow, and call
+  `wrapping_sum`, `wrapping_subtract` or `wrapping_multiply` where wrapping is the point.
+- **See.** [values_and_types.md: Arithmetic that does not fit
+  halts](values_and_types.md#arithmetic-that-does-not-fit-halts),
+  [optimizations.md](optimizations.md#arithmetic-is-checked-in-every-build);
+  `conformance/stage6/counter_room` (the first loop's steps unchecked, the second's checked and halting),
+  `conformance/stage6/integer_overflow`, `conformance/stage6/unsigned_overflow`,
+  `conformance/stage6/narrowing_overflow`, `conformance/stage6/smallest_divided`.
 
 ### A wider operand is written first
 

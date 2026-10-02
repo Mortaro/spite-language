@@ -1,0 +1,4 @@
+enum Sky {
+    'clear'
+    'rain'
+}

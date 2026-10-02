@@ -352,7 +352,8 @@ line, the program stops before it and waits for the prompt: `where` answers wher
 command answers as usual, and `continue` lets the program go on. `breaks` lists the breakpoints and `clear` (or
 `clear ticker.spite:16`) removes them, compiling the code again without the stop. A call made at the prompt that
 reaches a breakpoint answers `stopped at ... while answering` at once, and prints what it returned on the error
-output once it goes on. 
+output once it goes on. A stopped program is waiting, so a reload the watcher compiled meanwhile is swapped in
+there, as at any wait.
 
 ## Code typed at the prompt
 
@@ -397,9 +398,9 @@ Monster`); with `--repl` or `--repl-port`, `reload` swaps in what changed right 
 swapped in (or refused), with what `last_reload` would then say, so a tool that saves a file never polls. A program
 built without `--hot-reload` has none of this: no watcher, no swapping, and `reload` answers that it was not
 built for it. `--hot-reload` keeps every function (it implies `--development`), since a new version of a class
-may call one nothing called before, and it is compiled at `--optimized`'s level. It is still slower than a
-release build, since every call goes through a slot a reload can re-point: a `--hot-reload` build is for seeing
-and changing a running program, and speed is measured on release builds.
+may call one nothing called before, and it compiles like the default build, at `-O0`, so a reload is quick. It is
+slower than a release build, since its C is not optimised and every call goes through a slot a reload can
+re-point: a `--hot-reload` build trades run speed for live information, and speed is measured on release builds.
 
 ```gdscript title=hot_counter/monster.spite
 var name = ""
@@ -662,6 +663,10 @@ worked out while compiling, so the check folds away with the branch it guards.
   instead of the build's manifest; the functions and slots the executable holds stay the build's. A save after a
   change that compiled everything is fast again. Starting the program again starts from the build
   (`game.reload_start`), since a new process runs the build's code.
+- **One reload at a time.** A reload compares with the files and the baseline of the code the program will run,
+  which swapping a library in writes, so a reload waits to compile until the library before it has been swapped in
+  (or refused): the watcher and the prompt never compile against the code before a swap that is still on its way,
+  and never read those files while a swap writes them.
 - **Every object of a program class can move.** In a `--hot-reload` build each object of the program's own classes
   carries two hidden words after its header: where its attributes live when they have moved, and its place in a
   list of the class's live objects, which each allocation adds to and each release takes from. Code reads an
@@ -682,9 +687,10 @@ worked out while compiling, so the check folds away with the branch it guards.
   thread while the program keeps running, so a game keeps drawing frames while its code is rebuilt.
 - **The watcher is the standard library's [`FileSystemWatcher`](standard_library.md#watch-files-and-folders)**, the one any
   program can use, started on a thread of its own: `ReadDirectoryChangesW` on Windows, `inotify` on Linux and
-  `kqueue` on macOS, with no polling. The thread sits in `wait_for_changes()`, which the operating system wakes;
-  a burst of changes is waited out until 100 ms pass without one, so a save that writes a file in pieces reloads
-  once. The program's own folder is watched with every folder below it, and so is every folder it `load`s, except
+  `kqueue` on macOS, with no polling. It is watching before the program's entry runs and before the REPL listens,
+  so a save made once the REPL answers is never missed. The thread sits in `wait_for_changes()`, which the
+  operating system wakes; a burst of changes is waited out until 100 ms pass without one, so a save that writes a
+  file in pieces reloads once. The program's own folder is watched with every folder below it, and so is every folder it `load`s, except
   a repository's checkout under `.spite/git/` ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)),
   which is read-only: a pinned commit never changes, so there is nothing to reload there, and a change to that
   package is a new commit and a restart. Each reload's library is written beside the executable, into
@@ -1016,10 +1022,10 @@ own. [Live reload](#live-reload---hot-reload) above teaches it; this section hol
   --hot-reload, which swaps its code while it runs, and this one was not`, from a branch folded on the `Build`
   constant. As with `--repl-port`, a `--hot-reload` build swaps where the program waits and at each loop's check
   point. `spite program --hot-reload` runs the program attached to the terminal, like a REPL build.
-- **A `--hot-reload` build is optimised.** Its executable and every reload library are compiled at `--optimized`'s
-  level (`-O3`) whether or not `--optimized` is given, so swapped-in code runs as fast as the code it replaces;
-  every call still goes through a slot, so the build is slower than a release build. It is one C file, so it has no link-time
-  optimisation, and it keeps every run-time check of an inspectable build. Every call of a function a reload can
+- **A `--hot-reload` build compiles like the default build.** Its executable and every reload library are compiled
+  at `-O0`, so the first build and every reload are as quick as a default build's; given `--optimized` too, both
+  are compiled at `-O3`. It is one C file, so it has no link-time optimisation, and it keeps every
+  run-time check of an inspectable build. Every call of a function a reload can
   replace still goes through its slot: the slot is read with an acquiring atomic load, which the C compiler may
   neither fold to the function the build started with nor hoist out of a loop, and a reload writes it with a
   sequentially consistent store.

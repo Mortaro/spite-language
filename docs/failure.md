@@ -19,8 +19,9 @@ What that already means in practice:
   made again ([a call may undo a proof](#a-call-may-undo-a-proof)).
 - A guard `assert` stops a function only where its result can say "nothing"; a function answering a number, a
   `Boolean`, a text or an object writes its answer down ([below](#a-default-that-looks-like-an-answer-is-an-error)).
-- A developer's mistake halts naming the line: a whole number divided by zero, signed arithmetic that does not
-  fit while you develop ([values_and_types.md](values_and_types.md#signed-arithmetic-that-does-not-fit-halts-while-you-develop)),
+- A developer's mistake halts naming the line: a whole number divided by zero, arithmetic that does not fit,
+  signed or unsigned, and a value too big for the narrower name it is put into, in every build
+  ([values_and_types.md](values_and_types.md#arithmetic-that-does-not-fit-halts)),
   a `crash` that fails, a native fault ([below](#what-a-native-fault-reports)).
 - A failed `crash` names what is missing instead of printing a default that reads like a real zero
   ([what a crash reports](#what-a-crash-reports)).
@@ -83,7 +84,8 @@ There is one rule, and every form below follows it.
 **Narrowing tests presence, never the value.** A `0`, a `0.0`, a `false` or a `""` that is there is present:
 `crash keys[index]` passes on an element holding `0.0`, and `if count` on an `Integer?` holding `0` runs its
 block. A plain `Boolean` condition is the only test of a value, which is why a `Boolean?` cannot be one
-([below](#reading-with--answers-t)).
+([below](#reading-with--answers-t)), with one exception: `assert flag` on a `Boolean?` means the flag is true, so
+it passes only when the flag is there and not `false`, exactly as `assert flag` does on a `Boolean`.
 
 `assert value and other_condition` narrows too, and `other_condition` already sees the narrowed type. Each side of
 an `and` narrows on its own, for `assert`, `crash` and `if` alike, since each is known true when the whole is:
@@ -355,7 +357,8 @@ compiler also understands the usual proofs for the library's collections, so mos
 - **Checking a proven read again is an error** whose message names what already proved it, so the line can
   simply go.
 - A `Boolean?` cannot be a condition: `if flags[index]` would test that the element is there, not that it is true.
-  Prove it is there first, or compare it: `flags[index] == true`.
+  Prove it is there first, or compare it: `flags[index] == true`. Only `assert flags[index]` takes one, and it
+  passes when the element is there and `true`.
 - **An unproven read names how to prove it.** `names[0].upper_case()` with nothing proving `names[0]` is
   `'names[0]' may be missing, since every '[ ]' answers a 'T?' (this one is a String?), so 'upper_case' cannot be
   called on it yet: narrow it first with 'crash names[0]', 'assert names[0]' or 'if names[0] { }', or prove the
@@ -1063,14 +1066,15 @@ to fix, not a style to document.
 | an index past the end, a key never set | `[]`, `first()`, `last()`, `remove_first()` answer a `T?` | [reading with `[]`](#reading-with--answers-t) |
 | a read a loop bound proved, with a counter gone below zero | halts naming the read and the line | [reading with `[]`](#reading-with--answers-t) |
 | a guard `assert` answering a `0`, `false`, `""` or default object the caller takes for a real answer | compile error unless the result can say "nothing" | [a default that looks like an answer](#a-default-that-looks-like-an-answer-is-an-error) |
-| a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is never a condition | [null safety](#narrowing) |
+| a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is a condition only in `assert`, which asks for `true` | [null safety](#narrowing) |
 | text that is not a number, read as `0` | `to_integer()` and the other readings answer a `T?`; text assigned to a plain number is an error | [standard_library.md](standard_library.md#string) |
 | a function that declares a result reaching its end without a `return` | compile error at its last line naming the path | [every path ends in a `return`](#every-path-ends-in-a-return) |
 | a proof that went stale after an assignment or a call | the read must be proven again; in a loop, an error naming the call | [a call may undo a proof](#a-call-may-undo-a-proof) |
 | a failed `crash` printing a default that reads as a real zero | the report names the missing link, index and count, or key | [what a crash reports](#what-a-crash-reports-1) |
 | a native fault ending the program with nothing printed | `spite.fault` with the place, the last foreign call and the stack | [what a native fault reports](#what-a-native-fault-reports-1) |
 | a whole number divided by zero | halts naming the line; a zero written as the divisor is a compile error | [values_and_types.md](values_and_types.md#numeric-types) |
-| signed arithmetic that does not fit | halts naming the operation in a development build | [values_and_types.md](values_and_types.md#signed-arithmetic-that-does-not-fit-halts-while-you-develop) |
+| arithmetic that does not fit, signed or unsigned, and the wrap it would make | halts naming the operation and the operands, in every build; wrapping only by `wrapping_sum`, `wrapping_subtract` and `wrapping_multiply` | [values_and_types.md](values_and_types.md#arithmetic-that-does-not-fit-halts) |
+| a value too big for the narrower name it is assigned, passed or returned to | halts naming the value and both types; a number written there that does not fit is a compile error | [values_and_types.md](values_and_types.md#arithmetic-that-does-not-fit-halts) |
 | a wider operand cut to fit, in arithmetic or a comparison | compile error naming the operation turned around | [values_and_types.md](values_and_types.md#wider-arithmetic-goes-wider-operand-first) |
 | a constant that overflows its type | compile error | [values_and_types.md](values_and_types.md#numeric-types) |
 | a `Float` gone to infinity written as JSON | crash naming the attribute | [json.md](json.md) |
@@ -1112,7 +1116,8 @@ presence flag beside the value (`has_value`), a reference's `T?` is its pointer,
 `get_at`/`get`, which answer that flag, so no representation uses a sentinel and no value can be mistaken for
 absence (`conformance/stage6/present_zero`, which narrows zeros, `false` and `""` from lists, a dictionary, an
 `Integer?` result, `first()`/`last()` and `remove_first()` by `crash`, `assert`, `if` and `and`). A `Boolean?` is
-never a condition (below), so `false` meets only `== true`/`== false` or a `switch`.
+never a condition but in `assert`, which asks for `true` (below), so a `false` that is there is never taken for a
+missing one.
 
 `if` on a `T?` narrows the same way, in place, for the whole block: `if value { } else { }` runs the
 block with `value` already a plain `T`, and the `else` exactly when it is null/absent. One rule for narrowing
@@ -1323,10 +1328,15 @@ How a read is proven:
   instead. A read used before it is narrowed is an error that names the read and the lines that would
   narrow it: `crash`, `assert` and `if` on the read itself, then the count or loop bound that proves it for a
   library collection ([above](#reading-with--answers-t), `diagnostics/index_reads`).
-- **A `Boolean?` cannot be a condition**, not in `if`, `while`, `assert` or `crash`, and not under `not`, `and`
-  or `or`: `if flags[index]` would test that the element is there, not that it is true, and the two mean
-  opposite things for `false`. Prove the element is there first, or `switch` over it; `== true` also works,
-  since comparing needs no narrowing.
+- **A `Boolean?` cannot be a condition**, not in `if`, `while` or `crash`, and not under `not` or `or`: `if
+  flags[index]` would test that the element is there, not that it is true, and the two mean opposite things for
+  `false`. Prove the element is there first, or `switch` over it; `== true` also works, since comparing needs no
+  narrowing.
+- **`assert flag` on a `Boolean?` means the flag is true**, as it does on a `Boolean`: it passes when the flag is
+  there and not `false`, and fails (the function answers "nothing") when it is `null` or `false`. A side of an
+  `and` under `assert` reads the same way. After it the flag is a `Boolean`. Behaviour that depends on whether the
+  flag is there is written by testing the value (`if flag == true`, `if flag == false`) or by a `switch`; there is
+  no `flag != null` form (`conformance/stage6/assert_maybe_boolean`, `diagnostics/maybe_boolean_conditions`).
 - Writing through `[]` is unchanged, and **assigning through a `T?` is an error** naming the fix: "this value
   may be null (it is a Box?), so 'label' cannot be assigned through it yet: narrow it first with 'if value { }',
   'assert value' or 'crash value'" (`diagnostics/store_through_nullable`).
@@ -1357,8 +1367,8 @@ tend to be useless: they carry a message the program has no action to take on.
 
 **What `crash` is for**: what the compiler can prove away, so a program written with
 its help never meets it; what leaves the program unable to work at all; and a developer's mistake: a whole
-number divided by zero ([values_and_types.md](values_and_types.md)), signed arithmetic that does not fit its
-type in a development build ([values_and_types.md](values_and_types.md#numeric-types)), a `Float` gone to infinity that `JsonWriter`
+number divided by zero ([values_and_types.md](values_and_types.md)), arithmetic that does not fit its
+type, or a value its narrower name cannot hold ([values_and_types.md](values_and_types.md#numeric-types)), a `Float` gone to infinity that `JsonWriter`
 is asked to write ([json.md](json.md)). A condition the program can meet in normal use (a missing file,
 a user's bad input, an absent record) answers `T?` or an empty value, never a crash, and a library
 `crash` must be one the compiler can show the program how to avoid, or a bug in the program that made the value.

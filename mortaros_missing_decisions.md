@@ -15,4 +15,24 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## Open
 
-No open questions.
+265. **A change of signedness that does not fit** (D359, D162; [values_and_types.md](docs/values_and_types.md#arithmetic-that-does-not-fit-halts)).
+     Arithmetic and narrowing now halt, but `var bits: UnsignedInteger = count` with a negative `Integer` `count`, or any
+     change of signedness at the same width or wider, still keeps the bits, since D162 leaves
+     signedness out of "wider" and the hashes read their words this way (`var word: UnsignedLong = block.read_long(at)`).
+     Options: (a) **keep it**: a same-width signedness change is a reading of the bits, as today. (b) **check it too**,
+     so `-1` into an `UnsignedInteger` halts, and add a named function for reading the bits, as `bits()` reads a
+     `Float`'s (say `Long.bits_as_unsigned()` and `UnsignedLong.bits_as_signed()`), which the hashes would call.
+     Recommendation: (b), since a negative count turning into four billion is the silent wrap D359 forbids, and the
+     bit readings are few and all in `library/`. Blocks: nothing; today's reading is (a).
+266. **`crash flag` on a `Boolean?`** (D372). D372 makes `assert flag` mean "there and `true`" and names only
+     `assert`, so `crash flag` on a `Boolean?` is still an error. Options: (a) `crash flag` halts unless the flag
+     is there and `true`, as `assert` reads it; (b) keep it an error and write `crash flag == true`. Recommend (a):
+     one reading of a `Boolean?` condition everywhere.
+267. **`UdpSocket.port` of a closed socket** (D369 item 250). Options: (a) halts naming the closed socket, as
+     built; (b) answers `Integer?`, `null` once closed. Recommend (a): asking a closed socket is a developer
+     mistake (D199), and `0` would be a silent wrong value.
+268. **`clamp` and not-a-number** (D369 item 249). `minimum` and `maximum` now pass `nan` on; `clamp` was built the
+     same way, answering `nan` when the value or either bound is `nan` (it used to answer the low bound). Recommend
+     confirming: the same rule as `minimum` and `maximum`.
+269. **The name `wrapping_subtract`** (D359). D359 names `wrapping_sum` and `wrapping_multiply`; the subtraction
+     was built as `wrapping_subtract`, after the `subtract` operator function. Recommend confirming it.
