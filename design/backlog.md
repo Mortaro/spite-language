@@ -12,10 +12,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ## Landing from branches (do not build again)
 
-- **Landed:** `cloud/linux` (one seed per system, the Linux check, D376), `cloud/operators` (D315 and D365: an
-  operator's function called by name is an error naming the shortcut, a word after `.` is always a member name,
-  `Dictionary.set` is `d[key] = value`, a kept `[]` read is narrowed; S7 below renames the dictionary's `[]`
-  functions), the reload races, and `wip/fastbuild` (D396) on 2026-10-02.
+- **Landed:** `cloud/linux` (one seed per system, the Linux check, D376) on 2026-10-02.
+- **Landed:** `cloud/operators` (D315 and D365, recorded as D396), the reload races and `wip/fastbuild` (D403) on
+  2026-10-02.
 - **Waiting:** `cloud/nomap` (no `List.map(function)`, no `map_` over a test, no class-qualified function value;
   its row needs the next free number).
 
@@ -100,7 +99,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   number, boolean and null (names proposed by Claude, unconfirmed), read by `JsonReader` and walked with `switch`.
   Files: `library/json_reader.spite`, a new value class, docs json.md. **M.** No dependencies.
 
-### Types, monomorphisation and storage (D321, D331, D332, D355, D367, D368, D370)
+### Types, monomorphisation and storage (D321, D331, D332, D355, D367, D368, D370, D398, D399, D400, D401, D402)
 
 - **M1 D321 leftovers** (status "Inline types and duck typing"). (a) text and `Symbol` stored as a `type` are
   tagged, not boxed; (b) the closed set at a run-time spot is the classes that reach that spot, not every class
@@ -138,6 +137,34 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **M7 Identical-function folding leftovers** (D340; status "Identical functions"). Fold a function differing only
   in which class of another layout it passes by reference, compare a boxed text constant by its text, and stop
   writing a foreign callback's site into the function. Files: `function_folder.spite`. **M.** No dependencies.
+- **M8 Benchmark gap analysis** (D398). For each benchmark, compare the generated C with the hand-written C and rank
+  every source of extra work by measured cost: allocation, reference counting, checks, the library's algorithm,
+  missing aliasing hints. The ranking orders M9 to M11. Files: `benchmarks/`. **M.** No dependencies; first.
+- **M9 Escape analysis removes allocations and counting** (D398). An object proven not to escape or not to be
+  shared lives in registers or on the stack, with no reference count. Files: `object_escape.spite`,
+  `object_frames.spite`, `placement.spite`. **L.** After M8.
+- **M10 Inline storage chosen by the compiler** (D398, D331). An object held by one owner is laid inside it; the
+  moron never chooses a storage for it; the number classes' `var _memory = Memory.Bytes(n)` stays, library-only
+  (D400). **L.** After M9, with M3.
+- **M11 Aliasing hints from ownership** (D398, D354, D380). Emit `restrict` where ownership proves two pointers
+  never alias. Files: generator.spite parameter emission. **M.** After E3.
+- **M12 Docs stop teaching the layout internals** (D399). `TypedMemory<T>`, `InlineMemory`, `Raw` and
+  `Memory.Bytes` leave the user pages (memory.md, collections.md, optimizations.md, foreign_libraries.md,
+  classes_and_files.md, compiler.md, concurrency.md, packages.md, proofs.md, README.md); exact foreign layouts are
+  taught through bindings and binary readers. **M.** After M3, M9 and M10 land.
+- **M14 `Vector<T>` removed as a storage the moron picks** (D400). Programs write `List<T>` and the compiler
+  stores it inline where it can (D331); migrate `library/`, the docs (collections.md's "`Vector<T>`: items inline"
+  and its rules, the "value class" wording) and downstream packages. **M.** After M3.
+- **M15 `Items<T>` folds into `List<T>`** (D401). The storage `Items<T>` chooses becomes `List<T>`'s own (M3, M10);
+  migrate `library/items.spite`, collections.md's "`Items<T>`: the storage chosen for you" and its rules, and its
+  users. **M.** With M14, after M3.
+- **M16 A list's layout chosen from how it is iterated** (D402). From every iteration over a `List<T>` and its
+  `function.accesses`, choose array of structs, struct of arrays or a hot/cold split per list; report the choice
+  (M4) and guard it with benchmarks. This is what lets a large package's component columns become plain lists, so
+  it gates M13 (D399's bar). **L.** After M3 and M10.
+- **M13 Enforce the ban on layout internals outside `library/`** (D399). A compile error naming the higher-level
+  alternative. **S.** Last: only after M3, M9 and M10 make plain classes and lists as fast as hand-chosen layouts
+  and downstream packages have migrated with benchmarks showing no slowdown.
 
 ### Arithmetic (D359, D360, D357, D369 item 249)
 
@@ -298,7 +325,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   L3, L4.
 - **S7 `Dictionary`'s `[]` is `get_at`/`set_at`** (D369 item 220). Rename `get`/`set` in
   `library/dictionary.spite` and the compiler's lowering of `d[key]`, and the operator errors from
-  `cloud/operators`. **S.** Depends on landing `cloud/operators`.
+  `cloud/operators` (D396). **S.** No dependencies.
 - **S9 Collection leftovers** (status "Standard library metaprogramming", "Deep copy"). `sort_by_`, `find_by_` and
   a program's own templates on `Vector` and `Items`; the `while`-does-a-template rule over `Vector` loops;
   `deep_copy()` of unions, shapes and self-referring structures; a `String`'s or number's function held as a value.
@@ -415,3 +442,19 @@ memory stream. Streams 5 and 9 are many small items and the right place for a se
 
 None open: every owner question is answered (D378 to D394).
 
+
+## Later, in order (D397, [proposals/own_backend.md](proposals/own_backend.md))
+
+Each stage starts after the one before it lands.
+
+1. **No C runtime.** The library calls the system directly (Windows `kernel32`/`ntdll`, Linux raw system calls, macOS
+   `libSystem` as the platform); number formatting, memory, text and maths written in Spite. Builds on C9 and C8.
+   **L.**
+2. **Released builds.** One download per system, the compiler and its library, usable at once; the C seed only for
+   building from source. **M.**
+3. **Spite's development backend.** A shared array-based IR, instruction selection, a simple register allocator,
+   PE/ELF/Mach-O written by Spite; x86-64 then ARM64; hot reload as code generated into the running program through
+   the function slots. Default builds, hot reload and the REPL move to it. **L.**
+4. **Spite's optimising backends.** Optimisations on the shared IR using ownership, proven-safe checks,
+   whole-program specialisation and list storage; `--optimized` leaves C only once these win on the benchmarks.
+   **L**, open-ended.
