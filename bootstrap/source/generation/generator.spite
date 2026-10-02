@@ -28288,7 +28288,7 @@ func generate_store(
                         scope,
                         class_information,
                     )
-                    builder.add_user("{set_at_call.code};")
+                    discard_call_result(set_at_call)
                     return
                 }
                 report(
@@ -28424,7 +28424,7 @@ func generate_store(
                 scope,
                 class_information,
             )
-            builder.add_user("{setter_call.code};")
+            discard_call_result(setter_call)
             return
         }
         var field = target_class.find_field(member.name)
@@ -36119,6 +36119,21 @@ func emit_result_statement(result: ExpressionResult, expression_statement: Synta
             builder.add_user("{release_call(result_type, temporary)};")
             return
         }
+    }
+    builder.add_user("(void)({result.code});")
+}
+
+func discard_call_result(result: ExpressionResult) {
+    var result_type = result.type
+    if type_shape.is_void(result_type) {
+        builder.add_user("{result.code};")
+        return
+    }
+    if type_needs_drop(result_type) and result.owning_override != false {
+        var temporary = next_temporary()
+        builder.add_user("{c_type_name(result_type)} {temporary} = {result.code};")
+        builder.add_user("{release_call(result_type, temporary)};")
+        return
     }
     builder.add_user("(void)({result.code});")
 }

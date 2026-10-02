@@ -334,8 +334,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   Files: the formatter's write in `bootstrap.spite`. **S.**
 - **B19** Whether a walked row's ignored `_x` parameter counts as read depends on the shapes of the other
   parameters. It must not. Files: the walked-row reads in generator.spite. **S.**
-- **B20** The generated C contains a bare `spite_temp_N;` statement with no effect, which clang reports under
-  `-Wunused-value`. Stop emitting it. Files: generator.spite temporaries. **S.**
 
 ### Skills and docs
 
