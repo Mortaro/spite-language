@@ -232,7 +232,8 @@ func _compress(state: Memory.Address, block: Memory.Address, schedule: Memory.Ad
         crash _round_constants[round]
         var constant = _round_constants[round]
         var scheduled = schedule.read_unsigned_integer(round * 4)
-        var first_sum = working_h.wrapping_sum(big_e).wrapping_sum(choice).wrapping_sum(constant).wrapping_sum(scheduled)
+        var mixed_sum = working_h.wrapping_sum(big_e).wrapping_sum(choice)
+        var first_sum = mixed_sum.wrapping_sum(constant).wrapping_sum(scheduled)
         var big_a = _big_sigma(working_a, 2, 13, 22)
         var both_ab = working_a.bits_and(working_b)
         var both_ac = working_a.bits_and(working_c)

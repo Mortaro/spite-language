@@ -890,10 +890,11 @@ if ! grep -q "while (((index_ < List_String_count((self->registry_)->names_)))) 
 fi
 echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock, a row borrows a reference column's element, a held argument is not counted again, a singleton's fixed attribute is read in place"
 # D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
-# division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no check for it.
+# division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no zero check for it (it keeps
+# the check that the smallest Integer divided by -1 does not fit, D359).
 "$work/generation_two.exe" conformance/stage6/division_by_zero --run=false --c-source --c-path="$work/division.c" > /dev/null 2>&1 || {
   echo "FAILED: division_by_zero does not write its C"; exit 1; }
-if grep -q "whole / pieces" "$work/division.c" || ! grep -q "total / parts" "$work/division.c"; then
+if grep -q 'spite_divided_by_zero("whole / pieces"' "$work/division.c" || ! grep -q 'spite_divided_by_zero("total / parts"' "$work/division.c"; then
   echo "FAILED: division_by_zero should check 'total / parts' and not the proven 'whole / pieces'"; exit 1
 fi
 echo "division: a proven divisor carries no zero check"
