@@ -137,7 +137,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   and its rules, the "value class" wording) and downstream packages. **M.** After M3.
 - **M15 `Items<T>` folds into `List<T>`** (D401). The storage `Items<T>` chooses becomes `List<T>`'s own (M3, M10);
   migrate `library/items.spite`, collections.md's "`Items<T>`: the storage chosen for you" and its rules, and its
-  users. **M.** With M14, after M3.
+  users. A reload moves an `Items`' items between its own memory and objects of their own when their class starts
+  or stops fitting (generator.spite `storage_change`, `moved_items`); the same move must follow to `List<T>`. **M.** With M14, after M3.
 - **M16 A list's layout chosen from how it is iterated** (D402). From every iteration over a `List<T>` and its
   `function.accesses`, choose array of structs, struct of arrays or a hot/cold split per list; report the choice
   (M4) and guard it with benchmarks. This is what lets a large package's component columns become plain lists, so
@@ -293,8 +294,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### REPL and reload (D280, D301, D305)
 
-- **P2 Reloading a class that starts or stops fitting an `Items`' own memory** (D280; status "What a reload can
-  change"). Files: `hot_reload_library.spite`, generator.spite object moves. **M.** No dependencies.
 - **P3 The reload race on a loaded Linux machine** (from `cloud/linux`, a D244 bug). The watcher's reload and the
   prompt's `reload` race over `.reload_baseline`/`.reload_files`; also the move of objects while the program's own
   threads run (failure.md). **M.** Depends on landing `cloud/linux`.
@@ -350,7 +349,7 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L7, C5, C6, C7, K2, F3, S9, P2, X1, B1
+2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L7, C5, C6, C7, K2, F3, S9, X1, B1
    to B16, E3, D1's first pass.
 3. After step 2: R5, K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4, R8, then R9.
@@ -378,7 +377,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 5 Driver and toolchain | C6, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
 | 6 Waiting, IO and library | F3, K2, K1, K3, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
 | 7 Language rules | L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
-| 8 REPL and reports | P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
+| 8 REPL and reports | P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | B1 to B16 | small fixes, each in the file of the proof it fixes; rebase often |
 | 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |
 

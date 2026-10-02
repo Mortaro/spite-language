@@ -17701,17 +17701,27 @@ func emit_class_object_bodies() {
         class_objects_emitted = class_objects_emitted + 1
         crash class_object_names[position]
         var function_c_name = class_object_names[position]
+        crash class_object_labels[position]
+        var described = find_class_by_c_name(class_object_labels[position])
+        var refitted = ""
+        if described and is_hot_class(described) {
+            refitted = "{function_c_name}_cache->_fits_vector_ = (*{described.c_name}___layout_now())->fits != 0;"
+        }
         var lines = List<String>()
         lines.append("Spite_Class* {function_c_name}(void) \{")
-        lines.append(
-            "if (SPITE_SINGLETON_FOUND({function_c_name}_ready)) return Spite_Class___retain({function_c_name}_cache);",
-        )
+        if not refitted.is_empty() {
+            lines.append(
+                "if (SPITE_SINGLETON_FOUND({function_c_name}_ready)) \{ {refitted} return Spite_Class___retain({function_c_name}_cache); }",
+            )
+        } else {
+            lines.append(
+                "if (SPITE_SINGLETON_FOUND({function_c_name}_ready)) return Spite_Class___retain({function_c_name}_cache);",
+            )
+        }
         lines.append("spite_described_enter();")
         lines.append("if ({function_c_name}_cache == 0) \{")
         crash class_object_displays[position]
         lines.append("{function_c_name}_cache = Spite_Class___make({ensure_symbol(class_object_displays[position])});")
-        crash class_object_labels[position]
-        var described = find_class_by_c_name(class_object_labels[position])
         var kind = class_object_kinds[function_c_name]
         if run_time_kinds_used and kind {
             lines.append("{function_c_name}_cache->_{kind}_ = true;")
@@ -17726,7 +17736,9 @@ func emit_class_object_bodies() {
             if described.is_singleton {
                 lines.append("{function_c_name}_cache->_singleton_ = true;")
             }
-            if class_fits_vector(described) {
+            if not refitted.is_empty() {
+                lines.append(refitted)
+            } else if class_fits_vector(described) {
                 lines.append("{function_c_name}_cache->_fits_vector_ = true;")
             }
             if source_folder_used {
@@ -39586,10 +39598,11 @@ func note_layout_change(information: Analysis.ClassInfo, running: String, now: S
     if not gone.is_empty() and not appeared.is_empty() and not reload_renames_given {
         report_held_rename(information, gone, appeared)
     }
-    if was["fits"] != fields["fits"] {
-        report(
-            "'{information.qualified_dotted}' changes whether its objects fit in an Items' own memory, and a reload does not yet move them between the two kinds of storage: restart the program to take this change, or undo it (design/status.md#nothing-fails-silently-still-open)",
-        )
+    if was["fits"] == "true" and fields["fits"] == "false" {
+        notes.append("its objects moved out of an Items' own memory into objects of their own")
+    }
+    if was["fits"] == "false" and fields["fits"] == "true" {
+        notes.append("its objects moved into an Items' own memory")
     }
     if notes.is_empty() {
         notes.append("its attributes were reordered")
@@ -39706,7 +39719,7 @@ func inline_memory_item(c_name: String): Analysis.ClassInfo? {
     assert item_reference
     var item = find_class_by_c_name(item_reference.c_name)
     assert item
-    if is_hot_class(item) and class_fits_vector(item) {
+    if is_hot_class(item) {
         return item
     }
     return null
@@ -39738,7 +39751,11 @@ func layout_descriptor(information: Analysis.ClassInfo): String {
     }
     entries.append("\{ 0, 0, 0, 0, 0 }")
     var count = information.fields.count()
-    return "const SpiteLayout* {c_name}___layout(void) \{\nstatic const SpiteLayoutField fields[] = \{ {entries.join(", ")} };\nstatic const SpiteLayout layout = \{ \"{information.qualified_dotted}\", (int64_t)sizeof({c_name}), {count}, fields };\nreturn &layout;\n}"
+    var fits = 0
+    if class_fits_vector(information) {
+        fits = 1
+    }
+    return "const SpiteLayout* {c_name}___layout(void) \{\nstatic const SpiteLayoutField fields[] = \{ {entries.join(", ")} };\nstatic const SpiteLayout layout = \{ \"{information.qualified_dotted}\", (int64_t)sizeof({c_name}), {count}, fields, {fits} };\nreturn &layout;\n}"
 }
 
 func append_live_start(lines: List<String>, information: Analysis.ClassInfo, object_code: String) {
@@ -39829,11 +39846,22 @@ func emit_migrations() {
     builder.add_support(helpers)
     var prepare_lines = List<String>()
     var move_lines = List<String>()
+    var check_lines = List<String>()
     var index = 0
     while index < changing_layouts.count() {
         var moved = find_class_by_c_name(changing_layouts[index])
         crash moved
         emit_class_migration(moved)
+        if storage_change(moved) == "into" {
+            var holders = live_holders_of(moved)
+            var holder_index = 0
+            while holder_index < holders.count() {
+                check_lines.append(
+                    "\{ const char* shared = {holders[holder_index].c_name}___shared_item(); if (shared != 0) return shared; }",
+                )
+                holder_index = holder_index + 1
+            }
+        }
         prepare_lines.append("const char* spite_refused_{index} = {moved.c_name}___prepare(&spite_plan_{index});")
         prepare_lines.append("if (spite_refused_{index} != 0) return spite_refused_{index};")
         move_lines.append("{moved.c_name}___move_all(&spite_plan_{index}, &moving);")
@@ -39852,7 +39880,7 @@ func emit_migrations() {
         index = index + 1
     }
     builder.add_support(
-        "static const char* spite_migrate_all(void) \{\n{plans.join("\n")}\n{prepare_lines.join("\n")}\nSpiteMoving moving = \{ 0 };\n{move_lines.join("\n")}\n{finishes.join("\n")}\nspite_moving_finish(&moving);\nreturn 0;\n}",
+        "static const char* spite_migrate_all(int32_t checking) \{\nif (checking) \{\n{check_lines.join("\n")}\nreturn 0;\n}\n{plans.join("\n")}\n{prepare_lines.join("\n")}\nSpiteMoving moving = \{ 0 };\n{move_lines.join("\n")}\n{finishes.join("\n")}\nspite_moving_finish(&moving);\nreturn 0;\n}",
     )
 }
 
@@ -39882,7 +39910,7 @@ func moving_helpers(): String {
     lines.append("free(moving->places); free(moving->releases); free(moving->blocks);")
     lines.append("}")
     lines.append("static int32_t spite_same_layout(const SpiteLayout* old, const SpiteLayout* fresh) \{")
-    lines.append("if (old->size != fresh->size || old->count != fresh->count) return 0;")
+    lines.append("if (old->size != fresh->size || old->count != fresh->count || old->fits != fresh->fits) return 0;")
     lines.append("for (int64_t index = 0; index < old->count; index = index + 1) \{")
     lines.append(
         "const SpiteLayoutField* was = &old->fields[index]; const SpiteLayoutField* is = &fresh->fields[index];",
@@ -39923,16 +39951,6 @@ func moving_helpers(): String {
     )
     lines.append("return 0;")
     lines.append("}")
-    lines.append("static void spite_plan_holders(SpitePlan* plan, SpiteLiveSet* holders) \{")
-    lines.append("if (plan->from == 0) return;")
-    lines.append(
-        "plan->holders = (void**)realloc(plan->holders, (size_t)(plan->holder_count + holders->count + 1) * sizeof(void*));",
-    )
-    lines.append(
-        "for (int64_t index = 0; index < holders->count; index = index + 1) plan->holders[plan->holder_count + index] = holders->objects[index];",
-    )
-    lines.append("plan->holder_count = plan->holder_count + holders->count;")
-    lines.append("}")
     lines.append("static void spite_plan_finish(SpitePlan* plan) \{")
     lines.append("if (plan->from != 0) *plan->now = plan->fresh;")
     lines.append("free(plan->from); free(plan->taken); free(plan->objects); free(plan->holders);")
@@ -39972,7 +39990,11 @@ func emit_class_migration(information: Analysis.ClassInfo) {
     var fill_text = fill_lines.join("\n")
     builder.add_support(fill_text)
     renamed.append("0")
-    var holders = live_holders_of(information)
+    var change = storage_change(information)
+    var holders = List<Analysis.ClassInfo>()
+    if change != "references" {
+        holders = live_holders_of(information)
+    }
     var plan_lines = List<String>()
     plan_lines.append("static const char* {c_name}___prepare(SpitePlan* plan) \{")
     plan_lines.append("static const char* const renamed[] = \{ {renamed.join(", ")} };")
@@ -39980,11 +40002,6 @@ func emit_class_migration(information: Analysis.ClassInfo) {
         "const char* refused = spite_plan(plan, {c_name}___layout_now(), {c_name}___layout(), renamed, {c_name}___live());",
     )
     plan_lines.append("if (refused != 0) return refused;")
-    var holder_index = 0
-    while holder_index < holders.count() {
-        plan_lines.append("spite_plan_holders(plan, {holders[holder_index].c_name}___live());")
-        holder_index = holder_index + 1
-    }
     plan_lines.append("return 0;")
     plan_lines.append("}")
     var plan_text = plan_lines.join("\n")
@@ -40003,7 +40020,7 @@ func emit_class_migration(information: Analysis.ClassInfo) {
     move_lines.append("if (object->spite_moved != 0) spite_moving_free(moving, object->spite_moved);")
     move_lines.append("object->spite_moved = fresh;")
     move_lines.append("}")
-    holder_index = 0
+    var holder_index = 0
     while holder_index < holders.count() {
         move_lines.append("{holders[holder_index].c_name}___move_items(plan, moving);")
         holder_index = holder_index + 1
@@ -40012,34 +40029,120 @@ func emit_class_migration(information: Analysis.ClassInfo) {
     holder_index = 0
     while holder_index < holders.count() {
         var holder = holders[holder_index]
-        var items_lines = List<String>()
-        items_lines.append("static void {holder.c_name}___move_items(SpitePlan* plan, SpiteMoving* moving) \{")
-        items_lines.append("int64_t old_stride = plan->old->size - (int64_t)sizeof(SpiteHeader);")
-        items_lines.append("int64_t fresh_stride = (int64_t)sizeof({c_name}) - (int64_t)sizeof(SpiteHeader);")
-        items_lines.append("for (int64_t index = 0; index < plan->holder_count; index = index + 1) \{")
-        items_lines.append("{holder.c_name}* holder = ({holder.c_name}*)plan->holders[index];")
-        items_lines.append("if (holder->items_ == 0) continue;")
-        items_lines.append(
-            "char* block = (char*)SPITE_MALLOC((size_t)((int64_t)holder->capacity_ * fresh_stride + (int64_t)sizeof(SpiteHeader)));",
-        )
-        items_lines.append("for (int64_t item = 0; item < (int64_t)holder->item_count_; item = item + 1) \{")
-        items_lines.append("char* was = (char*)(intptr_t)holder->items_ + item * old_stride;")
-        items_lines.append("{c_name}* fresh = ({c_name}*)(block + item * fresh_stride);")
-        items_lines.append("memset((char*)fresh + sizeof(SpiteHeader), 0, (size_t)fresh_stride);")
-        items_lines.append("{c_name}___init___hot(fresh);")
-        items_lines.append("{c_name}___fill(fresh, was, plan);")
-        items_lines.append("spite_forget_fields(was, plan, moving);")
-        items_lines.append("}")
-        items_lines.append("spite_moving_free(moving, (void*)(intptr_t)holder->items_);")
-        items_lines.append("holder->items_ = (int64_t)(intptr_t)block;")
-        items_lines.append("}")
-        items_lines.append("}")
-        var items_text = items_lines.join("\n")
+        var items_text = moved_items(information, holder, change)
         builder.add_support(items_text)
+        if change == "into" {
+            var shared_text = shared_item_check(information, holder)
+            builder.add_support(shared_text)
+        }
         holder_index = holder_index + 1
     }
     var move_text = move_lines.join("\n")
     builder.add_support(move_text)
+}
+
+func storage_change(information: Analysis.ClassInfo): String {
+    var running = running_field_signature(information.c_name)
+    var was = signature_types(running)
+    var fits_now = class_fits_vector(information)
+    if was["fits"] == "true" and fits_now {
+        return "inline"
+    }
+    if was["fits"] == "true" {
+        return "out of"
+    }
+    if fits_now {
+        return "into"
+    }
+    return "references"
+}
+
+func moved_items(information: Analysis.ClassInfo, holder: Analysis.ClassInfo, change: String): String {
+    var c_name = information.c_name
+    var lines = List<String>()
+    lines.append("static void {holder.c_name}___move_items(SpitePlan* plan, SpiteMoving* moving) \{")
+    lines.append("SpiteLiveSet* holders = {holder.c_name}___live();")
+    lines.append("int64_t old_stride = plan->old->size - (int64_t)sizeof(SpiteHeader);")
+    lines.append("int64_t fresh_stride = (int64_t)sizeof({c_name}) - (int64_t)sizeof(SpiteHeader);")
+    lines.append("(void)old_stride; (void)fresh_stride;")
+    lines.append("for (int64_t index = 0; index < holders->count; index = index + 1) \{")
+    lines.append("{holder.c_name}* holder = ({holder.c_name}*)holders->objects[index];")
+    lines.append("if (holder->items_ == 0) continue;")
+    if change == "out of" {
+        lines.append("int64_t capacity = holder->capacity_ > 0 ? (int64_t)holder->capacity_ : 1;")
+        lines.append("{c_name}** block = ({c_name}**)SPITE_MALLOC((size_t)(capacity * (int64_t)sizeof({c_name}*)));")
+    } else {
+        lines.append(
+            "char* block = (char*)SPITE_MALLOC((size_t)((int64_t)holder->capacity_ * fresh_stride + (int64_t)sizeof(SpiteHeader)));",
+        )
+    }
+    lines.append("for (int64_t item = 0; item < (int64_t)holder->item_count_; item = item + 1) \{")
+    if change == "inline" {
+        lines.append("char* was = (char*)(intptr_t)holder->items_ + item * old_stride;")
+        lines.append("{c_name}* fresh = ({c_name}*)(block + item * fresh_stride);")
+        lines.append("memset((char*)fresh + sizeof(SpiteHeader), 0, (size_t)fresh_stride);")
+        lines.append("{c_name}___init___hot(fresh);")
+        lines.append("{c_name}___fill(fresh, was, plan);")
+        lines.append("spite_forget_fields(was, plan, moving);")
+    }
+    if change == "out of" {
+        lines.append("char* was = (char*)(intptr_t)holder->items_ + item * old_stride;")
+        lines.append("{c_name}* fresh = ({c_name}*)SPITE_MALLOC(sizeof({c_name}));")
+        lines.append("memset(fresh, 0, sizeof({c_name}));")
+        lines.append("fresh->header.ref_count = 1;")
+        lines.append("fresh->header.class_id = {information.class_id};")
+        lines.append("{c_name}___init___hot(fresh);")
+        lines.append("{c_name}___fill(fresh, was, plan);")
+        lines.append("spite_forget_fields(was, plan, moving);")
+        lines.append("spite_live_add({c_name}___live(), fresh, &fresh->spite_live);")
+        lines.append("#ifdef SPITE_TRACKS_{c_name}")
+        lines.append("spite_track_{c_name}(fresh);")
+        lines.append("#endif")
+        lines.append("block[item] = fresh;")
+    }
+    if change == "into" {
+        lines.append("{c_name}* object = (({c_name}**)(intptr_t)holder->items_)[item];")
+        lines.append("char* now = object->spite_moved != 0 ? (char*)object->spite_moved : (char*)object;")
+        lines.append("{c_name}* fresh = ({c_name}*)(block + item * fresh_stride);")
+        lines.append("memcpy((char*)fresh + sizeof(SpiteHeader), now + sizeof(SpiteHeader), (size_t)fresh_stride);")
+        lines.append("fresh->spite_moved = 0;")
+        lines.append("fresh->spite_live = 0;")
+        lines.append("spite_live_remove({c_name}___live(), object, &object->spite_live);")
+        lines.append("#ifdef SPITE_TRACKS_{c_name}")
+        lines.append("spite_untrack_{c_name}(object);")
+        lines.append("#endif")
+        lines.append("#ifdef SPITE_WEAK_{c_name}")
+        lines.append("spite_weak_object_freed(object);")
+        lines.append("#endif")
+        lines.append("if (object->spite_moved != 0) spite_moving_free(moving, object->spite_moved);")
+        lines.append("spite_moving_free(moving, object);")
+    }
+    lines.append("}")
+    lines.append("spite_moving_free(moving, (void*)(intptr_t)holder->items_);")
+    lines.append("holder->items_ = (int64_t)(intptr_t)block;")
+    lines.append("}")
+    lines.append("}")
+    return lines.join("\n")
+}
+
+func shared_item_check(information: Analysis.ClassInfo, holder: Analysis.ClassInfo): String {
+    var c_name = information.c_name
+    var class_name = information.qualified_dotted
+    var refusal = "refused: {class_name} now fits an Items' own memory, but an {holder.qualified_dotted} holds a {class_name} that is held elsewhere too, and an item kept in an Items' own memory is never shared, so moving it there would part it from what else holds it. Let go of the other reference (null it at the prompt), or undo the change"
+    var lines = List<String>()
+    lines.append("static const char* {holder.c_name}___shared_item(void) \{")
+    lines.append("SpiteLiveSet* holders = {holder.c_name}___live();")
+    lines.append("for (int64_t index = 0; index < holders->count; index = index + 1) \{")
+    lines.append("{holder.c_name}* holder = ({holder.c_name}*)holders->objects[index];")
+    lines.append("if (holder->items_ == 0) continue;")
+    lines.append("for (int64_t item = 0; item < (int64_t)holder->item_count_; item = item + 1) \{")
+    lines.append("{c_name}* object = (({c_name}**)(intptr_t)holder->items_)[item];")
+    lines.append("if (object != 0 && object->header.ref_count > 1) return \"{escape_c_string(refusal)}\";")
+    lines.append("}")
+    lines.append("}")
+    lines.append("return 0;")
+    lines.append("}")
+    return lines.join("\n")
 }
 
 func live_holders_of(item: Analysis.ClassInfo): List<Analysis.ClassInfo> {
@@ -40504,7 +40607,7 @@ func c_parameter_name(parameter: String): String {
 }
 
 func live_support_types(): String {
-    return "typedef struct SpiteLayoutField \{ const char* name; const char* type; int64_t offset; int64_t size; void (*release)(void*); } SpiteLayoutField;\ntypedef struct SpiteLayout \{ const char* name; int64_t size; int64_t count; const SpiteLayoutField* fields; } SpiteLayout;\ntypedef struct SpiteLiveSet \{ void** objects; int64_t** places; int64_t count; int64_t capacity; int32_t lock; } SpiteLiveSet;"
+    return "typedef struct SpiteLayoutField \{ const char* name; const char* type; int64_t offset; int64_t size; void (*release)(void*); } SpiteLayoutField;\ntypedef struct SpiteLayout \{ const char* name; int64_t size; int64_t count; const SpiteLayoutField* fields; int32_t fits; } SpiteLayout;\ntypedef struct SpiteLiveSet \{ void** objects; int64_t** places; int64_t count; int64_t capacity; int32_t lock; } SpiteLiveSet;"
 }
 
 func emit_live_support() {
@@ -40934,11 +41037,13 @@ func is_local_migration_piece(name: String): Boolean {
         "spite_same_layout"
         "spite_old_field"
         "spite_plan"
-        "spite_plan_holders"
         "spite_plan_finish"
         "spite_forget_fields"
     ]
     if helpers.contains(name) {
+        return true
+    }
+    if name.ends_with("___shared_item") {
         return true
     }
     var index = 0

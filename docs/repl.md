@@ -660,8 +660,18 @@ class lacks, of another type than the new one, or one that the reload does not r
 What it costs: a change to a class's attributes compiles the whole program, since every class that reads them is
 compiled again: about 40 seconds for a large game's server, against a few for a change to function bodies alone.
 The saves after it are fast again: a reload that compiled the whole program becomes what the next one is compared
-with ([How it works](#how-it-works)). A class that starts or stops fitting in an `Items`' own memory is refused,
-naming the class.
+with ([How it works](#how-it-works)).
+
+**A class that starts or stops fitting an `Items`' own memory moves too.** Give `Step` an attribute an item kept
+inline cannot hold, `var notes = List<String>()`, and save: each `Step` the `Items` kept in its own memory becomes an
+object of its own, and the `Items` keeps references to them, as it does for any class that does not fit. Remove it
+again and the objects move back into the `Items`' own memory, unless one of them is also held somewhere else, since
+an item kept inline is never shared; the reload is then refused, naming the class, and swaps in nothing:
+
+```text
+$ spite connect 4000 --command="wait_reload"
+{"ok":true,"value":"rebuilt Step, ...\nmoved every Step to its new attributes: notes is new and holds its default; its objects moved out of an Items' own memory into objects of their own","type":""}
+```
 
 ### Knowing what a reload rebuilt
 
@@ -750,8 +760,9 @@ worked out while compiling, so the check folds away with the branch it guards.
   class's attributes, the new code reads through a function instead (the moved attributes when there are some,
   the object otherwise), and the reload lays each live object's attributes out anew in a block of their own and
   points the object at it: the object stays where it was, so every reference to it (a local of a function
-  running now, a list, another object) still holds it. An `Items` that keeps a class's objects in its own memory
-  is in a list of its own, and moves every item in place of its old block. The functions that read a class's
+  running now, a list, another object) still holds it. An `Items` that keeps a class's objects (in its own memory
+  or as references) is in a list of its own, and moves every item in place of its old block; when the class starts
+  or stops fitting its own memory, every item moves between the two kinds of storage. The functions that read a class's
   attributes without being its own (its allocation, release and copy, the REPL's reflection, a union's dispatch,
   a template of the standard library made for it, `Items<Step>`) are called through slots too, so they move
   with it. A reload moves nothing until it has installed every slot, and releases nothing a removed attribute held
@@ -792,7 +803,8 @@ is a gap to close, not a rule. The steps, in the order a game meets them:
      (its attributes' block once they moved, else 0) and `spite_live` (its place in the class's list of live
      objects), reads every attribute through `<Class>___fields(object)`, and describes each class's layout --
      every attribute's name, type, offset, size and release, in a table the reload reads (`<Class>___layout`).
-     An `Items` or `Vector` holding a class's objects in its own memory is kept in a list of its own.
+     An `Items` or `Vector` holding a class's objects, in its own memory or as references, is kept in a list of
+     its own.
    - A class's layout is its attributes' names and types in order, and whether it fits an `Items`' own memory. A
      reload whose layout for a class differs from what the running program holds compiles the whole program. It
      compiles every function that reads that class's attributes or its size again and swaps it in; one it could
@@ -816,8 +828,19 @@ is a gap to close, not a rule. The steps, in the order a game meets them:
      Hero.attributes['level']: "rank"`).
      The moves are named in the answer and on the error output (`moved every Hero to its new attributes: health is
      new and holds its default`).
-   - Once a class has moved, its code reads through the function for as long as the program runs. A class that
-     starts or stops fitting an `Items`' own memory is refused.
+   - Once a class has moved, its code reads through the function for as long as the program runs.
+   - A class that stops fitting an `Items`' own memory (an attribute of a class or a list, a `drop()`, a function
+     that uses `this` as a value) moves each item out: it becomes an object of its own, made like any other with
+     the class's new defaults, takes the item's attributes as a moved object does, joins the class's live objects,
+     and the `Items` keeps a reference to it. A class that starts fitting moves each object an `Items` holds into
+     its own memory once every object of the class has moved, and the object, which the `Items` held alone, is
+     freed. When one of those objects is also held somewhere else (an attribute, another list, a local), the reload
+     is refused before any slot is installed, `the program keeps the code it runs: Step now fits an Items' own
+     memory, but an Items holds a Step that is held elsewhere too, ...`, since an item kept inline is never shared
+     and moving it would part it from the other holder; letting the other reference go and reloading again moves
+     it. The class's `Spite.Class` answers `fits_vector()` from the layout the program runs, so it follows the
+     move. The answer names the move (`its objects moved out of an Items' own memory into objects of their
+     own`, `its objects moved into an Items' own memory`).
 2. **Dependents are rebuilt**: every function of a `--hot-reload` build has a slot, the standard library's, a
    number's (a function a program adds to `Integer`) and the helpers the compiler writes included, so a change
    whose dependents cannot be swapped alone compiles the whole program and swaps in every function whose C

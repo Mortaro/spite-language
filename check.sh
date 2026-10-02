@@ -1171,21 +1171,37 @@ party_expect 'describe()' '{"ok":true,"value":"Ann at rank 7, walked 4","type":"
 sed -i 's/at rank {rank}"/ranked {rank}"/' "$party_folder/hero.spite"
 party_reload "rebuilt Hero"
 party_expect 'describe()' '{"ok":true,"value":"Ann ranked 7, walked 4","type":"String"}'
+# A whole reload's manifest is the running program's baseline, so the body edit after the moves compiled only its
+# class.
+wholes=$(grep -c "compiling the whole program" "$work/live_party/output.txt")
+[ "$wholes" == "3" ] || party_fail "the three attribute changes and the body edit compiled the whole program $wholes times, not 3"
+# A class that stops fitting an Items' own memory moves its items out into objects of their own, and one that
+# starts fitting moves them back in, unless one of them is held elsewhere too.
+sed -i 's/^var distance = 0.0$/var distance = 0.0\nvar notes = List<String>()/' "$party_folder/step.spite"
+party_reload "its objects moved out of an Items' own memory into objects of their own"
+party_expect 'describe()' '{"ok":true,"value":"Ann ranked 7, walked 4","type":"String"}'
+sed -i 's/^var steps = Items<Step>()$/var steps = Items<Step>()\nvar favourite: Step? = null/' "$party_folder/live_party.spite"
+party_reload "favourite is new and holds its default"
+party_expect 'run favourite = steps[0]' '{"ok":true,"value":"","type":"Nothing"}'
+sed -i '/^var notes = List<String>()$/d' "$party_folder/step.spite"
+held=$(party_ask wait_reload)
+case "$held" in *'"ok":false'*"Step now fits an Items' own memory, but an Items holds a Step that is held elsewhere too"*) ;; *) party_fail "a Step held elsewhere too was moved into an Items' own memory: $held" ;; esac
+party_expect 'favourite = null' '{"ok":true,"value":"null","type":"Step?"}'
+party_reload "its objects moved into an Items' own memory"
+party_expect 'run steps.remove_at(0)' '{"ok":true,"value":"","type":"Nothing"}'
+party_expect 'describe()' '{"ok":true,"value":"Ann ranked 7, walked 2.5","type":"String"}'
 party_expect 'exit' '{"ok":true,"value":"","type":""}'
 for attempt in $(seq 1 50); do kill -0 $party 2>/dev/null || break; sleep 0.2; done
 kill -0 $party 2>/dev/null && party_fail "the program kept running after exit"
 wait $party || party_fail "the program ended with exit code $?"
-# A whole reload's manifest is the running program's baseline, so the body edit after the moves compiled only its
-# class, and a fast reload against that baseline still matches a whole compile.
-wholes=$(grep -c "compiling the whole program" "$work/live_party/output.txt")
-[ "$wholes" == "3" ] || party_fail "the three attribute changes and the body edit compiled the whole program $wholes times, not 3"
+# A fast reload against the last whole reload's baseline still matches a whole compile.
 sed -i 's/ranked {rank}"/ranked {rank} again"/' "$party_folder/hero.spite"
 answer=$(SPITE_RELOAD_CHECK="$party_folder/hero.spite" "$work/generation_two.exe" reload "$party_folder" --hot-reload --repl-port=$party_port --executable-path="$work/live_party/live_party.exe" 2>&1 | tr -d '\r')
 case "$answer" in
   "reload check: the fast reload matches a whole compile"*) ;;
   *) echo "FAILED moving objects: a fast reload against the baseline answered: $answer" | head -c 600; echo; exit 1 ;;
 esac
-echo "moving objects: a reload moved live objects and an Items' own memory to new attributes, keeping, renaming and releasing them, and a body edit after compiled only its class, matching a whole compile"
+echo "moving objects: a reload moved live objects and an Items' own memory to new attributes, keeping, renaming and releasing them, and out of and into an Items' own memory, and a body edit after compiled only its class, matching a whole compile"
 }
 
 # An enum's values change live (docs/repl.md#what-a-reload-can-change): a copy of conformance/stage6/live_enum runs

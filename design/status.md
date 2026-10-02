@@ -772,11 +772,11 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - The old page said typing new Spite code at the prompt is not built; it has since been built as `eval` and `run` (needs `--hot-reload` and `--repl-port`).
 
 ### What a reload can change
-- Changes to whether a class fits an `Items`' own memory are refused (naming the class). Decided direction: nothing may need a restart, so moving these is to be built.
+- Moving a class's objects into or out of an `Items`' own memory when it starts or stops fitting is built (proposed by Claude, unconfirmed: the refusal when an object to move inline is held elsewhere too, and freeing the object the `Items` held alone). A borrowed pointer to an item a running function holds across the reload is not followed, as for any move of an `Items`' own memory.
 - The rows for library code, `environment.spite`, `build.spite` and a deleted file are built (D333); how settings are read again after a reload was proposed by Claude, unconfirmed.
 
 ### Nothing needs a restart
-- Decided (Mortaro, D280): nothing needs a restart; every refusal is a gap to close. Built: step 1 (attributes move), step 2 (dependents rebuilt through a whole-program compile, every function slotted, D333), step 3 (enums keep their numbers), step 4 (`environment.spite`, `build.spite`, D333), and a change to a value class's functions. Not built: moving objects of a class that starts or stops fitting an `Items`' own memory.
+- Decided (Mortaro, D280): nothing needs a restart; every refusal is a gap to close. Built: step 1 (attributes move), step 2 (dependents rebuilt through a whole-program compile, every function slotted, D333), step 3 (enums keep their numbers), step 4 (`environment.spite`, `build.spite`, D333), and a change to a value class's functions. Moving objects of a class that starts or stops fitting an `Items`' own memory is built too.
 - The rename map (D329) is built as D333 describes; the prompt reads `reload {Class.attributes['old']: "new"}` as a map literal, entry by entry with its escapes, and hands the compiler the names as text (proposed by Claude, unconfirmed); a map value keyed by attribute objects waits on J2 (a `Dictionary` keyed by `Spite.Attribute`).
 - The rules of step 1 were proposed by Claude and are unconfirmed by Mortaro; the enum rule (D302) was decided by Claude under D205, not by Mortaro.
 
