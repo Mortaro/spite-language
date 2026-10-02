@@ -599,11 +599,12 @@ A short guide by task. Find what you are writing; the entries below say the rest
   read of a program class's attributes, and every use of its size, is written through `<Class>___fields(object)` or
   `sizeof(<Class>)`, so a whole compile finds each function whose C depends on a changed layout by those names, and
   compiles and installs it; one the running program cannot re-point refuses the reload. Every object of a program
-  class, and every `Items` or `Vector` keeping them in its own memory, is in a list its allocation and release keep,
-  so the move reaches objects that only a running function's local holds.
+  class, and every `Items` or `Vector` keeping them (in its own memory or as references), is in a list its
+  allocation and release keep, so the move reaches objects that only a running function's local holds, and moves
+  an `Items`' items between its own memory and objects of their own when the class starts or stops fitting it.
 - **Buys.** A class's attributes change while the program runs, with no restart and no lost state.
-- **Falls back.** Refused by name, the program keeping all its code: a function it cannot re-point, a class that
-  starts or stops fitting an `Items`' own memory, an enum whose values change.
+- **Falls back.** Refused by name, the program keeping all its code: a function it cannot re-point, and a class
+  that starts fitting an `Items`' own memory while an object an `Items` holds is held elsewhere too.
 - **See.** [repl.md: Changing a class's
   attributes](repl.md#changing-a-classs-attributes), [optimizations.md: What a `--hot-reload` build carries so its
   objects can move](optimizations.md#what-a---hot-reload-build-carries-so-its-objects-can-move).

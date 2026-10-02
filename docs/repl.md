@@ -148,12 +148,16 @@ The commands are the ones `--repl` answers:
 - **calls**: `program.monsters.count()`, `program.monsters[0].roar()`, with literal arguments. A call that answers
   an object is walked on like any path: `World().position_of(1).across`.
 - **singletons**, by their class's name: `World()`, `Tick().step_milliseconds`, `Ui.Panel().title`,
-  `Column<Position>().values[0]`. The name binds the instance the program already has and never makes one.
+  `Column<Position>().values[0]`, and one made with arguments by its arguments: `Channel(1).number`. The name binds
+  the instance the program already has and never makes one.
+- **a dictionary's** `count()`, `keys()` and `has(key)`: `scores.has("ann")`.
 - **assignment** of a number, `Boolean`, text or enum literal: `program.player_name = "Aria"`, through
-  `set_<attribute>` when the class declares one, answering the value read back afterwards. The target may be a
-  list or dictionary element (`names[1] = "cat"`, `scores["ann"] = 9`), a `T?` takes `null`, and an attribute or
-  element of a class takes another path's instance of that class (`follower = leader`), which then holds the same
-  object.
+  `set_<attribute>` when the class declares one, answering the value read back afterwards. A text literal is
+  written as in a program, escapes included (`"a \"quoted\" word"`). The target may be a list or dictionary element
+  (`names[1] = "cat"`, `scores["ann"] = 9`), a `T?` takes `null`, and an attribute or element of a class takes
+  another path's instance of that class (`follower = leader`), which then holds the same object, or one made at the
+  prompt (`follower = Circle(3)`) in a program built with `--hot-reload` and `--repl-port`
+  ([Code typed at the prompt](#code-typed-at-the-prompt)).
 - `describe Circle` (a class's attributes and functions, with their types and signatures), `enums` (each
   of the program's enums with its values) and `memory` (the live allocations and the bytes they hold).
 - `attributes`, `functions` (of the program, or of any path: `functions World()`), `classes` (the singletons the
@@ -300,6 +304,67 @@ $ spite connect 4000 --command="exit"
 {"ok":true,"value":"","type":""}
 ```
 
+A singleton made with arguments has one instance for each argument list
+([classes_and_files.md](classes_and_files.md#one-instance-per-argument-values)), and the prompt names each by its
+arguments, as the program does: `Channel(1)` is the instance the program's `Channel(1)` made, and an argument list
+the program never asks for has no instance to read. A dictionary answers `keys()` and `has(key)` beside `count()`,
+and a text literal at the prompt is written as in a program, with its escapes:
+
+```gdscript title=repl_radio/channel.spite
+singleton
+
+var number = 0
+var messages = List<String>()
+
+func Channel(channel_number: Integer) {
+    number = channel_number
+}
+```
+```gdscript title=repl_radio/repl_radio.spite entry
+var console = Console()
+var news = Channel(1)
+var music = Channel(2)
+var volumes = Dictionary<Integer>()
+var station = "city"
+
+func ReplRadio() {
+    news.messages.append("storm tonight")
+    volumes["news"] = 7
+    volumes["music"] = 4
+    var tuned = volumes.count()
+    console.print(station, "tuned", tuned, "and", music.number)
+}
+```
+```output
+city tuned 2 and 2
+```
+
+```wire repl_radio
+$ spite connect 4000 --command="classes"
+{"ok":true,"value":"Build()\nChannel(1)\nChannel(2)\nReplRadio","type":""}
+
+$ spite connect 4000 --command="Channel(1).messages.count()"
+{"ok":true,"value":"1","type":"Integer"}
+
+$ spite connect 4000 --command="Channel(3)"
+{"ok":false,"error":"the program holds no Channel(3): a singleton made with arguments has one instance for each argument list the program asks for, Channel(1), Channel(2)"}
+
+$ spite connect 4000 --command="volumes.keys()"
+{"ok":true,"value":"news\nmusic","type":"List<String>"}
+
+$ spite connect 4000 --command="volumes.has(\"talk\")"
+{"ok":true,"value":"false","type":"Boolean"}
+
+$ spite connect 4000 --command="station = \"the \\\"late\\\" show\""
+{"ok":true,"value":"the \"late\" show","type":"String"}
+
+$ spite connect 4000 --command="station = \"the {hour} show\""
+{"ok":false,"error":"\"the {hour} show\" has a hole, and the prompt reads a text literal as it is written: \\{ writes a brace, and 'eval' makes text from values"}
+
+$ spite connect 4000 --command="exit"
+{"ok":true,"value":"","type":""}
+```
+
 ## Native memory: `bytes`
 
 `bytes <path>` answers where a value lives and what its bytes are, as one JSON object an agent can diff between two
@@ -377,6 +442,17 @@ swapped in by a reload and called once, so it reads and changes what the entry c
 (`Lookup().of(12)` makes a `Lookup` the program never held), and calls any function, a generic class's included.
 A value that does not become text, and code that does not compile, answer the compiler's error, and the program
 keeps its code. The function stays until the next reload, which compiles the entry file again without it.
+
+An assignment whose right side makes an object is compiled the same way, so an attribute can be given an object
+the program never made:
+
+```text
+$ spite connect 4000 --command="follower = Circle(3)"
+{"ok":true,"value":"Circle { radius: 3 }","type":"Circle?"}
+```
+
+The construction becomes `prompt_made_<n>(): Circle`, which the REPL calls once and whose object it assigns as
+it assigns another path's.
 
 ## Live reload: `--hot-reload`
 
@@ -584,8 +660,18 @@ class lacks, of another type than the new one, or one that the reload does not r
 What it costs: a change to a class's attributes compiles the whole program, since every class that reads them is
 compiled again: about 40 seconds for a large game's server, against a few for a change to function bodies alone.
 The saves after it are fast again: a reload that compiled the whole program becomes what the next one is compared
-with ([How it works](#how-it-works)). A class that starts or stops fitting in an `Items`' own memory is refused,
-naming the class.
+with ([How it works](#how-it-works)).
+
+**A class that starts or stops fitting an `Items`' own memory moves too.** Give `Step` an attribute an item kept
+inline cannot hold, `var notes = List<String>()`, and save: each `Step` the `Items` kept in its own memory becomes an
+object of its own, and the `Items` keeps references to them, as it does for any class that does not fit. Remove it
+again and the objects move back into the `Items`' own memory, unless one of them is also held somewhere else, since
+an item kept inline is never shared; the reload is then refused, naming the class, and swaps in nothing:
+
+```text
+$ spite connect 4000 --command="wait_reload"
+{"ok":true,"value":"rebuilt Step, ...\nmoved every Step to its new attributes: notes is new and holds its default; its objects moved out of an Items' own memory into objects of their own","type":""}
+```
 
 ### Knowing what a reload rebuilt
 
@@ -674,8 +760,9 @@ worked out while compiling, so the check folds away with the branch it guards.
   class's attributes, the new code reads through a function instead (the moved attributes when there are some,
   the object otherwise), and the reload lays each live object's attributes out anew in a block of their own and
   points the object at it: the object stays where it was, so every reference to it (a local of a function
-  running now, a list, another object) still holds it. An `Items` that keeps a class's objects in its own memory
-  is in a list of its own, and moves every item in place of its old block. The functions that read a class's
+  running now, a list, another object) still holds it. An `Items` that keeps a class's objects (in its own memory
+  or as references) is in a list of its own, and moves every item in place of its old block; when the class starts
+  or stops fitting its own memory, every item moves between the two kinds of storage. The functions that read a class's
   attributes without being its own (its allocation, release and copy, the REPL's reflection, a union's dispatch,
   a template of the standard library made for it, `Items<Step>`) are called through slots too, so they move
   with it. A reload moves nothing until it has installed every slot, and releases nothing a removed attribute held
@@ -716,7 +803,8 @@ is a gap to close, not a rule. The steps, in the order a game meets them:
      (its attributes' block once they moved, else 0) and `spite_live` (its place in the class's list of live
      objects), reads every attribute through `<Class>___fields(object)`, and describes each class's layout --
      every attribute's name, type, offset, size and release, in a table the reload reads (`<Class>___layout`).
-     An `Items` or `Vector` holding a class's objects in its own memory is kept in a list of its own.
+     An `Items` or `Vector` holding a class's objects, in its own memory or as references, is kept in a list of
+     its own.
    - A class's layout is its attributes' names and types in order, and whether it fits an `Items`' own memory. A
      reload whose layout for a class differs from what the running program holds compiles the whole program. It
      compiles every function that reads that class's attributes or its size again and swaps it in; one it could
@@ -732,11 +820,27 @@ is a gap to close, not a rule. The steps, in the order a game meets them:
      new and the reload was given no map, the reload is held: nothing is swapped in, and the answer names both and
      the map that would keep the values. `reload` with a map (`{}` included) compiles again with it; the map
      applies to that compile only, and one naming an attribute the running class lacks, of another type, or one
-     the reload does not rename is refused.
+     the reload does not rename is refused. The map is a map literal as a program writes one: entries apart with
+     commas (a last comma allowed), each a key, a colon and a value, at any spacing; a key is
+     `<Class>.attributes[<name>]`, the name a symbol (`'level'`) or a text, and a value is a text literal, escapes
+     included, holding an attribute's name. Anything else is refused before anything is compiled, naming the entry
+     and the form (`'Hero.attributes['level'] "rank"' is not an entry of the map: a key, a colon and a value, as
+     Hero.attributes['level']: "rank"`).
      The moves are named in the answer and on the error output (`moved every Hero to its new attributes: health is
      new and holds its default`).
-   - Once a class has moved, its code reads through the function for as long as the program runs. A class that
-     starts or stops fitting an `Items`' own memory is refused.
+   - Once a class has moved, its code reads through the function for as long as the program runs.
+   - A class that stops fitting an `Items`' own memory (an attribute of a class or a list, a `drop()`, a function
+     that uses `this` as a value) moves each item out: it becomes an object of its own, made like any other with
+     the class's new defaults, takes the item's attributes as a moved object does, joins the class's live objects,
+     and the `Items` keeps a reference to it. A class that starts fitting moves each object an `Items` holds into
+     its own memory once every object of the class has moved, and the object, which the `Items` held alone, is
+     freed. When one of those objects is also held somewhere else (an attribute, another list, a local), the reload
+     is refused before any slot is installed, `the program keeps the code it runs: Step now fits an Items' own
+     memory, but an Items holds a Step that is held elsewhere too, ...`, since an item kept inline is never shared
+     and moving it would part it from the other holder; letting the other reference go and reloading again moves
+     it. The class's `Spite.Class` answers `fits_vector()` from the layout the program runs, so it follows the
+     move. The answer names the move (`its objects moved out of an Items' own memory into objects of their
+     own`, `its objects moved into an Items' own memory`).
 2. **Dependents are rebuilt**: every function of a `--hot-reload` build has a slot, the standard library's, a
    number's (a function a program adds to `Integer`) and the helpers the compiler writes included, so a change
    whose dependents cannot be swapped alone compiles the whole program and swaps in every function whose C
@@ -807,7 +911,8 @@ the entry class's own Spite name):
   name the same value. Walking through a non-null `T?` is transparent; a dictionary's entries are walked by key.
 - **calls**: `program.monsters.count()`, `program.monsters[0].roar()`, `program.player.set_age(3)` (any
   callable function, including an instantiated Symbol-codegen one); `List<T>`'s and `Dictionary<T>`'s `count()`,
-  which must end the expression. A call that answers a value is walked on like any path,
+  and `Dictionary<T>`'s `keys()` (the keys, one a line, or `scores holds no keys`) and `has(key)`, each of which
+  must end the expression. A call that answers a value is walked on like any path,
   `World().position_of(1).across`, and it runs once; a call that answers `Nothing` ends the expression, and a
   path after one is refused after it ran: `World().spawn() ran, and it answers nothing, so nothing can follow it`.
 - **singletons by name**. A call whose name starts with a capital letter, alone or after a namespace (`World()`,
@@ -816,9 +921,14 @@ the entry class's own Spite name):
   (`Tick().step_milliseconds = 50`). It never makes an instance: a singleton the program has not asked for yet is
   refused, `Tick has not been made yet: nothing in the program has asked for it, and the prompt never makes one`, and
   so is a class that is not a singleton (`'Position' is a class, not a singleton: the prompt never makes an object,
-  it reads the ones the program holds, and 'classes' lists the singletons`), an argument (`'World' is a singleton, so
-  it takes no arguments: ...`) and a name no singleton has (`no singleton 'Wrld' in the program: 'classes' lists
-  them`). The whole name is the class's qualified name with its generic arguments; the name without its namespace is
+  it reads the ones the program holds, and 'classes' lists the singletons`) and a name no singleton has (`no
+  singleton 'Wrld' in the program: 'classes' lists them`). A singleton made with arguments is named with them,
+  literals as the program writes them, apart with commas: `Channel(1)` binds the instance the program's
+  `Channel(1)` made, and an argument list the program never asks for has none (`the program holds no Channel(3): a
+  singleton made with arguments has one instance for each argument list the program asks for, Channel(1),
+  Channel(2)`), nor does the name without arguments; arguments given to one made without them are refused (`'World'
+  is a singleton made without arguments, so it takes none: World()`). `classes` lists each such instance by its
+  arguments (`Channel(1)`). The whole name is the class's qualified name with its generic arguments; the name without its namespace is
   accepted when one singleton has it, and a name two singletons share is refused naming both. A generic class that is
   not a singleton, such as `Lookup<Position>()`, is refused like any class.
 - **How the loop finds them.** In a REPL build the compiler writes two functions of `ReadEvaluatePrintLoop`:
@@ -878,7 +988,11 @@ the entry class's own Spite name):
 - **assignment** of a number, `Boolean`, text or enum literal: `program.player.age = 5`,
   `program.monsters[1].name = "rat"`, `program.player.job = 'knight'`, through `set_<attribute>` when the class
   declares one, the same rule ordinary compiled Spite code follows. It answers the value read back afterwards,
-  so a `set_<attribute>` that refused it shows the old one. A text literal has no escapes.
+  so a `set_<attribute>` that refused it shows the old one. A text literal, as an assigned value, a call's argument
+  or a dictionary's key, is read as a program reads one, with the same escapes (`\n`, `\t`, `\r`, `\\`, `\"`, `\{`,
+  and any other character after a backslash is that character); a hole is refused, since the prompt reads literals
+  (`"the {hour} show" has a hole, and the prompt reads a text literal as it is written: \{ writes a brace, and
+  'eval' makes text from values`).
 - `attributes` (the entry instance's attributes, `name: Class = value` a line), `functions` (its functions,
   `name(argument: Class, ...): Returns` a line), both also of any path (`functions World()`, `attributes
   Tick()`); an empty list is never an empty answer: `program is a ReplWorld, which has no function the
@@ -923,7 +1037,13 @@ the entry class's own Spite name):
   never null: only a T? holds null`); a literal goes into a list or dictionary element through the element's own
   slot; and a right side that is not a literal is a path, whose instance an attribute or element of a class (or of
   its `T?`) then holds, through `set_<attribute>` when the class declares one, and only when the classes match:
-  `follower is a Circle?, and spare is a Square: the loop assigns an instance of the attribute's own class`. The
+  `follower is a Circle?, and spare is a Square: the loop assigns an instance of the attribute's own class`. A right
+  side that is one construction of a class `classes` lists that is not a singleton (`follower = Circle(3)`,
+  `Ui.Panel(2)`, `Lookup<Position>()`) makes its object: in a program built with `--hot-reload` and `--repl-port`
+  it is compiled as `eval`'s code is, into `prompt_made_<n>(): <Class>` of the entry class, which the REPL calls
+  once and assigns as a path's instance; code that does not compile answers the compiler's error; elsewhere it is
+  refused (`'follower = Circle(3)' makes an object, which answers in a program built with --hot-reload and
+  --repl-port: ...`). The
   compiler-supplied members are `Spite.Attribute`'s `assign_null()` and `assign_attribute(source)`, beside
   `assign(text)`; each answers whether it could.
 

@@ -907,6 +907,9 @@ func bind_function(redirected: List<String>, migrates: Boolean): String {
         )
         index = index + 1
     }
+    if migrates {
+        lines.append("\{ const char* refused = spite_migrate_all(1); if (refused != 0) return refused; }")
+    }
     index = 0
     while index < installed.count() {
         var checked = installed[index]
@@ -920,7 +923,7 @@ func bind_function(redirected: List<String>, migrates: Boolean): String {
         index = index + 1
     }
     if migrates {
-        lines.append("return spite_migrate_all();")
+        lines.append("return spite_migrate_all(0);")
     } else {
         lines.append("return 0;")
     }

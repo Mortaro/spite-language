@@ -806,8 +806,8 @@ each class's `functions` list is written once more at the end of compiling when 
 attributes](repl.md#changing-a-classs-attributes), paid only in a `--hot-reload` build. Each object
 of a program class carries two hidden words after its header, and each allocation and release of one adds it to
 or takes it from its class's list of live objects (a lock when the program has threads). An `Items` or `Vector`
-that keeps a program class's objects in its own memory is listed the same way, and its items carry the two words
-too. Every function that reads a program class's attributes without being its own (its allocation, release,
+that keeps a program class's objects is listed the same way, whether it keeps them in its own memory or as
+references, and items kept in its own memory carry the two words too. Every function that reads a program class's attributes without being its own (its allocation, release,
 copy and deep copy, the REPL's reflection and assignment, a union's dispatch, the functions of a standard-library
 template made for it such as `List<Monster>` or `Items<Step>`) is called through a slot, one indirect call, like the
 class's own functions. A slot is read with an acquiring atomic load, so a C compiler optimising at any level

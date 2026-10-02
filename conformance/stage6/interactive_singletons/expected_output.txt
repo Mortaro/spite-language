@@ -32,7 +32,7 @@ step_milliseconds: Integer = 50
 spite> to_debug(): String
 spite> 'Position' is a class, not a singleton: the prompt never makes an object, it reads the ones the program holds, and 'classes' lists the singletons
 spite> no singleton 'Wrld' in the program: 'classes' lists them
-spite> 'World' is a singleton, so it takes no arguments: there is one instance, and the prompt reads it
+spite> 'World' is a singleton made without arguments, so it takes none: World()
 spite> no function 'nope' in World: 'functions' lists them
 spite> World().spawn() ran, and it answers nothing, so nothing can follow it
 spite> 'drop' runs when World is released, and the prompt never runs it
