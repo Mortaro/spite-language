@@ -134,10 +134,6 @@ for a design):
 
 Also open, each a bug under D244, found cataloguing the compiler's proofs (proofs.md):
 
-- **A write question answers a silent `false`.** `function_writes_parameter` counts a function whose body the compiler
-  supplies as writing only when its name is on a fixed list or starts with `write_`; any other supplied function
-  answers "does not write", where the rule is `true` for whatever it cannot decide (metaprogramming.md, "Asking whether
-  a function writes a parameter").
 - **The guard lint sees only literal defaults** (D106). An `if` whose only statement returns `null`, `false`, `0`,
   `0.0`, `""` or nothing is caught; `if ... { return List<T>() }` in a function answering a `List` is not. And a
   function that lends a list element (D269) is not checked for a guard `assert` at all.

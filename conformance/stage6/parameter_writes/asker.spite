@@ -32,6 +32,8 @@ func report() {
     var queues = $system_type.function_writes_parameter("queues", 0)
     var queues_directly = $system_type.function_writes_parameter("queues_directly", 0)
     console.print("writes a singleton it holds:", queues, "directly:", queues_directly)
+    var clears = $system_type.function_writes_parameter("clears", 0)
+    console.print("a supplied function off the known lists:", clears)
     if $system_type.function_writes_parameter("reads", 1) {
         console.print("never compiled")
     } else {

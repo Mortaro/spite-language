@@ -527,7 +527,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   argument's `.index` and what a callee returns.
 - **Buys.** An engine refuses a system whose writes a snapshot would lose, with `crash not ...`.
 - **Falls back.** Where it cannot decide (a function value, dispatch through a union or `type`, a template, an
-  unknown class), the answer is `true`.
+  unknown class, a function whose body the compiler supplies and does not know to only read), the answer is
+  `true`.
 - **See.** [metaprogramming.md: Asking whether a function writes a
   parameter](metaprogramming.md#asking-a-question-while-compiling); `conformance/stage6/parameter_writes`,
   `diagnostics/snapshot_argument_writes`.

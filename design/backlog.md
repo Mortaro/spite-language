@@ -332,8 +332,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Bugs under D244 (failure.md's open list; each small and independent unless noted)
 
-- **B1** A write question answers a silent `false` for supplied functions off the fixed list
-  (`parameter_writes.spite`, `parameter_write_study.spite`). **S.**
 - **B3** The guard lint sees only literal defaults; a lent-element function is not checked. **S.**
 - **B4** A frame buffer's uses are matched by name, not by `TypedMemory` receiver (`placement.spite`). **S.**
 - **B6** A `while true` that can never leave is not reported (with L7). **M.**

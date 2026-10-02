@@ -896,7 +896,8 @@ A walk is a call on a list of reflection objects, under [reflection.md's rules f
 - **`.is_mutated` follows every call**: an attribute set on what the argument was given, an item written or a list
   grown, a function called on it that changes its own object, or the argument handed to another function that does
   any of these, however deep, recursion included. Reading does not count, and neither does giving the argument's
-  name a new object. **`.is_stateful`** is the same study asked of the object: some function besides the constructor
+  name a new object. A function whose body the compiler supplies counts as changing what it is handed unless it is
+  known only to read, since an answer the study cannot prove is `true`. **`.is_stateful`** is the same study asked of the object: some function besides the constructor
   and `drop()` writes the class's own attributes or anything reached through them, or a singleton, or a singleton the
   class binds has state.
 - **An empty walk is loud when it must not be**: `crash Runner.functions.filter_name_ends_with("_each").count() > 0`
