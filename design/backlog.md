@@ -313,11 +313,16 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   prompt's `reload` race over `.reload_baseline`/`.reload_files`; also the move of objects while the program's own
   threads run (failure.md). **M.** Depends on landing `cloud/linux`.
 
-### Failure reports (D25, D33, D20)
+### Failure reports (D25, D33, D20, D379)
 
 - **X1 The rest of the crash report** (status "Three outcomes"). The call chain, each failed `assert`'s default, an
   assert's values in the ring, the column in `.crashes` (written `0`). Files: generator.spite crash and assert
   emission, `crash_part.spite`, `native_faults.spite`. **M.** No dependencies.
+- **X2 A corrupted heap reported the same on every system** (D379). Linux and macOS take `SIGABRT`: the C
+  library's heap aborts become `heap-corruption` with the Windows `spite.fault` line and frames, any other
+  `abort()` becomes `abort`; one expected output for `native_fault_heap` on every system. Then, per D361, Spite's
+  own allocator detects corruption itself. Files: `native_faults.spite`, the Linux and macOS fault handlers,
+  `conformance` for `native_fault_heap`. **S** (the signal), **L** (the Spite allocator). Lands after cloud/linux.
 
 ### Bugs under D244 (failure.md's open list; each small and independent unless noted)
 

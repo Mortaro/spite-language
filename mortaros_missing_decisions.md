@@ -11,16 +11,10 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
-250. **A heap the C library finds corrupted on Linux and macOS** ends in `SIGABRT` with glibc's own line (`free():
-     invalid pointer`), and no `spite.fault` line or Spite frames; Windows reports `heap-corruption` with frames
-     ([failure.md](docs/failure.md#what-a-native-fault-reports)). Options: (a) the fault handler also takes
-     `SIGABRT`, reported as `abort` (any `abort()`, not only the heap's); (b) as `heap-corruption` when the C
-     library's message says so; (c) leave it to the C library. Recommend (a): the frames are the useful part.
-     Blocks nothing; `native_fault_heap` pins today's Linux output.
 251. **How `call_with` spreads a walk, now that `map(function)` is gone** (D317 item 98, nomap's row). Options: (a)
      `function.call_with_each(made)`, calling the named function `made(argument: Spite.Argument): argument.class`
      once per argument and passing the results, specialised while compiling with no list between; (b) collect into
