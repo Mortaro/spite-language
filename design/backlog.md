@@ -99,7 +99,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   number, boolean and null (names proposed by Claude, unconfirmed), read by `JsonReader` and walked with `switch`.
   Files: `library/json_reader.spite`, a new value class, docs json.md. **M.** No dependencies.
 
-### Types, monomorphisation and storage (D321, D331, D332, D355, D367, D368, D370, D398)
+### Types, monomorphisation and storage (D321, D331, D332, D355, D367, D368, D370, D398, D399)
 
 - **M1 D321 leftovers** (status "Inline types and duck typing"). (a) text and `Symbol` stored as a `type` are
   tagged, not boxed; (b) the closed set at a run-time spot is the classes that reach that spot, not every class
@@ -148,6 +148,13 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   M9, with M3.
 - **M11 Aliasing hints from ownership** (D398, D354, D380). Emit `restrict` where ownership proves two pointers
   never alias. Files: generator.spite parameter emission. **M.** After E3.
+- **M12 Docs stop teaching the layout internals** (D399). `TypedMemory<T>`, `InlineMemory`, `Raw` and
+  `Memory.Bytes` leave the user pages (memory.md, collections.md, optimizations.md, foreign_libraries.md,
+  classes_and_files.md, compiler.md, concurrency.md, packages.md, proofs.md, README.md); exact foreign layouts are
+  taught through bindings and binary readers. **M.** After M3, M9 and M10 land.
+- **M13 Enforce the ban on layout internals outside `library/`** (D399). A compile error naming the higher-level
+  alternative. **S.** Last: only after M3, M9 and M10 make plain classes and lists as fast as hand-chosen layouts
+  and downstream packages have migrated with benchmarks showing no slowdown.
 
 ### Arithmetic (D359, D360, D357, D369 item 249)
 
