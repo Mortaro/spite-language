@@ -18,9 +18,8 @@ spite program                           build .spite/build/program/program.exe a
 spite program --optimized               optimized build (a Build field)
 spite program --debug-memory            print the allocation balance at the end
 spite program --repl-port=4000          serve the REPL; spite connect 4000 --command="..." asks it
-spite program --c-source --run=false    write .spite/build/program/program.c instead (--c-path= puts it elsewhere)
-spite program --run=false               only compile: the errors, if any (writes no executable)
-spite program --executable --run=false  build .spite/build/program/program.exe without running it
+spite program --check                   only compile: the errors, if any (writes nothing, keeps an old executable)
+spite program --build                   build .spite/build/program/program.exe without running it
 spite program --player-name=ada         a setting the program's Environment declares (kebab-case, no '--')
 spite format game                       format files without compiling them (every compile formats first anyway)
 bash check.sh                           the compiler still compiles itself, and every corpus passes
@@ -490,7 +489,7 @@ func is_alive(): Boolean {
   `environment.player_name`; there is no `--` separator), else the `SERVE` environment variable, else the
   default. A setting named like a `Build` field is a compile error naming both.
 - Build settings: reopen `Build` in `build.spite` the same way. A `Build` field is decided when compiling (`spite game --serve=true`, else its default) and is a constant in the program, so `if build.serve { }`
-  keeps only one branch. The compiler's own options (`optimized`, `debug_memory`, `run`, `c_source`, ...) and
+  keeps only one branch. The compiler's own options (`optimized`, `debug_memory`, `check`, `build`, ...) and
   `build.target_operating_system` are `Build` fields too. A flag is kebab-case (`--debug-memory`) and sets the
   snake_case field; an unknown flag is an error. There is no `format` option: every compile formats.
 - Reflection: `value.class` (a `Spite.Class`: `.name`, `.namespace` (a `Spite.Namespace?`; narrow it before

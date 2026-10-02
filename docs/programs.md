@@ -195,8 +195,8 @@ func UnknownFlagError() {
 
 - A program's own `build.spite` may give a compiler option a different default: `var optimized = true` builds it
   optimized unless `--optimized=false` is given. The compiler reads the whole program before it decides
-  anything, so what it produces is a default like the rest: `var c_source = true` writes the program's C
-  on every build, `var run = false` only builds it ([compiler.md](compiler.md#choose-the-outputs)).
+  anything, so what it produces is a default like the rest: `var build = true` only builds it, and
+  `var final_classes = "..."` writes its final classes on every build ([compiler.md](compiler.md#choose-the-outputs)).
   Formatting is not an option: every compile formats first, and `format` is not a field a program may declare.
   `target_operating_system` is the one field only a flag sets ([below](#build-settings-build)).
 - A loaded package may declare `Build` fields too, and the program decides: a field the program's own
@@ -462,8 +462,8 @@ with a literal default, and a program adds its own the same way it adds `Environ
 - **Flags are kebab-case**: `--repl-port=4000` sets the field `repl_port`, and a flag written with `_` is
   an error before anything is read: `'--repl_port' is written '--repl-port': a flag is kebab-case, and it sets
   the Build field 'repl_port'` (`diagnostics/underscore_flag`).
-- **The compiler's options are fields**: the outputs `run`, `executable`, `c_source` and
-  `final_classes`, the paths `executable_path` and `c_path`, and `optimized`, `development`, `repl`, `repl_port`,
+- **The compiler's options are fields**: `check`, `build` and
+  `final_classes`, the path `executable_path`, and `optimized`, `development`, `repl`, `repl_port`,
   `hot_reload` and `debug_memory` ([Command line](compiler.md#command-line)). The compiler reads them from the
   program's resolved `Build`, after the whole program is read, so a program whose `build.spite` says
   `var optimized = true` is built optimized unless `--optimized=false` is given.

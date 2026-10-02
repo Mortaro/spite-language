@@ -78,7 +78,7 @@ emit nothing.
 | [A proven read tests only its bounds](#a-proven-read-tests-only-its-bounds) | every | nothing but speed; a read outside its list halts |
 | [A walked `crash` line's read is the row's read](#a-walked-crash-lines-read-is-the-rows-read) | every | nothing but speed |
 | [Objects that never leave their function live in the frame](#objects-that-never-leave-their-function-live-in-the-frame) | every but the inspectable ones | fewer allocations; `.memory.section` answers `'stack'` |
-| [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | `--optimized` (any build given `--translation-units`), but not `--hot-reload` | nothing but build time; `.spite/objects` grows |
+| [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | every but `--hot-reload` | nothing but build time; `.spite/objects` grows |
 | [A release build is `-O3` with link-time optimisation](#a-release-build-is--o3-with-link-time-optimisation) | `--optimized` | nothing but speed, and a slower link |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | every but `--hot-reload`, decided per program | no lock where one is not needed |
 | [Copies that cost nothing](#copies-that-cost-nothing) | every | fewer allocations |
@@ -99,7 +99,7 @@ their C. The compiler does this itself rather than leaving dead code for the C c
 whichever C compiler you bring, and a C compiler cannot find most of it anyway, since a function it is not told
 is private has to stay in the executable.
 
-Measured with `--c-source`, before and after classes were shaken too (the executable is `clang -O2` on Windows):
+Measured on the generated C, before and after classes were shaken too (the executable is `clang -O2` on Windows):
 
 | Program | C lines | C bytes | `struct`s | Executable |
 |---|---|---|---|---|
@@ -114,8 +114,11 @@ Measured with `--c-source`, before and after classes were shaken too (the execut
 **When.** Production builds only. An inspectable build (`--repl`, `--repl-port`, `--hot-reload` or
 `--development`) keeps everything, so live reload has every function to swap and the REPL can reach every
 internal ([compiler.md](compiler.md#development-builds-and-tree-shaking)).
+It stays in the default build because it makes the whole build faster, not only the program: the C compiler
+reads far less. The compiler built at `-O0` took 16.0 s shaken against 19.7 s unshaken, `examples/battle` 3.0 s
+against 5.5 (Windows, clang 19.1.5, a busy machine).
 
-**What you notice.** Nothing, except that `--c-source` writes less. A function nobody calls, outside a generic
+**What you notice.** Nothing, except a smaller executable. A function nobody calls, outside a generic
 class, is still compiled and checked, so a mistake in it is still reported; it just is not in the binary.
 
 The same pass decides which native symbols are looked up. A `DynamicLibrary` looks up every symbol the program
@@ -607,7 +610,7 @@ library's other containers, which store what they are given. Where the function 
 value typed `Number` is a `switch` over the classes of both sides
 ([values_and_types.md](values_and_types.md#every-number-fits-number)).
 
-**What you notice.** More functions in `--c-source`, named `<function>___for_<position>_<class>`, one per class that
+**What you notice.** More functions in the generated C, named `<function>___for_<position>_<class>`, one per class that
 reaches it; a class that never does gets none.
 
 ### Boxing only where a value travels as a shape
@@ -789,7 +792,7 @@ that keeps a program class's objects in its own memory is listed the same way, a
 too. Every function that reads a program class's attributes without being its own (its allocation, release,
 copy and deep copy, the REPL's reflection and assignment, a union's dispatch, the functions of a standard-library
 template made for it such as `List<Monster>` or `Items<Step>`) is called through a slot, one indirect call, like the
-class's own functions. A slot is read with an acquiring atomic load, so the `-O3` the build is compiled at
+class's own functions. A slot is read with an acquiring atomic load, so a C compiler optimising at any level
 can neither fold a call through it to the function the build started with nor hoist the read out of a loop. Each
 class has a table of its layout. Until a reload changes a class's attributes, reading
 one is a plain load (`<Class>___fields(object)` is the object); after, the class's code tests whether the object
@@ -1772,7 +1775,7 @@ in a program that starts threads), and the count is never read.
 
 ### The C is compiled in parallel units, and cached
 
-In an `--optimized` build, the C of a program bigger than 1.5 MB is split into a header and up to 64 translation
+In a default build and an `--optimized` one alike, the C of a program bigger than 1.5 MB is split into a header and up to 64 translation
 units, compiled as many at once as the machine has processors and linked, and each unit's object is kept under the
 hash of what it was compiled from, so a build that changed nothing only links and a build that changed one function's
 body compiles one unit ([compiler.md](compiler.md#translation-units-the-c-compiled-in-parallel-and-cached), where the
@@ -1780,15 +1783,16 @@ rules are). It changes nothing a program does: the same functions and variables,
 can call them. What you could notice: in a build without link-time optimisation a call from one unit into another is
 not inlined by the C compiler (which the default `-O0` build never does anyway, and which `--optimized` recovers,
 [below](#a-release-build-is--o3-with-link-time-optimisation)); and the object cache in `.spite/objects` grows until it
-is deleted. `--translation-units=1` builds from one file as before.
+is deleted.
 
 ### A release build is `-O3` with link-time optimisation
 
 `--optimized` asks the C compiler for `-O3`, and a build from several units adds
 ThinLTO (`-flto=thin`, clang) or `-flto=auto` (gcc) so functions are still inlined across units. What you could
-notice: the link takes longer, since it is where the optimisation across units happens. The default build is `-O0`;
-`--tune-for-this-machine` adds `-march=native`, which makes the executable specific to
-processors like the one that built it ([compiler.md](compiler.md#release-builds)). The measurements are in
+notice: the link takes longer, since it is where the optimisation across units happens. The default build is `-O0`,
+and it and a `--hot-reload` build add `-march=native`, so they use every instruction of the machine that built them,
+where they run; an `--optimized` build, the one shipped, adds nothing of the kind and runs on any processor
+([compiler.md](compiler.md#release-builds)). The measurements are in
 [benchmarks/README.md](../benchmarks/README.md#release-builds).
 
 ### Thread safety for singletons, the rest of the plan

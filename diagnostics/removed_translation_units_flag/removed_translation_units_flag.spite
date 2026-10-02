@@ -1,0 +1,5 @@
+var console = Console()
+
+func RemovedTranslationUnitsFlag() {
+    console.print("never compiled")
+}

@@ -172,9 +172,8 @@ export CC=cc                     # the compiler shells out to this to build the 
 
 That builds the executable into `.spite/build/path/to/folder/folder.exe` in the folder you ran it from, and runs
 it: nothing is written beside the source. The compiler reads the whole program first and then produces every
-output asked for: `--c-source` also writes `folder.c` beside the executable,
-`--run=false` runs nothing, and `--executable-path=` and `--c-path=` put either somewhere else
-([docs/compiler.md](docs/compiler.md)).
+output asked for: `--check` only checks that it compiles and writes nothing, `--build` builds the executable
+without running it, and `--executable-path=` puts it somewhere else ([docs/compiler.md](docs/compiler.md)).
 
 On Windows the C compiler usually lives inside Visual Studio rather than on `PATH`, and its path
 contains spaces, so use the short form:

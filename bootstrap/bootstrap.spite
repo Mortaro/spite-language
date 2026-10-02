@@ -5,6 +5,7 @@ enum Formatting {
 }
 
 var console = Console()
+var compiler_build = Build()
 var program = Program()
 var last_crash_map = ""
 var supplied_settings = Dictionary<String>()
@@ -50,6 +51,8 @@ func Bootstrap() {
     }
     if not flag_error.is_empty() {
         report_error(flag_error)
+        var named_folder = named_program(arguments)
+        remove_executable_of_failed_read(named_folder)
         program.exit(1)
         return
     }
@@ -78,11 +81,9 @@ func print_usage() {
     console.error(
         "usage: spite program_folder [--optimized] [--debug-memory] [--setting=value ...] [program arguments ...]",
     )
+    console.error("       spite program_folder --check                   only check that it compiles, writing nothing")
     console.error(
-        "       spite program_folder --c-source                also write the C, into .spite/build/ or at --c-path=path",
-    )
-    console.error(
-        "       spite program_folder --executable --run=false  build without running, into .spite/build/ or at --executable-path=path",
+        "       spite program_folder --build                   build without running, into .spite/build/ or at --executable-path=path",
     )
     console.error("       spite format [--check] file_or_folder ...       format files without compiling them")
     console.error(
@@ -165,6 +166,8 @@ func directory_of(path: String): String {
 func compile_program(entry_path: String, may_format: Boolean) {
     var discovery = discovered_program(entry_path)
     if not discovery {
+        var program_folder = directory_of(entry_path)
+        remove_executable_of_failed_read(program_folder)
         program.exit(1)
         return
     }
@@ -301,6 +304,13 @@ func produce(discovery: Discovery.DiscoveryResult) {
         program.exit(1)
         return
     }
+    if not is_on("check") {
+        var earlier_executable = executable_path()
+        if not removed_earlier_executable(earlier_executable) {
+            program.exit(1)
+            return
+        }
+    }
     var generator = generated(discovery)
     if generator {
         write_outputs(discovery, generator)
@@ -310,13 +320,27 @@ func produce(discovery: Discovery.DiscoveryResult) {
 }
 
 func path_without_its_output(): String {
+    if is_on("check") and is_on("build") {
+        return "error: '--check' only checks that the program compiles and '--build' builds its executable: give one of them"
+    }
     if supplied_settings.has("c_path") and not is_on("c_source") {
         return "error: '--c-path' says where the C goes, and this build writes no C: give --c-source too"
     }
-    if supplied_settings.has("executable_path") and not is_on("executable") and not is_on("run") {
-        return "error: '--executable-path' says where the executable goes, and this build makes none: give --executable too"
+    if supplied_settings.has("executable_path") and is_on("check") {
+        return "error: '--executable-path' says where the executable goes, and '--check' builds none: leave out --check to build it"
     }
     return ""
+}
+
+func removed_earlier_executable(path: String): Boolean {
+    var earlier = File(path)
+    if not earlier.exists() or earlier.remove() {
+        return true
+    }
+    console.error(
+        "error: '{path}' is left from an earlier build and could not be removed (is it still running?): a build removes it first, so a failed build never leaves the old one to run",
+    )
+    return false
 }
 
 func write_outputs(discovery: Discovery.DiscoveryResult, generator: Generation.Generator) {
@@ -329,12 +353,12 @@ func write_outputs(discovery: Discovery.DiscoveryResult, generator: Generation.G
         program.exit(1)
         return
     }
-    var runs = is_on("run")
-    if (runs or is_on("executable")) and not built_executable() {
+    assert not is_on("check")
+    if not built_executable() {
         program.exit(1)
         return
     }
-    if runs {
+    if not is_on("build") {
         run_executable()
     }
 }
@@ -439,7 +463,7 @@ func hot_state(
     }
     var state = reload.state_text(next_generation, paths, hashes)
     var settings = List<String>()
-    var outputs = ["run", "executable", "executable_path", "c_source", "c_path", "final_classes"]
+    var outputs = ["check", "build", "executable_path", "c_source", "c_path", "final_classes"]
     var index_of_output = 0
     while index_of_output < outputs.count() {
         var name = outputs[index_of_output]
@@ -502,7 +526,7 @@ func is_output_flag(argument: String): Boolean {
     if not argument.starts_with("--") {
         return false
     }
-    var outputs = ["run", "executable", "executable_path", "c_source", "c_path", "final_classes"]
+    var outputs = ["check", "build", "executable_path", "c_source", "c_path", "final_classes"]
     var name = setting_name(argument)
     return outputs.contains(name)
 }
@@ -618,11 +642,35 @@ func executable_path(): String {
     if not chosen.is_empty() {
         return chosen
     }
-    var base = default_output_base()
-    if option("target_operating_system") == "windows" {
+    var folder = option("program")
+    var target = option("target_operating_system")
+    return executable_of(folder, target)
+}
+
+func executable_of(folder: String, target: String): String {
+    var base = output_base_of(folder)
+    if target == "windows" {
         return "{base}.exe"
     }
     return base
+}
+
+func remove_executable_of_failed_read(folder: String) {
+    var checking = supplied_settings["check"]
+    assert not reloading and not folder.is_empty() and (not checking or checking == "false")
+    var chosen = supplied_settings["executable_path"]
+    if chosen {
+        removed_earlier_executable(chosen)
+        return
+    }
+    var target = supplied_settings["target_operating_system"]
+    if not target {
+        target = compiler_build.target_operating_system
+    }
+    crash target
+    var program_folder = without_trailing_slashes(folder)
+    var path = executable_of(program_folder, target)
+    removed_earlier_executable(path)
 }
 
 func c_path(): String {
@@ -636,6 +684,10 @@ func c_path(): String {
 
 func default_output_base(): String {
     var folder = option("program")
+    return output_base_of(folder)
+}
+
+func output_base_of(folder: String): String {
     var name = last_segment(folder)
     var paths = Discovery.Paths()
     var working = working_folder()
@@ -857,11 +909,13 @@ func splits_into_units(splitter: Translation.UnitSplitter): Boolean {
     return wanted > 1 and splitter.split(generated_code, wanted)
 }
 
+# ../design/self_hosting.md#what-only-the-compilers-own-checks-use
 func wanted_translation_units(code: String): Integer {
-    var chosen = option("translation_units").to_integer()
-    crash chosen
-    if chosen > 0 or not is_on("optimized") {
-        return chosen.maximum(1)
+    var forced = program.environment("SPITE_TRANSLATION_UNITS")
+    if forced {
+        var forced_count = forced.trim().to_integer()
+        crash forced_count
+        return forced_count.maximum(1)
     }
     var by_size = code.length() / 786432
     var by_processors = processor_count()
@@ -904,20 +958,14 @@ func built_from_units(splitter: Translation.UnitSplitter, c_compiler: String, ou
     return build.built(splitter.header_text, splitter.unit_texts, output_path)
 }
 
-func optimizes(): Boolean {
-    return is_on("optimized") or is_on("hot_reload")
-}
-
 func append_code_settings(process_arguments: List<String>, c_compiler: String, split: Boolean) {
-    if optimizes() {
+    if is_on("optimized") {
         process_arguments.append("-O3")
         if split {
             append_link_time_optimization(process_arguments, c_compiler)
         }
     } else {
         process_arguments.append("-O0")
-    }
-    if is_on("tune_for_this_machine") {
         append_machine_tuning(process_arguments, c_compiler)
     }
     process_arguments.append("-Wno-parentheses-equality")
@@ -928,8 +976,7 @@ func append_link_settings(process_arguments: List<String>, c_compiler: String) {
     if is_on("optimized") {
         process_arguments.append("-O3")
         append_link_time_optimization(process_arguments, c_compiler)
-    }
-    if is_on("tune_for_this_machine") {
+    } else {
         append_machine_tuning(process_arguments, c_compiler)
     }
 }
@@ -1084,7 +1131,7 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
     }
     if not host_text or not state_text or not is_on("hot_reload") {
         console.print(
-            "error: 'spite reload' rebuilds what changed in a program built with --hot-reload, and '{program_file}' was not: build it with --hot-reload --executable --executable-path={program_file}",
+            "error: 'spite reload' rebuilds what changed in a program built with --hot-reload, and '{program_file}' was not: build it with --hot-reload --build --executable-path={program_file}",
         )
         program.exit(1)
         return
@@ -1453,10 +1500,11 @@ func build_library(code: String, library_c_path: String, library_path: String): 
     var c_compiler = find_c_compiler()
     var process_arguments = List<String>()
     process_arguments.append("-shared")
-    if optimizes() {
+    if is_on("optimized") {
         process_arguments.append("-O3")
     } else {
         process_arguments.append("-O0")
+        append_machine_tuning(process_arguments, c_compiler)
     }
     process_arguments.append("-w")
     if option("target_operating_system") == "windows" {
