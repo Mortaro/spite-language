@@ -96,7 +96,13 @@ for a design):
   balance (memory.md, "Cycles leak").
 - A `--hot-reload` build's watcher thread keeps running while the singletons are destroyed at exit: `start()` now
   waits until it is watching, so it no longer asks for `HotReload` after the teardown, but a file change landing
-  during the teardown would still run `compile_changes()` on the destroyed `HotReload`.
+  during the teardown would still run `compile_changes()` on the destroyed `HotReload`, and so would a reload
+  still waiting for the library before it to be swapped in.
+- A `--hot-reload` program takes the size and modification time of its files when it starts, not when the build
+  read them, so a file saved while the build was still compiling looks compiled: `wait_reload` answers at once and
+  the program runs the code before the save until the next save reaches the watcher. The build should record each
+  file's size and modification time beside its hash in `.reload_start`, or the watcher should compile once when it
+  starts (proposed by Claude, unconfirmed).
 - A REPL `exit` answered at the same wait as the command before it ends the program before its loop sees that
   command: on Linux, concurrency.md's `frame_loop` session (`program.running = false`, then `exit`) lost its
   `stopped` line in 3 of 5 runs, so `check.sh` fails its wire replay intermittently. The program's last output is
@@ -763,9 +769,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - The wire format being JSON is not a promise (D96); the format may become whatever an AI client reads best, binary included.
 
 ### Live reload in detail
-- Decisions D111 (only what changed is rebuilt), D112 (`--hot-reload` as its own flag), D211 (helper-thread compile, reflection follows the reload, watched loaded folders), D283 (library directory `.spite/build/`, pinned checkouts not watched). Mechanisms proposed by Claude, unconfirmed: `wait_reload`, `spite reload` command, compile-only-changed-classes, `Concurrent` not overlapping in a `--hot-reload` build (D176), the manifest contents.
+- Decisions D111 (only what changed is rebuilt), D112 (`--hot-reload` as its own flag), D211 (helper-thread compile, reflection follows the reload, watched loaded folders), D283 (library directory `.spite/build/`, pinned checkouts not watched). Mechanisms proposed by Claude, unconfirmed: `wait_reload`, `spite reload` command, compile-only-changed-classes, `Concurrent` not overlapping in a `--hot-reload` build (D176), the manifest contents, one reload at a time (a compile waits for the library before it to be swapped in, also while the program is stopped at a breakpoint).
 - Linux and macOS are untested at run time: only held to compiling by `check.sh`, written the same way as Windows'.
-- History removed: `spite reload` was a `--mode` before D128; a no-change reload used to compile the whole program twice (90 seconds for the large game); class ids were once seeded by display name, so an enum named like a class (`JsonSymbols.Color` beside the library's `Color`) took that class's id; a changed file declaring none of the program's classes used to be answered `unchanged` and silently not applied; the compile error for a loop that never waits and `diagnostics/remote_loop_never_waits` were removed with D174.
+- History removed: `spite reload` was a `--mode` before D128; a no-change reload used to compile the whole program twice (90 seconds for the large game); class ids were once seeded by display name, so an enum named like a class (`JsonSymbols.Color` beside the library's `Color`) took that class's id; a changed file declaring none of the program's classes used to be answered `unchanged` and silently not applied; the compile error for a loop that never waits and `diagnostics/remote_loop_never_waits` were removed with D174; the REPL used to listen before `HotReload` started, and since a file read is a wait it answered commands while `HotReload` read its files, so a `reload` found no state (a fault at `address=0x8`) and a `wait_reload` took a save made then as compiled; a reload used to compile against the files of the code before a swap still on its way, and to read `.reload_files` while the swap rewrote it, so it compiled a change twice or took no file as compiled and answered `wait_reload` before the watcher had seen the save.
 
 ### `--repl-port=<port>`
 - `check.sh` replays every `wire` block in `docs/` (via `scripts/docs_corpus.spite`): builds with `--repl-port`, sends each `$ spite connect ... --command` line, compares each answer with the line under it, requires exit code 0 after `exit` and the program's output to equal its `output` block. Removed from the page as a maintainer note.

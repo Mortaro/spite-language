@@ -442,6 +442,7 @@ func pause_at(site: String, locals: List<Spite.Attribute>) {
     while handover.read_long_atomically(16) == 1 {
         if on_main_thread {
             answer_pending()
+            scheduler.reload_at_check_point()
         }
         pause_briefly()
     }

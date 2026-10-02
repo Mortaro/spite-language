@@ -4,7 +4,7 @@ func Datagrams() {
     var server = UdpSocket()
     var client = UdpSocket()
     var server_open = server.open_locally(47811)
-    var client_open = client.open()
+    var client_open = client.open_locally(0)
     console.print("server open: {server_open}, client open: {client_open}")
     var server_port = server.port
     var client_port = client.port

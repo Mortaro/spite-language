@@ -12,6 +12,7 @@ var ready_library = ""
 var ready_state = ""
 var ready_told = ""
 var ready_problem = ""
+var in_flight = false
 var compiled_for_request = false
 var published: Long = 0
 var ready_stamp: Long = 0
@@ -90,6 +91,7 @@ func compile_for_request() {
 func compile_changes(): Long {
     compiling.lock()
     ready.write_long_atomically(8, 1)
+    swap_in_flight()
     var seen = files_seen()
     var arguments = build_arguments().split("\n")
     var running = program_file()
@@ -117,6 +119,25 @@ func compile_changes(): Long {
     compiling.unlock()
     scheduler.signal()
     return stamp
+}
+
+func swap_in_flight() {
+    var on_main_thread = scheduler.current_thread() == scheduler.scheduler_thread
+    while library_in_flight() {
+        if on_main_thread {
+            crash ready.read_long_atomically(0) == 1
+            install_ready()
+        } else {
+            program.sleep(10)
+        }
+    }
+}
+
+func library_in_flight(): Boolean {
+    handing.lock()
+    var flying = in_flight
+    handing.unlock()
+    return flying
 }
 
 func publish_library(output: String) {
@@ -157,6 +178,8 @@ func publish_unchanged() {
 
 func publish(library_path: String, state_path: String, told: String, problem: String) {
     handing.lock()
+    crash not in_flight
+    in_flight = not library_path.is_empty()
     published = published + 1
     ready_stamp = published
     ready_library = library_path
@@ -264,17 +287,13 @@ func settled(): Boolean {
     if ready.read_long_atomically(8) == 1 {
         return false
     }
-    var seen = files_seen()
     var same = true
     handing.lock()
-    var paths = seen.keys()
+    var paths = compiled_files.keys()
     var index = 0
-    while index < paths.count() {
+    while index < paths.count() and same {
         var path = paths[index]
-        var compiled = compiled_files[path]
-        if compiled and compiled != seen[path] {
-            same = false
-        }
+        same = compiled_files[path] == file_stamp(path)
         index = index + 1
     }
     handing.unlock()
@@ -362,6 +381,9 @@ func install_ready() {
     scheduler.paused = true
     swap_in(library_path, state_path, told)
     scheduler.paused = false
+    handing.lock()
+    in_flight = false
+    handing.unlock()
 }
 
 func tell(worked: Boolean, text: String) {

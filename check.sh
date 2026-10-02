@@ -134,7 +134,9 @@ limit=${CHECK_TIMEOUT:-300}
 export limit
 limited() {
   if timeout --version > /dev/null 2>&1; then
-    timeout -k 10 "$limit" "$@"
+    # the braces' stderr is the shell's own, so its "Segmentation fault" notice for a program meant to fault is
+    # dropped, while the program's stderr still reaches the caller through descriptor 4
+    { timeout -k 10 "$limit" "$@" 2>&4; } 4>&2 2>/dev/null
     local status=$?
     [ $status == 124 ] || [ $status == 137 ] && echo "check: stopped after $limit seconds, the program did not finish"
     return $status

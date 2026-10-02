@@ -95,9 +95,12 @@ get-only attribute, and that their collections are ordinary lists.
 |---|---|
 | `Spite.Namespace` | `.name`, `.name_with_namespaces`, `.parent: Spite.Namespace?`, `.classes`, `.namespaces`, **`.every_class`** (this namespace and every one below it), **`.enums`** |
 | `Spite.Class` | `.name`, `.namespace`, `.attributes`, `.functions`, `.instances`, **`.values`** (an enum's), `.is_singleton`, **`.is_stateful`**, **`.is_fixed_size`**, **`.is_list`, `.is_dictionary`, `.is_optional`, `.is_enum`**, `.element_type`, `.value_type`, `.package_folder`, `.source_folder` |
-| `Spite.Function` | `.name`, `.arguments`, `.returns`, **`.owner`** (its class), **`.is_resumable`**, **`.returned_literal`**, **`.read_attributes`, `.written_attributes`** (item 109); and `call_function()`, **`call_with(values)`**, which act and stay functions |
+| `Spite.FunctionDeclaration` | `.name`, `.arguments`, `.returns`, **`.owner`** (its class), **`.is_resumable`**, **`.returned_literal`**, **`.accesses`** (D335) |
+| `Spite.Function` | a function bound to an instance (D391): everything its declaration has, `.owner` the instance; `call_function()` |
+| `Spite.Call` | a call built before it runs (D391, D393): `Spite.Call(declaration, instance)`, `.arguments['name'] = value`, `call()` |
 | `Spite.Argument` | `.name`, `.class`, **`.index`**, **`.is_mutated`**, **`.function`** |
-| `Spite.Attribute` | `.name`, `.class`, **`.index`**, **`.owner`**, **`.camel_case_name`, `.pascal_case_name`**, and `.value` only when bound ([below](#an-attributes-value-bound-like-a-function)) |
+| `Spite.AttributeDeclaration` | `.name`, `.class`, **`.index`**, **`.owner`** (its class), **`.camel_case_name`, `.pascal_case_name`**, `.is_singleton`; no value |
+| `Spite.Attribute` | an attribute bound to an instance (D391): everything its declaration has, `.value` read and written, `.owner` the instance ([below](#an-attributes-value-bound-like-a-function)) |
 
 **Every collection is an ordinary `List`**, so everything a list has works: `[]` by name answering `T?` (a list of
 reflection objects keys by `.name`), `count()`, `each`, `map`, `filter`, and every member template:
@@ -127,6 +130,20 @@ else selects with a filter over the names that exist, and each such filter folds
   named `component` anywhere" is written out as a filter over it ([section 7](#registering-every-component-a-folder-of-classes)).
 - **`Phase.values`** is an enum's values, in order.
 
+### Declarations and bound members (D391)
+
+**A declaration and a bound member are different classes** (D391, decided by Mortaro). A class's members are
+information, an instance's are data. `MoveSystem.functions['run_each']` is a `Spite.FunctionDeclaration` and
+`MoveSystem.attributes['health']` a `Spite.AttributeDeclaration`, which has no value: a class's attribute gives its
+shape, never a value. `system.functions['run_each']` is a `Spite.Function` bound to `system` and
+`troll.attributes['health']` a `Spite.Attribute` bound to `troll`, each with everything its declaration has plus
+`.owner` (and `.value` for the attribute). Calling a function value always calls. **A call can be built before it
+runs**: `var call = Spite.Call(MoveSystem.functions['run_each'], system)`, `call.arguments['position'] = value`,
+`call.call()` (D393: a declaration and an instance of its class, the only way to build a call). Known while compiling, it folds
+into the plain direct call; an argument left unfilled is a compile error where visible, otherwise `call()` halts
+naming it. It replaces `call_with` and the proposed `call_with_each`. A template parameter is a declaration,
+`Spite.AttributeDeclaration<Monster>` (D392).
+
 ### Every member is a get-only attribute
 
 What reflection answers is known while compiling, and none of it is a search, so none of it is a function call:
@@ -137,7 +154,7 @@ becomes a collection indexed or filtered instead:** `has_function("run_each")` i
 `T?`), `argument_count("f")` is `functions['f'].arguments.count()`, `function_writes_parameter("f", i)` is
 `functions['f'].arguments[i].is_mutated`, `any_attribute_fits_vector(Entity)` is
 `attributes.filter_is_fixed_size()` asked as the program needs. `arguments[i]` and `attributes['name']` stay
-indexing. What remains a function is what acts rather than answers (`call_function()`, `call_with(...)`), and
+indexing. What remains a function is what acts rather than answers (`call_function()`, a `Spite.Call`'s `call()`), and
 `List`'s own `count()`.
 
 ### An attribute's value, bound like a function
@@ -361,21 +378,24 @@ After:
 var run_each = target.functions['run_each']
 if run_each {
     run_each.arguments.each(describe)
-    run_each.call_with(run_each.arguments.map(made))
+    var call = Spite.Call($target_type.functions['run_each'], target)
+    call.arguments.each(fill)
+    call.call()
 }
 
 func describe(argument: Spite.Argument) {
     console.print(argument.name, "is a", argument.class)
 }
 
-func made(argument: Spite.Argument): argument.class {
-    return argument.class()
+func fill(slot: Spite.Attribute) {
+    slot.value = slot.class()
 }
 ```
 
-`if run_each` folds (rule 3). `map(made)` over a constant list whose function returns a different class per element
-is a constant *sequence*, not a `List`: it may only be passed to `call_with`, which becomes one direct typed call,
-`target.run_each(made_for_hero(), made_for_pet())`.
+`if run_each` folds (rule 3). The walk fills a `Spite.Call` (D391) whose function and arguments are all known while
+compiling, so it becomes one direct typed call, `target.run_each(Hero(), Pet())`, with no call object at run time.
+A call's arguments are slots bound to the call, as an instance's attributes are bound to it, so a walk sets each
+`.value` (that reading proposed by Claude, unconfirmed).
 
 ### The engine package's runner: systems placed by their functions' names
 
@@ -418,7 +438,7 @@ template (item 100): the runner selects the functions that end in `_each` and as
 the name is. Every step folds (`filter_name_ends_with` over constant names, `without_suffix` on a constant name, and
 `find_by_name` over `Phase.values`), so a `count_each` that names no phase is skipped while compiling, as today.
 Running is the same selection: `function.is_resumable` replaces `function_waits("<phase>_each")`,
-`function.arguments.count()` replaces `phase.argument_count()`, and `function.call_with(...)` replaces
+`function.arguments.count()` replaces `phase.argument_count()`, and a `Spite.Call` filled by a walk (D391) replaces
 `system.phase_each(clocked_arguments(rows, entity))`. `without_suffix` is a new `String` function beside
 `ends_with`.
 
@@ -542,6 +562,7 @@ same function called from the REPL on an `Anything` still writes JSON, through t
 1. Template parameters are spelled **`Spite.Attribute<Monster>`**; there is no separate `Symbol` idea.
 2. **A class and a namespace with the same dotted name is a compile error.**
 3. **`function.call_with(arguments.map(made))` is accepted** for spreading a walk into one call (item 98).
+   Replaced by D391: a walk fills a `Spite.Call`, which folds into the direct call.
 4. **"Every folder named X, at any depth" is an explicit filter** over `Spite.Namespace.instances`.
 5. **No names built by interpolation**: a symbol is not a string. Selection is by filter over the names that exist,
    `functions.filter_name_ends_with("_each")`.
