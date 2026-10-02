@@ -44,9 +44,10 @@ In other languages you choose elegant or fast. In Spite you write the elegant on
 fast one.
 
 **The proof, measured.** Five programs in [benchmarks/versus_c](benchmarks/README.md#spite-against-c) each have a
-twin written in C the way a C programmer would, Spite built `--optimized` against C at `-O3`:
+twin written in C the way a C programmer would, Spite built `--optimized` against C at `-O3`. Each number is
+how long Spite takes to do the work divided by how long hand-written C takes: 1.00 is equal, lower is better.
 
-| program | Spite / C |
+| program | Spite's time over C's (1.00 is equal, lower is better) |
 |---|---|
 | 100 000 particles stepped in place, 300 ticks | 1.06 |
 | 5 million steps of `Vector3` maths | 1.25 |
@@ -55,8 +56,8 @@ twin written in C the way a C programmer would, Spite built `--optimized` agains
 | 5 million lookups in a dictionary of 500 000 integer keys | 1.96 |
 
 The `Vector3` row is the argument in one line. `Vector3` is a class, so every `scaled`, `+` and `cross` made a new
-object, and the program ran at 4.33 times C. Then the compiler learned to keep an object that never leaves its
-function in the frame, and the same source, unchanged, ran at 1.25. Nobody rewrote it. The last three rows are
+object, and the program took 4.33 times as long as C. Then the compiler learned to keep an object that never leaves its
+function in the frame, and the same source, unchanged, took 1.25 times as long. Nobody rewrote it. The last three rows are
 where Spite still loses, and nobody has studied why yet: they are the baseline to beat.
 
 ## One way to do each thing
@@ -158,7 +159,9 @@ choose ([docs/memory.md](docs/memory.md)). Two objects that hold each other leak
 
 There is no `async` and no `await`, and there never will be. Concurrency is decided by the caller, not the
 function: `Concurrent(file.read)` runs ordinary code concurrently, and the handle stands in for the result, so
-reading it is the wait. The compiler turns waiting functions into state machines at compile time, so there is no
+reading it is the wait. Code you did not start that way waits where it is written, one call after another (two
+reads side by side are the exception, overlapped on their own), so a server that should serve many clients at once
+starts each one's work with `Concurrent`. The compiler turns waiting functions into state machines at compile time, so there is no
 scheduler to ship. `Parallel(f)` runs on a thread pool, and a singleton that a `Parallel` reaches is made
 thread-safe by the compiler, in its cheapest safe form ([docs/concurrency.md](docs/concurrency.md)).
 
@@ -199,8 +202,8 @@ page by page, is in [design/status.md](design/status.md).
 
 ## Questions
 
-**How fast is it?** As fast as C on a plain loop over packed items (1.06), and 1.25 to 1.96 times C on the other
-four programs measured against hand-written C, above. No comparison with Rust, Go or Zig has been measured.
+**How fast is it?** Spite takes 1.06 to 1.96 times as long as hand-written C on the five programs above (1.00 is
+equal, lower is better): 1.06 on a plain loop over packed items, 1.25 to 1.96 on the other four. No comparison with Rust, Go or Zig has been measured.
 [benchmarks/README.md](benchmarks/README.md)
 
 **How fast does it compile?** The compiler compiles itself to C in 1.7 seconds of CPU; a default build of the
@@ -226,8 +229,19 @@ bin/spite examples/hello
 `bin/spite` builds the compiler from the committed C the first time. [docs/getting_started.md](docs/getting_started.md)
 
 **Can it call C, and can C call it?** Yes and yes: `DynamicLibrary` calls any exported function as a member, with
-no binding file, and `ForeignCallback` hands C a Spite function to call back.
-[docs/foreign_libraries.md](docs/foreign_libraries.md)
+no binding file, and `ForeignCallback` hands C a Spite function to call back. The same goes for C++, Rust, Zig and
+Go libraries, through the C ABI they export. [docs/foreign_libraries.md](docs/foreign_libraries.md)
+
+**Where are the packages?** You don't need a big ecosystem on day one: any mature library with a C ABI is one
+binding away, and it reads like Spite. A binding is a small class that wraps the library so only Spite names,
+Spite enums and objects come out of it.
+[docs/foreign_libraries.md](docs/foreign_libraries.md#a-binding-speaks-spite)
+
+**How do I test?** A test is a function that `crash`es when a fact is wrong, and `spite tests` runs them (one by
+name: `spite tests test_append_and_prepend_keep_order`). There is no framework and no assertion prose: the run stops at the
+first broken fact, so failures never cascade, and the report points at the line and shows the values there, which
+an AI reads directly. Whatever the compiler can prove is a compile error instead of a test.
+[docs/testing.md](docs/testing.md)
 
 **How is memory managed, and is it safe?** Reference counting, no garbage collector. Absence is a `T?` you must
 check, a read past the end of a list answers nothing instead of reading memory, borrowed items are checked at

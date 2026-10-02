@@ -105,7 +105,7 @@ this order, from a first program to what the compiler proves; each page ends wit
 16. [JSON and binary](docs/json.md): any value to JSON text or compact bytes and back.
 17. [Time](docs/time.md): instants, durations, the calendar and time zones.
 18. [Game maths](docs/game_maths.md): `Vector2` to `Vector4`, `Matrix3`, `Matrix4`, `Quaternion`.
-19. [Foreign libraries](docs/foreign_libraries.md): `DynamicLibrary` and one folder per operating system.
+19. [Foreign libraries](docs/foreign_libraries.md): `DynamicLibrary`, libraries in C, C++, Rust, Zig and Go, bindings that speak Spite, and one folder per operating system.
 20. [Targets](docs/targets.md): the web and isomorphic classes.
 21. [The compiler](docs/compiler.md): every command and flag, and where the outputs go.
 22. [The REPL and live reload](docs/repl.md): inspect and change a running program.
