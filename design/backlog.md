@@ -252,8 +252,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **S6 Environments as a reopenable, walkable enum** (D180; status "Symbol codegen and enums"). With D373 a
   reopening restates the whole list. Files: `library/environment.spite`, `library/build.spite`. **S.** Depends on
   L3, L4.
-- **S9 Collection leftovers** (status "Standard library metaprogramming", "Deep copy"). `sort_by_`, `find_by_` and
-  a program's own templates on `Vector` and `Items`; the `while`-does-a-template rule over `Vector` loops;
+- **S9 Collection leftovers** (status "Standard library metaprogramming", "Deep copy"). A program's own templates
+  on `Vector` and `Items` checked as its code; the `while`-does-a-template rule over `Vector` loops;
   `deep_copy()` of unions, shapes and self-referring structures; a `String`'s or number's function held as a value.
   **M.** No dependencies.
 

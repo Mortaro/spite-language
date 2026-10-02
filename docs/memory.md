@@ -1342,9 +1342,9 @@ compile time that it is never kept past its use. The rules:
   `Vector<Integer>` or `Items<Integer>` is an error naming `List<Integer>`, so every item of a `Vector` is a class
   or a `String`, read as a counted reference as a list's is. `conformance/stage6/plain_items`,
   `diagnostics/plain_items`.
-- **A borrowed item** is what `vector[index]`, `vector.get_at(index)` and the item a member template visits are,
-  once the `T?` a read answers is narrowed: `crash velocities[index]`, `assert`, `if`, or a proof the
-  compiler holds.
+- **A borrowed item** is what `vector[index]`, `vector.get_at(index)`, `vector.find_by_<member>(value)` and the
+  item a member template visits are, once the `T?` a read answers is narrowed: `crash velocities[index]`,
+  `assert`, `if`, or a proof the compiler holds.
   It is the address of the item inside the block, and reading or writing its attributes (`first.down = 2.0`,
   `velocities[0].across`, `first.integrate()`) reads and writes the vector's own item. It is never retained or
   released: it costs nothing to take and nothing to let go.
@@ -1363,7 +1363,12 @@ compile time that it is never kept past its use. The rules:
   - given a second name (`var alias = stored`): `'stored' is borrowed from 'velocities', and a borrowed item has
     one name: use 'stored' itself instead of 'alias', or keep 'stored.copy()', an independent object`;
   - assigned again (`first = velocities[1]`): `'first' is borrowed from 'velocities' and is not assigned again:
-    read another item with a new 'var', such as 'var next = velocities[index]'`.
+    read another item with a new 'var', such as 'var next = velocities[index]'`;
+  - borrowed from a collection nothing keeps (`var found = velocities.copy().find_by_name("fast")`, or
+    `velocities.filter_moving()[0]`), which is let go at the end of the line with the item in it: `'found' would
+    be borrowed from 'velocities.copy()', which nothing keeps, so it is let go at the end of this line and the
+    item with it: keep it in a 'var' first and borrow from that` (`diagnostics/found_item_borrows`). Any call
+    answering the collection counts, since a borrowed item is never counted to keep its collection alive.
 - **Not past a change of size.** Growing a vector may move its block, and removing an item moves the ones after
   it, so a borrowed name is not read after a statement that may change its vector's size or move its block:
   `append`, `prepend`, `insert`, `reserve`, `remove_at`, `remove_first`, `remove_last`, `remove_swapping`,

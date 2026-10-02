@@ -202,6 +202,8 @@ templates run on the items in place the same way, and a chain of them is one loo
 | `reserve(count)` | | makes room for `count` items in all without making any, so appending up to there never grows the block |
 | `copy()` / `deep_copy()` | `Vector<T>` | a new vector with its own copy of every item |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()` | | as on a list; `filter_` gives a `Vector<T>` of copies |
+| `find_by_<member>(value)` | `T?` | the first item whose member equals `value`, borrowed once narrowed; `null` when none does |
+| `sort_by_<member>()` | `Vector<T>` | a new vector with a copy of every item, sorted ascending and stable, as on a list |
 | `parallel_each_<member>()` | | as on a list ([concurrency.md](concurrency.md#parallel_each_-a-member-on-every-element)) |
 
 An item is a class of known size: its attributes are only numbers, `Boolean`, enums and `String`s. A class with a
@@ -309,6 +311,8 @@ of moving every later one down, which is what a sparse set wants.
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `copy()` / `deep_copy()` | `Items<T>` | inline: every item copied; references: one level, or all the way down |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()`, `parallel_each_<member>()` | | as on a vector; `filter_` gives an `Items<T>`, and a chain is one loop |
+| `find_by_<member>(value)` | `T?` | the first item whose member equals `value`: inline, borrowed once narrowed; references, the reference; `null` when none does |
+| `sort_by_<member>()` | `Items<T>` | sorted ascending and stable: inline, a copy of every item; references, the same references |
 
 Where the items are inline every rule of a borrowed item applies, and the error says why the item is borrowed,
 so a class that starts to fit a `Vector` shows where its old uses keep an item:
@@ -1304,10 +1308,15 @@ under `Vector<T>`](#vectort-items-inline), which is normative. The readings:
 - **Removing.** `remove_at(index)` releases the item's `String` attributes and moves every later item down, and
   halts on an index out of range; `clear()` releases every item's and keeps the capacity; dropping the vector
   releases them and frees the block.
-- **Templates.** `each_`, `map_`, `filter_`, `count_`, `any_`, `all_` and `sum_<member>()` are in
-  `library/vector.spite`, written over the borrowed items; `filter_` answers a `Vector<T>` of copies and `map_` a
-  `List` of the members' values. A chain of them is one loop over the block, with `filter_` steps in the
-  middle, and `parallel_each_<member>()` splits the walk across the thread pool as it does a list's.
+- **Templates.** `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `find_by_` and
+  `sort_by_<member>()` are in `library/vector.spite`, written over the borrowed items; `filter_` answers a
+  `Vector<T>` of copies and `map_` a `List` of the members' values. `find_by_<member>(value)` answers the first
+  item whose member equals `value` as `vector[index]` does: a `T?`, the item itself, borrowed once narrowed, with
+  every rule of a borrowed item ([memory.md](memory.md#borrowed-items-of-a-vectort)). `sort_by_<member>()` answers a
+  new `Vector<T>` with a copy of every item, sorted as a list's is (stable, a merge sort, each key read once). A
+  chain of them is one loop over the block, with `filter_` steps in the middle; a chain ending in `find_by_` or
+  `sort_by_` on the items themselves runs step by step, which means the same.
+  `parallel_each_<member>()` splits the walk across the thread pool as it does a list's.
   No passed-function form is offered, since a `List` of numbers
   takes every form. A passed function would take a class item as an argument, which a borrowed item never is, so
   `velocities.each(f)` is `'each' passes each item to a function, and an item of a
@@ -1319,7 +1328,8 @@ under `Vector<T>`](#vectort-items-inline), which is normative. The readings:
   arena, as for any object, and its block of items with it, each time it grows.
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/plain_items`,
-`diagnostics/text_items_passed`, `conformance/stage6/vector_items`, `conformance/stage6/plain_items`.
+`diagnostics/text_items_passed`, `diagnostics/found_item_borrows`, `conformance/stage6/vector_items`,
+`conformance/stage6/plain_items`, `conformance/stage6/vector_find_sort`.
 
 ### Items\<T\>
 
@@ -1368,9 +1378,11 @@ members are [the table under `Items<T>`](#itemst-the-storage-chosen-for-you), wh
   dropping the collection release what they remove. `remove_swapping(index)` moves the last item into `index`
   and halts on an index out of range, as `remove_at` does; it keeps no order, and costs the same however many
   items there are.
-- **Templates.** `each_`, `map_`, `filter_`, `count_`, `any_`, `all_` and `sum_<member>()` are in
-  `library/items.spite`, each folded the same way; `filter_` answers an `Items<T>` (copies when inline, the same
-  references otherwise) and `map_` a `List` of the members' values. A chain is one loop over the block,
+- **Templates.** `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `find_by_` and
+  `sort_by_<member>()` are in `library/items.spite`, each folded the same way; `filter_` and `sort_by_` answer an
+  `Items<T>` (copies when inline, the same references otherwise) and `map_` a `List` of the members' values.
+  `find_by_<member>(value)` answers a `T?` read as `items[index]` is: inline, the item, borrowed once narrowed; by
+  reference, a counted reference. A chain is one loop over the block,
   and `parallel_each_<member>()` splits it across the thread pool, as for a vector. The passed-function forms
   (`each(f)`, `filter(f)`, ...) are not offered for either kind, since an inline item is never passed on and plain
   values live in a `List`: `'each'
@@ -1385,8 +1397,8 @@ members are [the table under `Items<T>`](#itemst-the-storage-chosen-for-you), wh
   read uses the item without testing that answer again. A program that makes no `Items` carries none of it. Measured in
   `benchmarks/items_storage`.
 
-`conformance/stage6/items_columns`, `conformance/stage6/plain_items`, `diagnostics/items_borrows`,
-`diagnostics/plain_items`, `diagnostics/text_items_passed`.
+`conformance/stage6/items_columns`, `conformance/stage6/plain_items`, `conformance/stage6/vector_find_sort`,
+`diagnostics/items_borrows`, `diagnostics/plain_items`, `diagnostics/text_items_passed`.
 
 ### Removing many at once
 

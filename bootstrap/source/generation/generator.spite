@@ -17760,6 +17760,15 @@ func fused_chain_source(
     var element_spelling = fused_type_spelling(current_type)
     var member_spelling = fused_type_spelling(last_member_type)
     var read = last.read_of(current_name)
+    var collection_base = base_list.qualified_dotted == "Vector" or is_items_class(base_list)
+    if collection_base and current_name == "item" {
+        if last.prefix == "sort_by_" {
+            return ""
+        }
+        if last.prefix == "find_by_" and holds_items_inline(base_list) {
+            return ""
+        }
+    }
     var fused_name = step_names.join("_then_")
     var parameters = List<String>()
     var returns = ""
@@ -24111,7 +24120,7 @@ func generate_variable_declaration(
 }
 
 func lends_items(target_class: Analysis.ClassInfo, name: String): Boolean {
-    var vector_item = holds_items_inline(target_class) and name == "get_at"
+    var vector_item = holds_items_inline(target_class) and lends_by_name(target_class, name)
     var inline_item = target_class.qualified_dotted == "InlineMemory" and name == "item_at"
     if not vector_item and not inline_item {
         return false
@@ -24124,6 +24133,30 @@ func lends_items(target_class: Analysis.ClassInfo, name: String): Boolean {
         return false
     }
     return true
+}
+
+func lends_by_name(target_class: Analysis.ClassInfo, name: String): Boolean {
+    if name == "get_at" {
+        return true
+    }
+    var index = 0
+    while index < target_class.templates.count() {
+        var template = target_class.templates[index]
+        var declaration = template.declaration
+        if not template.member_name_for(name).is_empty() and declares_an_item(declaration) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func declares_an_item(declaration: Syntax.Statements.FunctionDeclaration): Boolean {
+    if not declaration.return_type {
+        return false
+    }
+    var spelled = Syntax.SourcePrinter().source_type(declaration.return_type)
+    return spelled == "$element_type" or spelled == "$element_type?"
 }
 
 func holds_items_inline(information: Analysis.ClassInfo): Boolean {
@@ -24603,9 +24636,6 @@ func receiver_lends(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    if name != "get_at" and name != "item_at" {
-        return false
-    }
     var root = shape.as_identifier(receiver)
     if root {
         if not scope.written_type(root.name) and not class_information.find_field(root.name) {
@@ -24641,6 +24671,15 @@ func lends_to_local(
     }
     var lent = generate_expression(declaration.value, scope, class_information)
     var item_type = lent.type
+    var unkept = unkept_lender(declaration.value)
+    if not unkept.is_empty() {
+        report(
+            "'{declaration.name}' would be borrowed from '{unkept}', which nothing keeps, so it is let go at the end of this line and the item with it: keep it in a 'var' first and borrow from that",
+        )
+        scope.declare(declaration.name, item_type)
+        scope.mark_used(declaration.name)
+        return true
+    }
     builder.add_user("{c_type_name(item_type)} {c_value_name(declaration.name)} = {lent.code};")
     scope.declare_borrowed(declaration.name, item_type, lent.borrowed_from)
     scope.check_last(current_line)
@@ -24662,6 +24701,29 @@ func lends_to_local(
         path_index = path_index + 1
     }
     return true
+}
+
+func unkept_lender(value: Syntax.Expressions.Expression): String {
+    var receiver: Syntax.Expressions.Expression? = null
+    var indexed = shape.as_index(value)
+    if indexed {
+        receiver = indexed.object
+    }
+    var call = shape.as_call(value)
+    if call {
+        crash call.callee
+        var member = shape.as_member(call.callee)
+        if member {
+            receiver = member.object
+        }
+    }
+    if not receiver {
+        return ""
+    }
+    if not shape.as_call(receiver) {
+        return ""
+    }
+    return Syntax.SourcePrinter().source_expression(receiver)
 }
 
 func lends_row(

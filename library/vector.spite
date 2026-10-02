@@ -191,6 +191,90 @@ func map_members(member: Spite.AttributeDeclaration<$element_type>): List<member
     return mapped
 }
 
+func find_by_member(member: Spite.AttributeDeclaration<$element_type>, value: member.class): $element_type? {
+    var index = 0
+    while index < item_count {
+        var item = values.item_at(items, index)
+        if item.attributes[member] == value {
+            return values.item_at(items, index)
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func sort_by_member(member: Spite.AttributeDeclaration<$element_type>): Vector<$element_type> {
+    var keys = List<member.class>()
+    var order = List<Integer>()
+    var index = 0
+    while index < item_count {
+        var item = values.item_at(items, index)
+        var key = item.attributes[member]
+        keys.append(key)
+        order.append(index)
+        index = index + 1
+    }
+    var merged = order.copy()
+    var width = 1
+    while width < item_count {
+        var start = 0
+        while start < item_count {
+            var middle = start + width
+            if middle > item_count {
+                middle = item_count
+            }
+            var end = middle + width
+            if end > item_count {
+                end = item_count
+            }
+            var left = start
+            var right = middle
+            var placed = start
+            while placed < end {
+                var takes_left = right >= end
+                if left < middle and not takes_left {
+                    crash order[left]
+                    crash order[right]
+                    var left_position = order[left]
+                    var right_position = order[right]
+                    crash keys[left_position]
+                    crash keys[right_position]
+                    var left_key = keys[left_position]
+                    var right_key = keys[right_position]
+                    var right_first = left_key > right_key
+                    takes_left = not right_first
+                }
+                var taken = right
+                if takes_left {
+                    taken = left
+                    left = left + 1
+                } else {
+                    right = right + 1
+                }
+                crash order[taken]
+                var position = order[taken]
+                merged[placed] = position
+                placed = placed + 1
+            }
+            start = end
+        }
+        var previous = order
+        order = merged
+        merged = previous
+        width = width * 2
+    }
+    var sorted = Vector<$element_type>()
+    sorted.reserve(item_count)
+    index = 0
+    while index < item_count {
+        crash order[index]
+        var source = order[index]
+        sorted._append_copy(items, source)
+        index = index + 1
+    }
+    return sorted
+}
+
 func drop() {
     clear()
     if items != 0 {
