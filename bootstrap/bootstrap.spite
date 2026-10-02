@@ -1532,7 +1532,6 @@ func run_executable() {
     var runner = Process(runner_path, passed)
     var port = remote_loop_port()
     if is_on("repl") or port > 0 or is_on("hot_reload") {
-        console.flush()
         var run_attached = runner.run_attached()
         program.exit(run_attached)
         return

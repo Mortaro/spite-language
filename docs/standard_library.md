@@ -446,14 +446,16 @@ meanwhile ([which calls wait](#read-and-write-a-file)).
 | `write(...values)` | the same without the line break |
 | `error(...values)` | like `print`, to the error stream |
 | `debug(...values)` | each value's `to_debug()`, separated by a space, then a line break |
-| `flush()` | writes out whatever the output and error streams still hold |
 | `read_line()` | one line of input without its line break, as a `String?`: `null` only at the end of the input |
 
-**Every line is written out as it is printed.** `print`, `error` and `debug` end a line and hand it to the
-operating system at once, whether the output is a terminal, a file or a pipe, so a server's log redirected to a
-file shows each line when it happens rather than when the program ends. `write` leaves its text for the next line
-end or `flush()`. It costs one system call per line when the output is a file or a pipe
-([the rule and its measurement](#system-classes)).
+**You never flush.** The compiler chooses how printed output reaches its destination, and whatever it chooses,
+three things hold: a line is never split, nor mixed with a line another thread prints at the same time; everything
+printed is out before the program exits and before a crash report; and text written before the program reads
+input, a prompt, is visible before the read. `print`, `error` and `debug` end a line and hand it to the operating
+system at once, whether the output is a terminal, a file or a pipe, so a server's log redirected to a file shows
+each line when it happens rather than when the program ends. `write` leaves its text for the next line end, the
+next read of input or the end of the program
+([the rule and its measurement](#system-classes)). There is no `flush()` to call.
 
 `print`, `write` and `error` are ordinary functions in `library/console.spite`, taking
 `...values: List<Printable>`, where `Printable` is a `type` that requires `to_string(): String`. Every number,
@@ -918,7 +920,7 @@ library through `DynamicLibrary`. What each member answers is in the section of 
 | `Process(command, arguments)` | `working_directory`, `environment_variables`, `run(): Integer`, `output(): String`, `run_attached(): Integer`; see [Run a process](#run-a-process). Each argument reaches the child whole: single-quoted for the shell on Linux and macOS, and quoted by the `CommandLineToArgvW` rules on Windows, a `key=value` argument quoting only its value (`-script="a b"`). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
 | `Program()` | a singleton: `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String`, `live_allocations(): Integer`; see [Program](#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |
 | `Clock()` | a singleton: `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant`; `elapsed_nanoseconds()` is the monotonic clock, with a nanosecond unit and no allocation per reading; see [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation) |
-| `Console()` | a singleton: `print(...values)`, `write(...values)`, `error(...values)`, `debug(...values)`, `flush()`, `read_line(): String?`; see [Console](#console), and below |
+| `Console()` | a singleton: `print(...values)`, `write(...values)`, `error(...values)`, `debug(...values)`, `read_line(): String?`; see [Console](#console), and below |
 | `FileSystemWatcher()` | `watch_for_changes(target: FileSystemWatcher.Target): Boolean`, `changes(): List<String>`, `wait_for_changes()`; see [Watch files and folders](#watch-files-and-folders), which is the rule. `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload)) |
 | `Socket()` | public library surface: `listen_locally(port): Boolean`, `listen_everywhere(port): Boolean`, `listen_at(host, port): Boolean`, `connect_locally(port): Boolean`, `connect(host, port): Boolean`, `accept_client(): Socket?`, `read_line(): String?`, `read_bytes(address, count): Integer`, `write_line(text): Boolean`, `write_bytes(address, count): Boolean`, the calls that never wait `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer` and `write_bytes_now(address, count): Integer`, `closed: Boolean`, `close()`: TCP over IPv4 and IPv6 on every system ([Socket](#socket), and below); `--repl-port` and `spite connect` use `listen_locally` and `connect_locally` ([REPL and live reload](repl.md#repl-and-live-reload)) |
 | `Concurrent(function)`, `Parallel(function)` | the handle stands in for what the function returned, and reading it is the wait; `finished: Boolean` never waits; dropping the handle waits for it; there is no `wait()` and no `join()`; see [concurrency.md](concurrency.md) |
@@ -950,13 +952,20 @@ the ordinary shape error, naming the function: `'Pet' does not fit type 'Printab
 'to_string'`. A `List` or a `Dictionary` has no `to_string()` either (`'List<Integer>' does not fit type
 'Printable'`), so it is printed with `debug`, or joined first (`diagnostics/print_without_to_string`,
 `conformance/stage6/printable_values`). A `type` writes a required function as `to_string(): String`. What stays
-the compiler's is only the floor: `_write_output(text)`, `_write_error(text)` and `flush()` are declared nowhere in
-Spite, and the compiler supplies their C (`fwrite` and `fflush`), as it does `Memory.Heap`'s.
+the compiler's is only the floor: `_write_output(text)`, `_write_error(text)`, `_write_held()` and `_flush()` are
+private, declared nowhere in Spite, and the compiler supplies their C (`fwrite` and `fflush`), as it does
+`Memory.Heap`'s.
 
 **A printed line is written out at once.**
-`print`, `error` and `debug` call `flush()` after their line break, so output redirected to a file or a pipe
+`print`, `error` and `debug` flush after their line break, so output redirected to a file or a pipe
 shows each line when it is printed instead of when the C library's buffer fills or the program exits; `write`
-does not, so a prompt or a line built from pieces goes out with the next line end. The C library already writes
+does not, so a line built from pieces goes out with the next line end. `read_line()` flushes first, so a prompt
+written with `write` is on the screen before the program waits for the answer; `error` flushes the output first, so
+the two streams keep the order they were written in when they reach one file; and `Program.exit(code)` and
+`Process.run_attached()` flush first too. In a program that starts a thread, each thread gathers what one `print`,
+`write`, `error` or `debug` writes and hands it to the operating system in one piece, so two threads printing at
+once never split each other's lines; a program with one thread writes
+each piece as it comes. The C library already writes
 a terminal's output promptly, so nothing changes there. Chosen as the cheapest way that shows every line:
 `benchmarks/console_lines` prints 200 000 lines, and on Windows to a file it takes about 700 ms flushed per line
 against about 140 ms buffered until exit (to a pipe or the null device the two cost the same, about 450 and 530
@@ -970,8 +979,8 @@ Printing a value costs what the call says: the list of values
 is a `List` like any variadic call's, a number is held in the list with its class and goes through its `to_string()`, and the text is written
 with its length rather than up to its first zero byte. `conformance/stage6/text_building` and
 `fused_chain_allocations` pin those allocations. A `crash` writes its operands itself, through each value's
-`to_string()`, because it reports on the way out of a program that is stopping. `flush()` writes out what the
-output and error streams hold and nothing more.
+`to_string()`, because it reports on the way out of a program that is stopping, after flushing what the program
+printed before it.
 
 **`Console.debug` and `to_debug()`.** Each class has an automatic `to_debug(): String` that returns something like
 `Class {attribute: value, other: value}` by nesting `to_debug()`s. `debug(...values: List<Debuggable>)`, where `type Debuggable { to_debug():
@@ -1095,8 +1104,8 @@ and atomics at an address, are language primitives each backend lowers.
    backend writes where it is called, like `+` ([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)).
    This is the floor that stays.
 2. **Supplied bodies**: functions declared without a body whose C the compiler writes
-   (`bootstrap/source/generation/prelude.spite`): `Console`'s `_write_output`, `_write_error` and `flush`
-   (`fwrite`, `fflush`); `Memory.Heap`'s `allocate`, `resize`, `free` and `live_allocations` (the C library's
+   (`bootstrap/source/generation/prelude.spite`): `Console`'s `_write_output`, `_write_error`, `_write_held` and
+   `_flush`, and `Program`'s and `Process`'s `_flush_output` (`fwrite`, `fflush`); `Memory.Heap`'s `allocate`, `resize`, `free` and `live_allocations` (the C library's
    `malloc`, or the `--debug-memory` table) and `Memory.Address`'s `copy_to` and `compare_bytes` (`memmove`,
    `memcmp`), `text(length)`, `String.sum` and `String.code_at` (which depend on whether text fits inside the
    `String`);

@@ -240,7 +240,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **C8 The C left in `main` moves into Spite** (D361, D342). `argv` reaches the program only through `Arguments`;
   `_setmode`, singleton teardown and the `--debug-memory` report run through singletons' `drop()`. Files:
   `code_builder.spite` (line 274 on), `native_faults.spite`, `library/program.spite`, `library/environment.spite`.
-  **M.** Depends on K1 (flushing at exit through `drop()`).
+  **M.** No dependencies (K1's flushing at exit is built: `Program.exit` and the C library's exit flush).
 - **C9 No bodiless function; primitives in one place** (D240, D147, D178; status "Pure Spite", "What the compiler
   supplies"). The compiler-supplied bodies (`Console`'s raw writes, `DynamicLibrary` open and lookup, `TypedMemory`,
   number casts, `Concurrent`/`ThreadPool`/`Scheduler` frames, `HotReload` hand-off, `Spite.Attribute` and
@@ -249,12 +249,10 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Concurrency, waiting and output (D346, D369 items 178, 179 and 211, D183, D184, D210, D378)
 
-- **K1 The compiler picks how output is flushed** (D346). Lines never split or interleaved, everything out before
-  exit and before a crash report, output before an input read visible; within that, line by line to a terminal,
-  large buffers to files and pipes, per-thread buffers merged by line. Files: `library/console.spite`,
-  `library/windows/console.spite` (and Linux, macOS), `prelude.spite` (`flush`), generator.spite crash paths
-  (`fflush` in `SPITE_TRACE_ASSERT`, `spite_overflowed`). `Console.flush()` leaves the public surface (D383); `write` stays. **M.** No
-  dependencies.
+- **K1 The compiler picks the flushing per destination** (D346; status "System classes"). The guarantees and the
+  private `flush` are built; left is the speed: line by line to a terminal, large buffers to files and pipes, with
+  a flush at every place the program waits so a server's log still shows each line. Files: `library/console.spite`,
+  `prelude.spite` (`_flush`), the waiting library classes, `wait_facts.spite`. **M.** Depends on K2's list of waits.
 - **K2 Waits that run the loop in place never hang each other** (D369 item 179; status "Hidden async/await").
   Close every gap (right side of `and`/`or`/`==` on a nullable, through a function value, a union dispatch or a
   constructor, a `Concurrent` dropped inside a `Concurrent`), even at a cost in speed. Files: `state_machine.spite`,

@@ -50,6 +50,28 @@ func header(): String {
         "static SPITE_THREAD_LOCAL int32_t spite_skipped_taken[16];"
         "static SPITE_THREAD_LOCAL int32_t spite_skipped_depth = 0;"
         "static void spite_enter_skipped(void* guard);"
+        "/* Each thread holds what one Console call writes and hands it over in one fwrite, so a line is never split by"
+        " * another thread's output (docs/standard_library.md#console). */"
+        "typedef struct SpiteHeldText \{ char* bytes; size_t used; size_t room; char first[256]; } SpiteHeldText;"
+        "static SPITE_THREAD_LOCAL SpiteHeldText spite_held_output;"
+        "static SPITE_THREAD_LOCAL SpiteHeldText spite_held_error;"
+        "static inline void spite_hold_text(SpiteHeldText* held, const char* bytes, size_t count) \{"
+        "if (held->bytes == 0) \{ held->bytes = held->first; held->room = sizeof(held->first); }"
+        "if (held->used + count > held->room) \{"
+        "size_t room = (held->used + count) * 2;"
+        "char* grown = held->bytes == held->first ? (char*)malloc(room) : (char*)realloc(held->bytes, room);"
+        "if (grown == 0) \{ fputs(\"spite: out of memory holding printed text\\n\", stderr); exit(1); }"
+        "if (held->bytes == held->first) memcpy(grown, held->first, held->used);"
+        "held->bytes = grown; held->room = room;"
+        "}"
+        "memcpy(held->bytes + held->used, bytes, count);"
+        "held->used = held->used + count;"
+        "}"
+        "static inline void spite_write_held(SpiteHeldText* held, FILE* stream) \{"
+        "if (held->used > 0) fwrite(held->bytes, 1, held->used, stream);"
+        "held->used = 0;"
+        "if (held->bytes != held->first) \{ free(held->bytes); held->bytes = held->first; held->room = sizeof(held->first); }"
+        "}"
         "#else"
         "#define SPITE_COUNT_UP(count) ((count) = (count) + 1)"
         "#define SPITE_COUNT_DOWN(count) ((count) = (count) - 1)"
@@ -238,6 +260,8 @@ func path(): String {
 func reopened_classes(): List<String> {
     var classes = [
         "console"
+        "program"
+        "process"
         "memory/heap"
         "memory/address"
         "typed_memory"
@@ -407,6 +431,8 @@ func supplied_body(stem: String, name: String): String? {
 func supplied_members(stem: String): List<String> {
     switch stem {
         "console": return console_members()
+        "program": return written_output_members()
+        "process": return written_output_members()
         "memory/heap": return heap_members()
         "memory/address": return address_members()
         "typed_memory": return typed_memory_members()
@@ -445,12 +471,18 @@ func supplied_members(stem: String): List<String> {
 func console_members(): List<String> {
     return [
         "func _write_output(text: String)"
-        "fwrite(spite_string_bytes(&text_), 1, (size_t)spite_string_length(text_), stdout);\nSpiteString___release(text_);"
+        "#ifdef SPITE_THREADS\nspite_hold_text(&spite_held_output, spite_string_bytes(&text_), (size_t)spite_string_length(text_));\n#else\nfwrite(spite_string_bytes(&text_), 1, (size_t)spite_string_length(text_), stdout);\n#endif\nSpiteString___release(text_);"
         "func _write_error(text: String)"
-        "fwrite(spite_string_bytes(&text_), 1, (size_t)spite_string_length(text_), stderr);\nSpiteString___release(text_);"
-        "func flush()"
-        "fflush(stdout);\nfflush(stderr);"
+        "#ifdef SPITE_THREADS\nspite_hold_text(&spite_held_error, spite_string_bytes(&text_), (size_t)spite_string_length(text_));\n#else\nfwrite(spite_string_bytes(&text_), 1, (size_t)spite_string_length(text_), stderr);\n#endif\nSpiteString___release(text_);"
+        "func _write_held()"
+        "#ifdef SPITE_THREADS\nspite_write_held(&spite_held_output, stdout);\nspite_write_held(&spite_held_error, stderr);\n#endif"
+        "func _flush()"
+        "#ifdef SPITE_THREADS\nspite_write_held(&spite_held_output, stdout);\nspite_write_held(&spite_held_error, stderr);\n#endif\nfflush(stdout);\nfflush(stderr);"
     ]
+}
+
+func written_output_members(): List<String> {
+    return ["func _flush_output()", "fflush(stdout);\nfflush(stderr);"]
 }
 
 func heap_members(): List<String> {

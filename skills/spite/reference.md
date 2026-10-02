@@ -543,7 +543,8 @@ a class prints once it declares `func to_string(): String`, and `debug` shows an
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere, bound once
 as `var console = Console()`.
 `print`, `error` and `debug` write their line out at once, so a log redirected to a file shows every line as it
-happens; `write` waits for the next line end or `flush()`.
+happens; `write` waits for the next line end, the next `read_line()` or the exit. There is no `flush()`: lines from
+two threads never split each other, and everything is out before an exit, a crash report or a read.
 `Socket()` is TCP over IPv4 and IPv6 on every system (`connect("::1", port)`; `listen_everywhere` takes both): `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host,
 port)`, `connect_locally(port)`, `connect(host, port)`, then lines (`read_line(): String?`, `write_line(text)`) or
 bytes at a `Memory.Address` (`read_bytes(address, count): Integer`, `write_bytes(address, count)`), which wait.

@@ -552,16 +552,24 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Only Windows runs today; the Linux and macOS folders of `library/` are held to compiling by check.sh.
 - Open question 11 (open_questions.md): whether a `type` writes a required function as `to_string(): String`
   (current) or as `to_string: Spite.Function<String>` (Mortaro's original wording). Page states the current form.
-- D147, not built: even `_write_output`, `_write_error` and `flush` should be Spite over a few named primitives.
+- D147, not built: even `_write_output`, `_write_error`, `_write_held`, `_flush` and `_flush_output` should be Spite over a few named primitives.
 - Proposal, unresolved (mortaros_missing_decisions.md): the REPL should show values as their `to_debug()` too; it
   keeps its own display (text unquoted, `Name {...}`, `List<String>(...)`) today.
 - Names proposed, unconfirmed: the line-at-once flush of `print`, `error`, `debug`; `to_bytes()`; the Maths member
   names and constants; the `Console.debug` format details; the `Directory.Entry` name; all `Socket` readings.
 - Not built: `fused_multiply_add`; waits for targets that name their processor.
+- Not built (D346): choosing the flushing per destination. Every line is still flushed as it is printed, to a
+  terminal, a file or a pipe alike; large buffers for files and pipes need a flush wherever the program waits (a
+  sleep, a socket, a watcher, a `Concurrent`, a child process), or a server's log would hold its last lines, and
+  the list of waits is K2's. Built: the three guarantees (a line is handed over whole by each thread, so threads
+  never split each other's lines; everything is flushed before an exit, a crash report and a read of input) and
+  `Console.flush()` leaving the public surface (D383).
+- Proposed by Claude, unconfirmed (D???): `error` flushing the output first so the two streams keep their order,
+  `Process.run_attached()` flushing first, and the private names `_write_held`, `_flush` and `_flush_output`.
 
 ### Pure Spite: dissolving the runtime
 - Partial (the section was tagged partial). Still supplied by the compiler rather than written as Spite (D147,
-  D178 target: zero hidden code): `Console`'s `_write_output`, `_write_error`, `flush`; `Memory.Heap`'s `allocate`,
+  D178 target: zero hidden code): `Console`'s `_write_output`, `_write_error`, `_write_held`, `_flush`, `Program`'s and `Process`'s `_flush_output`; `Memory.Heap`'s `allocate`,
   `resize`, `free`, `live_allocations`; `Memory.Address`'s `copy_to`, `compare_bytes`, `text(length)`;
   `String.sum` and `String.code_at`; `TypedMemory<T>`; the number classes' bit operations; `DynamicLibrary`'s
   opening, closing and symbol lookup; the entry points and frames of `Concurrent`, `ThreadPool`, `Scheduler`;
