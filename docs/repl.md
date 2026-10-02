@@ -352,7 +352,8 @@ line, the program stops before it and waits for the prompt: `where` answers wher
 command answers as usual, and `continue` lets the program go on. `breaks` lists the breakpoints and `clear` (or
 `clear ticker.spite:16`) removes them, compiling the code again without the stop. A call made at the prompt that
 reaches a breakpoint answers `stopped at ... while answering` at once, and prints what it returned on the error
-output once it goes on. 
+output once it goes on. A stopped program is waiting, so a reload the watcher compiled meanwhile is swapped in
+there, as at any wait.
 
 ## Code typed at the prompt
 
@@ -662,6 +663,10 @@ worked out while compiling, so the check folds away with the branch it guards.
   instead of the build's manifest; the functions and slots the executable holds stay the build's. A save after a
   change that compiled everything is fast again. Starting the program again starts from the build
   (`game.reload_start`), since a new process runs the build's code.
+- **One reload at a time.** A reload compares with the files and the baseline of the code the program will run,
+  which swapping a library in writes, so a reload waits to compile until the library before it has been swapped in
+  (or refused): the watcher and the prompt never compile against the code before a swap that is still on its way,
+  and never read those files while a swap writes them.
 - **Every object of a program class can move.** In a `--hot-reload` build each object of the program's own classes
   carries two hidden words after its header: where its attributes live when they have moved, and its place in a
   list of the class's live objects, which each allocation adds to and each release takes from. Code reads an
