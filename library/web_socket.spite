@@ -622,7 +622,9 @@ func _sha1_compress(state: Memory.Address, chunk: Memory.Address, schedule: Memo
         var eight_back = schedule.read_unsigned_integer(index * 4 - 32)
         var fourteen_back = schedule.read_unsigned_integer(index * 4 - 56)
         var sixteen_back = schedule.read_unsigned_integer(index * 4 - 64)
-        var mixed = three_back.bits_exclusive_or(eight_back).bits_exclusive_or(fourteen_back).bits_exclusive_or(sixteen_back)
+        var mixed = three_back.bits_exclusive_or(eight_back).bits_exclusive_or(fourteen_back).bits_exclusive_or(
+            sixteen_back,
+        )
         var word = _rotated_left(mixed, 1)
         schedule.write_unsigned_integer(index * 4, word)
         index = index + 1
