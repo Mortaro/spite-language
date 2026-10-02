@@ -78,7 +78,7 @@ emit nothing.
 | [A proven read tests only its bounds](#a-proven-read-tests-only-its-bounds) | every | nothing but speed; a read outside its list halts |
 | [A walked `crash` line's read is the row's read](#a-walked-crash-lines-read-is-the-rows-read) | every | nothing but speed |
 | [Objects that never leave their function live in the frame](#objects-that-never-leave-their-function-live-in-the-frame) | every but the inspectable ones | fewer allocations; `.memory.section` answers `'stack'` |
-| [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | every but `--hot-reload` | nothing but build time; `.spite/objects` grows |
+| [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | every but `--hot-reload` | nothing but build time; `.spite/objects` grows to 1 GiB |
 | [A release build is `-O3` with link-time optimisation](#a-release-build-is--o3-with-link-time-optimisation) | `--optimized` | nothing but speed, and a slower link |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | every but `--hot-reload`, decided per program | no lock where one is not needed |
 | [Copies that cost nothing](#copies-that-cost-nothing) | every | fewer allocations |
@@ -1795,8 +1795,8 @@ body compiles one unit ([compiler.md](compiler.md#translation-units-the-c-compil
 rules are). It changes nothing a program does: the same functions and variables, with `static` dropped so another unit
 can call them. What you could notice: in a build without link-time optimisation a call from one unit into another is
 not inlined by the C compiler (which the default `-O0` build never does anyway, and which `--optimized` recovers,
-[below](#a-release-build-is--o3-with-link-time-optimisation)); and the object cache in `.spite/objects` grows until it
-is deleted.
+[below](#a-release-build-is--o3-with-link-time-optimisation)); and the object cache in `.spite/objects` grows to
+1 GiB, past which each build removes what was used least recently.
 
 ### A release build is `-O3` with link-time optimisation
 

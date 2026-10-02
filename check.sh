@@ -723,6 +723,21 @@ if [ "$(ls .spite/objects | grep -c '\.o$')" != "$objects_before" ]; then
   echo "FAILED: building parallel_stages again compiled a unit whose object was cached"; exit 1
 fi
 echo "translation units: a program built from four units runs the same, and building it again only links"
+# The object cache evicts what was used least recently once it passes its size cap (docs/compiler.md): an entry
+# last used long ago that alone passes the cap is removed by the next build, and nothing the build uses goes with it.
+stale=.spite/objects/0.o
+ls .spite/objects | grep '\.o$' > "$work/objects_kept.txt"
+truncate -s 1100M "$stale" && touch -d "2000-01-01" "$stale" || { echo "FAILED: could not make a stale object to evict"; exit 1; }
+SPITE_TRANSLATION_UNITS=4 "$work/generation_two.exe" "$stages" --debug-memory --build --executable-path="$split" > /dev/null 2>&1 || {
+  rm -f "$stale"; echo "FAILED: parallel_stages could not be built beside a stale object past the cache's cap"; exit 1; }
+if [ -f "$stale" ]; then
+  rm -f "$stale"; echo "FAILED: a build left the object cache past its cap with a stale object in it"; exit 1
+fi
+evicted=$(ls .spite/objects | grep '\.o$' | sort | comm -23 <(sort "$work/objects_kept.txt") -)
+if [ -n "$evicted" ]; then
+  echo "FAILED: evicting one stale object took others with it:"; echo "$evicted" | head -5; exit 1
+fi
+echo "object cache: past its cap, a build evicts what was used least recently and keeps what it uses"
 # The fault handler and its function table are written after every function (D255), and must still report when the
 # C is split into units and linked with link-time optimisation: an --optimized native_fault_foreign from four units.
 # Only Windows walks the stack of an --optimized build; Linux and macOS walk frame pointers, which it does not keep.
