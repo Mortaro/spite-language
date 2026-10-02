@@ -833,7 +833,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Arithmetic is checked in every build
 
-- Not built: leaving out the overflow check where a proof already bounds the operands.
+- Not built: leaving out the overflow check where a proof bounds the operands other than a counter stepped by one
+  under a `<` or `>` and constants (an index already bounded, a `bits_and` mask put into a `Byte`, an attribute).
 
 ### Objects that never leave their function live in the frame
 
@@ -881,9 +882,9 @@ recorded below.
 
 ### Arithmetic that does not fit halts
 
-- The check is built in every build; the proof that would drop it is planned. No range fact removes it, not even a
-  counted loop's `index = index + 1`; dropping the check where a proof bounds the operands is not built (see
-  optimizations.md, "Arithmetic is checked in every build"). The table row says "nothing yet".
+- Built for a local counter stepped by one under a `<` or `>` and for constants; other range facts (bounded
+  indexes, masks, attributes) do not remove the check yet (see optimizations.md, "Arithmetic is checked in every
+  build").
 
 ### A list's templates read their elements uncounted
 
@@ -979,8 +980,8 @@ The section listed proofs that are not built. Each, with what it said:
 - A foreign function's status is handled while compiling (D272, decided by Mortaro; design proposed by Claude,
   unconfirmed): a C enum result becomes a Spite enum that must be switched over. Not built: today a call answers an
   `Integer` and `crash result == 0` compiles (foreign_libraries.md, "Foreign libraries", partial).
-- An overflow check left out where a proof bounds the operands (optimizations.md, "Arithmetic is checked in every
-  build").
+- An overflow check left out where a range fact other than a counter's bound or a constant bounds the operands
+  (optimizations.md, "Arithmetic is checked in every build").
 - A write to a copy that dies unread is an error (proposed by Claude, unconfirmed): escape analysis already proves a
   result fresh (failure.md, "Nothing fails silently", still open).
 - Frame objects holding text, lists or objects, their attributes let go at the end of the frame (optimizations.md,

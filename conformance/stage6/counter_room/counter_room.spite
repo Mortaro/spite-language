@@ -1,0 +1,19 @@
+var console = Console()
+
+func CounterRoom() {
+    var index: Byte = 250
+    while index < 255 {
+        index = index + 1
+    }
+    var left: UnsignedInteger = 3
+    while left > 0 {
+        left = left - 1
+    }
+    console.print(index, left)
+    var steps: Byte = 250
+    while steps < 255 {
+        steps = steps + 1
+        steps = steps + 1
+    }
+    console.print("never printed", steps)
+}

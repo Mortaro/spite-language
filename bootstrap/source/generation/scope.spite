@@ -380,6 +380,30 @@ func forget_bound(path: String) {
     }
 }
 
+func holds_room(candidate: String): Boolean {
+    if narrowed_paths.contains(candidate) {
+        return true
+    }
+    if rechecked_paths.contains(candidate) or is_loop or not parent {
+        return false
+    }
+    return parent.holds_room(candidate)
+}
+
+func forget_room(name: String) {
+    var index = narrowed_paths.count() - 1
+    while index >= 0 {
+        crash narrowed_paths[index]
+        var narrowed = narrowed_paths[index]
+        if narrowed == "~+[{name}]" or narrowed == "~-[{name}]" {
+            narrowed_paths.remove_at(index)
+        }
+        index = index - 1
+    }
+    assert parent
+    parent.forget_room(name)
+}
+
 func is_path_narrowed(candidate: String): Boolean {
     return not narrowing_of(candidate).is_empty()
 }

@@ -1479,15 +1479,18 @@ front of a whole number, the smallest signed value divided by `-1`, and a value 
 against the narrower type's range and a branch). The ordinary build and `--optimized` check exactly as
 `--debug-memory` does: there is no unchecked mode, so a benchmark measures the program as it ships. The
 `wrapping_sum`, `wrapping_subtract` and `wrapping_multiply` functions are one plain C operation on the bits, so a
-hash written with them costs what it did with the wrapping operator. What you can observe: a halt instead of a
-wrapped answer, and a loop whose sum the C compiler vectorised before may no longer be vectorised, since each
-addition can now stop the program. **Cost, measured** (best of seven interleaved runs, each benchmark built with
-`--optimized` before and after, gcc, on a four-processor Linux machine other work was loading): `plain_loops` 321
-to 349 ms (its `Integer` sum, vectorised before, 248 to 666 microseconds a pass), `dictionary_keys` 134 to 142 ms,
-`number_keys` 201 to 211 ms, `number_dictionary` 135 to 148 ms, `text_building` 59 to 62 ms, `sorting` 294 to 295
-ms, `particles` 92 to 92 ms, `vector_maths` 110 to 109 ms, `stress` 40 to 42 ms, `game_maths`, `half_precision`
-and `vector_items` within a millisecond. The check is left out where a constant or a proof already bounds the
-operands, as a proven divisor leaves out its zero check.
+hash written with them costs what it did with the wrapping operator. The check is left out of a local counter stepped by one while a `<` on it is in force (`index = index + 1` in a
+`while index < count` loop), of one stepped down while a `>` is, and of arithmetic on constants
+([proofs.md](proofs.md#arithmetic-that-does-not-fit-halts)): in the compiler's own C that removes 1 145 of its
+2 595 checks. What you can observe: a halt instead of a wrapped answer, and a loop whose sum the C compiler
+vectorised before may no longer be vectorised, since each addition can now stop the program. **Cost, measured**
+(best of seven interleaved runs, each benchmark built with `--optimized` before the checks and after, gcc, on a
+four-processor Linux machine other work was loading, so a few percent either way is noise): `plain_loops` 323 to
+352 ms (its `Integer` sum, vectorised before, 248 to 640 microseconds a pass), `number_dictionary` 131 to 151 ms,
+`number_keys` 188 to 192 ms, `dictionary_keys` 132 to 132 ms, `text_building` 59 to 60 ms, `stress` 39 to 38 ms,
+`sorting` 291 to 287 ms, `vector_maths` 109 to 107 ms, `fused_chain` 286 to 224 ms. `particles` measured 91 to
+107 ms with gcc, but 93 ms with every counter still checked, so dropping those checks made gcc lay the loop out
+worse; with clang it is 103 to 104 ms.
 
 ### Short text lives inside the `String`
 

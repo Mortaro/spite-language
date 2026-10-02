@@ -1057,8 +1057,10 @@ keep the low bits of the answer (`UnsignedInteger 4000000000.wrapping_multiply(3
 `Long.largest.wrapping_sum(1)` is `Long.smallest`). Each is one C operation on the bits
 (`conformance/stage6/wrapping_functions`). The hashes and codecs of the library (`Dictionary`'s and the
 allocation table's hash, `Sha256`, `Argon2`, `Noise`) call them where they wrap on purpose. A constant expression
-that overflows is still a compile error, and `/` and `%` keep the check described next. The compiler leaves a check
-out where it can prove the answer fits, and what that costs is measured in
+that overflows is still a compile error, and `/` and `%` keep the check described next. The compiler leaves the
+check out of `counter + 1` while a `<` on the local `counter` is in force, out of `counter - 1` while a `>` is, and
+out of arithmetic on constants ([proofs.md](proofs.md#arithmetic-that-does-not-fit-halts),
+`conformance/stage6/counter_room`); what the rest costs is measured in
 [optimizations.md](optimizations.md#arithmetic-is-checked-in-every-build).
 
 **Division by zero follows Go.** A whole-number `/` or `%` whose divisor is zero halts

@@ -10265,7 +10265,7 @@ func generate_binary(
     if not checked.is_empty() {
         code = checked
     }
-    var guarded = checked_overflow(binary, left_code, right_code, left_type)
+    var guarded = checked_overflow(binary, left_code, right_code, left_type, scope)
     if not guarded.is_empty() {
         code = guarded
     }
@@ -10369,8 +10369,12 @@ func checked_overflow(
     left_code: String,
     right_code: String,
     left_type: Analysis.SpiteType,
+    scope: Scope,
 ): String {
     if binary.operator != 'add' and binary.operator != 'subtract' and binary.operator != 'multiply' {
+        return ""
+    }
+    if proven_to_fit(binary, scope) {
         return ""
     }
     var scalar = type_shape.as_scalar(left_type)
@@ -10394,6 +10398,29 @@ func checked_overflow(
     var builtin = overflow_builtin(binary.operator)
     var shown = operand_cast(scalar.kind)
     return "(\{ {c_type} {left_value} = {left_code}; {c_type} {right_value} = {right_code}; {c_type} {result}; if (__builtin_expect({builtin}({left_value}, {right_value}, &{result}), 0)) {failure}(\"{operation}\", \"{with_article(type_name)}\", \"{binary_operator_symbol(binary.operator)}\", {shown}{left_value}, {shown}{right_value}, {where}); {result}; })"
+}
+
+func proven_to_fit(binary: Syntax.Expressions.BinaryExpression, scope: Scope): Boolean {
+    crash binary.left
+    crash binary.right
+    if constant_integer(binary.left) and constant_integer(binary.right) {
+        return true
+    }
+    var step = shape.as_integer_literal(binary.right)
+    var counter = shape.as_identifier(binary.left)
+    if not step or not counter {
+        return false
+    }
+    if step.value != 1 {
+        return false
+    }
+    if binary.operator == 'add' {
+        return scope.holds_room("~+[{counter.name}]")
+    }
+    if binary.operator != 'subtract' {
+        return false
+    }
+    return scope.holds_room("~-[{counter.name}]")
 }
 
 func overflow_builtin(operator: Syntax.Expressions.BinaryOperator): String {
@@ -22644,6 +22671,7 @@ func generate_variable_declaration(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ) {
+    scope.forget_room(declaration.name)
     assert declaration.value
     assert not constant_local(declaration, scope, class_information)
     if pending_allocator {
@@ -32348,6 +32376,7 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
         narrow_proven_indices(binary.right, scope)
         return
     }
+    narrow_counter_room(binary, scope)
     narrow_nonzero(binary, scope)
     if binary.operator == 'less' {
         narrow_counted_element(condition, scope)
@@ -32406,6 +32435,19 @@ func narrow_not_empty(negated: Syntax.Expressions.UnaryExpression, scope: Scope)
     assert not emptied.is_empty()
     var condition_text = Syntax.SourcePrinter().source_expression(negated)
     scope.narrow_bound_path("{emptied}[0]", condition_text)
+}
+
+func narrow_counter_room(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
+    assert binary.operator == 'less' or binary.operator == 'greater'
+    crash binary.left
+    var counter = shape.as_identifier(binary.left)
+    assert counter
+    assert scope.unnarrowed_type(counter.name)
+    if binary.operator == 'less' {
+        scope.narrow_path("~+[{counter.name}]")
+        return
+    }
+    scope.narrow_path("~-[{counter.name}]")
 }
 
 func narrow_nonzero(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
