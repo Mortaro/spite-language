@@ -246,11 +246,14 @@ A short guide by task. Find what you are writing; the entries below say the rest
 ### A copy made to narrow is an error
 
 - **Proves.** A local only copies a `T?` name or path so that it can be narrowed.
-- **Rule.** A `var` whose value is a bare name or path of a `T?` type, narrowed later by `assert`, `crash`, `if` or
-  `switch` on its bare name, never assigned again, and whose source is not assigned in the function either.
+- **Rule.** A `var` whose value is a bare name or path of a `T?` type, narrowed later by `assert`, `crash`, `if`,
+  `while` or `switch` on its bare name, on `not` of it, or on it as a side of an `and` (`if not watcher { ... }`,
+  `assert watcher and ready`), never assigned again, and whose source is not assigned in the function either.
 - **Buys.** Refuses the copy: `'watcher' only copies 'tracker' so it can be narrowed: narrow 'tracker' itself`.
-- **Falls back.** A snapshot taken before its source changes is not a copy for narrowing, and is allowed.
-- **See.** [failure.md: Narrowing a path](failure.md#narrowing-a-path); `diagnostics/copy_to_narrow`.
+- **Falls back.** A snapshot taken before its source changes is not a copy for narrowing, and is allowed, and so is
+  a `var` with a written type in a generic class, which converts for some instance.
+- **See.** [failure.md: Narrowing a path](failure.md#narrowing-a-path); `diagnostics/copy_to_narrow`,
+  `diagnostics/copy_to_narrow_conditions`.
 
 ### A class test narrows its block
 

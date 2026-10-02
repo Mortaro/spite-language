@@ -334,7 +334,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 - **B1** A write question answers a silent `false` for supplied functions off the fixed list
   (`parameter_writes.spite`, `parameter_write_study.spite`). **S.**
-- **B2** Copy-to-narrow misses `if not copy { return }`, `while copy`, `assert copy and ...`. **S.**
 - **B3** The guard lint sees only literal defaults; a lent-element function is not checked. **S.**
 - **B4** A frame buffer's uses are matched by name, not by `TypedMemory` receiver (`placement.spite`). **S.**
 - **B5** A `crash` or `assert` on a `Build` field or a class test is not folded (D250). **S.**

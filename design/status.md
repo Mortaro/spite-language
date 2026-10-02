@@ -141,8 +141,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   supplies as writing only when its name is on a fixed list or starts with `write_`; any other supplied function
   answers "does not write", where the rule is `true` for whatever it cannot decide (metaprogramming.md, "Asking whether
   a function writes a parameter").
-- **A copy made only to narrow slips through** (D63). The check sees only a condition that is exactly the copy's bare
-  name, so a copy narrowed by `if not copy { return }`, `while copy` or `assert copy and ...` compiles.
 - **The guard lint sees only literal defaults** (D106). An `if` whose only statement returns `null`, `false`, `0`,
   `0.0`, `""` or nothing is caught; `if ... { return List<T>() }` in a function answering a `List` is not. And a
   function that lends a list element (D269) is not checked for a guard `assert` at all.

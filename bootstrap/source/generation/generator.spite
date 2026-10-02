@@ -23201,7 +23201,9 @@ func generate_variable_declaration(
     borrow_site = "local:{declaration.name}"
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
     borrow_site = ""
-    report_copy_for_narrowing(declaration.name, declaration.value, declared_type, scope, class_information)
+    if not declaration.type_reference or not current_class_is_generic() {
+        report_copy_for_narrowing(declaration.name, declaration.value, declared_type, scope, class_information)
+    }
     if scope.entry_names.contains(declaration.name) {
         value_code = rebind(declaration.name, value_code, declared_type, scope)
     }
@@ -27657,6 +27659,7 @@ func collect_statement_facts(statement: Syntax.Statements.Statement) {
     }
     var loop = shape.as_while_statement(statement)
     if loop {
+        note_narrowed(loop.condition)
         collect_body_facts(loop.body)
     }
     var choice = shape.as_switch_statement(statement)
@@ -27671,6 +27674,19 @@ func collect_statement_facts(statement: Syntax.Statements.Statement) {
 
 func note_narrowed(condition: Syntax.Expressions.Expression?) {
     assert condition
+    var negated = shape.as_unary(condition)
+    if negated {
+        assert negated.operator == 'logical_not'
+        note_narrowed(negated.operand)
+        return
+    }
+    var joined = shape.as_binary(condition)
+    if joined {
+        assert joined.operator == 'logical_and'
+        note_narrowed(joined.left)
+        note_narrowed(joined.right)
+        return
+    }
     var identifier = shape.as_identifier(condition)
     assert identifier
     body_narrowed_names.append(identifier.name)
@@ -30141,10 +30157,10 @@ func returned_default(if_statement: Syntax.Statements.IfStatement, return_type: 
     assert not if_statement.has_else_branch and if_statement.then_branch.count() == 1
     var only = shape.as_return_statement(if_statement.then_branch[0])
     assert only
-    var returned = only.value
-    if not returned {
+    if not only.value {
         return ""
     }
+    var returned = only.value
     if type_shape.as_nullable(return_type) {
         if shape.is_null_literal(returned) {
             return "null"

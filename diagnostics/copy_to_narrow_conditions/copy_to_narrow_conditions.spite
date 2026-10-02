@@ -1,0 +1,32 @@
+var console = Console()
+var tracker: Tracker? = null
+var ready = true
+
+func CopyToNarrowConditions() {
+    leave_when_missing()
+    loop_while_there()
+    assert_with_more()
+}
+
+func leave_when_missing() {
+    var watcher = tracker
+    if not watcher {
+        console.print("nothing to track")
+        return
+    }
+    watcher.note_a_drop()
+}
+
+func loop_while_there() {
+    var watcher = tracker
+    while watcher {
+        watcher.note_a_drop()
+        ready = false
+    }
+}
+
+func assert_with_more() {
+    var watcher = tracker
+    assert watcher and ready
+    watcher.note_a_drop()
+}

@@ -1209,8 +1209,10 @@ whole is: `crash names[position] and ages[position]` proves both elements, as tw
   (`diagnostics/namespace_nullable`). A local that only copies a name or a path so it can be narrowed is
   itself an error: "'watcher' only copies 'tracker' so it can be narrowed: narrow
   'tracker' itself ('assert tracker') and use it directly" (`diagnostics/copy_to_narrow`). Its scope: a `var` whose
-  value is a bare name or member path of a `T?` type, which is then narrowed,
-  is never assigned again, and whose source is not assigned later in the function either (a snapshot taken
+  value is a bare name or member path of a `T?` type, which is then narrowed by any condition that tests it (`if
+  watcher`, `if not watcher`, `while watcher`, `assert watcher and ready`; `diagnostics/copy_to_narrow_conditions`),
+  is never assigned again, is not a `var` with a written type in a generic class (there it converts for some
+  instance, as `var key: $value_type.key_type? = key_text` does), and whose source is not assigned later in the function either (a snapshot taken
   before the source changes is not a copy for narrowing). A local holding what a `[]` read answered (`var age =
   ages[name]`, `var cell = grid[row].cells[column]`) is not a copy: it is narrowed instead of reading the key twice.
 - A check on something that cannot be null proves nothing and is an error naming the fix: `assert tracker`
