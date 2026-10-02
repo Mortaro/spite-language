@@ -95,6 +95,10 @@ for a design):
   waits until it is watching, so it no longer asks for `HotReload` after the teardown, but a file change landing
   during the teardown would still run `compile_changes()` on the destroyed `HotReload`.
 - Signed arithmetic wraps in production builds and unsigned arithmetic wraps in every build (D249).
+- A REPL `exit` answered at the same wait as the command before it ends the program before its loop sees that
+  command: on Linux, concurrency.md's `frame_loop` session (`program.running = false`, then `exit`) lost its
+  `stopped` line in 3 of 5 runs, so `check.sh` fails its wire replay intermittently. The program's last output is
+  dropped without a word; `exit` should let the program reach its next wait first.
 - A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` never ends
   (concurrency.md, "Choosing where Concurrents resume").
 - A `Vector`'s and an `Items`' `remove_at` (and `Items.remove_swapping`) do nothing out of range, where a `List`'s now
@@ -664,7 +668,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Foreign libraries
 
-- Not built: a C `enum` status answered as a Spite enum, with the result-must-be-used and `switch`-without-`_:` checks (D272, proposed by Claude, unconfirmed). Today a call answers an `Integer`, and `crash result == 0` compiles, which is the bug D272 closes. Open: `mortaros_missing_decisions.md` item 222 (whether the `switch` may have no `_:`).
+- Not built: a C `enum` status answered as a Spite enum the binding writes, with Spite names mapped to C numbers and an unlisted C value crashing at the boundary (D351, replacing D272's enum made from the header), with D272's result-must-be-used and no-comparison-with-a-number checks. Today a call answers an `Integer`, and `crash result == 0` compiles, which is the bug these close; a binding maps the number to its enum by hand, as the page's `Packer` does.
 - Not built: reading a header's types as Spite reflection (`user32.Input`, a PascalCase read, is the C type `INPUT`); `missing_function`/`missing_attribute` as reopenable Spite; a user-written naming rule; C's variadic functions. Callbacks are built.
 - Not built: the `DynamicLibrary` class as the page shows it (`symbol_name`, `missing_function`, `missing_attribute`, `_open`/`_call`/`_resolve`/`_close`). What exists (D81/D82): `library/dynamic_library.spite` is the `singleton` line, `file_name` and `handle`, a constructor that stores the file and calls `open_library(file)`, and a `drop()` that calls `close_library(handle)`. `open_library`, `close_library` and `find_symbol(name, wanted_by)` are the compiler's reopening, declared without a body, their C written in the compiler: the stopgap D147 rejects, not yet replaced. The naming rule and the calls themselves are the compiler's, and every call through a `DynamicLibrary` value is a foreign call, since `remove` and `exit` are names both a class and a C library could have.
 - `--final-classes` writes no resolved-name comments for bindings (the original D4 design printed each binding with its resolved name and library as a `#` comment; D34 would reject it). How to show the mapping is open question 10.

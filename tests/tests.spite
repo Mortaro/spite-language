@@ -1,25 +1,38 @@
 var program = Program()
+var arguments = Arguments()
+var ran = 0
 
 func Tests() {
     var classes = Spite.Class.instances
     var index = 0
     while index < classes.count() {
-        if classes[index].name.ends_with("Tests") {
-            run(classes[index].functions)
+        var tested = classes[index]
+        if tested.name.ends_with("Tests") {
+            run(tested.name, tested.functions)
+        }
+        index = index + 1
+    }
+    crash ran > 0
+}
+
+func run(class_name: String, functions: List<Spite.Function>) {
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if function.name.starts_with("test_") and chosen(class_name, function.name) {
+            prove(function)
+            ran = ran + 1
         }
         index = index + 1
     }
 }
 
-func run(functions: List<Spite.Function>) {
-    var index = 0
-    while index < functions.count() {
-        var function = functions[index]
-        if function.name.starts_with("test_") {
-            prove(function)
-        }
-        index = index + 1
+func chosen(class_name: String, function_name: String): Boolean {
+    if arguments.count() == 0 {
+        return true
     }
+    var wanted = arguments.get(0)
+    return wanted == class_name or wanted == function_name
 }
 
 func prove(function: Spite.Function) {

@@ -333,6 +333,128 @@ these folders, named by `build.target_operating_system` ([programs.md](programs.
 their functions replace or add members by the ordinary reopening rule ([packages.md](packages.md#monkey-patching-mods)).
 `--final-classes` prints each class as it came out, its system's functions included.
 
+## Libraries written in other languages
+
+`DynamicLibrary` does not care what a library was written in. It calls functions through the C calling convention
+(the C ABI), and every systems language can export functions that way, so a mature library in C, C++, Rust, Zig or
+Go is one binding away. You do not need a big ecosystem on day one: you need the library's dynamic library file
+and a small Spite class around it.
+
+| The library is written in | It exports a function to Spite with | It is built as |
+|---|---|---|
+| C | nothing: every function the library exports is already callable | a `.dll`, `.so` or `.dylib` |
+| C++ | `extern "C"` on each function, a free function taking the object's address for each method | a shared library |
+| Rust | `#[no_mangle] pub extern "C" fn` | `crate-type = ["cdylib"]` |
+| Zig | `export fn` | a dynamic library (`zig build-lib -dynamic`) |
+| Go | `//export` above the function, with `import "C"` | `go build -buildmode=c-shared` |
+
+What a library hands across is what [crosses](#what-crosses): numbers, `Boolean`, text as a zero-terminated
+`const char*`, arrays of numbers and number-only structs by address, and a handle as a `Long`. A Rust function
+that sums an array, exported from a library built as `libmeasure.so`:
+
+```rust
+#[no_mangle]
+pub extern "C" fn sum_of(values: *const i32, count: i64) -> i64 {
+    let values = unsafe { std::slice::from_raw_parts(values, count as usize) };
+    values.iter().map(|value| *value as i64).sum()
+}
+```
+
+is called from Spite exactly as a C function is, its name already snake_case:
+
+```gdscript
+var measure = DynamicLibrary("libmeasure.so", 'identity', "")
+
+func total(values: List<Integer>): Long {
+    var values_count = values.count()
+    return measure.sum_of_as_long(values, values_count)
+}
+```
+
+A C++ class, a Rust struct or a Go value never crosses as itself. The library hands out an opaque handle (a
+pointer, which Spite holds as a `Long`) and a function per operation that takes it, `extern "C"` in C++,
+`extern "C" fn` taking `*mut Thing` in Rust, and a `cgo.Handle` in Go. That is the shape every C library already has,
+and it is the shape the binding below turns back into an object.
+
+## A binding speaks Spite
+
+You should not have to think about C, or any other language, to use a library. So a binding wraps the library in a
+class of its own, and nothing but that class touches the `DynamicLibrary`: only Spite shapes come out of it.
+
+- **Spite names.** The functions the rest of the program calls are full words in snake_case (`open_database`, not
+  `db_open_v2`), whatever the library calls them.
+- **A status is a Spite enum.** A C function that answers a C enum (or a status code) answers, through the binding,
+  an enum the binding writes in Spite, with Spite names, each value mapped to its C number. A number the enum does
+  not list crashes at the boundary, so a library that grows a new value is caught where it enters, never carried
+  along as a wrong answer.
+- **Absence is a `T?`.** A null handle or a "not found" code becomes `null` through an `assert` in the binding, never
+  a `0` the caller has to know to compare with.
+- **A handle is an object.** The binding's class holds the handle, and its `drop()` gives it back to the library, so
+  the library's memory is released when the last reference goes, like every other object's.
+- **Text is a `String`**, read with `_as_text` or `terminated_text()`, never an address the caller has to read.
+
+A binding for a library that compresses blocks, whose C side answers `0` for success, `1` when the output is too
+small and `2` when the input is corrupt:
+
+```gdscript
+enum Packing {
+    'packed'
+    'output_too_small'
+    'input_corrupt'
+}
+
+var library = DynamicLibrary("libpack.so", 'identity', "")
+var handle: Long = 0
+
+func Packer(level: Integer) {
+    handle = library.pack_create_as_long(level)
+    crash handle != 0
+}
+
+func pack(input: List<Byte>, output: List<Byte>): Packing {
+    var input_count = input.count()
+    var output_count = output.count()
+    var code = library.pack_block(handle, input, input_count, output, output_count)
+    return packing_of(code)
+}
+
+func packing_of(code: Integer): Packing {
+    switch code {
+        0: return 'packed'
+        1: return 'output_too_small'
+        2: return 'input_corrupt'
+        _: crash
+    }
+}
+
+func drop() {
+    library.pack_destroy(handle)
+}
+```
+
+The program sees a `Packer` with a `pack` that answers a `Packing`, which a `switch` reads with every value
+written; `pack_create`, the numbers `0` to `2` and the handle never leave the file. Write a binding when a mature
+library already does the job (compression, a database, a codec, a physics engine, a graphics API) and rewriting
+it would take months; write it in Spite when it is small, or when the work is what your program is about.
+
+## What other languages cannot hand over
+
+Some things have no shape in the C ABI, so no binding can carry them as they are:
+
+- **Exceptions.** A C++ exception or a Rust panic that unwinds out of an exported function is undefined behaviour
+  in C, and Spite has no exceptions to receive it. The library must catch it on its side and answer a status.
+- **Generics and templates.** Only a concrete function has an address: export one instantiation per type.
+- **A struct returned by value**, a C union past its first member, variadic functions (`printf`) and macros that
+  look like functions. Wrap them in a small exported function on the library's side.
+- **Classes, traits, interfaces and closures as themselves.** They cross as a handle and functions, as above, and a
+  function the library calls back is a [`ForeignCallback`](#calling-back-into-spite).
+- **Another runtime's memory.** Spite never frees what the library allocated: memory the library hands out goes
+  back through the library's own function, which is what a binding's `drop()` is for. A Go library brings Go's
+  runtime and collector into the process with it, and a C# or Java library needs its runtime hosted, which no
+  binding does for you.
+- **Static libraries.** A library is loaded from its `.dll`, `.so` or `.dylib` while the program runs; a `.a` or
+  `.lib` is not linked into the executable.
+
 ## When a foreign call faults
 
 C can do what Spite cannot: read through a null pointer, write past an array, run out of stack. When it does, the
@@ -365,11 +487,19 @@ writes coming back; arguments keep their widths; and a missing library, or a mis
 message naming the file, or the symbol and the Spite function that wanted it (`conformance/stage6/foreign_library`,
 `diagnostics/foreign_library_mistakes`, `diagnostics/foreign_call_mistakes`).
 
-A status a foreign function answers is handled while compiling. With a header, a function whose C return type is a C
-`enum` answers a Spite enum made from that enum's values; the result must be used, cannot be compared with a number,
-and cannot be the condition of a `crash` or `assert`; it is read with a `switch` naming every value, with no `_:`. A
-binding writes that switch once and answers its own small enum. So `crash result == 0` does not compile for a call
-that answers a status.
+A status a foreign function answers is handled while compiling. A C function that returns a C enum answers a
+Spite enum that the binding writes in Spite, with Spite names, each value mapped to its C number; no enum is ever
+made with C's names. A C value the Spite enum does not list crashes at the boundary. The result must be used,
+cannot be compared with a number, and cannot be the condition of a `crash` or `assert`; a `switch` over it follows
+the ordinary rule, every value a written line, with no `_:`. So `crash result == 0` does not compile for a call that
+answers a status. A header is not needed for any of this; the compiler may read one to check that a binding's
+numbers match C's.
+
+**A binding wraps the library in Spite shapes.** Whatever can be written in Spite is written in Spite, and a
+foreign library is wrapped so that only Spite shapes reach the rest of the program: no C type, name or convention
+passes the binding ([a binding speaks Spite](#a-binding-speaks-spite)). Libraries in other languages are reached
+through the C ABI they export, with the limits listed in
+[what other languages cannot hand over](#what-other-languages-cannot-hand-over).
 
 The compiler also follows these rules:
 

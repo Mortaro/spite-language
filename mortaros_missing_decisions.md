@@ -74,3 +74,19 @@ D374 (2026-10-01). Earlier answers are listed in each row of `design/decisions.m
      through `DynamicLibrary` on Windows and macOS, which leaves Linux without one that is not a third-party
      library. Recommendation: (a), client first, checked against public test vectors, with an outside security
      review before it is called done.
+264. **Plain IO that is concurrent on its own** (D99, D176, D336; [concurrency.md](docs/concurrency.md#what-the-compiler-does-at-a-wait)).
+     D99 says waiting on IO is hidden async/await that the moron never chooses, but what is built only parks inside a
+     `Concurrent`: straight-line code outside one (the entry constructor and everything it calls) waits where it is,
+     letting other `Concurrent`s run meanwhile, and only two reads side by side overlap on their own. So a server written
+     as plain code (`next_request`, handle, `respond`, again) serves one request at a time, and `HttpServer` says so
+     ([standard_library.md](docs/standard_library.md#http)): a slow client holds up every other. The docs and WHY.md now
+     say this plainly. Options: (a) **the library serves each client in a `Concurrent` of its own**: `HttpServer` and a
+     `Socket` listener take the named function that answers one request or one connection and start it as a
+     `Concurrent` per client, so the plain server is concurrent with nothing written; it costs the scheduler only in
+     programs that serve. (b) **the compiler overlaps loop passes that wait**: extend "reads in a row overlap" to a
+     `while` whose passes it can prove independent (an accept loop whose body reaches no state another pass writes),
+     starting each pass as a `Concurrent`; nothing new to learn, but the proof is narrow and order of output changes.
+     (c) **keep it explicit**: plain code waits in order, concurrency is always the caller's `Concurrent`, and D99 is read
+     as "a wait never stops the other `Concurrent`s". Recommendation: (a) for servers and listeners, with (c) as the
+     rule everywhere else, since it keeps one way to start concurrent work and needs no proof that can silently stop
+     applying. Blocks: rewriting concurrency.md to lead with plain IO, and any claim that a plain server is concurrent.

@@ -69,8 +69,8 @@ Read the pages in this order the first time; each page assumes the ones before i
 17. [time.md](time.md): instants, durations, the calendar, time zones as presentation, and ISO 8601 text.
 18. [game_maths.md](game_maths.md): vectors, matrices and quaternions for games: `Vector3`, `Matrix4`,
     `Quaternion`, boxes, frustums and rays, column-major, Vulkan clip space, and what each operation costs.
-19. [foreign_libraries.md](foreign_libraries.md): `DynamicLibrary`, and how each operating system's folder
-    reopens the classes it changes.
+19. [foreign_libraries.md](foreign_libraries.md): `DynamicLibrary`, libraries written in C, C++, Rust, Zig and Go,
+    bindings that speak Spite, and how each operating system's folder reopens the classes it changes.
 20. [targets.md](targets.md): other targets, the web, isomorphic classes and the wire format.
 
 **Tooling**
@@ -79,7 +79,7 @@ Read the pages in this order the first time; each page assumes the ones before i
     `--development`, and which build to measure.
 22. [repl.md](repl.md): the local and remote REPL, `spite connect`, live reload, and a replayed debugging
     session.
-23. [testing.md](testing.md): a test is a function that crashes; the test package finds them itself.
+23. [testing.md](testing.md): a test is a function that crashes; the test package finds them itself, runs one by name, and why crashing tests suit an AI.
 24. [optimizations.md](optimizations.md): everything the compiler optimises without being asked, and what (if
     anything) you could notice.
 25. [proofs.md](proofs.md): every fact the compiler proves while compiling, what each one buys, and when it does

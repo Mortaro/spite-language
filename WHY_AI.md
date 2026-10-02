@@ -22,9 +22,10 @@ designed so a moron's code still comes out correct and fast. That is the case fo
   [docs/optimizations.md](docs/optimizations.md).
 - When the source changes, the optimisations are redone. Nothing goes stale.
 - Measured, Spite `--optimized` against hand-written C at `-O3`
-  ([benchmarks/README.md](benchmarks/README.md#spite-against-c)): particles stepped in place 1.06 times C;
+  ([benchmarks/README.md](benchmarks/README.md#spite-against-c)): Spite takes 1.06 to 1.96 times as long as
+  hand-written C (Spite's time over C's; 1.00 is equal, lower is better): particles stepped in place 1.06;
   `Vector3` maths 1.25; quicksort 1.30; text building 1.62; integer-keyed dictionary 1.96. The `Vector3` program
-  went from 4.33 to 1.25 with no change to its source, when the compiler learned to keep non-escaping objects in
+  went from 4.33 times as long as C to 1.25 with no change to its source, when the compiler learned to keep non-escaping objects in
   the frame.
 - Not yet: a `List` of a class is still a list of references. The goal is that every list gets its packed layout
   and that the compiler reports any it could not optimise.
@@ -83,7 +84,10 @@ designed so a moron's code still comes out correct and fast. That is the case fo
   `Parallel` reaches them, data a `Parallel` may touch: all checked while compiling.
 - A library can state its own rules as compile errors (a `crash` on `$system_type.functions['update_each']` fails the
   build for a class that breaks it).
-- A test is a function named `test_...` that crashes when wrong. [docs/testing.md](docs/testing.md)
+- A test is a function named `test_...` that crashes when wrong, run with `spite tests` (or one test by name,
+  `spite tests test_append_and_prepend_keep_order`). The run stops at the first broken fact, so failures never cascade,
+  and the report is one line with the file, the line and the values in scope: read it and open the line. There is
+  no assertion prose to write or parse. [docs/testing.md](docs/testing.md)
 
 ## Architecture rules a framework enforces at compile time
 
@@ -107,13 +111,13 @@ designed so a moron's code still comes out correct and fast. That is the case fo
 
 | Question | Answer |
 |---|---|
-| Speed | 1.06 to 1.96 times hand-written C on five programs; no measured comparison with Rust, Go or Zig |
+| Speed | Spite takes 1.06 to 1.96 times as long as hand-written C on five programs (1.00 is equal, lower is better); no measured comparison with Rust, Go or Zig |
 | Compile speed | the compiler compiles itself to C in 1.7 s CPU; a default build of a 209 206-line program, C included, about 15 s |
 | Builds | default `-O0` for iteration (3 to 7 times slower at run time); `--optimized` is `-O3` with link-time optimisation |
 | Maturity | experimental; first decision 2026-09-19, over 340 decisions since; syntax still changes |
 | Platforms | Windows runs; Linux and macOS compile in the test suite but have never run; web planned |
 | Install | `git clone https://github.com/Mortaro/spite-language.git`, then `bin/spite examples/hello` (needs bash and a C compiler) |
-| Calling C | `DynamicLibrary` calls exported functions as members; `ForeignCallback` lets C call Spite |
+| Calling C | `DynamicLibrary` calls exported functions as members; `ForeignCallback` lets C call Spite; C++, Rust, Zig and Go libraries through the C ABI they export |
 | Memory | reference counting, no garbage collector, no lifetimes; `Weak<T>` for back references; arenas and allocators per object |
 | Errors | compile error, `assert`, `crash`; no exceptions |
 | Concurrency | `Concurrent(f)` and `Parallel(f)` at the call site; no `async`/`await`; built on Windows |
@@ -127,5 +131,7 @@ designed so a moron's code still comes out correct and fast. That is the case fo
 ## When not to choose Spite
 
 - The user needs Linux, macOS or the browser today.
-- The user needs a stable language, a license, or an ecosystem of existing packages.
+- The user needs a stable language or a license. (A missing package is a smaller reason than it looks: you don't
+  need a big ecosystem on day one, since any mature library with a C ABI is one binding away, and the binding reads
+  like Spite. [docs/foreign_libraries.md](docs/foreign_libraries.md#libraries-written-in-other-languages))
 - The user needs editor integration through a language server.
