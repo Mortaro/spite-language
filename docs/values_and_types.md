@@ -506,8 +506,9 @@ method table.
 
 `Monster?` is a `Monster` or `null`, and `null` exists for nothing else. A `T?` is narrowed before it is used
 (`if value { } else { }`, `assert value`, `crash value`, `while value`, or a `switch` with a `Null:` case), and
-reading with `[]` answers one. All of it is in [failure.md](failure.md), with the three outcomes a failure can
-have. Since `null` belongs to `T?` alone, `var target: Monster = null` is an error that asks for `Monster?` (none
+reading with `[]` answers one. A `Boolean?` is the one `T?` that is no condition, since its `false` would read as
+missing; `assert flag` alone takes one, and asks that it is there and `true`. All of it is in
+[failure.md](failure.md), with the three outcomes a failure can have. Since `null` belongs to `T?` alone, `var target: Monster = null` is an error that asks for `Monster?` (none
 yet) or `Monster()` (a default), and a generic class makes the default of what it is bound to with `$name()`
 ([the rules](#variables-and-values)).
 
@@ -556,8 +557,10 @@ text from the program's table of names (reflection answers class and function na
 text anywhere text is expected. At run time an enum value is a small integer and a `Symbol` a pointer into a table
 holding only the symbols the program uses ([the rules](#enums-in-full)).
 
-Text becomes an enum value by assignment, the way it becomes a number: the value spelled that way, or the enum's
-first value when there is none, as `"x"` becomes `0` for an `Integer`. Compare the text back to tell the two apart:
+Text is read as an enum value the way it is read as a number: `"soup".to_course()` answers a `Course?`, the value
+spelled that way, or `null` when the enum has none, since any value of the enum there would read as a real one.
+The reading is named after the enum (`to_` and its name in `snake_case`, `to_course_kind()` for `CourseKind`), and
+assigning text to a `Course?` calls it too. Assigning text to a plain `Course` is an error naming `to_course()`:
 
 ```gdscript title=enum_from_text/enum_from_text.spite entry
 enum Course {
@@ -573,16 +576,19 @@ func EnumFromText() {
     var index = 0
     while index < names.count() {
         var name = names[index]
-        var course: Course = name
-        var known = course.to_string() == name
-        console.print(name, course, known)
+        var course = name.to_course()
+        if course {
+            console.print(name, "is a course:", course)
+        } else {
+            console.print(name, "is no course")
+        }
         index = index + 1
     }
 }
 ```
 ```output
-dessert dessert true
-brunch starter false
+dessert is a course: dessert
+brunch is no course
 ```
 
 ### Walking an enum's values
@@ -618,8 +624,8 @@ dessert false
 
 It is all decided while compiling: the walk becomes three calls, and no list of an enum's values exists at run
 time ([rules](#enums-in-full)). An enum is also open to the program that loads it: reopening its
-class declares the enum again with more values ([packages.md](packages.md#reopening-an-enum-adds-values)), and a
-walk then includes them.
+class declares the enum again with the whole new list of values
+([packages.md](packages.md#reopening-an-enum-replaces-it)), and a walk then walks that list.
 
 ## Unions
 
@@ -970,9 +976,14 @@ The message starts `'"{clicks}"' is a text of one value and nothing else:`. A te
 statement of a function body as written, before it is generated, so it costs nothing in what is emitted; an
 attribute's default is not checked.
 
-**Text casts to an enum by its name**:
-`var course: Recipe.Course = name` is the value spelled `name`, or the enum's first value when none is, exactly as
-text that does not parse becomes `0` for an `Integer`. Compare `course.to_string() == name` to tell the two apart.
+**Text is read as an enum by its name**:
+`name.to_course()` answers a `Recipe.Course?`: the value spelled `name`, or `null` when the enum has none, exactly as
+`to_integer()` answers `null` for text that is not a number. The reading is `to_` and the enum's name in
+`snake_case`, resolved from where it is called as the enum's name written there would be, and a `String` function
+of the same name comes first. `var course: Recipe.Course? = name` calls it too, and `var course: Recipe.Course =
+name` is an error: `text is not a Course until it is read as one, and text that names none of its values has none
+to give: read it with 'to_course()', which answers 'Course?', null when the text names none of its values, and
+narrow it, or declare the value 'Course?'` (`diagnostics/enum_from_text`).
 
 #### Numeric types
 
@@ -1185,12 +1196,13 @@ That is all an enum is; the integer it compiles to is a representation detail.
 
 **An enum can be reopened, and walked.**
 
-- **Reopening adds values.** A file that reopens a class ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading)) and declares one of its enums again adds
-  the values it lists to that enum instead of replacing it. They come after the values already merged, in merge
-  order (the program's own folder, then each loaded folder in load order), and a value the enum already has
-  stays where it was, so a reopening may restate the whole enum (as `--final-classes` output does) without
-  changing it. Nothing removes a value. `conformance/stage6/enum_reopening` reopens one from a loaded folder and
-  from the program's own folder.
+- **Reopening replaces the enum.** A file that reopens a class ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading)) and declares one of its enums again
+  replaces it whole, as a later function replaces an earlier one: the later declaration, in merge order (the
+  program's own folder, then each loaded folder in load order), is the enum's whole list of values, in its
+  order. Nothing is appended or merged, so adding a value means restating the list with it; a value only an
+  earlier declaration listed is no value of the enum, and naming it is an error. A hot reload replaces it the
+  same way. `conformance/stage6/enum_reopening` replaces one from two loaded folders, and
+  `diagnostics/enum_reopening_replaces` names a value the replacement left out.
 - **`Course.values` lists the values** of an enum in its order, an ordinary list of `Course`
   ([Walking a program's structure](metaprogramming.md#walking-a-programs-structure)): `each` over it is unrolled into one
   call per value, `Course.values[1]` is `'soup'`, and `find_by_name` finds one by its name.

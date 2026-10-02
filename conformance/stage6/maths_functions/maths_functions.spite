@@ -64,7 +64,7 @@ func edges() {
     console.print(
         "exponential of 1000 {overflowed} finite {overflowed.is_finite()} infinite {overflowed.is_infinite()}",
     )
-    console.print("minimum ignores not a number: {not_a_number.minimum(zero)} {zero.maximum(not_a_number)}")
+    console.print("minimum passes not a number on: {not_a_number.minimum(zero)} {zero.maximum(not_a_number)}")
     console.print("clamp of not a number {not_a_number.clamp(zero, huge)}")
     console.print("clamp with low above high {zero.clamp(huge, negative)}")
     var float_negative: Float = -4.0

@@ -16,8 +16,8 @@ Float 2 3 0.5 1
 square_root of -1 nan, logarithm of 0 -inf, of -1 nan
 arc_sine of pi nan true
 exponential of 1000 inf finite false infinite true
-minimum ignores not a number: 0 0
-clamp of not a number 0
+minimum passes not a number on: nan nan
+clamp of not a number nan
 clamp with low above high -1
 Float square_root of -4 nan true true
 negative zero 0 -0

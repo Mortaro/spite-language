@@ -23,6 +23,7 @@ var bare_crash_sites = false
 var crash_parts = List<CrashPart>()
 var crash_values_bounded = false
 var crash_capturing = false
+var asserting_boolean_truth = false
 var crash_capture_counter = 0
 var falling_ends = List<String>()
 var symbol_names = List<String>()
@@ -8444,6 +8445,10 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         if not parsed.is_empty() {
             return parsed
         }
+        var named_enum = type_shape.as_enum(inner)
+        if named_enum and type_shape.as_string(from) {
+            return enum_from_text(code, "", named_enum)
+        }
         var inner_code = cast(code, from, inner)
         if type_is_reference(inner) {
             return inner_code
@@ -8488,11 +8493,12 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         return code
     }
     if type_shape.as_string(from) {
-        var to_enum = type_shape.as_enum(to)
-        if to_enum {
-            crash to_enum.values.count() > 0
-            var chosen_code = enum_from_text_lines(to_enum, "spite_enum_text", "spite_enum_value", ";")
-            return "(\{ SpiteString spite_enum_text = {code}; {to_enum.c_name} spite_enum_value = {to_enum.c_name}_{to_enum.values[0]}; {chosen_code} spite_enum_value; })"
+        if type_shape.as_enum(to) {
+            var enum_label = type_display_name(to)
+            report(
+                "text is not {with_article(enum_label)} until it is read as one, and text that names none of its values has none to give: read it with '{enum_reading_name(enum_label)}()', which answers '{enum_label}?', null when the text names none of its values, and narrow it, or declare the value '{enum_label}?'",
+            )
+            return code
         }
         if type_shape.as_scalar(to) {
             var target_label = type_label(to)
@@ -10480,7 +10486,7 @@ func report_maybe_boolean(result: ExpressionResult, used_by: String) {
     var maybe = type_shape.as_nullable(result_type)
     assert maybe
     var maybe_inner = maybe.inner
-    assert is_boolean_type(maybe_inner)
+    assert is_boolean_type(maybe_inner) and not asserting_boolean_truth
     report(
         "this is a Boolean? used by {used_by}, which would only test that it is there, not that it is true: prove it is there first ('crash index < flags.count()' proves 'flags[index]') or switch over it",
     )
@@ -14457,6 +14463,18 @@ func generate_string_method(
         }
         return generate_written_string_call(written, object_result, object_ast, arguments_ast, scope, class_information)
     }
+    var read_enum = read_enum_named(name, class_information)
+    if read_enum and arguments_ast.is_empty() {
+        var text_code = object_result.code
+        var release = ""
+        if owns(object_result, object_ast) {
+            release = " SpiteString___release(spite_enum_text);"
+        }
+        var read_enum_type: Analysis.SpiteType = read_enum
+        var read_code = enum_from_text(text_code, release, read_enum)
+        var read_type = nullable_type_of(read_enum_type)
+        return ExpressionResult(read_code, read_type)
+    }
     if name == "upper" or name == "lower" {
         report("text has no '{name}()': write '{name}_case()', which names what it does without abbreviating")
         return void_result()
@@ -14564,6 +14582,7 @@ func generate_list_method(
         "join"
         "copy"
         "reserve"
+        "to_utf8_text"
     ]
     if public_names.contains(name) {
         var function = list_class_of(element).find_function(name)
@@ -17872,6 +17891,47 @@ func ensure_dictionary_attributes_function(dictionary: Analysis.Types.Dictionary
         "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys_->item_count_; spite_index = spite_index + 1) \{ Spite_Attribute* spite_item = {reflect}({key_text}, {entry}); spite_item->spite_stored_address = (int64_t)(intptr_t)&{entry}; spite_item->spite_stored_bytes = (int64_t)sizeof({c_type_name(element)}); {element_hooks(element, "spite_item", "self")}{attributes_list}_append(result, spite_item); }\nreturn result;\n}",
     )
     return function_c_name
+}
+
+func enum_from_text(code: String, release: String, enum_type: Analysis.Types.EnumType): String {
+    var first_value = enum_type.values.first()
+    crash first_value
+    var enum_spite_type: Analysis.SpiteType = enum_type
+    var nullable_enum = nullable_type_of(enum_spite_type)
+    var nullable_name = c_type_name(nullable_enum)
+    var chosen_code = enum_from_text_lines(
+        enum_type,
+        "spite_enum_text",
+        "spite_enum_value.value",
+        "spite_enum_value.has_value = false;",
+    )
+    return "(\{ SpiteString spite_enum_text = {code}; {nullable_name} spite_enum_value = \{ .has_value = true, .value = {enum_type.c_name}_{first_value} }; {chosen_code}{release} spite_enum_value; })"
+}
+
+func enum_reading_name(enum_label: String): String {
+    var label_words = enum_label.split(".")
+    var last_word = label_words.last()
+    crash last_word
+    return "to_{words_of(last_word).join("_")}"
+}
+
+func read_enum_named(reading: String, class_information: Analysis.ClassInfo): Analysis.Types.EnumType? {
+    assert reading.starts_with("to_")
+    var index = 0
+    while index < enums.count() {
+        var candidate = enums[index]
+        if enum_reading_name(candidate.simple_name) == reading {
+            var no_arguments = List<Syntax.Types.GenericArgument>()
+            var path = List<String>()
+            path.append(candidate.simple_name)
+            var named = Syntax.Types.NamedType(path, no_arguments)
+            var resolved = resolve_named_type(named, class_information.qualified_dotted)
+            assert resolved
+            return type_shape.as_enum(resolved)
+        }
+        index = index + 1
+    }
+    return null
 }
 
 func enum_from_text_lines(enum_type: Analysis.Types.EnumType, text: String, target: String, failure: String): String {
@@ -26760,6 +26820,10 @@ func report_copy_for_narrowing(
     rewind_temporaries(saved_counter)
     var copied_type = copied.type
     assert not joinable_handle(copied_type)
+    var declared_maybe = type_shape.as_nullable(declared_type)
+    crash declared_maybe
+    var declared_inner = declared_maybe.inner
+    assert type_shape.as_nullable(copied_type) or types_equal(copied_type, declared_inner)
     report(
         "'{name}' only copies '{source}' so it can be narrowed: narrow '{source}' itself ('assert {source}') and use it directly",
     )
@@ -29346,15 +29410,18 @@ func answers_nothing(return_type: Analysis.SpiteType): Boolean {
 
 func report_default_assert(
     assert_statement: Syntax.Statements.AssertStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ) {
     assert not assert_statement.is_crash and not function_information.is_constructor
     var return_type = function_information.return_type
     assert not answers_nothing(return_type)
     crash assert_statement.value
+    var written = truth_written_out(assert_statement.value, scope, class_information)
     var printer = Syntax.SourcePrinter()
-    var condition = printer.source_expression(assert_statement.value)
-    var negated = negated_condition(assert_statement.value)
+    var condition = printer.source_expression(written)
+    var negated = negated_condition(written)
     var leaving = printer.source_expression(negated)
     var name = type_display_name(return_type)
     var answer = example_answer(return_type)
@@ -29369,6 +29436,67 @@ func report_default_assert(
     report(
         "this 'assert' would answer a default {name} ({shown_default(return_type)}) that a caller cannot tell from a real one:{answer_choice}{nullable_choice} or 'crash {condition}' if this is a developer mistake",
     )
+}
+
+func truth_written_out(
+    condition: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Syntax.Expressions.Expression {
+    var joined = shape.as_binary(condition)
+    if joined {
+        if joined.operator == 'logical_and' {
+            crash joined.left and joined.right
+            var left = truth_written_out(joined.left, scope, class_information)
+            var right = truth_written_out(joined.right, scope, class_information)
+            return Syntax.Expressions.BinaryExpression('logical_and', left, right)
+        }
+    }
+    if not reads_maybe_boolean(condition, scope, class_information) {
+        return condition
+    }
+    var compared: Syntax.Expressions.Expression = Syntax.Expressions.TrueLiteral()
+    return Syntax.Expressions.BinaryExpression('equal', condition, compared)
+}
+
+func reads_maybe_boolean(
+    condition: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var indexed = shape.as_index(condition)
+    if indexed {
+        crash indexed.object
+        var path = operand_text(condition)
+        if path.is_empty() or scope.is_path_narrowed(path) {
+            return false
+        }
+        var held_type = lookup_static_type(indexed.object, scope, class_information)
+        if not held_type {
+            return false
+        }
+        var listed = type_shape.as_list(held_type)
+        if not listed {
+            return false
+        }
+        var element = listed.element
+        var maybe_element = type_shape.as_nullable(element)
+        if maybe_element {
+            var element_inner = maybe_element.inner
+            return is_boolean_type(element_inner)
+        }
+        return is_boolean_type(element)
+    }
+    var static_type = lookup_static_type(condition, scope, class_information)
+    if not static_type {
+        return false
+    }
+    var maybe = type_shape.as_nullable(static_type)
+    if not maybe {
+        return false
+    }
+    var maybe_inner = maybe.inner
+    return is_boolean_type(maybe_inner)
 }
 
 func shown_default(return_type: Analysis.SpiteType): String {
@@ -34261,12 +34389,19 @@ func generate_assert_statement(
         emit_folded_check(assert_statement, decided == true, scope, class_information, function_information)
         return decided == false
     }
+    asserting_boolean_truth = not assert_statement.is_crash
     var guard = try_nullable_guard(assert_statement.value, scope, class_information)
+    asserting_boolean_truth = false
     var guard_code = ""
     crash_parts = List<CrashPart>()
     if guard {
         guard_code = guard.guard_code
         narrow_by_guard(scope, guard, "'{check_keyword(assert_statement)} {guard.name}'")
+        var guard_inner = guard.inner
+        if not assert_statement.is_crash and is_boolean_type(guard_inner) {
+            var truth = generate_expression(assert_statement.value, scope, class_information)
+            guard_code = "({guard_code}) && ({truth.code})"
+        }
     } else {
         var declarations_at = builder.user_count()
         var parts = List<CrashPart>()
@@ -34991,7 +35126,7 @@ func generate_statement_kind(
         return false
     }
     if assert_statement {
-        report_default_assert(assert_statement, function_information)
+        report_default_assert(assert_statement, scope, class_information, function_information)
         return generate_assert_statement(assert_statement, scope, class_information, function_information)
     }
     var return_statement = shape.as_return_statement(statement)

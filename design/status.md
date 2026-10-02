@@ -89,6 +89,9 @@ when a page gains a rule that is not built yet, add it here.
 Moved whole from the old "Still open" list under the rule (each is a bug under D244, recorded so it is not mistaken
 for a design):
 
+- A `Concurrent` or `Parallel` handle whose function answers a `Boolean?` is accepted as a condition by `if`,
+  `while` and `crash` and tests only that a value came back, so a joined `false` runs the `if`'s block (the
+  narrowing of a joined handle skips the "a `Boolean?` cannot be a condition" check; `assert` asks for `true`).
 - Reference cycles leak without a word unless the program runs with `--debug-memory`, which prints the allocation
   balance (memory.md, "Cycles leak").
 - A `--hot-reload` build's watcher thread keeps running while the singletons are destroyed at exit: `start()` now
@@ -103,7 +106,6 @@ for a design):
   (concurrency.md, "Choosing where Concurrents resume").
 - A `Vector`'s and an `Items`' `remove_at` (and `Items.remove_swapping`) do nothing out of range, where a `List`'s now
   halt (collections.md).
-- Text assigned to an enum that names none of its values becomes the enum's first value (values_and_types.md).
 - A Windows `__fastfail` (`0xC0000409`), or a corrupted heap on Linux and macOS (the C library's own message and
   `SIGABRT`), ends the program without Spite's report or frames ("What a native fault reports").
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers

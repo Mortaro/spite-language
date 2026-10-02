@@ -131,7 +131,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Falls back.** Reading, calling or storing through an unproven `T?` is refused: `this value may be null (it is a
   Monster?), so 'name' cannot be read from it yet: narrow it first with 'if value { }', 'assert value' or 'crash
   value'`. A condition with a call (`if find(name) { }`) is not a path: keep the result in a `var` and narrow the
-  `var`. A `Boolean?` is never a condition; compare it `== true` or `switch` over it. `value == null` is an error.
+  `var`. A `Boolean?` is a condition only in `assert`, where it means "there and `true`"; elsewhere compare it `== true` or
+  `switch` over it. `value == null` is an error.
   What a branch narrows is gone after the branch: two branches' proofs are not merged.
 - **See.** [failure.md: Narrowing](failure.md#narrowing),
   [Narrowing a path](failure.md#narrowing-a-path); `conformance/stage6/path_narrowing`,

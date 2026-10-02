@@ -66,9 +66,9 @@ mine
 
 Every loaded root merges into the same namespaces. A second root with the same folder structure and file name
 **reopens** the class instead of colliding with it: a later `func`/`var` of the same name replaces the
-earlier one (in load order), and a name not seen before is simply added. A `union` or `type` declared again
-replaces the earlier declaration the same way; an `enum` declared again adds values to it instead
-([below](#reopening-an-enum-adds-values)). This is how game mods work.
+earlier one (in load order), and a name not seen before is simply added. A `union`, `type` or `enum` declared
+again replaces the earlier declaration the same way ([below](#reopening-an-enum-replaces-it)). This is how game
+mods work.
 
 ```gdscript title=package_demo/package/monster.spite
 func describe(): String {
@@ -155,13 +155,15 @@ func ReopenString() {
 HELLO!
 ```
 
-### Reopening an enum adds values
+### Reopening an enum replaces it
 
-An enum a class declares is open the same way. A reopening file that declares the enum again lists the
-values it adds, and they come after the ones already merged, in the order above: the program's own folder
-first, then each loaded folder in load order. An engine's phases are an enum for exactly this: a mod adds a
-phase, and everything that walks the enum's values, `Phase.values`
-([metaprogramming.md](metaprogramming.md#walking-a-programs-structure)), walks the new one too.
+An enum a class declares is open the same way, and like a function it is replaced whole: a reopening file
+that declares the enum again lists every value the enum has from then on, in its own order. Nothing is
+appended and nothing merged, so a later folder (in the order above: the program's own folder first, then each
+loaded folder in load order) that wants to add a value restates the list with the new one in it. An engine's
+phases are an enum for exactly this: a mod restates the phases with its own among them, and everything that
+walks the enum's values, `Phase.values`
+([metaprogramming.md](metaprogramming.md#walking-a-programs-structure)), walks the new list.
 
 ```gdscript title=phase_mod/engine/schedule.spite
 enum Phase {
@@ -182,6 +184,8 @@ func run_phase(phase: Phase) {
 ```gdscript title=phase_mod/mods/schedule.spite
 enum Phase {
     'input'
+    'update'
+    'render'
 }
 ```
 ```gdscript title=phase_mod/phase_mod.spite entry
@@ -193,14 +197,16 @@ func PhaseMod() {
 }
 ```
 ```output
+running input
 running update
 running render
-running input
 ```
 
-A value the enum already has stays where it was, so a reopening may list the whole enum again, as what
-`--final-classes` prints does, without changing it; there is no way to remove a value. Since the values are
-walked while compiling, adding one costs nothing at run time beyond what walking it generates.
+A value the reopening leaves out is gone: code that still names it is a compile error, the same `'fog' is not
+a value of this enum` as for any value the enum never had (`diagnostics/enum_reopening_replaces`). One
+declaration is the whole truth about an enum, so a reader never has to add up several files to know its values.
+Since the values are walked while compiling, a new one costs nothing at run time beyond what walking it
+generates.
 
 ## The `Spite` namespace is reserved
 
@@ -499,9 +505,10 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
 - Every loaded root merges into the same namespaces. A second root with the same folder structure and file name **reopens** the
   class, and this is how monkey patching and game mods work: a later `func`/`var` with the same name replaces the earlier one (in
   load order: the entry folder first, then loads in the order they were discovered), a `var`'s replacement type must match, and
-  a new `func`/`var`/`enum`/`type` not seen before is simply added. An `enum` declared again gains the values it
-  lists that it did not have, after its own, and a value it restates stays where it was; nothing removes one
-  ([Types](values_and_types.md#types)). Load order stays the rule even where a package would rather be
+  a new `func`/`var`/`enum`/`type` not seen before is simply added. An `enum` declared again replaces the
+  earlier declaration whole, exactly as a function does: its values are the later list, in the later order, and
+  a value only an earlier declaration listed is not a value any more ([Types](values_and_types.md#types)). A
+  `--hot-reload` reload replaces it the same way. Load order stays the rule even where a package would rather be
   configured by the program it is loaded into: such a package calls a function the program declares (a
   `build.base_folder()` in the program's `build.spite`), which is an error when missing unless the package
   supplies a default behind `Build.functions['base_folder']`. **`Build` is the one exception**: a field the program's

@@ -255,15 +255,19 @@ func is_binary(name: String): Boolean {
 func decimal_body(c_name: String, name: String, is_float: Boolean): String {
     var suffix = ""
     var cast = "(double)"
+    var c_type = "double"
     if is_float {
         suffix = "f"
         cast = "(float)"
+        c_type = "float"
     }
     if is_constant(name) {
         return "#define {c_name}() ({constant_literal(name, is_float)})"
     }
     switch name {
-        "clamp": return "#define {c_name}(self, low, high) fmin{suffix}(fmax{suffix}({cast}(self), {cast}(low)), {cast}(high))"
+        "clamp": return "#define {c_name}(self, low, high) (\{ {c_type} spite_value = {cast}(self); {c_type} spite_low = {cast}(low); {c_type} spite_high = {cast}(high); spite_value = {passed_nan("fmax", suffix, "spite_value", "spite_low")}; {passed_nan("fmin", suffix, "spite_value", "spite_high")}; })"
+        "minimum": return "#define {c_name}(self, other) (\{ {c_type} spite_value = {cast}(self); {c_type} spite_other = {cast}(other); {passed_nan("fmin", suffix, "spite_value", "spite_other")}; })"
+        "maximum": return "#define {c_name}(self, other) (\{ {c_type} spite_value = {cast}(self); {c_type} spite_other = {cast}(other); {passed_nan("fmax", suffix, "spite_value", "spite_other")}; })"
         "is_finite": return "#define {c_name}(self) ((bool)isfinite({cast}(self)))"
         "is_infinite": return "#define {c_name}(self) ((bool)isinf({cast}(self)))"
         "is_not_a_number": return "#define {c_name}(self) ((bool)isnan({cast}(self)))"
@@ -275,6 +279,10 @@ func decimal_body(c_name: String, name: String, is_float: Boolean): String {
             return "#define {c_name}(self) {called}({cast}(self))"
         }
     }
+}
+
+func passed_nan(called: String, suffix: String, value: String, other: String): String {
+    return "(isnan({value}) || isnan({other}) ? {value} + {other} : {called}{suffix}({value}, {other}))"
 }
 
 func constant_literal(name: String, is_float: Boolean): String {
@@ -436,13 +444,14 @@ func folded_double(name: String, value: Double, first: Double, second: Double): 
         "round": return value.round()
         "truncate": return value.truncate()
         "absolute": return value.absolute()
-        "minimum": return value.minimum(first)
-        "maximum": return value.maximum(first)
+        "minimum": return double_minimum(value, first)
+        "maximum": return double_maximum(value, first)
         _: {
             if name != "clamp" {
                 return 0.0
             }
-            return value.clamp(first, second)
+            var raised = double_maximum(value, first)
+            return double_minimum(raised, second)
         }
     }
 }
@@ -489,14 +498,43 @@ func folded_float(name: String, wide_value: Double, wide_first: Double, wide_sec
     } else if name == "absolute" {
         result = value.absolute()
     } else if name == "minimum" {
-        result = value.minimum(first)
+        result = float_minimum(value, first)
     } else if name == "maximum" {
-        result = value.maximum(first)
+        result = float_maximum(value, first)
     } else if name == "clamp" {
-        result = value.clamp(first, second)
+        var raised = float_maximum(value, first)
+        result = float_minimum(raised, second)
     }
     var wide: Double = result
     return wide
+}
+
+func double_minimum(value: Double, other: Double): Double {
+    if value.is_not_a_number() or other.is_not_a_number() {
+        return value + other
+    }
+    return value.minimum(other)
+}
+
+func double_maximum(value: Double, other: Double): Double {
+    if value.is_not_a_number() or other.is_not_a_number() {
+        return value + other
+    }
+    return value.maximum(other)
+}
+
+func float_minimum(value: Float, other: Float): Float {
+    if value.is_not_a_number() or other.is_not_a_number() {
+        return value + other
+    }
+    return value.minimum(other)
+}
+
+func float_maximum(value: Float, other: Float): Float {
+    if value.is_not_a_number() or other.is_not_a_number() {
+        return value + other
+    }
+    return value.maximum(other)
 }
 
 func decimal_literal(value: Double, is_float: Boolean): String {

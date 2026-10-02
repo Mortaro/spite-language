@@ -139,8 +139,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   (`-ffp-contract=fast`, reassociation, without giving up `nan` and infinities), keep `Float` expressions with
   decimal literals in `float`, and keep exact equality and values written to disk exact. Files: `bootstrap.spite`
   compiler flags, generator.spite literal typing. **S.** No dependencies.
-- **N4 `minimum` and `maximum` pass `nan` on** (D369 item 249, replacing D339's C rule). Files:
-  `maths_primitives.spite`, the `Float`/`Double` docs table. **S.** No dependencies.
 
 ### Memory (D352, D353, D354, D369 item 173, D147, D178)
 
@@ -182,14 +180,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   own functions (parser `enum_declaration.spite`, `analysis/enum_info.spite`, generator.spite enum emission), values
   and functions as reflection objects (with R5), and D180's environments enum on top (S6). **L.** Depends on R5
   for the reflection half; F1 needs the functions half.
-- **L4 Reopening an enum replaces it** (D373). `extend_enum`/`append_enum_values` in `program_discovery.spite`
-  (line 1053) become whole replacement in load order, the hot reload included; rewrite
-  `conformance/stage6/enum_reopening` and the skill's "adds the values it lists". **S.** No dependencies.
-- **L5 `assert flag` on a `Boolean?`** (D372). Means not null and true; no `flag != null` form. Files:
-  generator.spite narrowing and condition checks. **S.** No dependencies.
-- **L6 Text becomes an enum only as `T?`** (D369 item 236; failure.md's open list). `"calm".to_mood(): Mood?`;
-  the assignment that silently takes the first value (`enum_from_text_lines`, generator.spite line 17665) goes.
-  **S.** No dependencies.
 - **L7 Work that can never finish in a `Parallel` is an error** (D336). A loop with no exit and no wait inside work
   given to a `Parallel`; related to failure.md's "a `while true` that can never leave". Files: generator.spite
   `Parallel` checks, `wait_facts.spite`. **M.** No dependencies.
@@ -268,8 +258,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **S3 HTTP leftovers** (status "HTTP"). Request bodies sent chunked to the server; the server reading one request
   at a time so a slow client holds the others; the client's resend of a `POST` over a new connection. Files:
   `library/http_server.spite`, `http_client.spite`. **M.** Benefits from K5.
-- **S4 `UdpSocket.port`** (D369 item 250). A get-only `port`, the port the system gave it (`getsockname`). Files:
-  `library/udp_socket.spite` and its system folders. **S.** No dependencies.
 - **S5 Helpers stop looking public** (D241; status "Socket"). `Socket`'s address helpers (`any_address`,
   `resolved_addresses`, `address_text`, `first_readable`), `BinaryInput`/`BinaryOutput`, `NumberText`,
   `ColorText`, `JsonCursor`, `ZoneRules` and the other helpers are folded into the class they serve or made
@@ -280,8 +268,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **S7 `Dictionary`'s `[]` is `get_at`/`set_at`** (D369 item 220). Rename `get`/`set` in
   `library/dictionary.spite` and the compiler's lowering of `d[key]`, and the operator errors from
   `cloud/operators`. **S.** Depends on landing `cloud/operators`.
-- **S8 `bytes.to_utf8_text(): String?`** (D370 item 237). `null` for invalid UTF-8. Files: `library/list.spite` or
-  `string.spite`. **S.** No dependencies.
 - **S9 Collection leftovers** (status "Standard library metaprogramming", "Deep copy"). `sort_by_`, `find_by_` and
   a program's own templates on `Vector` and `Items`; the `while`-does-a-template rule over `Vector` loops;
   `deep_copy()` of unions, shapes and self-referring structures; a `String`'s or number's function held as a value.
@@ -346,8 +332,8 @@ and formatting patterns (time.md); running and testing the macOS folders.
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R2, R3, R6, R8, M1, M2, M4, M6, M7, N1, N3, N4, E1, E2, E4, L1, L4, L5, L6, L7, C2, C5, C6,
-   C7, K1, K2, F3, S4, S8, S9, P1, P2, X1, B1 to B16, D1's first pass.
+2. No dependencies: R2, R3, R6, R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L1, L7, C2, C5, C6, C7, K1, K2,
+   F3, S9, P1, P2, X1, B1 to B16, D1's first pass.
 3. After step 2: R5 (Q1), L2 (L1), S7 (operators), P3 (linux), K3 (with K2), C8
    (K1), N2 (N1), K6 (K2), E3 (Q2).
 4. After R5: R1, J1, L3, R4 (with S7).
@@ -370,11 +356,11 @@ own functions. Splitting the regions below into their own files first (as `call_
 |---|---|---|
 | 1 Reflection and serialization | R6, R2, R3, R5, R1, R4, J1, J2, R8, R7 | generator.spite reflection, specialisation and template regions; `specialisation.spite`, `reflected*.spite`, `template_walk.spite`, `namespace_walk.spite`, `old_spellings.spite`; `library/spite/*`, `json_*`, `binary_*`, `dictionary.spite`; stage6 walk programs; docs reflection, metaprogramming, json |
 | 2 Types and storage | M2, M1, M7, M4, M3, then M6 and M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
-| 3 Arithmetic | N4, N3, N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
+| 3 Arithmetic | N3, N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E2, E1, E4, E3 (after Q2), E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C2, C6, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
-| 6 Waiting, IO and library | K1, F3, S4, S8, K2, K3, K6, S7, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
-| 7 Language rules | L4, L6, L5, L1, L2, L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
+| 6 Waiting, IO and library | K1, F3, K2, K3, K6, S7, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
+| 7 Language rules | L1, L2, L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | P1, P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | B1 to B16 | small fixes, each in the file of the proof it fixes; rebase often |
 | 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |

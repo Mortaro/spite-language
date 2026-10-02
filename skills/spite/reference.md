@@ -34,7 +34,7 @@ of printing: a path or call (`World().player.health`, `monsters[0].roar()`), an 
 the running program. `break monster.spite:42` stops before that line; `where`, `locals` and any path through a local
 answer there, `continue` goes on, `breaks` lists and `clear` removes. A reload that would lose data (an attribute
 renamed) is held and names the map to send: `reload {Hero.attributes['level']: "rank"}`, or `reload {}` to let the
-value go. Use `--run=false` only to see every error at once or for a program that cannot stay running, run the
+value go. Use `--check` only to see every error at once or for a program that cannot stay running, run the
 tests before calling the work done, and build `--optimized` only to measure. Every answer is one JSON line. The
 commands are in [repl.md](https://github.com/Mortaro/spite-language/blob/master/docs/repl.md).
 
@@ -43,8 +43,8 @@ target system's folder of it, then `game/`, whose every sub folder is a
 namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
 folder's own class). `load "folder"` inside a function loads another package (the path is relative to the file,
 or absolute: `load "D:/Projects/engine/core"`); a file at the same namespace path
-reopens the class: same-named functions and attributes replace, the rest are added, and an enum declared again
-gains the values it lists. `Build` is the exception: a field the program's own `build.spite` declares keeps the
+reopens the class: same-named functions, attributes and enums replace (an enum declared again is its whole new
+list of values), the rest are added. `Build` is the exception: a field the program's own `build.spite` declares keeps the
 program's value over a loaded package's (a flag, then the program, then the package). A package opens the files
 beside its own source through `class.source_folder()` (or `$item_type.source_folder()`), the absolute folder of
 the class's file on the machine that built it, never through a path relative to where the program runs.
@@ -186,7 +186,7 @@ func is_alive(): Boolean {
   class, as get-only attributes read without parentheses: `Float.pi`, `tau`, `euler_number`, `infinity`,
   `not_a_number`, `largest`, `smallest` (the most negative), and `Integer.largest`, `Long.smallest` and so on. Each is the C library's function, called
   inline; do not write your own `sine` or square root from a series. Nothing halts: `(-1.0).square_root()` is
-  `nan`.
+  `nan`, and `nan` passes on through `minimum`, `maximum` and `clamp` (`nan.minimum(0.0)` is `nan`).
 - Everything that is not a number, a `Boolean` or an enum value is a reference: passing, assigning and storing share
   the same object. `copy()` copies one level, `deep_copy()` all the way down. `drop()` runs when the last reference
   goes. Two objects that refer to each other leak: hold the back reference as a `Weak<T>` (`get()` is a `T?`, `null` once the object is freed), or clear one side.
@@ -341,10 +341,10 @@ func is_alive(): Boolean {
   ```
 
 - An enum's values are single quoted and resolve from where they are used. A reopening file that declares the
-  enum again adds the values it lists that it did not have. An enum is a class, and `Course.values` lists its values
+  enum again replaces it: its list is all the values the enum has, so adding one means restating the rest. An enum is a class, and `Course.values` lists its values
   in order, an ordinary list: `Course.values.each(list_course)` calls `list_course(course: Course)` once per value,
-  unrolled while compiling (`$value_type.values` in a generic). Text becomes a value by assignment
-  (`var course: Course = name`).
+  unrolled while compiling (`$value_type.values` in a generic). Text becomes a value only as a `Course?`:
+  `name.to_course()`, or `var course: Course? = name`.
 - `union Enemy { Player Monster }`, written one member per line: `switch enemy { Player: ... Monster: { ... } }`
   must cover every member and narrows `enemy` inside each case; a function or attribute every member has can be
   used on the union directly.
@@ -395,7 +395,8 @@ func is_alive(): Boolean {
   proves nothing: remove the check`), and `crash list[index]` inside `while index < list.count()` (`'list[index]'
   is already proven by the loop condition`). Delete the line.
 - A `Boolean?` is not a condition (`which would only test that it is there, not that it is true`): narrow it
-  first, or compare it `== true`.
+  first, or compare it `== true`. The one exception is `assert flag`, which means the flag is there and `true`
+  (as on a `Boolean`); there is no `flag != null`.
 - There are no exceptions and no error values. Three outcomes only:
   - the compiler can know it: a compile error;
   - absence is fine: `assert condition` stops the function and answers "nothing": it returns, answers `null`
@@ -425,6 +426,9 @@ func is_alive(): Boolean {
 - Reading a number from text answers a `T?`: `"42".to_integer()` is an `Integer?`, `null` for `"forty two"`,
   `"12abc"`, `""` or a number the type cannot hold, so narrow it (`crash count` where the text is yours, `if`/`assert`
   where it came from outside). `var age: Integer = "42"` is an error; `var age: Integer? = "42"` reads it.
+- Text is read as an enum value the same way: `"calm".to_mood()` is a `Mood?` (`to_` and the enum's name in
+  `snake_case`), `null` when no value is spelled that way; `var mood: Mood = text` is an error naming `to_mood()`,
+  and `var mood: Mood? = text` reads it.
 - A function that declares a result ends every path with a `return` (or a bare `crash`): a path that reaches the
   closing `}` is an error naming it (`'sign_of' answers a String, but when 'value < 0' is false (line 12, an 'if'
   with no 'else') it reaches its end without a 'return'`). An `if`/`else` whose branches both return, a `switch`

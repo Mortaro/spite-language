@@ -1,0 +1,11 @@
+olá, 世界 😀 true
+empty is text of 0 bytes
+a lone continuation byte is not UTF-8
+a cut sequence is not UTF-8
+an overlong slash is not UTF-8
+an overlong three-byte form is not UTF-8
+a surrogate is not UTF-8
+past U+10FFFF is not UTF-8
+U+10FFFF is text of 4 bytes
+a zero byte is text of 3 bytes
+plain is text of 2 bytes

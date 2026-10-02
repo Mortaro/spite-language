@@ -1028,11 +1028,6 @@ func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile, kep
         if replaced {
             name = ""
         }
-        var reopened_enum = shape.as_enum_declaration(statement)
-        if reopened_enum {
-            replaced = extend_enum(original, reopened_enum)
-            name = ""
-        }
         if not name.is_empty() {
             var original_index = 0
             while original_index < original.statements.count() {
@@ -1045,32 +1040,6 @@ func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile, kep
         }
         if not replaced {
             original.statements.append(statement)
-        }
-        index = index + 1
-    }
-}
-
-func extend_enum(original: Syntax.SourceFile, reopened: Syntax.Statements.EnumDeclaration): Boolean {
-    var index = 0
-    while index < original.statements.count() {
-        var existing = shape.as_enum_declaration(original.statements[index])
-        if existing {
-            if existing.name == reopened.name {
-                append_enum_values(existing, reopened)
-                return true
-            }
-        }
-        index = index + 1
-    }
-    return false
-}
-
-func append_enum_values(existing: Syntax.Statements.EnumDeclaration, reopened: Syntax.Statements.EnumDeclaration) {
-    var index = 0
-    while index < reopened.values.count() {
-        var value = reopened.values[index]
-        if not existing.values.contains(value) {
-            existing.values.append(value)
         }
         index = index + 1
     }
