@@ -1,0 +1,23 @@
+var console = Console()
+
+func NanPasses() {
+    var gap = Float.not_a_number
+    var wide = Double.not_a_number
+    var lower = gap.minimum(0.0)
+    var upper = gap.maximum(0.0)
+    var other_lower = 1.5.minimum(gap)
+    var held = gap.clamp(0.0, 5.0)
+    var bound = 2.0.clamp(gap, 5.0)
+    console.print(lower, upper, other_lower, held, bound)
+    var wide_lower = wide.minimum(0.0)
+    var wide_held = wide.clamp(0.0, 1.0)
+    var plain = 3.0.minimum(2.0)
+    var plain_held = 9.0.clamp(0.0, 5.0)
+    console.print(wide_lower, wide_held, plain, plain_held)
+    var values = [Float.not_a_number, 2.5]
+    var run_lower = values[0].minimum(values[1])
+    var run_upper = values[1].maximum(values[0])
+    var run_held = values[0].clamp(0.0, 1.0)
+    var run_plain = values[1].clamp(0.0, 1.0)
+    console.print(run_lower, run_upper, run_held, run_plain)
+}

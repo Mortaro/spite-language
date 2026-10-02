@@ -181,7 +181,7 @@ func is_alive(): Boolean {
   class, as get-only attributes read without parentheses: `Float.pi`, `tau`, `euler_number`, `infinity`,
   `not_a_number`, `largest`, `smallest` (the most negative), and `Integer.largest`, `Long.smallest` and so on. Each is the C library's function, called
   inline; do not write your own `sine` or square root from a series. Nothing halts: `(-1.0).square_root()` is
-  `nan`.
+  `nan`, and `nan` passes on through `minimum`, `maximum` and `clamp` (`nan.minimum(0.0)` is `nan`).
 - Everything that is not a number, a `Boolean` or an enum value is a reference: passing, assigning and storing share
   the same object. `copy()` copies one level, `deep_copy()` all the way down. `drop()` runs when the last reference
   goes. Two objects that refer to each other leak: hold the back reference as a `Weak<T>` (`get()` is a `T?`, `null` once the object is freed), or clear one side.

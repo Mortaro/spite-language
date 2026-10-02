@@ -842,8 +842,8 @@ argument:
 | `floor()`, `ceiling()`, `truncate()` | `floorf`, `ceilf`, `truncf` / `floor`, `ceil`, `trunc` | a whole value, still in the receiver's type: `-2.5` gives `-3`, `-2` and `-2` |
 | `round()` | `roundf` / `round` | half away from zero: `2.5` is `3`, `-2.5` is `-3` |
 | `absolute()` | `fabsf` / `fabs` | |
-| `minimum(other)`, `maximum(other)` | `fminf`, `fmaxf` / `fmin`, `fmax` | an operand that is not a number is ignored, as C's are: `nan.minimum(0.0)` is `0` |
-| `clamp(low, high)` | `fminf(fmaxf(value, low), high)` | `maximum(low)` then `minimum(high)`: not-a-number gives `low`, and `high` wins when `low` is above it |
+| `minimum(other)`, `maximum(other)` | `fminf`, `fmaxf` / `fmin`, `fmax`, after an `isnan` test of each operand | not-a-number passes on: `nan.minimum(0.0)` and `(0.0).minimum(nan)` are `nan`, never a real number that hides it |
+| `clamp(low, high)` | `maximum(low)` then `minimum(high)` | not-a-number in any operand gives `nan`, and `high` wins when `low` is above it (`conformance/stage6/nan_passes`) |
 | `is_finite()`, `is_infinite()`, `is_not_a_number()` | `isfinite`, `isinf`, `isnan` | a `Boolean` |
 
 On every whole number, `Tiny` to `UnsignedLong`, answering the receiver's type:
@@ -868,7 +868,9 @@ neither is "the class Integer answers only its constants, largest and smallest, 
 (`diagnostics/maths_constant_on_value`).
 
 **Nothing here halts.** Floats keep infinity and not-a-number, so every edge answers the IEEE 754 value the
-C library gives (`(-1.0).square_root()` is not-a-number) and `errno` is never read. The whole-number
+C library gives (`(-1.0).square_root()` is not-a-number) and `errno` is never read. Not-a-number is never
+dropped on the way: `minimum`, `maximum` and `clamp` answer it when an operand is it, where C's `fmin` and
+`fmax` would answer the other operand as if nothing were wrong. The whole-number
 division checks are untouched: none of these divides.
 
 **Each is a primitive of the language, lowered by the backend** (named in Spite, lowered in one
