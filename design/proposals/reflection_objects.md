@@ -97,7 +97,7 @@ get-only attribute, and that their collections are ordinary lists.
 | `Spite.Class` | `.name`, `.namespace`, `.attributes`, `.functions`, `.instances`, **`.values`** (an enum's), `.is_singleton`, **`.is_stateful`**, **`.is_fixed_size`**, **`.is_list`, `.is_dictionary`, `.is_optional`, `.is_enum`**, `.element_type`, `.value_type`, `.package_folder`, `.source_folder` |
 | `Spite.FunctionDeclaration` | `.name`, `.arguments`, `.returns`, **`.owner`** (its class), **`.is_resumable`**, **`.returned_literal`**, **`.accesses`** (D335) |
 | `Spite.Function` | a function bound to an instance (D391): everything its declaration has, `.owner` the instance; `call_function()` |
-| `Spite.Call` | a call built before it runs (D391): `Spite.Call(function)`, `.arguments['name'] = value`, `call()` |
+| `Spite.Call` | a call built before it runs (D391, D393): `Spite.Call(declaration, instance)`, `.arguments['name'] = value`, `call()` |
 | `Spite.Argument` | `.name`, `.class`, **`.index`**, **`.is_mutated`**, **`.function`** |
 | `Spite.AttributeDeclaration` | `.name`, `.class`, **`.index`**, **`.owner`** (its class), **`.camel_case_name`, `.pascal_case_name`**, `.is_singleton`; no value |
 | `Spite.Attribute` | an attribute bound to an instance (D391): everything its declaration has, `.value` read and written, `.owner` the instance ([below](#an-attributes-value-bound-like-a-function)) |
@@ -138,8 +138,8 @@ information, an instance's are data. `MoveSystem.functions['run_each']` is a `Sp
 shape, never a value. `system.functions['run_each']` is a `Spite.Function` bound to `system` and
 `troll.attributes['health']` a `Spite.Attribute` bound to `troll`, each with everything its declaration has plus
 `.owner` (and `.value` for the attribute). Calling a function value always calls. **A call can be built before it
-runs**: `var call = Spite.Call(system.functions['run_each'])`, `call.arguments['position'] = value`, `call.call()`
-(confirmed by D392, which also refuses a declaration there). Known while compiling, it folds
+runs**: `var call = Spite.Call(MoveSystem.functions['run_each'], system)`, `call.arguments['position'] = value`,
+`call.call()` (D393: a declaration and an instance of its class, the only way to build a call). Known while compiling, it folds
 into the plain direct call; an argument left unfilled is a compile error where visible, otherwise `call()` halts
 naming it. It replaces `call_with` and the proposed `call_with_each`. A template parameter is a declaration,
 `Spite.AttributeDeclaration<Monster>` (D392).
@@ -378,7 +378,7 @@ After:
 var run_each = target.functions['run_each']
 if run_each {
     run_each.arguments.each(describe)
-    var call = Spite.Call(target.functions['run_each'])
+    var call = Spite.Call($target_type.functions['run_each'], target)
     call.arguments.each(fill)
     call.call()
 }

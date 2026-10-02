@@ -158,16 +158,18 @@ is how a function handed a class's attribute reads or writes it on a value it wa
 ### A call, built before it runs
 
 Calling a function value calls it, as always: `greet("Ann")`, `tick()`. To fill a call's arguments one at a time,
-by name, before running it, make a `Spite.Call` from a bound function:
+by name, before running it, make a `Spite.Call` from the function's declaration and the instance to run it on:
 
 ```gdscript
-var call = Spite.Call(system.functions['run_each'])
+var call = Spite.Call(MoveSystem.functions['run_each'], system)
 call.arguments['position'] = position
 call.arguments['velocity'] = velocity
 call.call()
 ```
 
-Nothing runs until `call.call()`. When the function and the arguments are known while compiling, as in a walk, the
+Nothing runs until `call.call()`. `system` must be a `MoveSystem`, or the line is a compile error. This is the only
+way to build a call; a bound function, `system.functions['run_each']`, is for passing the function as a value and
+calling it. When the function and the arguments are known while compiling, as in a walk, the
 whole thing is the plain call `system.run_each(position, velocity)`, with no object made. An argument left unfilled
 is a compile error where the compiler can see it; otherwise `call.call()` halts and names it.
 
@@ -332,13 +334,14 @@ There is no root namespace object: a namespace at the top has `null` as its `.pa
 
 A class's `.functions` holds `Spite.FunctionDeclaration`s, which have every member above but `.owner`'s instance:
 their `.owner` is the class that declares them. An instance's `.functions` holds `Spite.Function`s bound to it, and
-`call_function()` calls one. A call built argument by argument is a `Spite.Call` ([above](#a-call-built-before-it-runs)).
+`call_function()` calls one. A call built argument by argument is a `Spite.Call` of a declaration and an instance
+([above](#a-call-built-before-it-runs)).
 
 ### `Spite.Call`
 
 | Member | Answers | Example |
 |---|---|---|
-| `Spite.Call(function)` | a call of a bound `Spite.Function`, nothing run yet; a declaration has nothing to call on and is refused | `Spite.Call(system.functions['run_each'])` |
+| `Spite.Call(declaration, instance)` | a call of a `Spite.FunctionDeclaration` on an instance of its class, nothing run yet | `Spite.Call(MoveSystem.functions['run_each'], system)` |
 | `.arguments` | its arguments by name, each written once before the call runs | `call.arguments['position'] = position` |
 | `call()` | runs it, answering what the function answers | `call.call()` |
 
@@ -848,13 +851,14 @@ on the spot is "only a named value has memory of its own: give this value a name
   field access when `attribute` is a constant, and a call to the getter where the class declares one.
 - **A bound function** is a function value of that instance ([functions_and_operators.md](functions_and_operators.md#functions-are-values)),
   so a function named on an instance and its reflection are the same object. Calling it always calls.
-- **`Spite.Call(function)` builds a call of a bound function without running it**: `.arguments['name'] = value`
+- **`Spite.Call(declaration, instance)` builds a call without running it**, the only way to build one: the
+  declaration is a `Spite.FunctionDeclaration`, and `instance` must be of the class that declares it.
+  `.arguments['name'] = value`
   fills each argument once, and `call()` runs it. With the function and the arguments known while compiling it is
   the plain direct call, and no object exists. An argument left unfilled is "'call' leaves the argument 'velocity'
   of 'run_each' unfilled: set 'call.arguments['velocity']' before 'call()'" where the compiler sees it; otherwise
-  `call()` halts naming it. **It takes only a bound function**: `Spite.Call(Monster.functions['hurt'])` is "'hurt'
-  here is a declaration of 'Monster', with nothing to call on: bind it through an instance,
-  'troll.functions['hurt']'".
+  `call()` halts naming it. An instance of another class is "'rock' is a 'Rock', and 'hurt' is declared by
+  'Monster': a call runs a declaration on an instance of its own class".
 - **A walk over another class's attributes sees its private ones**, since a walk that skips some silently builds an
   incomplete copy, column or layout. Naming `_x` outside its class stays the private error.
 - **A `List<T>`'s or `Dictionary<T>`'s attributes are its entries** (named by index or by key), not the fields of the

@@ -456,8 +456,9 @@ func is_alive(): Boolean {
   nothing is called). `func set_attribute(attribute: Spite.AttributeDeclaration<Person>, value: attribute.class) {
   attributes[attribute] = value }` makes `person.set_age(2)` and `person.set_name("x")` work. An exact function
   always wins. A parameter that is not a word of its name makes an ordinary function a walk calls.
-- A call built before it runs: `var call = Spite.Call(system.functions['run_each'])` (a bound function only, never a
-  declaration), `call.arguments['position'] = value`, `call.call()`; known while compiling it is the direct call.
+- A call built before it runs: `var call = Spite.Call(MoveSystem.functions['run_each'], system)` (a declaration and
+  an instance of its class, the only way to build one), `call.arguments['position'] = value`, `call.call()`; known
+  while compiling it is the direct call.
   There is no `call_with`.
 - Questions are get-only attributes, folded on a constant: `Loader.functions['load_each']` (narrow it), then
   `.is_resumable` (it can reach a wait), `.arguments[1].is_mutated` (it changes what argument 1 is given),

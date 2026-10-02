@@ -59,9 +59,10 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `plural_templates`/`reflection_walks` conformance and diagnostics; `call_with` removed. Files:
   `library/spite/*.spite`, generator.spite reflection region, `reflected.spite`, docs reflection.md and
   metaprogramming.md examples. **L.** Depends on R5.
-- **R9 `Spite.Call`** (D391). `Spite.Call(function)`, `.arguments['name'] = value`, `call()`; folded into the direct
+- **R9 `Spite.Call`** (D391, D393). `Spite.Call(declaration, instance)`, `.arguments['name'] = value`, `call()`;
+  folded into the direct
   call when everything is known while compiling; an unfilled argument is a compile error where visible, a halt
-  naming it otherwise; a declaration passed to `Spite.Call` is a compile error naming the bound form (D392). **M.**
+  naming it otherwise; an instance not of the declaring class is a compile error (D393). **M.**
   Depends on R8.
 - **R6 Private attributes in a class's own walk** (D278, D319). `.attributes` and a walk over another class must
   include `_` attributes and allow reading and writing them through the walked attribute; serializers (J1) skip
