@@ -114,6 +114,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Reading functions share the lock](#reading-functions-share-the-lock) | readers never contend | the plain lock |
 | [A counted loop takes the lock once](#a-counted-loop-takes-a-singletons-lock-once) | one lock per loop | one lock per call |
 | [A lock that would wait forever](#a-lock-that-would-wait-forever-is-an-error) | refuses a hang | none |
+| [A loop that can never end](#a-loop-that-can-never-end-is-an-error) | refuses a spin or a lost pool thread | none |
 | [What a `Parallel` may reach](#what-a-parallel-may-reach) | refuses a data race | none |
 | [Which calls suspend](#which-calls-suspend-a-concurrent) | state machines, no fibers | the wait runs in place |
 | [Other refusals](#other-refusals-built-on-an-analysis) | refuses dead code and leaks | none |
@@ -876,6 +877,19 @@ counter, one load per call, not a proof: [optimizations.md](optimizations.md#whi
   a locked function for work that calls back into it.
 - **See.** [concurrency.md: Rules in full](concurrency.md#rules-in-full); `diagnostics/locked_wait`,
   `diagnostics/endless_locked_loop`.
+
+### A loop that can never end is an error
+
+- **Proves.** A `while true` can never be left: nothing inside it returns, asserts or crashes.
+- **Rule.** Such a loop is an error when it calls nothing at all, anywhere; and in any function the work of a
+  `Parallel` reaches through calls whose class is known, when that function never waits.
+- **Buys.** A spin, or a pool thread lost for good, becomes a build error.
+- **Falls back.** Not seen: a loop that calls something outside `Parallel` work (a call may end the program), work
+  reached through a function value, a union or an unknown receiver, and a function that waits anywhere. Give such
+  a loop a `return`.
+- **See.** [control_flow.md: `while` is the only loop](control_flow.md#while-is-the-only-loop),
+  [concurrency.md: The thread pool](concurrency.md#the-thread-pool); `diagnostics/spinning_loop`,
+  `diagnostics/endless_parallel_work`.
 
 ### What a `Parallel` may reach
 
