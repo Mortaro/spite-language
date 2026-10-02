@@ -1,0 +1,14 @@
+var board = Board()
+var program = Program()
+var other = 0
+
+func Worker(new_other: Integer) {
+    other = new_other
+}
+
+func run(): Integer {
+    program.sleep(1)
+    var reader = board.value_of
+    var answer = reader(other)
+    return answer + 1
+}

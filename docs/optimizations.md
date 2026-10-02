@@ -703,7 +703,10 @@ functions, no event loop and no helper threads; its waits are the plain system c
   reached through a function value, a union's dispatch or a constructor, and dropping a `Concurrent` there. They still
   wait correctly, by running the event loop where they are, as waits outside a `Concurrent` do: the other
   `Concurrent`s keep going, and this one holds its place until its wait is over. Two such waits that each wait for the
-  other would never end, and nothing reports it. A `Concurrent` whose own function cannot be a state machine runs to
+  other could never end, since the one further down the stack resumes only once the one above it returns, so joining
+  a `Concurrent` whose state machine is running further down the same stack halts at the join
+  (`waits_for_its_own_caller=true`, `conformance/stage6/concurrent_wait_cycle`), even while other `Concurrent`s keep
+  the program busy. A `Concurrent` whose own function cannot be a state machine runs to
   its end when it is started: a function value a standard-library class made and stored before it reached
   `Concurrent`, a shape's function, a singleton function that takes [the
   lock](#singletons-a-parallel-reaches-take-a-lock), or any function of the program in a `--hot-reload` build, which

@@ -147,8 +147,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   reports it outside a locked singleton function: a hang.
 - **Two threads writing one number attribute of an instance they share** is not refused: the reach rules (D35, D179)
   allow plain-value attributes, and the result is whichever write lands last.
-- **Two `Concurrent`s that each wait for the other** never end, and nothing reports it (optimizations.md, "Hidden
-  async/await as compile-time state machines").
 
 ### Nothing fails silently: the rule
 

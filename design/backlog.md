@@ -239,7 +239,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `prelude.spite` (`_flush`), the waiting library classes, `wait_facts.spite`. **M.** Depends on K2's list of waits.
 - **K2 Waits that run the loop in place never hang each other** (D369 item 179; status "Hidden async/await").
   Close every gap (right side of `and`/`or`/`==` on a nullable, through a function value, a union dispatch or a
-  constructor, a `Concurrent` dropped inside a `Concurrent`), even at a cost in speed. Files: `state_machine.spite`,
+  constructor, a `Concurrent` dropped inside a `Concurrent`), even at a cost in speed; until then a join that
+  closes such a cycle halts (B8, `conformance/stage6/concurrent_wait_cycle`). Files: `state_machine.spite`,
   `wait_facts.spite`. **L.** No dependencies.
 - **K3 A wait inside an expression keeps the written order** (D369 item 178). Temporaries hold what came before,
   dropped where nothing can change. Files: `state_machine.spite`. **M.** Do with K2.
@@ -334,7 +335,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **B4** A frame buffer's uses are matched by name, not by `TypedMemory` receiver (`placement.spite`). **S.**
 - **B6** A `while true` that can never leave is not reported (with L7). **M.**
 - **B7** Two threads writing one number attribute of a shared instance is not refused (D35, D179). **M.**
-- **B8** Two `Concurrent`s waiting on each other never end (with K2). **M.**
 - **B11** Reading `.functions` anywhere turns on a whole-program flag; set it only from kept code. **S.**
 - **B12** A write to a copy that dies unread (proposed, unconfirmed rule: a compile error). **M.**
 - **B14** A Windows `__fastfail` ends the program without Spite's report (the Linux and macOS heap abort is D379,
