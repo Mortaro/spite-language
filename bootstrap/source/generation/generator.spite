@@ -835,7 +835,7 @@ func generate(
     var header_text = runtime_header_text.replace("/*spite_allocator*/", allocator)
     builder.add_typedef(header_text)
     builder.add_typedef(
-        "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\n#ifdef SPITE_THREADS\n#define SPITE_RING_ASSERT(site) __atomic_store_n(&spite_assert_trace[__atomic_fetch_add(&spite_assert_total, 1, __ATOMIC_RELAXED) % 32], (site), __ATOMIC_RELAXED)\n#else\n#define SPITE_RING_ASSERT(site) (spite_assert_trace[spite_assert_total % 32] = (site), spite_assert_total = spite_assert_total + 1)\n#endif\nstatic int32_t spite_crashing = 0;\nstatic inline void spite_crash_text(const char* spite_bytes, int64_t spite_length) \{\nint64_t spite_kept = spite_length > 80 ? 80 : spite_length;\nwhile (spite_kept > 0 && spite_kept < spite_length && (spite_bytes[spite_kept] & 0xC0) == 0x80) spite_kept = spite_kept - 1;\nfwrite(spite_bytes, 1, (size_t)spite_kept, stderr);\nif (spite_kept < spite_length) fprintf(stderr, \"...(%lld bytes)\", (long long)spite_length);\n}\nstatic void spite_crash_begin(void) \{\nif (__atomic_exchange_n(&spite_crashing, 1, __ATOMIC_ACQ_REL) != 0) \{ for (;;) \{ } }\n}\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_total = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE);\nint64_t spite_kept = spite_total < 32 ? spite_total : 32;\nfor (int64_t spite_index = spite_total - spite_kept; spite_index < spite_total; spite_index = spite_index + 1) \{ const char* spite_site = spite_assert_trace[spite_index % 32]; if (spite_site != 0) fputs(spite_site, stderr); }\nif (spite_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_total - 32)); }\n}",
+        "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\n#ifdef SPITE_THREADS\n#define SPITE_RING_ASSERT(site) __atomic_store_n(&spite_assert_trace[__atomic_fetch_add(&spite_assert_total, 1, __ATOMIC_RELAXED) % 32], (site), __ATOMIC_RELAXED)\n#else\n#define SPITE_RING_ASSERT(site) (spite_assert_trace[spite_assert_total % 32] = (site), spite_assert_total = spite_assert_total + 1)\n#endif\nstatic int32_t spite_crashing = 0;\nstatic void (*spite_crash_chain)(void) = 0;\nstatic inline void spite_crash_text(const char* spite_bytes, int64_t spite_length) \{\nint64_t spite_kept = spite_length > 80 ? 80 : spite_length;\nwhile (spite_kept > 0 && spite_kept < spite_length && (spite_bytes[spite_kept] & 0xC0) == 0x80) spite_kept = spite_kept - 1;\nfwrite(spite_bytes, 1, (size_t)spite_kept, stderr);\nif (spite_kept < spite_length) fprintf(stderr, \"...(%lld bytes)\", (long long)spite_length);\n}\nstatic void spite_crash_begin(void) \{\nif (__atomic_exchange_n(&spite_crashing, 1, __ATOMIC_ACQ_REL) != 0) \{ for (;;) \{ } }\n}\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_total = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE);\nint64_t spite_kept = spite_total < 32 ? spite_total : 32;\nfor (int64_t spite_index = spite_total - spite_kept; spite_index < spite_total; spite_index = spite_index + 1) \{ const char* spite_site = spite_assert_trace[spite_index % 32]; if (spite_site != 0) fputs(spite_site, stderr); }\nif (spite_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_total - 32)); }\nif (spite_crash_chain != 0) spite_crash_chain();\n}",
     )
     var traced = "#define SPITE_TRACE_ASSERT(site) (SPITE_RING_ASSERT(site))"
     var untraced = "#define SPITE_TRACE_ASSERT(site) ((void)0)"
@@ -24951,9 +24951,11 @@ func walk_lent_checks(
     while index < folded.count() {
         var check = shape.as_assert_statement(folded[index])
         var walked: Syntax.Expressions.Expression? = null
+        var walked_column = 0
         if check and rest.is_empty() {
             if check.is_crash and check.value {
                 walked = walked_value(check.value, attribute, walk)
+                walked_column = check.column
             }
         }
         if walked {
@@ -24961,6 +24963,7 @@ func walk_lent_checks(
             walked_check.is_crash = true
             walked_check.condition_text = printer.source_expression(walked)
             walked_check.line = line
+            walked_check.column = walked_column
             walked_check_texts.append(walked_check.condition_text)
             statements.append(walked_check)
         } else {
@@ -25581,6 +25584,7 @@ func walk_checks(
             crash walked
             var walked_check = Syntax.Statements.AssertStatement(walked)
             walked_check.is_crash = true
+            walked_check.column = check.column
             walked_checks.append(walked_check)
         }
         index = index + 1
@@ -35582,7 +35586,7 @@ func record_site(
     var operands = List<String>()
     if not crash_parts.is_empty() {
         crash_map_lines.append(
-            "{current_site_id}\t{current_path}\t{current_line}\t0\t{current_owner}\t{function_name}\t{kind}\t{assert_statement.condition_text}\t{mapped_crash_parts(scope, class_information)}",
+            "{current_site_id}\t{current_path}\t{current_line}\t{assert_statement.column}\t{current_owner}\t{function_name}\t{kind}\t{assert_statement.condition_text}\t{mapped_crash_parts(scope, class_information)}",
         )
         return
     }
@@ -35609,7 +35613,7 @@ func record_site(
         }
     }
     crash_map_lines.append(
-        "{current_site_id}\t{current_path}\t{current_line}\t0\t{current_owner}\t{function_name}\t{kind}\t{assert_statement.condition_text}\t{operands.join(" ")}",
+        "{current_site_id}\t{current_path}\t{current_line}\t{assert_statement.column}\t{current_owner}\t{function_name}\t{kind}\t{assert_statement.condition_text}\t{operands.join(" ")}",
     )
 }
 
@@ -35769,6 +35773,7 @@ func generate_assert_statement(
             side_statement.is_crash = assert_statement.is_crash
             side_statement.condition_text = side_text
             side_statement.line = assert_statement.line
+            side_statement.column = assert_statement.column
             if generate_assert_statement(side_statement, scope, class_information, function_information) {
                 return true
             }
@@ -36016,7 +36021,7 @@ func emit_folded_check(
         "{version_free_owner(current_owner)}/{function_information.name}/{site_ordinal}/{assert_statement.condition_text}",
     )
     crash_map_lines.append(
-        "{current_site_id}\t{current_path}\t{current_line}\t0\t{current_owner}\t{function_information.name}\t{site_kind}\t{assert_statement.condition_text}\t",
+        "{current_site_id}\t{current_path}\t{current_line}\t{assert_statement.column}\t{current_owner}\t{function_information.name}\t{site_kind}\t{assert_statement.condition_text}\t",
     )
     builder.add_user("\{")
     emit_check_failure(assert_statement, null, false, scope, class_information, function_information)
@@ -36263,9 +36268,20 @@ func version_free_path(path: String): String {
 }
 
 func record_in_assert_trace(function_information: Analysis.FunctionInfo) {
-    var ending = newline_text()
+    var answer = assert_answer(function_information.return_type)
+    var ending = "{tab_text()}answered={answer}{newline_text()}"
     var trace_line = reported_site("spite.assert", ending, function_information)
     builder.add_user("SPITE_TRACE_ASSERT({trace_line});")
+}
+
+func assert_answer(return_type: Analysis.SpiteType): String {
+    if type_shape.is_void(return_type) {
+        return "nothing"
+    }
+    if type_shape.as_nullable(return_type) {
+        return "null"
+    }
+    return "empty"
 }
 
 func generate_return_statement(

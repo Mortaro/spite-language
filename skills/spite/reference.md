@@ -429,7 +429,8 @@ func is_alive(): Boolean {
     `names[index]`;
   - absence is a bug: `crash condition` halts with
     `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>name=value...`, followed by the
-    asserts that failed before it. Every name and call the condition read is there with its value, whatever its
+    asserts that failed before it (each with `answered=nothing`, `null` or `empty`, what its function gave back)
+    and the call chain as `spite.frame` lines, innermost first. Every name and call the condition read is there with its value, whatever its
     shape: `crash record or cooked.count() > 2` reports `record is null	cooked.count()=1`; a part an `and` or `or`
     skipped is left out. Then come the other texts, numbers and enums in scope (parameters, locals, the object's
     attributes). The condition is not on the line: open the line it names, or `grep <id> program.crashes`. A bare `crash` marks a branch that cannot happen (`crash false` is formatted to it).

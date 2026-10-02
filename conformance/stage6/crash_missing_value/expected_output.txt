@@ -1,2 +1,6 @@
 spite.crash	75b30821	conformance/stage6/crash_missing_value/crash_missing_value.spite:10	CrashMissingValue	show	width is null
+spite.frame	conformance/stage6/crash_missing_value/crash_missing_value.spite:9	CrashMissingValue	show
+spite.frame	conformance/stage6/crash_missing_value/crash_missing_value.spite:3	CrashMissingValue	CrashMissingValue
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
 width 0

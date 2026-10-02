@@ -903,11 +903,19 @@ and the values there. It does not repeat the condition, which is on the line it 
 A crash flushes what the program printed, writes one tab-separated line to the error stream and exits with
 status 1. The line starts `spite.crash` and carries the site's id, its place, its class and function, every name
 and call in the condition with its value, and then the other values in scope, then a `spite.assert` line for
-each `assert` that failed before it, because those are usually the trail that explains how the program got there:
+each `assert` that failed before it, because those are usually the trail that explains how the program got there.
+Each names what its function answered instead (`answered=nothing` for a function that returns nothing, `null` for
+a `T?`, `empty` for a collection). Last comes the call chain: a `spite.frame` line for each Spite function on the
+stack, innermost first, with the file and line it starts on, as a [native fault](#what-a-native-fault-reports)
+writes them:
 
 ```
 spite.crash	64b935f1	crash_report/crash_report.spite:14	CrashReport	check	value=-9	limit=0
-spite.assert	0aae5005	crash_report/crash_report.spite:18	CrashReport	announce
+spite.assert	0aae5005	crash_report/crash_report.spite:18	CrashReport	announce	answered=nothing
+spite.frame	crash_report/crash_report.spite:12	CrashReport	check
+spite.frame	crash_report/crash_report.spite:3	CrashReport	CrashReport
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
 ```
 
 After the condition's parts come the parameters and locals in scope, then the attributes of the object the
@@ -949,14 +957,17 @@ spite.crash	75b30821	crash_missing_value/crash_missing_value.spite:10	CrashMissi
 
 The id is derived from the site's content, so it stays the same when unrelated lines move. Each build also writes
 a `.crashes` file beside the executable it builds: one line per `assert` and `crash` site, sorted by id, with its file,
-line, class, function, kind and condition, so `grep 64b935f1 program.crashes` finds a site from a report and the
+line, column, class, function, kind and condition, so `grep 64b935f1 program.crashes` finds a site from a report and the
 condition it checked. An `--optimized` build writes only the id where the place would be, and the map is how
 the id is read back:
 
 ```
 spite.crash	64b935f1	value=-9	limit=0
-spite.assert	0aae5005
+spite.assert	0aae5005	answered=nothing
 ```
+
+On Linux and macOS an `--optimized` build keeps no frame pointers, so its crash has no `spite.frame` lines; on
+Windows the chain is read from the unwind tables every build has.
 A failed `assert` prints nothing when it fails, in every build: it is the program answering "nothing" and
 carrying on, and a long run fails thousands of them, which would bury the one line that matters. It is kept for the
 report instead. To watch them as they fail, build with `--trace-asserts` (a `Build` field, `trace_asserts`): each
@@ -970,7 +981,8 @@ the record out of a library `assert` altogether, so it costs what an `if` costs.
 reports its own site.
 A crash reports the ring as it stood when the crash began. Other threads may still be failing asserts while it
 prints, such as a game's pool threads running their guards, and those never lengthen the report: it is the crash line,
-at most 32 `spite.assert` lines and the `earlier=` count, and then the program exits. In a program that starts
+at most 32 `spite.assert` lines and the `earlier=` count, then the call chain of the thread that crashed, and then
+the program exits. In a program that starts
 threads, each failed `assert` takes its place in the ring with one atomic add, so asserts failing on several
 threads at once are all counted (`conformance/stage6/assert_ring_threads`); a program without threads pays a
 plain add. Only the first thread to crash
@@ -1034,7 +1046,9 @@ a core dump is still written where the system keeps them. What the program print
   the answer without calling again: two stores only the failure branch reads. The `.crashes` map is a file beside the
   executable, which nothing reads at run time.
 - The ring and the function that prints it are in every program, since the standard library has
-  `crash` sites of its own; they are 32 pointers, a counter and one function.
+  `crash` sites of its own; they are 32 pointers, a counter and one function. A crash's call chain is walked by
+  the fault handler's own walker, which adds one small function and one pointer the handler sets when it is
+  installed.
 - **The fault handler is in every program and costs nothing until a fault.** It is about 3.7 KB of machine code, and
   a table of every function the program kept (its start address and name, 32 bytes and the name each; 73
   functions, about 4 KB, in `examples/hello`). Installing it is two system calls when the program starts, and one
@@ -1519,7 +1533,11 @@ A crash always reports backend information **and the trace of every `assert` tha
 asserts are the causal trail explaining how the program reached the state that crashed, which is usually several
 frames earlier than the crash itself. The cost is only on the failure path (a passing `assert` already
 branches), and the trace is a fixed-size ring buffer with a total count, so it never allocates and cannot grow
-without bound. A report is the crash's own line and the asserts' lines. Compile-time evaluation ([the functions of `Spite.Class`](reflection.md#functions-of-spiteclass-and-no-static-functions), [JSON is reflection, not a library](json.md#json-is-reflection-not-a-library)'s generated JSON) reports
+without bound. A report is the crash's own line, the asserts' lines (each with what its function answered:
+`answered=nothing`, `answered=null` or `answered=empty`) and the call chain, one `spite.frame` line per Spite
+function on the crashing thread's stack, innermost first, written as a native fault writes its frames and walked
+the same way (frame pointers on Linux and macOS, so an `--optimized` build there has none; the unwind tables on
+64-bit Windows), leaving out the runtime's own functions above the first Spite one. Compile-time evaluation ([the functions of `Spite.Class`](reflection.md#functions-of-spiteclass-and-no-static-functions), [JSON is reflection, not a library](json.md#json-is-reflection-not-a-library)'s generated JSON) reports
 the same way.
 
 **A failed `assert` is not printed when it fails; `--trace-asserts` streams them.** A failed `assert` writes nothing
@@ -1559,11 +1577,11 @@ content-derived (a hash of namespace, class, function, the site's ordinal and th
 counter, because a counter renumbers everything below an inserted line and destroys both old reports and
 cross-target identity. No build carries a condition's text, and an `--optimized` build carries
 only each site's id: its crash line is `spite.crash<TAB>id` followed by the values, and its trace line
-`spite.assert<TAB>id`, while other builds also write the place, class and function so a local run needs no lookup
+`spite.assert<TAB>id<TAB>answered=...`, while other builds also write the place, class and function so a local run needs no lookup
 (`conformance/stage6/trace_asserts_optimized`).
 
 The map is a greppable tab-separated table named after the program, `<program>.crashes`, beside the
-executable, one line per site, sorted by id so archived maps diff cleanly: id, file, line, column (written as `0`),
+executable, one line per site, sorted by id so archived maps diff cleanly: id, file, line, column (of the `assert` or `crash` keyword, counting from 1),
 class, function, kind (`crash`, `assert-predicate`, `assert-narrowing`), the condition source, and the
 operand names with their types (`value:Integer`). It opens with a `#` comment line carrying the format version
 and the build hash (`# spite crashes 1 2660c8aa`). At runtime a crash emits one tab-separated line prefixed

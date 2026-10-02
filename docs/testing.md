@@ -106,17 +106,24 @@ test that cannot compile reports `path:line: error: ...` and runs nothing.
 and exits with status 0.
 
 **When a test fails**, its `crash` halts the program: everything printed so far is flushed, one `spite.crash` line
-goes to the error stream and the program exits with status 1. Break `test_split_keeps_empty_pieces` by expecting
-two pieces, and the run says:
+and the call chain go to the error stream and the program exits with status 1. Break
+`test_split_keeps_empty_pieces` by expecting two pieces, and the run says:
 
 ```
 passed test_trim_removes_the_spaces_around_text
 spite.crash	59bbba06	test_package/text_tests.spite:8	TextTests	test_split_keeps_empty_pieces	pieces.count()=3
+spite.frame	test_package/text_tests.spite:6	TextTests	test_split_keeps_empty_pieces
+spite.frame	bootstrap/source/generation/prelude.spite:1	Spite.Function	call_function
+spite.frame	test_package/test_package.spite:19	TestPackage	run
+spite.frame	test_package/test_package.spite:5	TestPackage	TestPackage
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
 ```
 
-That line is the whole report, and it is enough: the file and line of the `crash` (`text_tests.spite:8`), the
+The first line is the report, and it is enough: the file and line of the `crash` (`text_tests.spite:8`), the
 class and the test, and the value of every part of the condition, then every other text, number and enum in scope
-([what a crash reports](failure.md#what-a-crash-reports)). The condition itself is not repeated, since it is on the
+([what a crash reports](failure.md#what-a-crash-reports)); the `spite.frame` lines below it say how the run got
+there. The condition itself is not repeated, since it is on the
 line named. There is no expected-versus-actual prose: the test says `pieces.count() == 2`, the report says
 `pieces.count()=3`, and the line is open in front of you.
 

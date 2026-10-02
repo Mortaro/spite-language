@@ -1,2 +1,5 @@
 spite.crash	00b7d810	conformance/stage5/crash_receiver/crash_receiver.spite:6	CrashReceiver	CrashReceiver	settings=.spite/crash_receiver/missing_settings.txt
+spite.frame	conformance/stage5/crash_receiver/crash_receiver.spite:3	CrashReceiver	CrashReceiver
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
 looking for the settings

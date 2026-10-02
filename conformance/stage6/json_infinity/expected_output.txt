@@ -1,2 +1,12 @@
 spite.crash	3595b8e9	library/json_writer.spite:94	JsonWriter	written_decimal	shown=inf	value=inf	path=Order.price
+spite.frame	library/json_writer.spite:93	JsonWriter	written_decimal
+spite.frame	library/json_writer.spite:30	JsonWriter	_written
+spite.frame	library/json_writer.spite:10	JsonWriter	write
+spite.frame	library/json_writer.spite	JsonWriter	write_price
+spite.frame	library/json_writer.spite:79	JsonWriter	write_attributes
+spite.frame	library/json_writer.spite:30	JsonWriter	_written
+spite.frame	library/json_writer.spite:10	JsonWriter	write
+spite.frame	conformance/stage6/json_infinity/json_infinity.spite:3	JsonInfinity	JsonInfinity
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
 {"item":"tea","price":2.5}

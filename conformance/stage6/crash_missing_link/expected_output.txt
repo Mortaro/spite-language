@@ -1,2 +1,6 @@
 spite.crash	0f912d8f	conformance/stage6/crash_missing_link/crash_missing_link.spite:14	CrashMissingLink	show	rig.skeleton is null
+spite.frame	conformance/stage6/crash_missing_link/crash_missing_link.spite:13	CrashMissingLink	show
+spite.frame	conformance/stage6/crash_missing_link/crash_missing_link.spite:3	CrashMissingLink	CrashMissingLink
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
 height 0

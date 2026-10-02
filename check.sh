@@ -780,7 +780,7 @@ done
 echo "threads: eight threads asking for the same class objects make each once, five runs balanced"
 # A crash reports the asserts that failed before it, as the ring stood when it crashed (D244). A pool thread that keeps
 # failing a guard assert while the program's thread crashes must not keep the report printing (that streamed every
-# failed assert and never exited), so the crash ends with its crash line, at most 32 assert lines and an earlier count.
+# failed assert and never exited), so the crash ends with its crash line, at most 32 assert lines, an earlier count and the call chain.
 mkdir -p "$work/crash_while_asserting"
 cat > "$work/crash_while_asserting/crash_while_asserting.spite" <<'SPITE'
 var console = Console()
@@ -814,12 +814,16 @@ func refuse(value: Integer) {
 SPITE
 "$work/generation_two.exe" "$work/crash_while_asserting" --optimized --build --executable-path="$work/crash_while_asserting.exe" > "$job_errors" 2>&1 || {
   echo "FAILED: could not build crash_while_asserting"; head -5 "$job_errors"; exit 1; }
+if ! grep -qE "	13	5	CrashWhileAsserting	check	crash	value > 0	" "$work/crash_while_asserting.crashes" \
+   || ! grep -qE "	27	5	CrashWhileAsserting	refuse	assert-predicate	value < 0	" "$work/crash_while_asserting.crashes"; then
+  echo "FAILED: the .crashes map should give each site's line and column"; exit 1
+fi
 timeout 60 "$work/crash_while_asserting.exe" < /dev/null > "$work/crash_while_asserting.txt" 2>&1
 crashed=$?
 reported=$(tr -d '\r' < "$work/crash_while_asserting.txt")
 if [ "$crashed" != "1" ] || [ "$(echo "$reported" | grep -c '^spite.crash	')" != "1" ] \
    || [ "$(echo "$reported" | grep -c '^spite.assert	[0-9a-f]\{8\}	')" -gt 32 ] \
-   || ! echo "$reported" | tail -1 | grep -qE '^spite.assert	earlier=[0-9]+$'; then
+   || ! echo "$reported" | grep -v '^spite.frame	' | tail -1 | grep -qE '^spite.assert	earlier=[0-9]+$'; then
   echo "FAILED: a crash while another thread fails asserts (exit $crashed, $(echo "$reported" | wc -l) lines)"; echo "$reported" | head -3; exit 1
 fi
 echo "crash reports: a crash while a pool thread keeps failing asserts reports the ring as it stood and exits"

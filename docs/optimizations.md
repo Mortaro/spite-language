@@ -1138,7 +1138,7 @@ values its report prints; other builds keep the place, so a local run needs no l
 **When it applies.** Every `crash` and every program `assert` (a library `assert` records nothing).
 
 **What a user can observe.** The report lines ([failure.md](failure.md#what-a-crash-reports)): `spite.crash<TAB>id`
-and `spite.assert<TAB>id` in an optimised build, and `grep <id> program.crashes` gives the rest.
+and `spite.assert<TAB>id<TAB>answered=...` in an optimised build, and `grep <id> program.crashes` gives the rest.
 `conformance/stage6/trace_asserts_optimized`.
 
 ### Smaller ones

@@ -162,9 +162,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Failure: three outcomes and no others
 
-- The heading was tagged `[partial]`. Not built, from the decided design: the call chain in a crash report, and the
-  default each failed `assert` returned (D25); an assert's values in the ring (D33); the column of a `.crashes` line,
-  which is written as `0`; crash ids that compare across targets other than native (targets.md: other targets are not
+- The heading was tagged `[partial]`. Not built, from the decided design: an assert's values in the ring (D33; a
+  ring entry is still only a pointer to its site's fixed line); the call chain of an `--optimized` crash on Linux and
+  macOS, which keep no frame pointers there (D25); crash ids that compare across targets other than native (targets.md: other targets are not
   built, so "the same id on the server bundle and the browser bundle" is decided, not built); the wrong-target compile
   error (D20) is planned (targets.md).
 - Not built, proposed by Claude and unconfirmed (D26 refinement), removed from the page: the trace would record
