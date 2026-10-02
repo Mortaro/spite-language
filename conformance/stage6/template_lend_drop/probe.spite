@@ -1,0 +1,10 @@
+var registry = Registry()
+var ready = false
+
+func drop() {
+    if ready and registry.tokens.count() == 2 {
+        registry.tokens.remove_at(0)
+        var replacement = Token("replacement")
+        registry.tokens.append(replacement)
+    }
+}

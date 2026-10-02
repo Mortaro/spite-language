@@ -783,12 +783,14 @@ have moved.
 - **Proves.** Nothing in the rest of a template's pass over one element can let that element go.
 - **Rule.** In `List` templates, the reference kind of `Items` and fused chains, an element is read uncounted when
   the rest of its pass only assigns locals and makes calls the compiler can name, none of which may let go of an
-  object or assign an attribute through an unknown class.
+  object or assign an attribute through an unknown class, and when no `drop()` of the program's own classes may let
+  go of an object either.
 - **Buys.** One retain and one release per element (`benchmarks/fused_chain` 332 to 185 ms).
-- **Falls back.** The counted read, in `--hot-reload` builds and for a nullable element.
+- **Falls back.** The counted read, in `--hot-reload` builds, for a nullable element, and in a program one of whose
+  classes has a `drop()` that may let go of an object.
 - **See.** [optimizations.md: A list's templates read its elements without counting
   them](optimizations.md#a-lists-templates-read-its-elements-without-counting-them);
-  `conformance/stage6/fused_chain_allocations`.
+  `conformance/stage6/fused_chain_allocations`, `conformance/stage6/template_lend_drop`.
 
 ## Threads and locks
 

@@ -1,0 +1,9 @@
+var console = Console()
+var registry = Registry()
+
+func TemplateLendDrop() {
+    registry.fill()
+    registry.tokens.each_touch()
+    var left = registry.tokens.count()
+    console.print("left", left)
+}

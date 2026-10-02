@@ -1243,7 +1243,9 @@ which on a list of objects spread through memory are most of the loop's cost. In
 lies in the list, uncounted, whenever nothing that runs while it is held can let go of anything. The compiler
 walks the rest of that pass (the member function it calls, or the function passed in, and everything those call)
 and lets it borrow only when none of them assigns an attribute that holds an object (a number, `Boolean` or text
-attribute is fine), removes from or replaces into a list or dictionary, or calls through a function value. A
+attribute is fine), removes from or replaces into a list or dictionary, or calls through a function value, and when
+no `drop()` of the program's own classes does any of that either, since an object the pass lets go of runs its
+`drop()` while the element is held (`conformance/stage6/template_lend_drop`). A
 member read from a borrowed element (`map_owner`) is borrowed the same way. Anything that keeps the element
 (`collected.append(item)`, `return item`) still counts it.
 

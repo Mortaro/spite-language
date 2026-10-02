@@ -24176,6 +24176,26 @@ func drops_reach_list(owner: Analysis.ClassInfo, field_name: String): Boolean {
     return false
 }
 
+func drops_may_release(): Boolean {
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        var dropped_while_running = not information.is_singleton and not is_library_class(information)
+        if dropped_while_running and information.find_function("drop") {
+            var key = call_effects.effects_key(information.qualified_dotted, "drop")
+            if key.is_empty() {
+                return true
+            }
+            var effects = call_effects.effects_of_key(key)
+            if effects.contains("release") or effects.contains("field:*") {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func drop_reaches_list(key: String, owner: Analysis.ClassInfo, field_name: String): Boolean {
     var keys = [key]
     var effects = call_effects.effects_of_key(key)
@@ -26813,7 +26833,7 @@ func borrowed_element(
         return ""
     }
     var element_type = class_information.codegen_types[0]
-    if not type_needs_drop(element_type) or type_shape.as_nullable(element_type) {
+    if not type_needs_drop(element_type) or type_shape.as_nullable(element_type) or drops_may_release() {
         return ""
     }
     var watch = ReleaseWatch(declaration.name)
@@ -26849,7 +26869,7 @@ func borrowed_field(
         return ""
     }
     var field_type = field.type
-    if not type_needs_drop(field_type) or type_shape.as_nullable(field_type) {
+    if not type_needs_drop(field_type) or type_shape.as_nullable(field_type) or drops_may_release() {
         return ""
     }
     var watch = ReleaseWatch(declaration.name)

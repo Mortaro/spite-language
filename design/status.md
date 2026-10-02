@@ -121,9 +121,6 @@ for a design):
   compile error when an object only this function holds (escape analysis already proves a function's result fresh)
   has its attributes written and then dies unread, unpassed, unreturned and unkept; checked while compiling, it costs
   nothing at run time.
-- The proof that lets a `List` template lend its items without counting them does not consider the `drop()`
-  functions that run when an object is let go, so a `drop()` that removes from the list being walked could free a lent
-  item while it is in use. D269's lend of a list element checks `drop()`; the template proof should do the same.
 - A reload that moves objects to new attributes (repl.md, "Changing a class's attributes") moves them while the
   program's own threads may run: the swap pauses the scheduler's tasks, not a thread the program started itself, so a
   thread reading an object of the class while it moves could read its old attributes. The move should wait for every

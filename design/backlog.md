@@ -339,7 +339,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **B6** A `while true` that can never leave is not reported (with L7). **M.**
 - **B7** Two threads writing one number attribute of a shared instance is not refused (D35, D179). **M.**
 - **B8** Two `Concurrent`s waiting on each other never end (with K2). **M.**
-- **B10** The list template lend proof ignores `drop()` (D269's lend checks it). **S.**
 - **B11** Reading `.functions` anywhere turns on a whole-program flag; set it only from kept code. **S.**
 - **B12** A write to a copy that dies unread (proposed, unconfirmed rule: a compile error). **M.**
 - **B14** A `__fastfail` or a C library heap abort ends the program without Spite's report. **M.**
