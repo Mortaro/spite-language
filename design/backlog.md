@@ -168,7 +168,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   one place a reader finds (D240's table). Files: `library/memory/heap.spite`, `address.spite`, `prelude.spite`.
   **L.** Pairs with C9.
 
-### Language rules (D364, D371 to D374, D369 item 236, D336, D386)
+### Language rules (D364, D371 to D374, D387, D369 item 236, D336, D386)
 
 - **L1 Every folder is a namespace, no special entry file** (D364). `engine/physics/physics.spite` is
   `Physics.Physics`; loads name a root only; the class and namespace clash error fires only for a file and a folder
@@ -176,9 +176,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   (`bootstrap/source/discovery/program_discovery.spite` around line 934, `versions.spite`, `paths.spite`). Migrate
   the corpus and tell the game engine package (`engine/renderer/renderer.spite` style files). **M.** No
   dependencies.
-- **L2 A class shadowing a visible class is an error** (D374, D284). The error names both declarations, inside the
-  program and against loaded packages. Today only members are checked (`report_shadows_in`, generator.spite near
-  line 28374). D284's narrower "re-creates a standard class" rule may be subsumed (Q5). **S.** Depends on L1.
+- **L2 A class shadowing a visible class is an error** (D374, D387). The error names both declarations, inside the
+  program, against loaded packages and against the standard library (suggesting the library's class). Today only members are checked (`report_shadows_in`, generator.spite near
+  line 28374). D284's attribute matching is dropped (D387); remove it. **S.** Depends on L1.
 - **L3 Every enum is an instance of `Spite.Enum`** (D371). A new `library/spite/enum.spite`, enums declaring their
   own functions (parser `enum_declaration.spite`, `analysis/enum_info.spite`, generator.spite enum emission), values
   and functions as reflection objects (with R5), and D180's environments enum on top (S6). **L.** Depends on R5
@@ -418,10 +418,6 @@ unconfirmed).
   (b) collect into a `List<Anything>` with `each`, then `call_with(list)`, which travels as a shape and costs a
   dispatch; (c) a read-only attribute on `Spite.Argument` collected with `map_<members>()`, which only works when
   the value depends on the argument alone. Recommendation: (a), the only one that is free at run time.
-- **Q5 Does D374 cover the standard library, superseding D284?** (`mortaros_missing_decisions.md` item 255) D374 makes any class shadowing a visible class
-  an error, which already refuses a program's `Game.Math.Vector3` beside the library's `Vector3`, more strictly
-  than D284's attribute matching with zero false positives. Recommendation: yes, one rule; record a row
-  superseding D284.
 - **Q9 Is D229's `function_runs_in_pieces` retired?** (`mortaros_missing_decisions.md` item 259) D335 and D362 give the runner `function.accesses`, from
   which "runs in pieces" follows. Recommendation: retire it with a row, the runner deciding from accesses.
 - **Q10 Where the optimisation report goes** (`mortaros_missing_decisions.md` item 260) (D36, D332). Recommendation: always written beside the build in
