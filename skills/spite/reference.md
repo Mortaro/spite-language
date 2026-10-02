@@ -203,8 +203,8 @@ func is_alive(): Boolean {
   write `names[index]`, which proofs can narrow. Every `[]` answers a `T?`; a `Vector`'s and an `Items`' too. A
   list of numbers, `Boolean`, enums or `Memory.Address` is always a `List` (`Vector<Integer>` is an error naming
   `List<Integer>`); it has `remove_swapping(index)` and `reserve(count)` too.
-  `Dictionary<T>` (insertion order): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`,
-  `values`, `dictionary["key"]` (a `T?`, like `list[index]`: `inventory["shield"] == 0` is false for an absent
+  `Dictionary<T>` (insertion order): `dictionary["key"] = value`, `has`, `remove`, `count`, `keys`,
+  `values`, `dictionary["key"]` (a `T?`, through `get_at` like every `[]`, like `list[index]`: `inventory["shield"] == 0` is false for an absent
   key). Keys are text or whole numbers, decided from the keys you give it: key by the number itself
   (`created_layouts[entity]`), never by text made from it (no `"{entity}"`). `keys()` answers the numbers.
   One dictionary never takes both kinds (a compile error naming both places). A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
@@ -328,7 +328,7 @@ func is_alive(): Boolean {
   for, a `T?`), `sort_by` and `sum` the same way, on a list or dictionary of anything, chained with the member
   templates or not (`people.filter_active().map(greeter.label)`). The function takes the element as its only
   argument and is bound to its owner: `greeter.label` is `greeter`'s, and a library value's works the same:
-  `keys.filter(counts.has)`, `words.filter(greeting.contains)`. `counts.get` answers `T?`, so it cannot order a
+  `keys.filter(counts.has)`, `words.filter(greeting.contains)`. `counts.get_at` answers `T?`, so it cannot order a
   `sort_by`: pass a function of yours that narrows it. A function that needs more than the element
   (`print_statement(statement, depth)`) keeps its `while`; `map(f)` of a function that returns nothing is an
   error naming `each(f)`.

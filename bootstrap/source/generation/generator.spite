@@ -14372,8 +14372,6 @@ func may_call_an_operator(name: String, argument_count: Integer): Boolean {
     switch name {
         "get_at": return argument_count == 1
         "set_at": return argument_count == 2
-        "get": return argument_count == 1
-        "set": return argument_count == 2
         "negate": return argument_count == 0
         _: {
             var operators = [
@@ -14421,12 +14419,6 @@ func operator_written_for(name: String, receiver: String, arguments: List<String
             crash second
             return "'set_at' is what '[] =' calls: write '{receiver}[{first}] = {second}'"
         }
-        "get": return "'get' is what '[]' calls on a Dictionary: write '{receiver}[{first}]'"
-        "set": {
-            var value = arguments.last()
-            crash value
-            return "'set' is what '[] =' calls on a Dictionary: write '{receiver}[{first}] = {value}'"
-        }
         "sum": return "'sum' is what '+' calls: write '{receiver} + {first}'"
         "subtract": return "'subtract' is what '-' calls: write '{receiver} - {first}'"
         "multiply": return "'multiply' is what '*' calls: write '{receiver} * {first}'"
@@ -14473,17 +14465,11 @@ func operator_stands_in(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    if type_shape.as_dictionary(receiver_type) {
-        return name == "get" or name == "set"
-    }
-    if type_shape.as_list(receiver_type) {
+    if type_shape.as_list(receiver_type) or type_shape.as_dictionary(receiver_type) {
         return name == "get_at" or name == "set_at"
     }
     if type_shape.as_string(receiver_type) {
         return name == "sum" or name == "equals" or name == "less_than" or name == "greater_than"
-    }
-    if name == "get" or name == "set" {
-        return false
     }
     var receiver_union = type_shape.as_union(receiver_type)
     if receiver_union {
@@ -18926,7 +18912,7 @@ func ensure_dictionary_deep_copy(dictionary: Analysis.Types.DictionaryType): Str
     var key_code = list_item_code(key_type, "self->entry_keys_", "spite_index")
     var kept_key = retain_call(key_type, key_code)
     builder.add_support(
-        "{dictionary_name}* {function_c_name}({dictionary_name}* self) \{\nif (self == 0) return 0;\n{dictionary_name}* copied = {dictionary_name}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys_->item_count_; spite_index = spite_index + 1) \{ {dictionary_name}_set(copied, {kept_key}, {deep_copy_code(element, item_code)}); }\nreturn copied;\n}",
+        "{dictionary_name}* {function_c_name}({dictionary_name}* self) \{\nif (self == 0) return 0;\n{dictionary_name}* copied = {dictionary_name}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys_->item_count_; spite_index = spite_index + 1) \{ {dictionary_name}_set_at(copied, {kept_key}, {deep_copy_code(element, item_code)}); }\nreturn copied;\n}",
     )
     return function_c_name
 }
@@ -19308,7 +19294,7 @@ func generate_index_read(
         var single_types = one_type(key_parameter)
         var nullable_type = nullable_type_of(value_type)
         var lookup = generate_generic_call(
-            "{ensure_dictionary(object_dictionary)}_get",
+            "{ensure_dictionary(object_dictionary)}_get_at",
             object_result,
             index_expression.object,
             arguments_ast,
@@ -19889,12 +19875,12 @@ func generate_dictionary_method(
             class_information,
         )
     }
-    if name == "set" {
+    if name == "set_at" {
         var key_parameter = dictionary_key_parameter_of(dictionary, arguments_ast, scope, class_information)
         var pair_types = two_types(key_parameter, element)
         var void_spite_type = void_type()
         return generate_generic_call(
-            "{dictionary_name}_set",
+            "{dictionary_name}_set_at",
             object_result,
             object_ast,
             arguments_ast,
@@ -19904,12 +19890,12 @@ func generate_dictionary_method(
             class_information,
         )
     }
-    if name == "get" {
+    if name == "get_at" {
         var key_parameter = dictionary_key_parameter_of(dictionary, arguments_ast, scope, class_information)
         var single_types = one_type(key_parameter)
         var nullable_type = nullable_type_of(element)
         return generate_generic_call(
-            "{dictionary_name}_get",
+            "{dictionary_name}_get_at",
             object_result,
             object_ast,
             arguments_ast,
@@ -27587,7 +27573,7 @@ func generate_store(
             var pair_types = two_types(key_parameter, element)
             var void_spite_type = void_type()
             var dictionary_set_call = generate_generic_call(
-                "{ensure_dictionary(indexed_dictionary)}_set",
+                "{ensure_dictionary(indexed_dictionary)}_set_at",
                 indexed_result,
                 index_target.object,
                 dictionary_arguments,
@@ -37033,7 +37019,6 @@ func call_reads_only(
         var reading = [
             "count"
             "get_at"
-            "get"
             "has"
             "is_empty"
             "first"

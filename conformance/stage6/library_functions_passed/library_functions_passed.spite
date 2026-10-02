@@ -9,7 +9,7 @@ func LibraryFunctionsPassed() {
     var known = keys.filter(counts.has)
     var known_text = known.join(", ")
     console.print(known_text)
-    var amounts = keys.map(counts.get)
+    var amounts = keys.map(counts.get_at)
     var amount_count = amounts.count()
     console.print("amounts", amount_count)
     var words = ["hell", "a", "lo", "x"]
@@ -17,7 +17,7 @@ func LibraryFunctionsPassed() {
     var found = words.filter(greeting.contains)
     var found_text = found.join(", ")
     console.print(found_text)
-    var lookup = counts.get
+    var lookup = counts.get_at
     var apples = lookup("apple")
     crash apples
     console.print("apples", apples)

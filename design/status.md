@@ -257,7 +257,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Operators
 
-- Open question: whether a `Dictionary`'s `[]` should also be spelled `get_at` (`mortaros_missing_decisions.md`).
 - Unconfirmed (proposed by Claude, not decided by Mortaro), built as described on the page: the `get_at` and `set_at`
   details, the read half of getter interception mirroring the setter half, a setter answering a write with no
   attribute of its name (from a game port's alert A101), the bare-name exclusion from the direct-call rule, the

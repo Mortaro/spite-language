@@ -38,8 +38,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   error), and `count_`/`any_`/`all_`/`remove_where_` by member class on a union list. Files: generator.spite's
   member template resolution, `library/list.spite`, `vector.spite`, `items.spite`. **M.** Feeds M3 step 2.
 - **R4 Dictionary member templates over values** (D335). Built through the compiler; `library/dictionary.spite`
-  declares none of them. Check they go through declared library templates like `List`'s (D240: nothing hidden),
-  then fold into S7. **S.** Depends on S7.
+  declares none of them. Check they go through declared library templates like `List`'s (D240: nothing hidden).
+  **S.** No dependencies.
 - **R5 The rest of the object model** (D316, D317; status "Not built" and "Run time only through the old tables").
   `Spite.Namespace.enums`; a class's own `get_`/`set_` template spelled
   `attribute: Spite.Attribute<Person>` inside `Person` (today "unknown identifier 'attributes'"); the kind
@@ -320,9 +320,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **S6 Environments as a reopenable, walkable enum** (D180; status "Symbol codegen and enums"). With D373 a
   reopening restates the whole list. Files: `library/environment.spite`, `library/build.spite`. **S.** Depends on
   L3, L4.
-- **S7 `Dictionary`'s `[]` is `get_at`/`set_at`** (D369 item 220). Rename `get`/`set` in
-  `library/dictionary.spite` and the compiler's lowering of `d[key]`, and the operator errors from
-  `cloud/operators` (D396). **S.** No dependencies.
 - **S9 Collection leftovers** (status "Standard library metaprogramming", "Deep copy"). `sort_by_`, `find_by_` and
   a program's own templates on `Vector` and `Items`; the `while`-does-a-template rule over `Vector` loops;
   `deep_copy()` of unions, shapes and self-referring structures; a `String`'s or number's function held as a value.

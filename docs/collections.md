@@ -62,8 +62,8 @@ given text keys is keyed by text, and one given whole numbers is keyed by number
 | Member | Result | Notes |
 |---|---|---|
 | `Dictionary<T>()` | | an empty one, with no table until the first key |
-| `set(key, value)` / `dictionary[key] = value` | | replaces the value of a key already there |
-| `dictionary[key]` | `T?` | `null` when the key is absent; it calls `get(key)`, which is only called through `[]` |
+| `dictionary[key] = value` | | replaces the value of a key already there; it calls `set_at(key, value)`, which is only called through `[] =` |
+| `dictionary[key]` | `T?` | `null` when the key is absent; it calls `get_at(key)`, which is only called through `[]` |
 | `has(key)` | `Boolean` | |
 | `remove(key)` | | nothing happens when the key is absent |
 | `count()` | `Integer` | |
@@ -1038,13 +1038,13 @@ The caller's function is passed as a bound function value, owned by whoever it i
 - **The owner.** `say_hello` alone is bound to this instance; `greeter.greet` to `greeter`; a variable holding a
   `Spite.Function<T, R>` is called through the value. `people.map(greeter.label).filter(is_short)` mixes owners.
   A list's own function is bound to the list the same way (`numbers.each(found.append)`); a chain that passes one
-  is not fused, and runs step by step. So is every library class's: a `Dictionary`'s (`keys.filter(counts.has)`, `keys.map(counts.get)`), and a
+  is not fused, and runs step by step. So is every library class's: a `Dictionary`'s (`keys.filter(counts.has)`, `keys.map(counts.get_at)`), and a
   `String`'s or a number's (`words.filter(greeting.contains)`). A `List`'s or a `Dictionary`'s function may also
-  be held as a value, `var lookup = counts.get`, bound to that dictionary; a `String`'s or a number's may only be
+  be held as a value, `var lookup = counts.get_at`, bound to that dictionary; a `String`'s or a number's may only be
   passed to a form, since a value of text is no object a function value can keep: `var check =
   greeting.contains` is "'contains' of a String is passed straight to a form, like 'names.filter(text.contains)',
-  and cannot be held as a value yet ...". What the function answers is what the form sees, so `counts.get`
-  answers `Integer?`, and `keys.sort_by(counts.get)` is an error naming the fix: a function of your own
+  and cannot be held as a value yet ...". What the function answers is what the form sees, so `counts.get_at`
+  answers `Integer?`, and `keys.sort_by(counts.get_at)` is an error naming the fix: a function of your own
   that narrows it (`conformance/stage6/library_functions_passed`, `diagnostics/library_function_mistakes`).
 - **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
   Spite.Attribute<$element_type>)`) is instantiated once per function and owner class, with a last hidden parameter holding
@@ -1119,8 +1119,8 @@ write 'remove_last()', or 'remove_first()' to take from the start` (`diagnostics
 ### Dictionary\<T\>
 
 Insertion-ordered, keyed by text or by whole numbers; its members are [the table under
-`Dictionary<T>`](#dictionaryt), which is normative. `dictionary[key]` is `get(key)`, a `T?` that is `null` for an
-absent key, and `dictionary[key] = value` is `set(key, value)`; there is no `get_at`/`set_at` on a dictionary.
+`Dictionary<T>`](#dictionaryt), which is normative. `dictionary[key]` is `get_at(key)`, a `T?` that is `null` for an
+absent key, and `dictionary[key] = value` is `set_at(key, value)`, the same functions as every other `[]`.
 `keys()` and `values()` answer fresh copies, in insertion order.
 
 **The key kind is decided while compiling.** Each dictionary is keyed by text or by whole numbers, never both, and nothing is written for
