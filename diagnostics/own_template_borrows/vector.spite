@@ -1,0 +1,27 @@
+func largest_by_member(member: Spite.AttributeDeclaration<$element_type>): $element_type? {
+    assert item_count != 0
+    var best = 0
+    var index = 1
+    while index < item_count {
+        var item = values.item_at(items, index)
+        var leader = values.item_at(items, best)
+        if item.attributes[member] > leader.attributes[member] {
+            best = index
+        }
+        index = index + 1
+    }
+    return values.item_at(items, best)
+}
+
+func kept_member(member: Spite.AttributeDeclaration<$element_type>): List<$element_type> {
+    var kept = List<$element_type>()
+    var index = 0
+    while index < item_count {
+        var item = values.item_at(items, index)
+        if item.attributes[member] {
+            kept.append(item)
+        }
+        index = index + 1
+    }
+    return kept
+}

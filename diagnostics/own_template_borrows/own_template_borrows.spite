@@ -1,0 +1,12 @@
+var console = Console()
+
+func OwnTemplateBorrows() {
+    var velocities = Vector<Velocity>()
+    var fast = Velocity(3.0)
+    velocities.append(fast)
+    var largest = velocities.largest_by_across()
+    crash largest
+    var kept = velocities.kept_moving()
+    var kept_count = kept.count()
+    console.print(largest.across, kept_count)
+}

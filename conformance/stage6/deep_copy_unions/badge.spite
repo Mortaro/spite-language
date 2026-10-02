@@ -1,0 +1,7 @@
+var label = ""
+var points = 0
+
+func Badge(new_label: String, new_points: Integer) {
+    label = new_label
+    points = new_points
+}

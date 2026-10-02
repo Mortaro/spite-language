@@ -1,0 +1,55 @@
+var console = Console()
+
+func VectorFindSort() {
+    var velocities = Vector<Velocity>()
+    var fast = Velocity(3.0, "fast")
+    velocities.append(fast)
+    var slow = Velocity(1.0, "slow")
+    velocities.append(slow)
+    var middle = Velocity(2.0, "middle")
+    velocities.append(middle)
+    var found = velocities.find_by_name("slow")
+    if found {
+        found.across = 1.5
+    }
+    var missing = velocities.find_by_name("none")
+    var absent = true
+    if missing {
+        absent = false
+    }
+    var sorted = velocities.sort_by_across()
+    var sorted_names = sorted.map_names()
+    var joined = sorted_names.join(", ")
+    var total = velocities.sum_across()
+    console.print(joined, total, absent, slow.across)
+    var moving_sorted = velocities.filter_moving().sort_by_across()
+    var moving_names = moving_sorted.map_names()
+    var moving_joined = moving_names.join(", ")
+    var by_name = velocities.sort_by_name()
+    var first_by_name = by_name[0]
+    crash first_by_name
+    console.print(moving_joined, first_by_name.name)
+    var columns = Items<Velocity>()
+    columns.append(fast)
+    columns.append(slow)
+    var in_column = columns.find_by_name("slow")
+    crash in_column
+    in_column.across = 0.5
+    var column_sorted = columns.sort_by_across()
+    var column_names = column_sorted.map_names()
+    var column_joined = column_names.join(", ")
+    var column_total = columns.sum_across()
+    console.print(column_joined, column_total, slow.across)
+    var trails = Items<Trail>()
+    var long_trail = Trail(9)
+    trails.append(long_trail)
+    var short_trail = Trail(2)
+    trails.append(short_trail)
+    var found_trail = trails.find_by_length(2)
+    crash found_trail
+    found_trail.lefts.append(1.5)
+    var trail_lengths = trails.sort_by_length().map_lengths()
+    var trail_joined = trail_lengths.join(", ")
+    var marks = short_trail.lefts.count()
+    console.print(trail_joined, marks)
+}

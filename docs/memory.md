@@ -1102,8 +1102,16 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
   `copy()` is shallow: a fresh object, its own attributes/elements the exact same references the source had
   (retained, not duplicated; a `String` field needs no special handling either way, since it is immutable).
   `deep_copy()` recurses: every reference-kind attribute/element gets its own `deep_copy()`/independent buffer
-  instead of being shared. **Cycles are not supported** by `deep_copy()`: a self-referential (or mutually
-  referential) structure recurses forever; break the cycle by hand first if you need to deep-copy one.
+  instead of being shared. An attribute or element typed as a union or a `type` shape is copied through the class
+  of the value it holds at run time, so a `Cargo` holding a `Crate` gets a new `Crate`; a `String`, a number held
+  in one and a singleton are shared, since none of them can be changed through the copy. A union or a shape value
+  answers `deep_copy()` itself (`var copied = cargo.deep_copy()`, a `Cargo`). A class that declares its own
+  `deep_copy()` is copied through it wherever it is reached, which is how a `Vector` or an `Items` attribute gets a
+  block of its own instead of sharing the original's. A self-referring structure (a tree, a linked list, an
+  expression whose operands are expressions) is copied node by node (`conformance/stage6/deep_copy_unions`).
+  **Cycles are not supported** by `deep_copy()`: a structure whose references lead back to an object already being
+  copied recurses until the stack runs out, and the crash names the deep copy; break the cycle by hand first if you
+  need to deep-copy one.
 - **Cycles leak.** Reference counting cannot free a cycle (two objects holding a reference to each other, directly
   or through several hops): neither one's count ever reaches zero. This is a known, accepted tradeoff, not a bug.
   Break a cycle by hand when you are done with it (set the back-reference to `null` inside `drop()`-time logic, or
@@ -1342,9 +1350,9 @@ compile time that it is never kept past its use. The rules:
   `Vector<Integer>` or `Items<Integer>` is an error naming `List<Integer>`, so every item of a `Vector` is a class
   or a `String`, read as a counted reference as a list's is. `conformance/stage6/plain_items`,
   `diagnostics/plain_items`.
-- **A borrowed item** is what `vector[index]`, `vector.get_at(index)` and the item a member template visits are,
-  once the `T?` a read answers is narrowed: `crash velocities[index]`, `assert`, `if`, or a proof the
-  compiler holds.
+- **A borrowed item** is what `vector[index]`, `vector.get_at(index)`, `vector.find_by_<member>(value)` and the
+  item a member template visits are, once the `T?` a read answers is narrowed: `crash velocities[index]`,
+  `assert`, `if`, or a proof the compiler holds.
   It is the address of the item inside the block, and reading or writing its attributes (`first.down = 2.0`,
   `velocities[0].across`, `first.integrate()`) reads and writes the vector's own item. It is never retained or
   released: it costs nothing to take and nothing to let go.
@@ -1363,7 +1371,12 @@ compile time that it is never kept past its use. The rules:
   - given a second name (`var alias = stored`): `'stored' is borrowed from 'velocities', and a borrowed item has
     one name: use 'stored' itself instead of 'alias', or keep 'stored.copy()', an independent object`;
   - assigned again (`first = velocities[1]`): `'first' is borrowed from 'velocities' and is not assigned again:
-    read another item with a new 'var', such as 'var next = velocities[index]'`.
+    read another item with a new 'var', such as 'var next = velocities[index]'`;
+  - borrowed from a collection nothing keeps (`var found = velocities.copy().find_by_name("fast")`, or
+    `velocities.filter_moving()[0]`), which is let go at the end of the line with the item in it: `'found' would
+    be borrowed from 'velocities.copy()', which nothing keeps, so it is let go at the end of this line and the
+    item with it: keep it in a 'var' first and borrow from that` (`diagnostics/found_item_borrows`). Any call
+    answering the collection counts, since a borrowed item is never counted to keep its collection alive.
 - **Not past a change of size.** Growing a vector may move its block, and removing an item moves the ones after
   it, so a borrowed name is not read after a statement that may change its vector's size or move its block:
   `append`, `prepend`, `insert`, `reserve`, `remove_at`, `remove_first`, `remove_last`, `remove_swapping`,
@@ -1407,8 +1420,9 @@ compile time that it is never kept past its use. The rules:
   [collections.md's rules](collections.md#vectort)).
 - **Only the library is trusted.** The functions of `Vector`, `Items` and `InlineMemory` in `library/` hand out
   and move borrowed items by design, so these rules are not checked inside them. A function a program adds to one
-  of those classes by reopening it in its own file ([packages.md](packages.md)) is checked like any other code
-  (`diagnostics/reopened_vector_borrows`).
+  of those classes by reopening it in its own file ([packages.md](packages.md)) is checked like any other code,
+  a member template of its own included: an item it reads with `values.item_at(items, index)` is borrowed, so it
+  is not returned, kept or put in a list (`diagnostics/reopened_vector_borrows`, `diagnostics/own_template_borrows`).
 - **What stays an object.** `append(value)` and `set_at(index, value)` copy the value's attributes in, counting
   each `String` attribute once more, and the value stays an ordinary object; `remove_at`, `clear` and dropping the
   vector release the `String`s of the items they remove.

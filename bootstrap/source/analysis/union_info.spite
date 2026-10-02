@@ -14,6 +14,8 @@ var peeker_names = List<String>()
 var caller_names = List<String>()
 var emitted_callers = 0
 var class_of_used = false
+var deep_copy_used = false
+var deep_copy_emitted = false
 var attributes_used = false
 
 func UnionInfo(

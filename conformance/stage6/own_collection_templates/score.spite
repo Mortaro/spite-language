@@ -1,0 +1,7 @@
+var points = 0
+var counted = false
+
+func Score(new_points: Integer, new_counted: Boolean) {
+    points = new_points
+    counted = new_counted
+}

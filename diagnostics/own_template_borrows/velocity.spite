@@ -1,0 +1,7 @@
+var across = 0.0
+var moving = false
+
+func Velocity(new_across: Float) {
+    across = new_across
+    moving = new_across > 1.0
+}

@@ -198,7 +198,8 @@ func is_alive(): Boolean {
   inline; do not write your own `sine` or square root from a series. Nothing halts: `(-1.0).square_root()` is
   `nan`, and `nan` passes on through `minimum`, `maximum` and `clamp` (`nan.minimum(0.0)` is `nan`).
 - Everything that is not a number, a `Boolean` or an enum value is a reference: passing, assigning and storing share
-  the same object. `copy()` copies one level, `deep_copy()` all the way down. `drop()` runs when the last reference
+  the same object. `copy()` copies one level, `deep_copy()` all the way down (through unions and `type` shapes by
+  the class each value holds; a union value has `deep_copy()` too; never on a cycle). `drop()` runs when the last reference
   goes. Two objects that refer to each other leak: hold the back reference as a `Weak<T>` (`get()` is a `T?`, `null` once the object is freed), or clear one side.
 - `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
   `last` (both a `T?`, `null` on an empty list, like `[]`: `var first = names.first()` then `crash first`), `count`, `contains` (elements that are numbers, `Boolean`, `String`
@@ -225,7 +226,8 @@ func is_alive(): Boolean {
   `Dictionary`). `truncate(count)` drops the tail. When the test is not a function of the element (a mask of
   rows), walk the rows, `swap(row, kept)` each one that stays, then `truncate(kept)`.
 - `Vector<T>` holds objects inline for fast walks (`append`, `vector[index]`, `set_at` and `remove_at` (both halt out of range), `count`,
-  `clear`, `copy`, and `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `parallel_each_` templates).
+  `clear`, `copy`, and `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `find_by_`, `sort_by_`,
+  `parallel_each_` templates; `find_by_` answers the item, borrowed, and `sort_by_` a new `Vector` of copies).
   An item is a `String` or a class whose attributes are only numbers, `Boolean`, enums and `String` (a `List`
   attribute is an error naming it). `velocities[index]` is a `Velocity?`: after `crash velocities[index]` (or
   inside `while index < velocities.count()`), `var velocity = velocities[index]` is the item itself, borrowed:
@@ -233,7 +235,8 @@ func is_alive(): Boolean {
   A borrowed item is never kept: storing it in an attribute or a list, returning it, `velocity.integrate` as a
   function value, `var alias = velocity`, and reading it after a line that may resize the vector (`append`,
   `remove_at`, `clear`, or a call that may do one) are errors, each naming the fix: `velocity.copy()`, an
-  independent object, or reading `velocities[index]` again.
+  independent object, or reading `velocities[index]` again. Borrowing from a collection nothing keeps
+  (`var found = velocities.copy().find_by_name("x")`) is an error: keep the collection in a `var` first.
 - Pass a borrowed item (a name read from a vector, `velocities[index]`, a row's attribute, an item a lookup lent
   you) to your own functions freely: it is lent for the call (D257). `apply(event, mouse, keyboard)` writes the
   stored items in place and may pass them on to `press(mouse)`; nothing is copied. The function may not keep it
@@ -276,8 +279,8 @@ func is_alive(): Boolean {
   `Items<$component_type>()` (D218, name provisional): inline and borrowed like a `Vector` when the type fits
   one, references like a `List` when not, with one set of members (`append`, `items[index]` (a `T?`, `null` out
   of range, narrowed like a list's), `set_at`, `remove_at`, `remove_swapping(index)` (the last item moves into `index`; all three halt out of range), `count`, `is_empty`,
-  `clear`, `copy`, `deep_copy`, and the `each_`/`map_`/`filter_`/`count_`/`any_`/`all_`/`sum_`/`parallel_each_`
-  templates; no `each(f)` forms). Then one column class serves every component,
+  `clear`, `copy`, `deep_copy`, and the `each_`/`map_`/`filter_`/`count_`/`any_`/`all_`/`sum_`/`find_by_`/
+  `sort_by_`/`parallel_each_` templates; no `each(f)` forms). Then one column class serves every component,
   and the walked row's line is
   `Column<attribute.class>().values[stored_row]` (after `var stored_row = found[attribute.index]`) for all of them, with no `fits_vector()` branch. The
   borrow rules above apply only to a type that fits; the error then starts `'Velocity' fits a Vector, so the
@@ -328,7 +331,7 @@ func is_alive(): Boolean {
 - The yes-or-no ones (`filter_`, `count_`, `any_`, `all_`, `remove_where_`) also take a value of the enum of the
   one member typed with it: `posts.filter_published()` keeps the posts whose `stage == 'published'`. Two members
   whose enums list the value, or a member of that name, is an error.
-- A `while` that only walks a list doing what one of these does (`var index = 0`, `while index <
+- A `while` that only walks a list, a `Vector` or an `Items` doing what one of these does (`var index = 0`, `while index <
   items.count()`, `total = total + items[index].price`, `index = index + 1`) is an error naming
   `items.sum_price()`: `this 'while' walks every element of 'items' only to add up 'price': write 'var total =
   items.sum_price()'`. The same goes for a `while` that only passes each element to one function of yours:
@@ -342,7 +345,8 @@ func is_alive(): Boolean {
   for, a `T?`), `sort_by` and `sum` the same way, on a list or dictionary of anything, chained with the member
   templates or not (`people.filter_active().each(greeter.greet)`). The function takes the element as its only
   argument and is bound to its owner: `greeter.greet` is `greeter`'s, and a library value's works the same:
-  `keys.filter(counts.has)`, `words.filter(greeting.contains)`. `counts.get_at` answers `T?`, so it cannot order a
+  `keys.filter(counts.has)`, `words.filter(greeting.contains)`, and each may be held too (`var check =
+  greeting.contains` keeps its own copy of the text). `counts.get_at` answers `T?`, so it cannot order a
   `sort_by`: pass a function of yours that narrows it. A function that needs more than the element
   (`print_statement(statement, depth)`) keeps its `while`. There is no `map(f)`: a value collected from each
   element is a read-only attribute of its class (`get_double()`), collected in the plural with `map_doubles()`, and a value

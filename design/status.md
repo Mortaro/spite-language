@@ -599,12 +599,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ## [collections.md](../docs/collections.md)
 
 ### Standard library metaprogramming
-- Heading was tagged partial; the page did not say which part is missing. Known gaps found in the section: a
-  `String`'s or a number's function can be passed to a form but cannot be held as a value yet (the compiler's error
-  text says "cannot be held as a value yet"; that quoted error text is still in the page).
-- `sort_by_`, `find_by_` and a program's own templates are not built for `Vector` or `Items` (only each_, map_,
-  filter_, count_, any_, all_, sum_, parallel_each_).
-- The "a `while` that only does what a template does" rule (control_flow.md) does not look at a `Vector`'s loops yet.
 - Names still provisional (proposed by Claude, unconfirmed by Mortaro): `Items`, `remove_swapping`, `remove_where`,
   `truncate`, `swap`, `first()`/`last()` answering `T?`, `reserve`. The page used to say "name provisional".
 - Proposed by Claude, unconfirmed, removed as bookkeeping but the behaviour stays on the page: how the templates are
@@ -632,8 +626,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   was renamed `Displacement`; page no longer records this.
 
 ### Deep copy (Dictionary<T> rules)
-- `deep_copy()`: a union or a `type` shape is shared rather than copied "for now", and a self-referring structure is
-  still unsupported. The page states both as the rule without the "for now"/"still".
+- `deep_copy()` of a structure whose references form a cycle runs out of stack (a crash naming the deep copy);
+  what it should do is item 296 in `mortaros_missing_decisions.md`.
 
 ### Rules in full
 - The page no longer says its rules were moved from the language manual when D193 dissolved it, nor that a `D`

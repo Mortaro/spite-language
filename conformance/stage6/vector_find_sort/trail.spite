@@ -1,0 +1,6 @@
+var lefts = List<Float>()
+var length = 0
+
+func Trail(new_length: Integer) {
+    length = new_length
+}

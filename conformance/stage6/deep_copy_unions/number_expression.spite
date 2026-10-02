@@ -1,0 +1,9 @@
+var value = 0
+
+func NumberExpression(new_value: Integer) {
+    value = new_value
+}
+
+func evaluate(): Integer {
+    return value
+}

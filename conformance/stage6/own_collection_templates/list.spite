@@ -1,0 +1,12 @@
+func best_member(member: Spite.AttributeDeclaration<$element_type>): List<$element_type> {
+    var best = List<$element_type>()
+    var index = 0
+    while index < item_count {
+        var item = values.read_value(items, index)
+        if item.attributes[member] > 2 {
+            best.append(item)
+        }
+        index = index + 1
+    }
+    return best
+}

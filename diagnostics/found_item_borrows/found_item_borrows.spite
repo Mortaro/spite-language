@@ -1,0 +1,27 @@
+var console = Console()
+var kept = List<Velocity>()
+
+func FoundItemBorrows() {
+    var velocities = Vector<Velocity>()
+    var fast = Velocity(3.0, "fast")
+    velocities.append(fast)
+    var found = velocities.find_by_name("fast")
+    velocities.append(fast)
+    crash found
+    console.print(found.across)
+    var again = velocities.find_by_name("fast")
+    crash again
+    kept.append(again)
+    var copied = velocities.copy().find_by_name("fast")
+    crash copied
+    console.print(copied.across)
+    var indexed = velocities.copy()[0]
+    crash indexed
+    console.print(indexed.across)
+    var columns = Items<Velocity>()
+    columns.append(fast)
+    var in_column = columns.find_by_name("fast")
+    columns.remove_swapping(0)
+    crash in_column
+    console.print(in_column.across)
+}

@@ -1,0 +1,13 @@
+var left: Expression? = null
+var right: Expression? = null
+
+func evaluate(): Integer {
+    var total = 0
+    if left {
+        total = total + left.evaluate()
+    }
+    if right {
+        total = total + right.evaluate()
+    }
+    return total
+}

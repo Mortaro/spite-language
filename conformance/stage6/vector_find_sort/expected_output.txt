@@ -1,0 +1,4 @@
+slow, middle, fast 6.5 true 1
+middle, fast fast
+slow, fast 3.5 1
+2, 9 1

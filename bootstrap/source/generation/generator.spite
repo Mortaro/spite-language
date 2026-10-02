@@ -976,6 +976,7 @@ func generate(
     }
     finish_main()
     emit_pending_functions()
+    emit_union_deep_copy_bodies()
     refresh_union_releases()
     finish_wait_questions()
     if parallel_used {
@@ -6847,6 +6848,7 @@ func instantiate_template(
         false,
     )
     function.symbol_name = template.symbol_parameter
+    function.source_path = declaration.source_path
     function.symbol_field_name = member_name
     function.symbol_field_type = member_type
     function.symbol_owner_c_name = member_owner_c_name
@@ -17882,6 +17884,15 @@ func fused_chain_source(
     var element_spelling = fused_type_spelling(current_type)
     var member_spelling = fused_type_spelling(last_member_type)
     var read = last.read_of(current_name)
+    var collection_base = base_list.qualified_dotted == "Vector" or is_items_class(base_list)
+    if collection_base and current_name == "item" {
+        if last.prefix == "sort_by_" {
+            return ""
+        }
+        if last.prefix == "find_by_" and holds_items_inline(base_list) {
+            return ""
+        }
+    }
     var fused_name = step_names.join("_then_")
     var parameters = List<String>()
     var returns = ""
@@ -17932,7 +17943,7 @@ func fused_chain_source(
         before.append("    var collected = List<{element_spelling}>()")
         loop_lines.append("{indent}if {read} \{\n{indent}    collected.append({current_name})\n{indent}}")
         after.append("    return collected")
-    } else {
+    } else if last.prefix == "sort_by_" {
         returns = ": List<{element_spelling}>"
         before.append("    var sorted = List<{element_spelling}>()")
         before.append("    var keys = List<{member_spelling}>()")
@@ -17940,6 +17951,8 @@ func fused_chain_source(
             "{indent}var key = {read}\n{indent}var previous = keys.count() - 1\n{indent}while previous >= 0 and previous < keys.count() and keys[previous] > key \{\n{indent}    previous = previous - 1\n{indent}}\n{indent}keys.insert(previous + 1, key)\n{indent}sorted.insert(previous + 1, {current_name})",
         )
         after.append("    return sorted")
+    } else {
+        return ""
     }
     var voided = type_shape.is_void(last_member_type)
     if element_spelling.is_empty() or member_spelling.is_empty() and not voided {
@@ -20149,8 +20162,19 @@ func deep_copy_code(spite_type: Analysis.SpiteType, code: String): String {
         var copied_class = find_class_by_c_name(class_ref.c_name)
         if copied_class {
             if not copied_class.is_singleton {
+                var own_deep_copy = find_or_instantiate_function(copied_class, "deep_copy")
+                if own_deep_copy {
+                    return "(({code}) == 0 ? 0 : {own_deep_copy.c_name}({code}))"
+                }
                 return "{ensure_class_deep_copy(copied_class)}({code})"
             }
+        }
+    }
+    var union_type = type_shape.as_union(spite_type)
+    if union_type {
+        var copied_union = find_union_by_c_name(union_type.c_name)
+        if copied_union {
+            return "{ensure_union_deep_copy(copied_union)}({code})"
         }
     }
     var list_type = type_shape.as_list(spite_type)
@@ -20174,6 +20198,76 @@ func deep_copy_code(spite_type: Analysis.SpiteType, code: String): String {
         return retain_call(spite_type, code)
     }
     return code
+}
+
+func ensure_union_deep_copy(information: Analysis.UnionInfo): String {
+    var function_c_name = "{information.c_name}___deep_copy"
+    if not information.deep_copy_used {
+        information.deep_copy_used = true
+        builder.add_prototype("{information.c_name} {function_c_name}({information.c_name} self);")
+    }
+    return function_c_name
+}
+
+func emit_union_deep_copy_bodies() {
+    var emitted_any = true
+    while emitted_any {
+        emitted_any = false
+        var index = 0
+        while index < unions.count() {
+            var information = unions[index]
+            if information.deep_copy_used and not information.deep_copy_emitted {
+                information.deep_copy_emitted = true
+                emitted_any = true
+                var body = union_deep_copy_text(information)
+                note_union_slot(information, "'s deep copy")
+                builder.add_support(body)
+            }
+            index = index + 1
+        }
+        emit_pending_functions()
+    }
+}
+
+func union_deep_copy_text(information: Analysis.UnionInfo): String {
+    var name = information.c_name
+    var owner_type = union_type_of(information)
+    var lines = List<String>()
+    lines.append("{name} {name}___deep_copy({name} self) \{")
+    if information.is_tagged {
+        lines.append("if (self.plain != 0 || self.value.object == 0) return self;")
+    } else {
+        lines.append("if (self == 0) return 0;")
+    }
+    var member_index = 0
+    while member_index < information.members.count() {
+        var member = information.members[member_index]
+        var copied = copied_union_member(member, owner_type, information)
+        if not copied.is_empty() {
+            lines.append("if {value_class_test("self", owner_type, member)} return {copied};")
+        }
+        member_index = member_index + 1
+    }
+    lines.append("return {name}___retain(self);")
+    lines.append("}")
+    return lines.join("\n")
+}
+
+func copied_union_member(
+    member: Analysis.ClassInfo,
+    owner_type: Analysis.SpiteType,
+    information: Analysis.UnionInfo,
+): String {
+    if member.c_name == "SpiteString" or boxed_value_types.has(member.c_name) or member.is_singleton {
+        return ""
+    }
+    var member_type = instance_type_of(member)
+    var read = member_value_code("self", owner_type, member)
+    var copied = deep_copy_code(member_type, read)
+    if information.is_tagged {
+        return "spite_tagged_object({member.class_id}, (void*)({copied}))"
+    }
+    return "(({information.c_name})({copied}))"
 }
 
 func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
@@ -22910,14 +23004,122 @@ func library_function_value(
     }
     var container = container_class_of(object_type)
     if not container {
+        var plain_owner = type_shape.as_string(object_type) or type_shape.as_scalar(object_type)
+        if plain_owner {
+            crash member.object
+            return value_function_value(function, object_result, member.object, object_type)
+        }
         report(
-            "'{member.name}' of {type_with_article(object_type)} is passed straight to a form, like 'names.filter(text.{member.name})', and cannot be held as a value yet: a {type_display_name(object_type)} is not an object a function value can keep. To keep one, write a function of your own that calls it",
+            "'{member.name}' of {type_with_article(object_type)} is passed straight to a form, like 'names.filter(text.{member.name})', and cannot be held as a value: a {type_display_name(object_type)} is not an object a function value can keep. To keep one, write a function of your own that calls it",
         )
         return void_result()
     }
     crash member.object
     report_captured_borrow(member, object_result, scope, class_information)
     return function_value(owner_class, function, object_result, member.object)
+}
+
+func value_function_value(
+    function: Analysis.FunctionInfo,
+    owner: ExpressionResult,
+    owner_ast: Syntax.Expressions.Expression,
+    owner_type: Analysis.SpiteType,
+): ExpressionResult {
+    var maker = "spite_value_function_{function.c_name}"
+    var kept_owner = owner.code
+    if not owns(owner, owner_ast) and type_needs_drop(owner_type) {
+        kept_owner = retain_call(owner_type, owner.code)
+    }
+    var boxed_owner = ""
+    var box_release = "spite_string_box_release"
+    var box_type = "SpiteBox_SpiteString"
+    if type_shape.as_string(owner_type) {
+        boxed_owner = boxed_text(kept_owner)
+    } else {
+        var boxed_class = boxed_class_of(owner_type)
+        crash boxed_class
+        boxed_owner = "{ensure_box(boxed_class, owner_type)}({kept_owner})"
+        box_release = "spite_box_release"
+        box_type = "SpiteBox_{boxed_class.c_name}"
+    }
+    note_fact("maker {maker}")
+    if not function_value_makers.contains(maker) {
+        function_value_makers.append(maker)
+        var argument_class = find_class_by_c_name("Spite_Argument")
+        if not find_class_by_c_name("Spite_Function") or not argument_class {
+            report(
+                "a function value needs the standard library: library/spite/function.spite was not found from the working directory",
+            )
+            return void_result()
+        }
+        var class_type = class_type_of(argument_class)
+        var arguments_list_name = ensure_list(class_type)
+        var argument_lines = List<String>()
+        var parameters = List<String>()
+        parameters.append("void* owner")
+        var forwarded = List<String>()
+        forwarded.append("(({box_type}*)owner)->value")
+        var parameter_index = 0
+        while parameter_index < function.parameters.count() {
+            var parameter = function.parameters[parameter_index]
+            var parameter_type = parameter.type
+            argument_lines.append(
+                "{arguments_list_name}_append(described->_arguments_, Spite_Argument___make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
+            )
+            parameters.append("{c_type_name(parameter_type)} spite_argument_{parameter_index}")
+            forwarded.append("spite_argument_{parameter_index}")
+            parameter_index = parameter_index + 1
+        }
+        var return_spite_type = function.return_type
+        var returned_c = "void"
+        if not type_shape.is_void(return_spite_type) {
+            returned_c = c_type_name(return_spite_type)
+        }
+        var forwarder = "{maker}___call"
+        var forwarded_call = "{function.c_name}({forwarded.join(", ")})"
+        var forwarder_body = "return {forwarded_call};"
+        if returned_c == "void" {
+            forwarder_body = "{forwarded_call};"
+        }
+        builder.add_prototype("static {returned_c} {forwarder}({parameters.join(", ")});")
+        builder.add_support("static {returned_c} {forwarder}({parameters.join(", ")}) \{\n{forwarder_body}\n}")
+        var lines = List<String>()
+        lines.append("Spite_Function* {maker}(void* owner) \{")
+        lines.append(
+            "Spite_Function* described = Spite_Function___make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
+        )
+        if not argument_lines.is_empty() {
+            add_lazy_arguments(maker, argument_lines, lines)
+        }
+        lines.append("described->spite_owner = owner;")
+        lines.append("described->spite_release_owner = {box_release};")
+        if function.parameters.is_empty() {
+            var dropping = "{maker}___dropping_call"
+            var dropped_lines = List<String>()
+            dropped_lines.append("static void {dropping}(void* owner) \{")
+            if type_needs_drop(return_spite_type) {
+                dropped_lines.append("{returned_c} returned = {forwarder}(owner);")
+                dropped_lines.append("{release_call(return_spite_type, "returned")};")
+            } else {
+                dropped_lines.append("(void){forwarder}(owner);")
+            }
+            dropped_lines.append("}")
+            builder.add_prototype("static void {dropping}(void* owner);")
+            var joined_dropped = dropped_lines.join("\n")
+            builder.add_support(joined_dropped)
+            lines.append("described->spite_call = (void (*)(void*)){dropping};")
+        }
+        lines.append("described->spite_typed_call = (void*){forwarder};")
+        lines.append("return described;")
+        lines.append("}")
+        builder.add_prototype("Spite_Function* {maker}(void* owner);")
+        var joined_lines = lines.join("\n")
+        builder.add_support(joined_lines)
+    }
+    var signature = signature_of(function)
+    var made = ExpressionResult("{maker}({boxed_owner})", signature)
+    made.owning_override = true
+    return made
 }
 
 func generate_member_read(
@@ -24223,7 +24425,7 @@ func generate_variable_declaration(
 }
 
 func lends_items(target_class: Analysis.ClassInfo, name: String): Boolean {
-    var vector_item = holds_items_inline(target_class) and name == "get_at"
+    var vector_item = holds_items_inline(target_class) and lends_by_name(target_class, name)
     var inline_item = target_class.qualified_dotted == "InlineMemory" and name == "item_at"
     if not vector_item and not inline_item {
         return false
@@ -24236,6 +24438,30 @@ func lends_items(target_class: Analysis.ClassInfo, name: String): Boolean {
         return false
     }
     return true
+}
+
+func lends_by_name(target_class: Analysis.ClassInfo, name: String): Boolean {
+    if name == "get_at" {
+        return true
+    }
+    var index = 0
+    while index < target_class.templates.count() {
+        var template = target_class.templates[index]
+        var declaration = template.declaration
+        if not template.member_name_for(name).is_empty() and declares_an_item(declaration) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func declares_an_item(declaration: Syntax.Statements.FunctionDeclaration): Boolean {
+    if not declaration.return_type {
+        return false
+    }
+    var spelled = Syntax.SourcePrinter().source_type(declaration.return_type)
+    return spelled == "$element_type" or spelled == "$element_type?"
 }
 
 func holds_items_inline(information: Analysis.ClassInfo): Boolean {
@@ -24715,9 +24941,6 @@ func receiver_lends(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): Boolean {
-    if name != "get_at" and name != "item_at" {
-        return false
-    }
     var root = shape.as_identifier(receiver)
     if root {
         if not scope.written_type(root.name) and not class_information.find_field(root.name) {
@@ -24753,6 +24976,15 @@ func lends_to_local(
     }
     var lent = generate_expression(declaration.value, scope, class_information)
     var item_type = lent.type
+    var unkept = unkept_lender(declaration.value)
+    if not unkept.is_empty() {
+        report(
+            "'{declaration.name}' would be borrowed from '{unkept}', which nothing keeps, so it is let go at the end of this line and the item with it: keep it in a 'var' first and borrow from that",
+        )
+        scope.declare(declaration.name, item_type)
+        scope.mark_used(declaration.name)
+        return true
+    }
     builder.add_user("{c_type_name(item_type)} {c_value_name(declaration.name)} = {lent.code};")
     scope.declare_borrowed(declaration.name, item_type, lent.borrowed_from)
     scope.check_last(current_line)
@@ -24774,6 +25006,29 @@ func lends_to_local(
         path_index = path_index + 1
     }
     return true
+}
+
+func unkept_lender(value: Syntax.Expressions.Expression): String {
+    var receiver: Syntax.Expressions.Expression? = null
+    var indexed = shape.as_index(value)
+    if indexed {
+        receiver = indexed.object
+    }
+    var call = shape.as_call(value)
+    if call {
+        crash call.callee
+        var member = shape.as_member(call.callee)
+        if member {
+            receiver = member.object
+        }
+    }
+    if not receiver {
+        return ""
+    }
+    if not shape.as_call(receiver) {
+        return ""
+    }
+    return Syntax.SourcePrinter().source_expression(receiver)
 }
 
 func lends_row(
@@ -29794,9 +30049,9 @@ func report_template_walk(
     var probe = generate_expression(list_expression, scope, class_information)
     rewind_temporaries(saved_counter)
     var probe_type = probe.type
-    var listed = type_shape.as_list(probe_type)
-    assert listed
-    var element = listed.element
+    var walked_element = walked_element_type(probe_type, walk)
+    assert walked_element
+    var element = walked_element
     assert walk.members.is_empty() or not is_codegen_type_of(class_information, element)
     assert walked_members_exist(element, walk.members)
     assert passed_functions_fit(walk, scope, class_information)
@@ -29832,6 +30087,19 @@ func is_codegen_type_of(class_information: Analysis.ClassInfo, spite_type: Analy
         index = index + 1
     }
     return false
+}
+
+func walked_element_type(walked_type: Analysis.SpiteType, walk: TemplateWalk): Analysis.SpiteType? {
+    var listed = type_shape.as_list(walked_type)
+    if listed {
+        return listed.element
+    }
+    var walked_class = class_behind(walked_type)
+    assert walked_class
+    var holds_items = walked_class.qualified_dotted == "Vector" or is_items_class(walked_class)
+    assert holds_items and not walked_class.codegen_types.is_empty()
+    assert walk.passed_functions.is_empty() and not walk.keeps_elements
+    return walked_class.codegen_types[0]
 }
 
 func walked_list(loop: Syntax.Statements.WhileStatement, counter: String): Syntax.Expressions.Expression? {
@@ -30177,6 +30445,7 @@ func walk_by_call(
     if appended_text == element_text {
         var copied = TemplateWalk("to copy it", "var {result} = {list_text}.copy()")
         copied.result_name = result
+        copied.keeps_elements = true
         return copied
     }
     var mapped_member = element_member(appended, element_text)
@@ -30302,6 +30571,7 @@ func walk_by_kept(
         )
         kept.members.append(tested)
         kept.result_name = result
+        kept.keeps_elements = true
         return kept
     }
     var mapped_member = element_member(appended, element_text)
@@ -34009,6 +34279,23 @@ func generate_union_dispatch(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
+    if is_call and member_name == "deep_copy" and arguments_ast.is_empty() {
+        var union_deep_copy = ensure_union_deep_copy(information)
+        var copied_union_type = union_type_of(information)
+        var no_argument_types = no_types()
+        var union_copied = generate_generic_call(
+            union_deep_copy,
+            object_result,
+            object_ast,
+            arguments_ast,
+            no_argument_types,
+            copied_union_type,
+            scope,
+            class_information,
+        )
+        union_copied.owning_override = true
+        return union_copied
+    }
     if information.is_shape {
         if is_call {
             return generate_shape_call(

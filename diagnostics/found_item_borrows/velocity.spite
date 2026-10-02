@@ -1,0 +1,7 @@
+var across = 0.0
+var name = ""
+
+func Velocity(new_across: Float, new_name: String) {
+    across = new_across
+    name = new_name
+}

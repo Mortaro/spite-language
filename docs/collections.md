@@ -202,6 +202,8 @@ templates run on the items in place the same way, and a chain of them is one loo
 | `reserve(count)` | | makes room for `count` items in all without making any, so appending up to there never grows the block |
 | `copy()` / `deep_copy()` | `Vector<T>` | a new vector with its own copy of every item |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()` | | as on a list; `filter_` gives a `Vector<T>` of copies |
+| `find_by_<member>(value)` | `T?` | the first item whose member equals `value`, borrowed once narrowed; `null` when none does |
+| `sort_by_<member>()` | `Vector<T>` | a new vector with a copy of every item, sorted ascending and stable, as on a list |
 | `parallel_each_<member>()` | | as on a list ([concurrency.md](concurrency.md#parallel_each_-a-member-on-every-element)) |
 
 An item is a class of known size: its attributes are only numbers, `Boolean`, enums and `String`s. A class with a
@@ -309,6 +311,8 @@ of moving every later one down, which is what a sparse set wants.
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `copy()` / `deep_copy()` | `Items<T>` | inline: every item copied; references: one level, or all the way down |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()`, `parallel_each_<member>()` | | as on a vector; `filter_` gives an `Items<T>`, and a chain is one loop |
+| `find_by_<member>(value)` | `T?` | the first item whose member equals `value`: inline, borrowed once narrowed; references, the reference; `null` when none does |
+| `sort_by_<member>()` | `Items<T>` | sorted ascending and stable: inline, a copy of every item; references, the same references |
 
 Where the items are inline every rule of a borrowed item applies, and the error says why the item is borrowed,
 so a class that starts to fit a `Vector` shows where its old uses keep an item:
@@ -598,7 +602,7 @@ but 'count_' needs it to return Boolean (to add up a numeric member use 'sum_sta
 ```
 
 **A `while` that only does what a template does is an error naming the template**: a
-counter walking a list from `0` to its `count()`, doing nothing with each element but what one template does
+counter walking a list, a `Vector` or an `Items` from `0` to its `count()`, doing nothing with each element but what one template does
 with one of its members, or what `each`, `filter`, `count`, `sum`, `find`, `any` or `all` does with a
 function passed the element, on a list of anything, numbers and text included. Loops that need the index, pass
 more than the element, stop early for another reason, or walk state keep their `while`. The exact shape the
@@ -996,6 +1000,11 @@ func ListAverage() {
 3.5
 ```
 
+A `Vector` and an `Items` are reopened the same way, by a `vector.spite` or an `items.spite` in the program's
+folder; their items are read with `values.item_at(items, index)` (an `Items`, with `inline.item_at` or
+`references.read_value` under `$element_type.fits_vector()`), and an item read so is borrowed, as everywhere
+in the program (`conformance/stage6/own_collection_templates`).
+
 The `<$element_type>` is what makes it a member of the element. A plain `member: Symbol` would name one of the
 list's own attributes, which are its buffer, so it is an error that says what to write:
 
@@ -1115,11 +1124,11 @@ The caller's function is passed as a bound function value, owned by whoever it i
   member template with another instance's function.
   A list's own function is bound to the list the same way (`numbers.each(found.append)`); a chain that passes one
   is not fused, and runs step by step. So is every library class's: a `Dictionary`'s (`keys.filter(counts.has)`, `keys.count(counts.has)`), and a
-  `String`'s or a number's (`words.filter(greeting.contains)`). A `List`'s or a `Dictionary`'s function may also
-  be held as a value, `var lookup = counts.get_at`, bound to that dictionary; a `String`'s or a number's may only be
-  passed to a form, since a value of text is no object a function value can keep: `var check =
-  greeting.contains` is "'contains' of a String is passed straight to a form, like 'names.filter(text.contains)',
-  and cannot be held as a value yet ...". What the function answers is what the form sees, so `counts.get_at`
+  `String`'s or a number's (`words.filter(greeting.contains)`). Any of them may also be held as a value: `var
+  lookup = counts.get_at` is bound to that dictionary, and `var check = greeting.contains` to the text `greeting`
+  held then. A text or a number is a value, not an object, so the function value keeps its own copy of it, in a
+  small box the value lets go with itself: assigning `greeting` anew afterwards does not change what `check` asks
+  (`conformance/stage6/held_value_functions`). What the function answers is what the form sees, so `counts.get_at`
   answers `Integer?`, and `keys.sort_by(counts.get_at)` is an error naming the fix: a function of your own
   that narrows it (`conformance/stage6/library_functions_passed`, `diagnostics/library_function_mistakes`).
 - **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
@@ -1273,8 +1282,9 @@ that copy would change nothing, so `remove_where_<member>()` and `remove_where(f
 naming `remove(key)`. To walk keys and values together, use `while` over `dictionary.keys()` and read
 `dictionary[key]`.
 
-`deep_copy()` works for classes, lists and dictionaries. A `String` is shared rather than duplicated
-because it is immutable; a union or a `type` shape is shared; a self-referring structure is unsupported ([Memory](memory.md#the-memory-model)).
+`deep_copy()` works for classes, lists, dictionaries, unions and `type` shapes, and follows them all the way
+down. A `String` is shared rather than duplicated because it is immutable; the rest of what it does, cycles
+included, is [Memory's rule](memory.md#the-memory-model).
 
 ### Vector\<T\>
 
@@ -1313,10 +1323,19 @@ under `Vector<T>`](#vectort-items-inline), which is normative. The readings:
 - **Removing.** `remove_at(index)` releases the item's `String` attributes and moves every later item down, and
   halts on an index out of range; `clear()` releases every item's and keeps the capacity; dropping the vector
   releases them and frees the block.
-- **Templates.** `each_`, `map_`, `filter_`, `count_`, `any_`, `all_` and `sum_<member>()` are in
-  `library/vector.spite`, written over the borrowed items; `filter_` answers a `Vector<T>` of copies and `map_` a
-  `List` of the members' values. A chain of them is one loop over the block, with `filter_` steps in the
-  middle, and `parallel_each_<member>()` splits the walk across the thread pool as it does a list's.
+- **Templates.** `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `find_by_` and
+  `sort_by_<member>()` are in `library/vector.spite`, written over the borrowed items; `filter_` answers a
+  `Vector<T>` of copies and `map_` a `List` of the members' values. `find_by_<member>(value)` answers the first
+  item whose member equals `value` as `vector[index]` does: a `T?`, the item itself, borrowed once narrowed, with
+  every rule of a borrowed item ([memory.md](memory.md#borrowed-items-of-a-vectort)). `sort_by_<member>()` answers a
+  new `Vector<T>` with a copy of every item, sorted as a list's is (stable, a merge sort, each key read once). A
+  chain of them is one loop over the block, with `filter_` steps in the middle; a chain ending in `find_by_` or
+  `sort_by_` on the items themselves runs step by step, which means the same.
+  `parallel_each_<member>()` splits the walk across the thread pool as it does a list's.
+  A program adds a template of its own by reopening `Vector` in a `vector.spite` of its folder, as for a
+  [list](#write-your-own-member-template), reading each item with `values.item_at(items, index)`. Its body is
+  checked like any other code of the program: an item it reads is borrowed, so it is not returned, kept or put in
+  a list (`conformance/stage6/own_collection_templates`).
   No passed-function form is offered, since a `List` of numbers
   takes every form. A passed function would take a class item as an argument, which a borrowed item never is, so
   `velocities.each(f)` is `'each' passes each item to a function, and an item of a
@@ -1328,7 +1347,8 @@ under `Vector<T>`](#vectort-items-inline), which is normative. The readings:
   arena, as for any object, and its block of items with it, each time it grows.
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/plain_items`,
-`diagnostics/text_items_passed`, `conformance/stage6/vector_items`, `conformance/stage6/plain_items`.
+`diagnostics/text_items_passed`, `diagnostics/found_item_borrows`, `conformance/stage6/vector_items`,
+`conformance/stage6/plain_items`, `conformance/stage6/vector_find_sort`.
 
 ### Items\<T\>
 
@@ -1377,9 +1397,12 @@ members are [the table under `Items<T>`](#itemst-the-storage-chosen-for-you), wh
   dropping the collection release what they remove. `remove_swapping(index)` moves the last item into `index`
   and halts on an index out of range, as `remove_at` does; it keeps no order, and costs the same however many
   items there are.
-- **Templates.** `each_`, `map_`, `filter_`, `count_`, `any_`, `all_` and `sum_<member>()` are in
-  `library/items.spite`, each folded the same way; `filter_` answers an `Items<T>` (copies when inline, the same
-  references otherwise) and `map_` a `List` of the members' values. A chain is one loop over the block,
+- **Templates.** `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `find_by_` and
+  `sort_by_<member>()` are in `library/items.spite`, each folded the same way; `filter_` and `sort_by_` answer an
+  `Items<T>` (copies when inline, the same references otherwise) and `map_` a `List` of the members' values.
+  `find_by_<member>(value)` answers a `T?` read as `items[index]` is: inline, the item, borrowed once narrowed; by
+  reference, a counted reference. A program's own template goes in an `items.spite` of its folder, folded on
+  `$element_type.fits_vector()` as the library's are. A chain is one loop over the block,
   and `parallel_each_<member>()` splits it across the thread pool, as for a vector. The passed-function forms
   (`each(f)`, `filter(f)`, ...) are not offered for either kind, since an inline item is never passed on and plain
   values live in a `List`: `'each'
@@ -1394,8 +1417,8 @@ members are [the table under `Items<T>`](#itemst-the-storage-chosen-for-you), wh
   read uses the item without testing that answer again. A program that makes no `Items` carries none of it. Measured in
   `benchmarks/items_storage`.
 
-`conformance/stage6/items_columns`, `conformance/stage6/plain_items`, `diagnostics/items_borrows`,
-`diagnostics/plain_items`, `diagnostics/text_items_passed`.
+`conformance/stage6/items_columns`, `conformance/stage6/plain_items`, `conformance/stage6/vector_find_sort`,
+`diagnostics/items_borrows`, `diagnostics/plain_items`, `diagnostics/text_items_passed`.
 
 ### Removing many at once
 

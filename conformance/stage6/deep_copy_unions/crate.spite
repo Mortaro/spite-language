@@ -1,0 +1,10 @@
+var label = ""
+var weights = List<Integer>()
+
+func Crate(new_label: String) {
+    label = new_label
+}
+
+func describe(): String {
+    return "crate {label}"
+}

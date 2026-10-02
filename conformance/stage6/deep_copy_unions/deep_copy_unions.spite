@@ -1,0 +1,110 @@
+union Expression {
+    NumberExpression
+    SumExpression
+}
+
+union Cargo {
+    Crate
+    Badge
+}
+
+type Describable {
+    describe(): String
+}
+
+type Labeled {
+    label: String
+}
+
+var console = Console()
+
+func DeepCopyUnions() {
+    var shelf = Shelf()
+    var crate = Crate("apples")
+    crate.weights.append(3)
+    shelf.cargo = crate
+    var badge = Badge("gold", 5)
+    shelf.spare = badge
+    var second = Crate("pears")
+    shelf.held.append(second)
+    shelf.held.append(badge)
+    shelf.tagged = badge
+    var counted = Crate("counted")
+    shelf.described = counted
+    var point = Point(1)
+    shelf.points.append(point)
+    shelf.marks.append(point)
+    var copied = shelf.deep_copy()
+    crate.label = "changed"
+    crate.weights.append(4)
+    badge.label = "changed"
+    second.label = "changed"
+    counted.label = "changed"
+    report(copied)
+    copied.points.append(point)
+    copied.marks.append(point)
+    var point_count = shelf.points.count()
+    var mark_count = shelf.marks.count()
+    var copied_points = copied.points.sum_across()
+    console.print("points", point_count, mark_count, copied_points)
+    var plain = Shelf()
+    var plain_copy = plain.deep_copy()
+    report(plain_copy)
+    var cargo: Cargo = Crate("direct")
+    var cargo_copy = cargo.deep_copy()
+    show(cargo, "original")
+    show(cargo_copy, "copy")
+    var labeled: Labeled = Badge("shaped", 1)
+    var labeled_copy = labeled.deep_copy()
+    console.print(labeled.label, labeled_copy.label)
+    var three = NumberExpression(3)
+    var four = NumberExpression(4)
+    var inner = SumExpression()
+    inner.left = three
+    inner.right = four
+    var outer = SumExpression()
+    outer.left = inner
+    var five = NumberExpression(5)
+    outer.right = five
+    var tree: Expression = outer
+    var tree_copy = tree.deep_copy()
+    three.value = 30
+    var original_total = tree.evaluate()
+    var copied_total = tree_copy.evaluate()
+    console.print("tree", original_total, copied_total)
+}
+
+func show(cargo: Cargo, which: String) {
+    switch cargo {
+        Crate: {
+            cargo.label = "{cargo.label} seen"
+            console.print(which, cargo.label)
+        }
+        Badge: console.print(which, "badge", cargo.points)
+    }
+}
+
+func report(shelf: Shelf) {
+    var cargo = shelf.cargo
+    switch cargo {
+        Crate: {
+            var weight_count = cargo.weights.count()
+            console.print("cargo", cargo.label, weight_count)
+        }
+        Badge: console.print("cargo badge", cargo.label)
+    }
+    if shelf.spare {
+        console.print("spare", shelf.spare.label)
+    } else {
+        console.print("no spare")
+    }
+    var index = 0
+    while index < shelf.held.count() {
+        var held = shelf.held[index]
+        console.print("held", held.label)
+        index = index + 1
+    }
+    console.print("tagged", shelf.tagged.label)
+    var described = shelf.described.describe()
+    console.print("described", described)
+}

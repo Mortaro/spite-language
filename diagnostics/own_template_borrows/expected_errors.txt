@@ -1,0 +1,2 @@
+diagnostics/own_template_borrows/vector.spite:13: error: 'values.item_at(items, best)' is borrowed from 'values' and cannot be returned: return 'values.item_at(items, best).copy()', an independent object (in Vector.largest_by_across)
+diagnostics/own_template_borrows/vector.spite:22: error: 'item' is borrowed from 'values' and cannot be put in a list: a list keeps 'item.copy()', an independent object (in Vector.kept_moving)
