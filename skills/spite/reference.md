@@ -182,6 +182,9 @@ func is_alive(): Boolean {
   `bits_exclusive_or(mask)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`.
   The mask is cast to the receiver's type; a count of the width or more shifts everything out, a negative one
   halts. Do not fake them with `/` and `%` by powers of two.
+- A decimal literal beside a `Float` is a `Float` (`tenth == 0.1` is `true` after `var tenth: Float = 0.1`). The
+  last bits of a decimal result are never a promise: loops may fuse multiply-adds and reorder sums, except a loop
+  that compares decimals with `==` or `!=`.
 - Maths is functions on the numbers too, every name in full, never a `Math` class: on a `Float` or `Double`
   `square_root()`, `sine()`, `cosine()`, `tangent()`, `arc_sine()`, `arc_cosine()`, `arc_tangent()`,
   `rise.arc_tangent_over(run)` (C's `atan2(rise, run)`), `power(exponent)`, `exponential()`, `logarithm()`

@@ -10575,6 +10575,14 @@ func generate_binary(
             report_wider_comparison(binary, left_type, right_type)
         }
         report_constant_overflow(binary)
+        if is_single_precision(left_type) and is_single_precision(right_type) {
+            if is_decimal_literal(binary.right) and not is_decimal_literal(binary.left) {
+                right_code = single_precision_literal(right_code)
+            }
+            if is_decimal_literal(binary.left) and not is_decimal_literal(binary.right) {
+                left_code = single_precision_literal(left_code)
+            }
+        }
     }
     var symbol = binary_operator_symbol(binary.operator)
     var code = "({left_code} {symbol} {right_code})"
@@ -10598,6 +10606,50 @@ func generate_binary(
         return ExpressionResult(code, result_type)
     }
     return ExpressionResult(code, left_type)
+}
+
+func is_single_precision(spite_type: Analysis.SpiteType): Boolean {
+    var scalar = type_shape.as_scalar(spite_type)
+    if not scalar {
+        return false
+    }
+    return scalar.kind == 'float_kind'
+}
+
+func is_decimal_literal(expression: Syntax.Expressions.Expression): Boolean {
+    if shape.as_float_literal(expression) {
+        return true
+    }
+    var unary = shape.as_unary(expression)
+    if not unary {
+        return false
+    }
+    if unary.operator != 'negate' {
+        return false
+    }
+    crash unary.operand
+    if shape.as_float_literal(unary.operand) {
+        return true
+    }
+    return false
+}
+
+func single_precision_literal(code: String): String {
+    var length = code.length()
+    var end = length
+    while end > 0 and code.code_at(end - 1) == 41 {
+        end = end - 1
+    }
+    if end == 0 {
+        return code
+    }
+    var last = code.code_at(end - 1)
+    if last < 48 or last > 57 {
+        return code
+    }
+    var digits = code.slice(0, end)
+    var closing = code.slice(end, length)
+    return "{digits}f{closing}"
 }
 
 func right_operand_code(
@@ -34664,10 +34716,154 @@ func generate_counted_body(
 ) {
     crash while_statement.condition
     builder.add_user("while ({truth}) \{")
+    if not compares_decimals_in(while_statement.body, body_scope) {
+        builder.add_user("#if defined(__clang__)")
+        builder.add_user("#pragma clang fp contract(fast) reassociate(on)")
+        builder.add_user("#endif")
+    }
     narrow_proven_indices(while_statement.condition, body_scope)
     generate_block_in_scope(while_statement.body, body_scope, class_information, function_information)
     add_loop_check_point(class_information)
     builder.add_user("}")
+}
+
+func compares_decimals_in(statements: List<Syntax.Statements.Statement>, scope: Scope): Boolean {
+    var index = 0
+    while index < statements.count() {
+        if statement_compares_decimals(statements[index], scope) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func statement_compares_decimals(statement: Syntax.Statements.Statement, scope: Scope): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: return optional_compares_decimals(statement.value, scope)
+        Syntax.Statements.AssignmentStatement: {
+            if optional_compares_decimals(statement.target, scope) {
+                return true
+            }
+            return optional_compares_decimals(statement.value, scope)
+        }
+        Syntax.Statements.ExpressionStatement: return optional_compares_decimals(statement.value, scope)
+        Syntax.Statements.AssertStatement: return optional_compares_decimals(statement.value, scope)
+        Syntax.Statements.ReturnStatement: return optional_compares_decimals(statement.value, scope)
+        Syntax.Statements.IfStatement: {
+            if optional_compares_decimals(statement.condition, scope) {
+                return true
+            }
+            if compares_decimals_in(statement.then_branch, scope) {
+                return true
+            }
+            return compares_decimals_in(statement.else_branch, scope)
+        }
+        Syntax.Statements.WhileStatement: {
+            if optional_compares_decimals(statement.condition, scope) {
+                return true
+            }
+            return compares_decimals_in(statement.body, scope)
+        }
+        _: return true
+    }
+}
+
+func optional_compares_decimals(expression: Syntax.Expressions.Expression?, scope: Scope): Boolean {
+    if not expression {
+        return false
+    }
+    return compares_decimals(expression, scope)
+}
+
+func compares_decimals(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
+    switch expression {
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            if expression.operator == 'equal' or expression.operator == 'not_equal' {
+                if may_be_decimal(expression.left, scope) or may_be_decimal(expression.right, scope) {
+                    return true
+                }
+            }
+            if compares_decimals(expression.left, scope) {
+                return true
+            }
+            return compares_decimals(expression.right, scope)
+        }
+        Syntax.Expressions.UnaryExpression: return optional_compares_decimals(expression.operand, scope)
+        Syntax.Expressions.IndexExpression: return optional_compares_decimals(expression.index, scope)
+        Syntax.Expressions.CallExpression: return arguments_compare_decimals(expression.arguments, scope)
+        _: return false
+    }
+}
+
+func arguments_compare_decimals(arguments: List<Syntax.Expressions.Expression>, scope: Scope): Boolean {
+    var index = 0
+    while index < arguments.count() {
+        if compares_decimals(arguments[index], scope) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func may_be_decimal(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
+    switch expression {
+        Syntax.Expressions.IntegerLiteral: return false
+        Syntax.Expressions.TrueLiteral: return false
+        Syntax.Expressions.FalseLiteral: return false
+        Syntax.Expressions.IdentifierExpression: {
+            var written = scope.written_type(expression.name)
+            if not written {
+                return true
+            }
+            return is_decimal_type(written)
+        }
+        Syntax.Expressions.IndexExpression: return indexes_decimals(expression, scope)
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return may_be_decimal(expression.operand, scope)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            if is_boolean_result_operator(expression.operator) {
+                return false
+            }
+            if may_be_decimal(expression.left, scope) {
+                return true
+            }
+            return may_be_decimal(expression.right, scope)
+        }
+        _: return true
+    }
+}
+
+func indexes_decimals(indexed: Syntax.Expressions.IndexExpression, scope: Scope): Boolean {
+    crash indexed.object
+    var listed = shape.as_identifier(indexed.object)
+    if not listed {
+        return true
+    }
+    var list_type = scope.written_type(listed.name)
+    if not list_type {
+        return true
+    }
+    var element = counted_element_type(list_type)
+    if not element {
+        return true
+    }
+    return is_decimal_type(element)
+}
+
+func is_decimal_type(spite_type: Analysis.SpiteType): Boolean {
+    var scalar = type_shape.as_scalar(spite_type)
+    if not scalar {
+        return true
+    }
+    return is_float_kind(scalar.kind)
 }
 
 func asserts_in(statements: List<Syntax.Statements.Statement>): Boolean {

@@ -156,10 +156,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   under `index < count`), known ranges (a `bits_and(255)` put into a `Byte`, a `% n` result), attributes whose
   proofs survive calls (`call_effects.spite`), and a sum the C compiler could vectorise; what stays is listed in M4's
   report. Update docs/proofs.md and docs/optimizations.md. **M.** Benchmarks measured on `--optimized` builds only.
-- **N3 Floating point speed** (D357; status item 210). Let C fuse multiply-adds and reorder float sums
-  (`-ffp-contract=fast`, reassociation, without giving up `nan` and infinities), keep `Float` expressions with
-  decimal literals in `float`, and keep exact equality and values written to disk exact. Files: `bootstrap.spite`
-  compiler flags, generator.spite literal typing. **S.** No dependencies.
 
 ### Memory (D352, D353, D354, D380, D369 item 173, D147, D178)
 
@@ -353,7 +349,7 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L7, C6, C7, K2, F3, S9, P1, P2, X1, B1
+2. No dependencies: R8, M1, M2, M4, M6, M7, N1, E1, E2, E4, L7, C6, C7, K2, F3, S9, P1, P2, X1, B1
    to B16, E3, D1's first pass.
 3. After step 2: R5, K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4, R8, then R9.
@@ -376,7 +372,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 |---|---|---|
 | 1 Reflection and serialization | R5, R1, R4, J1, J2, R8, R7 | generator.spite reflection, specialisation and template regions; `specialisation.spite`, `reflected*.spite`, `template_walk.spite`, `namespace_walk.spite`, `old_spellings.spite`; `library/spite/*`, `json_*`, `binary_*`, `dictionary.spite`; stage6 walk programs; docs reflection, metaprogramming, json |
 | 2 Types and storage | M2, M1, M7, M4, M3, then M6 and M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
-| 3 Arithmetic | N3, N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
+| 3 Arithmetic | N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E2, E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C6, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
 | 6 Waiting, IO and library | F3, K2, K1, K3, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |

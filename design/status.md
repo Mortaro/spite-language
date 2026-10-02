@@ -850,7 +850,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### A loop over plain values reads its count once and its items unchecked
 
-- Open question (`mortaros_missing_decisions.md` item 210): a `Float` expression with a decimal literal is worked out in `double` precision in the C, which halves the vector width. In `float` the two benchmark loops would take about 100 and 70 microseconds, but some results would change in their last bits. Not done; waiting for Mortaro.
+- With gcc a decimal sum in such a loop still adds in order: gcc has no setting for one loop (only `__attribute__((optimize))` per function), so D357's reordering reaches clang builds only.
 
 ### Allocation is the C library's, counted only where read
 

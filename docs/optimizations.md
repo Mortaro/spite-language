@@ -74,7 +74,8 @@ emit nothing.
 | [Short text lives inside the `String`](#short-text-lives-inside-the-string) | every | fewer allocations; `.memory.section` of built text; a box when text travels as a shape |
 | [Maths on constants is worked out while compiling](#maths-on-constants-is-worked-out-while-compiling) | every | nothing but speed; a folded call is the compiling machine's C library's answer |
 | [A local list of known size lives in the frame](#a-local-list-of-known-size-lives-in-the-frame) | every but the inspectable ones | fewer allocations |
-| [A loop over plain values reads its count once and its items unchecked](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked) | every but `--repl`, `--repl-port` and `--hot-reload` | nothing but speed |
+| [A loop over plain values reads its count once and its items unchecked](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked) | every but `--repl`, `--repl-port` and `--hot-reload` | speed; the last bits of a decimal sum or multiply-add in such a loop |
+| [A decimal literal beside a `Float` is a `Float`](#a-decimal-literal-beside-a-float-is-a-float) | every | speed; the last bits of a `Float` result |
 | [A proven read tests only its bounds](#a-proven-read-tests-only-its-bounds) | every | nothing but speed; a read outside its list halts |
 | [A walked `crash` line's read is the row's read](#a-walked-crash-lines-read-is-the-rows-read) | every | nothing but speed |
 | [Objects that never leave their function live in the frame](#objects-that-never-leave-their-function-live-in-the-frame) | every but the inspectable ones | fewer allocations; `.memory.section` answers `'stack'` |
@@ -1667,9 +1668,13 @@ loop is written twice for that, so a body with an `assert` or `crash` is not (it
 twice).
 
 **What the C compiler then does.** An element-by-element loop (a map in place, into another list, a filter's test)
-and a whole-number sum are vectorised, which clang's `-Rpass=loop-vectorize` confirms. A `Float` or `Double`
-**sum** is not, and must not be: adding in a different order changes the last bits of the answer, and an
-optimisation may not change what a program computes. The compiler adds no `restrict`, since
+and a whole-number sum are vectorised, which clang's `-Rpass=loop-vectorize` confirms. The loop's body also tells
+clang it may fuse a multiply and an add and reorder the additions of a decimal sum (`#pragma clang fp
+contract(fast) reassociate(on)`), so a `Float` or `Double` **sum** is vectorised too: its last bits may differ from
+adding in the order written, which the language never promises ([values_and_types.md](values_and_types.md#numbers-are-classes)).
+A body that compares a decimal with `==` or `!=`, or a value whose type is not known there, does not get it, so an
+exact comparison sees exact values; gcc has no such setting for one loop, so with gcc the sum stays in order. The
+compiler adds no `restrict`, since
 two names may hold the same list and the C compiler checks for overlap once, before the loop, itself; and no
 alignment claim, which nothing proves.
 
@@ -1677,9 +1682,23 @@ alignment claim, which nothing proves.
 from.get_at(index) * 1.5 + 0.25` over two `List<Float>` 668-697 before, 181-207 after; the same in place over a
 `Vector<Float>` 2 628-2 782 before, 178-195 after (a `List<Float>` runs at the same speed); a `Float` sum 640-673
 either way (it stays in order); an
-`Integer` sum 112-137 either way (it was already vectorised). A `Float` expression with a decimal literal is
-worked out in `double` precision in the C, which halves the vector width: in `float` the
-two loops would take about 100 and 70 µs, but some results would change in their last bits, so it stays `double`.
+`Integer` sum 112-137 either way (it was already vectorised). Then, with the multiply-add fused, the sum reordered
+and the literals in `Float` ([below](#a-decimal-literal-beside-a-float-is-a-float)), on Linux, `clang -O3`
+(`--optimized`), on a busy machine: the two-list loop 407-602 to 313-346 µs, the loop in place 382-403 to 160-181,
+and the `Float` sum 727-739 to 137-150, with the same printed checks.
+
+### A decimal literal beside a `Float` is a `Float`
+
+**What it does.** `value * 1.5 + 0.25` with a `Float` `value` is written `value * 1.5f + 0.25f` in the C, so the
+arithmetic stays in `Float` precision instead of being widened to `Double` and back, which would halve how many
+values a vector instruction holds. A literal beside a `Double`, and two literals together, are written as before.
+
+**When.** Every build, for an operator or comparison whose one side is a decimal literal (or its negation) and whose
+other side is a `Float` that is not a literal.
+
+**What you notice.** Speed, and a `Float` result's last bits, which may differ from working it out in `Double`. A
+comparison means what it reads as: after `var tenth: Float = 0.1`, `tenth == 0.1` is `true`, where widening
+`tenth` made it `false` (`conformance/stage6/float_precision`).
 
 ### A proven read tests only its bounds
 
