@@ -673,22 +673,45 @@ templates that ask a yes-or-no question also take one of that enum's values as t
 the elements whose member is that value. A listing does not need one helper per kind of thing it lists; it is
 filtered by its kind:
 
-```gdscript
+```gdscript title=post_stages/stage.spite
 enum Stage {
     'draft'
     'published'
     'archived'
 }
-
+```
+```gdscript title=post_stages/post.spite
 var title = ""
 var stage: Stage = 'draft'
-```
 
-```gdscript
-var published = posts.filter_published()
-var drafts = posts.count_draft()
-var anything_archived = posts.any_archived()
-posts.remove_where_archived()
+func Post(new_title: String, new_stage: Stage) {
+    title = new_title
+    stage = new_stage
+}
+```
+```gdscript title=post_stages/post_stages.spite entry
+var console = Console()
+var posts = List<Post>()
+
+func PostStages() {
+    var hello = Post("hello", 'published')
+    posts.append(hello)
+    var plans = Post("plans", 'draft')
+    posts.append(plans)
+    var old = Post("old", 'archived')
+    posts.append(old)
+    var published = posts.filter_published()
+    var titles = published.map_titles()
+    var shown = titles.join(", ")
+    var drafts = posts.count_draft()
+    var anything_archived = posts.any_archived()
+    posts.remove_where_archived()
+    var left = posts.count()
+    console.print(shown, drafts, anything_archived, left)
+}
+```
+```output
+hello 1 true 2
 ```
 
 `posts.filter_published()` means exactly `posts.filter_stage_is_published()` would, had `Post` a
@@ -1127,10 +1150,14 @@ The caller's function is passed as a bound function value, owned by whoever it i
 - **A union element** is read through a member every class of the union answers, with the same enum type; a
   member only some of them answer is not a candidate.
 - **Errors, never a guess.** No member and no enum value: the usual error, which then also says no enum of
-  `T`'s members lists `<name>`. Two or more members whose enums list `<name>`: "'filter_<name>' could read '<a>' or
-  '<b>', whose enums both list '<name>': write the comparison as a Boolean member of <T>, or pass a function". A
-  member named `<name>` that is also a value of such an enum: an error naming both, since which one is read must
-  not depend on what else the class declares.
+  `T`'s members lists `<name>`: "'Post' has no attribute or zero argument function 'deleted' for 'any_deleted', and
+  no enum of its members lists 'deleted'". Two or more members whose enums list `<name>`: "'filter_<name>' could
+  read '<a>' or '<b>', whose enums both list '<name>': write the comparison as a Boolean member of <T>, or pass a
+  function". A member named `<name>` that is also a value of such an enum: an error naming both, since which one is
+  read must not depend on what else the class declares: "'count_published' could read the member 'published' of
+  'Post' or compare 'stage' with 'published', a value of its enum: rename the member 'published'".
+- **A member a union's classes answer differently** (an attribute in one, a getter `get_<member>()` in another) is
+  read through each class's own, for these templates as for every other.
 - **No helper answers one kind of a listing.** A function that answers the part of a listing of one kind, such as
   `Directory.files()` or `Directory.folders()`, would be a second way to write `entries().filter_files()`, so there
   is none.

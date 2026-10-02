@@ -141,6 +141,8 @@ even use things that would not compile for this build. That covers:
 - a class test the value's type already answers, `if item == $wanted_type`, and one that can never be true for one
   instantiation of a generic, which folds to `false` there instead of being an error;
 - `$system_type.functions['run_each']`;
+- `attribute.name.starts_with("_")` or `ends_with` with a literal, on the attribute a walk is compiled for, which
+  is how the serializers and `to_debug()` leave private attributes out;
 - `$system_type.functions['update_each'].is_resumable`, answered from the functions the compiler
   turns into state machines;
 - `phase.arguments.count()` and `$system_type.functions['update_each'].arguments.count()`, a whole

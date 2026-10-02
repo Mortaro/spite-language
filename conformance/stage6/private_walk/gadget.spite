@@ -1,0 +1,18 @@
+var power = 3
+var _charge = 5
+var _pet: Pet? = null
+
+func adopt() {
+    _pet = Cat()
+}
+
+func charge(): Integer {
+    return _charge
+}
+
+func has_pet(): Boolean {
+    if _pet {
+        return true
+    }
+    return false
+}

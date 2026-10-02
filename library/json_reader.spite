@@ -120,19 +120,23 @@ func read_symbol(cursor: JsonCursor): $value_type {
 }
 
 func read_attribute(attribute: Symbol<$value_type>, created: $value_type, key: String, cursor: JsonCursor) {
-    if $value_type.has_function("json_key_{attribute.name}") {
-        if key == $value_type.returned_text("json_key_{attribute.name}") {
+    if not attribute.name.starts_with("_") {
+        if $value_type.has_function("json_key_{attribute.name}") {
+            if key == $value_type.returned_text("json_key_{attribute.name}") {
+                store_value(attribute, created, cursor)
+            }
+        } else if key == attribute.name {
             store_value(attribute, created, cursor)
         }
-    } else if key == attribute.name {
-        store_value(attribute, created, cursor)
     }
 }
 
 func read_camel_attribute(attribute: Symbol<$value_type>, created: $value_type, key: String, cursor: JsonCursor) {
-    if not $value_type.has_function("json_key_{attribute.name}") {
-        if key == attribute.camel_case_name or key == attribute.pascal_case_name {
-            store_value(attribute, created, cursor)
+    if not attribute.name.starts_with("_") {
+        if not $value_type.has_function("json_key_{attribute.name}") {
+            if key == attribute.camel_case_name or key == attribute.pascal_case_name {
+                store_value(attribute, created, cursor)
+            }
         }
     }
 }

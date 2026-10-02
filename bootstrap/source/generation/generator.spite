@@ -156,6 +156,14 @@ var deferred_wait_functions = List<Analysis.FunctionInfo>()
 var task_value_arguments = 0
 var function_waits_table_used = false
 var listed_typed_calls = List<String>()
+var function_accesses_used = false
+var accessed_call_names = List<String>()
+var accessed_call_owners = List<Analysis.ClassInfo>()
+var accessed_call_functions = List<Analysis.FunctionInfo>()
+var accessed_call_lines = List<String>()
+var accesses_table_position = -1
+var accesses_table_count = 0
+var released_class_objects = 0
 var entry_functions_cache = ""
 var described_lock_emitted = false
 var development = false
@@ -298,8 +306,10 @@ var bound_range = ""
 var bound_enum_c_name = ""
 var bound_chain_method = ""
 var bound_chain_arguments = List<String>()
+var bound_compared_value = ""
 var chained_parameters = List<Analysis.ParamInfo>()
 var chained_method_name = ""
+var compared_value_name = ""
 var unliteral_reported = List<String>()
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
@@ -923,7 +933,7 @@ func generate(
         emit_pending_functions()
     }
     emit_attribute_object_bodies()
-    while refresh_functions_lists() {
+    while refresh_functions_lists() or refresh_accesses_table() {
         emit_class_object_bodies()
         emit_namespace_object_bodies()
         emit_functions_function_bodies()
@@ -933,6 +943,15 @@ func generate(
     while emit_late_shape_callers() > 0 {
         emit_pending_functions()
     }
+    while release_new_class_objects() {
+        emit_class_object_bodies()
+        emit_namespace_object_bodies()
+        emit_functions_function_bodies()
+        emit_attribute_object_bodies()
+        emit_pending_functions()
+    }
+    finish_main()
+    emit_pending_functions()
     refresh_union_releases()
     finish_wait_questions()
     if parallel_used {
@@ -1130,6 +1149,27 @@ func generate_codegen_value(name: String, class_information: Analysis.ClassInfo)
     return void_result()
 }
 
+func walked_name_condition(expression: Syntax.Expressions.Expression): Boolean? {
+    var called = shape.as_call(expression)
+    assert not bound_symbol_name.is_empty() and not bound_field_name.is_empty() and called
+    crash called.callee
+    var method = shape.as_member(called.callee)
+    assert method and called.arguments.count() == 1
+    crash method.object
+    var read = shape.as_member(method.object)
+    var given = shape.as_string_literal(called.arguments[0])
+    assert read and given
+    crash read.object
+    var symbol = shape.as_identifier(read.object)
+    assert symbol and read.name == "name"
+    assert symbol.name == bound_symbol_name
+    switch method.name {
+        "starts_with": return bound_field_name.starts_with(given.value)
+        "ends_with": return bound_field_name.ends_with(given.value)
+        _: return null
+    }
+}
+
 func constant_condition(
     expression: Syntax.Expressions.Expression,
     scope: Scope,
@@ -1155,6 +1195,10 @@ func constant_condition(
     var asked = function_question(expression, class_information)
     if asked == true or asked == false {
         return asked
+    }
+    var walked_answer = walked_name_condition(expression)
+    if walked_answer == true or walked_answer == false {
+        return walked_answer
     }
     var setting_text = hardcoded_setting_text(expression, scope, class_information)
     if setting_text {
@@ -2383,6 +2427,121 @@ func finish_wait_questions() {
     }
 }
 
+func remember_accessed_call(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    assert not is_library_class(information) and not accessed_call_names.contains(function.c_name)
+    accessed_call_names.append(function.c_name)
+    accessed_call_owners.append(information)
+    accessed_call_functions.append(function)
+    accessed_call_lines.append("")
+}
+
+func refresh_accesses_table(): Boolean {
+    var current = accesses_table_position >= 0 and accesses_table_count == accessed_call_names.count()
+    if not function_accesses_used or current {
+        return false
+    }
+    var function_class = find_class_by_c_name("Spite_Function")
+    var class_class = find_class_by_c_name("Spite_Class")
+    crash function_class and class_class
+    var accessed_place = field_place("self", function_class, "_accessed")
+    var names_place = field_place("self", function_class, "_accessed_names")
+    var classes_place = field_place("self", function_class, "_accessed_classes")
+    var symbol_spite_type: Analysis.SpiteType = Analysis.Types.SymbolType()
+    var names_list = ensure_list(symbol_spite_type)
+    var class_spite_type = class_type_of(class_class)
+    var classes_list = ensure_list(class_spite_type)
+    var lines = List<String>()
+    lines.append("static void spite_function_accesses_described(Spite_Function* self) \{")
+    lines.append("SPITE_LOCK(self->spite_arguments_lock);")
+    lines.append("void* typed_call = self->spite_typed_call;")
+    lines.append("if ({names_place} != 0) typed_call = 0;")
+    var index = 0
+    var tabled = accessed_call_names.count()
+    if hot_reload {
+        tabled = 0
+    }
+    while index < tabled {
+        crash accessed_call_lines[index]
+        if accessed_call_lines[index].is_empty() {
+            crash accessed_call_owners[index]
+            crash accessed_call_functions[index]
+            var owner = accessed_call_owners[index]
+            var function = accessed_call_functions[index]
+            accessed_call_lines[index] = described_accesses_line(
+                owner,
+                function,
+                names_list,
+                classes_list,
+                accessed_place,
+                names_place,
+                classes_place,
+            )
+        }
+        crash accessed_call_lines[index]
+        lines.append(accessed_call_lines[index])
+        index = index + 1
+    }
+    lines.append("SPITE_UNLOCK(self->spite_arguments_lock);")
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    if accesses_table_position < 0 {
+        accesses_table_position = builder.support_count()
+        builder.add_support(joined_lines)
+    } else {
+        builder.replace_support(accesses_table_position, joined_lines)
+    }
+    accesses_table_count = accessed_call_names.count()
+    return true
+}
+
+func described_accesses_line(
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    names_list: String,
+    classes_list: String,
+    accessed_place: String,
+    names_place: String,
+    classes_place: String,
+): String {
+    var plain_name = function.c_name == "{owner.c_name}_{function.name}"
+    var written_in_source = plain_name and function.line > 0 and function.symbol_name.is_empty() and function.specialisation_position < 0
+    var listed = reflected_accesses(owner, function, written_in_source)
+    var entries = List<String>()
+    var parts = List<String>()
+    parts.append("if (typed_call == (void*){function.c_name}) \{")
+    parts.append("{names_list}* spite_names = {names_list}___make();")
+    parts.append("{classes_list}* spite_classes = {classes_list}___make();")
+    var index = 0
+    while index < listed.elements.count() {
+        var access = listed.elements[index]
+        var target = access.elements.first()
+        crash target
+        crash target.described_type
+        var kind = "g"
+        if target.kind == "attribute" {
+            kind = "a"
+        }
+        var read = "-"
+        if access.is_read {
+            read = "r"
+        }
+        var written = "-"
+        if access.is_written {
+            written = "w"
+        }
+        entries.append("{kind}{read}{written}")
+        parts.append("{names_list}_append(spite_names, {ensure_symbol(target.name)});")
+        parts.append("{classes_list}_append(spite_classes, {class_object_call(target.described_type)});")
+        index = index + 1
+    }
+    var encoded = entries.join(";")
+    parts.append("{accessed_place} = {render_string_literal(encoded)};")
+    parts.append("{names_place} = spite_names;")
+    parts.append("{classes_place} = spite_classes;")
+    parts.append("}")
+    return parts.join(" ")
+}
+
 func emit_function_waits_table() {
     var lines = List<String>()
     lines.append("static bool spite_function_waits(void* typed_call) \{")
@@ -2919,10 +3078,12 @@ func unwritable_attribute(information: Analysis.ClassInfo, visited: List<String>
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
-        var field_type = field.type
-        var problem = unwritable_json(field_type, "{information.simple_name}.{field.name}", visited, format)
-        if not problem.is_empty() {
-            return problem
+        if not field.name.starts_with("_") {
+            var field_type = field.type
+            var problem = unwritable_json(field_type, "{information.simple_name}.{field.name}", visited, format)
+            if not problem.is_empty() {
+                return problem
+            }
         }
         index = index + 1
     }
@@ -6433,18 +6594,19 @@ func instantiate_every_attribute(
     current_class = saved_class
     current_owner = saved_owner
     var body = List<Syntax.Statements.Statement>()
-    var field_index = 0
-    var private_readable = kind == "function" or kind == "pattern" or kind == "namespace"
-    if not private_readable {
-        private_readable = template_range_owner(information, template) == information.c_name
+    var stored_by_the_compiler = information.is_value_class
+    var range_class = find_class_by_c_name(kind)
+    if range_class {
+        stored_by_the_compiler = range_class.is_value_class
     }
-    while field_index < attribute_names.count() {
+    var field_index = 0
+    while field_index < attribute_names.count() and not stored_by_the_compiler {
         var attribute_name = attribute_names[field_index]
         var clashing = clashing_function(information, "{template.prefix}{attribute_name}{template.suffix}")
         if clashing {
             report_template_clash(information, template, attribute_name, clashing)
         }
-        if not clashing and (private_readable or not attribute_name.starts_with("_")) {
+        if not clashing {
             var arguments = List<Syntax.Expressions.Expression>()
             var argument_index = 0
             while argument_index < parameters.count() {
@@ -6552,7 +6714,9 @@ func instantiate_template(
     function.symbol_owner_c_name = member_owner_c_name
     function.symbol_chain_method = chained_method_name
     function.symbol_chain_arguments = chained_names
+    function.symbol_compared_value = compared_value_name
     chained_method_name = ""
+    compared_value_name = ""
     if owner_type {
         function.symbol_through_caller = true
     }
@@ -6603,6 +6767,7 @@ func bind_symbol_of(function: Analysis.FunctionInfo) {
     bound_enum_c_name = function.symbol_enum_c_name
     bound_chain_method = function.symbol_chain_method
     bound_chain_arguments = function.symbol_chain_arguments
+    bound_compared_value = function.symbol_compared_value
 }
 
 func is_bound_member_index(index_expression: Syntax.Expressions.IndexExpression): Boolean {
@@ -6628,7 +6793,9 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
     if bound_through_caller {
         return caller_call_expression(member.object)
     }
-    var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(member.object, bound_field_name)
+    var walked_member = Syntax.Expressions.MemberExpression(member.object, bound_field_name)
+    walked_member.walked = true
+    var read: Syntax.Expressions.Expression = walked_member
     if bound_member_is_function() {
         var no_arguments = List<Syntax.Expressions.Expression>()
         read = Syntax.Expressions.CallExpression(read, no_arguments)
@@ -6638,6 +6805,11 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
 
 # ../docs/collections.md#a-members-own-function-in-a-templates-name
 func chained_read(read: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
+    if not bound_compared_value.is_empty() {
+        var value: Syntax.Expressions.Expression = Syntax.Expressions.EnumLiteralExpression(bound_compared_value)
+        var compared: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression('equal', read, value)
+        return compared
+    }
     if bound_chain_method.is_empty() {
         return read
     }
@@ -12771,6 +12943,7 @@ func function_value(
     note_fact("maker {maker}")
     if not function_value_makers.contains(maker) {
         function_value_makers.append(maker)
+        remember_accessed_call(information, function)
         var argument_class = find_class_by_c_name("Spite_Argument")
         if not find_class_by_c_name("Spite_Function") or not argument_class {
             report(
@@ -13549,6 +13722,7 @@ func ensure_into_variant(owner: Analysis.ClassInfo, function: Analysis.FunctionI
     variant.symbol_field_name = function.symbol_field_name
     variant.symbol_chain_method = function.symbol_chain_method
     variant.symbol_chain_arguments = function.symbol_chain_arguments
+    variant.symbol_compared_value = function.symbol_compared_value
     variant.symbol_field_index = function.symbol_field_index
     variant.symbol_field_type = function.symbol_field_type
     variant.symbol_owner_c_name = function.symbol_owner_c_name
@@ -13766,6 +13940,7 @@ func add_lent_variant(
     variant.symbol_field_name = original.symbol_field_name
     variant.symbol_chain_method = original.symbol_chain_method
     variant.symbol_chain_arguments = original.symbol_chain_arguments
+    variant.symbol_compared_value = original.symbol_compared_value
     variant.symbol_field_index = original.symbol_field_index
     variant.symbol_field_type = original.symbol_field_type
     variant.symbol_owner_c_name = original.symbol_owner_c_name
@@ -13867,6 +14042,7 @@ func held_variant_name(
     variant.symbol_field_name = original.symbol_field_name
     variant.symbol_chain_method = original.symbol_chain_method
     variant.symbol_chain_arguments = original.symbol_chain_arguments
+    variant.symbol_compared_value = original.symbol_compared_value
     variant.symbol_field_index = original.symbol_field_index
     variant.symbol_field_type = original.symbol_field_type
     variant.symbol_owner_c_name = original.symbol_owner_c_name
@@ -14280,7 +14456,7 @@ func generate_method_call(
     }
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
-    if not is_implicit_join(member) {
+    if not is_implicit_join(member) and not member.walked {
         report_private_member(target_class, member.name, class_information)
     }
     var vector_like = target_class.qualified_dotted == "Vector" or is_items_class(target_class)
@@ -15377,6 +15553,42 @@ func instantiate_element_template(
         member_type = union_member_type(element_union, member_name)
     }
     var element_label = type_display_name(element)
+    var asks_enum = asks_question(template.prefix) and template.suffix.is_empty() and not template.plural
+    if asks_enum and not element_shape {
+        var word = template.member_name_for(name)
+        var listing = enum_members_listing(element, word)
+        if member_type and member_name == word and not listing.is_empty() {
+            report(
+                "'{name}' could read the member '{word}' of '{element_label}' or compare '{listing.join("' or '")}' with '{word}', a value of its enum: rename the member '{word}'",
+            )
+            return null
+        }
+        if not member_type and listing.count() > 1 {
+            report(
+                "'{name}' could read '{listing.join("' or '")}', whose enums both list '{word}': write the comparison as a Boolean member of {element_label}, or pass a function",
+            )
+            return null
+        }
+        if not member_type and listing.count() == 1 {
+            var existing_compared = list_class.find_function(name)
+            if existing_compared {
+                return existing_compared
+            }
+            var compared_member = listing[0]
+            compared_value_name = word
+            var compared_owner = element_owner_c_name(element)
+            var boolean_spite_type = boolean_type()
+            return instantiate_template(
+                list_class,
+                template,
+                compared_member,
+                boolean_spite_type,
+                compared_owner,
+                name,
+                null,
+            )
+        }
+    }
     if element_union and template.prefix == "filter_" and template.suffix.is_empty() {
         var member_class = union_member_class(element_union, member_name)
         if member_class {
@@ -15397,6 +15609,9 @@ func instantiate_element_template(
     }
     if not member_type {
         var hint = passing_hint(caller, template.prefix, member_name)
+        if asks_enum and not element_shape {
+            hint = ", and no enum of its members lists '{member_name}'{hint}"
+        }
         report("'{element_label}' has no attribute or zero argument function '{member_name}' for '{name}'{hint}")
         return null
     }
@@ -15414,6 +15629,31 @@ func instantiate_element_template(
     }
     var owner_c_name = element_owner_c_name(element)
     return instantiate_template(list_class, template, member_name, member_type, owner_c_name, name, null)
+}
+
+func enum_members_listing(element: Analysis.SpiteType, value: String): List<String> {
+    var listing = List<String>()
+    var member_names = element_member_names(element)
+    var index = 0
+    while index < member_names.count() {
+        var candidate = member_names[index]
+        var candidate_type = element_member_type(element, candidate)
+        var candidate_length = candidate.length()
+        var read_name = candidate.slice(4, candidate_length)
+        if candidate.starts_with("get_") and member_names.contains(read_name) {
+            candidate_type = null
+        }
+        if candidate_type {
+            var listed_enum = type_shape.as_enum(candidate_type)
+            if listed_enum {
+                if listed_enum.values.contains(value) and not listing.contains(candidate) {
+                    listing.append(candidate)
+                }
+            }
+        }
+        index = index + 1
+    }
+    return listing
 }
 
 func passing_hint(caller: Analysis.ClassInfo, prefix: String, member_name: String): String {
@@ -18093,6 +18333,9 @@ func functions_list_text(information: Analysis.ClassInfo, list_name: String, arg
             }
             if callable and not listed_typed_calls.contains(function.c_name) {
                 listed_typed_calls.append(function.c_name)
+            }
+            if callable {
+                remember_accessed_call(information, function)
             }
             if callable and read_evaluate_print_loop {
                 var text_call = ensure_text_call(information, function)
@@ -21895,7 +22138,9 @@ func generate_member_read_raw(
     }
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
-    report_private_member(target_class, member.name, class_information)
+    if not member.walked {
+        report_private_member(target_class, member.name, class_information)
+    }
     mark_attribute_read(target_class, member.name)
     var getter = find_getter(target_class, member.name, class_information)
     if getter {
@@ -27752,7 +27997,9 @@ func generate_store(
         }
         var target_class = find_class_by_c_name(object_class_ref.c_name)
         assert target_class
-        report_private_member(target_class, member.name, class_information)
+        if not member.walked {
+            report_private_member(target_class, member.name, class_information)
+        }
         var setter = find_setter(target_class, member.name, class_information)
         if setter {
             var setter_arguments = List<Syntax.Expressions.Expression>()
@@ -32368,27 +32615,14 @@ func generate_union_dispatch(
         result_type = first_function.return_type
         expected_types = parameter_types_of(first_function.parameters)
     } else {
-        var first_field = first_member.find_field(member_name)
-        var getter_name = "get_{member_name}"
-        if not first_field and first_member.find_function(getter_name) {
-            return generate_union_dispatch(
-                information,
-                getter_name,
-                true,
-                object_result,
-                object_ast,
-                arguments_ast,
-                scope,
-                class_information,
-            )
-        }
-        if not first_field {
+        var first_type = union_read_type(first_member, member_name)
+        if not first_type {
             report(
                 "'{first_member.simple_name}' has no attribute '{member_name}', so it cannot be read on union '{information.simple_name}'",
             )
             return void_result()
         }
-        result_type = first_field.type
+        result_type = first_type
         mark_members_read(information.members, member_name)
     }
     var owning_object = owns(object_result, object_ast)
@@ -32410,6 +32644,14 @@ func generate_union_dispatch(
     if has_result {
         lines.append("{c_type_name(result_type)} {result_temporary} = {default_value_for_scalar_or_null(result_type)};")
     }
+    var answered_by_function = false
+    var checked_index = 0
+    while checked_index < information.members.count() and not is_call {
+        if not information.members[checked_index].find_field(member_name) {
+            answered_by_function = true
+        }
+        checked_index = checked_index + 1
+    }
     var member_index = 0
     while member_index < information.members.count() {
         var member = information.members[member_index]
@@ -32417,9 +32659,12 @@ func generate_union_dispatch(
         var branch_code = ""
         if is_call {
             branch_code = union_member_call(member, member_name, casted_object, argument_temporaries, information)
+        } else if not member.find_field(member_name) {
+            var no_temporaries = List<String>()
+            branch_code = union_member_call(member, "get_{member_name}", casted_object, no_temporaries, information)
         } else {
             branch_code = field_place(casted_object, member, member_name)
-            if owning_object and type_needs_drop(result_type) {
+            if (owning_object or answered_by_function) and type_needs_drop(result_type) {
                 branch_code = retain_call(result_type, branch_code)
             }
         }
@@ -32441,7 +32686,23 @@ func generate_union_dispatch(
     if has_result {
         lines.append("{result_temporary};")
     }
-    return ExpressionResult("(\{ {lines.join(" ")} })", result_type)
+    var dispatched = ExpressionResult("(\{ {lines.join(" ")} })", result_type)
+    if answered_by_function and type_needs_drop(result_type) {
+        dispatched.owning_override = true
+    }
+    return dispatched
+}
+
+func union_read_type(member: Analysis.ClassInfo, member_name: String): Analysis.SpiteType? {
+    var field = member.find_field(member_name)
+    if field {
+        return field.type
+    }
+    var getter = member.find_function("get_{member_name}")
+    if getter {
+        return getter.return_type
+    }
+    return null
 }
 
 func union_member_call(
@@ -36238,6 +36499,12 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     if function.c_name == "Spite_Function_get_arguments" {
         builder.add_user("spite_function_arguments_described(self);")
     }
+    if function.c_name == "Spite_Function_get_accesses" {
+        function_accesses_used = true
+        note_fact("flag function_accesses_used")
+        builder.add_prototype("static void spite_function_accesses_described(Spite_Function* self);")
+        builder.add_user("spite_function_accesses_described(self);")
+    }
     if function.c_name == "Spite_Function_waits" {
         function_waits_table_used = true
         note_fact("flag function_waits_table_used")
@@ -38807,6 +39074,12 @@ func emit_main(launcher_mangled_name: String) {
     report_singleton_circles()
     emit_singleton_teardown()
     singleton_releases.each(builder.add_main)
+}
+
+func release_new_class_objects(): Boolean {
+    if released_class_objects == class_object_names.count() {
+        return false
+    }
     var listed_name = ""
     if class_level_functions_used {
         var listed_class = find_class_by_c_name("Spite_Function")
@@ -38821,7 +39094,7 @@ func emit_main(launcher_mangled_name: String) {
         var class_type = class_type_of(attribute_class)
         attribute_listed_name = ensure_list(class_type)
     }
-    var cache_index = 0
+    var cache_index = released_class_objects
     while cache_index < class_object_names.count() {
         var class_object = class_object_names[cache_index]
         var cache = "{class_object}_cache"
@@ -38850,6 +39123,11 @@ func emit_main(launcher_mangled_name: String) {
         builder.add_main_if_kept(class_object, "Spite_Class___release({cache});")
         cache_index = cache_index + 1
     }
+    released_class_objects = cache_index
+    return true
+}
+
+func finish_main() {
     if namespace_read_used {
         var class_class = find_class_by_c_name("Spite_Class")
         var namespace_class = find_class_by_c_name("Spite_Namespace")
@@ -42591,7 +42869,7 @@ func reflected_class_member(object: Reflected, name: String, class_information: 
         "values": return reflected_enum_values(described)
         "attributes": {
             assert described_class
-            return reflected_attributes(described_class, class_information)
+            return reflected_attributes(described_class)
         }
         "functions": {
             assert described_class
@@ -42727,20 +43005,17 @@ func reflected_enum_values(described: Analysis.SpiteType): Reflected? {
     return reflected_list(enum_values)
 }
 
-func reflected_attributes(described_class: Analysis.ClassInfo, class_information: Analysis.ClassInfo): Reflected {
-    var own = described_class.c_name == class_information.c_name
+func reflected_attributes(described_class: Analysis.ClassInfo): Reflected {
     var attributes = List<Reflected>()
     var index = 0
-    while index < described_class.fields.count() {
+    while index < described_class.fields.count() and not described_class.is_value_class {
         var field = described_class.fields[index]
-        if own or not field.name.starts_with("_") {
-            var attribute = Reflected("attribute")
-            attribute.owner = described_class
-            attribute.name = field.name
-            attribute.described_type = field.type
-            attribute.position = index
-            attributes.append(attribute)
-        }
+        var attribute = Reflected("attribute")
+        attribute.owner = described_class
+        attribute.name = field.name
+        attribute.described_type = field.type
+        attribute.position = index
+        attributes.append(attribute)
         index = index + 1
     }
     return reflected_list(attributes)
@@ -42838,7 +43113,7 @@ func reflected_function_member(object: Reflected, name: String, class_informatio
             return reflected_class(returned)
         }
         "arguments": return reflected_arguments_of(owner, function)
-        "accesses": return reflected_accesses(owner, function)
+        "accesses": return reflected_accesses(owner, function, true)
         "is_resumable": {
             var resumable = class_function_waits(owner, function.name, class_information)
             return reflected_truth(resumable)
@@ -42928,7 +43203,7 @@ func reflected_attribute_member(object: Reflected, name: String): Reflected? {
     }
 }
 
-func reflected_accesses(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo): Reflected {
+func reflected_accesses(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, noting: Boolean): Reflected {
     var read_names = List<String>()
     var visited = List<String>()
     collect_function_reads(owner, function, true, read_names, visited)
@@ -42938,7 +43213,9 @@ func reflected_accesses(owner: Analysis.ClassInfo, function: Analysis.FunctionIn
         var field = owner.fields[index]
         var slot = "@{field.name}"
         var written = parameter_writes.answer(this, owner, function, slot)
-        note_fact("asks writes {function.c_name} {slot} {written}")
+        if noting {
+            note_fact("asks writes {function.c_name} {slot} {written}")
+        }
         var read = read_names.contains(field.name)
         if read or written {
             var attribute = Reflected("attribute")
@@ -42956,7 +43233,9 @@ func reflected_accesses(owner: Analysis.ClassInfo, function: Analysis.FunctionIn
         var parameter = function.parameters[index]
         var position: String = index
         var mutated = parameter_writes.answer(this, owner, function, position)
-        note_fact("asks writes {function.c_name} {position} {mutated}")
+        if noting {
+            note_fact("asks writes {function.c_name} {position} {mutated}")
+        }
         var used = read_names.contains(parameter.name)
         if used or mutated {
             var argument = Reflected("argument")
@@ -44077,7 +44356,9 @@ func bound_attribute_read(
         )
         return null
     }
-    var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(attribute.bound, attribute.name)
+    var walked_member = Syntax.Expressions.MemberExpression(attribute.bound, attribute.name)
+    walked_member.walked = true
+    var read: Syntax.Expressions.Expression = walked_member
     return read
 }
 
@@ -44096,7 +44377,9 @@ func reflected_field_read(
     assert attribute
     assert attribute.kind == "attribute"
     crash listed.object
-    var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(listed.object, attribute.name)
+    var walked_member = Syntax.Expressions.MemberExpression(listed.object, attribute.name)
+    walked_member.walked = true
+    var read: Syntax.Expressions.Expression = walked_member
     return read
 }
 

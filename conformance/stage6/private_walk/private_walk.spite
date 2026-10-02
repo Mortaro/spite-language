@@ -1,0 +1,51 @@
+var console = Console()
+
+func PrivateWalk() {
+    var gadget = Gadget()
+    gadget.adopt()
+    Gadget.attributes.each(describe)
+    gadget.attributes.each(double)
+    var charge = gadget.charge()
+    console.print("charge after doubling:", charge)
+    reset_attributes(gadget)
+    show_attributes(gadget)
+    var shown = gadget.to_debug()
+    console.print(shown)
+    var written = JsonWriter(gadget).write()
+    console.print(written)
+    var read = JsonReader<Gadget>("\{\"power\":4,\"_charge\":9}").read()
+    crash read
+    var read_charge = read.charge()
+    console.print("read", read.power, read_charge)
+    var bytes = BinaryWriter(gadget).write()
+    var back = BinaryReader<Gadget>(bytes).read()
+    crash back
+    var back_charge = back.charge()
+    var back_pet = back.has_pet()
+    console.print("back", back.power, back_charge, back_pet)
+    var cat = Cat()
+    var dog = Dog()
+    console.print("pets", cat.lives, dog.tricks)
+}
+
+func describe(attribute: Spite.Attribute) {
+    console.print(attribute.index, attribute.name, attribute.class)
+}
+
+func double(attribute: Spite.Attribute) {
+    if attribute.class == Integer {
+        attribute.value = attribute.value * 2
+    }
+}
+
+func reset_attribute(attribute: Symbol<Gadget>, gadget: Gadget) {
+    if attribute.class == Integer {
+        gadget.attributes[attribute] = 1
+    }
+}
+
+func show_attribute(attribute: Symbol<Gadget>, gadget: Gadget) {
+    if attribute.class == Integer {
+        console.print("walked", attribute.name, gadget.attributes[attribute])
+    }
+}

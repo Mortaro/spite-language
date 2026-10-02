@@ -31,6 +31,7 @@ var specialised_from = ""
 var specialisation_position = -1
 var symbol_chain_method = ""
 var symbol_chain_arguments = List<String>()
+var symbol_compared_value = ""
 
 func FunctionInfo(
     starting_name: String,

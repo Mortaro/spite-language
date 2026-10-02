@@ -36,3 +36,11 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      confirming: the same rule as `minimum` and `maximum`.
 269. **The name `wrapping_subtract`** (D359). D359 names `wrapping_sum` and `wrapping_multiply`; the subtraction
      was built as `wrapping_subtract`, after the `subtract` operator function. Recommend confirming it.
+270. **Which functions of `Spite.Class` a class may override** (status "Functions of `Spite.Class`"). `Spite.Class`
+     declares `to_string`, `to_debug`, `get_name` and the other reflection getters, so every class's own
+     `to_string()` would become a class-object override that must fold. Options: (a) only members a reopening of
+     `Spite.Class` adds are hooks; (b) everything except the per-object members and the reflection getters, which
+     become reserved names; (c) a spelling that marks a hook. Recommend (b). Blocks backlog R8 (overriding).
+271. **Member templates by class on a union list beyond `filter_`**: D330 names only `filter_<classes>()`;
+     `count_`, `any_`, `all_` and `remove_where_` by member class are not built. Recommend allowing them the same
+     way (one rule for every member template). Blocks nothing.

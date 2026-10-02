@@ -1,0 +1,7 @@
+var title = ""
+var stage: Stage = 'draft'
+
+func Post(new_title: String, new_stage: Stage) {
+    title = new_title
+    stage = new_stage
+}

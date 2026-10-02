@@ -2,6 +2,9 @@ var _name: Symbol = 'unnamed'
 var _arguments = List<Spite.Argument>()
 var _returns = Spite.Class('Nothing')
 var _waits = false
+var _accessed = ""
+var _accessed_names: List<Symbol>? = null
+var _accessed_classes: List<Spite.Class>? = null
 
 func Function(starting_name: Symbol, starting_returns: Spite.Class) {
     _name = starting_name
@@ -31,6 +34,32 @@ func waits(): Boolean {
 
 func get_is_resumable(): Boolean {
     return _waits
+}
+
+func get_accesses(): Dictionary<Spite.Access> {
+    crash _accessed_names
+    crash _accessed_classes
+    var accesses = Dictionary<Spite.Access>()
+    var entries = _accessed.split(";")
+    var index = 0
+    while index < _accessed_names.count() {
+        var name = _accessed_names[index]
+        var described = _accessed_classes[index]
+        crash described
+        var entry = entries[index]
+        crash entry
+        var read = entry.character_at(1) == "r"
+        var written = entry.character_at(2) == "w"
+        if entry.starts_with("a") {
+            var attribute = Spite.Attribute(name, described)
+            accesses[name] = Spite.Access(attribute, read, written)
+        } else {
+            var argument = Spite.Argument(name, described)
+            accesses[name] = Spite.Access(argument, read, written)
+        }
+        index = index + 1
+    }
+    return accesses
 }
 
 func name_fits(pattern: String): Boolean {
