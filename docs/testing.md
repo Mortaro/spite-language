@@ -174,7 +174,8 @@ disagree, the rules win.
   The program's entry class has no stand-in instance, so its `.functions` is empty
   ([reflection.md](reflection.md)): tests go in a class of their own.
 - **`call_function()`** calls a function found through reflection that takes no arguments, so a test takes
-  none. A value a test returns is dropped.
+  none. A value a test returns is dropped. Called on a function that takes arguments, it halts, naming the
+  function: `spite: call_function() cannot call 'greet': it takes arguments, and call_function() passes none`.
 - **Running one test, one class or a folder** is the runner's business, through `Arguments()`: the runner on this
   page and the repository's `tests/` run only the class or test named by the first argument, and crash when it
   names nothing, so a mistyped name never passes. A folder of tests is one program, named on the command line.

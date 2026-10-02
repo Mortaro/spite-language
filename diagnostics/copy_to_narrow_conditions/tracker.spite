@@ -1,0 +1,5 @@
+var drops = 0
+
+func note_a_drop() {
+    drops = drops + 1
+}

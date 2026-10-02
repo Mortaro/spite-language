@@ -86,7 +86,15 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      a stateless singleton at no cost. `BinaryFormat` keeps its plural walk until this is answered; now recommend
      (b), the only form that keeps the binary format at zero allocations without shared state. Blocks backlog J1's
      binary half and R7.
-281. **How a serializer is given D320's rename map.** D320 writes `JsonWriter<Monster>({Monster.attributes['health']:
+281. **When a waiting loop counts as a hang** (backlog B6 and B15; failure.md's open list). A `while true` that can
+     never leave, and a `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()`,
+     hang without a word. Options: (a) a compile error wherever no exit and no wait is reachable in the loop, as
+     D336 does inside a `Parallel`; (b) a run-time halt once a polled `Concurrent` cannot make progress (nothing
+     else runnable); (c) both. Recommend (c): the error where provable, the halt as backstop.
+282. **A write to a copy that dies unread** (backlog B12, proposed by Claude): `values[row].copy()` answered, the
+     caller sets an attribute on it, and the copy dies. Options: (a) a compile error when an object only this
+     function holds is written and never read again; (b) leave it. Recommend (a).
+283. **How a serializer is given D320's rename map.** D320 writes `JsonWriter<Monster>({Monster.attributes['health']:
      "hp"})`, but a writer takes its value in its constructor (`JsonWriter(order)`, D208), and Spite has neither
      overloading (D59) nor default arguments. Options: (a) a second constructor argument on all four,
      `JsonWriter(order, keys)` and `JsonReader<Order>(text, keys)`, with `{}` when there is none (every call site

@@ -161,15 +161,14 @@ even use things that would not compile for this build. That covers:
   it: so `$list_type.element_type == List and $list_type.element_type.element_type == Float` folds for a list of
   text, whose items have no `element_type` to ask about.
 
-An `assert` or `crash` folds too, but only when its condition asks a codegen question: a `$` value or a test of a
-codegen type, `attribute.class`, `functions[...]`, `.is_resumable`, `.is_fixed_size`, `any_attribute_fits_vector`,
-`.arguments.count()` or `.is_mutated`, and `not`, `and` and `or` over them. A check that holds writes
+An `assert` or `crash` folds too, when its condition asks a question answered while compiling: a `$` value or a
+test of a codegen type, `attribute.class`, `functions[...]`, `.is_resumable`, `.is_fixed_size`,
+`any_attribute_fits_vector`, `.arguments.count()` or `.is_mutated`, a `Build` field, or a class test the value's
+type already answers (`item == $wanted_type`), and `not`, `and` and `or` over them. A check that holds writes
 nothing, and one that fails writes its failure (the default returned, or the crash report) with no test, the rest
-of its block not compiled ([metaprogramming.md](metaprogramming.md#codegen-values-)). A `Build` field,
-or a class test on a value (`item == $wanted_type`), in an `assert` or `crash` is not folded: it is tested at run
-time, where the C compiler usually removes the test, since a `Build` field is a constant of the program. So a
-`crash` on a `Build` field that is false halts when it runs, rather than being the compile error a folded `crash`
-is.
+of its block not compiled ([metaprogramming.md](metaprogramming.md#codegen-values-)). So a `crash` on a `Build`
+field that is false, or on a class test that is false for one instantiation, in a function the program reaches, is
+the compile error a folded `crash` is (`diagnostics/folded_build_crash`), rather than a halt when it runs.
 
 A function of a generic class is then compiled for one instantiation only when code that survived folding names
 it, so a helper reached only from a removed branch is never checked against a type it cannot work with.
@@ -704,7 +703,10 @@ functions, no event loop and no helper threads; its waits are the plain system c
   reached through a function value, a union's dispatch or a constructor, and dropping a `Concurrent` there. They still
   wait correctly, by running the event loop where they are, as waits outside a `Concurrent` do: the other
   `Concurrent`s keep going, and this one holds its place until its wait is over. Two such waits that each wait for the
-  other would never end, and nothing reports it. A `Concurrent` whose own function cannot be a state machine runs to
+  other could never end, since the one further down the stack resumes only once the one above it returns, so joining
+  a `Concurrent` whose state machine is running further down the same stack halts at the join
+  (`waits_for_its_own_caller=true`, `conformance/stage6/concurrent_wait_cycle`), even while other `Concurrent`s keep
+  the program busy. A `Concurrent` whose own function cannot be a state machine runs to
   its end when it is started: a function value a standard-library class made and stored before it reached
   `Concurrent`, a shape's function, a singleton function that takes [the
   lock](#singletons-a-parallel-reaches-take-a-lock), or any function of the program in a `--hot-reload` build, which
@@ -1244,7 +1246,9 @@ which on a list of objects spread through memory are most of the loop's cost. In
 lies in the list, uncounted, whenever nothing that runs while it is held can let go of anything. The compiler
 walks the rest of that pass (the member function it calls, or the function passed in, and everything those call)
 and lets it borrow only when none of them assigns an attribute that holds an object (a number, `Boolean` or text
-attribute is fine), removes from or replaces into a list or dictionary, or calls through a function value. A
+attribute is fine), removes from or replaces into a list or dictionary, or calls through a function value, and when
+no `drop()` of the program's own classes does any of that either, since an object the pass lets go of runs its
+`drop()` while the element is held (`conformance/stage6/template_lend_drop`). A
 member read from a borrowed element (`map_owner`) is borrowed the same way. Anything that keeps the element
 (`collected.append(item)`, `return item`) still counts it.
 

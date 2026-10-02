@@ -73,7 +73,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `Spite.Attribute` (hashing an attribute object). The REPL's `reload {...}` text parsing (D333) moves to the real
   map once the prompt evaluates map literals (P1). Errors for a missing, private or singleton attribute.
   Files: `library/dictionary.spite`, `library/spite/attribute.spite`, `json_writer.spite`, `json_reader.spite`,
-  `binary_format.spite`. **M.** Waits on `mortaros_missing_decisions.md` item 281 (how the map is passed).
+  `binary_format.spite`. **M.** Waits on `mortaros_missing_decisions.md` item 283 (how the map is passed).
 - **J3 Reading JSON whose shape is not known.** A program that inspects an unknown file (a tool, an importer) has
   no value to read it into: `JsonReader<T>` needs a class. Add an untyped value, a union of object, list, text,
   number, boolean and null (names proposed by Claude, unconfirmed), read by `JsonReader` and walked with `switch`.
@@ -222,7 +222,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `prelude.spite` (`_flush`), the waiting library classes, `wait_facts.spite`. **M.** Depends on K2's list of waits.
 - **K2 Waits that run the loop in place never hang each other** (D369 item 179; status "Hidden async/await").
   Close every gap (right side of `and`/`or`/`==` on a nullable, through a function value, a union dispatch or a
-  constructor, a `Concurrent` dropped inside a `Concurrent`), even at a cost in speed. Files: `state_machine.spite`,
+  constructor, a `Concurrent` dropped inside a `Concurrent`), even at a cost in speed; until then a join that
+  closes such a cycle halts (B8, `conformance/stage6/concurrent_wait_cycle`). Files: `state_machine.spite`,
   `wait_facts.spite`. **L.** No dependencies.
 - **K3 A wait inside an expression keeps the written order** (D369 item 178). Temporaries hold what came before,
   dropped where nothing can change. Files: `state_machine.spite`. **M.** Do with K2.
@@ -307,31 +308,22 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **X1 The rest of the crash report** (status "Three outcomes"). The call chain, each failed `assert`'s default, an
   assert's values in the ring, the column in `.crashes` (written `0`). Files: generator.spite crash and assert
   emission, `crash_part.spite`, `native_faults.spite`. **M.** No dependencies.
-- **X2 A corrupted heap reported the same on every system** (D379). Linux and macOS take `SIGABRT`: the C
-  library's heap aborts become `heap-corruption` with the Windows `spite.fault` line and frames, any other
-  `abort()` becomes `abort`; one expected output for `native_fault_heap` on every system. Then, per D361, Spite's
-  own allocator detects corruption itself. Files: `native_faults.spite`, the Linux and macOS fault handlers,
-  `conformance` for `native_fault_heap`. **S** (the signal), **L** (the Spite allocator). Lands after cloud/linux.
+- **X2 Spite's own allocator detects a corrupted heap** (D379's direction, per D361); the report through `SIGABRT`
+  is built. Files: the allocator. **L**.
 
 ### Bugs under D244 (failure.md's open list; each small and independent unless noted)
 
-- **B1** A write question answers a silent `false` for supplied functions off the fixed list
-  (`parameter_writes.spite`, `parameter_write_study.spite`). **S.**
-- **B2** Copy-to-narrow misses `if not copy { return }`, `while copy`, `assert copy and ...`. **S.**
-- **B3** The guard lint sees only literal defaults; a lent-element function is not checked. **S.**
+- **B3** A lent-element function is not checked by the guard lint (an empty collection made on the spot is now a
+  default, `diagnostics/empty_collection_guard`). **S.**
 - **B4** A frame buffer's uses are matched by name, not by `TypedMemory` receiver (`placement.spite`). **S.**
-- **B5** A `crash` or `assert` on a `Build` field or a class test is not folded (D250). **S.**
 - **B6** A `while true` that can never leave is not reported (with L7). **M.**
-- **B7** Two threads writing one number attribute of a shared instance is not refused (D35, D179). **M.**
-- **B8** Two `Concurrent`s waiting on each other never end (with K2). **M.**
-- **B9** Two missing texts compare unequal (`null == null` on `String?` is `false`). **S.**
-- **B10** The list template lend proof ignores `drop()` (D269's lend checks it). **S.**
+- **B7** Two threads writing one number attribute of a shared instance is refused only for a handed-over local
+  (D35, D179); the rest needs the handle's lifetime. **M.**
 - **B11** Reading `.functions` anywhere turns on a whole-program flag; set it only from kept code. **S.**
 - **B12** A write to a copy that dies unread (proposed, unconfirmed rule: a compile error). **M.**
-- **B13** `Vector.remove_at`, `Items.remove_at` and `Items.remove_swapping` do nothing out of range (D312). **S.**
-- **B14** A `__fastfail` or a C library heap abort ends the program without Spite's report. **M.**
+- **B14** A Windows `__fastfail` ends the program without Spite's report (the Linux and macOS heap abort is D379,
+  built). **M.**
 - **B15** A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` hangs. **S.**
-- **B16** `call_function()` on a function with parameters silently does nothing (testing.md). **S.**
 - **B17** Reference cycles leak silently without `--debug-memory` (largely answered by E3). Depends on E3.
 - **B18** A compile can write back old text over an edit made while it runs: every compile formats the program's
   files (D385), and one that read a file before someone else's edit wrote its formatted copy over that edit. Write a

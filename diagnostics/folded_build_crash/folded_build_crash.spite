@@ -1,0 +1,15 @@
+var console = Console()
+var build = Build()
+
+func FoldedBuildCrash() {
+    console.print("before the crash")
+    serve()
+    var health = Health()
+    var label_check = Check<Label>()
+    label_check.holds(health)
+}
+
+func serve() {
+    crash build.serve
+    console.print("serving")
+}

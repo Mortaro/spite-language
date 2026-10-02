@@ -19,7 +19,6 @@ func FunctionValues() {
     var describe = robot.functions[3]
     crash describe.arguments.count() == 2
     console.print(describe.arguments[0].name, describe.arguments[0].class, describe.arguments[1].class)
-    describe.call_function()
     var log_count = robot.log.count()
     console.print(log_count)
     robot.name = "renamed"

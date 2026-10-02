@@ -1,0 +1,14 @@
+var console = Console()
+
+func hello() {
+    console.print("hello")
+}
+
+func answer(): String {
+    console.print("answering")
+    return "an answer nobody reads"
+}
+
+func greet(name: String) {
+    console.print("greet", name)
+}

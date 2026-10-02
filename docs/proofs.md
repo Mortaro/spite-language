@@ -246,11 +246,14 @@ A short guide by task. Find what you are writing; the entries below say the rest
 ### A copy made to narrow is an error
 
 - **Proves.** A local only copies a `T?` name or path so that it can be narrowed.
-- **Rule.** A `var` whose value is a bare name or path of a `T?` type, narrowed later by `assert`, `crash`, `if` or
-  `switch` on its bare name, never assigned again, and whose source is not assigned in the function either.
+- **Rule.** A `var` whose value is a bare name or path of a `T?` type, narrowed later by `assert`, `crash`, `if`,
+  `while` or `switch` on its bare name, on `not` of it, or on it as a side of an `and` (`if not watcher { ... }`,
+  `assert watcher and ready`), never assigned again, and whose source is not assigned in the function either.
 - **Buys.** Refuses the copy: `'watcher' only copies 'tracker' so it can be narrowed: narrow 'tracker' itself`.
-- **Falls back.** A snapshot taken before its source changes is not a copy for narrowing, and is allowed.
-- **See.** [failure.md: Narrowing a path](failure.md#narrowing-a-path); `diagnostics/copy_to_narrow`.
+- **Falls back.** A snapshot taken before its source changes is not a copy for narrowing, and is allowed, and so is
+  a `var` with a written type in a generic class, which converts for some instance.
+- **See.** [failure.md: Narrowing a path](failure.md#narrowing-a-path); `diagnostics/copy_to_narrow`,
+  `diagnostics/copy_to_narrow_conditions`.
 
 ### A class test narrows its block
 
@@ -293,7 +296,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   error](failure.md#a-default-that-looks-like-an-answer-is-an-error),
   [An `if` that only returns the default is an `assert`](failure.md#an-if-that-only-returns-the-default-is-an-assert),
   [The last `if` of a function](failure.md#the-last-if-of-a-function); `diagnostics/default_answer`,
-  `diagnostics/default_guard`, `diagnostics/returning_guard`, `diagnostics/terminal_if`.
+  `diagnostics/default_guard`, `diagnostics/returning_guard`, `diagnostics/empty_collection_guard`,
+  `diagnostics/terminal_if`.
 
 ### A switch covers every case
 
@@ -524,7 +528,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   argument's `.index` and what a callee returns.
 - **Buys.** An engine refuses a system whose writes a snapshot would lose, with `crash not ...`.
 - **Falls back.** Where it cannot decide (a function value, dispatch through a union or `type`, a template, an
-  unknown class), the answer is `true`.
+  unknown class, a function whose body the compiler supplies and does not know to only read), the answer is
+  `true`.
 - **See.** [metaprogramming.md: Asking whether a function writes a
   parameter](metaprogramming.md#asking-a-question-while-compiling); `conformance/stage6/parameter_writes`,
   `diagnostics/snapshot_argument_writes`.
@@ -780,12 +785,14 @@ have moved.
 - **Proves.** Nothing in the rest of a template's pass over one element can let that element go.
 - **Rule.** In `List` templates, the reference kind of `Items` and fused chains, an element is read uncounted when
   the rest of its pass only assigns locals and makes calls the compiler can name, none of which may let go of an
-  object or assign an attribute through an unknown class.
+  object or assign an attribute through an unknown class, and when no `drop()` of the program's own classes may let
+  go of an object either.
 - **Buys.** One retain and one release per element (`benchmarks/fused_chain` 332 to 185 ms).
-- **Falls back.** The counted read, in `--hot-reload` builds and for a nullable element.
+- **Falls back.** The counted read, in `--hot-reload` builds, for a nullable element, and in a program one of whose
+  classes has a `drop()` that may let go of an object.
 - **See.** [optimizations.md: A list's templates read its elements without counting
   them](optimizations.md#a-lists-templates-read-its-elements-without-counting-them);
-  `conformance/stage6/fused_chain_allocations`.
+  `conformance/stage6/fused_chain_allocations`, `conformance/stage6/template_lend_drop`.
 
 ## Threads and locks
 

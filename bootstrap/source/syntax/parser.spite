@@ -1035,9 +1035,7 @@ func parse_generic_argument(): Syntax.Types.GenericArgument {
 func try_parse_generic_argument_list_quiet(): List<Syntax.Types.GenericArgument> {
     var saved_position = position
     quiet_generic_arguments_matched = false
-    if not check('less') {
-        return List<Syntax.Types.GenericArgument>()
-    }
+    assert check('less')
     advance()
     var arguments = List<Syntax.Types.GenericArgument>()
     var ok = true

@@ -1,0 +1,12 @@
+var console = Console()
+var program = Program()
+
+func tick(): Integer {
+    var ticks = 0
+    while ticks < 20 {
+        program.sleep(10)
+        ticks = ticks + 1
+    }
+    console.print("the ticker ran to its end while the two workers waited for each other")
+    return ticks
+}

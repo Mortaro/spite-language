@@ -359,9 +359,7 @@ func maths_members_of(stem: String, type_name: String): List<String> {
     if stem == "float" or stem == "double" {
         return maths.decimal_members(type_name)
     }
-    if stem == "boolean" {
-        return List<String>()
-    }
+    assert stem != "boolean"
     return maths.whole_members(type_name)
 }
 
@@ -686,7 +684,7 @@ func attribute_members(): List<String> {
 func function_members(): List<String> {
     return [
         "func call_function()"
-        "if (self->spite_call != 0) self->spite_call(self->spite_owner);"
+        "if (self->spite_call == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: call_function() cannot call '%s': it takes arguments, and call_function() passes none\\n\", spite_string_bytes(&self->_name_));\nexit(1);\n}\nself->spite_call(self->spite_owner);"
         "func call_with_text(arguments: List<String>): Spite.Attribute?"
         "Spite_Attribute* result = 0;\nif (self->spite_text_call != 0) result = ((Spite_Attribute* (*)(void*, List_String*))self->spite_text_call)(self->spite_owner, arguments_);\nList_String___release(arguments_);\nreturn result;"
     ]

@@ -114,8 +114,6 @@ for a design):
   dropped without a word; `exit` should let the program reach its next wait first.
 - A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` never ends
   (concurrency.md, "Choosing where Concurrents resume").
-- A `Vector`'s and an `Items`' `remove_at` (and `Items.remove_swapping`) do nothing out of range, where a `List`'s now
-  halt (collections.md).
 - A generic singleton that holds state is not made safe for threads (classes_and_files.md, "Safe for threads
   without a keyword"): only its first fetch is locked. `Spite.DebugInstance<T>` keeps the objects it is showing and
   the parts of the text in attributes, so three `Parallel`s calling `to_debug()` on a class at once double-free
@@ -123,20 +121,13 @@ for a design):
   `each`). Locking it per call would deadlock on a class that holds itself, since the walk calls back into the same
   singleton; it needs a reentrant lock, or the walk's state kept per call. The same is why `BinaryFormat<T>` keeps
   its stateless plural walk (json.md below).
-- A Windows `__fastfail` (`0xC0000409`), or a corrupted heap on Linux and macOS (the C library's own message and
-  `SIGABRT`), ends the program without Spite's report or frames ("What a native fault reports").
+- A Windows `__fastfail` (`0xC0000409`) ends the program without Spite's report or frames ("What a native fault
+  reports"): the system ends the process without asking it, so only something outside the process could report it.
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers
   `values[row].copy()`, the caller sets `layout.width` on it, and the copy dies. Proposed by Claude, unconfirmed: a
   compile error when an object only this function holds (escape analysis already proves a function's result fresh)
   has its attributes written and then dies unread, unpassed, unreturned and unkept; checked while compiling, it costs
   nothing at run time.
-- Two missing texts compare unequal. With `texts = Dictionary<String>()` empty, `texts["a"] == texts["b"]` is `false`
-  and `!=` is `true`, though both are `null`, so code that compares two `String?` values to see whether something
-  changed answers "changed" for two absent values (found writing the reload's checks, which compare through
-  `shown_or_none` instead).
-- The proof that lets a `List` template lend its items without counting them does not consider the `drop()`
-  functions that run when an object is let go, so a `drop()` that removes from the list being walked could free a lent
-  item while it is in use. D269's lend of a list element checks `drop()`; the template proof should do the same.
 - A reload that moves objects to new attributes (repl.md, "Changing a class's attributes") moves them while the
   program's own threads may run: the swap pauses the scheduler's tasks, not a thread the program started itself, so a
   thread reading an object of the class while it moves could read its old attributes. The move should wait for every
@@ -150,21 +141,10 @@ for a design):
 
 Also open, each a bug under D244, found cataloguing the compiler's proofs (proofs.md):
 
-- **A write question answers a silent `false`.** `function_writes_parameter` counts a function whose body the compiler
-  supplies as writing only when its name is on a fixed list or starts with `write_`; any other supplied function
-  answers "does not write", where the rule is `true` for whatever it cannot decide (metaprogramming.md, "Asking whether
-  a function writes a parameter").
-- **A copy made only to narrow slips through** (D63). The check sees only a condition that is exactly the copy's bare
-  name, so a copy narrowed by `if not copy { return }`, `while copy` or `assert copy and ...` compiles.
-- **The guard lint sees only literal defaults** (D106). An `if` whose only statement returns `null`, `false`, `0`,
-  `0.0`, `""` or nothing is caught; `if ... { return List<T>() }` in a function answering a `List` is not. And a
-  function that lends a list element (D269) is not checked for a guard `assert` at all.
+- **A function that lends a list element (D269) is not checked for a guard `assert`** (D106), as other functions are.
 - **A frame buffer's uses are matched by name.** Placing an allocation in the frame accepts `read_value`,
   `write_value`, `release_value` and `swap_values` on any receiver, not only `TypedMemory`'s, so a program's own
   `write_value` that keeps the address would pass (memory.md, "Placement: the compiler decides where memory lives").
-- **A `crash` on a `Build` field is not folded.** Only codegen questions fold in an `assert` or `crash`, so a `crash`
-  on a `Build` field that is false halts at run time instead of being D250's compile error (optimizations.md,
-  "Deciding conditions at compile time").
 - **`absolute()` of the smallest signed value** answers that value itself (`Integer.smallest.absolute()` is
   negative): it is a supplied macro with no line to name, so it is not yet checked like `-value` is (D359).
 - **A change of signedness at the same width or wider** (`var bits: UnsignedInteger = count` with a negative
@@ -172,10 +152,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   Whether it should halt, with a named function for reading the bits, waits for Mortaro (D359; proposed by Claude).
 - **A `while true` that can never leave** ends its function's paths for the missing-`return` check, and nothing
   reports it outside a locked singleton function: a hang.
-- **Two threads writing one number attribute of an instance they share** is not refused: the reach rules (D35, D179)
-  allow plain-value attributes, and the result is whichever write lands last.
-- **Two `Concurrent`s that each wait for the other** never end, and nothing reports it (optimizations.md, "Hidden
-  async/await as compile-time state machines").
+- **Two threads writing one number attribute of an instance they share** is refused only when the instance is a
+  local handed to the `Parallel` (concurrency.md, "A task may keep what was handed to it"); `Parallel(own_function)`,
+  a parameter, an attribute, or a local used before the `Parallel` still race, the result whichever write lands last.
 
 ### Nothing fails silently: the rule
 
@@ -655,7 +634,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   singleton left out by all four and by the schema hash, and the error at a leftover `json_key_<attribute>()`.
 - Not built (D320, backlog J2): the rename map keyed by attribute objects. Until it is, a program has no way to
   read or write a key that is not an attribute's name. How a serializer is given the map is open
-  (`mortaros_missing_decisions.md` item 281).
+  (`mortaros_missing_decisions.md` item 283).
 - Not built (D384): `BinaryFormat<T>` (`library/binary_format.spite`) still walks a class's attributes and an
   enum's values with `Symbol<$value_type>` plurals, which pass the value and the cursor as arguments. An `each` walk
   hands only the element, so the cursor would have to live in the walker, and `BinaryFormat` is a singleton shared
@@ -822,9 +801,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - `check.sh` stops a ticking loop, reads its locals and lets it go (D242 is the decision).
 
 ## [testing.md](../docs/testing.md)
-
-### The runner is thirty lines of Spite
-- `call_function()` can call only a function that takes no arguments. For a function with parameters it silently does nothing. The page now states "takes no arguments, so a test takes none" without saying it is a limit.
 
 ### How testing works
 - Nothing else is unbuilt. The decisions behind it (D46 testing is a package that crashes, D49 `Spite.Class.instances`) were removed from the page as bookkeeping.

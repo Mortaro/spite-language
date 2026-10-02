@@ -1,0 +1,10 @@
+singleton
+
+var handles = List<Concurrent<Integer>>()
+
+func value_of(index: Integer): Integer {
+    crash handles[index]
+    var handle = handles[index]
+    var value: Integer = handle
+    return value
+}

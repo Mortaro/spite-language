@@ -351,6 +351,7 @@ var lent_result_singletons = Dictionary<String>()
 var lent_result_labels = Dictionary<String>()
 var parallel_handover = ""
 var parallel_keeps = List<String>()
+var parallel_writes = List<String>()
 var argument_callee = ""
 var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
@@ -11047,6 +11048,28 @@ func generate_nullable_equality(
     if binary.operator == 'not_equal' {
         when_null = "true"
     }
+    conditional_depth = conditional_depth + 1
+    var right = generate_expression(right_ast, scope, class_information)
+    conditional_depth = conditional_depth - 1
+    var right_type = right.type
+    var right_nullable = type_shape.as_nullable(right_type)
+    if right_nullable {
+        var right_inner = right_nullable.inner
+        var right_name = next_temporary()
+        var right_present = present_code(right_name, right_inner)
+        if not type_is_reference(right_inner) {
+            right_present = "{right_name}.has_value"
+        }
+        var right_release = ""
+        if owns(right, right_ast) and type_needs_drop(right_inner) {
+            right_release = " {release_call(right_inner, right_name)};"
+        }
+        var absent = "!{right_present}"
+        if binary.operator == 'not_equal' {
+            absent = right_present
+        }
+        when_null = "(\{ {c_type_name(right_type)} {right_name} = {right.code}; bool spite_absent = {absent};{right_release} spite_absent; })"
+    }
     var release = ""
     if owns(left, left_ast) and type_needs_drop(inner) {
         release = " {release_call(inner, compared_name)};"
@@ -13026,9 +13049,8 @@ func function_value(
         add_lazy_arguments(maker, argument_lines, lines)
         lines.append("described->spite_owner = {information.c_name}___retain(owner);")
         lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
-        var function_return_type = function.return_type
-        if function.parameters.count() == 0 and type_shape.is_void(function_return_type) {
-            lines.append("described->spite_call = (void (*)(void*)){function.c_name};")
+        if function.parameters.count() == 0 {
+            lines.append("described->spite_call = (void (*)(void*)){ensure_dropping_call(information, function)};")
         }
         lines.append("described->spite_typed_call = (void*){function.c_name};")
         lines.append("return described;")
@@ -16094,6 +16116,9 @@ func check_parallel_reach(
     visited.append(function.name)
     var locals = function.parameters.map_names()
     collect_declared_names(function.body, locals)
+    if template_name.starts_with("Parallel(") {
+        note_parallel_writes(owner, function.body, locals)
+    }
     var mentioned = List<String>()
     collect_block_names(function.body, mentioned)
     var index = 0
@@ -16101,6 +16126,27 @@ func check_parallel_reach(
         var name = mentioned[index]
         if not locals.contains(name) {
             check_parallel_name(owner, function, name, template_name, visited)
+        }
+        index = index + 1
+    }
+}
+
+func note_parallel_writes(
+    owner: Analysis.ClassInfo,
+    statements: List<Syntax.Statements.Statement>,
+    locals: List<String>,
+) {
+    var roots = List<String>()
+    collect_assigned_roots(statements, roots)
+    var index = 0
+    while index < roots.count() {
+        var root = roots[index]
+        var field = owner.find_field(root)
+        if field and not locals.contains(root) and not parallel_writes.contains(root) {
+            var field_type = field.type
+            if not reaches_shared(field_type) {
+                parallel_writes.append(root)
+            }
         }
         index = index + 1
     }
@@ -16191,6 +16237,7 @@ func check_parallel_work(
         assert own
         var visited = List<String>()
         check_parallel_reach(class_information, own, "Parallel({work_text})", visited)
+        parallel_writes = List<String>()
         remember_parallel_site(class_information, own, work_text)
         return
     }
@@ -16211,12 +16258,15 @@ func check_parallel_work(
     var task = "Parallel({work_text})"
     parallel_handover = handed_over_name(member.object, owner)
     parallel_keeps = List<String>()
+    parallel_writes = List<String>()
     check_parallel_reach(owner, function, task, visited)
-    if not parallel_keeps.is_empty() {
+    var writes_shared = not parallel_writes.is_empty() and not owner.is_singleton
+    if not parallel_keeps.is_empty() or writes_shared and not parallel_handover.is_empty() {
         report_use_after_handover(parallel_handover, task, owner)
     }
     parallel_handover = ""
     parallel_keeps = List<String>()
+    parallel_writes = List<String>()
     remember_parallel_site(owner, function, work_text)
 }
 
@@ -16330,6 +16380,11 @@ func report_use_after_handover(name: String, task: String, owner: Analysis.Class
     var statements = borrow_statements
     var index = borrow_index + 1
     var kept = parallel_keeps.join("', '")
+    var keeping = "keeps"
+    if parallel_keeps.is_empty() {
+        kept = parallel_writes.join("', '")
+        keeping = "writes"
+    }
     while index < statements.count() {
         var statement = statements[index]
         var mentioned = List<String>()
@@ -16338,7 +16393,7 @@ func report_use_after_handover(name: String, task: String, owner: Analysis.Class
             var saved_line = current_line
             current_line = statement_line(statement)
             report(
-                "'{name}' was handed to '{task}', which keeps its '{kept}' on another thread, so it is not used after that line: make another '{owner.simple_name}' for what follows, or read the task's result",
+                "'{name}' was handed to '{task}', which {keeping} its '{kept}' on another thread, so it is not used after that line: make another '{owner.simple_name}' for what follows, or read the task's result",
             )
             current_line = saved_line
             return
@@ -18461,10 +18516,9 @@ func functions_list_text(information: Analysis.ClassInfo, list_name: String, arg
             }
             lines.append("described->spite_owner = {retained_self};")
             lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
-            var function_return_type = function.return_type
             var callable = not is_inline_supplied(function)
-            if callable and function.parameters.count() == 0 and type_shape.is_void(function_return_type) {
-                lines.append("described->spite_call = (void (*)(void*)){function.c_name};")
+            if callable and function.parameters.count() == 0 {
+                lines.append("described->spite_call = (void (*)(void*)){ensure_dropping_call(information, function)};")
             }
             if callable {
                 lines.append("described->spite_typed_call = (void*){function.c_name};")
@@ -18946,6 +19000,32 @@ func ensure_slot_store_function(element: Analysis.SpiteType): String {
     lines.append("return true;")
     lines.append("}")
     builder.add_prototype("bool {function_c_name}(void* owner, void* slot, void* object);")
+    var joined_lines = lines.join("\n")
+    builder.add_support(joined_lines)
+    return function_c_name
+}
+
+func ensure_dropping_call(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    var return_spite_type = function.return_type
+    if type_shape.is_void(return_spite_type) {
+        return function.c_name
+    }
+    var function_c_name = "{function.c_name}___dropping_call"
+    if reflect_function_names.contains(function_c_name) {
+        return function_c_name
+    }
+    reflect_function_names.append(function_c_name)
+    var lines = List<String>()
+    lines.append("void {function_c_name}(void* owner) \{")
+    var call = "{function.c_name}(({information.c_name}*)owner)"
+    if type_needs_drop(return_spite_type) {
+        lines.append("{c_type_name(return_spite_type)} returned = {call};")
+        lines.append("{release_call(return_spite_type, "returned")};")
+    } else {
+        lines.append("(void){call};")
+    }
+    lines.append("}")
+    builder.add_prototype("void {function_c_name}(void* owner);")
     var joined_lines = lines.join("\n")
     builder.add_support(joined_lines)
     return function_c_name
@@ -23264,7 +23344,9 @@ func generate_variable_declaration(
     borrow_site = "local:{declaration.name}"
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
     borrow_site = ""
-    report_copy_for_narrowing(declaration.name, declaration.value, declared_type, scope, class_information)
+    if not declaration.type_reference or not current_class_is_generic() {
+        report_copy_for_narrowing(declaration.name, declaration.value, declared_type, scope, class_information)
+    }
     if scope.entry_names.contains(declaration.name) {
         value_code = rebind(declaration.name, value_code, declared_type, scope)
     }
@@ -24229,6 +24311,26 @@ func drops_reach_list(owner: Analysis.ClassInfo, field_name: String): Boolean {
                 return true
             }
             if drop_reaches_list(key, owner, field_name) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func drops_may_release(): Boolean {
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        var dropped_while_running = not information.is_singleton and not is_library_class(information)
+        if dropped_while_running and information.find_function("drop") {
+            var key = call_effects.effects_key(information.qualified_dotted, "drop")
+            if key.is_empty() {
+                return true
+            }
+            var effects = call_effects.effects_of_key(key)
+            if effects.contains("release") or effects.contains("field:*") {
                 return true
             }
         }
@@ -26874,7 +26976,7 @@ func borrowed_element(
         return ""
     }
     var element_type = class_information.codegen_types[0]
-    if not type_needs_drop(element_type) or type_shape.as_nullable(element_type) {
+    if not type_needs_drop(element_type) or type_shape.as_nullable(element_type) or drops_may_release() {
         return ""
     }
     var watch = ReleaseWatch(declaration.name)
@@ -26910,7 +27012,7 @@ func borrowed_field(
         return ""
     }
     var field_type = field.type
-    if not type_needs_drop(field_type) or type_shape.as_nullable(field_type) {
+    if not type_needs_drop(field_type) or type_shape.as_nullable(field_type) or drops_may_release() {
         return ""
     }
     var watch = ReleaseWatch(declaration.name)
@@ -27720,6 +27822,7 @@ func collect_statement_facts(statement: Syntax.Statements.Statement) {
     }
     var loop = shape.as_while_statement(statement)
     if loop {
+        note_narrowed(loop.condition)
         collect_body_facts(loop.body)
     }
     var choice = shape.as_switch_statement(statement)
@@ -27734,6 +27837,19 @@ func collect_statement_facts(statement: Syntax.Statements.Statement) {
 
 func note_narrowed(condition: Syntax.Expressions.Expression?) {
     assert condition
+    var negated = shape.as_unary(condition)
+    if negated {
+        assert negated.operator == 'logical_not'
+        note_narrowed(negated.operand)
+        return
+    }
+    var joined = shape.as_binary(condition)
+    if joined {
+        assert joined.operator == 'logical_and'
+        note_narrowed(joined.left)
+        note_narrowed(joined.right)
+        return
+    }
     var identifier = shape.as_identifier(condition)
     assert identifier
     body_narrowed_names.append(identifier.name)
@@ -30204,15 +30320,18 @@ func returned_default(if_statement: Syntax.Statements.IfStatement, return_type: 
     assert not if_statement.has_else_branch and if_statement.then_branch.count() == 1
     var only = shape.as_return_statement(if_statement.then_branch[0])
     assert only
-    var returned = only.value
-    if not returned {
+    if not only.value {
         return ""
     }
+    var returned = only.value
     if type_shape.as_nullable(return_type) {
         if shape.is_null_literal(returned) {
             return "null"
         }
         return null
+    }
+    if answers_nothing(return_type) {
+        return empty_collection_text(returned)
     }
     if shape.is_false_literal(returned) {
         return "false"
@@ -30234,6 +30353,20 @@ func returned_default(if_statement: Syntax.Statements.IfStatement, return_type: 
     var fraction = shape.as_float_literal(returned)
     assert fraction
     assert fraction.value == 0.0
+    return Syntax.SourcePrinter().source_expression(returned)
+}
+
+func empty_collection_text(returned: Syntax.Expressions.Expression): String? {
+    var listed = shape.as_list_literal(returned)
+    if listed {
+        assert listed.elements.is_empty()
+        return "[]"
+    }
+    var made = shape.as_generic_call(returned)
+    assert made and made.arguments.is_empty()
+    crash made.callee
+    var made_name = operand_text(made.callee)
+    assert made_name == "List" or made_name == "Dictionary" or made_name == "Vector" or made_name == "Items"
     return Syntax.SourcePrinter().source_expression(returned)
 }
 
@@ -35682,11 +35815,15 @@ func asks_while_compiling(expression: Syntax.Expressions.Expression): Boolean {
             if argument_count_call(expression.left) or argument_count_call(expression.right) {
                 return true
             }
-            if shape.as_generic_identifier(expression.left) {
+            if shape.as_generic_identifier(expression.left) or shape.as_generic_identifier(expression.right) {
+                return true
+            }
+            if reads_build_field(expression.left) or reads_build_field(expression.right) {
                 return true
             }
             return is_symbol_class_read(expression.left)
         }
+        Syntax.Expressions.MemberExpression: return reads_build_field(expression)
         Syntax.Expressions.CallExpression: {
             crash expression.callee
             var member = shape.as_member(expression.callee)
@@ -35698,6 +35835,14 @@ func asks_while_compiling(expression: Syntax.Expressions.Expression): Boolean {
         }
         _: return false
     }
+}
+
+func reads_build_field(expression: Syntax.Expressions.Expression): Boolean {
+    var member = shape.as_member(expression)
+    if not member {
+        return false
+    }
+    return is_hardcoded_setting_name(member.name)
 }
 
 func is_symbol_class_read(expression: Syntax.Expressions.Expression): Boolean {
@@ -38381,9 +38526,7 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
     while index < information.fields.count() {
         var field = information.fields[index]
         var field_type = field.type
-        if shares_state(field_type) {
-            return List<String>()
-        }
+        assert not shares_state(field_type)
         index = index + 1
     }
     var targets = List<String>()
@@ -38401,9 +38544,7 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
         var field = information.find_field(target)
         if field and not mutable.contains(target) {
             var field_type = field.type
-            if not is_atomic_capable(field_type) {
-                return List<String>()
-            }
+            assert is_atomic_capable(field_type)
             mutable.append(target)
         }
         index = index + 1
@@ -38413,9 +38554,7 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
         var function = information.declared_functions[index]
         if not function.is_constructor and function.name != "drop" {
             var visiting = List<String>()
-            if function_state_uses(information, function, mutable, visiting) > 1 {
-                return List<String>()
-            }
+            assert function_state_uses(information, function, mutable, visiting) <= 1
         }
         index = index + 1
     }

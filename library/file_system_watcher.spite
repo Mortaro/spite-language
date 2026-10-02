@@ -17,9 +17,7 @@ func watch_for_changes(target: Target): Boolean {
 
 func changes(): List<String> {
     collect()
-    if pending.is_empty() or quiet_left() > 0 {
-        return List<String>()
-    }
+    assert not pending.is_empty() and quiet_left() <= 0
     var changed = pending
     pending = List<String>()
     return changed

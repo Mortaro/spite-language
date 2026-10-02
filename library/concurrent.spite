@@ -63,6 +63,8 @@ func _result(): $result_type {
 
 func _join() {
     if not _finished {
+        var waits_for_its_own_caller = _scheduler.runs_below(_frame)
+        crash not waits_for_its_own_caller
         _scheduler.wait_for(_frame)
         _collect()
     }

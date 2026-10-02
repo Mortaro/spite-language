@@ -1,0 +1,10 @@
+singleton
+
+var tokens = List<Token>()
+
+func fill() {
+    var first = Token("first")
+    tokens.append(first)
+    var second = Token("second")
+    tokens.append(second)
+}

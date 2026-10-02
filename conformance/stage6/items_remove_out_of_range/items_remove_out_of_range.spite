@@ -1,0 +1,12 @@
+var console = Console()
+
+func ItemsRemoveOutOfRange() {
+    var velocities = Items<Velocity>()
+    var slow = Velocity(1.0)
+    velocities.append(slow)
+    velocities.remove_at(0)
+    var left = velocities.count()
+    console.print("removed", left, slow.across)
+    velocities.remove_at(-1)
+    console.print("never printed")
+}

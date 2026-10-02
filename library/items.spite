@@ -47,26 +47,24 @@ func set_at(index: Integer, value: $element_type) {
 }
 
 func remove_at(index: Integer) {
-    if index >= 0 and index < item_count {
-        _release(index)
-        var bytes = _item_bytes()
-        var start = items + _item_start()
-        (start + bytes * (index + 1)).copy_to(start + bytes * index, bytes * (item_count - index - 1))
-        item_count = item_count - 1
-    }
+    crash index >= 0 and index < item_count
+    _release(index)
+    var bytes = _item_bytes()
+    var start = items + _item_start()
+    (start + bytes * (index + 1)).copy_to(start + bytes * index, bytes * (item_count - index - 1))
+    item_count = item_count - 1
 }
 
 func remove_swapping(index: Integer) {
-    if index >= 0 and index < item_count {
-        _release(index)
-        var last = item_count - 1
-        if index != last {
-            var bytes = _item_bytes()
-            var start = items + _item_start()
-            (start + bytes * last).copy_to(start + bytes * index, bytes)
-        }
-        item_count = last
+    crash index >= 0 and index < item_count
+    _release(index)
+    var last = item_count - 1
+    if index != last {
+        var bytes = _item_bytes()
+        var start = items + _item_start()
+        (start + bytes * last).copy_to(start + bytes * index, bytes)
     }
+    item_count = last
 }
 
 func truncate(kept_count: Integer) {

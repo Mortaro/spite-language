@@ -1,0 +1,1 @@
+spite.crash	53d916b5	library/concurrent.spite:67	Concurrent	_join	waits_for_its_own_caller=true	_frame=...	_finished=false

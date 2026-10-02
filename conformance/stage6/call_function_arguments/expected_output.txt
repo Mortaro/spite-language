@@ -1,0 +1,6 @@
+spite: call_function() cannot call 'greet': it takes arguments, and call_function() passes none
+calling hello
+hello
+calling answer
+answering
+calling greet

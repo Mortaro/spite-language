@@ -1,4 +1,4 @@
-spite.fault	heap-corruption	-	-	-	code=0xc0000374	at=ntdll.dll+0x...	foreign=free_inside	library=conformance/stage6/native_fault_heap/fixture.dll	from=conformance/stage6/native_fault_heap/native_fault_heap.spite:10
+spite.fault	heap-corruption	-	-	-	status=...	at=...	foreign=free_inside	library=conformance/stage6/native_fault_heap/fixture.dll	from=conformance/stage6/native_fault_heap/native_fault_heap.spite:10
 spite.frame	conformance/stage6/native_fault_heap/native_fault_heap.spite:9	NativeFaultHeap	corrupt
 spite.frame	conformance/stage6/native_fault_heap/native_fault_heap.spite:4	NativeFaultHeap	NativeFaultHeap
 spite.frame	launcher/launcher.spite:3	Launcher	Launcher

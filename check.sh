@@ -173,8 +173,14 @@ job_program() {
     # a program that is meant to crash: its whole output (stdout and the crash line) must match, and there is no
     # balance line because a crash halts before the program would have released anything. A native fault names where
     # it stopped as module+offset (D244), and the offset is the C compiler's, so it is compared without it; so is an
-    # address on the stack, which the system places anew on every run.
-    actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g; s/address=0x[0-9a-f]{6,}/address=0x.../g')
+    # address on the stack, which the system places anew on every run, and so is a 'Memory.Address' attribute or a
+    # thread a crash line shows in decimal (a collection's 'items=', the scheduler's 'frame=' and 'scheduler_thread='). A corrupted heap is reported alike on every system (D379), so
+    # what still differs is left out: the C library's own message and the shell's 'Aborted' notice, and the
+    # heap-corruption line's exception code or signal and the system file it stopped in, both written 'status=...'
+    # and 'at=...'.
+    actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g; s/address=0x[0-9a-f]{6,}/address=0x.../g; s/\t([a-z_]+)=[0-9]{9,}/\t\1=.../g' \
+      | sed -E '/^(free|malloc|realloc|calloc|munmap_chunk|double free|corrupted)[^\t]*$/d; /malloc: \*\*\*/d; /^(Aborted|Abort trap: 6)( \(core dumped\))?$/d' \
+      | sed -E 's/^(spite\.fault\theap-corruption\t[^\t]*\t[^\t]*\t[^\t]*)\t(code|signal)=[^\t]*\tat=[^\t]*/\1\tstatus=...\tat=.../')
     [ "$actual" == "$expected" ] && exit 0
     echo "FAILED: $name"; echo "$actual" | head -8; exit 1
   fi

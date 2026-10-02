@@ -1,0 +1,13 @@
+var console = Console()
+
+func CallFunctionArguments() {
+    var functions = Greeter.functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        console.print("calling", function.name)
+        function.call_function()
+        index = index + 1
+    }
+    console.print("done")
+}

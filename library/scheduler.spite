@@ -82,6 +82,10 @@ func wait_for(frame: Long) {
     }
 }
 
+func runs_below(frame: Memory.Address): Boolean {
+    return frame.read_integer(12) == 1 and started and current_thread() == scheduler_thread
+}
+
 func timer_start(milliseconds: Integer): Long {
     var deadline = clock() + milliseconds
     deadlines.append(deadline)

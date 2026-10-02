@@ -1,0 +1,16 @@
+var console = Console()
+var name = ""
+
+func Token(new_name: String) {
+    name = new_name
+}
+
+func touch() {
+    make_probe()
+    console.print("touched", name)
+}
+
+func make_probe() {
+    var probe = Probe()
+    probe.ready = true
+}

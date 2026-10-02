@@ -219,7 +219,7 @@ func is_alive(): Boolean {
   order (`List`, `Vector`, `Items`; the passed-function form on a `List` only, never on a chain or a
   `Dictionary`). `truncate(count)` drops the tail. When the test is not a function of the element (a mask of
   rows), walk the rows, `swap(row, kept)` each one that stays, then `truncate(kept)`.
-- `Vector<T>` holds objects inline for fast walks (`append`, `vector[index]`, `set_at`, `remove_at`, `count`,
+- `Vector<T>` holds objects inline for fast walks (`append`, `vector[index]`, `set_at` and `remove_at` (both halt out of range), `count`,
   `clear`, `copy`, and `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `parallel_each_` templates).
   An item is a `String` or a class whose attributes are only numbers, `Boolean`, enums and `String` (a `List`
   attribute is an error naming it). `velocities[index]` is a `Velocity?`: after `crash velocities[index]` (or
@@ -270,7 +270,7 @@ func is_alive(): Boolean {
 - In a generic class that keeps values of a type it does not know (an engine's `Column<$component_type>`), use
   `Items<$component_type>()` (D218, name provisional): inline and borrowed like a `Vector` when the type fits
   one, references like a `List` when not, with one set of members (`append`, `items[index]` (a `T?`, `null` out
-  of range, narrowed like a list's), `set_at`, `remove_at`, `remove_swapping(index)` (the last item moves into `index`), `count`, `is_empty`,
+  of range, narrowed like a list's), `set_at`, `remove_at`, `remove_swapping(index)` (the last item moves into `index`; all three halt out of range), `count`, `is_empty`,
   `clear`, `copy`, `deep_copy`, and the `each_`/`map_`/`filter_`/`count_`/`any_`/`all_`/`sum_`/`parallel_each_`
   templates; no `each(f)` forms). Then one column class serves every component,
   and the walked row's line is
@@ -383,7 +383,7 @@ func is_alive(): Boolean {
   the values there. Never add a clause only to get text printed (`crash found or name == ""`).
 - `Monster?` is a value that may be `null`. It must be narrowed before use: `if target { }` (with `else`),
   `assert target`, `crash target`, `while target { }`, or `switch target { Monster: ... Null: ... }`. One
-  `assert a.b.c` narrows the whole path. `null` is never compared against: `value == null` is an error.
+  `assert a.b.c` narrows the whole path. `null` is never compared against: `value == null` is an error. Two `T?` values compare without narrowing, and two missing ones are equal.
   Narrow the name or the path itself (`assert target`, `assert target.weapon`), never a local copied from it,
   which is an error. Comparing needs no narrowing: `target.name == "rat"` needs `target` narrowed, but
   `maybe_name == "rat"` is simply false when it is null.
@@ -419,7 +419,7 @@ func is_alive(): Boolean {
     answer (`this 'assert' would answer a default Integer (0) that a caller cannot tell from a real one: return a
     value ('if not found { return -1 }'), make the result 'Integer?', or 'crash found' if this is a developer
     mistake`): write the answer (`if handle == -1 { return false }`), make the result a `T?`, or `crash`. Where
-    `assert` is allowed, `if x { return null }` or a bare `if x { return }` is an error naming the `assert` to write
+    `assert` is allowed, `if x { return null }`, `if x { return List<T>() }` (any empty collection made there) or a bare `if x { return }` is an error naming the `assert` to write
     (`write 'assert not x'`), and so is a last `if` with no `else` that only checks a value is there (`write
     'assert maybe_name'`). An `if` with no `else` that ends in `return` proves the opposite of its condition after
     it: `if not found { return -1 }` narrows `found`, `if index >= names.count() { return "" }` proves
@@ -522,7 +522,7 @@ func is_alive(): Boolean {
   the block; its members are `.name_with_namespaces`, `.parent`, `.classes`,
   `.namespaces`, `.enums`), `.functions`), `value.attributes`
   (`.name`, `.class`, `.value`: the value itself, an `Anything?` whose text is `.value.to_string()`), `value.functions` (`.name`, `.arguments`, `.returns`, `call_function()` for
-  functions that take nothing and return `Nothing`), a function named without calling it (`shouter.shout`, a
+  functions that take nothing, a returned value dropped; on one that takes arguments it halts), a function named without calling it (`shouter.shout`, a
   `Spite.Function<String, String>` bound to `shouter`, called as `change(text)`), `Monster.instances` (live instances), and
   `Spite.Class.instances` (every class of the program and the packages it loads, not the standard library's). `class`, bare inside a class's function, is the class
   of the instance it answers on, and a class name reads its own class object: `Monster.name` is `"Monster"`.

@@ -67,8 +67,11 @@ func summarize_supplied(function: Analysis.FunctionInfo) {
         "install"
         "close_library"
     ]
-    assert writing.contains(function.name) or function.name.starts_with("write_")
     var reason = "'{function.name}' writes the memory it is handed"
+    if not writing.contains(function.name) and not function.name.starts_with("write_") {
+        assert not reads_only(function.name)
+        reason = "'{function.name}' is supplied by the compiler, and nothing proves it leaves what it is handed unchanged"
+    }
     record(function.c_name, "this", reason)
     var index = 0
     while index < function.parameters.count() {
@@ -76,6 +79,57 @@ func summarize_supplied(function: Analysis.FunctionInfo) {
         record(function.c_name, slot, reason)
         index = index + 1
     }
+}
+
+func reads_only(name: String): Boolean {
+    var reading = [
+        "_box_of"
+        "_want_check_point"
+        "address"
+        "allocate"
+        "bits_and"
+        "bits_exclusive_or"
+        "bits_inverted"
+        "bits_or"
+        "block_bytes"
+        "buffer_memory"
+        "build_arguments"
+        "class_descriptions"
+        "class_names"
+        "code_at"
+        "compare_bytes"
+        "compiler"
+        "entry_address"
+        "enum_names"
+        "find_symbol"
+        "get"
+        "held_class"
+        "held_memory"
+        "item_at"
+        "item_bytes"
+        "item_start"
+        "leading_zero_count"
+        "live_allocations"
+        "live_bytes"
+        "loaded_folders"
+        "open"
+        "open_library"
+        "program_file"
+        "schema"
+        "set_bit_count"
+        "shifted_left"
+        "shifted_right"
+        "singletons"
+        "stored_memory"
+        "text"
+        "to_type"
+        "trailing_zero_count"
+        "value_attributes"
+        "value_bytes"
+        "value_functions"
+        "watcher_entry"
+    ]
+    return reading.contains(name) or name.starts_with("read_")
 }
 
 func record(key: String, slot: String, reason: String) {

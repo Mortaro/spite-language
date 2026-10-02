@@ -1,0 +1,2 @@
+spite.crash	75fe54ef	library/items.spite:59	Items	remove_swapping	index=1	item_count=1	items=...	capacity=4
+removed 1 2

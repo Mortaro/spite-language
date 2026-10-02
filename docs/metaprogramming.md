@@ -915,7 +915,8 @@ A walk is a call on a list of reflection objects, under [reflection.md's rules f
 - **`.is_mutated` follows every call**: an attribute set on what the argument was given, an item written or a list
   grown, a function called on it that changes its own object, or the argument handed to another function that does
   any of these, however deep, recursion included. Reading does not count, and neither does giving the argument's
-  name a new object. **`.is_stateful`** is the same study asked of the object: some function besides the constructor
+  name a new object. A function whose body the compiler supplies counts as changing what it is handed unless it is
+  known only to read, since an answer the study cannot prove is `true`. **`.is_stateful`** is the same study asked of the object: some function besides the constructor
   and `drop()` writes the class's own attributes or anything reached through them, or a singleton, or a singleton the
   class binds has state.
 - **An empty walk is loud when it must not be**: `crash Runner.functions.filter_name_ends_with("_each").count() > 0`
@@ -1032,7 +1033,9 @@ run-time value for live reload to change. To change one, change the call site.
 **An `assert` or `crash` on such a condition folds the same way.** When the condition of an `assert` or `crash`
 asks only what is decided while compiling (a `$flag`, `$slot_type == Entity` or any other test of a codegen type,
 a question asked of a reflection constant (`$T.functions['run_each']`, `.is_resumable`, `.is_mutated`,
-`.is_fixed_size`, `.arguments.count()`, of a codegen type or of a walked member's class), `argument.class == $row_type`, and `not`, `and` and `or` over them), it is decided
+`.is_fixed_size`, `.arguments.count()`, of a codegen type or of a walked member's class), `argument.class == $row_type`,
+a class test the value's type already answers (`item == $wanted_type`), a field of
+[`Build`](programs.md#compile-time-settings-build), and `not`, `and` and `or` over them), it is decided
 for each instance, with no test at run time: when it holds,
 nothing is written for it; when it does not, the `assert` answers "nothing" (recording its trace line), and the
 statements after it in the same block are not compiled for that instance, exactly as after an `if` whose taken
@@ -1047,7 +1050,8 @@ decided while compiling and is false would halt every time its function runs, so
 compiler can prove, and it is reported while compiling, at the `crash`, naming the instance: `'crash
 $slot_type.is_fixed_size' always halts in Slot<List<String>>: its condition is decided while compiling and is
 false, so the program would stop here every time this function runs: call it only where the condition holds, or
-change what the condition asks` (`diagnostics/folded_crash`). Only a function the program reaches counts (the
+change what the condition asks` (`diagnostics/folded_crash`, and `diagnostics/folded_build_crash` for a `Build`
+field and a class test). Only a function the program reaches counts (the
 same reach tree shaking keeps in a production build, worked out for an inspectable build too, where nothing is
 shaken), so an instance whose function nobody calls compiles (`conformance/stage6/folded_crash_uncalled`). This
 is how a library turns its rules into compile errors: a `crash $system_type.functions['update_each']` in the
