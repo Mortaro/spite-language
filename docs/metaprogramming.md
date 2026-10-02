@@ -70,7 +70,9 @@ walk is `each`, a selection is a filter or a member template, and a member by na
 | To reach | Write |
 |---|---|
 | every attribute of a class | `Monster.attributes.each(show)` |
-| one function, if the class has it | `Runner.functions['run_each']`, a `Spite.Function?` narrowed by `if` or `assert` |
+| one function, if the class has it | `Runner.functions['run_each']`, a `Spite.FunctionDeclaration?` narrowed by `if` or `assert` |
+| the same function bound to an instance | `runner.functions['run_each']`, a `Spite.Function?` |
+| a call filled argument by argument | `Spite.Call(runner.functions['run_each'])`, then `call.arguments['name'] = value` and `call.call()` |
 | the functions whose names end in `_each` | `Runner.functions.filter_name_ends_with("_each")` |
 | a function's arguments | `function.arguments.each(describe)` |
 | an enum's values, in order | `Phase.values` |

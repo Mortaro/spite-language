@@ -72,8 +72,8 @@ receiver says which one is meant: `Monster` is the class, `troll` an instance.
 
 | | The class, `Monster` | An instance, `troll` |
 |---|---|---|
-| `.attributes` | the declarations: a `Spite.Attribute` for each attribute, with its `.name`, `.class`, `.index`, but no value | the same attributes **bound to `troll`**: each also has `.value`, read and written, typed as the attribute |
-| `.functions` | the declarations: a `Spite.Function` for each function, with its `.name`, `.arguments`, `.returns` | the same functions bound to `troll`, each a function value you can pass on and call |
+| `.attributes` | information: a `Spite.AttributeDeclaration` for each attribute, with its `.name`, `.class`, `.index`, and no value | data: a `Spite.Attribute` **bound to `troll`**, with everything the declaration has plus `.value`, read and written, typed as the attribute, and `.owner`, which is `troll` |
+| `.functions` | information: a `Spite.FunctionDeclaration` for each function, with its `.name`, `.arguments`, `.returns` and the class that declares it | a `Spite.Function` bound to `troll`, with everything the declaration has plus `.owner`: a function value you can pass on, call, or build a `Spite.Call` from |
 | `.class` | `Spite.Class`, the class every class is an instance of | `Monster`, so `troll.class == Monster` |
 | What a read costs | nothing: it is known while compiling and folds | a read or write of `troll`'s own field, typed, the same as `troll.health` |
 
@@ -154,6 +154,22 @@ func peek(attribute: Spite.Attribute) {
 
 A declaration still reaches one instance's field: `troll.attributes[attribute]` indexes the instance with it, which
 is how a function handed a class's attribute reads or writes it on a value it was given.
+
+### A call, built before it runs
+
+Calling a function value calls it, as always: `greet("Ann")`, `tick()`. To fill a call's arguments one at a time,
+by name, before running it, make a `Spite.Call` from a bound function:
+
+```gdscript
+var call = Spite.Call(system.functions['run_each'])
+call.arguments['position'] = position
+call.arguments['velocity'] = velocity
+call.call()
+```
+
+Nothing runs until `call.call()`. When the function and the arguments are known while compiling, as in a walk, the
+whole thing is the plain call `system.run_each(position, velocity)`, with no object made. An argument left unfilled
+is a compile error where the compiler can see it; otherwise `call.call()` halts and names it.
 
 ## Reaching a reflection object
 
@@ -314,8 +330,17 @@ There is no root namespace object: a namespace at the top has `null` as its `.pa
 | `.returned_literal` | the text literal it returns | `greeting.returned_literal` is `grr` |
 | `.accesses` | a `Dictionary<Spite.Access>` keyed by name: every attribute and argument it reads or writes | `update_each.accesses.filter_written()` |
 
-`call_function()` calls a function value, and `call_with(values)` calls it with one value per argument. Both act
-rather than answer, so they are functions.
+A class's `.functions` holds `Spite.FunctionDeclaration`s, which have every member above but `.owner`'s instance:
+their `.owner` is the class that declares them. An instance's `.functions` holds `Spite.Function`s bound to it, and
+`call_function()` calls one. A call built argument by argument is a `Spite.Call` ([above](#a-call-built-before-it-runs)).
+
+### `Spite.Call`
+
+| Member | Answers | Example |
+|---|---|---|
+| `Spite.Call(function)` | a call of a bound `Spite.Function`, nothing run yet | `Spite.Call(system.functions['run_each'])` |
+| `.arguments` | its arguments by name, each written once before the call runs | `call.arguments['position'] = position` |
+| `call()` | runs it, answering what the function answers | `call.call()` |
 
 ### `Spite.Argument`
 
@@ -338,6 +363,9 @@ rather than answer, so they are functions.
 | `.camel_case_name`, `.pascal_case_name` | its name as other systems spell it | `buy_price` is `buyPrice`, `BuyPrice` |
 | `.is_singleton` | its class is a singleton | `ReflectionObjects.attributes['console'].is_singleton` |
 | `.value` | on an instance's attribute only: that instance's value, read and written | `troll.attributes['health'].value` |
+
+A class's `.attributes` holds `Spite.AttributeDeclaration`s: every member above but `.value`, with `.owner` the
+class. An instance's holds `Spite.Attribute`s bound to it, whose `.owner` is the instance.
 
 ### `Spite.Access`
 
@@ -762,7 +790,7 @@ Their members are the tables of [The `Spite` classes](#the-spite-classes).
 **Every member is a get-only attribute named for what it answers**, read without `()`: a question is `is_...`, a
 collection is plural. A question that takes something is a collection indexed or filtered instead
 (`Monster.functions['alive']`, `hurt.arguments[1].is_mutated`). What acts rather than answers stays a function:
-`call_function()`, `call_with(values)`, and a list's own `count()`. A name is a `Symbol`: text from the program's own
+`call_function()`, a `Spite.Call`'s `call()`, and a list's own `count()`. A name is a `Symbol`: text from the program's own
 table of symbols, which reads as text anywhere text is expected and costs no allocation to pass around.
 
 **Every member is a getter with no setter**: the data sits in private fields and `get_name()` and the rest answer
@@ -806,8 +834,10 @@ on the spot is "only a named value has memory of its own: give this value a name
 
 ### A class and an instance
 
-- **`Monster.attributes` and `Monster.functions` describe declarations; `troll.attributes` and `troll.functions`
-  are the same members bound to `troll`.** A PascalCase receiver is the class and a lowercase one an instance, the
+- **`Monster.attributes` and `Monster.functions` are declarations, `Spite.AttributeDeclaration` and
+  `Spite.FunctionDeclaration`; `troll.attributes` and `troll.functions` are the same members bound to `troll`,
+  `Spite.Attribute` and `Spite.Function`.** A class's members are information and an instance's are data: a
+  declaration never gives a value. A PascalCase receiver is the class and a lowercase one an instance, the
   convention [Foreign libraries](foreign_libraries.md#foreign-libraries) uses for `user32.Input` against
   `user32.input_mouse`.
 - **A bound attribute's `.value`** reads and writes the instance's field, typed as the field when the attribute is a
@@ -817,7 +847,12 @@ on the spot is "only a named value has memory of its own: give this value a name
 - **`value.attributes[attribute]`**, with a declaration, is that field of `value`, read or written: a plain typed
   field access when `attribute` is a constant, and a call to the getter where the class declares one.
 - **A bound function** is a function value of that instance ([functions_and_operators.md](functions_and_operators.md#functions-are-values)),
-  so a function named on an instance and its reflection are the same object.
+  so a function named on an instance and its reflection are the same object. Calling it always calls.
+- **`Spite.Call(function)` builds a call of a bound function without running it**: `.arguments['name'] = value`
+  fills each argument once, and `call()` runs it. With the function and the arguments known while compiling it is
+  the plain direct call, and no object exists. An argument left unfilled is "'call' leaves the argument 'velocity'
+  of 'run_each' unfilled: set 'call.arguments['velocity']' before 'call()'" where the compiler sees it; otherwise
+  `call()` halts naming it.
 - **A walk over another class's attributes sees its private ones**, since a walk that skips some silently builds an
   incomplete copy, column or layout. Naming `_x` outside its class stays the private error.
 - **A `List<T>`'s or `Dictionary<T>`'s attributes are its entries** (named by index or by key), not the fields of the

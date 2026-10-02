@@ -43,13 +43,22 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   declares none of them. Check they go through declared library templates like `List`'s (D240: nothing hidden),
   then fold into S7. **S.** Depends on S7.
 - **R5 The rest of the object model** (D316, D317; status "Not built" and "Run time only through the old tables").
-  `call_with` (spelling open, Q1); `Spite.Namespace.enums`; a class's own `get_`/`set_` template spelled
+  `Spite.Namespace.enums`; a class's own `get_`/`set_` template spelled
   `attribute: Spite.Attribute<Person>` inside `Person` (today "unknown identifier 'attributes'"); the kind
   questions (`.is_stateful`, `.is_list`, `.owner`, `.index`, `.is_mutated`, `.returned_literal`) on run-time
   objects; specialisation beyond the calling class, of enum parameters, and of functions of `Spite` classes; the
   two narrowing gaps (`var run = $T.functions['run_each']` then `if run`, and `crash Spite.Class.instances[...]`).
   Files: generator.spite reflection and specialisation regions, `specialisation.spite`, `reflected.spite`,
-  `library/spite/*.spite`. **L.** Depends on landing `cloud/nomap` and Q1.
+  `library/spite/*.spite`. **L.** Depends on landing `cloud/nomap`.
+- **R8 Declarations and bound members are different classes** (D391). `Spite.FunctionDeclaration` and
+  `Spite.AttributeDeclaration` (no value) for a class's members; `Spite.Function` and `Spite.Attribute` bound to an
+  instance, with `.owner` the instance. Every library and doc walk over `Monster.attributes` retyped to the
+  declaration class, and reflection.md's titled examples with it; `call_with` removed. Files:
+  `library/spite/*.spite`, generator.spite reflection region, `reflected.spite`, docs reflection.md and
+  metaprogramming.md examples. **L.** Depends on R5.
+- **R9 `Spite.Call`** (D391). `Spite.Call(function)`, `.arguments['name'] = value`, `call()`; folded into the direct
+  call when everything is known while compiling; an unfilled argument is a compile error where visible, a halt
+  naming it otherwise. Construction by `Spite.Call(...)` awaits Mortaro's confirmation. **M.** Depends on R8.
 - **R6 Private attributes in a class's own walk** (D278, D319). `.attributes` and a walk over another class must
   include `_` attributes and allow reading and writing them through the walked attribute; serializers (J1) skip
   them. Files: generator.spite's attribute walk and reflected attribute tables. **S.** No dependencies.
@@ -373,9 +382,9 @@ Each line can start once everything before it that it names is done; lines with 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
 2. No dependencies: R2, R3, R6, R8, M1, M2, M4, M6, M7, N1, N3, N4, E1, E2, E4, L1, L4, L5, L6, L7, C1, C3, C6,
    C7, K1, K2, F3, S4, S8, S9, P1, P2, X1, B1 to B16, E3, D1's first pass.
-3. After step 2: R5 (Q1), L2 (L1), C2 (C1), C4 and C5 (fastbuild), S7 (operators), P3 (linux), K3 (with K2), C8
+3. After step 2: R5, L2 (L1), C2 (C1), C4 and C5 (fastbuild), S7 (operators), P3 (linux), K3 (with K2), C8
    (K1), N2 (N1), K6 (K2).
-4. After R5: R1, J1, L3, R4 (with S7).
+4. After R5: R1, J1, L3, R4 (with S7), R8, then R9.
 5. After J1: J2, S5. After L3 and L8: F1, S6 (with L4). After F1: F2.
 6. After M1, M2 and M6: M5. After M1, R3 and M4: M3.
 7. After R1, R5, R6 and J1: R7, the end of the reflection migration.
@@ -412,12 +421,6 @@ memory stream. Streams 5 and 9 are many small items and the right place for a se
 Each is a choice of syntax or semantics the rows leave open; the recommendation is Claude's (proposed by Claude,
 unconfirmed).
 
-- **Q1 How `call_with` spreads a walk, now that `map(function)` is gone** (`mortaros_missing_decisions.md` item 251) (D317 item 98, nomap's row). Options:
-  (a) `function.call_with_each(made)`, calling the named function `made(argument: Spite.Argument):
-  argument.class` once per argument and passing the results, specialised while compiling with no list between;
-  (b) collect into a `List<Anything>` with `each`, then `call_with(list)`, which travels as a shape and costs a
-  dispatch; (c) a read-only attribute on `Spite.Argument` collected with `map_<members>()`, which only works when
-  the value depends on the argument alone. Recommendation: (a), the only one that is free at run time.
 - **Q13 How TLS is built** (`mortaros_missing_decisions.md` item 263) (D294, D350, D361). Options: (a) TLS 1.3 written in Spite (X25519, an AEAD,
   certificate verification against the system's root store), the long road D350 and D361 point to; (b) the
   system's own TLS through `DynamicLibrary` on Windows and macOS, which leaves Linux without one that is not a

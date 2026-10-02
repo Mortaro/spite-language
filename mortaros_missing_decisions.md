@@ -11,16 +11,10 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
-251. **How `call_with` spreads a walk, now that `map(function)` is gone** (D317 item 98, nomap's row). Options: (a)
-     `function.call_with_each(made)`, calling the named function `made(argument: Spite.Argument): argument.class`
-     once per argument and passing the results, specialised while compiling with no list between; (b) collect into
-     a `List<Anything>` with `each`, then `call_with(list)`, which travels as a shape and costs a dispatch; (c) a
-     read-only attribute on `Spite.Argument` collected with `map_<members>()`, which only works when the value
-     depends on the argument alone. Recommendation: (a), the only one that is free at run time.
 263. **How TLS is built** (D294, D350, D361). Options: (a) TLS 1.3 written in Spite (X25519, an AEAD, certificate
      verification against the system's root store), the long road D350 and D361 point to; (b) the system's own TLS
      through `DynamicLibrary` on Windows and macOS, which leaves Linux without one that is not a third-party
