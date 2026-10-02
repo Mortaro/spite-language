@@ -367,9 +367,9 @@ Each line can start once everything before it that it names is done; lines with 
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
 2. No dependencies: R2, R3, R6, R8, M1, M2, M4, M6, M7, N1, N3, N4, E1, E2, E4, L1, L4, L5, L6, L7, C1, C3, C6,
-   C7, K1, K2, F3, S4, S8, S9, P1, P2, X1, B1 to B16, D1's first pass.
+   C7, K1, K2, F3, S4, S8, S9, P1, P2, X1, B1 to B16, E3, D1's first pass.
 3. After step 2: R5 (Q1), L2 (L1), C2 (C1), C4 and C5 (fastbuild), S7 (operators), P3 (linux), K3 (with K2), C8
-   (K1), N2 (N1), K6 (K2), E3 (Q2).
+   (K1), N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4 (with S7).
 5. After J1: J2, S5. After L3: F1 (Q3), S6 (with L4). After F1: F2.
 6. After M1, M2, M6 and Q4: M5. After M1, R3 and M4: M3.
@@ -391,7 +391,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 1 Reflection and serialization | R6, R2, R3, R5, R1, R4, J1, J2, R8, R7 | generator.spite reflection, specialisation and template regions; `specialisation.spite`, `reflected*.spite`, `template_walk.spite`, `namespace_walk.spite`, `old_spellings.spite`; `library/spite/*`, `json_*`, `binary_*`, `dictionary.spite`; stage6 walk programs; docs reflection, metaprogramming, json |
 | 2 Types and storage | M2, M1, M7, M4, M3, then M6 and M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
 | 3 Arithmetic | N4, N3, N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
-| 4 Memory | E2, E1, E4, E3 (after Q2), E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
+| 4 Memory | E2, E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C1, C3, C2, C6, C4, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
 | 6 Waiting, IO and library | K1, F3, S4, S8, K2, K3, K6, S7, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
 | 7 Language rules | L4, L6, L5, L1, L2, L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
