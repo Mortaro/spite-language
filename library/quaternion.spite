@@ -7,42 +7,42 @@ enum RotationOrder {
     'zyx'
 }
 
-var x_value: Float = 0.0
-var y_value: Float = 0.0
-var z_value: Float = 0.0
-var w_value: Float = 1.0
+var x: Float = 0.0
+var y: Float = 0.0
+var z: Float = 0.0
+var w: Float = 1.0
 
 func set_identity() {
-    x_value = 0.0
-    y_value = 0.0
-    z_value = 0.0
-    w_value = 1.0
+    x = 0.0
+    y = 0.0
+    z = 0.0
+    w = 1.0
 }
 
 func set_parts(starting_x: Float, starting_y: Float, starting_z: Float, starting_w: Float) {
-    x_value = starting_x
-    y_value = starting_y
-    z_value = starting_z
-    w_value = starting_w
+    x = starting_x
+    y = starting_y
+    z = starting_z
+    w = starting_w
 }
 
 func set_axis_angle(axis: Vector3, angle: Float) {
     var unit = axis.normalized()
     var half_angle = angle * 0.5
     var half_sine = half_angle.sine()
-    x_value = unit.x_value * half_sine
-    y_value = unit.y_value * half_sine
-    z_value = unit.z_value * half_sine
-    w_value = half_angle.cosine()
+    x = unit.x * half_sine
+    y = unit.y * half_sine
+    z = unit.z * half_sine
+    w = half_angle.cosine()
 }
 
 func set_euler(angles: Vector3, order: Quaternion.RotationOrder) {
     var around_x = Quaternion()
-    around_x.set_single_axis(0, angles.x_value)
+    around_x.set_single_axis(0, angles.x)
     var around_y = Quaternion()
-    around_y.set_single_axis(1, angles.y_value)
+    around_y.set_single_axis(1, angles.y)
     var around_z = Quaternion()
-    around_z.set_single_axis(2, angles.z_value)
+    around_z.set_single_axis(2, angles.z)
     var combined = around_z * around_y * around_x
     if order == 'xzy' {
         combined = around_y * around_z * around_x
@@ -55,25 +55,25 @@ func set_euler(angles: Vector3, order: Quaternion.RotationOrder) {
     } else if order == 'zyx' {
         combined = around_x * around_y * around_z
     }
-    x_value = combined.x_value
-    y_value = combined.y_value
-    z_value = combined.z_value
-    w_value = combined.w_value
+    x = combined.x
+    y = combined.y
+    z = combined.z
+    w = combined.w
 }
 
 func set_single_axis(axis_index: Integer, angle: Float) {
     var half_angle = angle * 0.5
     var half_sine = half_angle.sine()
-    x_value = 0.0
-    y_value = 0.0
-    z_value = 0.0
-    w_value = half_angle.cosine()
+    x = 0.0
+    y = 0.0
+    z = 0.0
+    w = half_angle.cosine()
     if axis_index == 0 {
-        x_value = half_sine
+        x = half_sine
     } else if axis_index == 1 {
-        y_value = half_sine
+        y = half_sine
     } else {
-        z_value = half_sine
+        z = half_sine
     }
 }
 
@@ -92,94 +92,89 @@ func set_rotation_columns(
     if trace > 0.0 {
         var root = trace + 1.0
         var twice = root.square_root() * 2.0
-        w_value = 0.25 * twice
-        x_value = (column_1_row_2 - column_2_row_1) / twice
-        y_value = (column_2_row_0 - column_0_row_2) / twice
-        z_value = (column_0_row_1 - column_1_row_0) / twice
+        w = 0.25 * twice
+        x = (column_1_row_2 - column_2_row_1) / twice
+        y = (column_2_row_0 - column_0_row_2) / twice
+        z = (column_0_row_1 - column_1_row_0) / twice
     } else if column_0_row_0 > column_1_row_1 and column_0_row_0 > column_2_row_2 {
         var root = 1.0 + column_0_row_0 - column_1_row_1 - column_2_row_2
         var twice = root.square_root() * 2.0
-        w_value = (column_1_row_2 - column_2_row_1) / twice
-        x_value = 0.25 * twice
-        y_value = (column_1_row_0 + column_0_row_1) / twice
-        z_value = (column_2_row_0 + column_0_row_2) / twice
+        w = (column_1_row_2 - column_2_row_1) / twice
+        x = 0.25 * twice
+        y = (column_1_row_0 + column_0_row_1) / twice
+        z = (column_2_row_0 + column_0_row_2) / twice
     } else if column_1_row_1 > column_2_row_2 {
         var root = 1.0 + column_1_row_1 - column_0_row_0 - column_2_row_2
         var twice = root.square_root() * 2.0
-        w_value = (column_2_row_0 - column_0_row_2) / twice
-        x_value = (column_1_row_0 + column_0_row_1) / twice
-        y_value = 0.25 * twice
-        z_value = (column_2_row_1 + column_1_row_2) / twice
+        w = (column_2_row_0 - column_0_row_2) / twice
+        x = (column_1_row_0 + column_0_row_1) / twice
+        y = 0.25 * twice
+        z = (column_2_row_1 + column_1_row_2) / twice
     } else {
         var root = 1.0 + column_2_row_2 - column_0_row_0 - column_1_row_1
         var twice = root.square_root() * 2.0
-        w_value = (column_0_row_1 - column_1_row_0) / twice
-        x_value = (column_2_row_0 + column_0_row_2) / twice
-        y_value = (column_2_row_1 + column_1_row_2) / twice
-        z_value = 0.25 * twice
+        w = (column_0_row_1 - column_1_row_0) / twice
+        x = (column_2_row_0 + column_0_row_2) / twice
+        y = (column_2_row_1 + column_1_row_2) / twice
+        z = 0.25 * twice
     }
 }
 
 func multiply(other: Quaternion): Quaternion {
     var product = Quaternion()
-    product.w_value = w_value * other.w_value - x_value * other.x_value - y_value * other.y_value - z_value * other.z_value
-    product.x_value = w_value * other.x_value + x_value * other.w_value + y_value * other.z_value - z_value * other.y_value
-    product.y_value = w_value * other.y_value - x_value * other.z_value + y_value * other.w_value + z_value * other.x_value
-    product.z_value = w_value * other.z_value + x_value * other.y_value - y_value * other.x_value + z_value * other.w_value
+    product.w = w * other.w - x * other.x - y * other.y - z * other.z
+    product.x = w * other.x + x * other.w + y * other.z - z * other.y
+    product.y = w * other.y - x * other.z + y * other.w + z * other.x
+    product.z = w * other.z + x * other.y - y * other.x + z * other.w
     return product
 }
 
 func equals(other: Quaternion): Boolean {
-    return x_value == other.x_value and y_value == other.y_value and z_value == other.z_value and w_value == other.w_value
+    return x == other.x and y == other.y and z == other.z and w == other.w
 }
 
 func rotate(vector: Vector3): Vector3 {
-    var twice_x = 2.0 * (y_value * vector.z_value - z_value * vector.y_value)
-    var twice_y = 2.0 * (z_value * vector.x_value - x_value * vector.z_value)
-    var twice_z = 2.0 * (x_value * vector.y_value - y_value * vector.x_value)
-    var x_part = vector.x_value + w_value * twice_x + y_value * twice_z - z_value * twice_y
-    var y_part = vector.y_value + w_value * twice_y + z_value * twice_x - x_value * twice_z
-    var z_part = vector.z_value + w_value * twice_z + x_value * twice_y - y_value * twice_x
+    var twice_x = 2.0 * (y * vector.z - z * vector.y)
+    var twice_y = 2.0 * (z * vector.x - x * vector.z)
+    var twice_z = 2.0 * (x * vector.y - y * vector.x)
+    var x_part = vector.x + w * twice_x + y * twice_z - z * twice_y
+    var y_part = vector.y + w * twice_y + z * twice_x - x * twice_z
+    var z_part = vector.z + w * twice_z + x * twice_y - y * twice_x
     return Vector3(x_part, y_part, z_part)
 }
 
 func dot(other: Quaternion): Float {
-    return x_value * other.x_value + y_value * other.y_value + z_value * other.z_value + w_value * other.w_value
+    return x * other.x + y * other.y + z * other.z + w * other.w
 }
 
 func length(): Float {
-    var squared = x_value * x_value + y_value * y_value + z_value * z_value + w_value * w_value
+    var squared = x * x + y * y + z * z + w * w
     return squared.square_root()
 }
 
 func normalized(): Quaternion {
     var unit = Quaternion()
-    var squared = x_value * x_value + y_value * y_value + z_value * z_value + w_value * w_value
+    var squared = x * x + y * y + z * z + w * w
     if squared == 0.0 {
         return unit
     }
     var inverse_length = 1.0 / squared.square_root()
-    unit.set_parts(
-        x_value * inverse_length,
-        y_value * inverse_length,
-        z_value * inverse_length,
-        w_value * inverse_length,
-    )
+    unit.set_parts(x * inverse_length, y * inverse_length, z * inverse_length, w * inverse_length)
     return unit
 }
 
 func conjugate(): Quaternion {
     var flipped = Quaternion()
-    flipped.set_parts(-x_value, -y_value, -z_value, w_value)
+    flipped.set_parts(-x, -y, -z, w)
     return flipped
 }
 
 func inverse(): Quaternion? {
-    var squared = x_value * x_value + y_value * y_value + z_value * z_value + w_value * w_value
+    var squared = x * x + y * y + z * z + w * w
     assert squared != 0.0
     var scale = 1.0 / squared
     var inverted = Quaternion()
-    inverted.set_parts(-x_value * scale, -y_value * scale, -z_value * scale, w_value * scale)
+    inverted.set_parts(-x * scale, -y * scale, -z * scale, w * scale)
     return inverted
 }
 
@@ -190,10 +185,10 @@ func normalized_interpolate(target: Quaternion, amount: Float): Quaternion {
     }
     var blended = Quaternion()
     blended.set_parts(
-        x_value + (target.x_value * direction - x_value) * amount,
-        y_value + (target.y_value * direction - y_value) * amount,
-        z_value + (target.z_value * direction - z_value) * amount,
-        w_value + (target.w_value * direction - w_value) * amount,
+        x + (target.x * direction - x) * amount,
+        y + (target.y * direction - y) * amount,
+        z + (target.z * direction - z) * amount,
+        w + (target.w * direction - w) * amount,
     )
     return blended.normalized()
 }
@@ -216,10 +211,10 @@ func spherical_interpolate(target: Quaternion, amount: Float): Quaternion {
     var end_weight = end_angle.sine() / angle_sine * direction
     var blended = Quaternion()
     blended.set_parts(
-        x_value * start_weight + target.x_value * end_weight,
-        y_value * start_weight + target.y_value * end_weight,
-        z_value * start_weight + target.z_value * end_weight,
-        w_value * start_weight + target.w_value * end_weight,
+        x * start_weight + target.x * end_weight,
+        y * start_weight + target.y * end_weight,
+        z * start_weight + target.z * end_weight,
+        w * start_weight + target.w * end_weight,
     )
     return blended
 }
@@ -231,5 +226,5 @@ func to_matrix(): Matrix4 {
 }
 
 func to_string(): String {
-    return "({x_value}, {y_value}, {z_value}, {w_value})"
+    return "({x}, {y}, {z}, {w})"
 }

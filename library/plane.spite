@@ -12,9 +12,9 @@ func set_parts(starting_normal_x: Float, starting_normal_y: Float, starting_norm
 
 func set_point_normal(point: Vector3, starting_normal: Vector3) {
     var unit = starting_normal.normalized()
-    normal_x = unit.x_value
-    normal_y = unit.y_value
-    normal_z = unit.z_value
+    normal_x = unit.x
+    normal_y = unit.y
+    normal_z = unit.z
     distance = 0.0 - unit.dot(point)
 }
 
@@ -23,7 +23,7 @@ func normal(): Vector3 {
 }
 
 func signed_distance_to(point: Vector3): Float {
-    return normal_x * point.x_value + normal_y * point.y_value + normal_z * point.z_value + distance
+    return normal_x * point.x + normal_y * point.y + normal_z * point.z + distance
 }
 
 func normalize() {

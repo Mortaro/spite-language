@@ -35,9 +35,9 @@ func multiply(other: Matrix3): Matrix3 {
 }
 
 func transform(vector: Vector3): Vector3 {
-    var x_part = column_0_row_0 * vector.x_value + column_1_row_0 * vector.y_value + column_2_row_0 * vector.z_value
-    var y_part = column_0_row_1 * vector.x_value + column_1_row_1 * vector.y_value + column_2_row_1 * vector.z_value
-    var z_part = column_0_row_2 * vector.x_value + column_1_row_2 * vector.y_value + column_2_row_2 * vector.z_value
+    var x_part = column_0_row_0 * vector.x + column_1_row_0 * vector.y + column_2_row_0 * vector.z
+    var y_part = column_0_row_1 * vector.x + column_1_row_1 * vector.y + column_2_row_1 * vector.z
+    var z_part = column_0_row_2 * vector.x + column_1_row_2 * vector.y + column_2_row_2 * vector.z
     return Vector3(x_part, y_part, z_part)
 }
 
@@ -88,15 +88,15 @@ func inverse(): Matrix3? {
 }
 
 func set_rotation(rotation: Quaternion) {
-    var x_x = rotation.x_value * rotation.x_value
-    var y_y = rotation.y_value * rotation.y_value
-    var z_z = rotation.z_value * rotation.z_value
-    var x_y = rotation.x_value * rotation.y_value
-    var x_z = rotation.x_value * rotation.z_value
-    var y_z = rotation.y_value * rotation.z_value
-    var w_x = rotation.w_value * rotation.x_value
-    var w_y = rotation.w_value * rotation.y_value
-    var w_z = rotation.w_value * rotation.z_value
+    var x_x = rotation.x * rotation.x
+    var y_y = rotation.y * rotation.y
+    var z_z = rotation.z * rotation.z
+    var x_y = rotation.x * rotation.y
+    var x_z = rotation.x * rotation.z
+    var y_z = rotation.y * rotation.z
+    var w_x = rotation.w * rotation.x
+    var w_y = rotation.w * rotation.y
+    var w_z = rotation.w * rotation.z
     column_0_row_0 = 1.0 - 2.0 * (y_y + z_z)
     column_0_row_1 = 2.0 * (x_y + w_z)
     column_0_row_2 = 2.0 * (x_z - w_y)

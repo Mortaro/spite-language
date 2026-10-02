@@ -52,7 +52,7 @@ func transform_pass(): Float {
     var step = 0
     while step < 1000000 {
         var moved = model.transform_point(point)
-        total = total + moved.x_value
+        total = total + moved.x
         step = step + 1
     }
     return total
