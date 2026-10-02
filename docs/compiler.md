@@ -27,8 +27,8 @@ freely (a production build may keep the REPL), and the outputs combine: one comp
 write its C and write its final classes.
 
 `bin/spite` (and `bin/spite.cmd`, which runs it from a Windows prompt) is the command itself: it builds the
-compiler from `bootstrap/seed/spite_compiler.c` into `.spite/spite.exe` the first time, and again whenever the
-seed is newer, finds a C compiler, makes the folder and path arguments absolute, and passes everything else
+compiler from the seed for the system it runs on (`bootstrap/seed/linux/spite_compiler.c`, or `windows/`) into
+`.spite/spite.exe` the first time, and again whenever the seed is newer, finds a C compiler, makes the folder and path arguments absolute, and passes everything else
 through. A program's own settings and arguments reach it exactly as they were typed, from bash or from PowerShell
 or `cmd` through `spite.cmd`: `spite tool --prefixes=/Game/Legacy/` gives the program `--prefixes=/Game/Legacy/`,
 not the path Git for Windows' bash would make of it ([the rule](#the-launcher-passes-the-programs-arguments-untouched)).
@@ -198,6 +198,10 @@ inside Visual Studio on Windows:
 ```bash
 SPITE_CC=clang spite game --optimized
 ```
+
+What the C compiler says is shown only when it fails ([the rule](#what-the-c-compiler-says)): the C is the
+compiler's, so a warning about it is nothing you could act on, and it never reaches the output of a program that
+built.
 
 ## Release builds
 
@@ -631,6 +635,11 @@ singletons are static objects and everything unused is tree-shaken, down to the 
 `--optimized` with a REPL flag is inspectable. The optimisations that change only speed (chains as one loop,
 placement, text appended in place) apply in both; [optimizations.md](optimizations.md) says which build each
 optimisation applies in (`conformance/stage6/development_internals`).
+
+### What the C compiler says
+
+The compiler reads the C compiler's messages with its output. When the C compiler fails, the compiler prints
+them and stops; when it succeeds, they are dropped, warnings included, so a program's output is its own.
 
 ### Where a program runs
 

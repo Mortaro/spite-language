@@ -313,6 +313,10 @@ func render(): String {
         bodies = folder.fold(typedef_text, bodies, main_function)
         main_function = folder.main_text
         folded_functions = folder.folded_count
+        var pointers = folder.pointers()
+        if not pointers.is_empty() {
+            prototype_lines = "{prototype_lines}\n{pointers}"
+        }
     }
     var defines = ""
     if threads {

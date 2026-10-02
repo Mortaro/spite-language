@@ -4,21 +4,30 @@ Spite's compiler is written in Spite and compiles itself. There is no other impl
 
 ## How it builds
 
-`bootstrap/seed/spite_compiler.c` is the C that the compiler emits for its own sources. Compiling that file with
-any C compiler gives you a working Spite compiler, which can then compile the sources again and produce the same
-C: a fixpoint.
+`bootstrap/seed/<system>/spite_compiler.c` is the C that the compiler emits for its own sources, for that system
+(`linux`, `windows`). Compiling the file for your system with any C compiler gives you a working Spite compiler,
+which can then compile the sources again and produce the same C: a fixpoint.
 
 ```
-cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite -lm
+cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
 ./spite bootstrap --c-source --run=false    # writes bootstrap/bootstrap.c, equal to the seed when it is current
 ```
 
 So the only thing needed to build Spite from nothing is a C compiler. `-lm` links the C library's maths, which
 the compiler calls to fold maths on constants ([optimizations.md](../docs/optimizations.md#maths-on-constants-is-worked-out-while-compiling));
 Linux and macOS keep it apart, and Windows needs no flag. The compiler it gives finds `launcher/` and
-`library/` from its own executable, so the executable lives in the repository or a folder inside it. The seed is
-committed, and `check.sh` says when it has drifted from the sources (`bash check.sh --update-seed` refreshes it
-after an intended change). The compiler is a program like any other, named by its folder: `bootstrap/`, whose entry
+`library/` from its own executable, so the executable lives in the repository or a folder inside it. The seeds are
+committed, and `check.sh` says when one has drifted from the sources (`bash check.sh --update-seed` refreshes them
+all after an intended change).
+
+There is one seed per system because the compiler knows the system it runs on as it was compiled: its own
+`build.target_operating_system` is its host, so the Windows seed loads `kernel32.dll` and `ucrtbase.dll` when it
+starts and cannot run on Linux. Nothing of the compiling machine reaches the C, so generation 2 on Linux given
+`--target-operating-system=windows` writes exactly the Windows seed, and the other way round: one machine refreshes
+every seed, and each system's own fixpoint (generation 2 equal to generation 3) is checked on that system.
+`bin/spite` and `check.sh` pick the seed by `uname`; a system with no seed (macOS, for now) is an error naming
+it. The first Linux seed was written by the Windows seed itself, run once on Linux through stand-in libraries for
+the eight Windows functions the compiler calls, and it compiled to a Linux compiler whose own C was the same. The compiler is a program like any other, named by its folder: `bootstrap/`, whose entry
 is `bootstrap/bootstrap.spite` (class `Bootstrap`). Its C goes to the default place,
 `.spite/build/bootstrap/bootstrap.c` (D283), because every `Build` field is a constant in what is built: a `--c-path` naming some other file would be written into the C, and the next
 generation would differ ([compiler.md](../docs/compiler.md#outputs)).
@@ -46,7 +55,8 @@ generation would differ ([compiler.md](../docs/compiler.md#outputs)).
 11. writes the compiler, a time-zone program and a file-watching program out for Windows, Linux and macOS,
     holding each operating system's library folder to compiling;
 12. requires every `.spite` file outside `diagnostics/` to be formatted already;
-13. says whether the committed seed is current (`--update-seed` replaces it with generation 2).
+13. says whether the committed seeds are current: this system's against generation 2, every other system's
+    against what generation 2 writes with `--target-operating-system` (`--update-seed` replaces them all).
 
 A generation that cannot reproduce itself is not a compiler for this language, so step 2 is the real test; the
 rest is what keeps the language honest about what it says it does.
@@ -64,7 +74,7 @@ bootstrap/source/syntax/         lexer, parser, syntax tree, formatter
 bootstrap/source/discovery/      finding classes, following loads, merging reopened classes
 bootstrap/source/analysis/       types, classes, functions, templates
 bootstrap/source/generation/     C generation, and prelude.spite: the C the compiler supplies, beside its Spite
-bootstrap/seed/spite_compiler.c  the committed fixpoint
+bootstrap/seed/<system>/          the committed fixpoint for each system, spite_compiler.c
 conformance/ examples/ tests/    programs with their exact output, which must balance their allocations
 diagnostics/                     programs that must fail, with their exact errors
 scripts/docs_corpus/             writes every titled program of docs/ and the README out for check.sh

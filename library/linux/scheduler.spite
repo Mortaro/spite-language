@@ -1,7 +1,6 @@
 var library = DynamicLibrary("libc.so.6", 'identity', "")
 var heap = Memory.Heap()
 var signal_ending = 0
-var signal_byte: Long = 0
 
 func current_thread(): Long {
     return library.pthread_self_as_long()
@@ -13,12 +12,11 @@ func create_event(): Long {
     var reading = ends.read_integer(0)
     signal_ending = ends.read_integer(4)
     heap.free(ends)
-    signal_byte = heap.allocate(8)
     return reading
 }
 
 func signal_event() {
-    library.write(signal_ending, signal_byte, 1)
+    library.write(signal_ending, "!", 1)
 }
 
 func wait_event(milliseconds: Integer) {

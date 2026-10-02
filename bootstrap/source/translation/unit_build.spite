@@ -83,7 +83,24 @@ func compile_process(key: String): Process {
     arguments.append("{cache_folder}/{key}.c")
     arguments.append("-o")
     arguments.append("{cache_folder}/{key}.o")
-    return Process(c_compiler, arguments)
+    return with_messages(arguments)
+}
+
+# ../docs/compiler.md#what-the-c-compiler-says
+func with_messages(arguments: List<String>): Process {
+    var compile = Process(c_compiler, arguments)
+    var line = "2>&1 {c_compiler}"
+    if c_compiler.contains(" ") and File(c_compiler).exists() {
+        line = "2>&1 \"{c_compiler}\""
+    }
+    var index = 0
+    while index < arguments.count() {
+        var quoted = compile.quoted_argument(arguments[index])
+        line = "{line} {quoted}"
+        index = index + 1
+    }
+    var no_arguments = List<String>()
+    return Process(line, no_arguments)
 }
 
 func finished(process: Process, handle: Long): Integer {
@@ -97,10 +114,11 @@ func finished(process: Process, handle: Long): Integer {
     }
     heap.free(chunk)
     var output = pieces.join("")
-    if not output.is_empty() {
+    var status = process.close_process(handle)
+    if status != 0 {
         console.error(output)
     }
-    return process.close_process(handle)
+    return status
 }
 
 func linked(objects: List<String>, output_path: String): Boolean {
@@ -122,7 +140,7 @@ func linked(objects: List<String>, output_path: String): Boolean {
         arguments.append(link_arguments[index])
         index = index + 1
     }
-    var process = Process(c_compiler, arguments)
+    var process = with_messages(arguments)
     if process.run() != 0 {
         var output = process.output()
         console.error(output)

@@ -830,7 +830,7 @@ func built_executable(): Boolean {
     process_arguments.append("-o")
     process_arguments.append(output_path)
     append_maths_library(process_arguments, generated_code)
-    var process = Process(c_compiler, process_arguments)
+    var process = with_messages(c_compiler, process_arguments)
     var exit_code = process.run()
     if exit_code != 0 {
         var output = process.output()
@@ -842,6 +842,11 @@ func built_executable(): Boolean {
     }
     write_companions(output_path)
     return true
+}
+
+func with_messages(c_compiler: String, process_arguments: List<String>): Process {
+    var build = Translation.UnitBuild(c_compiler, "")
+    return build.with_messages(process_arguments)
 }
 
 func splits_into_units(splitter: Translation.UnitSplitter): Boolean {
@@ -1463,7 +1468,7 @@ func build_library(code: String, library_c_path: String, library_path: String): 
     process_arguments.append("-o")
     process_arguments.append(library_path)
     append_maths_library(process_arguments, code)
-    var process = Process(c_compiler, process_arguments)
+    var process = with_messages(c_compiler, process_arguments)
     if process.run() != 0 {
         var output = process.output()
         console.print("error: the C compiler could not build {library_path}:\n{output}")
