@@ -800,7 +800,7 @@ func check(value: Integer) {
 
 func guard_forever(): Integer {
     var index = 0
-    while true {
+    while index >= 0 {
         refuse(index)
         var text: String = index
         index = index + text.length()
