@@ -346,7 +346,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **B12** A write to a copy that dies unread (proposed, unconfirmed rule: a compile error). **M.**
 - **B14** A `__fastfail` or a C library heap abort ends the program without Spite's report. **M.**
 - **B15** A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` hangs. **S.**
-- **B16** `call_function()` on a function with parameters silently does nothing (testing.md). **S.**
 - **B17** Reference cycles leak silently without `--debug-memory` (largely answered by E3). Depends on E3.
 - **B18** A compile can write back old text over an edit made while it runs: every compile formats the program's
   files (D385), and one that read a file before someone else's edit wrote its formatted copy over that edit. Write a

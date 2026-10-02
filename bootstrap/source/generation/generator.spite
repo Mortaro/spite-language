@@ -13078,9 +13078,8 @@ func function_value(
         add_lazy_arguments(maker, argument_lines, lines)
         lines.append("described->spite_owner = {information.c_name}___retain(owner);")
         lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
-        var function_return_type = function.return_type
-        if function.parameters.count() == 0 and type_shape.is_void(function_return_type) {
-            lines.append("described->spite_call = (void (*)(void*)){function.c_name};")
+        if function.parameters.count() == 0 {
+            lines.append("described->spite_call = (void (*)(void*)){ensure_dropping_call(information, function)};")
         }
         lines.append("described->spite_typed_call = (void*){function.c_name};")
         lines.append("return described;")
@@ -18416,10 +18415,9 @@ func functions_list_text(information: Analysis.ClassInfo, list_name: String, arg
             }
             lines.append("described->spite_owner = {retained_self};")
             lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
-            var function_return_type = function.return_type
             var callable = not is_inline_supplied(function)
-            if callable and function.parameters.count() == 0 and type_shape.is_void(function_return_type) {
-                lines.append("described->spite_call = (void (*)(void*)){function.c_name};")
+            if callable and function.parameters.count() == 0 {
+                lines.append("described->spite_call = (void (*)(void*)){ensure_dropping_call(information, function)};")
             }
             if callable {
                 lines.append("described->spite_typed_call = (void*){function.c_name};")
@@ -18900,6 +18898,32 @@ func ensure_slot_store_function(element: Analysis.SpiteType): String {
     lines.append("return true;")
     lines.append("}")
     builder.add_prototype("bool {function_c_name}(void* owner, void* slot, void* object);")
+    var joined_lines = lines.join("\n")
+    builder.add_support(joined_lines)
+    return function_c_name
+}
+
+func ensure_dropping_call(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    var return_spite_type = function.return_type
+    if type_shape.is_void(return_spite_type) {
+        return function.c_name
+    }
+    var function_c_name = "{function.c_name}___dropping_call"
+    if reflect_function_names.contains(function_c_name) {
+        return function_c_name
+    }
+    reflect_function_names.append(function_c_name)
+    var lines = List<String>()
+    lines.append("void {function_c_name}(void* owner) \{")
+    var call = "{function.c_name}(({information.c_name}*)owner)"
+    if type_needs_drop(return_spite_type) {
+        lines.append("{c_type_name(return_spite_type)} returned = {call};")
+        lines.append("{release_call(return_spite_type, "returned")};")
+    } else {
+        lines.append("(void){call};")
+    }
+    lines.append("}")
+    builder.add_prototype("void {function_c_name}(void* owner);")
     var joined_lines = lines.join("\n")
     builder.add_support(joined_lines)
     return function_c_name

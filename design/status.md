@@ -810,9 +810,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ## [testing.md](../docs/testing.md)
 
-### The runner is thirty lines of Spite
-- `call_function()` can call only a function that takes no arguments. For a function with parameters it silently does nothing. The page now states "takes no arguments, so a test takes none" without saying it is a limit.
-
 ### How testing works
 - Nothing else is unbuilt. The decisions behind it (D46 testing is a package that crashes, D49 `Spite.Class.instances`) were removed from the page as bookkeeping.
 
