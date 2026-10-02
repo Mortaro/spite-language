@@ -786,6 +786,37 @@ func reached_functions(entries: List<String>): Dictionary<Boolean> {
     return seen
 }
 
+func reached_constructions(entries: List<String>): List<String> {
+    var constructed = List<String>()
+    var seen = Dictionary<Boolean>()
+    var waiting = entries.copy()
+    while not waiting.is_empty() {
+        var key = waiting.remove_last()
+        crash key
+        if not seen.has(key) {
+            seen[key] = true
+            if by_function[key] {
+                add_constructions(by_function[key], constructed)
+                add_callees(by_function[key], waiting)
+            }
+        }
+    }
+    return constructed
+}
+
+func add_constructions(effects: FunctionEffects, constructed: List<String>) {
+    var index = 0
+    while index < effects.calls.count() {
+        var call = effects.calls[index]
+        if call.callee == "copy" or call.callee == "deep_copy" {
+            constructed.append("*")
+        } else if names_a_class(call.callee) {
+            constructed.append(call.callee_class)
+        }
+        index = index + 1
+    }
+}
+
 func add_placed_callees(effects: FunctionEffects, waiting: List<String>) {
     var index = 0
     while index < effects.calls.count() {

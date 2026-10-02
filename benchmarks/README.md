@@ -21,6 +21,7 @@ for the allocation counts.
 | Benchmark | What it leans on |
 |---|---|
 | `fused_chain` | 100 000 objects walked 300 times by fused `filter_`/`map_`/`sum_`/`count_` chains |
+| `gathered_objects` | `fused_chain`'s walk (100 000 sprites, 300 frames of fused `filter_`/`map_`/`sum_`/`count_` chains) in a program where one class, never made in the loop, has a `drop()` that removes from a list. Such a `drop()` once made every pass count its elements (best of seven 283 ms against 226 ms without the `drop()`); now only a pass that makes or copies a program object does, and both read 218 ms against 212 ms |
 | `dictionary_keys` | a `Dictionary` keyed by 50 000 numbers (by text made from them before D224) and one by 2 000 names, set and read |
 | `number_keys` | 100 000 entries set and a million lookups, once keyed by the number itself and once by text made from it (`index.to_string()`); prints the milliseconds of each |
 | `text_building` | appending to text in a loop, `"word{index}"` pieces and `join` |

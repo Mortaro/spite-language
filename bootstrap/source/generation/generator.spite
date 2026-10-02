@@ -27736,12 +27736,12 @@ func borrowed_element(
         return ""
     }
     var element_type = class_information.codegen_types[0]
-    if not type_needs_drop(element_type) or type_shape.as_nullable(element_type) or drops_may_release() {
+    if not type_needs_drop(element_type) or type_shape.as_nullable(element_type) {
         return ""
     }
     var watch = ReleaseWatch(declaration.name)
     watch.element_owner = watched_owner(element_type)
-    if not watch_statements(watch, statements, start, scope, class_information) {
+    if not watch_statements(watch, statements, start, scope, class_information) or window_may_run_drop(watch) {
         return ""
     }
     var integer_spite_type = integer_type()
@@ -27772,12 +27772,12 @@ func borrowed_field(
         return ""
     }
     var field_type = field.type
-    if not type_needs_drop(field_type) or type_shape.as_nullable(field_type) or drops_may_release() {
+    if not type_needs_drop(field_type) or type_shape.as_nullable(field_type) {
         return ""
     }
     var watch = ReleaseWatch(declaration.name)
     watch.element_owner = watched_owner(field_type)
-    if not watch_statements(watch, statements, start, scope, class_information) {
+    if not watch_statements(watch, statements, start, scope, class_information) or window_may_run_drop(watch) {
         return ""
     }
     var generated = generate_expression(declaration.value, scope, class_information)
@@ -27987,7 +27987,60 @@ func watch_call(
         return watch_strict_call(watch, callee, scope, class_information)
     }
     var effects = watched_effects(watch, callee, scope, class_information)
-    return not effects.contains("release") and not effects.contains("field:*")
+    if effects.contains("release") or effects.contains("field:*") {
+        return false
+    }
+    var key = watched_key(watch, callee, scope, class_information)
+    if key.is_empty() {
+        watch.unknown_call = true
+    } else {
+        watch.reached.append(key)
+    }
+    return true
+}
+
+func watched_key(
+    watch: ReleaseWatch,
+    callee: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var member = shape.as_member(callee)
+    if member and not watch.element_owner.is_empty() {
+        crash member.object
+        if is_identifier_named(member.object, watch.name) {
+            return call_effects.effects_key(watch.element_owner, member.name)
+        }
+    }
+    var key = called_effects_key(callee, scope, class_information)
+    if not key.is_empty() or not member {
+        return key
+    }
+    crash member.object
+    if member.name == "call_function" or call_effects.names_a_class(member.name) {
+        return ""
+    }
+    var owner = receiver_owner(member.object, scope, class_information)
+    return call_effects.effects_key(owner, member.name)
+}
+
+func window_may_run_drop(watch: ReleaseWatch): Boolean {
+    if not drops_may_release() {
+        return false
+    }
+    if watch.unknown_call {
+        return true
+    }
+    var constructed = call_effects.reached_constructions(watch.reached)
+    var index = 0
+    while index < constructed.count() {
+        var made = find_class_by_qualified(constructed[index])
+        if not made or not is_library_class(made) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func watch_strict_call(

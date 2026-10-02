@@ -3,6 +3,8 @@ var locals = List<String>()
 var element_owner = ""
 var strict = false
 var keys = List<String>()
+var reached = List<String>()
+var unknown_call = false
 
 func ReleaseWatch(watched_name: String) {
     name = watched_name

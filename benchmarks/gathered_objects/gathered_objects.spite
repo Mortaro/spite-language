@@ -1,0 +1,26 @@
+var console = Console()
+var cache = TextureCache()
+
+func GatheredObjects() {
+    cache.load_texture("ground")
+    var sprites = List<Sprite>()
+    var index = 0
+    while index < 100000 {
+        var body = Body(index % 640, index % 480)
+        var sprite = Sprite(index % 3 != 0, index % 7, body)
+        sprites.append(sprite)
+        index = index + 1
+    }
+    var total: Long = 0
+    var frame = 0
+    while frame < 300 {
+        var layers = sprites.filter_is_visible().sum_layer()
+        var widths = sprites.filter_is_visible().map_bodies().sum_x()
+        var tall = sprites.map_bodies().count_is_low()
+        total = total + layers + widths + tall
+        frame = frame + 1
+    }
+    console.print("total", total)
+    var textures = cache.textures.count()
+    console.print("textures", textures)
+}
