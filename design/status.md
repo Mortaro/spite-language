@@ -139,8 +139,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - **A change of signedness at the same width or wider** (`var bits: UnsignedInteger = count` with a negative
   `count`) keeps the bits unchecked: D162's "wider" leaves signedness out, and the hashes read words this way.
   Whether it should halt, with a named function for reading the bits, waits for Mortaro (D359; proposed by Claude).
-- **A `while true` that can never leave** ends its function's paths for the missing-`return` check, and nothing
-  reports it outside a locked singleton function: a hang.
+- **A `while true` that can never leave but calls something** ends its function's paths for the missing-`return`
+  check, and is reported only in work a `Parallel` reaches (when its function never waits) and in a locked singleton
+  function: elsewhere a call inside it may end the program, so it is left alone, and one that never does is a hang.
+  Only a loop that calls nothing is refused everywhere (control_flow.md).
 - **Two threads writing one number attribute of an instance they share** is refused only when the instance is a
   local handed to the `Parallel` (concurrency.md, "A task may keep what was handed to it"); `Parallel(own_function)`,
   a parameter, an attribute, or a local used before the `Parallel` still race, the result whichever write lands last.

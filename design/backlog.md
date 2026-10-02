@@ -182,9 +182,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   own functions (parser `enum_declaration.spite`, `analysis/enum_info.spite`, generator.spite enum emission), values
   and functions as reflection objects (with R5), and D180's environments enum on top (S6). **L.** Depends on R5
   for the reflection half; F1 needs the functions half.
-- **L7 Work that can never finish in a `Parallel` is an error** (D336). A loop with no exit and no wait inside work
-  given to a `Parallel`; related to failure.md's "a `while true` that can never leave". Files: generator.spite
-  `Parallel` checks, `wait_facts.spite`. **M.** No dependencies.
 
 ### Compiler driver and outputs (D327, D348, D349, D356, D390, D361, D366, D369 items 134 and 138, D385)
 
@@ -301,19 +298,15 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 - **B3** A lent-element function is not checked by the guard lint (an empty collection made on the spot is now a
   default, `diagnostics/empty_collection_guard`). **S.**
-- **B6** A `while true` that can never leave is not reported (with L7). **M.**
+- **B6** A `while true` that can never leave but calls something is reported only in `Parallel` work and locked
+  singleton functions; a loop that calls nothing is refused everywhere. Left: telling a loop whose calls can never
+  end the program (no `program.exit`, no `crash` reached) from one that can. **M.**
 - **B7** Two threads writing one number attribute of a shared instance is refused only for a handed-over local
   (D35, D179); the rest needs the handle's lifetime. **M.**
 - **B12** A write to a copy that dies unread (proposed, unconfirmed rule: a compile error). **M.**
 - **B14** A Windows `__fastfail` ends the program without Spite's report (the Linux and macOS heap abort is D379,
   built). **M.**
 - **B17** Reference cycles leak silently without `--debug-memory` (largely answered by E3). Depends on E3.
-- **B18** A compile can write back old text over an edit made while it runs: every compile formats the program's
-  files (D385), and one that read a file before someone else's edit wrote its formatted copy over that edit. Write a
-  file only when it is unchanged since it was read, and otherwise report the file as changed (a D244 lost write).
-  Files: the formatter's write in `bootstrap.spite`. **S.**
-- **B19** Whether a walked row's ignored `_x` parameter counts as read depends on the shapes of the other
-  parameters. It must not. Files: the walked-row reads in generator.spite. **S.**
 
 ### Skills and docs
 
@@ -335,7 +328,7 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M2, M4, M7, N1, E1, E2, E4, L7, C7, K2, S9, P1, P2, X1, the remaining B items, E3,
+2. No dependencies: R8, M1, M2, M4, M7, N1, E1, E2, E4, C7, K2, S9, P1, P2, X1, the remaining B items, E3,
    D1's first pass.
 3. After step 2: R5, K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4, R8, then R9.
@@ -362,7 +355,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 4 Memory | E2, E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
 | 6 Waiting, IO and library | K2, K1, K3, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
-| 7 Language rules | L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
+| 7 Language rules | L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | P1, P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | the remaining B items | small fixes, each in the file of the proof it fixes; rebase often |
 | 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |
