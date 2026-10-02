@@ -352,7 +352,8 @@ line, the program stops before it and waits for the prompt: `where` answers wher
 command answers as usual, and `continue` lets the program go on. `breaks` lists the breakpoints and `clear` (or
 `clear ticker.spite:16`) removes them, compiling the code again without the stop. A call made at the prompt that
 reaches a breakpoint answers `stopped at ... while answering` at once, and prints what it returned on the error
-output once it goes on. 
+output once it goes on. A stopped program is waiting, so a reload the watcher compiled meanwhile is swapped in
+there, as at any wait.
 
 ## Code typed at the prompt
 
@@ -662,6 +663,10 @@ worked out while compiling, so the check folds away with the branch it guards.
   instead of the build's manifest; the functions and slots the executable holds stay the build's. A save after a
   change that compiled everything is fast again. Starting the program again starts from the build
   (`game.reload_start`), since a new process runs the build's code.
+- **One reload at a time.** A reload compares with the files and the baseline of the code the program will run,
+  which swapping a library in writes, so a reload waits to compile until the library before it has been swapped in
+  (or refused): the watcher and the prompt never compile against the code before a swap that is still on its way,
+  and never read those files while a swap writes them.
 - **Every object of a program class can move.** In a `--hot-reload` build each object of the program's own classes
   carries two hidden words after its header: where its attributes live when they have moved, and its place in a
   list of the class's live objects, which each allocation adds to and each release takes from. Code reads an
@@ -682,9 +687,10 @@ worked out while compiling, so the check folds away with the branch it guards.
   thread while the program keeps running, so a game keeps drawing frames while its code is rebuilt.
 - **The watcher is the standard library's [`FileSystemWatcher`](standard_library.md#watch-files-and-folders)**, the one any
   program can use, started on a thread of its own: `ReadDirectoryChangesW` on Windows, `inotify` on Linux and
-  `kqueue` on macOS, with no polling. The thread sits in `wait_for_changes()`, which the operating system wakes;
-  a burst of changes is waited out until 100 ms pass without one, so a save that writes a file in pieces reloads
-  once. The program's own folder is watched with every folder below it, and so is every folder it `load`s, except
+  `kqueue` on macOS, with no polling. It is watching before the program's entry runs and before the REPL listens,
+  so a save made once the REPL answers is never missed. The thread sits in `wait_for_changes()`, which the
+  operating system wakes; a burst of changes is waited out until 100 ms pass without one, so a save that writes a
+  file in pieces reloads once. The program's own folder is watched with every folder below it, and so is every folder it `load`s, except
   a repository's checkout under `.spite/git/` ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)),
   which is read-only: a pinned commit never changes, so there is nothing to reload there, and a change to that
   package is a new commit and a restart. Each reload's library is written beside the executable, into

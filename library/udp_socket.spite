@@ -24,6 +24,18 @@ func open_everywhere(port: Integer): Boolean {
     return _bound(fallback)
 }
 
+func open_at(host: String, port: Integer): Boolean {
+    var addresses = _addresses.resolved_addresses(host, port, 2)
+    var opened = false
+    if not addresses.is_empty() {
+        var address = _addresses.empty_address()
+        addresses[0].copy_to(address, 28)
+        opened = _bound(address)
+    }
+    _addresses.free_addresses(addresses)
+    return opened
+}
+
 func send_to(host: String, port: Integer, bytes: List<Byte>): Boolean {
     crash handle != -1
     var address = _destination(host, port)

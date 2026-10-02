@@ -13,11 +13,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 ## Landing from branches (do not build again)
 
 - **Landed:** `cloud/linux` (one seed per system, the Linux check, D376) on 2026-10-02.
-- **Landed:** `wip/fastbuild` (the default and `--hot-reload` builds at `-O0`, units split in default builds; its
-  row is the placeholder **D???** at the end of the log) on 2026-10-02.
-- **Being merged:** `cloud/operators` (D315 and D365: an operator's function called by name is an error naming the
-  shortcut, a word after `.` is always a member name, `Dictionary.set` is `d[key] = value`, a kept `[]` read is
-  narrowed). D369 item 220 (S7 below) renames the dictionary's `[]` functions after it lands.
+- **Landed:** `cloud/operators` (D315 and D365, recorded as D396), the reload races and `wip/fastbuild` (D403) on
+  2026-10-02.
 - **Waiting:** `cloud/nomap` (no `List.map(function)`, no `map_` over a test, no class-qualified function value;
   its row needs the next free number).
 
@@ -35,13 +32,27 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   declares none of them. Check they go through declared library templates like `List`'s (D240: nothing hidden),
   then fold into S7. **S.** Depends on S7.
 - **R5 The rest of the object model** (D316, D317; status "Not built" and "Run time only through the old tables").
-  `call_with` (spelling open, Q1); `Spite.Namespace.enums`; a class's own `get_`/`set_` template spelled
+  `Spite.Namespace.enums`; a class's own `get_`/`set_` template spelled
   `attribute: Spite.Attribute<Person>` inside `Person` (today "unknown identifier 'attributes'"); the kind
   questions (`.is_stateful`, `.is_list`, `.owner`, `.index`, `.is_mutated`, `.returned_literal`) on run-time
   objects; specialisation beyond the calling class, of enum parameters, and of functions of `Spite` classes; the
   two narrowing gaps (`var run = $T.functions['run_each']` then `if run`, and `crash Spite.Class.instances[...]`).
   Files: generator.spite reflection and specialisation regions, `specialisation.spite`, `reflected.spite`,
-  `library/spite/*.spite`. **L.** Depends on landing `cloud/nomap` and Q1.
+  `library/spite/*.spite`. **L.** Depends on landing `cloud/nomap`.
+- **R8 Declarations and bound members are different classes** (D391). `Spite.FunctionDeclaration` and
+  `Spite.AttributeDeclaration` (no value) for a class's members; `Spite.Function` and `Spite.Attribute` bound to an
+  instance, with `.owner` the instance. Every library and doc walk over `Monster.attributes` retyped to the
+  declaration class, and reflection.md's titled examples with it; member template parameters become
+  `Spite.AttributeDeclaration<...>` (D392) in README.md's example, WHY_AI.md, docs collections.md and
+  metaprogramming.md's titled examples, `library/list.spite`, `vector.spite`, `items.spite` and the
+  `plural_templates`/`reflection_walks` conformance and diagnostics; `call_with` removed. Files:
+  `library/spite/*.spite`, generator.spite reflection region, `reflected.spite`, docs reflection.md and
+  metaprogramming.md examples. **L.** Depends on R5.
+- **R9 `Spite.Call`** (D391, D393). `Spite.Call(declaration, instance)`, `.arguments['name'] = value`, `call()`;
+  folded into the direct
+  call when everything is known while compiling; an unfilled argument is a compile error where visible, a halt
+  naming it otherwise; an instance not of the declaring class is a compile error (D393). **M.**
+  Depends on R8.
 - **R7 Remove the old Symbol machinery and plural walks** (D316, D317; proposal section 11). Make each old form an
   error naming its new spelling, migrate, then delete: `Symbol<...>` templates and plural walks, `Symbol<$T.f>`
   argument walks, name patterns and folder ranges, `$T.has_function`, `function_waits`, `argument_count`,
@@ -50,19 +61,19 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   100 `Symbol<` lines in 75 files (conformance/stage6, diagnostics, benchmarks, `docs/memory.md`, `json.md`,
   `collections.md`, the diagnostic "write 'member: Symbol<$element_type>'") and about 120 name-keyed questions,
   plus the game engine package (17 files, outside this repository). Retires D114, D115, D180's pattern holes, D209,
-  D219, D229's spelling (Q9), D261, D288. **L.** Depends on R1, R5, J1.
+  D219, D261, D288. **L.** Depends on R1, R5, J1.
 - **R8 Overriding functions of `Spite.Class`** (status "Functions of `Spite.Class`"). The three override rules
   (only what `Spite.Class` declares, a colliding instance function is an error, the override folds), and
   `--final-classes` naming the root of a changed default (with C7). Files: generator.spite class-function
   resolution, `library/spite/class.spite`. **M.** No dependencies.
 
-### Serialization (D319, D320)
+### Serialization (D319, D320, D384)
 
-- **J1 JSON and binary compiled per class** (D319). The writer and reader for each class come from its constant
-  attributes while compiling, skipping private attributes and attributes holding a singleton
+- **J1 JSON and binary as library Spite specialised per class** (D319, D384). The writer and reader are ordinary
+  library Spite walking each class's constant attributes, compiled once per class, shown in `--final-classes`, skipping private attributes and attributes holding a singleton
   (`Spite.Attribute.is_singleton` exists). Today `json_writer.spite`, `json_reader.spite` and `binary_format.spite`
   walk with `Symbol<$value_type>` plurals and `$value_type.has_function("json_key_{attribute.name}")`, a name built
-  from text. Rewrite them over `attributes.each(...)` specialised per class (Q8), delete the `json_key_` checks in
+  from text. Rewrite them over `attributes.each(...)` specialised per class (D384), delete the `json_key_` checks in
   generator.spite (around lines 1766 to 1936) and `diagnostics/json_split`'s decision number. **L.** Depends on R5
   (specialisation).
 - **J2 Rename map keyed by attribute objects** (D320, D329). `JsonWriter<Monster>({Monster.attributes['health']:
@@ -71,8 +82,12 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `Spite.Attribute` (hashing an attribute object). The REPL's `reload {...}` text parsing (D333) moves to the real
   map once the prompt evaluates map literals (P1). Errors for a missing, private or singleton attribute.
   Files: `library/dictionary.spite`, `library/spite/attribute.spite`, the J1 files. **M.** Depends on J1.
+- **J3 Reading JSON whose shape is not known.** A program that inspects an unknown file (a tool, an importer) has
+  no value to read it into: `JsonReader<T>` needs a class. Add an untyped value, a union of object, list, text,
+  number, boolean and null (names proposed by Claude, unconfirmed), read by `JsonReader` and walked with `switch`.
+  Files: `library/json_reader.spite`, a new value class, docs json.md. **M.** No dependencies.
 
-### Types, monomorphisation and storage (D321, D331, D332, D355, D367, D368, D370)
+### Types, monomorphisation and storage (D321, D331, D332, D355, D367, D368, D370, D398, D399, D400, D401, D402)
 
 - **M1 D321 leftovers** (status "Inline types and duck typing"). (a) text and `Symbol` stored as a `type` are
   tagged, not boxed; (b) the closed set at a run-time spot is the classes that reach that spot, not every class
@@ -92,16 +107,17 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   array; step 3: partitions per value filter, only where a production benchmark wins (D322). Files:
   `library/list.spite`, `items.spite`, `vector.spite`, generator.spite list layout, `placement.spite`. **L.**
   Depends on M1(b), M4.
-- **M4 The optimisation report** (D36, D332; status "Other optimisations"). A build lists what could not be
+- **M4 The optimisation report** (D36, D332, D389; status "Other optimisations"). A build lists what could not be
   optimised and why: every list falling back to references (D332's to-do list), copies not elided, objects not
-  placed in the frame, and later every remaining overflow check (N2). Form and place undecided (Q10). Files:
+  placed in the frame, and later every remaining overflow check (N2). Written only when asked, by `--optimization-report` (name unconfirmed), in `--final-classes`' place and style, each entry linking its source line (D389). Files:
   generator.spite (a collector), `bootstrap.spite` (writing it). **M.** No dependencies; M3 and N2 report into it.
-- **M5 Vectors and maths generic over `Number`** (D355). `Vector2`, `Vector3`, `Vector4` and `Quaternion` (and
+- **M5 Vectors and maths generic over `Number`** (D355, D381). `Vector2`, `Vector3`, `Vector4` and `Quaternion` (and
   `Matrix3`/`Matrix4`, `Plane`, `Ray`, `AxisAlignedBox`, `CubicBezier` where it makes sense) take `generic
   $number_type` constrained by `Number`, inferred from the constructor (`Vector3(1, 2, 3)` is
-  `Vector3<Integer>`), one packed copy per class; fractional members answer `Float` or the vector's own fractional
-  class (spelling, Q4). Migrate `examples/`, the corpus and the game engine package. **L.** Depends on M1(c), M2,
-  M6, Q4.
+  `Vector3<Integer>`), one packed copy per class; every member answers the vector's own class, whole numbers truncated like
+  integer division (D381); game_maths.md points grid code at `length_squared()` and notes `normalized()` snaps
+  toward a grid direction. Migrate `examples/`, the corpus and the game engine package. **L.** Depends on M1(c),
+  M2, M6.
 - **M6 Axis names `x`, `y`, `z`, `w`** (D370 item 205). Exempt them from the single-letter error (generator.spite
   near line 28476) and rename the `x_value`-style attributes in 12 library files (`vector2/3/4`, `quaternion`,
   `matrix3/4`, `plane`, `ray`, `axis_aligned_box`, `cubic_bezier`, `color_text`, `http_client`). **S.** No
@@ -109,6 +125,34 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **M7 Identical-function folding leftovers** (D340; status "Identical functions"). Fold a function differing only
   in which class of another layout it passes by reference, compare a boxed text constant by its text, and stop
   writing a foreign callback's site into the function. Files: `function_folder.spite`. **M.** No dependencies.
+- **M8 Benchmark gap analysis** (D398). For each benchmark, compare the generated C with the hand-written C and rank
+  every source of extra work by measured cost: allocation, reference counting, checks, the library's algorithm,
+  missing aliasing hints. The ranking orders M9 to M11. Files: `benchmarks/`. **M.** No dependencies; first.
+- **M9 Escape analysis removes allocations and counting** (D398). An object proven not to escape or not to be
+  shared lives in registers or on the stack, with no reference count. Files: `object_escape.spite`,
+  `object_frames.spite`, `placement.spite`. **L.** After M8.
+- **M10 Inline storage chosen by the compiler** (D398, D331). An object held by one owner is laid inside it; the
+  moron never chooses a storage for it; the number classes' `var _memory = Memory.Bytes(n)` stays, library-only
+  (D400). **L.** After M9, with M3.
+- **M11 Aliasing hints from ownership** (D398, D354, D380). Emit `restrict` where ownership proves two pointers
+  never alias. Files: generator.spite parameter emission. **M.** After E3.
+- **M12 Docs stop teaching the layout internals** (D399). `TypedMemory<T>`, `InlineMemory`, `Raw` and
+  `Memory.Bytes` leave the user pages (memory.md, collections.md, optimizations.md, foreign_libraries.md,
+  classes_and_files.md, compiler.md, concurrency.md, packages.md, proofs.md, README.md); exact foreign layouts are
+  taught through bindings and binary readers. **M.** After M3, M9 and M10 land.
+- **M14 `Vector<T>` removed as a storage the moron picks** (D400). Programs write `List<T>` and the compiler
+  stores it inline where it can (D331); migrate `library/`, the docs (collections.md's "`Vector<T>`: items inline"
+  and its rules, the "value class" wording) and downstream packages. **M.** After M3.
+- **M15 `Items<T>` folds into `List<T>`** (D401). The storage `Items<T>` chooses becomes `List<T>`'s own (M3, M10);
+  migrate `library/items.spite`, collections.md's "`Items<T>`: the storage chosen for you" and its rules, and its
+  users. **M.** With M14, after M3.
+- **M16 A list's layout chosen from how it is iterated** (D402). From every iteration over a `List<T>` and its
+  `function.accesses`, choose array of structs, struct of arrays or a hot/cold split per list; report the choice
+  (M4) and guard it with benchmarks. This is what lets a large package's component columns become plain lists, so
+  it gates M13 (D399's bar). **L.** After M3 and M10.
+- **M13 Enforce the ban on layout internals outside `library/`** (D399). A compile error naming the higher-level
+  alternative. **S.** Last: only after M3, M9 and M10 make plain classes and lists as fast as hand-chosen layouts
+  and downstream packages have migrated with benchmarks showing no slowdown.
 
 ### Arithmetic (D359, D360, D357, D369 item 249)
 
@@ -122,7 +166,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   decimal literals in `float`, and keep exact equality and values written to disk exact. Files: `bootstrap.spite`
   compiler flags, generator.spite literal typing. **S.** No dependencies.
 
-### Memory (D352, D353, D354, D369 item 173, D147, D178)
+### Memory (D352, D353, D354, D380, D369 item 173, D147, D178)
 
 - **E1 Frame arenas and the escape rule** (D352, D369 item 173; status "Allocators"). `Memory.Frame`, its reset
   chosen by the compiler per use (once a frame, a ring, or none), and storing a frame-arena object where it outlives
@@ -134,10 +178,11 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   every fact the compiler knows (layout, size, allocator) as get-only reflection, shaken when unread. Files:
   `library/list.spite`, `vector.spite`, `items.spite`, `typed_memory.spite`, `library/spite/memory.spite`,
   generator.spite allocator handling (around lines 26200 to 26700). **M.** No dependencies; E1 benefits.
-- **E3 Storage owns its items; `Weak` goes** (D354). Collections own what they hold; a reference kept elsewhere is
-  weak and typed `T?`, narrowed before use. Remove `library/weak.spite` and the weak table in generator.spite
-  (around line 7230), migrate 7 `Weak<` uses and memory.md's "Cycles leak". Ownership semantics need Q2 first.
-  **L.** Depends on Q2.
+- **E3 Storage owns its items; `Weak` goes** (D354, D380). List, dictionary and vector slots and non-nullable
+  attributes own; a `T?` attribute or local holding an object owned elsewhere is weak, narrowed before use; a
+  second owner is a compile error naming `copy()`; trees own children through attributes. Remove
+  `library/weak.spite` and the weak table in generator.spite (around line 7230), migrate 7 `Weak<` uses and
+  memory.md's "Cycles leak". **L.** No dependencies.
 - **E4 Frame objects holding text, lists or objects** (status "Copies that cost nothing", proofs "Objects that
   never leave"). Their attributes let go at the end of the frame; an attribute object laid inline where never
   shared; an appended item made in place in a `Vector`'s block. Files: `object_frames.spite`, `owned_local.spite`,
@@ -147,7 +192,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   one place a reader finds (D240's table). Files: `library/memory/heap.spite`, `address.spite`, `prelude.spite`.
   **L.** Pairs with C9.
 
-### Language rules (D364, D371 to D374, D369 item 236, D336)
+### Language rules (D364, D371 to D374, D387, D369 item 236, D336, D386)
 
 - **L1 Every folder is a namespace, no special entry file** (D364). `engine/physics/physics.spite` is
   `Physics.Physics`; loads name a root only; the class and namespace clash error fires only for a file and a folder
@@ -155,9 +200,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   (`bootstrap/source/discovery/program_discovery.spite` around line 934, `versions.spite`, `paths.spite`). Migrate
   the corpus and tell the game engine package (`engine/renderer/renderer.spite` style files). **M.** No
   dependencies.
-- **L2 A class shadowing a visible class is an error** (D374, D284). The error names both declarations, inside the
-  program and against loaded packages. Today only members are checked (`report_shadows_in`, generator.spite near
-  line 28374). D284's narrower "re-creates a standard class" rule may be subsumed (Q5). **S.** Depends on L1.
+- **L2 A class shadowing a visible class is an error** (D374, D387). The error names both declarations, inside the
+  program, against loaded packages and against the standard library (suggesting the library's class). Today only members are checked (`report_shadows_in`, generator.spite near
+  line 28374). D284's attribute matching is dropped (D387); remove it. **S.** Depends on L1.
 - **L3 Every enum is an instance of `Spite.Enum`** (D371). A new `library/spite/enum.spite`, enums declaring their
   own functions (parser `enum_declaration.spite`, `analysis/enum_info.spite`, generator.spite enum emission), values
   and functions as reflection objects (with R5), and D180's environments enum on top (S6). **L.** Depends on R5
@@ -165,19 +210,23 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **L7 Work that can never finish in a `Parallel` is an error** (D336). A loop with no exit and no wait inside work
   given to a `Parallel`; related to failure.md's "a `while true` that can never leave". Files: generator.spite
   `Parallel` checks, `wait_facts.spite`. **M.** No dependencies.
+- **L8 Enum values numbered with `=`** (D386). `admin = 99` on its own line; an unnumbered value counts on from the
+  one before, the first from 0; two values with one number are a compile error; the numbers are the identity for
+  bindings, binary files and the network, storage stays the smallest class that fits. Files: the parser's enum
+  form, the checker, codegen, docs values_and_types.md (enums) and foreign_libraries.md. **M.** No dependencies.
 
-### Compiler driver and outputs (D327, D348, D349, D356, D361, D366, D369 items 134 and 138)
+### Compiler driver and outputs (D327, D348, D349, D356, D390, D361, D366, D369 items 134 and 138, D385)
 
-- **C2 `--format` replaces `spite format`** (D369 item 138). Remove the `format` subcommand from `bin/spite` (lines
-  79 to 88) and the compiler's `format` mode; `spite game --format` rewrites files without building. What
-  `--format --check` means is Q11. **S.** No dependencies (C1 is built).
-- **C5 `--optimized` level by measurement, from `-O2`** (D356). Today `-O3` (`bootstrap.spite` lines 902 to 925).
-  **S** for `-O2`, **M** for the measurement (Q12). No dependencies (`wip/fastbuild` has landed).
+- **C2 `spite format` goes; every compile formats first** (D385, reversing D369 item 138). Remove the `format`
+  subcommand from `bin/spite` (lines 79 to 88) and the compiler's `format` mode; no `--format` flag. `--check`
+  formats and validates without building (C1). **S.** No dependencies (C1 is built).
+- **C5 `--optimized` stays `-O3`** (D390, superseding D356). Already `-O3` (`bootstrap.spite` lines 902 to 925);
+  nothing to measure. Only check the docs say so. **S.** No dependencies (`wip/fastbuild` has landed).
 - **C6 The object cache cleans itself** (D327). LRU eviction of `.spite/objects` past a size cap. Files:
   `bootstrap/source/translation/unit_build.spite`. **S.** No dependencies.
-- **C7 `--final-classes` shows the winning source** (D366, open question 10, status "Final classes"). Each final
+- **C7 `--final-classes` shows the winning source** (D366, D382, open question 10, status "Final classes"). Each final
   class printed as Spite with its generics as written, each declaration marked with the file and load root that
-  supplied it (form, Q7); used library helpers and template instances appear as source, not C names. Files:
+  supplied it, as one comment line linking that file (D382); used library helpers and template instances appear as source, not C names. Files:
   generator.spite final-class printing, `syntax/source_printer.spite`. **M.** No dependencies.
 - **C8 The C left in `main` moves into Spite** (D361, D342). `argv` reaches the program only through `Arguments`;
   `_setmode`, singleton teardown and the `--debug-memory` report run through singletons' `drop()`. Files:
@@ -189,13 +238,13 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `Spite.Function` dispatch, `String.sum`, `code_at`) become Spite over a short list of named backend primitives.
   Files: `prelude.spite`, generator.spite supplied bodies, the matching `library/` files. **L.** Pairs with E5.
 
-### Concurrency, waiting and output (D346, D369 items 178, 179 and 211, D183, D184, D210)
+### Concurrency, waiting and output (D346, D369 items 178, 179 and 211, D183, D184, D210, D378)
 
 - **K1 The compiler picks how output is flushed** (D346). Lines never split or interleaved, everything out before
   exit and before a crash report, output before an input read visible; within that, line by line to a terminal,
   large buffers to files and pipes, per-thread buffers merged by line. Files: `library/console.spite`,
   `library/windows/console.spite` (and Linux, macOS), `prelude.spite` (`flush`), generator.spite crash paths
-  (`fflush` in `SPITE_TRACE_ASSERT`, `spite_overflowed`). Whether `Console.flush()` stays public is Q6. **M.** No
+  (`fflush` in `SPITE_TRACE_ASSERT`, `spite_overflowed`). `Console.flush()` leaves the public surface (D383); `write` stays. **M.** No
   dependencies.
 - **K2 Waits that run the loop in place never hang each other** (D369 item 179; status "Hidden async/await").
   Close every gap (right side of `and`/`or`/`==` on a nullable, through a function value, a union dispatch or a
@@ -214,13 +263,18 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   **L.** Lands after cloud/linux so Linux runs it.
 - **K6 Cancelling a `Concurrent`, and one made off the scheduler's thread** (status concurrency.md summary).
   Decided in concurrency.md, neither built. **M.** Depends on K2.
+- **K7 IO is concurrent by default** (D378). Rebuild the standard library's IO (sockets, files, HTTP, the file
+  watcher) on the `Concurrent` library, so an IO call that would wait parks and straight-line code needs no
+  annotation; the compiler may keep a call blocking where it measures faster (nothing else to run, a tiny local
+  read). Once built, concurrency.md leads with the simple story. Files: `library/socket.spite`, `udp_socket.spite`,
+  `http_*.spite`, `file.spite`, the watcher, `scheduler.spite`, `wait_facts.spite`. **L.** With K5; after K2.
 
 ### Foreign libraries (D351, D369 items 93, 211 and 233)
 
 - **F1 A C enum result is a Spite enum written in Spite** (D351, replacing D272's generated enum). The binding's
-  enum maps each value to its C number (spelling, Q3); a number the enum does not list crashes at the boundary; the
+  enum maps each value to its C number (numbered with `=`, D386); a number the enum does not list crashes at the boundary; the
   result must be used and switched with every value. Files: generator.spite foreign-call region,
-  `library/dynamic_library.spite`, docs/foreign_libraries.md (still describes D272). **M.** Depends on L3, Q3.
+  `library/dynamic_library.spite`, docs/foreign_libraries.md (still describes D272). **M.** Depends on L3, L8.
 - **F2 Bindings checked against a header** (D369 items 93 and 233). With a header, argument and result types and
   enum numbers checked, the error naming the C type; how the header is read is the compiler's choice. **M.**
   Depends on F1.
@@ -232,11 +286,21 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   functions; a `Boolean` as C `bool`, enums and structs by value to callbacks, a function value inside a `type`;
   the offending field named in the foreign-type error. **L** in total, each S or M. Depends on C9 for the first.
 
-### Standard library (D294, D241, D180, D369 items 220 and 250, D370 item 237)
+### Standard library (D294, D394, D241, D180, D369 items 220 and 250, D370 item 237)
 
 - **S1 WebSocket** (D294). Grows from `Socket` and `HttpServer`/`HttpClient` (upgrade handshake with the existing
   `Sha256` and `Base64`, framing, masking, ping and close). New `library/web_socket.spite`. **M.** `wss` waits on S2.
-- **S2 TLS** (D294). HTTPS and `wss`. How it is built needs Q13. **L** (the largest library item).
+- **S2 TLS** (D294, D394, D395). One API on every system for HTTPS and `wss`, over the platform's TLS: SChannel on
+  Windows, the Security framework on macOS, the system's libssl on Linux (not bundled). Client first, then server,
+  each tested against real servers. **L** (the unified API plus three bindings; the largest library item).
+- **S10 TLS written in Spite** (D395, later). Replaces S2's platform bindings behind the same API, so no program
+  changes; lands only after an outside security review. **L.** Depends on S2.
+- **S11 `File.rename` and moving a file or folder.** There is no way to rename or move one without a foreign call.
+  One function on `File` and `Directory` (name proposed by Claude, unconfirmed), on every system. Files:
+  `library/file.spite`, `directory.spite` and their system folders, docs standard_library.md. **S.** No dependencies.
+- **S12 `List.index_of(item): Integer?`.** `find_by_<member>` answers the item, never its place; add the index form
+  (and its member template, `find_index_by_<member>`; names proposed by Claude, unconfirmed). Files:
+  `library/list.spite`, `vector.spite`, `items.spite`, docs collections.md. **S.** No dependencies.
 - **S3 HTTP leftovers** (status "HTTP"). Request bodies sent chunked to the server; the server reading one request
   at a time so a slow client holds the others; the client's resend of a `POST` over a new connection. Files:
   `library/http_server.spite`, `http_client.spite`. **M.** Benefits from K5.
@@ -249,7 +313,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   L3, L4.
 - **S7 `Dictionary`'s `[]` is `get_at`/`set_at`** (D369 item 220). Rename `get`/`set` in
   `library/dictionary.spite` and the compiler's lowering of `d[key]`, and the operator errors from
-  `cloud/operators`. **S.** Depends on landing `cloud/operators`.
+  `cloud/operators` (D396). **S.** No dependencies.
 - **S9 Collection leftovers** (status "Standard library metaprogramming", "Deep copy"). `sort_by_`, `find_by_` and
   a program's own templates on `Vector` and `Items`; the `while`-does-a-template rule over `Vector` loops;
   `deep_copy()` of unions, shapes and self-referring structures; a `String`'s or number's function held as a value.
@@ -267,11 +331,16 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   prompt's `reload` race over `.reload_baseline`/`.reload_files`; also the move of objects while the program's own
   threads run (failure.md). **M.** Depends on landing `cloud/linux`.
 
-### Failure reports (D25, D33, D20)
+### Failure reports (D25, D33, D20, D379)
 
 - **X1 The rest of the crash report** (status "Three outcomes"). The call chain, each failed `assert`'s default, an
   assert's values in the ring, the column in `.crashes` (written `0`). Files: generator.spite crash and assert
   emission, `crash_part.spite`, `native_faults.spite`. **M.** No dependencies.
+- **X2 A corrupted heap reported the same on every system** (D379). Linux and macOS take `SIGABRT`: the C
+  library's heap aborts become `heap-corruption` with the Windows `spite.fault` line and frames, any other
+  `abort()` becomes `abort`; one expected output for `native_fault_heap` on every system. Then, per D361, Spite's
+  own allocator detects corruption itself. Files: `native_faults.spite`, the Linux and macOS fault handlers,
+  `conformance` for `native_fault_heap`. **S** (the signal), **L** (the Spite allocator). Lands after cloud/linux.
 
 ### Bugs under D244 (failure.md's open list; each small and independent unless noted)
 
@@ -293,6 +362,14 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **B15** A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` hangs. **S.**
 - **B16** `call_function()` on a function with parameters silently does nothing (testing.md). **S.**
 - **B17** Reference cycles leak silently without `--debug-memory` (largely answered by E3). Depends on E3.
+- **B18** A compile can write back old text over an edit made while it runs: every compile formats the program's
+  files (D385), and one that read a file before someone else's edit wrote its formatted copy over that edit. Write a
+  file only when it is unchanged since it was read, and otherwise report the file as changed (a D244 lost write).
+  Files: the formatter's write in `bootstrap.spite`. **S.**
+- **B19** Whether a walked row's ignored `_x` parameter counts as read depends on the shapes of the other
+  parameters. It must not. Files: the walked-row reads in generator.spite. **S.**
+- **B20** The generated C contains a bare `spite_temp_N;` statement with no effect, which clang reports under
+  `-Wunused-value`. Stop emitting it. Files: generator.spite temporaries. **S.**
 
 ### Skills and docs
 
@@ -307,25 +384,24 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 The targets page (D20, `--target=web`, WebAssembly, isomorphic classes, the wire format and its handshake, `Html`
 and the markup builder, which needs a name); bundle splitting and lazy `load` (packages.md); the language server
 (open question 4); defining members from data and hooks on reopening (open question 2); calendars, leap seconds
-and formatting patterns (time.md); running and testing the macOS folders.
+and formatting patterns (time.md); running and testing the macOS folders; S10, TLS written in Spite.
 
 ## Dependency order
 
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L1, L7, C2, C5, C6, C7, K1, K2,
-   F3, S9, P1, P2, X1, B1 to B16, D1's first pass.
-3. After step 2: R5 (Q1), L2 (L1), S7 (operators), P3 (linux), K3 (with K2), C8
-   (K1), N2 (N1), K6 (K2), E3 (Q2).
-4. After R5: R1, J1, L3, R4 (with S7).
-5. After J1: J2, S5. After L3: F1 (Q3), S6 (with L4). After F1: F2.
-6. After M1, M2, M6 and Q4: M5. After M1 and M4: M3.
+2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L1, L7, L8, C2, C5, C6, C7, K1,
+   K2, F3, S9, P1, P2, X1, B1 to B16, E3, D1's first pass.
+3. After step 2: R5, L2 (L1), S7 (operators), K3 (with K2), C8 (K1), N2 (N1), K6 (K2).
+4. After R5: R1, J1, L3, R4 (with S7), R8, then R9.
+5. After J1: J2, S5. After L3 and L8: F1, S6 (with L4). After F1: F2.
+6. After M1, M2 and M6: M5. After M1 and M4: M3.
 7. After R1, R5 and J1: R7, the end of the reflection migration.
-8. Whenever owners decide: S2 (Q13) and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
+8. S2 and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
    items sharing their files.
 
-The longest chain is landing nomap, Q1, R5, J1, R7: the reflection migration is the critical path.
+The longest chain is landing nomap, R5, J1, R7: the reflection migration is the critical path.
 
 ## Parallel streams
 
@@ -339,10 +415,10 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 1 Reflection and serialization | R5, R1, R4, J1, J2, R8, R7 | generator.spite reflection, specialisation and template regions; `specialisation.spite`, `reflected*.spite`, `template_walk.spite`, `namespace_walk.spite`, `old_spellings.spite`; `library/spite/*`, `json_*`, `binary_*`, `dictionary.spite`; stage6 walk programs; docs reflection, metaprogramming, json |
 | 2 Types and storage | M2, M1, M7, M4, M3, then M6 and M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
 | 3 Arithmetic | N3, N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
-| 4 Memory | E2, E1, E4, E3 (after Q2), E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
+| 4 Memory | E2, E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C2, C6, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
 | 6 Waiting, IO and library | K1, F3, K2, K3, K6, S7, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
-| 7 Language rules | L1, L2, L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
+| 7 Language rules | L1, L8, L2, L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | P1, P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | B1 to B16 | small fixes, each in the file of the proof it fixes; rebase often |
 | 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |
@@ -352,59 +428,21 @@ memory stream. Streams 5 and 9 are many small items and the right place for a se
 
 ## Items that need an owner decision
 
-Each is a choice of syntax or semantics the rows leave open; the recommendation is Claude's (proposed by Claude,
-unconfirmed).
+None open: every owner question is answered (D378 to D394).
 
-- **Q1 How `call_with` spreads a walk, now that `map(function)` is gone** (`mortaros_missing_decisions.md` item 251) (D317 item 98, nomap's row). Options:
-  (a) `function.call_with_each(made)`, calling the named function `made(argument: Spite.Argument):
-  argument.class` once per argument and passing the results, specialised while compiling with no list between;
-  (b) collect into a `List<Anything>` with `each`, then `call_with(list)`, which travels as a shape and costs a
-  dispatch; (c) a read-only attribute on `Spite.Argument` collected with `map_<members>()`, which only works when
-  the value depends on the argument alone. Recommendation: (a), the only one that is free at run time.
-- **Q2 What "storage owns" covers** (`mortaros_missing_decisions.md` item 252) (D354). Is an attribute typed `T` an owner like a list slot, so only `T?`
-  attributes and other places are weak, or does only collection storage own, making every attribute that points
-  at a listed item weak? And an object placed in two lists, or a tree whose children are held by attributes?
-  Recommendation: list, dictionary and vector slots and non-nullable attributes own; a `T?` attribute or local
-  holding an object something else owns is weak; putting one object into a second owner is a compile error
-  naming `copy()`. It keeps trees working and matches "99% of code already narrows".
-- **Q3 How a binding's Spite enum names each value's C number** (`mortaros_missing_decisions.md` item 253) (D351). Options: (a) a number written beside each
-  value in the enum (new syntax, allowed only where a binding uses it); (b) the enum declares
-  `func foreign_number(): Integer` with a `switch` (possible once D371 lets enums declare functions) and the
-  compiler inverts it; (c) the binding writes a function from `Integer` to the enum by hand, which D351 wanted the
-  compiler to do. Recommendation: (b), no new syntax and readable as Spite.
-- **Q4 What a fractional member of a generic vector is declared to answer** (`mortaros_missing_decisions.md` item 254) (D355). `Vector3<Integer>.length()`
-  answers `Float`, `Vector3<Double>.length()` a `Double`: there is no spelling yet for "my class if fractional,
-  else `Float`". Options: (a) every number class gets a get-only class constant naming its fractional class and
-  the vector writes `func length(): $number_type.fraction_class`; (b) always `Float`, losing `Double` precision
-  against D355; (c) a codegen `if` in the return type. Recommendation: (a), one rule the compiler folds.
-- **Q5 Does D374 cover the standard library, superseding D284?** (`mortaros_missing_decisions.md` item 255) D374 makes any class shadowing a visible class
-  an error, which already refuses a program's `Game.Math.Vector3` beside the library's `Vector3`, more strictly
-  than D284's attribute matching with zero false positives. Recommendation: yes, one rule; record a row
-  superseding D284.
-- **Q6 Does `Console.flush()` stay public?** (`mortaros_missing_decisions.md` item 256) D346 says the moron never chooses flushing, and its third guarantee
-  covers prompts. Recommendation: remove `flush()` from the public surface; keep `write` for text without a
-  line end.
-- **Q7 How `--final-classes` marks the supplying file and root** (`mortaros_missing_decisions.md` item 257) (D366). A comment may only be a markdown link
-  (D34). Recommendation: one comment line per declaration that is a link to the file it came from, which needs
-  no new form; decidable under D205 if Mortaro agrees.
-- **Q8 Whether a serializer is compiler-written code or library Spite specialised per class** (`mortaros_missing_decisions.md` item 258) (D319 says
-  "generated while compiling"; D240 says nothing hidden). Recommendation: library Spite over
-  `attributes.each(write_attribute)` with the writer holding its output as an attribute, specialised per class,
-  so the generated code is visible in `--final-classes` and the walk function's missing output (status) is
-  solved by the instance.
-- **Q9 Is D229's `function_runs_in_pieces` retired?** (`mortaros_missing_decisions.md` item 259) D335 and D362 give the runner `function.accesses`, from
-  which "runs in pieces" follows. Recommendation: retire it with a row, the runner deciding from accesses.
-- **Q10 Where the optimisation report goes** (`mortaros_missing_decisions.md` item 260) (D36, D332). Recommendation: always written beside the build in
-  `.spite/build/<program>/`, one line per refusal with its source line, no flag to ask for it.
-- **Q11 What `--format` does beside `--check`** (`mortaros_missing_decisions.md` item 261) (D369 item 138, D348, D190 "every compile formats first").
-  Does `--check` reformat files (it compiles), and is there a no-write check for linters, as `spite format
-  --check` was? Recommendation: `--check` formats like every compile; `--format` alone rewrites and stops; no
-  separate no-write mode (`check.sh` compares a copy, as it already does for `diagnostics/`).
-- **Q12 What "measured for each program" means for `--optimized`** (`mortaros_missing_decisions.md` item 262) (D356). There is no workload to time in an
-  ordinary build. Recommendation: `-O2` everywhere now; measure `-O3` only where a program carries a benchmark,
-  until a decided way to declare one exists.
-- **Q13 How TLS is built** (`mortaros_missing_decisions.md` item 263) (D294, D350, D361). Options: (a) TLS 1.3 written in Spite (X25519, an AEAD,
-  certificate verification against the system's root store), the long road D350 and D361 point to; (b) the
-  system's own TLS through `DynamicLibrary` on Windows and macOS, which leaves Linux without one that is not a
-  third-party library. Recommendation: (a), client first, checked against public test vectors, with an outside
-  security review before it is called done.
+
+## Later, in order (D397, [proposals/own_backend.md](proposals/own_backend.md))
+
+Each stage starts after the one before it lands.
+
+1. **No C runtime.** The library calls the system directly (Windows `kernel32`/`ntdll`, Linux raw system calls, macOS
+   `libSystem` as the platform); number formatting, memory, text and maths written in Spite. Builds on C9 and C8.
+   **L.**
+2. **Released builds.** One download per system, the compiler and its library, usable at once; the C seed only for
+   building from source. **M.**
+3. **Spite's development backend.** A shared array-based IR, instruction selection, a simple register allocator,
+   PE/ELF/Mach-O written by Spite; x86-64 then ARM64; hot reload as code generated into the running program through
+   the function slots. Default builds, hot reload and the REPL move to it. **L.**
+4. **Spite's optimising backends.** Optimisations on the shared IR using ownership, proven-safe checks,
+   whole-program specialisation and list storage; `--optimized` leaves C only once these win on the benchmarks.
+   **L**, open-ended.

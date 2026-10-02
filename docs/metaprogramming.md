@@ -70,7 +70,9 @@ walk is `each`, a selection is a filter or a member template, and a member by na
 | To reach | Write |
 |---|---|
 | every attribute of a class | `Monster.attributes.each(show)` |
-| one function, if the class has it | `Runner.functions['run_each']`, a `Spite.Function?` narrowed by `if` or `assert` |
+| one function, if the class has it | `Runner.functions['run_each']`, a `Spite.FunctionDeclaration?` narrowed by `if` or `assert` |
+| the same function bound to an instance | `runner.functions['run_each']`, a `Spite.Function?` |
+| a call filled argument by argument | `Spite.Call(Runner.functions['run_each'], runner)`, then `call.arguments['name'] = value` and `call.call()` |
 | the functions whose names end in `_each` | `Runner.functions.filter_name_ends_with("_each")` |
 | a function's arguments | `function.arguments.each(describe)` |
 | an enum's values, in order | `Phase.values` |
@@ -256,10 +258,10 @@ Rock has no run_each 3
 
 A walk is for "every member". A **template** is for one member named at the call, where the name reads as well as
 an argument would: `show_health(troll)` reads like `show(troll.health)`, and `filter_alive()` like "those that are
-alive". A parameter of type `Spite.Attribute<Monster>` whose name is a word of its own function's name makes the
-function a template: `show_attribute(attribute: Spite.Attribute<Monster>, ...)` answers `show_name` and
-`show_health`, one copy for each name a program calls. Inside, `attribute` is the constant `Spite.Attribute` of that
-member, so `attribute.class` is its type, and `monster.attributes[attribute]` is that member of the `Monster` passed
+alive". A parameter of type `Spite.AttributeDeclaration<Monster>` whose name is a word of its own function's name
+makes the function a template: `show_attribute(attribute: Spite.AttributeDeclaration<Monster>, ...)` answers
+`show_name` and `show_health`, one copy for each name a program calls. Inside, `attribute` is the constant
+declaration of that member (the instance comes as its own argument), so `attribute.class` is its type, and `monster.attributes[attribute]` is that member of the `Monster` passed
 in, read or written. The member may also be a function that takes no arguments: the read is then a call to it.
 
 ```gdscript title=name_templates/label.spite
@@ -802,20 +804,21 @@ the exact error texts. Where the teaching above and these rules disagree, the ru
 
 ### Templates
 
-**A parameter of type `Spite.Attribute<Owner>` whose name is a word of its function's name makes the function a
-template** over `Owner`'s members: its attributes, and its functions that take no arguments. `show_attribute(attribute:
-Spite.Attribute<Monster>, monster: Monster)` answers `show_name(troll)` and `show_health(troll)`. A template is
+**A parameter of type `Spite.AttributeDeclaration<Owner>` whose name is a word of its function's name makes the
+function a template** over `Owner`'s members: its attributes, and its functions that take no arguments.
+`show_attribute(attribute: Spite.AttributeDeclaration<Monster>, monster: Monster)` answers `show_name(troll)` and `show_health(troll)`. A template is
 instantiated only for the names a program calls, in every build; the template itself emits nothing, and each
 instance is an ordinary function that costs what its body costs. `--final-classes` prints each instance.
 
-- **Inside an instance, the parameter is the constant `Spite.Attribute` of that member.** Written as a type
+- **Inside an instance, the parameter is the constant declaration of that member**, a
+  `Spite.AttributeDeclaration`; the bound attribute is `owner.attributes[attribute]`. Written as a type
   (`value: attribute.class`, `): attribute.class`) it is the member's real type; written as an expression,
   `attribute.class` is its `Spite.Class`, which prints as the type's name in `console.print` and in a text's `{}`.
   `attribute.name`, `attribute.camel_case_name` and `attribute.pascal_case_name` are text constants, and
   `attribute.index` is the member's place in declaration order.
 - **`owner.attributes[attribute]` is that member of the `owner` passed in**: the field, read or written, or a call to
   the function. A class reads its own members by name, `attributes[attribute]`, never `this.attributes[attribute]`.
-- **`Owner` may be a codegen value**: `member: Spite.Attribute<$element_type>` is how `library/list.spite` writes
+- **`Owner` may be a codegen value**: `member: Spite.AttributeDeclaration<$element_type>` is how `library/list.spite` writes
   its member templates. When that value is not a class or a `type` (a number, a `T?`, a `List`), the template
   answers nothing.
 - **`Owner` may be a `type`**: the template ranges over the attributes the type names and the functions it requires

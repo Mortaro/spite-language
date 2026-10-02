@@ -451,20 +451,25 @@ func is_alive(): Boolean {
 
 ## Metaprogramming
 
-- Every class is an instance of `Spite.Class`, every function of `Spite.Function`, every attribute of
-  `Spite.Attribute`, and their members are ordinary lists, so "for every attribute" is a walk:
+- Every class is an instance of `Spite.Class`. A class's members are declarations (`Spite.FunctionDeclaration`,
+  `Spite.AttributeDeclaration`, no value); an instance's are bound (`Spite.Function`, `Spite.Attribute` with
+  `.value` and `.owner`). Members are ordinary lists, so "for every attribute" is a walk:
   `Monster.attributes.each(describe)` with `func describe(attribute: Spite.Attribute)`, unrolled while compiling into
   one call per attribute, each copy typed by its attribute. A member by name is `[]` and answers a `T?`
   (`Runner.functions['run_each']`); a selection is a member template (`Runner.functions.filter_name_ends_with("_each")`).
   A name is selected, never built from text. There are no `Symbol` walks. A walk sees private `_` attributes and
   reads and writes them through the walked attribute; a serializer skips them with
   `if not attribute.name.starts_with("_")`, which folds. A number's, `Boolean`'s or `String`'s `.attributes` is empty.
-- A **template** is a function whose `Spite.Attribute<Label>` parameter is a word of its name:
-  `func show_attribute(attribute: Spite.Attribute<Label>, label: Label)` answers `show_text(label)` and
+- A **template** is a function whose `Spite.AttributeDeclaration<Label>` parameter is a word of its name:
+  `func show_attribute(attribute: Spite.AttributeDeclaration<Label>, label: Label)` answers `show_text(label)` and
   `show_copies(label)`, reading the member as `label.attributes[attribute]` (a member that is a function taking
-  nothing is called). `func set_attribute(attribute: Spite.Attribute<Person>, value: attribute.class) {
+  nothing is called). `func set_attribute(attribute: Spite.AttributeDeclaration<Person>, value: attribute.class) {
   attributes[attribute] = value }` makes `person.age = 2` and `person.name = "x"` work. An exact function
   always wins. A parameter that is not a word of its name makes an ordinary function a walk calls.
+- A call built before it runs: `var call = Spite.Call(MoveSystem.functions['run_each'], system)` (a declaration and
+  an instance of its class, the only way to build one), `call.arguments['position'] = value`, `call.call()`; known
+  while compiling it is the direct call.
+  There is no `call_with`.
 - Questions are get-only attributes, folded on a constant: `Loader.functions['load_each']` (narrow it), then
   `.is_resumable` (it can reach a wait), `.arguments[1].is_mutated` (it changes what argument 1 is given),
   `.arguments.count()`, `.accesses` (a `Dictionary<Spite.Access>` of what it reads and writes); `Loader.is_stateful`,
@@ -552,7 +557,7 @@ A loop that must not wait (a game server's tick) calls `accept_client_now(): Soc
 String?`, `read_bytes_now(address, count): Integer` (`0` is nothing yet) and `write_bytes_now(address, count):
 Integer` (how many the system took). A peer that hung up is not an error: `socket.closed` turns `true`, reads
 answer `0` or `null` and writes send nothing. Check `closed`, never a count of `-1`.
-`UdpSocket()` sends one `List<Byte>` datagram per `send_to(host, port, bytes)`; `HttpServer` (`next_request(): HttpRequest?`, `respond(request, response)`) and `HttpClient` (`send(host, port, request): HttpResponse?`) speak HTTP/1.1 and keep connections alive on their own.
+`UdpSocket()` opens with `open()`, `open_locally(port)`, `open_everywhere(port)` or `open_at(host, port)` and sends one `List<Byte>` datagram per `send_to(host, port, bytes)`; `HttpServer` (`next_request(): HttpRequest?`, `respond(request, response)`) and `HttpClient` (`send(host, port, request): HttpResponse?`) speak HTTP/1.1 and keep connections alive on their own.
 `Concurrent(function)` runs a function as a compile-time state machine and `Parallel(function)` on the thread pool: the handle stands
 in for what the function returns and reading it is the wait (there is no `.wait()`: `an Integer has no function
 'wait'`), `finished` answers without waiting, `finished_value(): T?` is the value once finished and `null` before
