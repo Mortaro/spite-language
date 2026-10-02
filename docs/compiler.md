@@ -156,9 +156,9 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 | `c_source` | `false` | writes the generated C |
 | `c_path` | `""` | where the C goes; `""` is `.spite/build/<program>/` in the working folder |
 | `final_classes` | `""` | writes the merged classes to this folder |
-| `optimized` | `false` | a release build: `-O3` instead of `-O0`, and link-time optimisation across the [translation units](#translation-units-the-c-compiled-in-parallel-and-cached); a `--hot-reload` build is always compiled at `-O3` ([repl.md](repl.md#live-reload-in-detail)) |
+| `optimized` | `false` | a release build: `-O3` instead of `-O0`, and link-time optimisation across the [translation units](#translation-units-the-c-compiled-in-parallel-and-cached) ([below](#release-builds)) |
 | `tune_for_this_machine` | `false` | lets the C compiler use every instruction this machine has (`-march=native`, or `-mcpu=native` on ARM); the executable may not run on an older processor ([below](#release-builds)) |
-| `translation_units` | `0` (chosen) | how many C files the executable is compiled from: `0` is one file in a default build and, in an `--optimized` one, a number chosen by the size of the C and the processors; `1` is one file ([below](#translation-units-the-c-compiled-in-parallel-and-cached)) |
+| `translation_units` | `0` (chosen) | how many C files the executable is compiled from: `0` is a number chosen by the size of the C and the processors; `1` is one file ([below](#translation-units-the-c-compiled-in-parallel-and-cached)) |
 | `development` | `false` | an [inspectable build](#development-builds-and-tree-shaking): nothing tree-shaken, internals as ordinary objects |
 | `repl` | `false` | runs the program, then opens a REPL on it at the terminal ([repl.md](repl.md)) |
 | `repl_port` | `0` (off) | serves the remote REPL on `127.0.0.1` at this port while the program runs ([repl.md](repl.md)) |
@@ -208,8 +208,12 @@ built.
 `--optimized` is the release build: the C compiler is asked for `-O3` instead of the default build's `-O0`, and
 when the executable is built from several [translation units](#translation-units-the-c-compiled-in-parallel-and-cached),
 for link-time optimisation too (`-flto=thin` with clang, linked by `lld` except on macOS; `-flto=auto` with gcc), so
-a function in one unit is still inlined into another. The default build stays at `-O0`: it is the one you rebuild
-all day.
+a function in one unit is still inlined into another.
+
+The compiler is fastest by default: the default build is the one that compiles fastest, since it is the one you
+rebuild all day, and each flag trades something on purpose. `--optimized` trades compile time for run speed;
+`--hot-reload` trades run speed for live information about the running program, and compiles like the default
+build. So the default build and `--hot-reload` compile the C at `-O0`, and only `--optimized` asks for more.
 
 `--tune-for-this-machine` lets the C compiler use every instruction the
 compiling machine has (`-march=native`, or `-mcpu=native` on ARM) in whatever build it is given to. The
@@ -228,8 +232,8 @@ How fast each build is, against C written by hand, is `bash benchmarks/versus_c/
 
 REPL and live-reload builds are slower on purpose. They exist to tell you more while the program runs: every
 function sits in a slot so it can be swapped, the program can stop at a breakpoint, and the REPL can inspect any
-object. None of that is free, and none of it is meant to be fast. A default build is compiled at `-O0` for the same
-reason: it is the build you rebuild all day.
+object. None of that is free, and none of it is meant to be fast. A default build is compiled at `-O0` for its own
+reason: it is the build you rebuild all day, so it is the one that compiles fastest, not the one that runs fastest.
 
 So any benchmark or performance comparison of Spite uses a production build: `--optimized`, with no `--repl`, no
 `--repl-port`, no `--hot-reload` and no `--debug-memory` (which counts every allocation). A number measured on any other build describes the tooling, not the program.
@@ -240,7 +244,7 @@ spite game --optimized    # the only build to measure
 
 ## Translation units: the C compiled in parallel and cached
 
-A release build (`--optimized`) of a big program is built from several C files, compiled at the same time and
+A big program is built from several C files, in a default build and in an `--optimized` one, compiled at the same time and
 remembered. The generated C is split into one header (every type, macro and prototype, and an `extern` line for
 each variable at file level) and a number of units that include it. Each function goes into the unit a hash of
 its name picks, so editing a function leaves every other function where it was; the variables are defined in the
@@ -255,10 +259,7 @@ function, changes a type, or adds or removes a piece of constant text changes th
 file-level variables numbered in order), and every unit is compiled again.
 
 How many units: `--translation-units` (`Build.translation_units`) gives the
-number, in any build. `0`, the default, is one file in a default build: at `-O0` the C compiler spends its time
-reading, and every unit reads the whole header again, so splitting the compiler's own C made a cold `-O0` build
-slower, not faster ([the numbers](../benchmarks/README.md#compile-time-at-scale)). In an `--optimized` build `0`
-chooses the largest power of two that is no more than one unit per 768 KiB of C, no more than the number of
+number, in any build. `0`, the default, chooses the largest power of two that is no more than one unit per 768 KiB of C, no more than the number of
 processors, and at most 64: eight units for the compiler's 7 MB of C. A program under 1.5 MB of C stays one file,
 compiled as before and not cached. A `--hot-reload` build, and a program whose C
 includes a foreign library's header (a `DynamicLibrary` given one), are always one file. `--c-source` still
@@ -275,8 +276,10 @@ function's body changed:
 | a generated 209 206-line program | 20.5 MB | 181.2 | 50.0 | 34.3 | 37.3 |
 
 A warm build is the Spite compile plus a ThinLTO link, which optimises the whole program again each time; the
-game's edit was in a generic class, which changes every instantiation of it. The default build of the same
-three took 11.3, 26.1 and 16.5 s from one file. How they were measured, and the unit counts tried, are in
+game's edit was in a generic class, which changes every instantiation of it. A default build is split by the same
+rule and compiles each unit at `-O0`, linked without link-time optimisation: on a busier day than the table's, the
+compiler took 19.0 s from one file and 22.5 cold, 12.8 warm and 13.3 after one edit from units, so the build you
+repeat all day, after an edit, is the faster one. How they were measured, and the unit counts tried, are in
 [benchmarks/README.md](../benchmarks/README.md#compile-time-at-scale); `bash benchmarks/build_times.sh` measures
 them again.
 
@@ -558,8 +561,8 @@ before any output is written.
   running `spite .` inside a program, whose outputs and checkouts land in its own `.spite/`, reads none of them
   back, and `spite format` skips `.spite/` and `.spite-cache/` the same way.
 - **Final classes** are described in full [above](#inspect-merged-classes): a program, not a report.
-- **The executable is built from translation units.** The number is `translation_units` when it is above `0`; at `0` it is 1 unless
-  `optimized` is on, and then the largest power of two that is at most the C's size divided by 768 KiB, at most the
+- **The executable is built from translation units.** The number is `translation_units` when it is above `0`; at `0` it is
+  the largest power of two that is at most the C's size divided by 768 KiB, at most the
   processors (`NUMBER_OF_PROCESSORS` on Windows, `getconf _NPROCESSORS_ONLN` elsewhere, else 4) and at most 64. One unit is the one C file as before.
   A `--hot-reload` build and C holding `#include "` (a foreign library's header) are one file whatever the number.
   The split keeps what the C means: every preprocessor line, type and prototype goes into the header in its order;

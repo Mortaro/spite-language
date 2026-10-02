@@ -860,7 +860,7 @@ func splits_into_units(splitter: Translation.UnitSplitter): Boolean {
 func wanted_translation_units(code: String): Integer {
     var chosen = option("translation_units").to_integer()
     crash chosen
-    if chosen > 0 or not is_on("optimized") {
+    if chosen > 0 {
         return chosen.maximum(1)
     }
     var by_size = code.length() / 786432
@@ -904,12 +904,8 @@ func built_from_units(splitter: Translation.UnitSplitter, c_compiler: String, ou
     return build.built(splitter.header_text, splitter.unit_texts, output_path)
 }
 
-func optimizes(): Boolean {
-    return is_on("optimized") or is_on("hot_reload")
-}
-
 func append_code_settings(process_arguments: List<String>, c_compiler: String, split: Boolean) {
-    if optimizes() {
+    if is_on("optimized") {
         process_arguments.append("-O3")
         if split {
             append_link_time_optimization(process_arguments, c_compiler)
@@ -1453,7 +1449,7 @@ func build_library(code: String, library_c_path: String, library_path: String): 
     var c_compiler = find_c_compiler()
     var process_arguments = List<String>()
     process_arguments.append("-shared")
-    if optimizes() {
+    if is_on("optimized") {
         process_arguments.append("-O3")
     } else {
         process_arguments.append("-O0")
