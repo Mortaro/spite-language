@@ -79,7 +79,8 @@ becomes its value is listed in [the rules](#concurrency-concurrent-parallel-and-
 
 ### Reads in a row overlap
 
-The IO classes do this themselves, so most programs never write `Concurrent`: when two or more declarations in a
+Outside a `Concurrent`, a read waits where it is written, one after another. The one exception the IO classes make
+on their own is reads side by side: when two or more declarations in a
 row each read a `File` (`read()`) or a `Socket` (`read_line()`), the compiler starts every read but the last as a
 `Concurrent`, runs the last one, and waits for all of them before the next statement. The program waits for the
 slowest file rather than for each in turn, and nothing it does afterwards can tell: the values are the same, and a

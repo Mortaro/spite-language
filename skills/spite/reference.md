@@ -26,12 +26,18 @@ spite format game                       format files without compiling them (eve
 bash check.sh                           the compiler still compiles itself, and every corpus passes
 ```
 
-**Debug the running program instead of rebuilding and logging** (D242). Run it with
-`--hot-reload --repl-port=4000` and keep it running: save a file and send `wait_reload` to learn what was swapped
-in, read any value by its path (`World().player.health`, `describe Monster`, `memory`), and set a breakpoint with
-`break monster.spite:42`: the program stops before that line, `locals` and any path through them answer what is in
-scope there, and `continue` goes on (`clear` removes it). Every answer is one JSON line, so an agent can script it.
-The commands are in [repl.md](https://github.com/Mortaro/spite-language/blob/master/docs/repl.md#breakpoints).
+**Iterate on the running program, not by rebuilding** (D242). Start it once with
+`spite program --hot-reload --repl-port=4000` and keep it running (it stays up after its constructor returns, until
+a client sends `exit`). Save a file, then `spite connect 4000 --command="wait_reload"`: it answers once the save is
+compiled and swapped in, with what was rebuilt or the compiler's errors, and objects keep their state. Ask instead
+of printing: a path or call (`World().player.health`, `monsters[0].roar()`), an assignment (`player.health = 5`),
+`describe Monster`, `classes`, `enums`, `memory`, and `eval <expression>` / `run <statement>` to compile code into
+the running program. `break monster.spite:42` stops before that line; `where`, `locals` and any path through a local
+answer there, `continue` goes on, `breaks` lists and `clear` removes. A reload that would lose data (an attribute
+renamed) is held and names the map to send: `reload {Hero.attributes['level']: "rank"}`, or `reload {}` to let the
+value go. Use `--run=false` only to see every error at once or for a program that cannot stay running, run the
+tests before calling the work done, and build `--optimized` only to measure. Every answer is one JSON line. The
+commands are in [repl.md](https://github.com/Mortaro/spite-language/blob/master/docs/repl.md).
 
 A program lives in its own folder, and `spite game` runs it: `launcher/launcher.spite` loads `library/`, then the
 target system's folder of it, then `game/`, whose every sub folder is a
@@ -127,7 +133,7 @@ func is_alive(): Boolean {
 - An attribute nothing reads is an error too (`the attribute 'world' is never read: remove it`). A private `_name` attribute is checked too.
   Assigning it is not reading it. A public attribute of a folder the program `load`s is not checked, since
   code the program does not load may read it, except a singleton binding (`var world = World()`), which is an
-  error unread anywhere: a class that needs the singleton binds it itself. A Symbol template counts only when it reads the value
+  error unread anywhere: a class that needs the singleton binds it itself. A template over a `Spite.Attribute` counts only when it reads the value
   (`x.attributes[attribute]`). An attribute kept as a marker that a walk inspects through `attribute.name` or
   `attribute.class` is unused, so say what the marker means some other way. A function nobody calls still
   reads what it names.
@@ -249,7 +255,7 @@ func is_alive(): Boolean {
   rows[attribute.index]`, `var stored_row = rows[attribute.index]`, `crash
   Column<attribute.class>().values[stored_row]`, then `row.attributes[attribute] =
   Column<attribute.class>().values[stored_row]`. An index never holds another `[]` read (D285). Choose
-  per attribute with an `if` on `attribute.class == Entity` or `attribute.class.fits_vector()` (both decided while
+  per attribute with an `if` on `attribute.class == Entity` or `attribute.class.is_fixed_size` (both decided while
   compiling), each branch one such line: `Entity(entity)` is made in the frame, a reference column's value
   (`ReferenceColumn<attribute.class>().at(rows[attribute.index])`, after `crash rows[attribute.index]`) is counted
   for the row (D217). Keep the index
@@ -289,15 +295,16 @@ func is_alive(): Boolean {
   caller follows every borrow rule (no keeping, second name, reading after a line that may grow or shrink the
   column; lending it to a call is fine), may not return it further, and gives it a name not used before in the block. A function that lends
   returns only such items or `null`.
-- A runner that treats systems of one row and of several differently asks `if phase.argument_count() == 1 { }`
-  inside its walk over `phase: Symbol<$system_type.phase_each>` (or `$system_type.argument_count("update_each")`
-  of one function; D219, name provisional). It is decided while compiling, so the branch for the other arity is
+- A runner that treats systems of one row and of several differently asks `if phase.arguments.count() == 1 { }`
+  of each `phase: Spite.Function` it walks (`var phases = $system_type.functions.filter_name_ends_with("_each")`,
+  then `phases.each(run_phase)`),
+  or of one function, `$system_type.functions['update_each']` narrowed first. It is decided while compiling, so the branch for the other arity is
   never compiled: a `Stream<$system_type, argument.class>` that calls `system.phase_each(row)` is made only for
   one-row systems. With a pattern whose functions take different counts, ask inside the walk instead.
 - `assert` and `crash` on a compile-time question fold like `if`: `assert $slot_type == Entity` then `return
   value.id`, in a function returning `Integer?`, compiles for every `Slot<T>`, answering `null` where `T` is not
   `Entity`, with no run-time test (in one returning `Integer`, write `if $slot_type != Entity { return 0 }`);
-  `crash $component_type.fits_vector()` halts every call in an instance whose type does not fit.
+  `crash $component_type.is_fixed_size` halts every call in an instance whose type does not fit.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](https://github.com/Mortaro/spite-language/blob/master/docs/optimizations.md).
@@ -335,10 +342,10 @@ func is_alive(): Boolean {
   ```
 
 - An enum's values are single quoted and resolve from where they are used. A reopening file that declares the
-  enum again adds the values it lists that it did not have. `course: Symbol<Course>` walks the values in order:
-  `course.name` is the text, `course.value` the value, and `list_courses()` calls `list_course` once per value.
-  A name pattern's hole (`phase: Symbol<$system_type.phase_all>`) matches only the values of the enum named for
-  it, `Phase`.
+  enum again adds the values it lists that it did not have. An enum is a class, and `Course.values` lists its values
+  in order, an ordinary list: `Course.values.each(list_course)` calls `list_course(course: Course)` once per value,
+  unrolled while compiling (`$value_type.values` in a generic). Text becomes a value by assignment
+  (`var course: Course = name`).
 - `union Enemy { Player Monster }`, written one member per line: `switch enemy { Player: ... Monster: { ... } }`
   must cover every member and narrows `enemy` inside each case; a function or attribute every member has can be
   used on the union directly.
@@ -436,18 +443,29 @@ func is_alive(): Boolean {
 
 ## Metaprogramming
 
-- A `Symbol` parameter named inside its function's name answers every attribute:
-  `func set_attribute(attribute: Symbol, value: attribute.class) { attributes[attribute] = value }` makes
-  `person.set_age(2)` and `person.set_name("x")` work. An exact function always wins.
-- `attribute: Symbol<Label>` ranges over another class's members, read as `label.attributes[attribute]`, and the
-  plural (`show_attributes(label)` for `show_attribute`) calls the template once per attribute, in order.
+- Every class is an instance of `Spite.Class`, every function of `Spite.Function`, every attribute of
+  `Spite.Attribute`, and their members are ordinary lists, so "for every attribute" is a walk:
+  `Monster.attributes.each(describe)` with `func describe(attribute: Spite.Attribute)`, unrolled while compiling into
+  one call per attribute, each copy typed by its attribute. A member by name is `[]` and answers a `T?`
+  (`Runner.functions['run_each']`); a selection is a member template (`Runner.functions.filter_name_ends_with("_each")`).
+  A name is selected, never built from text. There are no `Symbol` walks.
+- A **template** is a function whose `Spite.Attribute<Label>` parameter is a word of its name:
+  `func show_attribute(attribute: Spite.Attribute<Label>, label: Label)` answers `show_text(label)` and
+  `show_copies(label)`, reading the member as `label.attributes[attribute]` (a member that is a function taking
+  nothing is called). `func set_attribute(attribute: Spite.Attribute<Person>, value: attribute.class) {
+  attributes[attribute] = value }` makes `person.set_age(2)` and `person.set_name("x")` work. An exact function
+  always wins. A parameter that is not a word of its name makes an ordinary function a walk calls.
+- Questions are get-only attributes, folded on a constant: `Loader.functions['load_each']` (narrow it), then
+  `.is_resumable` (it can reach a wait), `.arguments[1].is_mutated` (it changes what argument 1 is given),
+  `.arguments.count()`, `.accesses` (a `Dictionary<Spite.Access>` of what it reads and writes); `Loader.is_stateful`,
+  `Vector3.is_fixed_size`, `Monster.is_singleton`. [reflection.md](https://github.com/Mortaro/spite-language/blob/master/docs/reflection.md)
 - In a generic class, `if $value_type == List { }` (also `Dictionary`, `Null` for any `T?`, `Symbol` for any enum or `Symbol`, `Enum` for an enum only,
   or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds. It is
   tested the same way (`else if $value_type.element_type == Float`) in any branch of a chain. Only
   what the taken branch reaches is compiled (helper functions, and the code after a chain whose branch returns),
   so keep one generic class with a helper per kind, not one class per kind.
 - `assert`/`crash` on such a condition folds too, and a `crash` that folds to false in a function the program calls
-  is a compile error naming the instance (`Slot<List<String>>`): write a library's rules as `crash $row_type.has_function("update_each")`
+  is a compile error naming the instance (`Slot<List<String>>`): write a library's rules as `crash $row_type.functions['update_each']`
   and a class that breaks one fails the build.
 - A getter with no setter makes a read-only attribute: `get_fahrenheit()` answers `.fahrenheit`, and assigning
   it is an error.
@@ -528,23 +546,22 @@ answer `0` or `null` and writes send nothing. Check `closed`, never a count of `
 `Concurrent(function)` runs a function as a compile-time state machine and `Parallel(function)` on the thread pool: the handle stands
 in for what the function returns and reading it is the wait (there is no `.wait()`: `an Integer has no function
 'wait'`), `finished` answers without waiting, `finished_value(): T?` is the value once finished and `null` before
-(never a wait, so a system that only collects finished work keeps `function_waits` false: `var found =
+(never a wait, so a system that only collects finished work keeps `is_resumable` false: `var found =
 handle.finished_value()`, then `if found { }`), and dropping the handle waits for it. A `parallel_each_<member>()`
 member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock`, a `ThreadLocal` or an `Atomic<T>` (a shared whole number or `Boolean`: `read`, `write`, `add`, `exchange`, `compare_and_swap`); anything else is an error naming the attribute. One exception: `var crafter = Crafter(first)` then `var run = Parallel(crafter.craft)` hands the object over, so its task may keep lists of values (`List<Integer>`, `List<String>`) and objects of its own that it made itself; touching `crafter` after that line is `'crafter' was handed to 'Parallel(crafter.craft)', which keeps its 'recipe_ids' on another thread, so it is not used after that line`. Keep a list of ids as a `List<Integer>`, never as comma-joined text. A singleton a `Parallel` reaches locks each of its functions that touch its state, so never make and wait for a `Parallel` inside such a function when the work calls back into the same singleton: `'Columns.despawn_all' waits for 'Parallel(remover.run)' while it holds Columns's lock, ...`. Start and read the `Parallel` from a class that is not that singleton. Many calls to one singleton from a counted loop (`while index < count { columns.remove_row(index); index = index + 1 }`, nothing else locked or waited on in it) take its lock once for the whole loop, so such a loop is the cheap way to call a singleton many times; keep other singletons and waits out of it. A singleton's function that only reads (a lookup such as `at(row)`: locals, reads of lists, text and numbers, no calls out) runs beside other readers on other threads and waits only for writers, so keep lookups in small functions of their own, apart from the ones that change the singleton. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
 run ([concurrency.md](https://github.com/Mortaro/spite-language/blob/master/docs/concurrency.md)).
-`$system_type.function_waits("update_each")` is decided while compiling like `has_function` (and
-`system.class.function_waits(...)` in a `Symbol<...>` walk): `true` when the function can reach a wait, so an engine
-starts it as a `Concurrent` and polls `finished`, and calls it directly otherwise; `klass.function_waits(name)` asks
-the same at run time. A system never says that it does IO. `Scheduler().resume_only_when_asked()` keeps
+`$system_type.functions['update_each'].is_resumable` is decided while compiling (and `phase.is_resumable` for each
+function a walk visits): `true` when the function can reach a wait, so an engine starts it as a `Concurrent` and
+polls `finished`, and calls it directly otherwise. A system never says that it does IO. `Scheduler().resume_only_when_asked()` keeps
 `Concurrent`s out of the stages: they then resume only at `Scheduler().run_ready()`, which the frame loop calls
 between frames, or where one's value is read or its handle dropped. A loop polling `finished` in that mode must call
 `run_ready()`, or it never ends.
-`$system_type.function_writes_parameter("last_each", 1)` is decided while compiling the same way: `true` when the
-function, or anything it calls, writes what its parameter number 1 (from 0) is given or anything reached through it
-(`true` too where it cannot tell, such as a call through a function value); an engine writes `crash not
-$system_type.function_writes_parameter("last_each", 1)` to make a system that breaks its rule a compile error that
-names the writing line ([metaprogramming.md](https://github.com/Mortaro/spite-language/blob/master/docs/metaprogramming.md#asking-whether-a-function-writes-a-parameter)).
+`update.arguments[1].is_mutated` (with `var update = $system_type.functions['last_each']` narrowed by `crash update`)
+is decided while compiling the same way: `true` when the function, or anything it calls, changes what its argument
+number 1 (from 0) is given or anything reached through it; an engine writes `crash not update.arguments[1].is_mutated`
+to make a system that breaks its rule a compile error
+([metaprogramming.md](https://github.com/Mortaro/spite-language/blob/master/docs/metaprogramming.md#asking-a-question-while-compiling)).
 `JsonWriter(value).write(): String` writes JSON and `JsonReader<T>(text).read(): T?` reads it
 (`read_or_crash(): T` halts instead), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`;
 `read` skips unknown keys, keeps defaults for missing ones, reads a camelCase or PascalCase key (`buyPrice`,
@@ -612,6 +629,36 @@ same name reopens it: `list.spite` adds a member template, `integer.spite` a fun
 A statement is one line: anything after it on the same line (after a `return` value, a call, or the `}` that
 closes an `if`, `while` or `switch`) is a parse error (`'attribute' is left over after the end of the statement`),
 never a second statement.
+
+## Bindings: a library from another language
+
+Bind a mature library (compression, a database, a codec, physics, a graphics API) instead of rewriting it; rewrite
+only what is small or what the program is about. Anything with a C ABI binds the same way: C as it is, C++ functions
+under `extern "C"` (a method becomes a function taking the object's address), Rust `#[no_mangle] pub extern "C" fn`
+in a `cdylib`, Zig `export fn` in a dynamic library, Go `//export` with `-buildmode=c-shared`.
+
+- One class wraps the library and is the only code that touches its `DynamicLibrary`. Only Spite shapes leave it:
+  full-word snake_case names, `T?` instead of a null handle or a "not found" code, an object that holds the handle and
+  releases it in `drop()`, `String` for text.
+- A C status or enum becomes a Spite enum the binding writes, with Spite names, each value mapped to its C number;
+  the mapping is a `switch` on the number whose `_:` is a bare `crash`, so a number it does not list halts at the boundary:
+
+  ```gdscript
+  func packing_of(code: Integer): Packing {
+      switch code {
+          0: return 'packed'
+          1: return 'output_too_small'
+          _: crash
+      }
+  }
+  ```
+
+- What crosses: numbers, `Boolean`, enum values, text, lists of numbers and number-only `type`s by address, a handle
+  as a `Long`, a function as a `ForeignCallback`. What cannot: a class instance, exceptions and panics (catch them on
+  the library's side and answer a status), generics (export one function per type), a struct returned by value, a
+  union past its first member, varargs, function-like macros, and memory another runtime owns (give it back through
+  the library's own function, in `drop()`).
+  [foreign_libraries.md](https://github.com/Mortaro/spite-language/blob/master/docs/foreign_libraries.md#libraries-written-in-other-languages)
 
 ## Habits from other languages that Spite rejects
 

@@ -27,7 +27,7 @@ instead of prose someone wrote about it.
 **`async`/`await` colouring.** The JS and C# pollution: the callee declares itself async, which infects every
 caller transitively and changes every return type.
 *Instead:* concurrency is a property of the call site, never of the function (D35). An ordinary function is made
-concurrent by its caller with `Task(...)`, and the handle joins on first use: no `await`, no wrapper type, no
+concurrent by its caller with `Concurrent(...)`, and the handle joins on first use: no `await`, no wrapper type, no
 `.wait()` to remember.
 
 **Bring-your-own-runtime.** Rust's `Future`-without-an-executor split "truly pisses me off": it let multiple
