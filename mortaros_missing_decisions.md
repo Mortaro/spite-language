@@ -78,6 +78,14 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 280. **How a walk passes values beyond the element.** `each` hands only the element; a walk that needs more (a
      value, a writer) keeps it in attributes of the walking object today. Options: (a) that is the way (one
      argument, state in the walker, as D384's serializers do); (b) `each` with extra arguments. Recommend (a).
+     Found building backlog J1 (D244): (a) is fine where the walker is made per call (`JsonWriter`, `JsonReader`),
+     but `BinaryFormat<T>` and `Spite.DebugInstance<T>` are singletons every thread shares, so state in them
+     corrupts memory when two `Parallel`s write or show a value at once (tried), and a walker made per value would
+     cost an allocation per nested object and per enum value that the binary format does not make today. With (a),
+     the binary walk needs a walker made per call, or a reentrant per-call lock from the compiler; with (b), it stays
+     a stateless singleton at no cost. `BinaryFormat` keeps its plural walk until this is answered; now recommend
+     (b), the only form that keeps the binary format at zero allocations without shared state. Blocks backlog J1's
+     binary half and R7.
 281. **When a waiting loop counts as a hang** (backlog B6 and B15; failure.md's open list). A `while true` that can
      never leave, and a `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()`,
      hang without a word. Options: (a) a compile error wherever no exit and no wait is reachable in the loop, as
@@ -86,24 +94,32 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 282. **A write to a copy that dies unread** (backlog B12, proposed by Claude): `values[row].copy()` answered, the
      caller sets an attribute on it, and the copy dies. Options: (a) a compile error when an object only this
      function holds is written and never read again; (b) leave it. Recommend (a).
-283. **A dropped `ForeignCallback`'s ticket table is C** (D361; backlog F3, built). A context callback now hands C
+283. **How a serializer is given D320's rename map.** D320 writes `JsonWriter<Monster>({Monster.attributes['health']:
+     "hp"})`, but a writer takes its value in its constructor (`JsonWriter(order)`, D208), and Spite has neither
+     overloading (D59) nor default arguments. Options: (a) a second constructor argument on all four,
+     `JsonWriter(order, keys)` and `JsonReader<Order>(text, keys)`, with `{}` when there is none (every call site
+     changes); (b) an attribute set before the first `write()` or `read()`, `writer.keys = {...}`, the table filled
+     on first use; (c) a class made once from the map that makes the writers and readers. Recommend (a): D320 fills
+     the table "when the serializer is constructed", and one way to call it. Blocks backlog J2
+     ([json.md](docs/json.md#a-key-that-is-not-an-attributes-name)).
+284. **A dropped `ForeignCallback`'s ticket table is C** (D361; backlog F3, built). A context callback now hands C
      a ticket (a table slot and a reuse count), so a call through a dropped context halts naming the function. The
      table is C the generator writes, carried only by programs that make context callbacks. Options: (a) keep it C
      until C9 gives the backend primitives a home; (b) write it now as a library singleton the emitted C calls.
      Recommend (a): it is a few lines beside the callback C that already exists, and C9 moves both together.
-284. **How long a poll of an unstepped `Concurrent` may go before it halts** (D244; backlog B15, built). A
+285. **How long a poll of an unstepped `Concurrent` may go before it halts** (D244; backlog B15, built). A
      `Concurrent` read for `finished` a million times in a row, answering `false`, with nothing stepping it between
      (`resume_only_when_asked()` without `run_ready()`), now halts at `Scheduler.polled_unfinished`. It is a
      count, not a proof: nothing else could ever finish it, so the count only decides how soon the halt comes.
      Options: (a) a million, as built; (b) also a compile error where the compiler sees a loop poll without
      stepping. Recommend (a) now, (b) later.
-285. **Names for three new library members** (backlog J3, S11, S12; each "proposed by Claude, unconfirmed"): an
+286. **Names for three new library members** (backlog J3, S11, S12; each "proposed by Claude, unconfirmed"): an
      untyped JSON value read by `JsonReader` and walked with `switch` (J3), renaming or moving a file or folder on
      `File` and `Directory` (S11), and `List.index_of(item): Integer?` with `find_index_by_<member>` (S12).
      Recommend: `JsonValue` (a union of `JsonObject`, `List<JsonValue>`, `String`, `Double`, `Boolean`), `move_to(path)`
      on both `File` and `Directory` (one name for rename and move), and `index_of`/`find_index_by_<member>` as
      proposed. Blocks J3, S11 and S12, which are not built until named.
-286. **How `--final-classes` names the file that supplied a declaration** (D382; backlog C7, not built). D382
+287. **How `--final-classes` names the file that supplied a declaration** (D382; backlog C7, not built). D382
      marks each declaration with one comment line linking the `.spite` file that supplied it, but a comment may
      only link a `.md` page with an anchor (`# path.md#anchor`), so the printed program would no longer compile,
      and `check.sh` compiles it. Options: (a) a comment may also link an existing `.spite` file, with no anchor;

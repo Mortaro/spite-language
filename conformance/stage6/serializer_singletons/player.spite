@@ -1,0 +1,8 @@
+var name = "ada"
+var score = 3
+var console = Console()
+var _secret = 7
+
+func shout() {
+    console.print(name, score, _secret)
+}

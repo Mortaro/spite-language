@@ -1,0 +1,4 @@
+{"name":"ada","score":9}
+bo 3 7
+ada 9 7
+8 true

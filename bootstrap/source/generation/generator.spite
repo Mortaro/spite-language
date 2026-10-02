@@ -1174,6 +1174,15 @@ func walked_name_condition(expression: Syntax.Expressions.Expression): Boolean? 
     }
 }
 
+func walked_singleton_condition(expression: Syntax.Expressions.Expression): Boolean? {
+    var read = shape.as_member(expression)
+    assert read and not bound_symbol_name.is_empty() and bound_field_index >= 0 and bound_field_type
+    assert read.name == "is_singleton"
+    crash read.object
+    assert is_identifier_named(read.object, bound_symbol_name)
+    return singleton_type(bound_field_type)
+}
+
 func constant_condition(
     expression: Syntax.Expressions.Expression,
     scope: Scope,
@@ -1203,6 +1212,10 @@ func constant_condition(
     var walked_answer = walked_name_condition(expression)
     if walked_answer == true or walked_answer == false {
         return walked_answer
+    }
+    var walked_singleton = walked_singleton_condition(expression)
+    if walked_singleton == true or walked_singleton == false {
+        return walked_singleton
     }
     var setting_text = hardcoded_setting_text(expression, scope, class_information)
     if setting_text {
@@ -1928,20 +1941,7 @@ func report_unliteral_body(owner: Analysis.ClassInfo, function: Analysis.Functio
     current_owner = saved_owner
 }
 
-func check_json_keys(information: Analysis.ClassInfo) {
-    var keys = List<String>()
-    var owners = List<String>()
-    var givers = List<String>()
-    var index = 0
-    while index < information.fields.count() {
-        var field = information.fields[index]
-        if not field.name.starts_with("_") {
-            keys.append(field.name)
-            owners.append(field.name)
-            givers.append("")
-        }
-        index = index + 1
-    }
+func refuse_json_keys(information: Analysis.ClassInfo) {
     var saved_line = current_line
     var saved_path = current_path
     var saved_function = current_function
@@ -1949,106 +1949,29 @@ func check_json_keys(information: Analysis.ClassInfo) {
     while function_index < information.declared_functions.count() {
         var function = information.declared_functions[function_index]
         if function.name.starts_with("json_key_") and function.has_body {
-            current_function = function.name
-            current_line = function.line
-            current_path = saved_path
-            if not function.source_path.is_empty() {
-                current_path = function.source_path
-            }
-            var given = given_json_key(information, function, owners)
-            if given {
-                var name_length = function.name.length()
-                var attribute_name = function.name.slice(9, name_length)
-                var place = text_place(owners, attribute_name)
-                keys[place] = given
-                givers[place] = function.name
-            }
+            refuse_json_key(information, function, saved_path)
         }
         function_index = function_index + 1
-    }
-    var first = 0
-    while first < keys.count() {
-        var second = first + 1
-        while second < keys.count() {
-            if keys[first] == keys[second] {
-                crash givers[first] and givers[second] and owners[first] and owners[second]
-                var giver = givers[second]
-                var taker = owners[second]
-                var other = owners[first]
-                if giver.is_empty() {
-                    giver = givers[first]
-                    taker = owners[first]
-                    other = owners[second]
-                }
-                var giving = information.find_function(giver)
-                crash giving
-                current_function = giver
-                current_line = giving.line
-                current_path = saved_path
-                if not giving.source_path.is_empty() {
-                    current_path = giving.source_path
-                }
-                report(
-                    "'{information.simple_name}.{giver}' gives '{taker}' the JSON key \"{keys[first]}\", which is already the key of '{other}', so JsonReader could not tell which attribute a value belongs to: give each attribute a key of its own",
-                )
-            }
-            second = second + 1
-        }
-        first = first + 1
     }
     current_line = saved_line
     current_path = saved_path
     current_function = saved_function
 }
 
-func given_json_key(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, owners: List<String>): String? {
+func refuse_json_key(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, saved_path: String) {
     var name_length = function.name.length()
     var attribute_name = function.name.slice(9, name_length)
-    if text_place(owners, attribute_name) < 0 {
-        var listed = owners.join("', '")
-        report(
-            "'{information.simple_name}.{function.name}' names the JSON key of the attribute '{attribute_name}', and '{information.simple_name}' has no attribute '{attribute_name}': it has '{listed}'. A function whose name starts with 'json_key_' is read by JsonReader and JsonWriter, so the rest of its name is an attribute's",
-        )
-        return null
-    }
-    var literal = returned_literal(function)
-    if not literal {
-        report_unliteral_body(information, function, "JsonReader and JsonWriter read the key while compiling")
-        return null
-    }
-    if written_key_problem(literal) {
-        report(
-            "'{information.simple_name}.{function.name}' returns \"{literal}\", and a JSON key given this way is written as it is, so it cannot be empty or hold a quote, a backslash or a control character",
-        )
-        return null
-    }
-    return literal
-}
-
-func text_place(texts: List<String>, wanted: String): Integer {
-    var index = 0
-    while index < texts.count() {
-        if texts[index] == wanted {
-            return index
+    if information.fields.find_by_name(attribute_name) {
+        current_function = function.name
+        current_line = function.line
+        current_path = saved_path
+        if not function.source_path.is_empty() {
+            current_path = function.source_path
         }
-        index = index + 1
+        report(
+            "'{information.simple_name}.{function.name}' would name the JSON key of '{attribute_name}', and JsonReader and JsonWriter do not read a function for it: a key that is not an attribute's name is given to the serializer in a map keyed by the attribute, '\{{information.simple_name}.attributes['{attribute_name}']: \"...\"}'",
+        )
     }
-    return -1
-}
-
-func written_key_problem(key: String): Boolean {
-    if key.is_empty() {
-        return true
-    }
-    var index = 0
-    while index < key.length() {
-        var code = key.code_at(index)
-        if code < 32 or code == 34 or code == 92 {
-            return true
-        }
-        index = index + 1
-    }
-    return false
 }
 
 func class_has_function(owner: Analysis.ClassInfo, pattern: String, asking: Analysis.ClassInfo): Boolean {
@@ -3099,7 +3022,7 @@ func unwritable_attribute(information: Analysis.ClassInfo, visited: List<String>
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
-        if not field.name.starts_with("_") {
+        if not field.name.starts_with("_") and not singleton_type(field.type) {
             var field_type = field.type
             var problem = unwritable_json(field_type, "{information.simple_name}.{field.name}", visited, format)
             if not problem.is_empty() {
@@ -5446,7 +5369,7 @@ func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.
         statement_index = statement_index + 1
     }
     if not functions_pass {
-        check_json_keys(information)
+        refuse_json_keys(information)
     }
 }
 
@@ -5606,6 +5529,9 @@ func statement_walks_into(
                 return false
             }
             crash call.callee
+            if each_walk_of(call.callee, name) {
+                return true
+            }
             var callee = shape.as_identifier(call.callee)
             if not callee {
                 return false
@@ -5624,6 +5550,26 @@ func statement_walks_into(
         Syntax.Statements.WhileStatement: return walks_into(statement.body, 0, name, class_information)
         _: return false
     }
+}
+
+func each_walk_of(callee: Syntax.Expressions.Expression, name: String): Boolean {
+    var walk = shape.as_member(callee)
+    if not walk {
+        return false
+    }
+    if walk.name != "each" {
+        return false
+    }
+    crash walk.object
+    var attributes = shape.as_member(walk.object)
+    if not attributes {
+        return false
+    }
+    if attributes.name != "attributes" {
+        return false
+    }
+    crash attributes.object
+    return is_identifier_named(attributes.object, name)
 }
 
 func report_function_shape_default(
@@ -7481,7 +7427,7 @@ func schema_text(spite_type: Analysis.SpiteType, visiting: List<String>): String
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
-        if not field.name.starts_with("_") {
+        if not field.name.starts_with("_") and not singleton_type(field.type) {
             var field_type = field.type
             var field_text = schema_text(field_type, visiting)
             parts.append("{field.name}:{field_text}")
@@ -22424,6 +22370,18 @@ func generate_member_read_raw(
             var place = ExpressionResult(bound_field_index, index_type)
             place.constant_text = "i:{bound_field_index}"
             return place
+        }
+        if symbol_identifier.name == bound_symbol_name and member.name == "is_singleton" and not bound_symbol_name.is_empty() {
+            var holds_singleton = "false"
+            if bound_field_type and bound_field_index >= 0 {
+                if singleton_type(bound_field_type) {
+                    holds_singleton = "true"
+                }
+            }
+            var holds_singleton_type = boolean_type()
+            var holds_singleton_answer = ExpressionResult(holds_singleton, holds_singleton_type)
+            holds_singleton_answer.constant_text = "b:{holds_singleton}"
+            return holds_singleton_answer
         }
         if symbol_identifier.name == bound_symbol_name and member.name == "class" and not bound_symbol_name.is_empty() {
             crash bound_field_type

@@ -1,7 +1,0 @@
-rock 2 90.5 4
-{"name":"rock","min_lod":2,"maxDrawDistance":90.5,"instances":4}
-2 90.5 4
-0 0
-1 3
-2 1
-{"right":2,"left":1}
