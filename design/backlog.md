@@ -234,7 +234,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   exit and before a crash report, output before an input read visible; within that, line by line to a terminal,
   large buffers to files and pipes, per-thread buffers merged by line. Files: `library/console.spite`,
   `library/windows/console.spite` (and Linux, macOS), `prelude.spite` (`flush`), generator.spite crash paths
-  (`fflush` in `SPITE_TRACE_ASSERT`, `spite_overflowed`). Whether `Console.flush()` stays public is Q6. **M.** No
+  (`fflush` in `SPITE_TRACE_ASSERT`, `spite_overflowed`). `Console.flush()` leaves the public surface (D383); `write` stays. **M.** No
   dependencies.
 - **K2 Waits that run the loop in place never hang each other** (D369 item 179; status "Hidden async/await").
   Close every gap (right side of `and`/`or`/`==` on a nullable, through a function value, a union dispatch or a
@@ -423,9 +423,6 @@ unconfirmed).
   an error, which already refuses a program's `Game.Math.Vector3` beside the library's `Vector3`, more strictly
   than D284's attribute matching with zero false positives. Recommendation: yes, one rule; record a row
   superseding D284.
-- **Q6 Does `Console.flush()` stay public?** (`mortaros_missing_decisions.md` item 256) D346 says the moron never chooses flushing, and its third guarantee
-  covers prompts. Recommendation: remove `flush()` from the public surface; keep `write` for text without a
-  line end.
 - **Q8 Whether a serializer is compiler-written code or library Spite specialised per class** (`mortaros_missing_decisions.md` item 258) (D319 says
   "generated while compiling"; D240 says nothing hidden). Recommendation: library Spite over
   `attributes.each(write_attribute)` with the writer holding its output as an attribute, specialised per class,

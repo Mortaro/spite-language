@@ -11,7 +11,7 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 257 by D382 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
@@ -30,9 +30,6 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 257 by
      error, which already refuses a program's `Game.Math.Vector3` beside the library's `Vector3`, more strictly
      than D284's attribute matching with zero false positives. Recommendation: yes, one rule; record a row
      superseding D284.
-256. **Does `Console.flush()` stay public?** D346 says the moron never chooses flushing, and its third guarantee
-     covers prompts. Recommendation: remove `flush()` from the public surface; keep `write` for text without a line
-     end.
 258. **Whether a serializer is compiler-written code or library Spite specialised per class** (D319 says "generated
      while compiling"; D240 says nothing hidden). Recommendation: library Spite over
      `attributes.each(write_attribute)` with the writer holding its output as an attribute, specialised per class,
