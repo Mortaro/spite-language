@@ -38109,15 +38109,15 @@ func program_run_code(): String {
     crash entry_class
     var lines = List<String>()
     lines.append("{entry_class.c_name}* spite_entry_instance = {entry_class.c_name}___allocate();")
-    if remote_loop_port > 0 {
-        remote_loop_start(entry_class, lines)
-    }
     var hot_reload_class = find_class_by_qualified("HotReload")
     if hot_reload {
         crash hot_reload_class
         lines.append(
             "HotReload* spite_hot_reload = {singleton_call(hot_reload_class)}; HotReload_start(spite_hot_reload);",
         )
+    }
+    if remote_loop_port > 0 {
+        remote_loop_start(entry_class, lines)
     }
     if entry_class.constructor {
         lines.append("{entry_class.constructor.c_name}(spite_entry_instance);")

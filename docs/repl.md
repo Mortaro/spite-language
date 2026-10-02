@@ -682,9 +682,10 @@ worked out while compiling, so the check folds away with the branch it guards.
   thread while the program keeps running, so a game keeps drawing frames while its code is rebuilt.
 - **The watcher is the standard library's [`FileSystemWatcher`](standard_library.md#watch-files-and-folders)**, the one any
   program can use, started on a thread of its own: `ReadDirectoryChangesW` on Windows, `inotify` on Linux and
-  `kqueue` on macOS, with no polling. The thread sits in `wait_for_changes()`, which the operating system wakes;
-  a burst of changes is waited out until 100 ms pass without one, so a save that writes a file in pieces reloads
-  once. The program's own folder is watched with every folder below it, and so is every folder it `load`s, except
+  `kqueue` on macOS, with no polling. It is watching before the program's entry runs and before the REPL listens,
+  so a save made once the REPL answers is never missed. The thread sits in `wait_for_changes()`, which the
+  operating system wakes; a burst of changes is waited out until 100 ms pass without one, so a save that writes a
+  file in pieces reloads once. The program's own folder is watched with every folder below it, and so is every folder it `load`s, except
   a repository's checkout under `.spite/git/` ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)),
   which is read-only: a pinned commit never changes, so there is nothing to reload there, and a change to that
   package is a new commit and a restart. Each reload's library is written beside the executable, into
