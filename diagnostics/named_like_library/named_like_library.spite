@@ -1,0 +1,6 @@
+var console = Console()
+
+func NamedLikeLibrary() {
+    var point = Geometry.Vector3()
+    console.print(point.height)
+}

@@ -11,6 +11,10 @@ not parse as a number reads as `0`.
 reopen the classes each system does differently, and the launcher loads the one the program is compiled for
 ([foreign_libraries.md](foreign_libraries.md#each-operating-system-reopens-what-it-changes)).
 
+**Use the library's class instead of making your own.** A class of your own named like one of the library's, a
+`Geometry.Vector3` or a `Color` in a folder, is a compile error naming the library's class to use, and what it lacks
+is added by reopening it ([A class name means one class](classes_and_files.md#a-class-name-means-one-class)).
+
 **A program carries only the classes it uses.** The library is part of every program's
 source, but a production build keeps only the C that `main` can reach: a program that never makes a `FileSystemWatcher`,
 a `Socket`, a `Process` or a `ThreadPool` has none of their code, and none of the operating-system functions only

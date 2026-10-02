@@ -1,5 +1,5 @@
 var console = Console()
-var stock = Stock.Items()
+var stock = Stock.Shelf()
 var ticks = Vector<Tick>()
 var timers = Timers()
 

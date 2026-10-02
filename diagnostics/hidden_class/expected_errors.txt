@@ -1,0 +1,1 @@
+diagnostics/hidden_class/physics/plugin.spite: error: the class 'Physics.Plugin' hides the class 'Plugin' (diagnostics/hidden_class/plugin.spite): inside 'Physics' the name 'Plugin' would mean this class, so give one of them a clearer name

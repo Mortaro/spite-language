@@ -1,0 +1,1 @@
+diagnostics/library_class_namespace/color/palette.spite: error: 'Color' is a class of the standard library and also the namespace of the folder 'diagnostics/library_class_namespace/color': a dotted name means one thing, so rename the folder

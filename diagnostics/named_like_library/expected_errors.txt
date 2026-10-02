@@ -1,0 +1,1 @@
+diagnostics/named_like_library/geometry/vector3.spite: error: the class 'Geometry.Vector3' is named like the standard library's class 'Vector3': use 'Vector3', reopening it to add what it lacks, or give this class a clearer name

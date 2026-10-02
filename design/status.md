@@ -410,10 +410,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   lists none. `Spite.AttributeDeclaration` is built: a class's `.attributes` are declarations with no value,
   folded and at run time (no stand-in is made for them any more), an instance's are bound `Spite.Attribute`s, and
   each kind given to a parameter of the other is an error.
-- Not built: `function.call_with(arguments.map(made))` (D317) and the
-  compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
-  (`engine/renderer/renderer.spite` is `Engine.Renderer` beside the namespace `Engine.Renderer`) is exactly that
-  pair, so the rule needs Mortaro to say whether the entry file is exempt.
+- Not built: `Spite.Call` (D391, D393), which replaces `function.call_with`.
 - Run time only through the old tables: `.owner` answers only on a constant; read on a run-time object it is "has
   no attribute" (it is the instance on a bound member, which waits for the split between declarations and bound
   members). `.element_type` and `.value_type` answer only on a constant too.
