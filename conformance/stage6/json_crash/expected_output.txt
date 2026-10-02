@@ -1,12 +1,11 @@
 spite.crash	55888b60	library/json_cursor.spite:17	JsonCursor	fail	crashes=true	wanted=a number	text={"count": three}	position=10	expected=	matched=false
 spite.frame	library/json_cursor.spite:16	JsonCursor	fail
 spite.frame	library/json_cursor.spite:72	JsonCursor	read_number
-spite.frame	library/json_reader.spite:25	JsonReader	parse
-spite.frame	library/json_reader.spite	JsonReader	store_value_for_count
-spite.frame	library/json_reader.spite	JsonReader	read_count
-spite.frame	library/json_reader.spite:122	JsonReader	read_attributes
-spite.frame	library/json_reader.spite:25	JsonReader	parse
-spite.frame	library/json_reader.spite:17	JsonReader	read_or_crash
+spite.frame	library/json_reader.spite:27	JsonReader	parse
+spite.frame	library/json_reader.spite:145	JsonReader	store_value_for_count
+spite.frame	library/json_reader.spite:129	JsonReader	read_attribute_for_count
+spite.frame	library/json_reader.spite:27	JsonReader	parse
+spite.frame	library/json_reader.spite:19	JsonReader	read_or_crash
 spite.frame	conformance/stage6/json_crash/json_crash.spite:3	JsonCrash	JsonCrash
 spite.frame	launcher/launcher.spite:3	Launcher	Launcher
 spite.frame	-	-	main

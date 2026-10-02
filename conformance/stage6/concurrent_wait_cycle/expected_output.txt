@@ -1,1 +1,18 @@
-spite.crash	53d916b5	library/concurrent.spite:67	Concurrent	_join	waits_for_its_own_caller=true	_frame=...	_finished=false
+spite.crash	53d916b5	library/concurrent.spite:70	Concurrent	_join	waits_for_its_own_caller=true	_frame=...	_finished=false
+spite.frame	library/concurrent.spite:67	Concurrent	_join
+spite.frame	library/concurrent.spite:61	Concurrent	_result
+spite.frame	conformance/stage6/concurrent_wait_cycle/board.spite:5	Board	value_of
+spite.frame	-	-	Worker_run___step
+spite.frame	bootstrap/source/generation/prelude.spite:1	Scheduler	step_frame
+spite.frame	library/scheduler.spite:42	Scheduler	run_frame
+spite.frame	library/scheduler.spite:71	Scheduler	step_ready
+spite.frame	library/scheduler.spite:190	Scheduler	idle_stepping
+spite.frame	library/scheduler.spite:86	Scheduler	wait_for
+spite.frame	library/concurrent.spite:67	Concurrent	_join
+spite.frame	library/concurrent.spite:61	Concurrent	_result
+spite.frame	conformance/stage6/concurrent_wait_cycle/board.spite:5	Board	value_of
+spite.frame	-	-	Worker_run___step
+spite.frame	bootstrap/source/generation/prelude.spite:1	Scheduler	step_frame
+spite.frame	library/scheduler.spite:42	Scheduler	run_frame
+spite.frame	library/scheduler.spite:71	Scheduler	step_ready
+spite.frame	more
