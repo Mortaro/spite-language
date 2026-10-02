@@ -1273,8 +1273,9 @@ The whole member template family, and every passed-function form, works on a `Di
 as it does on a `List<T>`; to walk keys and values together, use `while` over `dictionary.keys()` and read
 `dictionary[key]`.
 
-`deep_copy()` works for classes, lists and dictionaries. A `String` is shared rather than duplicated
-because it is immutable; a union or a `type` shape is shared; a self-referring structure is unsupported ([Memory](memory.md#the-memory-model)).
+`deep_copy()` works for classes, lists, dictionaries, unions and `type` shapes, and follows them all the way
+down. A `String` is shared rather than duplicated because it is immutable; the rest of what it does, cycles
+included, is [Memory's rule](memory.md#the-memory-model).
 
 ### Vector\<T\>
 

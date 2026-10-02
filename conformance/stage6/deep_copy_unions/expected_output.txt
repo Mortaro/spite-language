@@ -1,0 +1,15 @@
+cargo apples 1
+spare gold
+held pears
+held gold
+tagged gold
+described crate counted
+points 1 1 2
+cargo empty 0
+no spare
+tagged none
+described crate plain
+original direct seen
+copy direct seen
+shaped shaped
+tree 39 12

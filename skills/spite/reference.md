@@ -197,7 +197,8 @@ func is_alive(): Boolean {
   inline; do not write your own `sine` or square root from a series. Nothing halts: `(-1.0).square_root()` is
   `nan`, and `nan` passes on through `minimum`, `maximum` and `clamp` (`nan.minimum(0.0)` is `nan`).
 - Everything that is not a number, a `Boolean` or an enum value is a reference: passing, assigning and storing share
-  the same object. `copy()` copies one level, `deep_copy()` all the way down. `drop()` runs when the last reference
+  the same object. `copy()` copies one level, `deep_copy()` all the way down (through unions and `type` shapes by
+  the class each value holds; a union value has `deep_copy()` too; never on a cycle). `drop()` runs when the last reference
   goes. Two objects that refer to each other leak: hold the back reference as a `Weak<T>` (`get()` is a `T?`, `null` once the object is freed), or clear one side.
 - `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
   `last` (both a `T?`, `null` on an empty list, like `[]`: `var first = names.first()` then `crash first`), `count`, `contains` (elements that are numbers, `Boolean`, `String`

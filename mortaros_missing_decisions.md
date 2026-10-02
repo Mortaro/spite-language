@@ -158,3 +158,14 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      `Parallel` that waits for it while the scheduler's thread waits for that `Parallel` would hang); (c) a compile
      error where the compiler sees `Concurrent(...)` reached from `Parallel` work. Recommend (a), with (c) added
      where it is visible. Blocks backlog K6.
+QNEW1. **What `deep_copy()` does on a cycle** (backlog S9; memory.md "copy()/deep_copy()"). A structure whose
+     references lead back to an object already being copied (a parent that holds its children, each holding its
+     parent) recurses until the stack runs out, and the crash names the deep copy. Options: (a) copy the graph:
+     remember each object copied during one `deep_copy()` call, and point a reference to an object seen before at
+     its copy, so the copy has the same shape, cycles included (a table for the call, written only for a class whose
+     attributes can reach itself, nothing for any other; the copied cycle then leaks as every cycle does, unless one
+     side is a `Weak`); (b) halt at the first object reached twice, naming the class and the attribute that closed the
+     loop (the same table, used only to detect); (c) a compile error on `deep_copy()` of a class whose attributes
+     can reach itself, naming the attribute (which also refuses trees and linked lists, which copy correctly
+     today); (d) keep the stack overflow. Recommend (a): it is what "an independent copy" means for a graph, and it
+     costs nothing for a class that cannot reach itself. Blocks the cycle part of backlog S9.

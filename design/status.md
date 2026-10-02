@@ -607,8 +607,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   was renamed `Displacement`; page no longer records this.
 
 ### Deep copy (Dictionary<T> rules)
-- `deep_copy()`: a union or a `type` shape is shared rather than copied "for now", and a self-referring structure is
-  still unsupported. The page states both as the rule without the "for now"/"still".
+- `deep_copy()` of a structure whose references form a cycle runs out of stack (a crash naming the deep copy);
+  what it should do is QNEW1 in `mortaros_missing_decisions.md`.
 
 ### Rules in full
 - The page no longer says its rules were moved from the language manual when D193 dissolved it, nor that a `D`

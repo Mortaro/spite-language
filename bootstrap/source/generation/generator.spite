@@ -974,6 +974,7 @@ func generate(
     }
     finish_main()
     emit_pending_functions()
+    emit_union_deep_copy_bodies()
     refresh_union_releases()
     finish_wait_questions()
     if parallel_used {
@@ -20039,8 +20040,19 @@ func deep_copy_code(spite_type: Analysis.SpiteType, code: String): String {
         var copied_class = find_class_by_c_name(class_ref.c_name)
         if copied_class {
             if not copied_class.is_singleton {
+                var own_deep_copy = find_or_instantiate_function(copied_class, "deep_copy")
+                if own_deep_copy {
+                    return "(({code}) == 0 ? 0 : {own_deep_copy.c_name}({code}))"
+                }
                 return "{ensure_class_deep_copy(copied_class)}({code})"
             }
+        }
+    }
+    var union_type = type_shape.as_union(spite_type)
+    if union_type {
+        var copied_union = find_union_by_c_name(union_type.c_name)
+        if copied_union {
+            return "{ensure_union_deep_copy(copied_union)}({code})"
         }
     }
     var list_type = type_shape.as_list(spite_type)
@@ -20064,6 +20076,76 @@ func deep_copy_code(spite_type: Analysis.SpiteType, code: String): String {
         return retain_call(spite_type, code)
     }
     return code
+}
+
+func ensure_union_deep_copy(information: Analysis.UnionInfo): String {
+    var function_c_name = "{information.c_name}___deep_copy"
+    if not information.deep_copy_used {
+        information.deep_copy_used = true
+        builder.add_prototype("{information.c_name} {function_c_name}({information.c_name} self);")
+    }
+    return function_c_name
+}
+
+func emit_union_deep_copy_bodies() {
+    var emitted_any = true
+    while emitted_any {
+        emitted_any = false
+        var index = 0
+        while index < unions.count() {
+            var information = unions[index]
+            if information.deep_copy_used and not information.deep_copy_emitted {
+                information.deep_copy_emitted = true
+                emitted_any = true
+                var body = union_deep_copy_text(information)
+                note_union_slot(information, "'s deep copy")
+                builder.add_support(body)
+            }
+            index = index + 1
+        }
+        emit_pending_functions()
+    }
+}
+
+func union_deep_copy_text(information: Analysis.UnionInfo): String {
+    var name = information.c_name
+    var owner_type = union_type_of(information)
+    var lines = List<String>()
+    lines.append("{name} {name}___deep_copy({name} self) \{")
+    if information.is_tagged {
+        lines.append("if (self.plain != 0 || self.value.object == 0) return self;")
+    } else {
+        lines.append("if (self == 0) return 0;")
+    }
+    var member_index = 0
+    while member_index < information.members.count() {
+        var member = information.members[member_index]
+        var copied = copied_union_member(member, owner_type, information)
+        if not copied.is_empty() {
+            lines.append("if {value_class_test("self", owner_type, member)} return {copied};")
+        }
+        member_index = member_index + 1
+    }
+    lines.append("return {name}___retain(self);")
+    lines.append("}")
+    return lines.join("\n")
+}
+
+func copied_union_member(
+    member: Analysis.ClassInfo,
+    owner_type: Analysis.SpiteType,
+    information: Analysis.UnionInfo,
+): String {
+    if member.c_name == "SpiteString" or boxed_value_types.has(member.c_name) or member.is_singleton {
+        return ""
+    }
+    var member_type = instance_type_of(member)
+    var read = member_value_code("self", owner_type, member)
+    var copied = deep_copy_code(member_type, read)
+    if information.is_tagged {
+        return "spite_tagged_object({member.class_id}, (void*)({copied}))"
+    }
+    return "(({information.c_name})({copied}))"
 }
 
 func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
@@ -33924,6 +34006,23 @@ func generate_union_dispatch(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
+    if is_call and member_name == "deep_copy" and arguments_ast.is_empty() {
+        var union_deep_copy = ensure_union_deep_copy(information)
+        var copied_union_type = union_type_of(information)
+        var no_argument_types = no_types()
+        var union_copied = generate_generic_call(
+            union_deep_copy,
+            object_result,
+            object_ast,
+            arguments_ast,
+            no_argument_types,
+            copied_union_type,
+            scope,
+            class_information,
+        )
+        union_copied.owning_override = true
+        return union_copied
+    }
     if information.is_shape {
         if is_call {
             return generate_shape_call(

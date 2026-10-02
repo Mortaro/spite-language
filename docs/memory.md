@@ -1102,8 +1102,16 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
   `copy()` is shallow: a fresh object, its own attributes/elements the exact same references the source had
   (retained, not duplicated; a `String` field needs no special handling either way, since it is immutable).
   `deep_copy()` recurses: every reference-kind attribute/element gets its own `deep_copy()`/independent buffer
-  instead of being shared. **Cycles are not supported** by `deep_copy()`: a self-referential (or mutually
-  referential) structure recurses forever; break the cycle by hand first if you need to deep-copy one.
+  instead of being shared. An attribute or element typed as a union or a `type` shape is copied through the class
+  of the value it holds at run time, so a `Cargo` holding a `Crate` gets a new `Crate`; a `String`, a number held
+  in one and a singleton are shared, since none of them can be changed through the copy. A union or a shape value
+  answers `deep_copy()` itself (`var copied = cargo.deep_copy()`, a `Cargo`). A class that declares its own
+  `deep_copy()` is copied through it wherever it is reached, which is how a `Vector` or an `Items` attribute gets a
+  block of its own instead of sharing the original's. A self-referring structure (a tree, a linked list, an
+  expression whose operands are expressions) is copied node by node (`conformance/stage6/deep_copy_unions`).
+  **Cycles are not supported** by `deep_copy()`: a structure whose references lead back to an object already being
+  copied recurses until the stack runs out, and the crash names the deep copy; break the cycle by hand first if you
+  need to deep-copy one.
 - **Cycles leak.** Reference counting cannot free a cycle (two objects holding a reference to each other, directly
   or through several hops): neither one's count ever reaches zero. This is a known, accepted tradeoff, not a bug.
   Break a cycle by hand when you are done with it (set the back-reference to `null` inside `drop()`-time logic, or
