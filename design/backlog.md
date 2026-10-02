@@ -112,11 +112,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `Vector3<Integer>`), one packed copy per class; every member answers the vector's own class, whole numbers truncated like
   integer division (D381); game_maths.md points grid code at `length_squared()` and notes `normalized()` snaps
   toward a grid direction. Migrate `examples/`, the corpus and the game engine package. **L.** Depends on M1(c),
-  M2, M6.
-- **M6 Axis names `x`, `y`, `z`, `w`** (D370 item 205). Exempt them from the single-letter error (generator.spite
-  near line 28476) and rename the `x_value`-style attributes in 12 library files (`vector2/3/4`, `quaternion`,
-  `matrix3/4`, `plane`, `ray`, `axis_aligned_box`, `cubic_bezier`, `color_text`, `http_client`). **S.** No
-  dependencies.
+  M2.
 - **M7 Identical-function folding leftovers** (D340; status "Identical functions"). Fold a function differing only
   in which class of another layout it passes by reference, compare a boxed text constant by its text, and stop
   writing a foreign callback's site into the function. Files: `function_folder.spite`. **M.** No dependencies.
@@ -195,8 +191,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Compiler driver and outputs (D327, D348, D349, D356, D390, D361, D366, D369 items 134 and 138, D385)
 
-- **C6 The object cache cleans itself** (D327). LRU eviction of `.spite/objects` past a size cap. Files:
-  `bootstrap/source/translation/unit_build.spite`. **S.** No dependencies.
 - **C7 `--final-classes` shows the winning source** (D366, D382, open question 10, status "Final classes"). Each final
   class printed as Spite with its generics as written, each declaration marked with the file and load root that
   supplied it, as one comment line linking that file (D382); used library helpers and template instances appear as source, not C names. Files:
@@ -250,9 +244,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **F2 Bindings checked against a header** (D369 items 93 and 233). With a header, argument and result types and
   enum numbers checked, the error naming the C type; how the header is read is the compiler's choice. **M.**
   Depends on F1.
-- **F3 A call through a dropped callback context halts** (D369 item 211). The trampoline's context slot is cleared
-  on `drop()` and a late call halts naming it; `'no_context'` stays a singleton's function. Files:
-  `library/foreign_callback.spite`, generator.spite trampolines. **S.** No dependencies.
 - **F4 Remaining foreign gaps** (status "Foreign libraries", "Callbacks"). `missing_function` and
   `missing_attribute` as reopenable Spite and a user naming rule; a header's types through reflection; C variadic
   functions; a `Boolean` as C `bool`, enums and structs by value to callbacks, a function value inside a `type`;
@@ -302,9 +293,10 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Failure reports (D25, D33, D20, D379)
 
-- **X1 The rest of the crash report** (status "Three outcomes"). The call chain, each failed `assert`'s default, an
-  assert's values in the ring, the column in `.crashes` (written `0`). Files: generator.spite crash and assert
-  emission, `crash_part.spite`, `native_faults.spite`. **M.** No dependencies.
+- **X1 The rest of the crash report** (status "Three outcomes"). Built: the call chain (`spite.frame` lines), each
+  failed `assert`'s answer and the column in `.crashes`. Left: an assert's values stored raw in the ring (D33),
+  and the call chain of an `--optimized` crash on Linux and macOS, which keep no frame pointers. Files:
+  generator.spite crash and assert emission, `native_faults.spite`. **M.** No dependencies.
 - **X2 Spite's own allocator detects a corrupted heap** (D379's direction, per D361); the report through `SIGABRT`
   is built. Files: the allocator. **L**.
 
@@ -312,15 +304,12 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 - **B3** A lent-element function is not checked by the guard lint (an empty collection made on the spot is now a
   default, `diagnostics/empty_collection_guard`). **S.**
-- **B4** A frame buffer's uses are matched by name, not by `TypedMemory` receiver (`placement.spite`). **S.**
 - **B6** A `while true` that can never leave is not reported (with L7). **M.**
 - **B7** Two threads writing one number attribute of a shared instance is refused only for a handed-over local
   (D35, D179); the rest needs the handle's lifetime. **M.**
-- **B11** Reading `.functions` anywhere turns on a whole-program flag; set it only from kept code. **S.**
 - **B12** A write to a copy that dies unread (proposed, unconfirmed rule: a compile error). **M.**
 - **B14** A Windows `__fastfail` ends the program without Spite's report (the Linux and macOS heap abort is D379,
   built). **M.**
-- **B15** A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` hangs. **S.**
 - **B17** Reference cycles leak silently without `--debug-memory` (largely answered by E3). Depends on E3.
 - **B18** A compile can write back old text over an edit made while it runs: every compile formats the program's
   files (D385), and one that read a file before someone else's edit wrote its formatted copy over that edit. Write a
@@ -349,12 +338,12 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M2, M4, M6, M7, N1, E1, E2, E4, L7, C6, C7, K2, F3, S9, P1, P2, X1, B1
-   to B16, E3, D1's first pass.
+2. No dependencies: R8, M1, M2, M4, M7, N1, E1, E2, E4, L7, C7, K2, S9, P1, P2, X1, the remaining B items, E3,
+   D1's first pass.
 3. After step 2: R5, K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4, R8, then R9.
 5. After J1: J2, S5. After L3: F1, S6 (with L4). After F1: F2.
-6. After M1, M2 and M6: M5. After M1 and M4: M3.
+6. After M1 and M2: M5. After M1 and M4: M3.
 7. After R1, R5 and J1: R7, the end of the reflection migration.
 8. S2 and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
    items sharing their files.
@@ -371,14 +360,14 @@ own functions. Splitting the regions below into their own files first (as `call_
 | Stream | Items, in order | Files it owns |
 |---|---|---|
 | 1 Reflection and serialization | R5, R1, R4, J1, J2, R8, R7 | generator.spite reflection, specialisation and template regions; `specialisation.spite`, `reflected*.spite`, `template_walk.spite`, `namespace_walk.spite`, `old_spellings.spite`; `library/spite/*`, `json_*`, `binary_*`, `dictionary.spite`; stage6 walk programs; docs reflection, metaprogramming, json |
-| 2 Types and storage | M2, M1, M7, M4, M3, then M6 and M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
+| 2 Types and storage | M2, M1, M7, M4, M3, then M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
 | 3 Arithmetic | N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E2, E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
-| 5 Driver and toolchain | C6, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
-| 6 Waiting, IO and library | F3, K2, K1, K3, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
+| 5 Driver and toolchain | C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
+| 6 Waiting, IO and library | K2, K1, K3, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
 | 7 Language rules | L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | P1, P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
-| 9 Bug sweep | B1 to B16 | small fixes, each in the file of the proof it fixes; rebase often |
+| 9 Bug sweep | the remaining B items | small fixes, each in the file of the proof it fixes; rebase often |
 | 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |
 
 Stream 1 is the longest (several weeks), then streams 2 and 3 (N1 and N2 are each a week or more), then the

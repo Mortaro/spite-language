@@ -112,8 +112,6 @@ for a design):
   command: on Linux, concurrency.md's `frame_loop` session (`program.running = false`, then `exit`) lost its
   `stopped` line in 3 of 5 runs, so `check.sh` fails its wire replay intermittently. The program's last output is
   dropped without a word; `exit` should let the program reach its next wait first.
-- A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` never ends
-  (concurrency.md, "Choosing where Concurrents resume").
 - A Windows `__fastfail` (`0xC0000409`) ends the program without Spite's report or frames ("What a native fault
   reports"): the system ends the process without asking it, so only something outside the process could report it.
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers
@@ -129,9 +127,6 @@ for a design):
 Also open, each a bug under D244, found cataloguing the compiler's proofs (proofs.md):
 
 - **A function that lends a list element (D269) is not checked for a guard `assert`** (D106), as other functions are.
-- **A frame buffer's uses are matched by name.** Placing an allocation in the frame accepts `read_value`,
-  `write_value`, `release_value` and `swap_values` on any receiver, not only `TypedMemory`'s, so a program's own
-  `write_value` that keeps the address would pass (memory.md, "Placement: the compiler decides where memory lives").
 - **`absolute()` of the smallest signed value** answers that value itself (`Integer.smallest.absolute()` is
   negative): it is a supplied macro with no line to name, so it is not yet checked like `-value` is (D359).
 - **A change of signedness at the same width or wider** (`var bits: UnsignedInteger = count` with a negative
