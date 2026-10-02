@@ -1,0 +1,18 @@
+generic $value_type
+
+var console = Console()
+var _values = List<$value_type>()
+
+func show_all(value: $value_type) {
+    _values.append(value)
+    $value_type.attributes.each(show)
+    _values.remove_last()
+}
+
+func show(attribute: Spite.AttributeDeclaration) {
+    var value = _values.last()
+    crash value
+    var debug = Spite.Debug<attribute.class>()
+    var shown = debug.text(value.attributes[attribute])
+    console.print(attribute.name, shown)
+}

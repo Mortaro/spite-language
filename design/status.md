@@ -336,10 +336,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Reflection known while compiling (D316, D317, D318, D323, D326)
 - The pages (metaprogramming.md, reflection.md) now teach only the D316 model. Shown there as untitled snippets because
-  they do not compile yet: `Spite.Namespace.enums`, `call_with`, a function taking `value: Number` (D321), the `map_is_alive()` error (#228,
-  being built on its own branch), and a class's own `get_`/`set_` template spelled `attribute: Spite.Attribute<Person>`:
-  inside `Person` it is "unknown identifier 'attributes'" (only `attribute: Symbol` reads `attributes[attribute]`
-  today, and `this.attributes` is refused).
+  they do not compile yet: `call_with`, a function taking `value: Number` (D321) and the `map_is_alive()` error (#228,
+  being built on its own branch).
 - Still teaching the old forms, to migrate once the compiler reaches them: memory.md's titled engine programs
   (`Symbol<$row_type>` walks, `fill_attributes(...)` plurals, `Symbol<$system_type.phase_each>`), json.md's
   `write_attribute(attribute: Symbol<$value_type>, ...)` and `$value_type.has_function("json_key_{attribute.name}")`
@@ -351,10 +349,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   `has_function`, `function_waits`, `argument_count`, `fits_vector`, `source_folder`, `name_fits`, `waits()`), the
   diagnostic "write 'member: Symbol<$element_type>'" (collections.md, `diagnostics/plain_symbol_on_list`), and
   `design/for_ai_writers.md`.
-- Narrowing gaps met while writing the pages: in a generic, `var run = $target_type.functions['run_each']` then
-  `if run { target.run_each(3) }` does not fold (the branch is compiled for a class without `run_each`), while
-  `if $target_type.functions['run_each'] {` does; and `crash Spite.Class.instances['Monster']` does not narrow that
-  path for a following read (a local `classes` first does).
 - Built: constants, folding, `each`/`map` unrolling, specialisation per reflection argument, bound attributes,
   types from constants, `Spite.Namespace.instances`, enum `.values`, `[]` by name, `Spite.Attribute<T>` template
   spelling, `filter_<member>_<function>(arguments)` on any list, `source_files`/`source_directories`;
@@ -374,9 +368,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Built: the library's member templates take `member: Spite.Attribute<$element_type>` and collect with
   `map_members`, and every `map_<member>` call in the repository is plural; a `List`, `Vector`, `Items` or
   `Dictionary` template named with its parameter in the singular that answers `List<member.class>` is an error
-  naming the plural. `Spite.DebugInstance` still walks with a `Symbol<$value_type>` plural: walked with `each`, its
-  `Debug<attribute.class>()` is compiled unspecialised in `--hot-reload` and test builds, where it is "unknown type
-  'attribute.class'", and a function of a `Spite` class is never specialised. Proposed by Claude, unconfirmed: a member whose name is already its own plural
+  naming the plural. `Spite.DebugInstance` still walks with a `Symbol<$value_type>` plural. A walk with `each` now specialises its
+  function in every build, `Spite` classes included (a trial keeping the value and the parts in fields of the
+  singleton printed the same text in a plain and a `--hot-reload` build); what is left is that a walk function
+  takes only the element, so the value and the parts reach it only through fields. Proposed by Claude, unconfirmed: a member whose name is already its own plural
   (`name_with_namespaces`, `bump_stars`) is collected by that name.
 - Built (D335, D362): `function.accesses`, a dictionary of `Spite.Access` (`is_read`, `is_written`, `target`),
   attributes then arguments, following calls to the same class's functions, on a constant
@@ -389,18 +384,19 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   check then differed); a function value taken through a `type` (its typed call is the shape's dispatcher); every
   function of a `--hot-reload` build (a reload would leave the table stale, and the reload check has no facts for
   what a function reads).
-- Not built: `function.call_with(arguments.map(made))` (D317),
-  `Spite.Namespace.enums`, and the
-  compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
-  (`engine/renderer/renderer.spite` is `Engine.Renderer` beside the namespace `Engine.Renderer`) is exactly that
-  pair, so the rule needs Mortaro to say whether the entry file is exempt.
-- Run time only through the old tables: `.is_stateful`, `.is_list` and the other kind questions, `.owner`,
-  `.index`, `.is_mutated` and `.returned_literal` answer only on a constant; read on a run-time object they are
-  "has no attribute".
-- Specialisation is limited to functions of the calling class; a function whose body needs the reflection
-  parameter's run-time value (passes it on to something that is not a reflection parameter, calls a function of
-  it) is not specialised and walks at run time as before. A parameter of an enum type is not specialised (rule 5
-  of the proposal names enums too).
+- Not built (D391): `Spite.FunctionDeclaration`. A class's `.functions` is still a list of `Spite.Function`s
+  bound to a stand-in, so a walk over `Runner.functions` takes `Spite.Function`, and the program's entry class
+  lists none. `Spite.AttributeDeclaration` is built: a class's `.attributes` are declarations with no value,
+  folded and at run time (no stand-in is made for them any more), an instance's are bound `Spite.Attribute`s, and
+  each kind given to a parameter of the other is an error.
+- Not built: `Spite.Call` (D391, D393), which replaces `function.call_with`.
+- Run time only through the old tables: `.owner` answers only on a constant; read on a run-time object it is "has
+  no attribute" (it is the instance on a bound member, which waits for the split between declarations and bound
+  members). `.element_type` and `.value_type` answer only on a constant too.
+- A function whose body needs the reflection parameter's run-time value (passes it on to something that is not a
+  reflection parameter of its own class, calls a function of it) is not specialised and walks at run time as
+  before. A parameter of an enum type is not specialised (rule 5 of the proposal names enums too; open question
+  in the R5 report: which calls it would cover).
 - The old mechanisms still work side by side: `Symbol<...>` templates and plural walks, `Symbol<$T.f>` argument
   walks, name patterns, folder walks, `$T.has_function(...)` and the other name-keyed questions, `source_folder()`.
   Unconfirmed (proposed by Claude): specialisation names `<function>_for_<member>`, a constant local being a

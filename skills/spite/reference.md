@@ -39,8 +39,12 @@ commands are in [repl.md](https://github.com/Mortaro/spite-language/blob/master/
 
 A program lives in its own folder, and `spite game` runs it: `launcher/launcher.spite` loads `library/`, then the
 target system's folder of it, then `game/`, whose every sub folder is a
-namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
-folder's own class). `load "folder"` inside a function loads another package (the path is relative to the file,
+namespace and nothing else (`game/engine/renderer/shader.spite` is `Engine.Renderer.Shader`, and
+`game/engine/physics/physics.spite` is `Engine.Physics.Physics`: no file is special). A file and a folder of one
+name side by side (`engine/renderer.spite` beside `engine/renderer/`) is an error, since a dotted name means one
+thing. A class that hides another class visible from an enclosing namespace (`Physics.Plugin` beside a root
+`Plugin`) is an error naming both, and so is a class named like a standard-library class (`Geometry.Vector3`,
+`Game.Function` for `Spite.Function`): use the library's class, reopening it to add what it lacks. `load "folder"` inside a function loads another package (the path is relative to the file,
 or absolute: `load "D:/Projects/engine/core"`); a file at the same namespace path
 reopens the class: same-named functions, attributes and enums replace (an enum declared again is its whole new
 list of values), the rest are added. `Build` is the exception: a field the program's own `build.spite` declares keeps the
@@ -458,8 +462,9 @@ func is_alive(): Boolean {
 - Every class is an instance of `Spite.Class`. A class's members are declarations (`Spite.FunctionDeclaration`,
   `Spite.AttributeDeclaration`, no value); an instance's are bound (`Spite.Function`, `Spite.Attribute` with
   `.value` and `.owner`). Members are ordinary lists, so "for every attribute" is a walk:
-  `Monster.attributes.each(describe)` with `func describe(attribute: Spite.Attribute)`, unrolled while compiling into
-  one call per attribute, each copy typed by its attribute. A member by name is `[]` and answers a `T?`
+  `Monster.attributes.each(describe)` with `func describe(attribute: Spite.AttributeDeclaration)`, unrolled while compiling into
+  one call per attribute, each copy typed by its attribute (a function of another object handed a constant,
+  `helper.describe(attribute)`, is compiled once for it too). A member by name is `[]` and answers a `T?`
   (`Runner.functions['run_each']`); a selection is a member template (`Runner.functions.filter_name_ends_with("_each")`).
   A name is selected, never built from text. There are no `Symbol` walks. A walk sees private `_` attributes and
   reads and writes them through the walked attribute; a serializer skips them with
@@ -515,7 +520,7 @@ func is_alive(): Boolean {
 - Reflection: `value.class` (a `Spite.Class`: `.name`, `.namespace` (a `Spite.Namespace?`; narrow it before
   reading its members: `assert value.class.namespace` narrows the path itself and its prefixes for the rest of
   the block; its members are `.name_with_namespaces`, `.parent`, `.classes`,
-  `.namespaces`), `.functions`), `value.attributes`
+  `.namespaces`, `.enums`), `.functions`), `value.attributes`
   (`.name`, `.class`, `.value`: the value itself, an `Anything?` whose text is `.value.to_string()`), `value.functions` (`.name`, `.arguments`, `.returns`, `call_function()` for
   functions that take nothing, a returned value dropped; on one that takes arguments it halts), a function named without calling it (`shouter.shout`, a
   `Spite.Function<String, String>` bound to `shouter`, called as `change(text)`), `Monster.instances` (live instances), and

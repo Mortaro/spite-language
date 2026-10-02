@@ -1,0 +1,14 @@
+var power = 3
+var marks = List<Integer>()
+
+func boost(amount: Integer, into: List<Integer>) {
+    into.append(amount + power)
+}
+
+func greeting(): String {
+    return "grr"
+}
+
+func remember(amount: Integer) {
+    marks.append(amount)
+}

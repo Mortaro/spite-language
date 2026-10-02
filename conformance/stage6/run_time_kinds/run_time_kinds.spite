@@ -1,0 +1,44 @@
+var console = Console()
+var kept = List<Anything>()
+
+func RunTimeKinds() {
+    var gadget = Gadget()
+    kept.append(gadget)
+    var rock = Rock()
+    kept.append(rock)
+    kept.each(describe)
+}
+
+func describe(thing: Anything) {
+    var described = thing.class
+    console.print(described.name, "stateful", described.is_stateful, "list", described.is_list)
+    var attributes = thing.attributes
+    attributes.each(show_attribute)
+    var functions = described.functions
+    functions.each(show_function)
+}
+
+func show_attribute(attribute: Spite.Attribute) {
+    var held = attribute.class
+    console.print(
+        " ",
+        attribute.index,
+        attribute.name,
+        held.is_list,
+        held.is_enum,
+        held.is_optional,
+        held.is_dictionary,
+    )
+}
+
+func show_function(function: Spite.Function) {
+    console.print(" ", function.name)
+    function.arguments.each(show_argument)
+    if function.name == "greeting" {
+        console.print("  says", function.returned_literal)
+    }
+}
+
+func show_argument(argument: Spite.Argument) {
+    console.print("  ", argument.index, argument.name, "mutated", argument.is_mutated)
+}

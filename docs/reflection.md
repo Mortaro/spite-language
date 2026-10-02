@@ -32,7 +32,7 @@ func EveryClassAnObject() {
     Monster.source_files.each(show_file)
 }
 
-func describe(attribute: Spite.Attribute) {
+func describe(attribute: Spite.AttributeDeclaration) {
     console.print("attribute", attribute.name, attribute.class)
 }
 
@@ -106,7 +106,7 @@ func ClassAndInstance() {
     }
 }
 
-func describe(attribute: Spite.Attribute) {
+func describe(attribute: Spite.AttributeDeclaration) {
     console.print("declared", attribute.index, attribute.name, attribute.class)
 }
 
@@ -144,7 +144,7 @@ func DeclarationValue() {
     Monster.attributes.each(peek)
 }
 
-func peek(attribute: Spite.Attribute) {
+func peek(attribute: Spite.AttributeDeclaration) {
     console.print(attribute.value)
 }
 ```
@@ -290,7 +290,7 @@ that would take an argument is a collection indexed or filtered instead, so ther
 |---|---|---|
 | `.name` | the class's own name, a `Symbol` | `Monster.name` is `Monster` |
 | `.namespace` | its `Spite.Namespace?`, `null` at a program's root | `Shop.Tools.Hammer.namespace` is `Shop.Tools` |
-| `.attributes` | a `List<Spite.Attribute>`, in declaration order | `Monster.attributes['health']` |
+| `.attributes` | a `List<Spite.AttributeDeclaration>`, in declaration order | `Monster.attributes['health']` |
 | `.functions` | a `List<Spite.Function>`, in the order they were made | `Monster.functions['alive']` |
 | `.instances` | every live instance, in the order they were made | `Monster.instances.count()` |
 | `.values` | an enum's values, in order | `Phase.values[1]` is `'update'` |
@@ -717,8 +717,9 @@ the program has Monster
 ```
 
 A class nobody asks the instances of keeps no list; one that is asked adds every instance when it is made and
-removes it when it is released. Describing a class makes none: a class object's `.attributes` and `.functions` are
-read from a stand-in at its defaults, made without running any constructor, which is not one of `.instances`. A
+removes it when it is released. Describing a class makes none: a class object's `.attributes` are its declarations,
+which need no object, and its `.functions` are read from a stand-in at its defaults, made without running any
+constructor, which is not one of `.instances`. A
 singleton's stand-in is not the singleton, so describing `Console` neither makes the program's console nor keeps a
 second one alive. The program's entry class has no stand-in, since making one would run the program again, so its
 `.functions` is empty.
@@ -829,7 +830,9 @@ prints its `.name`, and printing a `Spite.Namespace` its dotted name.
 **A namespace is an instance of `Spite.Namespace`**: the tree of folders made readable, `.parent` walking up,
 `.classes` and `.namespaces` walking down. `.namespace` and `.parent` are `Spite.Namespace?`, and the chain ends
 at `null`; there is no root object. `Spite.Namespace.instances` is every namespace of the program's own classes,
-parents first, in the order the classes were found. **A class and a namespace with the same dotted name is a compile
+parents first, in the order the classes were found. `.enums` is the enums declared in the files directly in the
+namespace's folder, each a `Spite.Class`, in the order those files were loaded; an enum at the root of a program
+is in no namespace's list. **A class and a namespace with the same dotted name is a compile
 error.**
 
 **`.source_files` and `.source_directories` are where a class and a namespace come from**: a `File` for every file
@@ -851,6 +854,11 @@ on the spot is "only a named value has memory of its own: give this value a name
   declaration never gives a value. A PascalCase receiver is the class and a lowercase one an instance, the
   convention [Foreign libraries](foreign_libraries.md#foreign-libraries) uses for `user32.Input` against
   `user32.input_mouse`.
+- **A function walked over, or handed, one kind takes that kind.** A declaration given to a `Spite.Attribute`
+  parameter is "'describe' takes a 'Spite.Attribute', an attribute bound to an instance, and 'health' here is a
+  declaration of 'Monster', which has no value: declare the parameter 'Spite.AttributeDeclaration', or walk an
+  instance's attributes", and a bound attribute given to a `Spite.AttributeDeclaration` parameter is the error
+  naming `Spite.Attribute` the other way round.
 - **A bound attribute's `.value`** reads and writes the instance's field, typed as the field when the attribute is a
   constant. `.value` of an attribute that describes a declaration is "'attribute.value' reads an attribute of an
   instance, and 'attribute' describes a declaration: walk the instance's own attributes, 'monster.attributes', or
@@ -897,7 +905,8 @@ on the spot is "only a named value has memory of its own: give this value a name
 - **`.class` through a `type` or a union answers the real class**, from the object's own tag at run time; an
   object literal answers `Object`.
 - **`Person.instances`** lists every live instance of a class; only a class whose `.instances` some code reads is
-  tracked. A class object's `.attributes` and `.functions` are read from a stand-in at its defaults, made without
+  tracked. A class object's `.attributes` are its declarations, made with no object; its `.functions` are read
+  from a stand-in at its defaults, made without
   running any constructor, which is not one of `.instances`; a singleton's stand-in never runs its `drop()`. The
   program's entry class has no stand-in: its `.functions` is empty. A stand-in of `Concurrent<T>` or `Parallel<T>`
   is finished and joins nothing. A class object and a namespace object are each made once, whichever thread asks
@@ -915,14 +924,15 @@ on the spot is "only a named value has memory of its own: give this value a name
   list with a literal name or number; `count()`, `is_empty()`, `first()`, `last()`, `filter(function)` and the member
   templates on a constant list; a text function on a constant name; `==`, `!=`, `and`, `or` and `not` of constants;
   and a `var` initialised with a constant and never assigned again, when the function never needs its value at run
-  time. `filter(function)` asks a function whose body is one `return`, with its parameter bound to each element.
+  time, `null` from a `[]` that finds nothing included. `filter(function)` asks a function whose body is one `return`, with its parameter bound to each element.
 - **What folds.** A question on a constant is `true` or `false` in the generated code, a count is a number and a
   name is a literal. An `if`, `assert` or `crash` on a constant keeps only what runs, and one that always holds is
-  not an error. `[]` with a literal name answers a constant `T?`: present, a narrowing `if` or `assert` on it folds
-  to nothing; absent, its branch is never compiled.
+  not an error. `[]` with a literal name answers a constant `T?`: present, a narrowing `if`, `assert` or `crash` on it
+  folds to nothing and still narrows that path for what follows; absent, its branch is never compiled.
 - **`each(function)` over a constant list is unrolled** when the function is one of the class's own, takes one
   parameter, and every element fits it: one call per element, and no list.
-- **A function of the class called with a constant for a reflection parameter is compiled once for it**, a
+- **A function called with a constant for a reflection parameter is compiled once for it**, whether it is the
+  calling class's own or one called on another object (`helper.describe(attribute)`), a
   *specialisation* named `<function>_for_<member>` in `--final-classes` (a number is added when two would share a
   name). Inside it the parameter is the constant: `attribute.class` and `argument.class` are types, `part()` makes
   an instance of a constant class `part`, `monster.attributes[attribute]` reads and writes the field, and a function
@@ -934,7 +944,11 @@ on the spot is "only a named value has memory of its own: give this value a name
   every class in a `--repl`, `--repl-port` or `--development` build. A run-time function's `.accesses` comes from
   a table of every function the program makes an object for, emitted only when some code reads `.accesses` at run
   time. A standard library function, a function value taken through a `type` and every function of a `--hot-reload`
-  build are not in it, and asking them halts. Its `attribute.value` is `Anything?`, a number
+  build are not in it, and asking them halts. A run-time object answers the questions a constant does
+  (`.is_stateful`, `.is_list`, `.index`, `argument.is_mutated` and the rest); the answers to the kind questions,
+  `.is_mutated` and `.returned_literal` are written into the tables only when some code asks one of them at run
+  time, and `.returned_literal` of a function whose body is not one `return` of a text literal halts. A run-time
+  `attribute.value` is `Anything?`, a number
   held with its class's tag and text boxed. Handing one to a function whose result is typed by its reflection parameter is the error shown
   [above](#known-only-at-run-time); naming a type through a reflection object that is not a constant is "'<path>'
   is not a class known while compiling, so it cannot be a type here"; and using a specialisation's parameter as a

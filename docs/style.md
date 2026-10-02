@@ -68,6 +68,9 @@ searching for the old name. These are errors, each with the fix:
 - **Never a function's name.** A local, parameter or attribute named like a function of its class is an error,
   since the function's name is already a value ([functions_and_operators.md](functions_and_operators.md#functions-are-values)):
   `var stem = file_stem(path)`, not `var file_stem = file_stem(path)`.
+- **Never a class that hides another.** A class named like a class its code can see from an enclosing namespace
+  (`Physics.Plugin` beside a root `Plugin`), or like a class of the standard library, is an error naming both
+  ([A class name means one class](classes_and_files.md#a-class-name-means-one-class)).
 - **Names say what they do.** The standard library follows the same rule: `append` and `prepend` rather than
   `add`, `upper_case()` rather than `upper()`, `remove_last()` rather than `pop()`.
 
@@ -153,7 +156,7 @@ func UnusedMarker() {
     console.print(mover.class)
 }
 
-func classify(attribute: Spite.Attribute) {
+func classify(attribute: Spite.AttributeDeclaration) {
     console.print(attribute.name, "is a", attribute.class)
 }
 ```

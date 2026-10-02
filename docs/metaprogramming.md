@@ -41,11 +41,11 @@ func WalksAndTemplates() {
     console.print("alive", living_count, "with", total, "health")
 }
 
-func describe(attribute: Spite.Attribute) {
+func describe(attribute: Spite.AttributeDeclaration) {
     console.print("Monster has", attribute.name, "of class", attribute.class)
 }
 
-func show_attribute(attribute: Spite.Attribute<Monster>, monster: Monster) {
+func show_attribute(attribute: Spite.AttributeDeclaration<Monster>, monster: Monster) {
     console.print(monster.name, attribute.name, monster.attributes[attribute])
 }
 ```
@@ -283,11 +283,11 @@ func NameTemplates() {
     show_copies(label)
 }
 
-func show_attribute(attribute: Spite.Attribute<Label>, label: Label) {
+func show_attribute(attribute: Spite.AttributeDeclaration<Label>, label: Label) {
     console.print(attribute.name, "is", label.attributes[attribute])
 }
 
-func double_attribute(attribute: Spite.Attribute<Label>, label: Label) {
+func double_attribute(attribute: Spite.AttributeDeclaration<Label>, label: Label) {
     label.attributes[attribute] = label.attributes[attribute] * 2
 }
 ```
@@ -300,15 +300,15 @@ copies is 4
 A template over a class's own members is how a class answers `set_age`, `get_age` and the rest without writing
 each one. An exact function always wins over a template, for that one name and direction:
 
-```gdscript
+```gdscript title=own_accessors/person.spite
 var age = 0
 var name = ""
 
-func set_attribute(attribute: Spite.Attribute<Person>, value: attribute.class) {
+func set_attribute(attribute: Spite.AttributeDeclaration<Person>, value: attribute.class) {
     attributes[attribute] = value
 }
 
-func get_attribute(attribute: Spite.Attribute<Person>): attribute.class {
+func get_attribute(attribute: Spite.AttributeDeclaration<Person>): attribute.class {
     return attributes[attribute]
 }
 
@@ -316,20 +316,34 @@ func set_name(new_name: String) {
     name = new_name.upper_case()
 }
 ```
+```gdscript title=own_accessors/own_accessors.spite entry
+var console = Console()
+
+func OwnAccessors() {
+    var person = Person()
+    person.name = "ann"
+    person.age = 30
+    console.print(person.name, person.age)
+}
+```
+```output
+ANN 30
+```
 
 Writing `person.name` goes through `set_name`, while reading it goes through the `get_attribute` template, since no
-exact `get_name` exists. A template whose parameter is not a word of its name is not a template: it is an ordinary
+exact `get_name` exists. Inside the class, `attributes[attribute]` is that member of the object the function runs
+on, read or written directly, so the template never calls itself. A template whose parameter is not a word of its name is not a template: it is an ordinary
 function taking a `Spite.Attribute`, which a walk calls or a caller hands a constant to.
 
 ### Member templates
 
 The standard library's list functions `filter_<member>()`, `sum_<member>()`, `count_<member>()` and the rest are
 templates over the element's members ([collections.md](collections.md)), written in Spite in `library/list.spite`
-with a parameter `member: Spite.Attribute<$element_type>`, so `item.attributes[member]` reads a member of an
+with a parameter `member: Spite.AttributeDeclaration<$element_type>`, so `item.attributes[member]` reads a member of an
 element. A generic class writes its own the same way:
 
 ```gdscript
-func average_member(member: Spite.Attribute<$element_type>): Float? {
+func average_member(member: Spite.AttributeDeclaration<$element_type>): Float? {
     if item_count == 0 {
         return null
     }
@@ -810,6 +824,9 @@ function a template** over `Owner`'s members: its attributes, and its functions 
 instantiated only for the names a program calls, in every build; the template itself emits nothing, and each
 instance is an ordinary function that costs what its body costs. `--final-classes` prints each instance.
 
+- **The parameter is a declaration**: `attribute: Spite.Attribute<Monster>` is "'attribute: Spite.Attribute<...>'
+  would be bound to one instance, and a template is made once for each member of the class, with the instance as
+  its own argument: write 'attribute: Spite.AttributeDeclaration<...>'".
 - **Inside an instance, the parameter is the constant declaration of that member**, a
   `Spite.AttributeDeclaration`; the bound attribute is `owner.attributes[attribute]`. Written as a type
   (`value: attribute.class`, `): attribute.class`) it is the member's real type; written as an expression,
@@ -817,7 +834,9 @@ instance is an ordinary function that costs what its body costs. `--final-classe
   `attribute.name`, `attribute.camel_case_name` and `attribute.pascal_case_name` are text constants, and
   `attribute.index` is the member's place in declaration order.
 - **`owner.attributes[attribute]` is that member of the `owner` passed in**: the field, read or written, or a call to
-  the function. A class reads its own members by name, `attributes[attribute]`, never `this.attributes[attribute]`.
+  the function. A class reads its own members by name, `attributes[attribute]`, never `this.attributes[attribute]`,
+  and that is the field itself, read or written without its getter or setter, so a `get_` or `set_` template over
+  its own class never calls itself.
 - **`Owner` may be a codegen value**: `member: Spite.AttributeDeclaration<$element_type>` is how `library/list.spite` writes
   its member templates. When that value is not a class or a `type` (a number, a `T?`, a `List`), the template
   answers nothing.
@@ -840,7 +859,7 @@ instance is an ordinary function that costs what its body costs. `--final-classe
 
 **Plural and singular.** A template whose result is a collection of the member's values (`List<member.class>`)
 takes the member in the plural, through `String.pluralize()`; every other template takes it singular. The template
-declares which by its own name: `func map_members(member: Spite.Attribute<$element_type>): List<member.class>`. The
+declares which by its own name: `func map_members(member: Spite.AttributeDeclaration<$element_type>): List<member.class>`. The
 compiler finds the member by inflecting every member name of the element's class and picking the one whose plural
 is the word called, never by guessing from the call:
 

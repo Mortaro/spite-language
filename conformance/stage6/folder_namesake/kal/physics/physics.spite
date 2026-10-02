@@ -1,0 +1,7 @@
+func step(): String {
+    return "kal steps the world"
+}
+
+func gravity(): String {
+    return "kal pulls down"
+}

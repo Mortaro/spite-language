@@ -909,12 +909,12 @@ starts. Written as three steps, the chain above would make two lists every time 
 
 The templates are ordinary Spite in `library/list.spite`, over the list's own buffer on the heap. Each one is a
 template ([metaprogramming.md](metaprogramming.md#member-templates)) whose parameter is
-`member: Spite.Attribute<$element_type>`: it names a member of the *element*, and `item.attributes[member]` reads
+`member: Spite.AttributeDeclaration<$element_type>`: it names a member of the *element*, and `item.attributes[member]` reads
 it: the field itself, or a call to the zero-argument function. `filter_member` answers `filter_in_stock`,
 `filter_is_popular` and every other `filter_<member>` call:
 
 ```gdscript
-func filter_member(member: Spite.Attribute<$element_type>): List<$element_type> {
+func filter_member(member: Spite.AttributeDeclaration<$element_type>): List<$element_type> {
     var filtered = List<$element_type>()
     var index = 0
     while index < item_count {
@@ -947,11 +947,11 @@ in any build.
 ## Write your own member template
 
 A program reopens `List` by putting a `list.spite` in its own folder, and a function there with a
-`Spite.Attribute<$element_type>` parameter named after a word of its name becomes one more template, exactly like the
+`Spite.AttributeDeclaration<$element_type>` parameter named after a word of its name becomes one more template, exactly like the
 library's:
 
 ```gdscript title=list_average/list.spite
-func average_member(member: Spite.Attribute<$element_type>): Float? {
+func average_member(member: Spite.AttributeDeclaration<$element_type>): Float? {
     assert item_count != 0
     var total = 0.0
     var index = 0
@@ -1047,10 +1047,10 @@ makes the key list, two index lists and the result (`sort_by(f)` is the same tem
 `entries()` sorts the names through it; `conformance/stage6/sorting_many`).
 
 **How the templates are written.** They are templates in `library/list.spite`, each a `while` over the list's
-`Memory` buffer: `func filter_member(member: Spite.Attribute<$element_type>): List<$element_type>` answers every
+`Memory` buffer: `func filter_member(member: Spite.AttributeDeclaration<$element_type>): List<$element_type>` answers every
 `filter_<member>` call. The parameter names a member of the *element*, not of the list (whose own attributes are
-its buffer), because it says so: `Spite.Attribute<$element_type>` is a [template](metaprogramming.md#templates)'s
-`Spite.Attribute<Label>`, one mechanism for both. `item.attributes[member]` reads it: the field, or a call to the
+its buffer), because it says so: `Spite.AttributeDeclaration<$element_type>` is a [template](metaprogramming.md#templates)'s
+`Spite.AttributeDeclaration<Label>`, one mechanism for both. `item.attributes[member]` reads it: the field, or a call to the
 zero-argument function, which is "the value held in that field" applied to members. The generator binds the template to the
 element's member and checks [the table](#member-templates-loops-you-do-not-write) before it compiles the body, so a member that does not fit is still
 the error naming the member, its type and what the template needs; it writes none of the templates' C. Only the
@@ -1113,7 +1113,7 @@ The caller's function is passed as a bound function value, owned by whoever it i
   answers `Integer?`, and `keys.sort_by(counts.get_at)` is an error naming the fix: a function of your own
   that narrows it (`conformance/stage6/library_functions_passed`, `diagnostics/library_function_mistakes`).
 - **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
-  Spite.Attribute<$element_type>)`) is instantiated once per function and owner class, with a last hidden parameter holding
+  Spite.AttributeDeclaration<$element_type>)`) is instantiated once per function and owner class, with a last hidden parameter holding
   the owner (the function's instance, passed at the call site), and `item.attributes[member]` reads as
   `owner.say_hello(item)`, or `owner(item)` when the owner is a held function value. A function written by name
   therefore costs no allocation and no indirect call; only a held value is called through `Spite.Function`. Only
@@ -1390,7 +1390,7 @@ members are [the table under `Items<T>`](#itemst-the-storage-chosen-for-you), wh
 `List`, `Vector` and `Items` remove many elements in one pass:
 
 - **`remove_where(test)` and `remove_where_<member>()`.** One template, `remove_where_member(member:
-  Spite.Attribute<$element_type>)` in each of `library/list.spite`, `vector.spite` and `items.spite`, so it answers both a
+  Spite.AttributeDeclaration<$element_type>)` in each of `library/list.spite`, `vector.spite` and `items.spite`, so it answers both a
   member (`creatures.remove_where_dead()`: the member returns `Boolean`) and a passed function
   (`numbers.remove_where(is_odd)`: on a `List` of anything, never on a `Vector` or `Items`, whose items
   are borrowed or text, and a borrowed item is never passed on). It walks the collection once; an element that stays is

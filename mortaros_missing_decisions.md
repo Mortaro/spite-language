@@ -56,3 +56,33 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      position, since there is no decided spelling for its number. Options: (a) a get-only `number` on every enum
      value; (b) `to_integer()`; (c) through reflection (`Spite.Enum`, D371). Recommend (a), which a binding and a
      serializer both read.
+275. **Loading a subfolder of a package** (D364 says never `load "kal/physics"`). It is not enforced: when only the
+     subfolder is loaded the compiler cannot tell that `kal/` is a package root. Options: (a) leave it unenforced;
+     (b) refuse a load whose folder lies inside another loaded root, once both loads are seen. Recommend (a) now
+     and (b) when both loads are visible.
+276. **Which library classes the shadowing rule counts** (D387). It compares the last name, so a program class
+     named `Function`, `Debug` or `Arena` is refused because of `Spite.Function`, `Spite.Debug` and
+     `Memory.Arena`. Options: (a) every library class counts, as built; (b) only classes outside `Spite.` and
+     `Memory.`. Recommend (a).
+277. **Does a nested `enum`, `union` or `type` count as a class for shadowing?** A program class `Entry` is legal
+     beside `Directory`'s union `Entry` today. Recommend yes, legal: a nested declaration is only visible through
+     its class.
+278. **How the test runner calls a test once declarations cannot be called** (D391, D393). `tests/` calls
+     `call_function()` on a class's `.functions`, which run on a stand-in instance; a declaration cannot be called.
+     Options: (a) the runner makes an instance and calls `Spite.Call(declaration, instance)`, running the test
+     class's constructor; (b) keep a stand-in instance the runner can reach. Recommend (a), the one way D393 allows.
+     Blocks backlog R8's function half and R9.
+279. **Which calls an enum parameter is specialised for** (reflection proposal rule 5). Options: (a) only values
+     that come from reflection (`Phase.values`); (b) every enum literal too, which needs `==` on enum values to fold
+     and specialises many existing functions. Recommend (a).
+280. **How a walk passes values beyond the element.** `each` hands only the element; a walk that needs more (a
+     value, a writer) keeps it in attributes of the walking object today. Options: (a) that is the way (one
+     argument, state in the walker, as D384's serializers do); (b) `each` with extra arguments. Recommend (a).
+281. **When a waiting loop counts as a hang** (backlog B6 and B15; failure.md's open list). A `while true` that can
+     never leave, and a `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()`,
+     hang without a word. Options: (a) a compile error wherever no exit and no wait is reachable in the loop, as
+     D336 does inside a `Parallel`; (b) a run-time halt once a polled `Concurrent` cannot make progress (nothing
+     else runnable); (c) both. Recommend (c): the error where provable, the halt as backstop.
+282. **A write to a copy that dies unread** (backlog B12, proposed by Claude): `values[row].copy()` answered, the
+     caller sets an attribute on it, and the copy dies. Options: (a) a compile error when an object only this
+     function holds is written and never read again; (b) leave it. Recommend (a).

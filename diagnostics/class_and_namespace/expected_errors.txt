@@ -1,0 +1,1 @@
+diagnostics/class_and_namespace/engine/renderer.spite: error: 'Engine.Renderer' is this class and also the namespace of the folder 'diagnostics/class_and_namespace/engine/renderer': a dotted name means one thing, so rename the file or the folder

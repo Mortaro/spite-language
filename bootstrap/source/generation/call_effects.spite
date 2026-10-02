@@ -522,7 +522,10 @@ func study_class(statements: List<Syntax.Statements.Statement>, class_name: Stri
         }
         index = index + 1
     }
-    var constructor_effects = effects_named(class_name, class_name)
+    var dotted = class_name.split(".")
+    var constructor_name = dotted.last()
+    crash constructor_name
+    var constructor_effects = effects_named(class_name, constructor_name)
     var construction = EffectStudy(constructor_effects, class_name, this)
     construction.in_constructor = true
     construction.study_expressions(initializers)
@@ -532,7 +535,7 @@ func study_class(statements: List<Syntax.Statements.Statement>, class_name: Stri
         if function {
             var function_effects = effects_named(class_name, function.name)
             var reader = EffectStudy(function_effects, class_name, this)
-            reader.in_constructor = function.name == class_name
+            reader.in_constructor = function.name == constructor_name
             reader.take_parameters(function.parameters)
             reader.study_block(function.body)
             reader.keep_parameters(function.parameters, function.body)

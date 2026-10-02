@@ -24,30 +24,25 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 - **R1 Plural collection leftovers** (D317, D328). The library's templates collect with `map_members` and every
   call is plural (built on master, `4291cca`). Left: `library/spite/debug_instance.spite` still walks with
-  `Symbol<$value_type>` because `Debug<attribute.class>()` is unknown in `--hot-reload` and test builds and a
-  `Spite` class's function is never specialised; and `String.Inflection`, the irregulars table a program reopens,
+  `Symbol<$value_type>`: a walk with `each` specialises there now, but its function takes only the attribute, so
+  the value and the parts must reach it through fields of the singleton (or a decided way to pass them); and `String.Inflection`, the irregulars table a program reopens,
   which the compiler must read from the program's `String` rather than its own copy (`library/string.spite`,
-  the inflection lookup near generator.spite's plural errors). **S.** Depends on R5 (specialising `Spite` classes).
+  the inflection lookup near generator.spite's plural errors). **S.** No dependencies left.
 - **R4 Dictionary member templates over values** (D335). Built through the compiler; `library/dictionary.spite`
   declares none of them. Check they go through declared library templates like `List`'s (D240: nothing hidden).
   **S.** No dependencies.
 - **R5 The rest of the object model** (D316, D317; status "Not built" and "Run time only through the old tables").
-  `Spite.Namespace.enums`; a class's own `get_`/`set_` template spelled
-  `attribute: Spite.Attribute<Person>` inside `Person` (today "unknown identifier 'attributes'"); the kind
-  questions (`.is_stateful`, `.is_list`, `.owner`, `.index`, `.is_mutated`, `.returned_literal`) on run-time
-  objects; specialisation beyond the calling class, of enum parameters, and of functions of `Spite` classes; the
-  two narrowing gaps (`var run = $T.functions['run_each']` then `if run`, and `crash Spite.Class.instances[...]`).
+  Specialisation of enum parameters (which calls it covers needs Mortaro); `.owner`, `.element_type` and
+  `.value_type` on run-time objects (`.owner` with R8).
   Files: generator.spite reflection and specialisation regions, `specialisation.spite`, `reflected.spite`,
   `library/spite/*.spite`. **L.** No dependencies.
-- **R8 Declarations and bound members are different classes** (D391). `Spite.FunctionDeclaration` and
-  `Spite.AttributeDeclaration` (no value) for a class's members; `Spite.Function` and `Spite.Attribute` bound to an
-  instance, with `.owner` the instance. Every library and doc walk over `Monster.attributes` retyped to the
-  declaration class, and reflection.md's titled examples with it; member template parameters become
-  `Spite.AttributeDeclaration<...>` (D392) in README.md's example, WHY_AI.md, docs collections.md and
-  metaprogramming.md's titled examples, `library/list.spite`, `vector.spite`, `items.spite` and the
-  `plural_templates`/`reflection_walks` conformance and diagnostics; `call_with` removed. Files:
-  `library/spite/*.spite`, generator.spite reflection region, `reflected.spite`, docs reflection.md and
-  metaprogramming.md examples. **L.** Depends on R5.
+- **R8 Declarations and bound members are different classes** (D391). Built for attributes:
+  `Spite.AttributeDeclaration`, `Monster.attributes` (folded and at run time) against `troll.attributes`, the
+  template parameter `Spite.AttributeDeclaration<...>` (D392) everywhere. Left: `Spite.FunctionDeclaration` for
+  `Monster.functions` (today a list of `Spite.Function`s bound to a stand-in, which the run-time `.accesses` table
+  and `has_function`/`function_waits` read through the hidden typed-call pointer), `.owner` the instance on bound
+  members, and `call_with` removed. Files: `library/spite/function.spite`, `class.spite`, generator.spite's
+  functions lists and accesses table. **M.**
 - **R9 `Spite.Call`** (D391, D393). `Spite.Call(declaration, instance)`, `.arguments['name'] = value`, `call()`;
   folded into the direct
   call when everything is known while compiling; an unfilled argument is a compile error where visible, a halt
@@ -192,17 +187,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   one place a reader finds (D240's table). Files: `library/memory/heap.spite`, `address.spite`, `prelude.spite`.
   **L.** Pairs with C9.
 
-### Language rules (D364, D371 to D374, D387, D369 item 236, D336, D386)
+### Language rules (D371 to D373, D369 item 236, D336, D386)
 
-- **L1 Every folder is a namespace, no special entry file** (D364). `engine/physics/physics.spite` is
-  `Physics.Physics`; loads name a root only; the class and namespace clash error fires only for a file and a folder
-  of one name side by side. Today discovery treats a folder's entry file as the folder's class
-  (`bootstrap/source/discovery/program_discovery.spite` around line 934, `versions.spite`, `paths.spite`). Migrate
-  the corpus and tell the game engine package (`engine/renderer/renderer.spite` style files). **M.** No
-  dependencies.
-- **L2 A class shadowing a visible class is an error** (D374, D387). The error names both declarations, inside the
-  program, against loaded packages and against the standard library (suggesting the library's class). Today only members are checked (`report_shadows_in`, generator.spite near
-  line 28374). D284's attribute matching is dropped (D387); remove it. **S.** Depends on L1.
 - **L3 Every enum is an instance of `Spite.Enum`** (D371). A new `library/spite/enum.spite`, enums declaring their
   own functions (parser `enum_declaration.spite`, `analysis/enum_info.spite`, generator.spite enum emission), values
   and functions as reflection objects (with R5), and D180's environments enum on top (S6). **L.** Depends on R5
@@ -371,9 +357,9 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L1, L7, C5, C6, C7, K2, F3, S9, P1, P2, X1, B1
+2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L7, C5, C6, C7, K2, F3, S9, P1, P2, X1, B1
    to B16, E3, D1's first pass.
-3. After step 2: R5, L2 (L1), K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
+3. After step 2: R5, K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4, R8, then R9.
 5. After J1: J2, S5. After L3: F1, S6 (with L4). After F1: F2.
 6. After M1, M2 and M6: M5. After M1 and M4: M3.
@@ -398,7 +384,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 4 Memory | E2, E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C6, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
 | 6 Waiting, IO and library | F3, K2, K1, K3, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
-| 7 Language rules | L1, L2, L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
+| 7 Language rules | L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | P1, P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | B1 to B16 | small fixes, each in the file of the proof it fixes; rebase often |
 | 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |

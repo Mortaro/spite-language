@@ -2,7 +2,7 @@ var console = Console()
 var build = Build()
 
 func SettingsAndLibrariesReflected() {
-    var attributes = build.class.attributes
+    var attributes = build.attributes
     var index = 0
     while index < attributes.count() {
         if attributes[index].name == "check" or attributes[index].name == "optimized" {

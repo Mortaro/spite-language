@@ -14,7 +14,8 @@ default the build writes the executable into `.spite/` in the folder you ran `sp
 ([compiler.md](compiler.md#where-the-outputs-go)).
 
 Every other `.spite` file in the folder is another class of the program, and every folder inside it is a
-namespace ([packages.md](packages.md)): `game/engine/renderer/renderer.spite` is `Engine.Renderer`.
+namespace ([packages.md](packages.md)): `game/engine/renderer.spite` is `Engine.Renderer`, and
+`game/engine/physics/physics.spite` is `Engine.Physics.Physics`.
 
 ## The entry constructor takes no arguments
 

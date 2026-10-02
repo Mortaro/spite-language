@@ -5,7 +5,7 @@ func ClassAttributes() {
     var index = 0
     while index < declarations.count() {
         var described = declarations[index]
-        console.print(described.name, described.class, "{text_of(described)}|")
+        console.print(described.index, described.name, described.class)
         index = index + 1
     }
     var sticker = Sticker("pinned")

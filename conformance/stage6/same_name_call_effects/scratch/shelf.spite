@@ -1,0 +1,11 @@
+generic $item_type
+
+var items = List<$item_type>()
+
+func append(item: $item_type) {
+    items.append(item)
+}
+
+func count(): Integer {
+    return items.count()
+}

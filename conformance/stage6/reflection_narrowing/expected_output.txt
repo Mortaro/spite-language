@@ -1,0 +1,3 @@
+Walker runs 3
+Rock has no run_each 3
+the program has Walker

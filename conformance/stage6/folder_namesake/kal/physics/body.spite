@@ -1,0 +1,5 @@
+func fall(): String {
+    var physics = Physics()
+    var gravity = physics.gravity()
+    return "a body falls: {gravity}"
+}

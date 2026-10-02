@@ -1,0 +1,24 @@
+var _name: Symbol = 'unnamed'
+var _class = Spite.Class('Nothing')
+var _index = 0
+
+func AttributeDeclaration(starting_name: Symbol, starting_class: Spite.Class) {
+    _name = starting_name
+    _class = starting_class
+}
+
+func get_name(): Symbol {
+    return _name
+}
+
+func get_class(): Spite.Class {
+    return _class
+}
+
+func get_index(): Integer {
+    return _index
+}
+
+func get_is_singleton(): Boolean {
+    return _class.is_singleton
+}
