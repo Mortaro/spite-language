@@ -195,14 +195,14 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   given to a `Parallel`; related to failure.md's "a `while true` that can never leave". Files: generator.spite
   `Parallel` checks, `wait_facts.spite`. **M.** No dependencies.
 
-### Compiler driver and outputs (D327, D348, D349, D356, D361, D366, D369 items 134 and 138)
+### Compiler driver and outputs (D327, D348, D349, D356, D361, D366, D369 items 134 and 138, D385)
 
 - **C1 `--check` and `--build` replace `--run=false`** (D348). `--check` writes no C and no executable; a build
   never leaves a stale executable. Files: `bootstrap.spite`, `library/build.spite`, `bin/spite`, `check.sh`, docs
   and the skill's command table. **S.** No dependencies.
-- **C2 `--format` replaces `spite format`** (D369 item 138). Remove the `format` subcommand from `bin/spite` (lines
-  79 to 88) and the compiler's `format` mode; `spite game --format` rewrites files without building. What
-  `--format --check` means is Q11. **S.** Depends on C1.
+- **C2 `spite format` goes; every compile formats first** (D385, reversing D369 item 138). Remove the `format`
+  subcommand from `bin/spite` (lines 79 to 88) and the compiler's `format` mode; no `--format` flag. `--check`
+  formats and validates without building (C1). **S.** Depends on C1.
 - **C3 `--c-source` leaves the moron's flags** (D369 item 134). Kept as the compiler's own debugging output
   (`check.sh` uses it), gone from usage text, docs and the skill. **S.** No dependencies.
 - **C4 Translation units and machine tuning stop being settings** (D349). Remove `tune_for_this_machine` and
@@ -427,10 +427,6 @@ unconfirmed).
   which "runs in pieces" follows. Recommendation: retire it with a row, the runner deciding from accesses.
 - **Q10 Where the optimisation report goes** (`mortaros_missing_decisions.md` item 260) (D36, D332). Recommendation: always written beside the build in
   `.spite/build/<program>/`, one line per refusal with its source line, no flag to ask for it.
-- **Q11 What `--format` does beside `--check`** (`mortaros_missing_decisions.md` item 261) (D369 item 138, D348, D190 "every compile formats first").
-  Does `--check` reformat files (it compiles), and is there a no-write check for linters, as `spite format
-  --check` was? Recommendation: `--check` formats like every compile; `--format` alone rewrites and stops; no
-  separate no-write mode (`check.sh` compares a copy, as it already does for `diagnostics/`).
 - **Q12 What "measured for each program" means for `--optimized`** (`mortaros_missing_decisions.md` item 262) (D356). There is no workload to time in an
   ordinary build. Recommendation: `-O2` everywhere now; measure `-O3` only where a program carries a benchmark,
   until a decided way to declare one exists.
