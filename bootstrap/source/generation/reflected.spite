@@ -23,3 +23,10 @@ func is_object(): Boolean {
 func is_scalar(): Boolean {
     return kind == "boolean" or kind == "integer" or kind == "text" or kind == "null"
 }
+
+func is_bound(): Boolean {
+    if bound {
+        return true
+    }
+    return false
+}

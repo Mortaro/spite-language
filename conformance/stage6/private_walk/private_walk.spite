@@ -28,7 +28,7 @@ func PrivateWalk() {
     console.print("pets", cat.lives, dog.tricks)
 }
 
-func describe(attribute: Spite.Attribute) {
+func describe(attribute: Spite.AttributeDeclaration) {
     console.print(attribute.index, attribute.name, attribute.class)
 }
 

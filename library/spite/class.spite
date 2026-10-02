@@ -9,7 +9,7 @@ var _optional = false
 var _enum = false
 var _source_folder = ""
 var _source_paths: List<String>? = null
-var _attributes = List<Spite.Attribute>()
+var _attributes = List<Spite.AttributeDeclaration>()
 var _functions = List<Spite.Function>()
 var _unbound_functions: List<Spite.Function>? = null
 
@@ -25,7 +25,7 @@ func get_namespace(): Spite.Namespace? {
     return _namespace
 }
 
-func get_attributes(): List<Spite.Attribute> {
+func get_attributes(): List<Spite.AttributeDeclaration> {
     return _attributes
 }
 

@@ -36,15 +36,13 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `.value_type` on run-time objects (`.owner` with R8).
   Files: generator.spite reflection and specialisation regions, `specialisation.spite`, `reflected.spite`,
   `library/spite/*.spite`. **L.** No dependencies.
-- **R8 Declarations and bound members are different classes** (D391). `Spite.FunctionDeclaration` and
-  `Spite.AttributeDeclaration` (no value) for a class's members; `Spite.Function` and `Spite.Attribute` bound to an
-  instance, with `.owner` the instance. Every library and doc walk over `Monster.attributes` retyped to the
-  declaration class, and reflection.md's titled examples with it; member template parameters become
-  `Spite.AttributeDeclaration<...>` (D392) in README.md's example, WHY_AI.md, docs collections.md and
-  metaprogramming.md's titled examples, `library/list.spite`, `vector.spite`, `items.spite` and the
-  `plural_templates`/`reflection_walks` conformance and diagnostics; `call_with` removed. Files:
-  `library/spite/*.spite`, generator.spite reflection region, `reflected.spite`, docs reflection.md and
-  metaprogramming.md examples. **L.** Depends on R5.
+- **R8 Declarations and bound members are different classes** (D391). Built for attributes:
+  `Spite.AttributeDeclaration`, `Monster.attributes` (folded and at run time) against `troll.attributes`, the
+  template parameter `Spite.AttributeDeclaration<...>` (D392) everywhere. Left: `Spite.FunctionDeclaration` for
+  `Monster.functions` (today a list of `Spite.Function`s bound to a stand-in, which the run-time `.accesses` table
+  and `has_function`/`function_waits` read through the hidden typed-call pointer), `.owner` the instance on bound
+  members, and `call_with` removed. Files: `library/spite/function.spite`, `class.spite`, generator.spite's
+  functions lists and accesses table. **M.**
 - **R9 `Spite.Call`** (D391, D393). `Spite.Call(declaration, instance)`, `.arguments['name'] = value`, `call()`;
   folded into the direct
   call when everything is known while compiling; an unfilled argument is a compile error where visible, a halt

@@ -58,7 +58,7 @@ func Arena() {
     show_health(troll)
 }
 
-func show_attribute(attribute: Spite.Attribute<Monster>, monster: Monster) {
+func show_attribute(attribute: Spite.AttributeDeclaration<Monster>, monster: Monster) {
     console.print(attribute.name, "=", monster.attributes[attribute])
 }
 ```
@@ -71,7 +71,7 @@ health = 30
 Nobody wrote `filter_alive` or `sum_health`. `List` has templates, `filter_<member>()` and `sum_<member>()`, and
 the compiler writes the two this program calls for `Monster`, then fuses the chain into one loop with no list in
 between. `show_name` and `show_health` are the same idea turned on a class: `show_attribute` takes a
-`Spite.Attribute<Monster>`, so naming an attribute in place of `attribute` makes the compiler write a typed function
+`Spite.AttributeDeclaration<Monster>`, so naming an attribute in place of `attribute` makes the compiler write a typed function
 for it, one for `name` and one for `health`. A class is an ordinary object too, an instance of `Spite.Class`, so
 `Monster.attributes.each(show)` walks every attribute, unrolled while compiling. Nothing is looked
 up while the program runs, and whatever it does not call is not in the executable

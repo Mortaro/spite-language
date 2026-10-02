@@ -153,7 +153,7 @@ func UnusedMarker() {
     console.print(mover.class)
 }
 
-func classify(attribute: Spite.Attribute) {
+func classify(attribute: Spite.AttributeDeclaration) {
     console.print(attribute.name, "is a", attribute.class)
 }
 ```

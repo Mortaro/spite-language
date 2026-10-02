@@ -1,0 +1,1 @@
+diagnostics/template_attribute_spelling/template_attribute_spelling.spite:8: error: 'attribute: Spite.Attribute<...>' would be bound to one instance, and a template is made once for each member of the class, with the instance as its own argument: write 'attribute: Spite.AttributeDeclaration<...>' (in TemplateAttributeSpelling.)

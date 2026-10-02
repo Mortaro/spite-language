@@ -25,7 +25,7 @@ func ReflectionWalks() {
     parts.each(count_classes)
 }
 
-func describe(attribute: Spite.Attribute) {
+func describe(attribute: Spite.AttributeDeclaration) {
     var fresh: attribute.class = attribute.class()
     console.print(attribute.index, attribute.name, attribute.class, "starts as", fresh)
 }
@@ -45,7 +45,7 @@ func add_line(attribute: Spite.Attribute) {
     lines.append("{attribute.pascal_case_name}: {attribute.value}")
 }
 
-func show_attribute(attribute: Spite.Attribute<Monster>, monster: Monster) {
+func show_attribute(attribute: Spite.AttributeDeclaration<Monster>, monster: Monster) {
     console.print("template", attribute.name, monster.attributes[attribute])
 }
 

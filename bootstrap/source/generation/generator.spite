@@ -5739,6 +5739,14 @@ func symbol_parameter_of(declaration: Syntax.Statements.FunctionDeclaration): St
                 if names_symbol_parameter(named) {
                     return parameter.name
                 }
+                if named.path.join(".") == "Spite.Attribute" and not named.arguments.is_empty() {
+                    var saved_line = current_line
+                    current_line = declaration.line
+                    report(
+                        "'{parameter.name}: Spite.Attribute<...>' would be bound to one instance, and a template is made once for each member of the class, with the instance as its own argument: write '{parameter.name}: Spite.AttributeDeclaration<...>'",
+                    )
+                    current_line = saved_line
+                }
             }
         }
         index = index + 1
@@ -17662,6 +17670,43 @@ func normalized_folder(joined: String): String {
     return folder
 }
 
+func attribute_declaration_list_name(): String {
+    var declaration_class = find_class_by_c_name("Spite_AttributeDeclaration")
+    crash declaration_class
+    var class_type = class_type_of(declaration_class)
+    return ensure_list(class_type)
+}
+
+func ensure_attribute_declarations(information: Analysis.ClassInfo): String {
+    var function_c_name = "spite_attribute_declarations_{information.c_name}"
+    if attributes_function_names.contains(function_c_name) {
+        return function_c_name
+    }
+    attributes_function_names.append(function_c_name)
+    var list_name = attribute_declaration_list_name()
+    var lines = List<String>()
+    lines.append("{list_name}* {function_c_name}(void) \{")
+    lines.append("{list_name}* result = {list_name}___make();")
+    var collection = information.qualified_dotted == "List" or information.qualified_dotted == "Dictionary"
+    var index = 0
+    while index < information.fields.count() and not information.is_value_class and not collection {
+        var field = information.fields[index]
+        var field_type = field.type
+        lines.append(
+            "\{ Spite_AttributeDeclaration* declared = Spite_AttributeDeclaration___make({ensure_symbol(field.name)}, {class_object_call(field_type)});",
+        )
+        lines.append("declared->_index_ = {index};")
+        lines.append("{list_name}_append(result, declared); }")
+        index = index + 1
+    }
+    lines.append("return result;")
+    lines.append("}")
+    builder.add_prototype("{list_name}* {function_c_name}(void);")
+    var joined_lines = lines.join("\n")
+    builder.add_support(joined_lines)
+    return function_c_name
+}
+
 func emit_class_object_bodies() {
     while class_objects_emitted < class_object_names.count() {
         var position = class_objects_emitted
@@ -17713,22 +17758,10 @@ func emit_class_object_bodies() {
                 }
             }
             if class_level_attributes_used and describes_members(described) {
-                var attributes_function = ensure_attributes_function(described)
-                var attribute_thunk = "spite_class_attributes_{described.c_name}"
-                var attribute_listed_class = find_class_by_c_name("Spite_Attribute")
-                crash attribute_listed_class
-                var class_type = class_type_of(attribute_listed_class)
-                var attribute_list_name = ensure_list(class_type)
-                class_type = class_type_of(attribute_listed_class)
-                var list_type = list_type_of(class_type)
-                var attribute_list_c_type = c_type_name(list_type)
-                builder.add_prototype("{attribute_list_c_type} {attribute_thunk}(void);")
-                var released_code = released_stand_in(described)
-                builder.add_support(
-                    "{attribute_list_c_type} {attribute_thunk}(void) \{\n{described.c_name}* fresh = {described.c_name}___default();\n{untracked_stand_in(described)}\n{attribute_list_c_type} listed = {attributes_function}(fresh);\n{released_code}\nreturn listed;\n}",
-                )
+                var declarations_function = ensure_attribute_declarations(described)
+                var attribute_list_name = attribute_declaration_list_name()
                 lines.append("{attribute_list_name}___release({function_c_name}_cache->_attributes_);")
-                lines.append("{function_c_name}_cache->_attributes_ = {attribute_thunk}();")
+                lines.append("{function_c_name}_cache->_attributes_ = {declarations_function}();")
             }
             if class_level_functions_used and describes_members(described) and described.c_name != entry_class_c_name {
                 var functions_function = ensure_functions_function(described)
@@ -22245,7 +22278,13 @@ func generate_member_read_raw(
     if run_time_kind_word(member.name) {
         var kind_receiver = type_shape.as_class_ref(object_result_type)
         if kind_receiver {
-            var described_receivers = ["Spite_Class", "Spite_Attribute", "Spite_Argument", "Spite_Function"]
+            var described_receivers = [
+                "Spite_Class"
+                "Spite_Attribute"
+                "Spite_AttributeDeclaration"
+                "Spite_Argument"
+                "Spite_Function"
+            ]
             if described_receivers.contains(kind_receiver.c_name) {
                 run_time_kinds_used = true
                 note_fact("flag run_time_kinds_used")
@@ -39284,10 +39323,7 @@ func release_new_class_objects(): Boolean {
     }
     var attribute_listed_name = ""
     if class_level_attributes_used {
-        var attribute_class = find_class_by_c_name("Spite_Attribute")
-        crash attribute_class
-        var class_type = class_type_of(attribute_class)
-        attribute_listed_name = ensure_list(class_type)
+        attribute_listed_name = attribute_declaration_list_name()
     }
     var cache_index = released_class_objects
     while cache_index < class_object_names.count() {
@@ -42521,6 +42557,7 @@ func is_reflection_type(spite_type: Analysis.SpiteType): Boolean {
         "Spite_Function"
         "Spite_Argument"
         "Spite_Attribute"
+        "Spite_AttributeDeclaration"
         "Spite_Access"
     ]
     return reflection_names.contains(class_ref.c_name)
@@ -42546,6 +42583,7 @@ func waits_for_constants(information: Analysis.ClassInfo, function: Analysis.Fun
         "Spite.Function"
         "Spite.Argument"
         "Spite.Attribute"
+        "Spite.AttributeDeclaration"
         "Spite.Access"
     ]
     if reflection_classes.contains(information.qualified_dotted) or function.is_constructor {
@@ -43995,13 +44033,15 @@ func matches_parameter(constant: Reflected, parameter_type: Analysis.SpiteType):
         "Spite_Namespace": return constant.kind == "namespace"
         "Spite_Function": return constant.kind == "function"
         "Spite_Argument": return constant.kind == "argument"
-        "Spite_Attribute": return constant.kind == "attribute"
+        "Spite_Attribute": return constant.kind == "attribute" and constant.is_bound()
+        "Spite_AttributeDeclaration": return constant.kind == "attribute" and not constant.bound
         "Spite_Access": return constant.kind == "access"
         _: return false
     }
 }
 
 func reflected_argument_at(
+    taker: String,
     parameter_type: Analysis.SpiteType,
     argument: Syntax.Expressions.Expression,
     scope: Scope,
@@ -44016,6 +44056,7 @@ func reflected_argument_at(
         return not_constant
     }
     if not matches_parameter(found, parameter_type) {
+        report_attribute_mismatch(found, parameter_type, taker)
         return not_constant
     }
     return found
@@ -44034,7 +44075,7 @@ func reflected_arguments(
         var parameter = function.parameters[index]
         var parameter_type = parameter.type
         var argument = arguments_ast[index]
-        var constant = reflected_argument_at(parameter_type, argument, scope, class_information)
+        var constant = reflected_argument_at(function.name, parameter_type, argument, scope, class_information)
         if not constant.kind.is_empty() {
             any_constant = true
         }
@@ -44288,6 +44329,23 @@ func reflected_walk_function(
     return function
 }
 
+func report_attribute_mismatch(found: Reflected, parameter_type: Analysis.SpiteType, taker: String) {
+    var class_ref = type_shape.as_class_ref(parameter_type)
+    assert class_ref
+    assert found.kind == "attribute"
+    crash found.owner
+    if class_ref.c_name == "Spite_Attribute" and not found.is_bound() {
+        report(
+            "'{taker}' takes a 'Spite.Attribute', an attribute bound to an instance, and '{found.name}' here is a declaration of '{found.owner.simple_name}', which has no value: declare the parameter 'Spite.AttributeDeclaration', or walk an instance's attributes",
+        )
+    }
+    if class_ref.c_name == "Spite_AttributeDeclaration" and found.is_bound() {
+        report(
+            "'{taker}' takes a 'Spite.AttributeDeclaration', and '{found.name}' here is bound to an instance: declare the parameter 'Spite.Attribute', or walk the class's attributes, '{found.owner.simple_name}.attributes'",
+        )
+    }
+}
+
 func walk_fits(listed: Reflected, function: Analysis.FunctionInfo): Boolean {
     crash function.parameters[0]
     var parameter = function.parameters[0]
@@ -44300,6 +44358,7 @@ func walk_fits(listed: Reflected, function: Analysis.FunctionInfo): Boolean {
         var element = listed.elements[index]
         var fits = element.kind == "enum" or matches_parameter(element, parameter_type)
         if not fits {
+            report_attribute_mismatch(element, parameter_type, function.name)
             return false
         }
         index = index + 1
@@ -44710,7 +44769,14 @@ func report_run_time_reflection(function: Analysis.FunctionInfo) {
 }
 
 func reflection_parameter_named(declaration: Syntax.Statements.FunctionDeclaration, name: String): Boolean {
-    var reflection_names = ["Spite.Class", "Spite.Namespace", "Spite.Function", "Spite.Argument", "Spite.Attribute"]
+    var reflection_names = [
+        "Spite.Class"
+        "Spite.Namespace"
+        "Spite.Function"
+        "Spite.Argument"
+        "Spite.Attribute"
+        "Spite.AttributeDeclaration"
+    ]
     var index = 0
     while index < declaration.parameters.count() {
         var parameter = declaration.parameters[index]
@@ -44983,7 +45049,7 @@ func names_symbol_parameter(named: Syntax.Types.NamedType): Boolean {
     if written == "Symbol" {
         return true
     }
-    return written == "Spite.Attribute" and not named.arguments.is_empty()
+    return written == "Spite.AttributeDeclaration" and not named.arguments.is_empty()
 }
 
 func materialised_list(found: Reflected, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult? {
@@ -45390,7 +45456,8 @@ func skips_generic(information: Analysis.ClassInfo, function: Analysis.FunctionI
         var parameter_type = parameter.type
         var class_ref = type_shape.as_class_ref(parameter_type)
         if class_ref {
-            if class_ref.c_name == "Spite_Attribute" or class_ref.c_name == "Spite_Argument" {
+            var described = ["Spite_Attribute", "Spite_AttributeDeclaration", "Spite_Argument"]
+            if described.contains(class_ref.c_name) {
                 return true
             }
         }

@@ -75,7 +75,7 @@ designed so a moron's code still comes out correct and fast. That is the case fo
 - `filter_<member>()`, `map_<members>()`, `sum_<member>()`, `count_<member>()`, `any_`, `all_`, `sort_by_`,
   `find_by_`, `each_` exist on every list and dictionary of a class, written by the compiler for the member named.
 - Every class is an instance of `Spite.Class`: `Monster.attributes.each(show)` walks its attributes, unrolled
-  while compiling. A `Spite.Attribute<Person>` parameter lets one function serve every attribute (`set_age`,
+  while compiling. A `Spite.AttributeDeclaration<Person>` parameter lets one function serve every attribute (`set_age`,
   `set_name` from one `set_attribute`), compiled to typed functions. [docs/metaprogramming.md](docs/metaprogramming.md)
 
 ## Compile-time guarantees instead of tests you would have to write

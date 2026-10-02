@@ -9,7 +9,7 @@ func show_all(value: $value_type) {
     _values.remove_last()
 }
 
-func show(attribute: Spite.Attribute) {
+func show(attribute: Spite.AttributeDeclaration) {
     var value = _values.last()
     crash value
     var debug = Spite.Debug<attribute.class>()

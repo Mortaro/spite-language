@@ -405,6 +405,11 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   check then differed); a function value taken through a `type` (its typed call is the shape's dispatcher); every
   function of a `--hot-reload` build (a reload would leave the table stale, and the reload check has no facts for
   what a function reads).
+- Not built (D391): `Spite.FunctionDeclaration`. A class's `.functions` is still a list of `Spite.Function`s
+  bound to a stand-in, so a walk over `Runner.functions` takes `Spite.Function`, and the program's entry class
+  lists none. `Spite.AttributeDeclaration` is built: a class's `.attributes` are declarations with no value,
+  folded and at run time (no stand-in is made for them any more), an instance's are bound `Spite.Attribute`s, and
+  each kind given to a parameter of the other is an error.
 - Not built: `function.call_with(arguments.map(made))` (D317) and the
   compile error for a class and a namespace of the same dotted name (D317): a folder's entry file
   (`engine/renderer/renderer.spite` is `Engine.Renderer` beside the namespace `Engine.Renderer`) is exactly that

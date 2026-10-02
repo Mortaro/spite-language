@@ -458,7 +458,7 @@ func is_alive(): Boolean {
 - Every class is an instance of `Spite.Class`. A class's members are declarations (`Spite.FunctionDeclaration`,
   `Spite.AttributeDeclaration`, no value); an instance's are bound (`Spite.Function`, `Spite.Attribute` with
   `.value` and `.owner`). Members are ordinary lists, so "for every attribute" is a walk:
-  `Monster.attributes.each(describe)` with `func describe(attribute: Spite.Attribute)`, unrolled while compiling into
+  `Monster.attributes.each(describe)` with `func describe(attribute: Spite.AttributeDeclaration)`, unrolled while compiling into
   one call per attribute, each copy typed by its attribute (a function of another object handed a constant,
   `helper.describe(attribute)`, is compiled once for it too). A member by name is `[]` and answers a `T?`
   (`Runner.functions['run_each']`); a selection is a member template (`Runner.functions.filter_name_ends_with("_each")`).

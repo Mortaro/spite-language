@@ -1,0 +1,10 @@
+var console = Console()
+
+func TemplateAttributeSpelling() {
+    var monster = Monster()
+    show_health(monster)
+}
+
+func show_attribute(attribute: Spite.Attribute<Monster>, monster: Monster) {
+    console.print(attribute.name, monster.attributes[attribute])
+}

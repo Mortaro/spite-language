@@ -1,0 +1,16 @@
+var console = Console()
+
+func DeclarationWalk() {
+    var monster = Monster()
+    console.print(monster.health)
+    Monster.attributes.each(describe)
+    monster.attributes.each(declared)
+}
+
+func describe(attribute: Spite.Attribute) {
+    console.print(attribute.name)
+}
+
+func declared(attribute: Spite.AttributeDeclaration) {
+    console.print(attribute.name)
+}
