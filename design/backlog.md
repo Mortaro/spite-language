@@ -391,7 +391,7 @@ Each line can start once everything before it that it names is done; lines with 
 8. Whenever owners decide: S2 (Q13) and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
    items sharing their files.
 
-The longest chain is landing nomap, Q1, R5, J1, R7: the reflection migration is the critical path.
+The longest chain is landing nomap, R5, J1, R7: the reflection migration is the critical path.
 
 ## Parallel streams
 
