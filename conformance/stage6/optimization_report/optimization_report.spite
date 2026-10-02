@@ -1,0 +1,72 @@
+var console = Console()
+var badges = List<Badge>()
+var spots = List<Spot>()
+
+func OptimizationReport() {
+    keep_badge()
+    keep_copies()
+    var names = List<String>()
+    var index = 0
+    while index < 3 {
+        names.append("name {index}")
+        index = index + 1
+    }
+    var joined = names.join(", ")
+    var badge_count = badges.count()
+    var spot_count = spots.count()
+    console.print(joined, badge_count, spot_count)
+    for_each_kept()
+    print_report()
+}
+
+func keep_badge() {
+    var badge = Badge("visitor")
+    badges.append(badge)
+    var twin = badge.copy()
+    badges.append(twin)
+}
+
+func keep_copies() {
+    var spot = Spot(1.0, 2.0)
+    var copied = spot.copy()
+    spots.append(copied)
+    var shared = spot.copy()
+    remember(shared)
+}
+
+func for_each_kept() {
+    var index = 0
+    while index < badges.count() {
+        var badge = badges[index]
+        var spot = spots[index]
+        crash spot
+        var described = badge.described()
+        var total = spot.total()
+        console.print(described, total)
+        index = index + 1
+    }
+}
+
+func remember(kept: Spot) {
+    spots.append(kept)
+}
+
+func print_report() {
+    var report = File(".spite/reports/optimization_report.md").read()
+    crash report
+    var lines = report.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        if line.starts_with("# ") {
+            console.print(line)
+        } else if line.starts_with("## ") {
+            var heading = line.split(" (").first()
+            crash heading
+            console.print(heading)
+        } else if line.starts_with("- [") and line.contains("stage6/optimization_report/") {
+            console.print(line)
+        }
+        index = index + 1
+    }
+}

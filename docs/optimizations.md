@@ -16,7 +16,8 @@ build ([Measure only a production build](compiler.md#measure-only-a-production-b
 **Hidden optimisations are good, hidden costs are bad.** Code that runs faster than you expect is a free win, so
 the compiler optimises silently and never asks you to mark anything. Code that runs *slower* than you expect is
 the only real surprise, so every cost that remains is written down on this page, under the optimisation it
-belongs to.
+belongs to, and `--optimization-report` lists every place in your program where one of them fell back
+([compiler.md](compiler.md#read-what-was-not-optimised)).
 
 **Internals stay ordinary objects where you inspect them.** A `--repl`, `--repl-port`, `--hot-reload` or
 `--development` build is an *inspectable* build: nothing is tree-shaken, and the standard library's internals
@@ -1924,8 +1925,12 @@ every build, rather than leaving it to the C compiler or the linker.
   constructor's attributes straight into the vector's block, when the object is used for nothing else, so filling
   a vector allocates only when the block grows
   ([collections.md](collections.md#vectort)).
-- **A build report of what could not be optimised**: not "400 copies elided"
-  but "3 copies could not be elided, and the callee that writes the field", so every line is actionable.
+- **A build report of what could not be optimised**, written only when asked with
+  `--optimization-report=file` ([compiler.md](compiler.md#read-what-was-not-optimised)): not "400 copies elided"
+  but "3 copies could not be elided, and the line that lets each go", so every line is actionable. It lists each
+  `List<T>` that holds references and why `T` cannot be laid inline, each local list and each local object that
+  stays on the heap with the line that lets it go, and each `copy()` that allocates. Building it costs compile time
+  only, and only with the flag; the program built is the same.
 
 ---
 

@@ -350,6 +350,11 @@ func write_outputs(discovery: Discovery.DiscoveryResult, generator: Generation.G
         program.exit(1)
         return
     }
+    var report_path = option("optimization_report")
+    if not report_path.is_empty() and not wrote_optimization_report(generator, report_path) {
+        program.exit(1)
+        return
+    }
     assert not is_on("check")
     if not built_executable() {
         program.exit(1)
@@ -460,7 +465,7 @@ func hot_state(
     }
     var state = reload.state_text(next_generation, paths, hashes)
     var settings = List<String>()
-    var outputs = ["check", "build", "executable_path", "c_source", "c_path", "final_classes"]
+    var outputs = ["check", "build", "executable_path", "c_source", "c_path", "final_classes", "optimization_report"]
     var index_of_output = 0
     while index_of_output < outputs.count() {
         var name = outputs[index_of_output]
@@ -490,6 +495,7 @@ func configure(generator: Generation.Generator) {
         generator.read_reload_renames(reload_renames_text)
     }
     generator.debug_memory = is_on("debug_memory")
+    generator.optimization_report.recording = not option("optimization_report").is_empty()
     generator.trace_asserts = is_on("trace_asserts")
     generator.bare_crash_sites = is_on("optimized")
     generator.keeps_internals = generator.development or generator.read_evaluate_print_loop
@@ -523,7 +529,7 @@ func is_output_flag(argument: String): Boolean {
     if not argument.starts_with("--") {
         return false
     }
-    var outputs = ["check", "build", "executable_path", "c_source", "c_path", "final_classes"]
+    var outputs = ["check", "build", "executable_path", "c_source", "c_path", "final_classes", "optimization_report"]
     var name = setting_name(argument)
     return outputs.contains(name)
 }
@@ -738,6 +744,101 @@ func wrote_final_classes(
     var instantiated_class_names = generator.instantiated_class_names()
     var instantiated_class_sources = generator.instantiated_class_sources()
     return wrote_class_views(output_directory, "instantiated", instantiated_class_names, instantiated_class_sources)
+}
+
+func wrote_optimization_report(generator: Generation.Generator, report_path: String): Boolean {
+    var folder = directory_of(report_path)
+    create_folder(folder)
+    var text = optimization_report_text(generator, folder)
+    if File(report_path).write(text) {
+        return true
+    }
+    console.error("error: could not write '{report_path}'")
+    return false
+}
+
+func optimization_report_text(generator: Generation.Generator, folder: String): String {
+    var report = generator.optimization_report
+    report.finish(generator)
+    var arguments = Arguments()
+    var named = named_program(arguments)
+    var parts = List<String>()
+    parts.append("# Optimisation report")
+    parts.append("")
+    parts.append(
+        "What the compiler could not optimise in this build of `{named}`, and why. Each line links the place and says what stopped the optimisation; what was optimised is not listed.",
+    )
+    if generator.keeps_internals or generator.hot_reload {
+        parts.append("")
+        parts.append(
+            "This is an inspectable build (`--development`, `--repl`, `--repl-port` or `--hot-reload`): every object and list stays an ordinary heap object here, so nothing is placed in the frame and only the lists that hold references are listed.",
+        )
+    }
+    var titles = report.titles()
+    var section = 0
+    while section < titles.count() {
+        var entries = report.kept_entries(section, generator.builder.last_shaker)
+        var title = titles[section]
+        parts.append("")
+        parts.append("## {title} ({entries.count()})")
+        parts.append("")
+        if entries.is_empty() {
+            parts.append("None.")
+        }
+        var index = 0
+        while index < entries.count() {
+            var entry = entries[index]
+            parts.append("- {report_entry_line(entry, folder)}")
+            index = index + 1
+        }
+        section = section + 1
+    }
+    return "{parts.join("\n")}\n"
+}
+
+func report_entry_line(entry: String, folder: String): String {
+    var fields = entry.split("\t")
+    crash fields.count() == 3
+    var path = fields[0]
+    var line_text = fields[1]
+    var text = fields[2]
+    var line = line_text.to_integer()
+    crash line
+    if path.is_empty() {
+        return "in code the compiler wrote: {text}"
+    }
+    return "[{path}:{line}]({relative_link(folder, path)}#L{line}): {text}"
+}
+
+func relative_link(from_folder: String, target: String): String {
+    var paths = Discovery.Paths()
+    var working = program.working_directory()
+    var from_parts = paths.absolute(from_folder, working).split("/")
+    var target_parts = paths.absolute(target, working).split("/")
+    var shared = 0
+    var matching = true
+    while matching and shared < from_parts.count() and shared < target_parts.count() - 1 {
+        var from_part = from_parts[shared]
+        var target_part = target_parts[shared]
+        if from_part == target_part {
+            shared = shared + 1
+        } else {
+            matching = false
+        }
+    }
+    var pieces = List<String>()
+    var climb = shared
+    while climb < from_parts.count() {
+        pieces.append("..")
+        climb = climb + 1
+    }
+    var rest = shared
+    while rest < target_parts.count() {
+        var piece = target_parts[rest]
+        pieces.append(piece)
+        rest = rest + 1
+    }
+    return pieces.join("/")
 }
 
 func wrote_final_class(

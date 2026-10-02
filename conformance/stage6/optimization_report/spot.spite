@@ -1,0 +1,11 @@
+var x: Float = 0.0
+var y: Float = 0.0
+
+func Spot(starting_x: Float, starting_y: Float) {
+    x = starting_x
+    y = starting_y
+}
+
+func total(): Float {
+    return x + y
+}

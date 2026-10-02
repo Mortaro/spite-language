@@ -16,6 +16,7 @@ var claim_name = ""
 var claim_owner: Analysis.ClassInfo? = null
 var claim_function: Analysis.FunctionInfo? = null
 var counted_allowed = false
+var let_go: Syntax.Statements.Statement? = null
 
 func ObjectEscape(frame_table: ObjectFrames, generation: Generator, studied_class: Analysis.ClassInfo) {
     table = frame_table
@@ -476,6 +477,9 @@ func stays_after(statements: List<Syntax.Statements.Statement>, start: Integer):
     var index = start
     while index < statements.count() {
         if not statement_keeps(statements[index]) {
+            if not let_go {
+                let_go = statements[index]
+            }
             return false
         }
         index = index + 1

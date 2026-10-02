@@ -463,8 +463,8 @@ with a literal default, and a program adds its own the same way it adds `Environ
 - **Flags are kebab-case**: `--repl-port=4000` sets the field `repl_port`, and a flag written with `_` is
   an error before anything is read: `'--repl_port' is written '--repl-port': a flag is kebab-case, and it sets
   the Build field 'repl_port'` (`diagnostics/underscore_flag`).
-- **The compiler's options are fields**: `check`, `build` and
-  `final_classes`, the path `executable_path`, and `optimized`, `development`, `repl`, `repl_port`,
+- **The compiler's options are fields**: `check`, `build`,
+  `final_classes` and `optimization_report`, the path `executable_path`, and `optimized`, `development`, `repl`, `repl_port`,
   `hot_reload` and `debug_memory` ([Command line](compiler.md#command-line)). The compiler reads them from the
   program's resolved `Build`, after the whole program is read, so a program whose `build.spite` says
   `var optimized = true` is built optimized unless `--optimized=false` is given.

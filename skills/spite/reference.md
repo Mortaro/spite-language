@@ -20,6 +20,7 @@ spite program --debug-memory            print the allocation balance at the end
 spite program --repl-port=4000          serve the REPL; spite connect 4000 --command="..." asks it
 spite program --check                   format and compile: the errors, if any (builds nothing, keeps an old executable)
 spite program --build                   build .spite/build/program/program.exe without running it
+spite program --check --optimization-report=report.md   list what was not optimised (heap objects, lists, copies), each with its line and why
 spite program --player-name=ada         a setting the program's Environment declares (kebab-case, no '--')
 bash check.sh                           the compiler still compiles itself, and every corpus passes
 ```

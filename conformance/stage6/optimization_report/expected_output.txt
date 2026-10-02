@@ -1,0 +1,15 @@
+name 0, name 1, name 2 2 2
+visitor with 0 tags 3
+visitor with 0 tags 3
+# Optimisation report
+## Lists that hold references
+- [conformance/stage6/optimization_report/optimization_report.spite:2](../../conformance/stage6/optimization_report/optimization_report.spite#L2): `List<Badge>` keeps a reference to each item: its attribute 'tags' is a List<String>, which cannot be laid inline
+- [conformance/stage6/optimization_report/optimization_report.spite:3](../../conformance/stage6/optimization_report/optimization_report.spite#L3): `List<Spot>` keeps a reference to each item: 'Spot' is made only of numbers, text and enum values and would fit inline, as it does in a 'Vector<Spot>'
+## Lists not in the frame
+- [conformance/stage6/optimization_report/optimization_report.spite:8](../../conformance/stage6/optimization_report/optimization_report.spite#L8): `names` is made on the heap: line 10 appends to it in a loop, so how many items it holds is not known while compiling
+## Objects not in the frame
+- [conformance/stage6/optimization_report/optimization_report.spite:23](../../conformance/stage6/optimization_report/optimization_report.spite#L23): `badge` (`Badge`) is made on the heap: line 24 lets it go: `badges.append(badge)`
+## Copies not elided
+- [conformance/stage6/optimization_report/optimization_report.spite:25](../../conformance/stage6/optimization_report/optimization_report.spite#L25): `var twin = badge.copy()` allocates a copy: 'Badge' holds text, a list or another object, and only a copy of a class of numbers is laid in the frame
+- [conformance/stage6/optimization_report/optimization_report.spite:31](../../conformance/stage6/optimization_report/optimization_report.spite#L31): `var copied = spot.copy()` allocates a copy: line 32 lets it go: `spots.append(copied)`
+- [conformance/stage6/optimization_report/optimization_report.spite:33](../../conformance/stage6/optimization_report/optimization_report.spite#L33): `var shared = spot.copy()` allocates a copy: line 34 lets it go: `remember(shared)`

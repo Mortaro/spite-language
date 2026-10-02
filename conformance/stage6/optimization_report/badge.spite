@@ -1,0 +1,11 @@
+var title = ""
+var tags = List<String>()
+
+func Badge(new_title: String) {
+    title = new_title
+}
+
+func described(): String {
+    var tag_count = tags.count()
+    return "{title} with {tag_count} tags"
+}
