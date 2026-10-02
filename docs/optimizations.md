@@ -245,6 +245,10 @@ exists only for the names a program calls: a program that never calls `sum_price
 `sum_price`. An enum's reflection folds the same way: a walk over `Phase.values`
 becomes one call per value, each value a constant, so no table of an enum's values, names or
 order exists at run time: walking one costs exactly the calls it expands to, and not walking one costs nothing.
+A read counts only where it runs: a class object lists its `.functions` (and answers `has_function`,
+`function_waits` and `argument_count`) only when a function that asks is part of the program, so a read in a
+function nothing calls, the standard library's included, costs nothing
+(`conformance/stage6/unreached_function_reads`).
 
 **When.** Every build: what a REPL reads is compiled into the REPL build, so it is read there too. **What you
 notice.** Nothing: reflection may be as detailed as it likes, because a program that never reads it carries none

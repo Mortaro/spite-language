@@ -125,12 +125,6 @@ for a design):
   program's own threads may run: the swap pauses the scheduler's tasks, not a thread the program started itself, so a
   thread reading an object of the class while it moves could read its old attributes. The move should wait for every
   thread to reach a point where it holds nothing, as the swap of code does for the main loop.
-- Reading `.functions` (or `has_function`, `function_waits`, `argument_count`) on a `Spite.Class` in any function the
-  compiler compiles, even one of the standard library no program calls, turns on a flag for the whole program, and
-  programs that walk classes with Symbol templates then compile differently or not at all
-  (`conformance/stage6/binary_schema`, `symbol_class_function`, `numbers_are_classes` and `sparse_rows`' allocation
-  count all changed when `library/read_evaluate_print_loop.spite` read it in a function only a REPL build calls). The
-  flag should be set only by code that is kept. Found building D301, whose `describe` avoids it.
 
 Also open, each a bug under D244, found cataloguing the compiler's proofs (proofs.md):
 

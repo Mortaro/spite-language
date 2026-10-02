@@ -17750,6 +17750,10 @@ func ensure_attribute_declarations(information: Analysis.ClassInfo): String {
     return function_c_name
 }
 
+func functions_readers(class_object: String): String {
+    return "{class_object} & Spite_Class_get_functions Spite_Class_has_function Spite_Class_function_waits Spite_Class_argument_count"
+}
+
 func emit_class_object_bodies() {
     while class_objects_emitted < class_object_names.count() {
         var position = class_objects_emitted
@@ -17822,13 +17826,18 @@ func emit_class_object_bodies() {
                 builder.add_support(
                     "{listed_c_type} {thunk}(void) \{\n{described.c_name}* fresh = {maker};\n{untracked_stand_in(described)}\n{listed_c_type} listed = {functions_function}(fresh);\n{kept_code}\nreturn listed;\n}",
                 )
-                lines.append("{listed_name}___release({function_c_name}_cache->_functions_);")
-                lines.append("{function_c_name}_cache->_functions_ = {thunk}();")
+                var filled = "{listed_name}___release({function_c_name}_cache->_functions_);\n{function_c_name}_cache->_functions_ = {thunk}();"
+                var readers = functions_readers(function_c_name)
+                var filled_if_read = builder.placeholder_if_kept(readers, filled, "")
+                lines.append(filled_if_read)
             }
             if class_level_functions_used and describes_members(described) and described.c_name == entry_class_c_name {
                 var unbound_function = ensure_functions_function(described)
                 entry_functions_cache = "{function_c_name}_cache"
-                lines.append("{entry_functions_cache}->_unbound_functions_ = {unbound_function}(0);")
+                var unbound = "{entry_functions_cache}->_unbound_functions_ = {unbound_function}(0);"
+                var unbound_readers = functions_readers(function_c_name)
+                var unbound_if_read = builder.placeholder_if_kept(unbound_readers, unbound, "")
+                lines.append(unbound_if_read)
             }
         }
         lines.append("}")

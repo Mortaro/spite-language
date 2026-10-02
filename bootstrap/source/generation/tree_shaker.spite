@@ -113,7 +113,7 @@ func keep_guarded() {
         var index = 0
         while index < guard_names.count() {
             var guard = guard_names[index]
-            if applied[index] == false and is_kept_name(guard) {
+            if applied[index] == false and guard_holds(guard) {
                 applied[index] = true
                 crash guard_lines[index]
                 var line = guard_lines[index]
@@ -208,6 +208,16 @@ func kept_prototypes(prototypes: String): String {
         index = index + 1
     }
     return result.join("\n")
+}
+
+func guard_holds(guard: String): Boolean {
+    var parts = guard.split(" & ")
+    return parts.all(any_name_kept)
+}
+
+func any_name_kept(names: String): Boolean {
+    var each = names.split(" ")
+    return each.any(is_kept_name)
 }
 
 func is_kept_name(name: String): Boolean {

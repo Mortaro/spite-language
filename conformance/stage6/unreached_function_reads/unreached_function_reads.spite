@@ -1,0 +1,16 @@
+var console = Console()
+
+func UnreachedFunctionReads() {
+    var kind = Lamp(3).class
+    var name = kind.name
+    console.print(name)
+}
+
+func never_called(): Integer {
+    var kind = Lamp(1).class
+    var listed = kind.functions.count()
+    if kind.has_function("brighter") {
+        return listed + 1
+    }
+    return listed
+}
