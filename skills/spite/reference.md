@@ -389,7 +389,8 @@ func is_alive(): Boolean {
   proves nothing: remove the check`), and `crash list[index]` inside `while index < list.count()` (`'list[index]'
   is already proven by the loop condition`). Delete the line.
 - A `Boolean?` is not a condition (`which would only test that it is there, not that it is true`): narrow it
-  first, or compare it `== true`.
+  first, or compare it `== true`. The one exception is `assert flag`, which means the flag is there and `true`
+  (as on a `Boolean`); there is no `flag != null`.
 - There are no exceptions and no error values. Three outcomes only:
   - the compiler can know it: a compile error;
   - absence is fine: `assert condition` stops the function and answers "nothing": it returns, answers `null`

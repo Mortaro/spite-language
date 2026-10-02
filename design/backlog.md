@@ -184,8 +184,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **L4 Reopening an enum replaces it** (D373). `extend_enum`/`append_enum_values` in `program_discovery.spite`
   (line 1053) become whole replacement in load order, the hot reload included; rewrite
   `conformance/stage6/enum_reopening` and the skill's "adds the values it lists". **S.** No dependencies.
-- **L5 `assert flag` on a `Boolean?`** (D372). Means not null and true; no `flag != null` form. Files:
-  generator.spite narrowing and condition checks. **S.** No dependencies.
 - **L6 Text becomes an enum only as `T?`** (D369 item 236; failure.md's open list). `"calm".to_mood(): Mood?`;
   the assignment that silently takes the first value (`enum_from_text_lines`, generator.spite line 17665) goes.
   **S.** No dependencies.
@@ -355,7 +353,7 @@ and formatting patterns (time.md); running and testing the macOS folders.
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R2, R3, R6, R8, M1, M2, M4, M6, M7, N1, N3, N4, E1, E2, E4, L1, L4, L5, L6, L7, C1, C3, C6,
+2. No dependencies: R2, R3, R6, R8, M1, M2, M4, M6, M7, N1, N3, N4, E1, E2, E4, L1, L4, L6, L7, C1, C3, C6,
    C7, K1, K2, F3, S4, S8, S9, P1, P2, X1, B1 to B16, D1's first pass.
 3. After step 2: R5 (Q1), L2 (L1), C2 (C1), C4 and C5 (fastbuild), S7 (operators), P3 (linux), K3 (with K2), C8
    (K1), N2 (N1), K6 (K2), E3 (Q2).
@@ -383,7 +381,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 4 Memory | E2, E1, E4, E3 (after Q2), E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C1, C3, C2, C6, C4, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
 | 6 Waiting, IO and library | K1, F3, S4, S8, K2, K3, K6, S7, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
-| 7 Language rules | L4, L6, L5, L1, L2, L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
+| 7 Language rules | L4, L6, L1, L2, L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | P1, P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | B1 to B16 | small fixes, each in the file of the proof it fixes; rebase often |
 | 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |

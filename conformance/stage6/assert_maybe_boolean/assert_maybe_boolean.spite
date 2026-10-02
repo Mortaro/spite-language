@@ -1,0 +1,37 @@
+var console = Console()
+var answers = List<Boolean?>()
+var seen = List<String>()
+
+func AssertMaybeBoolean() {
+    answers.append(true)
+    answers.append(false)
+    answers.append(null)
+    var index = 0
+    while index < answers.count() {
+        seen.clear()
+        seen.append("passed:")
+        confirmed(answers[index])
+        confirmed_at(index)
+        both(answers[index], true)
+        both(answers[index], false)
+        var passed = seen.join(" ")
+        console.print(index, passed)
+        index = index + 1
+    }
+}
+
+func confirmed(flag: Boolean?) {
+    assert flag
+    var proven: Boolean = flag
+    seen.append("value={proven}")
+}
+
+func confirmed_at(index: Integer) {
+    assert answers[index]
+    seen.append("read")
+}
+
+func both(flag: Boolean?, other: Boolean) {
+    assert flag and other
+    seen.append("both")
+}

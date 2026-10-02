@@ -506,8 +506,9 @@ method table.
 
 `Monster?` is a `Monster` or `null`, and `null` exists for nothing else. A `T?` is narrowed before it is used
 (`if value { } else { }`, `assert value`, `crash value`, `while value`, or a `switch` with a `Null:` case), and
-reading with `[]` answers one. All of it is in [failure.md](failure.md), with the three outcomes a failure can
-have. Since `null` belongs to `T?` alone, `var target: Monster = null` is an error that asks for `Monster?` (none
+reading with `[]` answers one. A `Boolean?` is the one `T?` that is no condition, since its `false` would read as
+missing; `assert flag` alone takes one, and asks that it is there and `true`. All of it is in
+[failure.md](failure.md), with the three outcomes a failure can have. Since `null` belongs to `T?` alone, `var target: Monster = null` is an error that asks for `Monster?` (none
 yet) or `Monster()` (a default), and a generic class makes the default of what it is bound to with `$name()`
 ([the rules](#variables-and-values)).
 

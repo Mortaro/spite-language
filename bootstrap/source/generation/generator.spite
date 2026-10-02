@@ -23,6 +23,7 @@ var bare_crash_sites = false
 var crash_parts = List<CrashPart>()
 var crash_values_bounded = false
 var crash_capturing = false
+var asserting_boolean_truth = false
 var crash_capture_counter = 0
 var falling_ends = List<String>()
 var symbol_names = List<String>()
@@ -10480,7 +10481,7 @@ func report_maybe_boolean(result: ExpressionResult, used_by: String) {
     var maybe = type_shape.as_nullable(result_type)
     assert maybe
     var maybe_inner = maybe.inner
-    assert is_boolean_type(maybe_inner)
+    assert is_boolean_type(maybe_inner) and not asserting_boolean_truth
     report(
         "this is a Boolean? used by {used_by}, which would only test that it is there, not that it is true: prove it is there first ('crash index < flags.count()' proves 'flags[index]') or switch over it",
     )
@@ -29346,15 +29347,18 @@ func answers_nothing(return_type: Analysis.SpiteType): Boolean {
 
 func report_default_assert(
     assert_statement: Syntax.Statements.AssertStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ) {
     assert not assert_statement.is_crash and not function_information.is_constructor
     var return_type = function_information.return_type
     assert not answers_nothing(return_type)
     crash assert_statement.value
+    var written = truth_written_out(assert_statement.value, scope, class_information)
     var printer = Syntax.SourcePrinter()
-    var condition = printer.source_expression(assert_statement.value)
-    var negated = negated_condition(assert_statement.value)
+    var condition = printer.source_expression(written)
+    var negated = negated_condition(written)
     var leaving = printer.source_expression(negated)
     var name = type_display_name(return_type)
     var answer = example_answer(return_type)
@@ -29369,6 +29373,67 @@ func report_default_assert(
     report(
         "this 'assert' would answer a default {name} ({shown_default(return_type)}) that a caller cannot tell from a real one:{answer_choice}{nullable_choice} or 'crash {condition}' if this is a developer mistake",
     )
+}
+
+func truth_written_out(
+    condition: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Syntax.Expressions.Expression {
+    var joined = shape.as_binary(condition)
+    if joined {
+        if joined.operator == 'logical_and' {
+            crash joined.left and joined.right
+            var left = truth_written_out(joined.left, scope, class_information)
+            var right = truth_written_out(joined.right, scope, class_information)
+            return Syntax.Expressions.BinaryExpression('logical_and', left, right)
+        }
+    }
+    if not reads_maybe_boolean(condition, scope, class_information) {
+        return condition
+    }
+    var compared: Syntax.Expressions.Expression = Syntax.Expressions.TrueLiteral()
+    return Syntax.Expressions.BinaryExpression('equal', condition, compared)
+}
+
+func reads_maybe_boolean(
+    condition: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var indexed = shape.as_index(condition)
+    if indexed {
+        crash indexed.object
+        var path = operand_text(condition)
+        if path.is_empty() or scope.is_path_narrowed(path) {
+            return false
+        }
+        var held_type = lookup_static_type(indexed.object, scope, class_information)
+        if not held_type {
+            return false
+        }
+        var listed = type_shape.as_list(held_type)
+        if not listed {
+            return false
+        }
+        var element = listed.element
+        var maybe_element = type_shape.as_nullable(element)
+        if maybe_element {
+            var element_inner = maybe_element.inner
+            return is_boolean_type(element_inner)
+        }
+        return is_boolean_type(element)
+    }
+    var static_type = lookup_static_type(condition, scope, class_information)
+    if not static_type {
+        return false
+    }
+    var maybe = type_shape.as_nullable(static_type)
+    if not maybe {
+        return false
+    }
+    var maybe_inner = maybe.inner
+    return is_boolean_type(maybe_inner)
 }
 
 func shown_default(return_type: Analysis.SpiteType): String {
@@ -34261,12 +34326,19 @@ func generate_assert_statement(
         emit_folded_check(assert_statement, decided == true, scope, class_information, function_information)
         return decided == false
     }
+    asserting_boolean_truth = not assert_statement.is_crash
     var guard = try_nullable_guard(assert_statement.value, scope, class_information)
+    asserting_boolean_truth = false
     var guard_code = ""
     crash_parts = List<CrashPart>()
     if guard {
         guard_code = guard.guard_code
         narrow_by_guard(scope, guard, "'{check_keyword(assert_statement)} {guard.name}'")
+        var guard_inner = guard.inner
+        if not assert_statement.is_crash and is_boolean_type(guard_inner) {
+            var truth = generate_expression(assert_statement.value, scope, class_information)
+            guard_code = "({guard_code}) && ({truth.code})"
+        }
     } else {
         var declarations_at = builder.user_count()
         var parts = List<CrashPart>()
@@ -34991,7 +35063,7 @@ func generate_statement_kind(
         return false
     }
     if assert_statement {
-        report_default_assert(assert_statement, function_information)
+        report_default_assert(assert_statement, scope, class_information, function_information)
         return generate_assert_statement(assert_statement, scope, class_information, function_information)
     }
     var return_statement = shape.as_return_statement(statement)
