@@ -214,9 +214,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   **S** for `-O2`, **M** for the measurement (Q12). Depends on landing `wip/fastbuild`.
 - **C6 The object cache cleans itself** (D327). LRU eviction of `.spite/objects` past a size cap. Files:
   `bootstrap/source/translation/unit_build.spite`. **S.** No dependencies.
-- **C7 `--final-classes` shows the winning source** (D366, open question 10, status "Final classes"). Each final
+- **C7 `--final-classes` shows the winning source** (D366, D382, open question 10, status "Final classes"). Each final
   class printed as Spite with its generics as written, each declaration marked with the file and load root that
-  supplied it (form, Q7); used library helpers and template instances appear as source, not C names. Files:
+  supplied it, as one comment line linking that file (D382); used library helpers and template instances appear as source, not C names. Files:
   generator.spite final-class printing, `syntax/source_printer.spite`. **M.** No dependencies.
 - **C8 The C left in `main` moves into Spite** (D361, D342). `argv` reaches the program only through `Arguments`;
   `_setmode`, singleton teardown and the `--debug-memory` report run through singletons' `drop()`. Files:
@@ -426,9 +426,6 @@ unconfirmed).
 - **Q6 Does `Console.flush()` stay public?** (`mortaros_missing_decisions.md` item 256) D346 says the moron never chooses flushing, and its third guarantee
   covers prompts. Recommendation: remove `flush()` from the public surface; keep `write` for text without a
   line end.
-- **Q7 How `--final-classes` marks the supplying file and root** (`mortaros_missing_decisions.md` item 257) (D366). A comment may only be a markdown link
-  (D34). Recommendation: one comment line per declaration that is a link to the file it came from, which needs
-  no new form; decidable under D205 if Mortaro agrees.
 - **Q8 Whether a serializer is compiler-written code or library Spite specialised per class** (`mortaros_missing_decisions.md` item 258) (D319 says
   "generated while compiling"; D240 says nothing hidden). Recommendation: library Spite over
   `attributes.each(write_attribute)` with the writer holding its output as an attribute, specialised per class,
