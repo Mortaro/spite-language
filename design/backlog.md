@@ -294,11 +294,13 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   functions; a `Boolean` as C `bool`, enums and structs by value to callbacks, a function value inside a `type`;
   the offending field named in the foreign-type error. **L** in total, each S or M. Depends on C9 for the first.
 
-### Standard library (D294, D241, D180, D369 items 220 and 250, D370 item 237)
+### Standard library (D294, D394, D241, D180, D369 items 220 and 250, D370 item 237)
 
 - **S1 WebSocket** (D294). Grows from `Socket` and `HttpServer`/`HttpClient` (upgrade handshake with the existing
   `Sha256` and `Base64`, framing, masking, ping and close). New `library/web_socket.spite`. **M.** `wss` waits on S2.
-- **S2 TLS** (D294). HTTPS and `wss`. How it is built needs Q13. **L** (the largest library item).
+- **S2 TLS** (D294, D394). One API on every system for HTTPS and `wss`, over the platform's TLS: SChannel on
+  Windows, the Security framework on macOS, the system's libssl on Linux (not bundled). Client first, then server,
+  each tested against real servers. **L** (the unified API plus three bindings; the largest library item).
 - **S3 HTTP leftovers** (status "HTTP"). Request bodies sent chunked to the server; the server reading one request
   at a time so a slow client holds the others; the client's resend of a `POST` over a new connection. Files:
   `library/http_server.spite`, `http_client.spite`. **M.** Benefits from K5.
@@ -393,7 +395,7 @@ Each line can start once everything before it that it names is done; lines with 
 5. After J1: J2, S5. After L3 and L8: F1, S6 (with L4). After F1: F2.
 6. After M1, M2 and M6: M5. After M1, R3 and M4: M3.
 7. After R1, R5, R6 and J1: R7, the end of the reflection migration.
-8. Whenever owners decide: S2 (Q13) and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
+8. S2 and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
    items sharing their files.
 
 The longest chain is landing nomap, R5, J1, R7: the reflection migration is the critical path.
@@ -423,11 +425,5 @@ memory stream. Streams 5 and 9 are many small items and the right place for a se
 
 ## Items that need an owner decision
 
-Each is a choice of syntax or semantics the rows leave open; the recommendation is Claude's (proposed by Claude,
-unconfirmed).
+None open: every owner question is answered (D378 to D394).
 
-- **Q13 How TLS is built** (`mortaros_missing_decisions.md` item 263) (D294, D350, D361). Options: (a) TLS 1.3 written in Spite (X25519, an AEAD,
-  certificate verification against the system's root store), the long road D350 and D361 point to; (b) the
-  system's own TLS through `DynamicLibrary` on Windows and macOS, which leaves Linux without one that is not a
-  third-party library. Recommendation: (a), client first, checked against public test vectors, with an outside
-  security review before it is called done.
