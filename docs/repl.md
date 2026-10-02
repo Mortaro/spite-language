@@ -332,11 +332,11 @@ func ReplRadio() {
     volumes["news"] = 7
     volumes["music"] = 4
     var tuned = volumes.count()
-    console.print("tuned", tuned)
+    console.print(station, "tuned", tuned, "and", music.number)
 }
 ```
 ```output
-tuned 2
+city tuned 2 and 2
 ```
 
 ```wire repl_radio
