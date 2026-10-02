@@ -324,11 +324,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **X1 The rest of the crash report** (status "Three outcomes"). The call chain, each failed `assert`'s default, an
   assert's values in the ring, the column in `.crashes` (written `0`). Files: generator.spite crash and assert
   emission, `crash_part.spite`, `native_faults.spite`. **M.** No dependencies.
-- **X2 A corrupted heap reported the same on every system** (D379). Linux and macOS take `SIGABRT`: the C
-  library's heap aborts become `heap-corruption` with the Windows `spite.fault` line and frames, any other
-  `abort()` becomes `abort`; one expected output for `native_fault_heap` on every system. Then, per D361, Spite's
-  own allocator detects corruption itself. Files: `native_faults.spite`, the Linux and macOS fault handlers,
-  `conformance` for `native_fault_heap`. **S** (the signal), **L** (the Spite allocator). Lands after cloud/linux.
+- **X2 Spite's own allocator detects a corrupted heap** (D379's direction, per D361); the report through `SIGABRT`
+  is built. Files: the allocator. **L**.
 
 ### Bugs under D244 (failure.md's open list; each small and independent unless noted)
 
@@ -340,7 +337,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **B8** Two `Concurrent`s waiting on each other never end (with K2). **M.**
 - **B11** Reading `.functions` anywhere turns on a whole-program flag; set it only from kept code. **S.**
 - **B12** A write to a copy that dies unread (proposed, unconfirmed rule: a compile error). **M.**
-- **B14** A `__fastfail` or a C library heap abort ends the program without Spite's report. **M.**
+- **B14** A Windows `__fastfail` ends the program without Spite's report (the Linux and macOS heap abort is D379,
+  built). **M.**
 - **B15** A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` hangs. **S.**
 - **B17** Reference cycles leak silently without `--debug-memory` (largely answered by E3). Depends on E3.
 - **B18** A compile can write back old text over an edit made while it runs: every compile formats the program's

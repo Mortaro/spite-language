@@ -114,8 +114,8 @@ for a design):
   dropped without a word; `exit` should let the program reach its next wait first.
 - A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` never ends
   (concurrency.md, "Choosing where Concurrents resume").
-- A Windows `__fastfail` (`0xC0000409`), or a corrupted heap on Linux and macOS (the C library's own message and
-  `SIGABRT`), ends the program without Spite's report or frames ("What a native fault reports").
+- A Windows `__fastfail` (`0xC0000409`) ends the program without Spite's report or frames ("What a native fault
+  reports"): the system ends the process without asking it, so only something outside the process could report it.
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers
   `values[row].copy()`, the caller sets `layout.width` on it, and the copy dies. Proposed by Claude, unconfirmed: a
   compile error when an object only this function holds (escape analysis already proves a function's result fresh)

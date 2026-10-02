@@ -997,9 +997,10 @@ Read it left to right:
 
 - **What happened**: `read-violation`, `write-violation` or `execute-violation` (on Linux and macOS,
   `access-violation`), `stack-overflow`, `illegal-instruction`, `integer-division-by-zero`, `misaligned-access`,
-  `bus-error`, `breakpoint`, `heap-corruption` (Windows: the C runtime's heap found its own bookkeeping
-  overwritten, usually by a double free or a write past a block; the `spite.frame` lines name the Spite function
-  that freed or allocated), `floating-point-exception`, or `exception` for any other code the system raises.
+  `bus-error`, `breakpoint`, `heap-corruption` (the C library's heap found its own bookkeeping overwritten, usually
+  by a double free or a write past a block; the `spite.frame` lines name the Spite function that freed or
+  allocated), `abort` (on Linux and macOS, any other `abort()`), `floating-point-exception`, or `exception` for any
+  other code the system raises.
 - **Where**, as `path:line`, class and function: the Spite function the faulting instruction is in, with the line
   that function starts on: a fault has no Spite line of its own. `-	-	-` means it is in no Spite function:
   inside a foreign library or the C library, and the first `spite.frame` is the Spite function that called in.
@@ -1628,7 +1629,13 @@ printed.
 - **Every program installs a fault handler**, in every build, as the first line of `main`: on Windows
   `SetUnhandledExceptionFilter` and `SetThreadStackGuarantee` (16 KB kept back, so a stack overflow can still be
   reported on the thread that overflowed); on Linux and macOS `sigaction` for `SIGSEGV`, `SIGBUS`, `SIGILL`,
-  `SIGFPE` and `SIGTRAP`, run on an alternate signal stack of 64 KB per thread. Every thread the program starts
+  `SIGFPE`, `SIGTRAP` and `SIGABRT`, run on an alternate signal stack of 64 KB per thread. A corrupted heap is
+  reported the same way on every system: on Linux and macOS the C library finds it, prints its own message and
+  aborts, and an abort whose stack passes through the C library's allocator (`malloc`, `free`, `realloc`,
+  `calloc`, by the names the dynamic linker gives the return addresses) is `heap-corruption`, any other `abort`.
+  Reading the stack for that is the one thing the handler does that the C library does not promise is safe in a
+  signal handler, so the program reads it once at start, which loads what reading it needs before anything can
+  break. Every thread the program starts
   (a pool runner, a waiting call's thread, the REPL's and the file watcher's) sets up its own room the same way.
   An unhandled exception only: a fault a foreign library catches itself never reaches it. On Windows a corrupted
   heap (`0xC0000374`) never reaches the unhandled-exception filter, since the system ends the program straight after
@@ -1674,8 +1681,9 @@ printed.
 The conformance programs are `conformance/stage6/native_fault_foreign`
 (a null read inside a fixture library), `native_fault_stack` (endless recursion), `native_fault_illegal` (an
 illegal instruction inside a fixture library) and `native_fault_heap` (a fixture library freeing a pointer inside
-a block, which Windows reports as a corrupted heap). On Linux and macOS a corrupted heap is found by the C library,
-which prints its own message and aborts (`SIGABRT`, not handled here), so it is loud but carries no Spite frames.
+a block, which every system reports as a corrupted heap, with one expected output: `check.sh` leaves out the C
+library's own message, the shell's `Aborted` notice, and the exception code or signal and the system file of that
+one line).
 
 ---
 

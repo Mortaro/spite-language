@@ -1,3 +1,0 @@
-free(): invalid pointer
-Aborted
-before the fault
