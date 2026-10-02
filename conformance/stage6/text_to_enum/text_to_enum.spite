@@ -1,0 +1,39 @@
+enum Mood {
+    'calm'
+    'angry'
+    'sleepy'
+}
+
+enum CourseKind {
+    'starter'
+    'dessert'
+}
+
+var console = Console()
+
+func TextToEnum() {
+    var names = ["angry", "brunch", "calm"]
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var mood = name.to_mood()
+        if mood {
+            console.print(name, "is", mood)
+        } else {
+            console.print(name, "is no mood")
+        }
+        var assigned: Mood? = name
+        var known = assigned == 'calm'
+        console.print("assigned calm", known)
+        index = index + 1
+    }
+    var ending = "ert"
+    var built = "dess{ending}"
+    var kind = built.to_course_kind()
+    crash kind
+    console.print(kind)
+    var joined = ("{built}!").to_course_kind()
+    if not joined {
+        console.print("joined is no course kind")
+    }
+}

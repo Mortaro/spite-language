@@ -8445,6 +8445,10 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         if not parsed.is_empty() {
             return parsed
         }
+        var named_enum = type_shape.as_enum(inner)
+        if named_enum and type_shape.as_string(from) {
+            return enum_from_text(code, "", named_enum)
+        }
         var inner_code = cast(code, from, inner)
         if type_is_reference(inner) {
             return inner_code
@@ -8489,11 +8493,12 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         return code
     }
     if type_shape.as_string(from) {
-        var to_enum = type_shape.as_enum(to)
-        if to_enum {
-            crash to_enum.values.count() > 0
-            var chosen_code = enum_from_text_lines(to_enum, "spite_enum_text", "spite_enum_value", ";")
-            return "(\{ SpiteString spite_enum_text = {code}; {to_enum.c_name} spite_enum_value = {to_enum.c_name}_{to_enum.values[0]}; {chosen_code} spite_enum_value; })"
+        if type_shape.as_enum(to) {
+            var enum_label = type_display_name(to)
+            report(
+                "text is not {with_article(enum_label)} until it is read as one, and text that names none of its values has none to give: read it with '{enum_reading_name(enum_label)}()', which answers '{enum_label}?', null when the text names none of its values, and narrow it, or declare the value '{enum_label}?'",
+            )
+            return code
         }
         if type_shape.as_scalar(to) {
             var target_label = type_label(to)
@@ -14458,6 +14463,18 @@ func generate_string_method(
         }
         return generate_written_string_call(written, object_result, object_ast, arguments_ast, scope, class_information)
     }
+    var read_enum = read_enum_named(name, class_information)
+    if read_enum and arguments_ast.is_empty() {
+        var text_code = object_result.code
+        var release = ""
+        if owns(object_result, object_ast) {
+            release = " SpiteString___release(spite_enum_text);"
+        }
+        var read_enum_type: Analysis.SpiteType = read_enum
+        var read_code = enum_from_text(text_code, release, read_enum)
+        var read_type = nullable_type_of(read_enum_type)
+        return ExpressionResult(read_code, read_type)
+    }
     if name == "upper" or name == "lower" {
         report("text has no '{name}()': write '{name}_case()', which names what it does without abbreviating")
         return void_result()
@@ -17873,6 +17890,47 @@ func ensure_dictionary_attributes_function(dictionary: Analysis.Types.Dictionary
         "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys_->item_count_; spite_index = spite_index + 1) \{ Spite_Attribute* spite_item = {reflect}({key_text}, {entry}); spite_item->spite_stored_address = (int64_t)(intptr_t)&{entry}; spite_item->spite_stored_bytes = (int64_t)sizeof({c_type_name(element)}); {element_hooks(element, "spite_item", "self")}{attributes_list}_append(result, spite_item); }\nreturn result;\n}",
     )
     return function_c_name
+}
+
+func enum_from_text(code: String, release: String, enum_type: Analysis.Types.EnumType): String {
+    var first_value = enum_type.values.first()
+    crash first_value
+    var enum_spite_type: Analysis.SpiteType = enum_type
+    var nullable_enum = nullable_type_of(enum_spite_type)
+    var nullable_name = c_type_name(nullable_enum)
+    var chosen_code = enum_from_text_lines(
+        enum_type,
+        "spite_enum_text",
+        "spite_enum_value.value",
+        "spite_enum_value.has_value = false;",
+    )
+    return "(\{ SpiteString spite_enum_text = {code}; {nullable_name} spite_enum_value = \{ .has_value = true, .value = {enum_type.c_name}_{first_value} }; {chosen_code}{release} spite_enum_value; })"
+}
+
+func enum_reading_name(enum_label: String): String {
+    var label_words = enum_label.split(".")
+    var last_word = label_words.last()
+    crash last_word
+    return "to_{words_of(last_word).join("_")}"
+}
+
+func read_enum_named(reading: String, class_information: Analysis.ClassInfo): Analysis.Types.EnumType? {
+    assert reading.starts_with("to_")
+    var index = 0
+    while index < enums.count() {
+        var candidate = enums[index]
+        if enum_reading_name(candidate.simple_name) == reading {
+            var no_arguments = List<Syntax.Types.GenericArgument>()
+            var path = List<String>()
+            path.append(candidate.simple_name)
+            var named = Syntax.Types.NamedType(path, no_arguments)
+            var resolved = resolve_named_type(named, class_information.qualified_dotted)
+            assert resolved
+            return type_shape.as_enum(resolved)
+        }
+        index = index + 1
+    }
+    return null
 }
 
 func enum_from_text_lines(enum_type: Analysis.Types.EnumType, text: String, target: String, failure: String): String {
@@ -26761,6 +26819,10 @@ func report_copy_for_narrowing(
     rewind_temporaries(saved_counter)
     var copied_type = copied.type
     assert not joinable_handle(copied_type)
+    var declared_maybe = type_shape.as_nullable(declared_type)
+    crash declared_maybe
+    var declared_inner = declared_maybe.inner
+    assert type_shape.as_nullable(copied_type) or types_equal(copied_type, declared_inner)
     report(
         "'{name}' only copies '{source}' so it can be narrowed: narrow '{source}' itself ('assert {source}') and use it directly",
     )

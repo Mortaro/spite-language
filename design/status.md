@@ -99,7 +99,6 @@ for a design):
   (concurrency.md, "Choosing where Concurrents resume").
 - A `Vector`'s and an `Items`' `remove_at` (and `Items.remove_swapping`) do nothing out of range, where a `List`'s now
   halt (collections.md).
-- Text assigned to an enum that names none of its values becomes the enum's first value (values_and_types.md).
 - A Windows `__fastfail` (`0xC0000409`), or a corrupted heap on Linux and macOS (the C library's own message and
   `SIGABRT`), ends the program without Spite's report or frames ("What a native fault reports").
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers

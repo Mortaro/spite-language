@@ -181,12 +181,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   own functions (parser `enum_declaration.spite`, `analysis/enum_info.spite`, generator.spite enum emission), values
   and functions as reflection objects (with R5), and D180's environments enum on top (S6). **L.** Depends on R5
   for the reflection half; F1 needs the functions half.
-- **L4 Reopening an enum replaces it** (D373). `extend_enum`/`append_enum_values` in `program_discovery.spite`
-  (line 1053) become whole replacement in load order, the hot reload included; rewrite
-  `conformance/stage6/enum_reopening` and the skill's "adds the values it lists". **S.** No dependencies.
-- **L6 Text becomes an enum only as `T?`** (D369 item 236; failure.md's open list). `"calm".to_mood(): Mood?`;
-  the assignment that silently takes the first value (`enum_from_text_lines`, generator.spite line 17665) goes.
-  **S.** No dependencies.
 - **L7 Work that can never finish in a `Parallel` is an error** (D336). A loop with no exit and no wait inside work
   given to a `Parallel`; related to failure.md's "a `while true` that can never leave". Files: generator.spite
   `Parallel` checks, `wait_facts.spite`. **M.** No dependencies.

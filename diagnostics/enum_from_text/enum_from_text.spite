@@ -1,0 +1,12 @@
+enum Mood {
+    'calm'
+    'angry'
+}
+
+var console = Console()
+
+func EnumFromText() {
+    var name = "calm"
+    var mood: Mood = name
+    console.print(mood)
+}

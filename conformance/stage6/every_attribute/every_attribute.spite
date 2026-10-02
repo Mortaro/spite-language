@@ -14,9 +14,12 @@ func EveryAttribute() {
     var defaults = Recipe()
     describer.reset_attributes(recipe, defaults)
     console.print(recipe.title, recipe.servings, recipe.course)
-    var named: Recipe.Course = "dessert"
-    var unknown: Recipe.Course = "brunch"
-    console.print(named, unknown)
+    var named: Recipe.Course? = "dessert"
+    crash named
+    var unknown = "brunch".to_course()
+    if not unknown {
+        console.print(named, "and no course named brunch")
+    }
     var portion_lines = List<String>()
     describer.describe_portions(recipe, portion_lines)
     var portion_line = portion_lines.first()

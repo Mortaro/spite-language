@@ -161,8 +161,12 @@ func read_symbol(input: BinaryInput): $value_type {
         input.read_index()
         input.walked = 0
         name_values(input)
-        var chosen: $value_type = input.found_name
-        return chosen
+        var chosen: $value_type? = input.found_name
+        if chosen {
+            return chosen
+        }
+        input.fail()
+        return $value_type()
     }
     var name = input.read_text()
     var found = Symbol(name)

@@ -557,8 +557,10 @@ text from the program's table of names (reflection answers class and function na
 text anywhere text is expected. At run time an enum value is a small integer and a `Symbol` a pointer into a table
 holding only the symbols the program uses ([the rules](#enums-in-full)).
 
-Text becomes an enum value by assignment, the way it becomes a number: the value spelled that way, or the enum's
-first value when there is none, as `"x"` becomes `0` for an `Integer`. Compare the text back to tell the two apart:
+Text is read as an enum value the way it is read as a number: `"soup".to_course()` answers a `Course?`, the value
+spelled that way, or `null` when the enum has none, since any value of the enum there would read as a real one.
+The reading is named after the enum (`to_` and its name in `snake_case`, `to_course_kind()` for `CourseKind`), and
+assigning text to a `Course?` calls it too. Assigning text to a plain `Course` is an error naming `to_course()`:
 
 ```gdscript title=enum_from_text/enum_from_text.spite entry
 enum Course {
@@ -574,16 +576,19 @@ func EnumFromText() {
     var index = 0
     while index < names.count() {
         var name = names[index]
-        var course: Course = name
-        var known = course.to_string() == name
-        console.print(name, course, known)
+        var course = name.to_course()
+        if course {
+            console.print(name, "is a course:", course)
+        } else {
+            console.print(name, "is no course")
+        }
         index = index + 1
     }
 }
 ```
 ```output
-dessert dessert true
-brunch starter false
+dessert is a course: dessert
+brunch is no course
 ```
 
 ### Walking an enum's values
@@ -971,9 +976,14 @@ The message starts `'"{clicks}"' is a text of one value and nothing else:`. A te
 statement of a function body as written, before it is generated, so it costs nothing in what is emitted; an
 attribute's default is not checked.
 
-**Text casts to an enum by its name**:
-`var course: Recipe.Course = name` is the value spelled `name`, or the enum's first value when none is, exactly as
-text that does not parse becomes `0` for an `Integer`. Compare `course.to_string() == name` to tell the two apart.
+**Text is read as an enum by its name**:
+`name.to_course()` answers a `Recipe.Course?`: the value spelled `name`, or `null` when the enum has none, exactly as
+`to_integer()` answers `null` for text that is not a number. The reading is `to_` and the enum's name in
+`snake_case`, resolved from where it is called as the enum's name written there would be, and a `String` function
+of the same name comes first. `var course: Recipe.Course? = name` calls it too, and `var course: Recipe.Course =
+name` is an error: `text is not a Course until it is read as one, and text that names none of its values has none
+to give: read it with 'to_course()', which answers 'Course?', null when the text names none of its values, and
+narrow it, or declare the value 'Course?'` (`diagnostics/enum_from_text`).
 
 #### Numeric types
 

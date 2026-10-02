@@ -420,6 +420,9 @@ func is_alive(): Boolean {
 - Reading a number from text answers a `T?`: `"42".to_integer()` is an `Integer?`, `null` for `"forty two"`,
   `"12abc"`, `""` or a number the type cannot hold, so narrow it (`crash count` where the text is yours, `if`/`assert`
   where it came from outside). `var age: Integer = "42"` is an error; `var age: Integer? = "42"` reads it.
+- Text is read as an enum value the same way: `"calm".to_mood()` is a `Mood?` (`to_` and the enum's name in
+  `snake_case`), `null` when no value is spelled that way; `var mood: Mood = text` is an error naming `to_mood()`,
+  and `var mood: Mood? = text` reads it.
 - A function that declares a result ends every path with a `return` (or a bare `crash`): a path that reaches the
   closing `}` is an error naming it (`'sign_of' answers a String, but when 'value < 0' is false (line 12, an 'if'
   with no 'else') it reaches its end without a 'return'`). An `if`/`else` whose branches both return, a `switch`
