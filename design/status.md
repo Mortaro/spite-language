@@ -89,6 +89,9 @@ when a page gains a rule that is not built yet, add it here.
 Moved whole from the old "Still open" list under the rule (each is a bug under D244, recorded so it is not mistaken
 for a design):
 
+- A `Concurrent` or `Parallel` handle whose function answers a `Boolean?` is accepted as a condition by `if`,
+  `while` and `crash` and tests only that a value came back, so a joined `false` runs the `if`'s block (the
+  narrowing of a joined handle skips the "a `Boolean?` cannot be a condition" check; `assert` asks for `true`).
 - Reference cycles leak without a word unless the program runs with `--debug-memory`, which prints the allocation
   balance (memory.md, "Cycles leak").
 - A `--hot-reload` build's watcher thread keeps running while the singletons are destroyed at exit: `start()` now
