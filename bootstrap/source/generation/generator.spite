@@ -61,6 +61,7 @@ var remote_loop_port = 0
 var refused_serialiser = false
 var division_check_written = false
 var overflow_check_written = false
+var decimal_remainders_written = List<String>()
 var index_check_written = false
 var unproven_read_code = ""
 var unproven_read_path = ""
@@ -3504,10 +3505,7 @@ func built_in_operator_problem(
     if own_scalar.kind == 'boolean_kind' or own_scalar.kind == 'address_kind' {
         return missing
     }
-    var arithmetic = ["sum", "subtract", "multiply", "divide"]
-    if own_scalar.kind != 'float_kind' and own_scalar.kind != 'double_kind' {
-        arithmetic.append("remainder")
-    }
+    var arithmetic = ["sum", "subtract", "multiply", "divide", "remainder"]
     var comparison = ["less_than", "greater_than", "equals"]
     var is_arithmetic = arithmetic.contains(wanted.name)
     if not is_arithmetic and not comparison.contains(wanted.name) {
@@ -10044,6 +10042,10 @@ func generate_binary(
     if not guarded.is_empty() {
         code = guarded
     }
+    var decimal_remainder = decimal_remainder_macro(binary.operator, left_type)
+    if not decimal_remainder.is_empty() {
+        code = "{decimal_remainder}({left_code}, {right_code})"
+    }
     if comparing {
         if not held.is_empty() {
             code = "(\{ {held.join(" ")} bool spite_same = {code}; {releases.join(" ")} spite_same; })"
@@ -10158,6 +10160,29 @@ func ensure_overflow_check() {
 
 func is_signed_kind(kind: Analysis.Types.NumericKind): Boolean {
     return kind == 'tiny_kind' or kind == 'short_kind' or kind == 'integer_kind' or kind == 'long_kind'
+}
+
+func decimal_remainder_macro(operator: Syntax.Expressions.BinaryOperator, left_type: Analysis.SpiteType): String {
+    if operator != 'modulo' {
+        return ""
+    }
+    var scalar = type_shape.as_scalar(left_type)
+    if not scalar or not is_float_kind(scalar.kind) {
+        return ""
+    }
+    var name = "spite_double_remainder"
+    var library_function = "fmod"
+    if scalar.kind == 'float_kind' {
+        name = "spite_float_remainder"
+        library_function = "fmodf"
+    }
+    if not decimal_remainders_written.contains(name) {
+        decimal_remainders_written.append(name)
+        builder.add_shaken_macro(name)
+        builder.include_maths_library(name)
+        builder.add_typedef("#define {name}(left, right) {library_function}((left), (right))")
+    }
+    return name
 }
 
 func ensure_division_check() {
@@ -10737,7 +10762,8 @@ func operated_lines(
     var signed = is_signed_kind(scalar.kind)
     var whole = not is_float_kind(scalar.kind)
     if operator == 'modulo' and not whole {
-        lines.append("spite_operator_unreached(operation, where);")
+        var decimal_remainder = decimal_remainder_macro(operator, member_type)
+        lines.append("return {ensure_tag(member, member_type)}({decimal_remainder}(spite_left, spite_right));")
         return
     }
     if operator == 'divide' or operator == 'modulo' {
@@ -28286,6 +28312,67 @@ func abbreviated_words(): List<String> {
     ]
 }
 
+func spelled_out_abbreviations(): List<String> {
+    return [
+        "cnt"
+        "buf"
+        "addr"
+        "mgr"
+        "evt"
+        "img"
+        "hdr"
+        "arr"
+        "vec"
+        "dict"
+        "coord"
+        "coords"
+        "opt"
+        "opts"
+        "ext"
+        "seq"
+        "sep"
+        "avg"
+        "fmt"
+        "proc"
+        "tbl"
+        "pwd"
+        "usr"
+        "repo"
+        "qty"
+        "amt"
+        "cb"
+        "sz"
+        "lst"
+        "rect"
+        "dbg"
+        "ver"
+        "lang"
+        "nav"
+        "wnd"
+        "ctrl"
+        "nums"
+        "vals"
+        "msgs"
+        "strs"
+        "ptrs"
+        "bufs"
+        "elems"
+        "objs"
+        "dirs"
+        "exprs"
+        "stmts"
+        "errs"
+        "cmds"
+        "funcs"
+        "fns"
+        "vars"
+        "btns"
+        "imgs"
+        "evts"
+        "idxs"
+    ]
+}
+
 func unabbreviated_words(): List<String> {
     return [
         "expression"
@@ -28350,9 +28437,77 @@ func unabbreviated_words(): List<String> {
     ]
 }
 
+func spelled_out_words(): List<String> {
+    return [
+        "count"
+        "buffer"
+        "address"
+        "manager"
+        "event"
+        "image"
+        "header"
+        "array"
+        "vector"
+        "dictionary"
+        "coordinate"
+        "coordinates"
+        "option"
+        "options"
+        "extension"
+        "sequence"
+        "separator"
+        "average"
+        "format"
+        "process"
+        "table"
+        "password"
+        "user"
+        "repository"
+        "quantity"
+        "amount"
+        "callback"
+        "size"
+        "list"
+        "rectangle"
+        "debug"
+        "version"
+        "language"
+        "navigation"
+        "window"
+        "control"
+        "numbers"
+        "values"
+        "messages"
+        "strings"
+        "pointers"
+        "buffers"
+        "elements"
+        "objects"
+        "directories"
+        "expressions"
+        "statements"
+        "errors"
+        "commands"
+        "functions"
+        "functions"
+        "variables"
+        "buttons"
+        "images"
+        "events"
+        "indices"
+    ]
+}
+
 func check_abbreviations(name: String) {
     var short_words = abbreviated_words()
     var full_words = unabbreviated_words()
+    check_abbreviations_in(name, short_words, full_words)
+    var spelled_short_words = spelled_out_abbreviations()
+    var spelled_full_words = spelled_out_words()
+    check_abbreviations_in(name, spelled_short_words, spelled_full_words)
+}
+
+func check_abbreviations_in(name: String, short_words: List<String>, full_words: List<String>) {
     var words = words_of(name)
     var index = 0
     while index < words.count() {

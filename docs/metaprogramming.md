@@ -369,7 +369,7 @@ var sources = entries.filter_name_ends_with(".spite")
 var names = entries.map_names()
 ```
 
-`entries()` is a `List<Directory or File>`; `filter_files()` answers a `List<File>`. A name that matches both a member
+`entries()` is a `List<Directory.Entry>`, a union of `Directory` and `File`; `filter_files()` answers a `List<File>`. A name that matches both a member
 class and an attribute is a compile error naming the fix.
 
 ### Templates and walks, side by side
