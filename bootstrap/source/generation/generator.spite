@@ -973,6 +973,9 @@ func generate(
     if parallel_used and not weak_classes.is_empty() {
         report_weak_across_threads()
     }
+    if not parallel_site_keys.is_empty() {
+        report_endless_parallel_work()
+    }
     if not atomic_classes.is_empty() {
         finish_atomic_singletons()
     }
@@ -16504,6 +16507,56 @@ func report_weak_across_threads() {
         }
         index = index + 1
     }
+}
+
+# ../docs/concurrency.md#the-thread-pool
+func report_endless_parallel_work() {
+    settle_wait_facts()
+    var reported = Dictionary<Boolean>()
+    var index = 0
+    while index < parallel_site_keys.count() {
+        var keys = List<String>()
+        var site_key = parallel_site_keys[index]
+        keys.append(site_key)
+        var reached = call_effects.reached_functions(keys)
+        var reached_keys = reached.keys()
+        var key_index = 0
+        while key_index < reached_keys.count() {
+            report_endless_work(reached_keys[key_index], index, reported)
+            key_index = key_index + 1
+        }
+        index = index + 1
+    }
+}
+
+func report_endless_work(key: String, site: Integer, reported: Dictionary<Boolean>) {
+    assert not reported.has(key)
+    reported[key] = true
+    var hash = key.index_of("#")
+    assert hash > 0
+    var class_name = key.slice(0, hash)
+    var key_length = key.length()
+    var function_name = key.slice(hash + 1, key_length)
+    assert not class_name.starts_with("Spite.")
+    var information = find_class_by_qualified(class_name)
+    assert information
+    assert not information.source_path.starts_with("library/")
+    var function = information.find_function(function_name)
+    assert function
+    var line = endless_loop_line(function.body)
+    assert line > 0 and not wait_facts.may_wait(function.c_name)
+    crash parallel_site_texts[site]
+    var work_text = parallel_site_texts[site]
+    current_path = information.source_path
+    if not function.source_path.is_empty() {
+        current_path = function.source_path
+    }
+    current_owner = information.qualified_dotted
+    current_function = function.name
+    current_line = line
+    report(
+        "'Parallel({work_text})' runs '{information.simple_name}.{function.name}' on the thread pool, and this loop never ends and never waits, so the work never finishes and keeps its thread for good: return from the loop once the work is done, or run the loop on the program's own thread",
+    )
 }
 
 func statement_hands_out(statement: Syntax.Statements.Statement, name: String, holder: Analysis.ClassInfo?): Boolean {
@@ -33569,6 +33622,7 @@ func generate_while_statement(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ) {
+    report_spinning_loop(while_statement)
     var coarse = coarse_singleton(while_statement, scope, class_information)
     if coarse.is_empty() {
         generate_while_loop(while_statement, scope, class_information, function_information)
@@ -33587,6 +33641,20 @@ func generate_while_statement(
     var end = builder.user_count()
     coarse_site_ends.append(end)
     builder.add_user("spite_coarse_{site}_leave();")
+}
+
+# ../docs/control_flow.md#while-is-the-only-loop
+func report_spinning_loop(while_statement: Syntax.Statements.WhileStatement) {
+    crash while_statement.condition
+    assert shape.is_true_literal(while_statement.condition) and not can_leave(while_statement.body)
+    var calls = List<Syntax.Expressions.Expression>()
+    var expressions = List<Syntax.Expressions.Expression>()
+    collect_block_expressions(while_statement.body, expressions)
+    collect_each_expression_call(expressions, calls)
+    assert calls.is_empty()
+    report(
+        "this 'while true' never ends: nothing inside it returns, asserts or crashes, and it calls nothing, so the program would spin here for good: leave it with a 'return' ('if done \{ return }'), or loop 'while' a condition",
+    )
 }
 
 func coarse_singleton(

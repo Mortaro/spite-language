@@ -344,6 +344,16 @@ picked up yet runs it on the reading thread instead of waiting behind the queue,
 inside another one cannot wait for a worker that is busy waiting for it. At exit the pool finishes what is queued
 and stops its threads.
 
+**Work that can never finish is a compile error.** A pool thread is lent to a piece of work until it returns, so
+work that runs forever takes a thread away for good, and there is no `Thread(function)` for it: a loop tied to
+one thread (a window's messages) runs on the program's own thread as one step per frame, and whatever waits
+(accepting connections, reading a socket) waits through a call that gives its thread back. So a `while true` with
+no `return`, `assert` or `crash` inside it, in the function a `Parallel` runs or in any function that work
+reaches, whose function never waits, is `'Parallel(counter.count_forever)' runs 'Counter.count_forever' on the
+thread pool, and this loop never ends and never waits, so the work never finishes and keeps its thread for good:
+return from the loop once the work is done, or run the loop on the program's own thread`
+(`diagnostics/endless_parallel_work`). It is reported at the loop, once per function.
+
 | `ThreadPool()` | |
 |---|---|
 | `size(): Integer` | how many worker threads it runs (starting them if it has not) |
@@ -887,6 +897,14 @@ It is the program's one pool: any code hands work to it by `Parallel(function)` 
 never blocks and whose value joins on first use; no submission starts an operating-system thread of its own, and
 there is no second pool to create or pass around.
 
+- **Work that never finishes.** For each `Parallel(function)` in the program's own code (not `library/`), every
+  function the work reaches through calls whose class is known is read for a `while true` with no `return`,
+  `assert` or `crash` anywhere inside it. Such a loop in a function that never waits (none of its calls reaches a call that waits and gives
+  its thread back, such as a socket read) is the error at the loop, once per function:
+  `'Parallel(<work>)' runs '<Class>.<function>' on the thread pool, and this loop never ends and never waits, so the
+  work never finishes and keeps its thread for good: return from the loop once the work is done, or run the loop
+  on the program's own thread` (`diagnostics/endless_parallel_work`). A function that waits anywhere is left alone,
+  as is a loop that can leave. Checked while compiling; nothing runs for it.
 - **Size and start.** The first `Parallel` starts one worker thread for every core but one
   (`GetActiveProcessorCount`, `sysconf`), at least one; the program's own thread keeps the last core. It never
   starts another, and a program that makes no `Parallel` starts none. `size()` says how many; `worker_index()`

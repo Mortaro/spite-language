@@ -1,0 +1,1 @@
+diagnostics/endless_parallel_work/counter.spite:5: error: 'Parallel(counter.count_forever)' runs 'Counter.count_forever' on the thread pool, and this loop never ends and never waits, so the work never finishes and keeps its thread for good: return from the loop once the work is done, or run the loop on the program's own thread (in Counter.count_forever)
