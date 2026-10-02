@@ -12,12 +12,10 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ## Landing from branches (do not build again)
 
-- **Landed:** `cloud/linux` (one seed per system, the Linux check, D376) on 2026-10-02.
-- **Landed:** `wip/fastbuild` (the default and `--hot-reload` builds at `-O0`, units split in default builds; its
-  row is the placeholder **D???** at the end of the log) on 2026-10-02.
-- **Being merged:** `cloud/operators` (D315 and D365: an operator's function called by name is an error naming the
-  shortcut, a word after `.` is always a member name, `Dictionary.set` is `d[key] = value`, a kept `[]` read is
-  narrowed). D369 item 220 (S7 below) renames the dictionary's `[]` functions after it lands.
+- **Landed:** `cloud/linux` (one seed per system, the Linux check, D376), `cloud/operators` (D315 and D365: an
+  operator's function called by name is an error naming the shortcut, a word after `.` is always a member name,
+  `Dictionary.set` is `d[key] = value`, a kept `[]` read is narrowed; S7 below renames the dictionary's `[]`
+  functions), the reload races, and `wip/fastbuild` (D396) on 2026-10-02.
 - **Waiting:** `cloud/nomap` (no `List.map(function)`, no `map_` over a test, no class-qualified function value;
   its row needs the next free number).
 
