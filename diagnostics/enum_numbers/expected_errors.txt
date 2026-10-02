@@ -1,0 +1,2 @@
+diagnostics/enum_numbers/enum_numbers.spite:1: error: 'user' and 'guest' both have the number 8 in enum 'Role': a value's number is its identity, so give one of them another (in EnumNumbers.)
+diagnostics/enum_numbers/enum_numbers.spite:7: error: 'large' would be number 2147483648 of enum 'Size', which does not fit an Integer: an enum value's number is an Integer (in EnumNumbers.)

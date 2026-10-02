@@ -345,7 +345,9 @@ func is_alive(): Boolean {
   enum again replaces it: its list is all the values the enum has, so adding one means restating the rest. An enum is a class, and `Course.values` lists its values
   in order, an ordinary list: `Course.values.each(list_course)` calls `list_course(course: Course)` once per value,
   unrolled while compiling (`$value_type.values` in a generic). Text becomes a value only as a `Course?`:
-  `name.to_course()`, or `var course: Course? = name`.
+  `name.to_course()`, or `var course: Course? = name`. A value may be given a number with `=` on its line
+  (`'admin' = 99`; the next unnumbered value counts on, the first from 0; two values with one number are an
+  error), only where a C library, a file format or the network fixes the numbers.
 - `union Enemy { Player Monster }`, written one member per line: `switch enemy { Player: ... Monster: { ... } }`
   must cover every member and narrows `enemy` inside each case; a function or attribute every member has can be
   used on the union directly.

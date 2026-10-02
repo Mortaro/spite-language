@@ -1,0 +1,18 @@
+enum Role {
+    'admin' = 7
+    'user'
+    'guest' = 8
+}
+
+enum Size {
+    'small' = 2147483647
+    'large'
+}
+
+var console = Console()
+
+func EnumNumbers() {
+    var role: Role = 'guest'
+    var size: Size = 'small'
+    console.print(role, size)
+}

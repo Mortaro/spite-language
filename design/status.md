@@ -40,6 +40,11 @@ when a page gains a rule that is not built yet, add it here.
 ### Symbol codegen and enums (Rules in full: Enums in full)
 - Not built: calling a template with a symbol written out, `person.set_attribute('age', 2)`. Today it is the error "'Person' does not define 'set_attribute'"; a template is reached only through the names it answers. The page no longer mentions it.
 - Not built: environments as a reopenable, walkable enum (D180). The page now says "Environments are an enum too" in the decided tense.
+- Not built (D386): a numbered enum's number as its identity in binary files and on the network. `BinaryFormat`
+  writes an enum value as its position in the enum, which is its number only when no `=` is written; writing the
+  number needs a way for library Spite to read a value's number, which is not decided. Bindings (F1) are not built.
+- Proposed by Claude, unconfirmed (D???): an enum value's number fits an `Integer`, may be negative, and a hot reload
+  cannot renumber a value the running program has; the error texts.
 
 ### Numeric types
 - PROVISIONAL: the exact width mapping of the ten numeric types was never explicitly confirmed by Mortaro; revisit if a different mapping is wanted. Removed from the page, including the "(proposed by Claude, unconfirmed: the exact width mapping)" note.

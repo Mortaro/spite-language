@@ -71,7 +71,9 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Integer) {
             print_line(depth, "EnumDecl {statement.name}")
             var index = 0
             while index < statement.values.count() {
-                print_line(depth + 1, "'{statement.values[index]}'")
+                var written = statement.numbers[index]
+                crash written
+                print_line(depth + 1, "'{statement.values[index]}' {written}")
                 index = index + 1
             }
         }

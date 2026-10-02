@@ -222,10 +222,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **L7 Work that can never finish in a `Parallel` is an error** (D336). A loop with no exit and no wait inside work
   given to a `Parallel`; related to failure.md's "a `while true` that can never leave". Files: generator.spite
   `Parallel` checks, `wait_facts.spite`. **M.** No dependencies.
-- **L8 Enum values numbered with `=`** (D386). `admin = 99` on its own line; an unnumbered value counts on from the
-  one before, the first from 0; two values with one number are a compile error; the numbers are the identity for
-  bindings, binary files and the network, storage stays the smallest class that fits. Files: the parser's enum
-  form, the checker, codegen, docs values_and_types.md (enums) and foreign_libraries.md. **M.** No dependencies.
 
 ### Compiler driver and outputs (D327, D348, D349, D356, D390, D361, D366, D369 items 134 and 138, D385)
 
@@ -279,9 +275,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 ### Foreign libraries (D351, D369 items 93, 211 and 233)
 
 - **F1 A C enum result is a Spite enum written in Spite** (D351, replacing D272's generated enum). The binding's
-  enum maps each value to its C number (numbered with `=`, D386); a number the enum does not list crashes at the boundary; the
+  enum maps each value to its C number (numbered with `=`, D386, built); a number the enum does not list crashes at the boundary; the
   result must be used and switched with every value. Files: generator.spite foreign-call region,
-  `library/dynamic_library.spite`, docs/foreign_libraries.md (still describes D272). **M.** Depends on L3, L8.
+  `library/dynamic_library.spite`, docs/foreign_libraries.md (still describes D272). **M.** Depends on L3.
 - **F2 Bindings checked against a header** (D369 items 93 and 233). With a header, argument and result types and
   enum numbers checked, the error naming the C type; how the header is read is the compiler's choice. **M.**
   Depends on F1.
@@ -395,11 +391,11 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R2, R3, R6, R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L1, L7, L8, C2, C5, C6, C7, K1,
+2. No dependencies: R2, R3, R6, R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L1, L7, C5, C6, C7,
    K2, F3, S9, P1, P2, X1, B1 to B16, E3, D1's first pass.
-3. After step 2: R5, L2 (L1), S7 (operators), K3 (with K2), C8 (K1), N2 (N1), K6 (K2).
-4. After R5: R1, J1, L3, R4 (with S7), R8, then R9.
-5. After J1: J2, S5. After L3 and L8: F1, S6 (with L4). After F1: F2.
+3. After step 2: R5, L2 (L1), K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
+4. After R5: R1, J1, L3, R4, R8, then R9.
+5. After J1: J2, S5. After L3: F1, S6 (with L4). After F1: F2.
 6. After M1, M2 and M6: M5. After M1, R3 and M4: M3.
 7. After R1, R5, R6 and J1: R7, the end of the reflection migration.
 8. S2 and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
@@ -420,9 +416,9 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 2 Types and storage | M2, M1, M7, M4, M3, then M6 and M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
 | 3 Arithmetic | N3, N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E2, E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
-| 5 Driver and toolchain | C2, C6, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
-| 6 Waiting, IO and library | K1, F3, K2, K3, K6, S7, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
-| 7 Language rules | L1, L8, L2, L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
+| 5 Driver and toolchain | C6, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
+| 6 Waiting, IO and library | F3, K2, K1, K3, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
+| 7 Language rules | L1, L2, L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | P1, P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | B1 to B16 | small fixes, each in the file of the proof it fixes; rebase often |
 | 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |

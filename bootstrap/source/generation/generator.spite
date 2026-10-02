@@ -4778,10 +4778,64 @@ func register_enums(entry: Discovery.DiscoveredClass) {
                 entry.qualified_dotted,
                 declaration.values,
             )
+            enumeration.numbers = written_enum_numbers(declaration)
             enums.append(enumeration)
         }
         statement_index = statement_index + 1
     }
+}
+
+func written_enum_numbers(declaration: Syntax.Statements.EnumDeclaration): List<Integer> {
+    var numbers = List<Integer>()
+    if not has_written_number(declaration) {
+        return numbers
+    }
+    var owners = Dictionary<String>()
+    var next: Long = 0
+    var index = 0
+    while index < declaration.values.count() {
+        var value = declaration.values[index]
+        var written = declaration.numbers[index]
+        crash written
+        var number = next
+        if not written.is_empty() {
+            var read = written.to_long()
+            crash read
+            number = read
+        }
+        if number < Integer.smallest or number > Integer.largest {
+            report(
+                "'{value}' would be number {number} of enum '{declaration.name}', which does not fit an Integer: an enum value's number is an Integer",
+            )
+            return List<Integer>()
+        }
+        var key = number.to_string()
+        var owner = owners[key]
+        if owner {
+            report(
+                "'{owner}' and '{value}' both have the number {number} in enum '{declaration.name}': a value's number is its identity, so give one of them another",
+            )
+            return List<Integer>()
+        }
+        owners[key] = value
+        var whole = number.to_integer()
+        numbers.append(whole)
+        next = number + 1
+        index = index + 1
+    }
+    return numbers
+}
+
+func has_written_number(declaration: Syntax.Statements.EnumDeclaration): Boolean {
+    var index = 0
+    while index < declaration.numbers.count() {
+        var written = declaration.numbers[index]
+        if not written.is_empty() {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func find_enum(name: String): Analysis.EnumInfo? {
@@ -4854,7 +4908,7 @@ func emit_enums() {
         var value_index = 0
         while value_index < information.values.count() {
             var value_name = information.values[value_index]
-            if hot_reload {
+            if hot_reload or information.is_numbered() {
                 crash numbers[value_name]
                 typedef_lines.append("{information.c_name}_{value_name} = {numbers[value_name]},")
             } else {
@@ -4909,6 +4963,18 @@ func enum_owner(information: Analysis.EnumInfo): Analysis.ClassInfo? {
 
 func enum_numbers(information: Analysis.EnumInfo): Dictionary<Integer> {
     var numbers = Dictionary<Integer>()
+    if information.is_numbered() {
+        var index = 0
+        while index < information.values.count() {
+            var value_name = information.values[index]
+            var number = information.numbers[index]
+            crash number
+            numbers[value_name] = number
+            index = index + 1
+        }
+        refuse_renumbering(information, numbers)
+        return numbers
+    }
     if layout_host {
         numbers = layout_host.host_enum_numbers(information.c_name)
     }
@@ -4933,6 +4999,25 @@ func enum_numbers(information: Analysis.EnumInfo): Dictionary<Integer> {
         index = index + 1
     }
     return numbers
+}
+
+func refuse_renumbering(information: Analysis.EnumInfo, numbers: Dictionary<Integer>) {
+    assert layout_host
+    var running = layout_host.host_enum_numbers(information.c_name)
+    var names = running.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var before = running[name]
+        var now = numbers[name]
+        if before and now and before != now {
+            report(
+                "a reload cannot give '{name}' of enum '{information.simple_name}' the number {now}: the running program stores it as {before}, so restart it to renumber",
+            )
+            return
+        }
+        index = index + 1
+    }
 }
 
 func removed_enum_values(information: Analysis.EnumInfo, numbers: Dictionary<Integer>): List<String> {

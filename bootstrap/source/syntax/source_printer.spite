@@ -244,7 +244,7 @@ func source_statement_line(statement: Syntax.Statements.Statement, depth: Intege
         }
         Syntax.Statements.FunctionDeclaration: return source_function(statement, depth)
         Syntax.Statements.TypeDeclaration: return source_type_declaration(statement, depth)
-        Syntax.Statements.EnumDeclaration: return "{indent}enum {statement.name} {source_names(statement.values, depth)}"
+        Syntax.Statements.EnumDeclaration: return "{indent}enum {statement.name} {source_enum_values(statement, depth)}"
         Syntax.Statements.UnionDeclaration: return "{indent}union {statement.name} {source_types(statement.members, depth)}"
         Syntax.Statements.AssignmentStatement: {
             crash statement.target
@@ -376,11 +376,17 @@ func source_type_declaration(declaration: Syntax.Statements.TypeDeclaration, dep
     return "{text}\n{source_indent(depth)}}"
 }
 
-func source_names(names: List<String>, depth: Integer): String {
+func source_enum_values(declaration: Syntax.Statements.EnumDeclaration, depth: Integer): String {
     var text = "\{"
     var index = 0
-    while index < names.count() {
-        text = "{text}\n{source_indent(depth + 1)}'{names[index]}'"
+    while index < declaration.values.count() {
+        var number = ""
+        var written = declaration.numbers[index]
+        crash written
+        if not written.is_empty() {
+            number = " = {written}"
+        }
+        text = "{text}\n{source_indent(depth + 1)}'{declaration.values[index]}'{number}"
         index = index + 1
     }
     return "{text}\n{source_indent(depth)}}"

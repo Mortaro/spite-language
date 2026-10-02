@@ -662,17 +662,39 @@ func parse_enum_declaration(): Syntax.Statements.Statement {
     expect('left_brace', "'\{' to start the enum body")
     open_declaration_body("enum")
     var values = List<String>()
+    var numbers = List<String>()
     var finished = check('right_brace') or check('end_of_file')
     while not finished {
         var value = expect('enum_literal', "an enum value (e.g. 'value')")
         values.append(value.text)
+        var number = enum_value_number(value.text)
+        numbers.append(number)
         consume_declaration_entry("enum")
         if check('right_brace') or check('end_of_file') or has_error {
             finished = true
         }
     }
     expect('right_brace', "'}' to close the enum body")
-    return Syntax.Statements.EnumDeclaration(name.text, values)
+    return Syntax.Statements.EnumDeclaration(name.text, values, numbers)
+}
+
+func enum_value_number(value: String): String {
+    if not check('equal') {
+        return ""
+    }
+    advance()
+    var sign = ""
+    if check('minus') {
+        advance()
+        sign = "-"
+    }
+    var digits = expect('integer_literal', "a whole number after '{value}' =, the value's number (e.g. '{value}' = 4)")
+    var number = ("{sign}{digits.text}").to_long()
+    if not number {
+        fail("'{sign}{digits.text}' does not fit a Long, the widest whole number")
+        return ""
+    }
+    return number.to_string()
 }
 
 func parse_union_declaration(): Syntax.Statements.Statement {

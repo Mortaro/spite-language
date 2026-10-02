@@ -1,8 +1,10 @@
 var name = ""
 var values = List<String>()
+var numbers = List<String>()
 var line = 0
 
-func EnumDeclaration(declaration_name: String, declaration_values: List<String>) {
+func EnumDeclaration(declaration_name: String, declaration_values: List<String>, declaration_numbers: List<String>) {
     name = declaration_name
     values = declaration_values
+    numbers = declaration_numbers
 }
