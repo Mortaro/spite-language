@@ -662,9 +662,6 @@ worked out while compiling, so the check folds away with the branch it guards.
   instead of the build's manifest; the functions and slots the executable holds stay the build's. A save after a
   change that compiled everything is fast again. Starting the program again starts from the build
   (`game.reload_start`), since a new process runs the build's code.
-- **One reload at a time.** A reload compares with the files and the baseline of the code the program runs, which
-  only swapping a library in updates, so a reload waits to compile until the library before it has been swapped in:
-  the watcher and the prompt never both compile against the code before a swap that is still on its way.
 - **Every object of a program class can move.** In a `--hot-reload` build each object of the program's own classes
   carries two hidden words after its header: where its attributes live when they have moved, and its place in a
   list of the class's live objects, which each allocation adds to and each release takes from. Code reads an
