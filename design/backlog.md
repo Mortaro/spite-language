@@ -141,7 +141,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **N4 `minimum` and `maximum` pass `nan` on** (D369 item 249, replacing D339's C rule). Files:
   `maths_primitives.spite`, the `Float`/`Double` docs table. **S.** No dependencies.
 
-### Memory (D352, D353, D354, D369 item 173, D147, D178)
+### Memory (D352, D353, D354, D380, D369 item 173, D147, D178)
 
 - **E1 Frame arenas and the escape rule** (D352, D369 item 173; status "Allocators"). `Memory.Frame`, its reset
   chosen by the compiler per use (once a frame, a ring, or none), and storing a frame-arena object where it outlives
@@ -153,10 +153,11 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   every fact the compiler knows (layout, size, allocator) as get-only reflection, shaken when unread. Files:
   `library/list.spite`, `vector.spite`, `items.spite`, `typed_memory.spite`, `library/spite/memory.spite`,
   generator.spite allocator handling (around lines 26200 to 26700). **M.** No dependencies; E1 benefits.
-- **E3 Storage owns its items; `Weak` goes** (D354). Collections own what they hold; a reference kept elsewhere is
-  weak and typed `T?`, narrowed before use. Remove `library/weak.spite` and the weak table in generator.spite
-  (around line 7230), migrate 7 `Weak<` uses and memory.md's "Cycles leak". Ownership semantics need Q2 first.
-  **L.** Depends on Q2.
+- **E3 Storage owns its items; `Weak` goes** (D354, D380). List, dictionary and vector slots and non-nullable
+  attributes own; a `T?` attribute or local holding an object owned elsewhere is weak, narrowed before use; a
+  second owner is a compile error naming `copy()`; trees own children through attributes. Remove
+  `library/weak.spite` and the weak table in generator.spite (around line 7230), migrate 7 `Weak<` uses and
+  memory.md's "Cycles leak". **L.** No dependencies.
 - **E4 Frame objects holding text, lists or objects** (status "Copies that cost nothing", proofs "Objects that
   never leave"). Their attributes let go at the end of the frame; an attribute object laid inline where never
   shared; an appended item made in place in a `Vector`'s block. Files: `object_frames.spite`, `owned_local.spite`,
@@ -412,12 +413,6 @@ unconfirmed).
   (b) collect into a `List<Anything>` with `each`, then `call_with(list)`, which travels as a shape and costs a
   dispatch; (c) a read-only attribute on `Spite.Argument` collected with `map_<members>()`, which only works when
   the value depends on the argument alone. Recommendation: (a), the only one that is free at run time.
-- **Q2 What "storage owns" covers** (`mortaros_missing_decisions.md` item 252) (D354). Is an attribute typed `T` an owner like a list slot, so only `T?`
-  attributes and other places are weak, or does only collection storage own, making every attribute that points
-  at a listed item weak? And an object placed in two lists, or a tree whose children are held by attributes?
-  Recommendation: list, dictionary and vector slots and non-nullable attributes own; a `T?` attribute or local
-  holding an object something else owns is weak; putting one object into a second owner is a compile error
-  naming `copy()`. It keeps trees working and matches "99% of code already narrows".
 - **Q3 How a binding's Spite enum names each value's C number** (`mortaros_missing_decisions.md` item 253) (D351). Options: (a) a number written beside each
   value in the enum (new syntax, allowed only where a binding uses it); (b) the enum declares
   `func foreign_number(): Integer` with a `switch` (possible once D371 lets enums declare functions) and the

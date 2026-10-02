@@ -11,7 +11,7 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 and 250 by D379 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
@@ -21,12 +21,6 @@ D374 (2026-10-01); 264 by D378 and 250 by D379 (2026-10-02). Earlier answers are
      a `List<Anything>` with `each`, then `call_with(list)`, which travels as a shape and costs a dispatch; (c) a
      read-only attribute on `Spite.Argument` collected with `map_<members>()`, which only works when the value
      depends on the argument alone. Recommendation: (a), the only one that is free at run time.
-252. **What "storage owns" covers** (D354). Is an attribute typed `T` an owner like a list slot, so only `T?`
-     attributes and other places are weak, or does only collection storage own, making every attribute that points
-     at a listed item weak? And an object placed in two lists, or a tree whose children are held by attributes?
-     Recommendation: list, dictionary and vector slots and non-nullable attributes own; a `T?` attribute or local
-     holding an object something else owns is weak; putting one object into a second owner is a compile error
-     naming `copy()`. It keeps trees working and matches "99% of code already narrows".
 253. **How a binding's Spite enum names each value's C number** (D351). Options: (a) a number written beside each
      value in the enum (new syntax, allowed only where a binding uses it); (b) the enum declares `func
      foreign_number(): Integer` with a `switch` (possible once D371 lets enums declare functions) and the compiler
