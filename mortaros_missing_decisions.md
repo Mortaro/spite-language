@@ -11,7 +11,7 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
@@ -26,11 +26,6 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380 (2026-10-02). Earlie
      foreign_number(): Integer` with a `switch` (possible once D371 lets enums declare functions) and the compiler
      inverts it; (c) the binding writes a function from `Integer` to the enum by hand, which D351 wanted the
      compiler to do. Recommendation: (b), no new syntax and readable as Spite.
-254. **What a fractional member of a generic vector is declared to answer** (D355). `Vector3<Integer>.length()`
-     answers `Float`, `Vector3<Double>.length()` a `Double`: there is no spelling yet for "my class if fractional,
-     else `Float`". Options: (a) every number class gets a get-only class constant naming its fractional class and
-     the vector writes `func length(): $number_type.fraction_class`; (b) always `Float`, losing `Double` precision
-     against D355; (c) a codegen `if` in the return type. Recommendation: (a), one rule the compiler folds.
 255. **Does D374 cover the standard library, superseding D284?** D374 makes any class shadowing a visible class an
      error, which already refuses a program's `Game.Math.Vector3` beside the library's `Vector3`, more strictly
      than D284's attribute matching with zero false positives. Recommendation: yes, one rule; record a row

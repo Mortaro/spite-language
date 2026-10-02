@@ -107,12 +107,13 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   optimised and why: every list falling back to references (D332's to-do list), copies not elided, objects not
   placed in the frame, and later every remaining overflow check (N2). Form and place undecided (Q10). Files:
   generator.spite (a collector), `bootstrap.spite` (writing it). **M.** No dependencies; M3 and N2 report into it.
-- **M5 Vectors and maths generic over `Number`** (D355). `Vector2`, `Vector3`, `Vector4` and `Quaternion` (and
+- **M5 Vectors and maths generic over `Number`** (D355, D381). `Vector2`, `Vector3`, `Vector4` and `Quaternion` (and
   `Matrix3`/`Matrix4`, `Plane`, `Ray`, `AxisAlignedBox`, `CubicBezier` where it makes sense) take `generic
   $number_type` constrained by `Number`, inferred from the constructor (`Vector3(1, 2, 3)` is
-  `Vector3<Integer>`), one packed copy per class; fractional members answer `Float` or the vector's own fractional
-  class (spelling, Q4). Migrate `examples/`, the corpus and the game engine package. **L.** Depends on M1(c), M2,
-  M6, Q4.
+  `Vector3<Integer>`), one packed copy per class; every member answers the vector's own class, whole numbers truncated like
+  integer division (D381); game_maths.md points grid code at `length_squared()` and notes `normalized()` snaps
+  toward a grid direction. Migrate `examples/`, the corpus and the game engine package. **L.** Depends on M1(c),
+  M2, M6.
 - **M6 Axis names `x`, `y`, `z`, `w`** (D370 item 205). Exempt them from the single-letter error (generator.spite
   near line 28476) and rename the `x_value`-style attributes in 12 library files (`vector2/3/4`, `quaternion`,
   `matrix3/4`, `plane`, `ray`, `axis_aligned_box`, `cubic_bezier`, `color_text`, `http_client`). **S.** No
@@ -372,7 +373,7 @@ Each line can start once everything before it that it names is done; lines with 
    (K1), N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4 (with S7).
 5. After J1: J2, S5. After L3: F1 (Q3), S6 (with L4). After F1: F2.
-6. After M1, M2, M6 and Q4: M5. After M1, R3 and M4: M3.
+6. After M1, M2 and M6: M5. After M1, R3 and M4: M3.
 7. After R1, R5, R6 and J1: R7, the end of the reflection migration.
 8. Whenever owners decide: S2 (Q13) and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
    items sharing their files.
@@ -418,11 +419,6 @@ unconfirmed).
   `func foreign_number(): Integer` with a `switch` (possible once D371 lets enums declare functions) and the
   compiler inverts it; (c) the binding writes a function from `Integer` to the enum by hand, which D351 wanted the
   compiler to do. Recommendation: (b), no new syntax and readable as Spite.
-- **Q4 What a fractional member of a generic vector is declared to answer** (`mortaros_missing_decisions.md` item 254) (D355). `Vector3<Integer>.length()`
-  answers `Float`, `Vector3<Double>.length()` a `Double`: there is no spelling yet for "my class if fractional,
-  else `Float`". Options: (a) every number class gets a get-only class constant naming its fractional class and
-  the vector writes `func length(): $number_type.fraction_class`; (b) always `Float`, losing `Double` precision
-  against D355; (c) a codegen `if` in the return type. Recommendation: (a), one rule the compiler folds.
 - **Q5 Does D374 cover the standard library, superseding D284?** (`mortaros_missing_decisions.md` item 255) D374 makes any class shadowing a visible class
   an error, which already refuses a program's `Game.Math.Vector3` beside the library's `Vector3`, more strictly
   than D284's attribute matching with zero false positives. Recommendation: yes, one rule; record a row
