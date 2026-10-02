@@ -6,6 +6,10 @@ func Person(starting_name: String, starting_age: Integer) {
     age = starting_age
 }
 
+func get_shouted_name(): String {
+    return name.upper_case()
+}
+
 func is_adult(): Boolean {
     return age >= 18
 }

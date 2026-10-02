@@ -8,7 +8,7 @@ var slots: Memory.Address = 0
 var slot_count = 0
 var used_slots = 0
 
-func set(key: $key_type, value: $value_type) {
+func set_at(key: $key_type, value: $value_type) {
     var existing = index_of_key(key)
     if existing >= 0 {
         entry_values[existing] = value
@@ -21,7 +21,7 @@ func set(key: $key_type, value: $value_type) {
     }
 }
 
-func get(key: $key_type): $value_type? {
+func get_at(key: $key_type): $value_type? {
     var existing = index_of_key(key)
     if existing >= 0 {
         return entry_values[existing]

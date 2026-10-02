@@ -1,0 +1,6 @@
+var console = Console()
+
+func ConsoleFlush() {
+    console.write("a")
+    console.flush()
+}

@@ -40,6 +40,11 @@ when a page gains a rule that is not built yet, add it here.
 ### Symbol codegen and enums (Rules in full: Enums in full)
 - Not built: calling a template with a symbol written out, `person.set_attribute('age', 2)`. Today it is the error "'Person' does not define 'set_attribute'"; a template is reached only through the names it answers. The page no longer mentions it.
 - Not built: environments as a reopenable, walkable enum (D180). The page now says "Environments are an enum too" in the decided tense.
+- Not built (D386): a numbered enum's number as its identity in binary files and on the network. `BinaryFormat`
+  writes an enum value as its position in the enum, which is its number only when no `=` is written; writing the
+  number needs a way for library Spite to read a value's number, which is not decided. Bindings (F1) are not built.
+- Proposed by Claude, unconfirmed (D???): an enum value's number fits an `Integer`, may be negative, and a hot reload
+  cannot renumber a value the running program has; the error texts.
 
 ### Numeric types
 - PROVISIONAL: the exact width mapping of the ten numeric types was never explicitly confirmed by Mortaro; revisit if a different mapping is wanted. Removed from the page, including the "(proposed by Claude, unconfirmed: the exact width mapping)" note.
@@ -257,7 +262,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Operators
 
-- Open question: whether a `Dictionary`'s `[]` should also be spelled `get_at` (`mortaros_missing_decisions.md`).
 - Unconfirmed (proposed by Claude, not decided by Mortaro), built as described on the page: the `get_at` and `set_at`
   details, the read half of getter interception mirroring the setter half, a setter answering a write with no
   attribute of its name (from a game port's alert A101), the bare-name exclusion from the direct-call rule, the
@@ -384,7 +388,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   question templates name `is_<word>` as `<word>`; a `Dictionary` takes the member templates over its values.
   Proposed by Claude, unconfirmed: the plural rule is read only on `List`, `Vector`, `Items` and `Dictionary`
   templates (a class's own templates keep the old plural walk until it goes); a question member (`is_`, `has_`,
-  `can_`) is collected by its own name; `filter_is_<word>` stays the same template as `filter_<word>`; `health` was
+  `can_`) is never inflected, and `map_` over one is D369's error; `filter_is_<word>` stays the same template as `filter_<word>`; `health` was
   added to the uncountable words, since metaprogramming.md reads `map_health` as `health`; the error texts.
   Not built: `String.Inflection`, the table a program reopens to add words (the compiler inflects with its own
   copy of `String`, so a program's words would not reach it either).
@@ -563,16 +567,24 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Only Windows runs today; the Linux and macOS folders of `library/` are held to compiling by check.sh.
 - Open question 11 (open_questions.md): whether a `type` writes a required function as `to_string(): String`
   (current) or as `to_string: Spite.Function<String>` (Mortaro's original wording). Page states the current form.
-- D147, not built: even `_write_output`, `_write_error` and `flush` should be Spite over a few named primitives.
+- D147, not built: even `_write_output`, `_write_error`, `_write_held`, `_flush` and `_flush_output` should be Spite over a few named primitives.
 - Proposal, unresolved (mortaros_missing_decisions.md): the REPL should show values as their `to_debug()` too; it
   keeps its own display (text unquoted, `Name {...}`, `List<String>(...)`) today.
 - Names proposed, unconfirmed: the line-at-once flush of `print`, `error`, `debug`; `to_bytes()`; the Maths member
   names and constants; the `Console.debug` format details; the `Directory.Entry` name; all `Socket` readings.
 - Not built: `fused_multiply_add`; waits for targets that name their processor.
+- Not built (D346): choosing the flushing per destination. Every line is still flushed as it is printed, to a
+  terminal, a file or a pipe alike; large buffers for files and pipes need a flush wherever the program waits (a
+  sleep, a socket, a watcher, a `Concurrent`, a child process), or a server's log would hold its last lines, and
+  the list of waits is K2's. Built: the three guarantees (a line is handed over whole by each thread, so threads
+  never split each other's lines; everything is flushed before an exit, a crash report and a read of input) and
+  `Console.flush()` leaving the public surface (D383).
+- Proposed by Claude, unconfirmed (D???): `error` flushing the output first so the two streams keep their order,
+  `Process.run_attached()` flushing first, and the private names `_write_held`, `_flush` and `_flush_output`.
 
 ### Pure Spite: dissolving the runtime
 - Partial (the section was tagged partial). Still supplied by the compiler rather than written as Spite (D147,
-  D178 target: zero hidden code): `Console`'s `_write_output`, `_write_error`, `flush`; `Memory.Heap`'s `allocate`,
+  D178 target: zero hidden code): `Console`'s `_write_output`, `_write_error`, `_write_held`, `_flush`, `Program`'s and `Process`'s `_flush_output`; `Memory.Heap`'s `allocate`,
   `resize`, `free`, `live_allocations`; `Memory.Address`'s `copy_to`, `compare_bytes`, `text(length)`;
   `String.sum` and `String.code_at`; `TypedMemory<T>`; the number classes' bit operations; `DynamicLibrary`'s
   opening, closing and symbol lookup; the entry points and frames of `Concurrent`, `ThreadPool`, `Scheduler`;
@@ -599,6 +611,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Proposed by Claude, unconfirmed, removed as bookkeeping but the behaviour stays on the page: how the templates are
   written, chains fused by one generated function, passed-function details (library-class functions bound as
   values), the dictionary key-kind rules, the Vector and Items readings.
+- D369 is built: `map(function)` on a list, an `Items` or a `Vector` is an error naming `map_<member>()` and a
+  read-only attribute; `map_` over a `Boolean` member names `filter_`, `count_`, `any_` and `all_`; a class-qualified
+  function value (`Monster.is_alive`) names an instance's function. The error texts are proposed by Claude,
+  unconfirmed. A `while` collecting what a passed function answers is no longer reported by the loop rule.
 
 ### Member templates over an enum value
 - Built (D295): `filter_<value>`, `count_<value>`, `any_<value>`, `all_<value>` and `remove_where_<value>` over a

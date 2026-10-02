@@ -4,7 +4,7 @@ func LibraryFunctionMistakes() {
     var counts = Dictionary<Integer>()
     counts["pear"] = 3
     var keys = counts.keys()
-    var ordered = keys.sort_by(counts.get)
+    var ordered = keys.sort_by(counts.get_at)
     var greeting = "hello"
     var check = greeting.contains
 }

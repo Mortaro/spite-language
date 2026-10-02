@@ -14,11 +14,10 @@ beside the program's source unless a path says so ([where the outputs go](#where
 ```
 spite game                          build .spite/build/game/game.exe, and run it
 spite game --debug-memory           the same, counting allocations and frees
-spite game --check                  only check that it compiles, writing nothing
+spite game --check                  format it and check that it compiles, building nothing
 spite game --build                  build it without running it
 spite game --repl-port=4000         serve a REPL on 127.0.0.1:4000 while it runs
 spite game --name=production        run it with a setting its Environment declares
-spite format game                   format files without compiling them
 spite connect 4000                  talk to a program running with --repl-port=4000
 ```
 
@@ -312,21 +311,16 @@ type is an error naming the forms it takes, so typos never pass silently.
 each of the program's own files whose formatted text differs from what is on disk is rewritten, printing
 `formatted <path>`, and the program is read again, so what is compiled, and every line an error names, is the
 formatted file. Nothing turns this off, and a file the formatter refuses stops the compile: a program is never
-compiled from text that is not in the one style ([the rules](#formatting-before-compiling-and-spite-format)).
+compiled from text that is not in the one style ([the rules](#formatting-before-compiling)).
 
 **A file edited during the compile is never overwritten.** Just before writing a formatted file, the compiler reads it
 again; if it no longer holds the text the compile read (another editor or agent changed it meanwhile), it is left
 as it is now, `<path> changed while it was being compiled` is printed, and the program is read again from disk. A
-file whose formatting does not change is never written, so its modification time never moves. (`spite format`
-refuses such a file the same way: format it again.)
+file whose formatting does not change is never written, so its modification time never moves.
 
-```bash
-spite format game library/list.spite    # format a folder's files and one file, compiling nothing
-spite format --check game                # rewrite nothing: list every file that would change, and fail
-```
-
-`spite format` runs the same formatter on files rather than on a program, so a file that does not compile yet
-can still be formatted. What the formatter rewrites, and what it refuses to, is [style.md](style.md).
+There is no command that only formats. A linter or a language server runs `spite game --check`, which formats the
+program and checks it without building, and there is no mode that checks the formatting without writing it: the
+fix is always the compiler's own. What the formatter rewrites, and what it refuses to, is [style.md](style.md).
 
 ## Development builds and tree shaking
 
@@ -460,7 +454,7 @@ Every command and flag the compiler has. `program` is a folder; every flag is a 
 
 ```
 spite program                           build .spite/build/program/program.exe and run it
-spite program --check                   compile the whole program and write nothing but its formatting
+spite program --check                   format the program and compile it, writing nothing but its formatting
 spite program --build                   build the executable without running it
 spite program --executable-path=path    put the executable at path (not with --check)
 spite program --final-classes=folder    also write the final classes into folder (inspect merged classes)
@@ -475,8 +469,6 @@ spite program --target-operating-system=linux   compile for another system: wind
 spite program --serve=true              set a Build field the program declares in its build.spite (programs.md)
 spite program ada --player-name=x       run it, passing a setting its Environment declares, and any argument
                                         that is not a flag, to the program (Environment, Arguments)
-spite format file_or_folder ...         format files without compiling them (a folder with every folder inside it)
-spite format --check file_or_folder ... rewrite nothing; list every file that would change, and exit 1 if any would
 spite connect port                      talk to a program running with --repl-port=port (repl.md)
 spite connect port --command="..."      send one REPL command, print its raw JSON answer line, and exit
 spite reload program ... --executable-path=running   what a --hot-reload program runs to rebuild itself (repl.md)
@@ -486,8 +478,8 @@ A `Boolean` flag may be given bare: `--optimized` is `--optimized=true`, and `--
 Flags mix freely, and every output that is on comes from the same compile: an `--optimized` build may keep
 the REPL (it is then inspectable), and `--build --final-classes=folder` builds the executable and writes the
 classes. Building and running are the same command. There is no `--mode`, `--output` or `--format`: `--check` and
-`--build` stop the build sooner, `--final-classes` adds its folder, formatting is not an option, and `spite format`, `spite connect` and `spite reload` are
-commands of the compiler, not options.
+`--build` stop the build sooner, `--final-classes` adds its folder, formatting is not an option, and `spite connect`
+and `spite reload` are commands of the compiler, not options. There is no `spite format`: every compile formats.
 
 ### Naming a program
 
@@ -555,7 +547,7 @@ it. Tree shaking and every other whole-program step run before any output is wri
 - **`.spite/` is never part of a program**: walking a program's folder or a
   loaded root, the compiler skips every folder named `.spite`, `.spite-cache` or `.git`, so
   running `spite .` inside a program, whose outputs and checkouts land in its own `.spite/`, reads none of them
-  back, and `spite format` skips `.spite/` and `.spite-cache/` the same way.
+  back.
 - **Final classes** are described in full [above](#inspect-merged-classes): a program, not a report.
 - **The executable is built from translation units.** The compiler chooses the number, and no option sets it: the
   largest power of two that is at most the C's size divided by 768 KiB, at most the
@@ -681,7 +673,7 @@ were found, followed by one `and N more in <package>` per package that had more,
 inside it (`library` and `launcher` for the language's own). A package whose errors fill the list therefore never
 hides one in the program.
 
-### Formatting before compiling, and `spite format`
+### Formatting before compiling
 
 - **Every compile formats first, and nothing turns it off.** After the whole program is read, every `.spite` file of the program's own (its folder
   with every folder below it, and every `load`-ed root, never `library/`) whose formatted text differs from what
@@ -691,17 +683,12 @@ hides one in the program.
   the formatter's own safety check refuses ([Style](style.md#style)) stops the compile with exit
   status 1: `<path>: error: the formatter refuses it, and a program compiles only once formatted: <reason>`.
 - There is no switch: `--format` (with any value) is `error: '--format' is not a compiler option: every compile
-  formats the program's own files first, and nothing turns that off. To format files without compiling them:
-  spite format file_or_folder` (`diagnostics/format_flag`), and a `var format` in a program's `build.spite` is
+  formats the program's own files first, and nothing turns that off: '--check' formats and checks a program
+  without building it` (`diagnostics/format_flag`), and a `var format` in a program's `build.spite` is
   `<path>:<line>: error: 'Build.format' cannot be declared: ...` with the same advice (`diagnostics/format_setting`).
-- **`spite format <file-or-folder> ...`** runs the same formatter without compiling: a file formats just itself, a
-  folder every `.spite` file under it except in `.spite/` and `.spite-cache/` folders, with no regard for what a
-  program loads.
-  Each file rewritten prints `formatted <path>` to the error output; a file the formatter refuses is
-  `<path>: not formatted: <reason>`, and the command exits 1 after trying the rest. `--check` rewrites nothing,
-  prints each file that would change on standard output, and exits 1 if there is one (0 when everything is
-  already formatted). With no file or folder the compiler prints its usage and exits 1; `bin/spite format` with
-  none formats the current folder.
+- **There is no command that only formats.** `spite game --check` formats the program and checks that it compiles,
+  building nothing: it is what a linter or a language server runs. No mode checks the formatting without writing
+  it, and `format` is not a command: `spite format` names a program folder called `format` like any other word.
 
 ---
 

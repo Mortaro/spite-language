@@ -1,10 +1,9 @@
 singleton
 
 var heap = Memory.Heap()
-var console = Console()
 
 func exit(code: Integer) {
-    console.flush()
+    _flush_output()
     exit_process(code)
 }
 

@@ -2,7 +2,6 @@ hello, Ada
 hello, Grace
 hello, Barbara
 hello, Edsger
-3, 5, 7, 6
 Ada, Grace
 2 true false 21
 Barbara
@@ -18,5 +17,5 @@ ADA, ALAN
 Grace is 85
 85
 Ada, Grace, Edsger, Barbara
-Ada!
+Ada
 6

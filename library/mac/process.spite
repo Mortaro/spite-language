@@ -1,6 +1,7 @@
 var library = DynamicLibrary("libSystem.dylib", 'identity', "")
 
 func run_attached(): Integer {
+    _flush_output()
     var command_text = command_line()
     return library.system(command_text)
 }

@@ -525,8 +525,14 @@ logger.log(pretty_print)         # passes this instance's pretty_print
 - **There are no free functions and no closures.** A function value is `{instance, function}`: one retain in a
   reference-counted language ([Memory](memory.md#the-memory-model)), capturing the receiver and nothing else, so no local ever escapes its
   scope. That is the whole of the feature; there is no environment to capture and no lifetime to reason about.
+- **A class has no function values.** `Monster.is_alive` names nothing: `Monster` written as a value is the
+  class's `Spite.Class` object ([Reflection](reflection.md)), which has no `is_alive` (the function itself is
+  `Monster.functions['is_alive']`). It is the error "'Monster.is_alive' is not a function: 'Monster' is the
+  class's 'Spite.Class' object, which has no 'is_alive' (the function itself is
+  'Monster.functions['is_alive']'). A function value belongs to an instance: pass 'monster.is_alive', or ask
+  each element of a list through its member template, such as 'filter_is_alive()'" (`diagnostics/passed_functions`).
   At run time a function value is one small object (the owner, retained, and a call pointer) and a call through
-  it is one indirect call; a function passed by name to `each`, `map`, `filter` and the other list functions
+  it is one indirect call; a function passed by name to `each`, `filter` and the other list functions
   builds no value at all, because the element loop is instantiated for that function and calls it
   directly ([Passing a function for each element](collections.md#passing-a-function-for-each-element)). A
   program that uses no function value carries none of this.
@@ -577,7 +583,7 @@ This is the language's first **variadic** generic. `List<T>` and the rest take a
 The indirection is paid only where it was already accepted. An ordinary call, `person.grow(2)`, is a
 direct call and never builds a `Spite.Function`; only a function used *as a value* goes through
 `call_function()`. A function passed *by name* to a list's
-`each`, `map`, `filter` and the rest is not a value either: the element loop is instantiated for it and calls it
+`each`, `filter` and the rest is not a value either: the element loop is instantiated for it and calls it
 directly, so it does not pass through `call_function()`; one held in a variable does.
 
 **`Nothing` is the class a function returns when it returns nothing.**
@@ -687,8 +693,8 @@ For `Integer`/`Float`/`Boolean`/enum/`String`/`List<T>`/`Dictionary<T>` these ar
 the same C as before this table existed).
 
 **A direct call of an operator's function is an error naming the operator**: `a.sum(b)` is "write 'a + b'", and the same for every row of the table above, for `get_<name>()`
-and `set_<name>(value)` (write `.name` and `.name = value`), and for a `Dictionary`'s `get(key)` and
-`set(key, value)` (write `[key]` and `[key] = value`). It holds for every class (built-in, library or the program's own) wherever the operator could be
+and `set_<name>(value)` (write `.name` and `.name = value`), and for `get_at` and `set_at` on a `List` and a
+`Dictionary` alike (write `[key]` and `[key] = value`). It holds for every class (built-in, library or the program's own) wherever the operator could be
 written instead. The only exception is the function used as a value (`run_callback(point.get_x)`,
 [Functions are values](#functions-are-values)), since no operator can be passed. A call with no receiver inside the class's own functions (`get_x()`) is not covered, since a bare `x` there is
 the raw field and no shortcut reaches the getter; nor is `get_attribute(attribute)`/`set_attribute`, which
@@ -714,7 +720,7 @@ calls, and every '[ ]' answers a 'T?' that is narrowed before use: declare it to
 when nothing is at the index` (`diagnostics/plain_get_at`). A read is narrowed like any `T?` path
 ([failure.md](failure.md#reading-with--answers-t)); the compiler's own proofs (loop bounds, counts, counted loops)
 cover the library's collections, and a program's own indexable class is narrowed by what the program writes
-(`conformance/stage6/indexable_class`, `diagnostics/indexable_unproven`). A `Dictionary`'s `[]` is its `get(key)`,
+(`conformance/stage6/indexable_class`, `diagnostics/indexable_unproven`). A `Dictionary`'s `[]` is its `get_at(key)`,
 which already answers `T?`. `set_at` is unchanged: it answers nothing. On numbers, arithmetic is done in the left operand's type, and a right operand wider
 than the left is an error ([Wider arithmetic goes wider operand first](values_and_types.md#wider-arithmetic-goes-wider-operand-first)); a
 comparison is not arithmetic and still casts its right side toward the left.

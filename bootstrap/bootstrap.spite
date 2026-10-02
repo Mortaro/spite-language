@@ -39,10 +39,6 @@ func Bootstrap() {
         run_connect(arguments)
         return
     }
-    if command == "format" {
-        run_format_command(arguments)
-        return
-    }
     language_folder = folder_holding_launcher()
     reloading = command == "reload"
     read_supplied_settings(arguments)
@@ -81,11 +77,12 @@ func print_usage() {
     console.error(
         "usage: spite program_folder [--optimized] [--debug-memory] [--setting=value ...] [program arguments ...]",
     )
-    console.error("       spite program_folder --check                   only check that it compiles, writing nothing")
+    console.error(
+        "       spite program_folder --check                   format it and check that it compiles, building nothing",
+    )
     console.error(
         "       spite program_folder --build                   build without running, into .spite/build/ or at --executable-path=path",
     )
-    console.error("       spite format [--check] file_or_folder ...       format files without compiling them")
     console.error(
         "       spite connect port [--command=\"...\"]            talk to a program running with --repl-port=port",
     )
@@ -1535,7 +1532,6 @@ func run_executable() {
     var runner = Process(runner_path, passed)
     var port = remote_loop_port()
     if is_on("repl") or port > 0 or is_on("hot_reload") {
-        console.flush()
         var run_attached = runner.run_attached()
         program.exit(run_attached)
         return
@@ -1544,99 +1540,6 @@ func run_executable() {
     var output = runner.output()
     console.write(output)
     program.exit(exit_code)
-}
-
-func run_format_command(arguments: Arguments) {
-    var only_check = false
-    var named = false
-    var files = List<String>()
-    var index = 1
-    while index < arguments.count() {
-        var argument = arguments.get(index)
-        if argument == "--check" {
-            only_check = true
-        } else {
-            named = true
-            collect_spite_files(argument, files)
-        }
-        index = index + 1
-    }
-    if not named {
-        console.error(
-            "usage: spite format [--check] file_or_folder ...   a folder is formatted with every folder inside it",
-        )
-        program.exit(1)
-        return
-    }
-    var failed = false
-    var file_index = 0
-    while file_index < files.count() {
-        if not formatted_file(files[file_index], only_check) {
-            failed = true
-        }
-        file_index = file_index + 1
-    }
-    if failed {
-        program.exit(1)
-    }
-}
-
-func collect_spite_files(named: String, files: List<String>) {
-    var path = without_trailing_slashes(named)
-    var folder = Directory(path)
-    if not folder.exists() {
-        files.append(path)
-        return
-    }
-    var names = folder.entries().filter_files().map_names()
-    var index = 0
-    while index < names.count() {
-        if names[index].ends_with(".spite") {
-            files.append("{path}/{names[index]}")
-        }
-        index = index + 1
-    }
-    var folders = folder.entries().filter_directories().map_names()
-    var folder_index = 0
-    while folder_index < folders.count() {
-        if folders[folder_index] != ".spite" and folders[folder_index] != ".spite-cache" {
-            collect_spite_files("{path}/{folders[folder_index]}", files)
-        }
-        folder_index = folder_index + 1
-    }
-}
-
-func formatted_file(path: String, only_check: Boolean): Boolean {
-    var content = File(path).read()
-    if not content {
-        console.error("error: could not read '{path}'")
-        return false
-    }
-    var formatter = Syntax.Formatter()
-    var formatted = formatter.format(content)
-    if not formatted {
-        console.error("{path}: not formatted: {formatter.refusal}")
-        return false
-    }
-    if formatted == content {
-        return true
-    }
-    if only_check {
-        console.print(path)
-        return false
-    }
-    if changed_since_read(path, content) {
-        console.error(
-            "error: '{path}' changed while it was being formatted, so it was left as it is now: format it again",
-        )
-        return false
-    }
-    if not File(path).write(formatted) {
-        console.error("error: could not write '{path}'")
-        return false
-    }
-    console.error("formatted {path}")
-    return true
 }
 
 func changed_since_read(path: String, content: String): Boolean {

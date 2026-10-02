@@ -4,6 +4,7 @@ enum Level {
 }
 
 var console = Console()
+var kinds = List<String>()
 
 func TaggedValues() {
     var count = 3
@@ -18,7 +19,7 @@ func TaggedValues() {
     held.append(true)
     var crate = Crate()
     held.append(crate)
-    var kinds = held.map(kind_of)
+    held.each(add_kind)
     var joined = kinds.join(" ")
     console.print(joined)
     var first: Anything? = held.first()
@@ -29,15 +30,14 @@ func TaggedValues() {
     console.debug(count, level, crate)
 }
 
-func kind_of(item: Anything): String {
+func add_kind(item: Anything) {
     if item == Integer {
-        return "integer {item}"
+        kinds.append("integer {item}")
+    } else if item == Long {
+        kinds.append("long")
+    } else if item == Boolean {
+        kinds.append("boolean")
+    } else {
+        kinds.append("object")
     }
-    if item == Long {
-        return "long"
-    }
-    if item == Boolean {
-        return "boolean"
-    }
-    return "object"
 }

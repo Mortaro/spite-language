@@ -384,7 +384,8 @@ class of its own, and nothing but that class touches the `DynamicLibrary`: only 
 - **Spite names.** The functions the rest of the program calls are full words in snake_case (`open_database`, not
   `db_open_v2`), whatever the library calls them.
 - **A status is a Spite enum.** A C function that answers a C enum (or a status code) answers, through the binding,
-  an enum the binding writes in Spite, with Spite names, each value mapped to its C number. A number the enum does
+  an enum the binding writes in Spite, with Spite names, each value given its C number with `=` (`'busy' = 5`,
+  [values_and_types.md](values_and_types.md#numbering-an-enums-values)). A number the enum does
   not list crashes at the boundary, so a library that grows a new value is caught where it enters, never carried
   along as a wrong answer.
 - **Absence is a `T?`.** A null handle or a "not found" code becomes `null` through an `assert` in the binding, never
@@ -488,7 +489,7 @@ message naming the file, or the symbol and the Spite function that wanted it (`c
 `diagnostics/foreign_library_mistakes`, `diagnostics/foreign_call_mistakes`).
 
 A status a foreign function answers is handled while compiling. A C function that returns a C enum answers a
-Spite enum that the binding writes in Spite, with Spite names, each value mapped to its C number; no enum is ever
+Spite enum that the binding writes in Spite, with Spite names, each value given its C number with `=`; no enum is ever
 made with C's names. A C value the Spite enum does not list crashes at the boundary. The result must be used,
 cannot be compared with a number, and cannot be the condition of a `crash` or `assert`; a `switch` over it follows
 the ordinary rule, every value a written line, with no `_:`. So `crash result == 0` does not compile for a call that

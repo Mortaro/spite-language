@@ -2,6 +2,7 @@ var c_name = ""
 var simple_name = ""
 var owner_qualified = ""
 var values = List<String>()
+var numbers = List<Integer>()
 
 func EnumInfo(
     starting_c_name: String,
@@ -13,6 +14,10 @@ func EnumInfo(
     simple_name = starting_simple_name
     owner_qualified = starting_owner_qualified
     values = starting_values
+}
+
+func is_numbered(): Boolean {
+    return not numbers.is_empty()
 }
 
 func has_value(name: String): Boolean {

@@ -62,8 +62,8 @@ given text keys is keyed by text, and one given whole numbers is keyed by number
 | Member | Result | Notes |
 |---|---|---|
 | `Dictionary<T>()` | | an empty one, with no table until the first key |
-| `set(key, value)` / `dictionary[key] = value` | | replaces the value of a key already there |
-| `dictionary[key]` | `T?` | `null` when the key is absent; it calls `get(key)`, which is only called through `[]` |
+| `dictionary[key] = value` | | replaces the value of a key already there; it calls `set_at(key, value)`, which is only called through `[] =` |
+| `dictionary[key]` | `T?` | `null` when the key is absent; it calls `get_at(key)`, which is only called through `[]` |
 | `has(key)` | `Boolean` | |
 | `remove(key)` | | nothing happens when the key is absent |
 | `count()` | `Integer` | |
@@ -442,7 +442,40 @@ names a program calls.
 
 A member that does not fit is a compile error naming the member, what it is, and what the template needs.
 `count_` on a number is one of them, and names `sum_` instead: `count()` is only ever a collection's size.
-`each_` on an attribute is another: reading a value only to discard it does nothing.
+`each_` on an attribute is another: reading a value only to discard it does nothing. `map_` on a test is a third:
+a `Boolean` member is a question about each element, never a value to collect, so `monsters.map_is_alive()` names
+`filter_is_alive()`, `count_is_alive()`, `any_is_alive()` and `all_is_alive()` instead.
+
+A value computed from each element is a member too. There is no `map(function)`: give the element's class a
+read-only attribute that computes it (a `get_<name>()` with no setter,
+[functions_and_operators.md](functions_and_operators.md#settergetter-interception)) and collect it with
+`map_<name>()`. The value then has a name, every list of that class can collect it, and a chain fuses it like any
+other member:
+
+```gdscript title=computed_member/monster.spite
+var health = 0
+
+func Monster(starting_health: Integer) {
+    health = starting_health
+}
+
+func get_doubled_health(): Integer {
+    return health * 2
+}
+```
+```gdscript title=computed_member/computed_member.spite entry
+var console = Console()
+
+func ComputedMember() {
+    var monsters = [Monster(3), Monster(5)]
+    var doubled = monsters.map_doubled_health()
+    var joined = doubled.join(", ")
+    console.print(joined)
+}
+```
+```output
+6, 10
+```
 
 A template costs what the loop you would have written costs: each one is a `while` over the list's buffer,
 compiled into the program only when something calls it, with no function value or closure in between.
@@ -564,7 +597,7 @@ but 'count_' needs it to return Boolean (to add up a numeric member use 'sum_sta
 
 **A `while` that only does what a template does is an error naming the template**: a
 counter walking a list from `0` to its `count()`, doing nothing with each element but what one template does
-with one of its members, or what `each`, `map`, `filter`, `count`, `sum`, `find`, `any` or `all` does with a
+with one of its members, or what `each`, `filter`, `count`, `sum`, `find`, `any` or `all` does with a
 function passed the element, on a list of anything, numbers and text included. Loops that need the index, pass
 more than the element, stop early for another reason, or walk state keep their `while`. The exact shape the
 compiler looks for is in [control_flow.md's rules](control_flow.md#a-while-that-a-member-template-already-says).
@@ -698,10 +731,11 @@ instead: `names.each(say_hello)` calls `say_hello` once for every name, in order
 classes are no different: `keys.filter(counts.has)` asks the dictionary `counts`, and
 `words.filter(greeting.contains)` asks the text `greeting`.
 
-`each`, `map`, `filter`, `any`, `all`, `count`, `find`, `sort_by` and `sum` each take such a function, which takes
+`each`, `filter`, `any`, `all`, `count`, `find`, `sort_by` and `sum` each take such a function, which takes
 the element as its only argument: `filter`, `any`, `all`, `count` and `find` want one returning `Boolean` (`find`
 answers the first element it is true for, or `null`), `sum` one returning a number, `sort_by` one returning a
-number or text, `map` one returning anything. This works on a list of anything (text and numbers included, which
+number or text. There is no `map(function)`: a value collected from each element is a member of the element
+([above](#member-templates-loops-you-do-not-write)), named and collected with `map_<member>()`. This works on a list of anything (text and numbers included, which
 have no members of their own for a template to name) and on a `Dictionary`, through its values.
 
 ```gdscript title=passed_function/greeter.spite
@@ -722,7 +756,7 @@ func PassedFunction() {
     var short_names = names.filter(is_short)
     var joined = short_names.join(", ")
     console.print("short:", joined)
-    var letters = names.filter(is_short).map(measure).sum(double_of)
+    var letters = names.filter(is_short).sum(doubled_length)
     console.print("letters, doubled:", letters)
     var first_long = names.find(is_long)
     crash first_long
@@ -741,12 +775,8 @@ func is_long(name: String): Boolean {
     return name.length() > 6
 }
 
-func measure(name: String): Integer {
-    return name.length()
-}
-
-func double_of(value: Integer): Integer {
-    return value * 2
+func doubled_length(name: String): Integer {
+    return name.length() * 2
 }
 ```
 ```output
@@ -761,7 +791,7 @@ first long name: Barbara
 ```
 
 A function written by name is compiled straight into the loop, so passing it costs nothing; a function value held
-in a variable (`var shout = greeter.shout`, then `names.map(shout)`) is called through the value. A function that
+in a variable (`var quiet = greeter.is_quiet`, then `names.filter(quiet)`) is called through the value. A function that
 does not fit is an error naming what the template needs:
 
 ```gdscript title=passed_function_mistake/passed_function_mistake.spite entry error
@@ -769,7 +799,7 @@ var console = Console()
 
 func PassedFunctionMistake() {
     var names = ["Ada", "Grace"]
-    var greetings = names.map(say_hello)
+    var greetings = names.filter(say_hello)
     console.print(greetings)
 }
 
@@ -778,7 +808,7 @@ func say_hello(name: String) {
 }
 ```
 ```diagnostic
-'map(say_hello)': 'say_hello' returns nothing, but 'map' needs it to return a value (to only call it for each element, write 'each(say_hello)')
+'filter(say_hello)': 'say_hello' returns nothing, but 'filter' needs it to return Boolean
 ```
 
 The template still sees only the element: a function that needs more, such as `print_statement(statement, depth)`,
@@ -1050,24 +1080,37 @@ it. When the calling class has a function of that name, the error says to pass i
 of each element, never a function of this class, so pass this class's 'say_hello' instead: 'each(say_hello)'`).
 The caller's function is passed as a bound function value, owned by whoever it is bound to:
 
-- **The forms.** `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and
+- **The forms.** `each(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and
   `sum(f)` on a `List` or a `Dictionary` (through its values), for an element of any type, never on a `Vector` or an `Items`,
   whose items are borrowed or text; `remove_where(f)` on a
   `List`, never on a `Dictionary`. `f` takes the element
   as its only argument, with exactly the element's type; [the table of templates](#member-templates-loops-you-do-not-write) applies to what it returns (`filter`, `any`,
-  `all`, `count` and `find` want `Boolean`, `sum` a number, `sort_by` a number or a `String`, `map` a value, `each`
+  `all`, `count` and `find` want `Boolean`, `sum` a number, `sort_by` a number or a `String`, `each`
   anything). `find(f)` answers the first element `f` is true for, or `null`, which is the `find_by_` template with
   `true` as its value. `count` with no argument stays the collection's size.
+- **No `map(f)`.** A list has no `map` taking a function: `names.map(measure)` is "there is no 'map(function)':
+  collect a member of each element with 'map_<member>()', and a value computed from each element by giving the
+  element's class a read-only attribute (a 'get_<name>()' with no setter) and writing 'map_<name>()'". The value
+  becomes a named member of the element's class, which every list of that class can collect and a chain fuses.
+  A value that needs more than the element (a function of another instance, or of the caller's state) is
+  collected by a `while`, which the loop rule leaves alone.
+- **`map_` on a test.** `map_<member>()` collects values, and its member must not be a `Boolean`: the plural
+  rule for collections applies to nouns, and a test (`is_alive`, `has_target`) is a question about each element.
+  `monsters.map_is_alive()` is "'map_is_alive': the member 'is_alive' of 'Monster' is a Boolean, but 'map_'
+  needs it to be a value to collect, not a test: write 'filter_is_alive()' to keep the elements it is true for,
+  'count_is_alive()' to count them, or 'any_is_alive()' or 'all_is_alive()' to ask whether any or all of them
+  pass".
 - **The owner.** `say_hello` alone is bound to this instance; `greeter.greet` to `greeter`; a variable holding a
-  `Spite.Function<T, R>` is called through the value. `people.map(greeter.label).filter(is_short)` mixes owners.
+  `Spite.Function<T, R>` is called through the value. `people.filter_active().each(greeter.greet)` mixes a
+  member template with another instance's function.
   A list's own function is bound to the list the same way (`numbers.each(found.append)`); a chain that passes one
-  is not fused, and runs step by step. So is every library class's: a `Dictionary`'s (`keys.filter(counts.has)`, `keys.map(counts.get)`), and a
+  is not fused, and runs step by step. So is every library class's: a `Dictionary`'s (`keys.filter(counts.has)`, `keys.count(counts.has)`), and a
   `String`'s or a number's (`words.filter(greeting.contains)`). A `List`'s or a `Dictionary`'s function may also
-  be held as a value, `var lookup = counts.get`, bound to that dictionary; a `String`'s or a number's may only be
+  be held as a value, `var lookup = counts.get_at`, bound to that dictionary; a `String`'s or a number's may only be
   passed to a form, since a value of text is no object a function value can keep: `var check =
   greeting.contains` is "'contains' of a String is passed straight to a form, like 'names.filter(text.contains)',
-  and cannot be held as a value yet ...". What the function answers is what the form sees, so `counts.get`
-  answers `Integer?`, and `keys.sort_by(counts.get)` is an error naming the fix: a function of your own
+  and cannot be held as a value yet ...". What the function answers is what the form sees, so `counts.get_at`
+  answers `Integer?`, and `keys.sort_by(counts.get_at)` is an error naming the fix: a function of your own
   that narrows it (`conformance/stage6/library_functions_passed`, `diagnostics/library_function_mistakes`).
 - **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
   Spite.Attribute<$element_type>)`) is instantiated once per function and owner class, with a last hidden parameter holding
@@ -1076,17 +1119,17 @@ The caller's function is passed as a bound function value, owned by whoever it i
   therefore costs no allocation and no indirect call; only a held value is called through `Spite.Function`. Only
   the forms a program calls are instantiated, and these instances are not listed among the list's `functions`
   nor offered at a `--repl` prompt.
-- **Chains.** A passed function chains and fuses with the member templates: `map(f)` and `filter(f)` may
-  sit in the middle of a chain and any form may end one, so `people.filter_active().map(greeter.label)` and
-  `names.filter(is_short).map(measure).sum(double_of)` are each one loop; the fused function takes each owner as
-  a parameter. The element's own members still come only from the element (`people.map(say_hello).filter_active()`
-  reads `active` of whatever `say_hello` returns).
-- **Mistakes** name the form: `'map(say_hello)': 'say_hello' returns nothing, but 'map' needs it to return a value
-  (to only call it for each element, write 'each(say_hello)')`, `'each' calls 'greet_twice' with each 'String' as
+- **Chains.** A passed function chains and fuses with the member templates: `filter(f)` may sit in the middle
+  of a chain and any form may end one, so `people.filter_active().each(greeter.greet)` and
+  `names.filter(is_short).sum(doubled_length)` are each one loop; the fused function takes each owner as a
+  parameter. The element's own members still come only from the element.
+- **Mistakes** name the form: `'filter(say_hello)': 'say_hello' returns nothing, but 'filter' needs it to return
+  Boolean`, `'each' calls 'greet_twice' with each 'String' as
   its only argument, but 'greet_twice' takes 2`, `'each' calls 'count_to' with each 'String', but 'count_to' takes
   'Integer'`, and an argument that is no function at all.
 - **The loop rule.** A `while` that only does what `each(f)` does is under the same rule as the member templates
-  ([control_flow.md](control_flow.md#a-while-that-a-member-template-already-says)). A function that needs more than the element (`print_statement(statement, depth)`) keeps its `while`.
+  ([control_flow.md](control_flow.md#a-while-that-a-member-template-already-says)). A function that needs more than the element (`print_statement(statement, depth)`) keeps its `while`, and so
+  does a `while` that collects what a passed function answers for each element, since no form collects one.
 
 `conformance/stage6/passed_functions`, `diagnostics/passed_functions`.
 
@@ -1146,8 +1189,8 @@ write 'remove_last()', or 'remove_first()' to take from the start` (`diagnostics
 ### Dictionary\<T\>
 
 Insertion-ordered, keyed by text or by whole numbers; its members are [the table under
-`Dictionary<T>`](#dictionaryt), which is normative. `dictionary[key]` is `get(key)`, a `T?` that is `null` for an
-absent key, and `dictionary[key] = value` is `set(key, value)`; there is no `get_at`/`set_at` on a dictionary.
+`Dictionary<T>`](#dictionaryt), which is normative. `dictionary[key]` is `get_at(key)`, a `T?` that is `null` for an
+absent key, and `dictionary[key] = value` is `set_at(key, value)`, the same functions as every other `[]`.
 `keys()` and `values()` answer fresh copies, in insertion order.
 
 **The key kind is decided while compiling.** Each dictionary is keyed by text or by whole numbers, never both, and nothing is written for
@@ -1324,7 +1367,7 @@ members are [the table under `Items<T>`](#itemst-the-storage-chosen-for-you), wh
   `library/items.spite`, each folded the same way; `filter_` answers an `Items<T>` (copies when inline, the same
   references otherwise) and `map_` a `List` of the members' values. A chain is one loop over the block,
   and `parallel_each_<member>()` splits it across the thread pool, as for a vector. The passed-function forms
-  (`each(f)`, `map(f)`, ...) are not offered for either kind, since an inline item is never passed on and plain
+  (`each(f)`, `filter(f)`, ...) are not offered for either kind, since an inline item is never passed on and plain
   values live in a `List`: `'each'
   passes each item to a function, and 'Velocity' fits a Vector, so an item of these Items is borrowed from them,
   never passed on: give the item's class a function and call it with a member template, such as

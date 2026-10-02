@@ -573,7 +573,8 @@ job mage
 is knight false
 ```
 
-An enum declaration takes no `=` and lists one value per line, with no commas. A value is written in single
+An enum declaration takes no `=` and lists one value per line, with no commas (a value may be given a number,
+[below](#numbering-an-enums-values)). A value is written in single
 quotes (single quotes mean an enum value and nothing else), and `'mage'` alone resolves without writing
 `Player.Job`, because the parameter, the annotation, the assignment or the comparison it is used in says which
 enum it belongs to ([how it resolves](#enums-in-full)).
@@ -653,6 +654,51 @@ It is all decided while compiling: the walk becomes three calls, and no list of 
 time ([rules](#enums-in-full)). An enum is also open to the program that loads it: reopening its
 class declares the enum again with the whole new list of values
 ([packages.md](packages.md#reopening-an-enum-replaces-it)), and a walk then walks that list.
+
+### Numbering an enum's values
+
+Inside a program an enum's values are only names. When something outside it already has a number for each
+value (a C library, a binary file, a database, the network), give the value its number with `=` on its own line:
+
+```gdscript title=numbered_roles/numbered_roles.spite entry
+enum Role {
+    'admin' = 99
+    'user'
+    'guest' = 7
+}
+
+var console = Console()
+
+func NumberedRoles() {
+    var role: Role = 'user'
+    console.print(role, role == 'user')
+}
+```
+```output
+user true
+```
+
+`=` because giving a value is assignment, as everywhere else. A value without a number counts on from the one
+before, so `'user'` is 100, and an enum's first value without a number is 0. Two values with one number are a
+compile error, since the number is the value's identity outside the program:
+
+```gdscript title=role_number_twice/role_number_twice.spite entry error
+enum Role {
+    'admin' = 7
+    'user'
+    'guest' = 8
+}
+
+var console = Console()
+
+func RoleNumberTwice() {
+    var role: Role = 'guest'
+    console.print(role)
+}
+```
+```diagnostic
+'user' and 'guest' both have the number 8 in enum 'Role': a value's number is its identity, so give one of them another
+```
 
 ## Unions
 
@@ -1263,6 +1309,23 @@ That is all an enum is; the integer it compiles to is a representation detail.
   each value into its constant, as `--final-classes` shows; no table of an enum's values, names or order
   exists at run time, and a program that never walks an enum carries nothing for it.
 - Environments are an enum too.
+
+**An enum value may be given a number with `=`.**
+
+- One value per line as always: `'admin' = 99`. The number is a whole number, negative allowed, and fits an
+  `Integer`; a value written without one counts on from the value before it, and the first value without one is 0.
+  An enum with no number written is numbered 0, 1, 2 in its order.
+- Two values with one number are a compile error naming both and the number
+  (`diagnostics/enum_numbers`), and so is a number, written or counted on, that does not fit an `Integer`:
+  `'large' would be number 2147483648 of enum 'Size', which does not fit an Integer: an enum value's number is an
+  Integer`.
+- The numbers are the enum's identity for C bindings, binary files, databases and the network
+  ([foreign_libraries.md](foreign_libraries.md)); inside the program they change nothing the program can observe:
+  names, comparisons, `switch`, `Course.values` and the reading from text work as for any enum
+  (`conformance/stage6/numbered_enums`), and the compiler still stores the value in the smallest number class that
+  fits.
+- A hot reload cannot change the number of a value the running program already has: it is a compile error naming
+  the value and both numbers, and a restart renumbers it.
 
 #### Unions in full
 

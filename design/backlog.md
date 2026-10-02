@@ -15,8 +15,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **Landed:** `cloud/linux` (one seed per system, the Linux check, D376) on 2026-10-02.
 - **Landed:** `cloud/operators` (D315 and D365, recorded as D396), the reload races and `wip/fastbuild` (D403) on
   2026-10-02.
-- **Waiting:** `cloud/nomap` (no `List.map(function)`, no `map_` over a test, no class-qualified function value;
-  its row needs the next free number).
+- **Landed:** `cloud/nomap` (no `List.map(function)`, no `map_` over a test, no class-qualified function value,
+  recorded as D415) on 2026-10-02.
 
 ## Items
 
@@ -29,8 +29,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   which the compiler must read from the program's `String` rather than its own copy (`library/string.spite`,
   the inflection lookup near generator.spite's plural errors). **S.** Depends on R5 (specialising `Spite` classes).
 - **R4 Dictionary member templates over values** (D335). Built through the compiler; `library/dictionary.spite`
-  declares none of them. Check they go through declared library templates like `List`'s (D240: nothing hidden),
-  then fold into S7. **S.** Depends on S7.
+  declares none of them. Check they go through declared library templates like `List`'s (D240: nothing hidden).
+  **S.** No dependencies.
 - **R5 The rest of the object model** (D316, D317; status "Not built" and "Run time only through the old tables").
   `Spite.Namespace.enums`; a class's own `get_`/`set_` template spelled
   `attribute: Spite.Attribute<Person>` inside `Person` (today "unknown identifier 'attributes'"); the kind
@@ -38,7 +38,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   objects; specialisation beyond the calling class, of enum parameters, and of functions of `Spite` classes; the
   two narrowing gaps (`var run = $T.functions['run_each']` then `if run`, and `crash Spite.Class.instances[...]`).
   Files: generator.spite reflection and specialisation regions, `specialisation.spite`, `reflected.spite`,
-  `library/spite/*.spite`. **L.** Depends on landing `cloud/nomap`.
+  `library/spite/*.spite`. **L.** No dependencies.
 - **R8 Declarations and bound members are different classes** (D391). `Spite.FunctionDeclaration` and
   `Spite.AttributeDeclaration` (no value) for a class's members; `Spite.Function` and `Spite.Attribute` bound to an
   instance, with `.owner` the instance. Every library and doc walk over `Monster.attributes` retyped to the
@@ -201,16 +201,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **L7 Work that can never finish in a `Parallel` is an error** (D336). A loop with no exit and no wait inside work
   given to a `Parallel`; related to failure.md's "a `while true` that can never leave". Files: generator.spite
   `Parallel` checks, `wait_facts.spite`. **M.** No dependencies.
-- **L8 Enum values numbered with `=`** (D386). `admin = 99` on its own line; an unnumbered value counts on from the
-  one before, the first from 0; two values with one number are a compile error; the numbers are the identity for
-  bindings, binary files and the network, storage stays the smallest class that fits. Files: the parser's enum
-  form, the checker, codegen, docs values_and_types.md (enums) and foreign_libraries.md. **M.** No dependencies.
 
 ### Compiler driver and outputs (D327, D348, D349, D356, D390, D361, D366, D369 items 134 and 138, D385)
 
-- **C2 `spite format` goes; every compile formats first** (D385, reversing D369 item 138). Remove the `format`
-  subcommand from `bin/spite` (lines 79 to 88) and the compiler's `format` mode; no `--format` flag. `--check`
-  formats and validates without building (C1). **S.** No dependencies (C1 is built).
 - **C5 `--optimized` stays `-O3`** (D390, superseding D356). Already `-O3` (`bootstrap.spite` lines 902 to 925);
   nothing to measure. Only check the docs say so. **S.** No dependencies (`wip/fastbuild` has landed).
 - **C6 The object cache cleans itself** (D327). LRU eviction of `.spite/objects` past a size cap. Files:
@@ -222,7 +215,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **C8 The C left in `main` moves into Spite** (D361, D342). `argv` reaches the program only through `Arguments`;
   `_setmode`, singleton teardown and the `--debug-memory` report run through singletons' `drop()`. Files:
   `code_builder.spite` (line 274 on), `native_faults.spite`, `library/program.spite`, `library/environment.spite`.
-  **M.** Depends on K1 (flushing at exit through `drop()`).
+  **M.** No dependencies (K1's flushing at exit is built: `Program.exit` and the C library's exit flush).
 - **C9 No bodiless function; primitives in one place** (D240, D147, D178; status "Pure Spite", "What the compiler
   supplies"). The compiler-supplied bodies (`Console`'s raw writes, `DynamicLibrary` open and lookup, `TypedMemory`,
   number casts, `Concurrent`/`ThreadPool`/`Scheduler` frames, `HotReload` hand-off, `Spite.Attribute` and
@@ -231,12 +224,10 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Concurrency, waiting and output (D346, D369 items 178, 179 and 211, D183, D184, D210, D378)
 
-- **K1 The compiler picks how output is flushed** (D346). Lines never split or interleaved, everything out before
-  exit and before a crash report, output before an input read visible; within that, line by line to a terminal,
-  large buffers to files and pipes, per-thread buffers merged by line. Files: `library/console.spite`,
-  `library/windows/console.spite` (and Linux, macOS), `prelude.spite` (`flush`), generator.spite crash paths
-  (`fflush` in `SPITE_TRACE_ASSERT`, `spite_overflowed`). `Console.flush()` leaves the public surface (D383); `write` stays. **M.** No
-  dependencies.
+- **K1 The compiler picks the flushing per destination** (D346; status "System classes"). The guarantees and the
+  private `flush` are built; left is the speed: line by line to a terminal, large buffers to files and pipes, with
+  a flush at every place the program waits so a server's log still shows each line. Files: `library/console.spite`,
+  `prelude.spite` (`_flush`), the waiting library classes, `wait_facts.spite`. **M.** Depends on K2's list of waits.
 - **K2 Waits that run the loop in place never hang each other** (D369 item 179; status "Hidden async/await").
   Close every gap (right side of `and`/`or`/`==` on a nullable, through a function value, a union dispatch or a
   constructor, a `Concurrent` dropped inside a `Concurrent`), even at a cost in speed. Files: `state_machine.spite`,
@@ -263,9 +254,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 ### Foreign libraries (D351, D369 items 93, 211 and 233)
 
 - **F1 A C enum result is a Spite enum written in Spite** (D351, replacing D272's generated enum). The binding's
-  enum maps each value to its C number (numbered with `=`, D386); a number the enum does not list crashes at the boundary; the
+  enum maps each value to its C number (numbered with `=`, D386, built); a number the enum does not list crashes at the boundary; the
   result must be used and switched with every value. Files: generator.spite foreign-call region,
-  `library/dynamic_library.spite`, docs/foreign_libraries.md (still describes D272). **M.** Depends on L3, L8.
+  `library/dynamic_library.spite`, docs/foreign_libraries.md (still describes D272). **M.** Depends on L3.
 - **F2 Bindings checked against a header** (D369 items 93 and 233). With a header, argument and result types and
   enum numbers checked, the error naming the C type; how the header is read is the compiler's choice. **M.**
   Depends on F1.
@@ -302,9 +293,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **S6 Environments as a reopenable, walkable enum** (D180; status "Symbol codegen and enums"). With D373 a
   reopening restates the whole list. Files: `library/environment.spite`, `library/build.spite`. **S.** Depends on
   L3, L4.
-- **S7 `Dictionary`'s `[]` is `get_at`/`set_at`** (D369 item 220). Rename `get`/`set` in
-  `library/dictionary.spite` and the compiler's lowering of `d[key]`, and the operator errors from
-  `cloud/operators` (D396). **S.** No dependencies.
 - **S9 Collection leftovers** (status "Standard library metaprogramming", "Deep copy"). `sort_by_`, `find_by_` and
   a program's own templates on `Vector` and `Items`; the `while`-does-a-template rule over `Vector` loops;
   `deep_copy()` of unions, shapes and self-referring structures; a `String`'s or number's function held as a value.
@@ -364,7 +352,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Skills and docs
 
-- **D1 `skills/spite/` kept current.** `reference.md` still teaches `spite format`, `Weak<T>`,
+- **D1 `skills/spite/` kept current.** `reference.md` still teaches `Weak<T>`,
   `Symbol<...>` walks, `$T.has_function(...)`, `function_waits(...)`, `names.map(measure)`, enum reopening that
   appends, and `get_at` beside `[]`. Each item above updates it in the same commit; a first pass now fixes what is
   already decided and built (D315 once landed, `map_members`, `filter_files`, `to_<type>()`). **S** now, then part
@@ -382,11 +370,11 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L7, L8, C2, C5, C6, C7, K1,
-   K2, F3, S9, P1, P2, X1, B1 to B16, E3, D1's first pass.
-3. After step 2: R5, S7 (operators), K3 (with K2), C8 (K1), N2 (N1), K6 (K2).
-4. After R5: R1, J1, L3, R4 (with S7), R8, then R9.
-5. After J1: J2, S5. After L3 and L8: F1, S6 (with L4). After F1: F2.
+2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L7, C5, C6, C7, K2, F3, S9, P1, P2, X1, B1
+   to B16, E3, D1's first pass.
+3. After step 2: R5, K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
+4. After R5: R1, J1, L3, R4, R8, then R9.
+5. After J1: J2, S5. After L3: F1, S6 (with L4). After F1: F2.
 6. After M1, M2 and M6: M5. After M1 and M4: M3.
 7. After R1, R5 and J1: R7, the end of the reflection migration.
 8. S2 and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
@@ -407,9 +395,9 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 2 Types and storage | M2, M1, M7, M4, M3, then M6 and M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
 | 3 Arithmetic | N3, N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E2, E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
-| 5 Driver and toolchain | C2, C6, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
-| 6 Waiting, IO and library | K1, F3, K2, K3, K6, S7, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
-| 7 Language rules | L8, L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
+| 5 Driver and toolchain | C6, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
+| 6 Waiting, IO and library | F3, K2, K1, K3, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
+| 7 Language rules | L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | P1, P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | B1 to B16 | small fixes, each in the file of the proof it fixes; rebase often |
 | 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |

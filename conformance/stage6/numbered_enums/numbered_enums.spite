@@ -1,0 +1,32 @@
+enum Role {
+    'admin' = 99
+    'user'
+    'guest' = 7
+    'nobody' = -1
+    'owner'
+}
+
+var console = Console()
+
+func NumberedEnums() {
+    var role: Role = 'user'
+    switch role {
+        'admin': console.print("admin")
+        'user': console.print("user, after admin")
+        _: console.print("another role")
+    }
+    var parsed = "guest".to_role()
+    crash parsed
+    console.print(parsed, parsed == 'guest', parsed != 'nobody')
+    var roles = List<Role>()
+    roles.append('owner')
+    roles.append('nobody')
+    roles.append('admin')
+    var count = roles.count()
+    console.print(count, roles[0] == 'owner', roles[1] == 'nobody', roles[2] == 'admin')
+    Role.values.each(show)
+}
+
+func show(value: Role) {
+    console.print(value)
+}

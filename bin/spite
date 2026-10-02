@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs the Spite compiler, rebuilding it first if the sources moved on.
 #   spite thing                  build .spite/build/thing/thing.exe in the working folder and run it
-#   spite thing --check          only check that it compiles
+#   spite thing --check          format it and check that it compiles, building nothing
 #   spite thing --build          build it without running it
 here="$(cd "$(dirname "$0")/.." && pwd)"
 # The seed is the compiler's C for the system it runs on, since the compiler knows that system as it was compiled.
@@ -88,17 +88,6 @@ absolute() {
 native() {
     if $windows_paths; then cygpath -m "$1" 2>/dev/null || echo "$1"; else echo "$1"; fi
 }
-
-# `spite format [--check] <file-or-folder> ...` formats every .spite file it names or finds, without compiling;
-# --check rewrites nothing, lists every file that would change, and fails if there is one.
-if [ "$1" == "format" ]; then
-    shift
-    arguments=(format)
-    if [ "$1" == "--check" ]; then arguments+=(--check); shift; fi
-    [ $# -eq 0 ] && set -- .
-    for target in "$@"; do arguments+=("$(absolute "$target")"); done
-    exec "$binary" "${arguments[@]}"
-fi
 
 # `spite thing` is the common case: every output is a Build field (--check, --build, --executable-path, ...).
 # The first argument not starting with - is the program's folder; the compiler's three path flags are made

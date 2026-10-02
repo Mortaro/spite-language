@@ -1,0 +1,1 @@
+diagnostics/console_flush/console_flush.spite:5: error: 'Console' does not define 'flush' (in ConsoleFlush.ConsoleFlush)

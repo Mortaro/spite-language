@@ -18,17 +18,19 @@ var heap = Memory.Heap()
 func print(...values: List<Printable>) {
     _write_values(values, 'output')
     _write_output("\n")
-    flush()
+    _flush()
 }
 
 func write(...values: List<Printable>) {
     _write_values(values, 'output')
+    _write_held()
 }
 
 func error(...values: List<Printable>) {
+    _flush()
     _write_values(values, 'error')
     _write_error("\n")
-    flush()
+    _flush()
 }
 
 func debug(...values: List<Debuggable>) {
@@ -42,7 +44,7 @@ func debug(...values: List<Debuggable>) {
         index = index + 1
     }
     _write_output("\n")
-    flush()
+    _flush()
 }
 
 func _write_values(values: List<Printable>, stream: Stream) {
@@ -66,6 +68,7 @@ func _write_to(text: String, stream: Stream) {
 }
 
 func read_line(): String? {
+    _flush()
     var buffer = heap.allocate(256)
     var line = ""
     var read_anything = false
