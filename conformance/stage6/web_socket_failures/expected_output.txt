@@ -1,0 +1,15 @@
+a client of a plain HTTP server: connected false and receives nothing true
+/old: HTTP/1.1 426 Upgrade Required, sec-websocket-version: 13
+/invalid-text: got 136 2 3 239
+/oversized: got 136 2 3 241
+/stray-continuation: got 136 2 3 234
+/bad-close-code: got 136 2 3 234
+/goodbye: got 136 2 15 160
+served 8
+server: refused /old
+server: /invalid-text closed with 1007 ''
+server: /oversized closed with 1009 ''
+server: /stray-continuation closed with 1002 ''
+server: /bad-close-code closed with 1002 ''
+server: /goodbye closed with 4000 'bye'
+server: /hang-up closed with 1006 ''

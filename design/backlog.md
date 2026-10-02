@@ -229,8 +229,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Standard library (D294, D394, D241, D180, D369 items 220 and 250, D370 item 237)
 
-- **S1 WebSocket** (D294). Grows from `Socket` and `HttpServer`/`HttpClient` (upgrade handshake with the existing
-  `Sha256` and `Base64`, framing, masking, ping and close). New `library/web_socket.spite`. **M.** `wss` waits on S2.
+- **S1 `wss`** (D294). WebSocket over TLS: `WebSocket` (`ws`) is built; `wss` is its handshake and frames over S2's
+  TLS connection instead of a bare `Socket`. **S.** Depends on S2.
 - **S2 TLS** (D294, D394, D395). One API on every system for HTTPS and `wss`, over the platform's TLS: SChannel on
   Windows, the Security framework on macOS, the system's libssl on Linux (not bundled). Client first, then server,
   each tested against real servers. **L** (the unified API plus three bindings; the largest library item).
@@ -328,7 +328,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 3 Arithmetic | N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
-| 6 Waiting, IO and library | K1, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
+| 6 Waiting, IO and library | K1, K6, S3, K5, S9, S5, then S2 and S1 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
 | 7 Language rules | L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | the remaining B items | small fixes, each in the file of the proof it fixes; rebase often |

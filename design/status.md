@@ -124,6 +124,11 @@ for a design):
   `each`). Locking it per call would deadlock on a class that holds itself, since the walk calls back into the same
   singleton; it needs a reentrant lock, or the walk's state kept per call. The same is why `BinaryFormat<T>` keeps
   its stateless plural walk (json.md below).
+- A `union` with `String` or a generic class such as `List<Byte>` among its members is accepted where it is
+  declared and then fails later: a `List<Byte>` member narrows in a `switch` to a bare `List` ("a List cannot be
+  used where a List<Byte> is needed"), and a `String` member compiles to C the C compiler refuses (the union's
+  pointer type cast from a `SpiteString` value). Loud, but neither names the cause; the members should either work
+  or be refused where the union is declared. Found building WebSocket, whose messages are classes for this reason.
 - A Windows `__fastfail` (`0xC0000409`) ends the program without Spite's report or frames ("What a native fault
   reports"): the system ends the process without asking it, so only something outside the process could report it.
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers
@@ -487,11 +492,11 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ## [standard_library.md](../docs/standard_library.md)
 
 ### What belongs in the standard library
-- WebSocket and TLS are decided as standard library members and are not built. Built: TCP and UDP over IPv4 and
-  IPv6, HTTP/1.1 with kept-alive connections, SHA-256,
+- TLS is decided as a standard library member and is not built, so neither is `wss`. Built: TCP and UDP over IPv4
+  and IPv6, HTTP/1.1 with kept-alive connections, WebSocket (`ws`), SHA-256,
   HMAC, Argon2id, secure random bytes, base64, base64url, DEFLATE, zlib, gzip.
-- The names of the hashing, password, random, base64, compression, UDP and HTTP/1.1 classes and functions were
-  proposed by Claude and are unconfirmed by Mortaro.
+- The names of the hashing, password, random, base64, compression, UDP, HTTP/1.1 and WebSocket classes and
+  functions were proposed by Claude and are unconfirmed by Mortaro.
 
 ### List a directory
 - Built (D295, D330): `Directory.files()` and `Directory.folders()` are gone; a listing keeps one kind with
@@ -513,7 +518,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - The `Clock` names are proposed, unconfirmed.
 
 ### `Socket`
-- Names proposed by Claude, unconfirmed. WebSocket is to grow from `Socket` and is not built.
+- Names proposed by Claude, unconfirmed.
 - IPv6 (proposed by Claude, unconfirmed): `listen_everywhere` listens on `::` with IPv4 mapped in, falling back to
   `0.0.0.0`; `listen_locally`/`connect_locally` stay `127.0.0.1`; a name's IPv4 addresses come before its IPv6
   ones, so `listen_at("localhost")` keeps listening on `127.0.0.1` and `connect` tries IPv4 first (a refused `::1`
@@ -530,11 +535,27 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - `receive()` is not one of the compiler's waits: inside a `Concurrent` it blocks the program's thread.
 
 ### HTTP
-- Names proposed, unconfirmed. Not built: TLS (HTTPS), WebSocket, request bodies sent chunked to the server.
+- Names proposed, unconfirmed. Not built: TLS (HTTPS), request bodies sent chunked to the server.
+- `HttpClient.send` writes `host` without the port, which HTTP asks for when the port is not 80; `WebSocket.connect`
+  writes it with the port. Found while building WebSocket, not changed with it.
 - Keep-alive (proposed by Claude, unconfirmed): the numbers `idle_limit` 5000 ms, `largest_waiting` 64 and
   `largest_idle` 8, `HttpRequest.version`, and sending a request again once over a new connection when a kept one
   answered nothing (which can repeat a `POST` the server took before closing). The server reads one request at a
   time, so a client slow to send its request holds the others up.
+
+### WebSocket
+- Names proposed by Claude, unconfirmed: `WebSocket` with `accept(request)` and `connect(host, port, request)`
+  answering `Boolean` as `Socket` does, `send_text`, `send_bytes`, `send_ping`, `receive()`, `close()`, `closed`,
+  `close_code`, `close_reason`, `last_pong`, `largest_message` (16 MiB), and `WebSocket.Message` as a union of
+  `WebSocketText` and `WebSocketBinary`. The two classes exist because a union cannot hold `String` or
+  `List<Byte>` yet (still open under failure.md above); once it can, `Message` could be `String` and `List<Byte>`.
+- Not built: `wss` (waits on TLS, backlog S2); a server choosing a subprotocol; extensions (`permessage-deflate`);
+  closing with a code other than 1000; sending a message in pieces; a ping that waits for its own pong.
+- Before closing the connection it reads away only what has already arrived, without waiting, so a peer still
+  sending after a failure can still be reset by the system and lose the close frame (proposed by Claude,
+  unconfirmed: waiting for the peer's close for a bounded time would close that gap, and costs a timer).
+- Run on Linux only so far; Windows and macOS are held to compiling by check.sh (the library is Spite over
+  `Socket`, with nothing of its own per system).
 
 ### Bytes: base64, compression, hashes and passwords
 - Class and function names proposed, unconfirmed. Removed clause: the `Argon2` defaults are those of the C# library

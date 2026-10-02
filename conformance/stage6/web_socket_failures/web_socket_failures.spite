@@ -1,0 +1,196 @@
+var console = Console()
+var server = HttpServer()
+var log = List<String>()
+var heap = Memory.Heap()
+var bytes = TypedMemory<Byte>()
+
+func WebSocketFailures() {
+    crash server.listen_locally(47914)
+    var serving = Concurrent(serve_eight)
+    var plain = WebSocket()
+    var request = HttpRequest()
+    request.path = "/plain"
+    var connected = plain.connect("127.0.0.1", 47914, request)
+    var message = plain.receive()
+    var nothing = not message
+    console.print("a client of a plain HTTP server: connected", connected, "and receives nothing", nothing)
+    old_version()
+    var invalid = List<Byte>()
+    invalid.append(104)
+    invalid.append(255)
+    exchange("/invalid-text", 129, invalid)
+    var oversized = counting_bytes(20)
+    exchange("/oversized", 130, oversized)
+    var nothing_started = counting_bytes(3)
+    exchange("/stray-continuation", 128, nothing_started)
+    var bad_code = List<Byte>()
+    bad_code.append(3)
+    bad_code.append(231)
+    exchange("/bad-close-code", 136, bad_code)
+    var goodbye = "  bye".to_bytes()
+    goodbye[0] = 15
+    goodbye[1] = 160
+    exchange("/goodbye", 136, goodbye)
+    hang_up()
+    console.print("served", serving)
+    var joined = log.join("\n")
+    console.print(joined)
+    server.close()
+}
+
+func serve_eight(): Integer {
+    var served = 0
+    while served < 8 {
+        var request = server.next_request()
+        crash request
+        if request.path == "/plain" {
+            var response = HttpResponse()
+            response.body = "not a web socket"
+            server.respond(request, response)
+        } else {
+            converse(request)
+        }
+        served = served + 1
+    }
+    return served
+}
+
+func converse(request: HttpRequest) {
+    var socket = WebSocket()
+    socket.largest_message = 16
+    if not socket.accept(request) {
+        log.append("server: refused {request.path}")
+        return
+    }
+    drain(socket)
+    crash socket.close_code
+    log.append("server: {request.path} closed with {socket.close_code} '{socket.close_reason}'")
+}
+
+func drain(socket: WebSocket) {
+    var message = socket.receive()
+    while message {
+        log.append("server: a message nobody should see")
+        message = socket.receive()
+    }
+}
+
+func old_version() {
+    var socket = Socket()
+    crash socket.connect_locally(47914)
+    write_text(
+        socket,
+        "GET /old HTTP/1.1\r\nhost: 127.0.0.1\r\nupgrade: websocket\r\nconnection: Upgrade\r\nsec-websocket-key: dGhlIHNhbXBsZSBub25jZQ==\r\nsec-websocket-version: 8\r\n\r\n",
+    )
+    var status = socket.read_line()
+    crash status
+    var version = socket.read_line()
+    crash version
+    console.print("/old: {status}, {version}")
+    socket.close()
+}
+
+func exchange(path: String, first: Integer, payload: List<Byte>) {
+    var socket = open_raw(path)
+    write_frame(socket, first, payload)
+    var received = read_until_closed(socket)
+    var shown = describe(received)
+    console.print("{path}: {shown}")
+}
+
+func hang_up() {
+    var socket = open_raw("/hang-up")
+    socket.close()
+}
+
+func open_raw(path: String): Socket {
+    var socket = Socket()
+    crash socket.connect_locally(47914)
+    write_text(
+        socket,
+        "GET {path} HTTP/1.1\r\nhost: 127.0.0.1\r\nupgrade: websocket\r\nconnection: Upgrade\r\nsec-websocket-key: dGhlIHNhbXBsZSBub25jZQ==\r\nsec-websocket-version: 13\r\n\r\n",
+    )
+    var ended = false
+    while not ended {
+        var line = socket.read_line()
+        crash line
+        ended = line.is_empty()
+    }
+    return socket
+}
+
+func counting_bytes(count: Integer): List<Byte> {
+    var counted = List<Byte>()
+    var index = 0
+    while index < count {
+        var value: Byte = index
+        counted.append(value)
+        index = index + 1
+    }
+    return counted
+}
+
+func write_text(socket: Socket, text: String) {
+    var text_bytes = text.to_bytes()
+    write_list(socket, text_bytes)
+}
+
+func write_list(socket: Socket, list: List<Byte>) {
+    var counted = list.count()
+    var buffer = heap.allocate(counted)
+    var index = 0
+    while index < counted {
+        var value = list[index]
+        bytes.write_value(buffer, index, value)
+        index = index + 1
+    }
+    crash socket.write_bytes(buffer, counted)
+    heap.free(buffer)
+}
+
+func write_frame(socket: Socket, first: Integer, payload: List<Byte>) {
+    var counted = payload.count()
+    var frame = List<Byte>()
+    var opening: Byte = first
+    frame.append(opening)
+    var second: Byte = counted + 128
+    frame.append(second)
+    var zero: Byte = 0
+    frame.append(zero)
+    frame.append(zero)
+    frame.append(zero)
+    frame.append(zero)
+    var index = 0
+    while index < counted {
+        frame.append(payload[index])
+        index = index + 1
+    }
+    write_list(socket, frame)
+}
+
+func read_until_closed(socket: Socket): List<Byte> {
+    var received = List<Byte>()
+    var buffer = heap.allocate(256)
+    while not socket.closed {
+        var got = socket.read_bytes(buffer, 256)
+        var index = 0
+        while index < got {
+            var value = bytes.read_value(buffer, index)
+            received.append(value)
+            index = index + 1
+        }
+    }
+    heap.free(buffer)
+    return received
+}
+
+func describe(received: List<Byte>): String {
+    var shown = "got"
+    var index = 0
+    while index < received.count() {
+        var value: Integer = received[index]
+        shown = "{shown} {value}"
+        index = index + 1
+    }
+    return shown
+}

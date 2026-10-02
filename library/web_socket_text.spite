@@ -1,0 +1,9 @@
+var _text = ""
+
+func WebSocketText(starting_text: String) {
+    _text = starting_text
+}
+
+func get_text(): String {
+    return _text
+}

@@ -578,6 +578,13 @@ String?`, `read_bytes_now(address, count): Integer` (`0` is nothing yet) and `wr
 Integer` (how many the system took). A peer that hung up is not an error: `socket.closed` turns `true`, reads
 answer `0` or `null` and writes send nothing. Check `closed`, never a count of `-1`.
 `UdpSocket()` opens with `open()`, `open_locally(port)`, `open_everywhere(port)` or `open_at(host, port)` and sends one `List<Byte>` datagram per `send_to(host, port, bytes)`; `HttpServer` (`next_request(): HttpRequest?`, `respond(request, response)`) and `HttpClient` (`send(host, port, request): HttpResponse?`) speak HTTP/1.1 and keep connections alive on their own.
+`WebSocket()` speaks RFC 6455 (`ws`): a server takes a request from `next_request()` with `accept(request): Boolean`,
+a client calls `connect(host, port, request): Boolean`, then `send_text(text)`, `send_bytes(bytes)`,
+`send_ping(bytes)` and `receive(): WebSocket.Message?`, a union of `WebSocketText` (`.text`) and `WebSocketBinary`
+(`.bytes`) to `switch` on. Pings are answered by itself and the latest pong is `last_pong`. `null` from `receive()`
+means the connection ended: `close_code` says how (`1000` a normal close, `1002` a broken frame, `1006` no close at
+all), so a protocol violation is never silent. `close()` sends the close and `receive()` keeps answering until the
+peer's close arrives.
 `Concurrent(function)` runs a function as a compile-time state machine and `Parallel(function)` on the thread pool: the handle stands
 in for what the function returns and reading it is the wait (there is no `.wait()`: `an Integer has no function
 'wait'`), `finished` answers without waiting, `finished_value(): T?` is the value once finished and `null` before
