@@ -955,7 +955,8 @@ var target: Monster? = null
     constructor assigns at its top level (`var left: $left_type = null` with `left = new_left` in the constructor),
     and a local that a walk over its type's attributes fills later in the same function: a walked row
     (`var row: $row_type = null` then `fill_attributes(row, index)`), `var made: argument.class = null`
-    filled and returned, and a reader filling an object attribute by attribute.
+    filled and returned, and a reader filling an object attribute by attribute (`var created: $value_type = null`
+    then `created.attributes.each(read_attribute)`).
   `diagnostics/null_defaults`, `diagnostics/null_default_locals`, `conformance/stage6/codegen_defaults`.
 - An inner `var` may shadow an outer local, parameter, or attribute with the same name, **and a `var` may shadow
   a name in the same scope too**. It may never shadow a function it can see

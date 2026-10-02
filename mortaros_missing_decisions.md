@@ -78,3 +78,19 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 280. **How a walk passes values beyond the element.** `each` hands only the element; a walk that needs more (a
      value, a writer) keeps it in attributes of the walking object today. Options: (a) that is the way (one
      argument, state in the walker, as D384's serializers do); (b) `each` with extra arguments. Recommend (a).
+     Found building backlog J1 (D244): (a) is fine where the walker is made per call (`JsonWriter`, `JsonReader`),
+     but `BinaryFormat<T>` and `Spite.DebugInstance<T>` are singletons every thread shares, so state in them
+     corrupts memory when two `Parallel`s write or show a value at once (tried), and a walker made per value would
+     cost an allocation per nested object and per enum value that the binary format does not make today. With (a),
+     the binary walk needs a walker made per call, or a reentrant per-call lock from the compiler; with (b), it stays
+     a stateless singleton at no cost. `BinaryFormat` keeps its plural walk until this is answered; now recommend
+     (b), the only form that keeps the binary format at zero allocations without shared state. Blocks backlog J1's
+     binary half and R7.
+281. **How a serializer is given D320's rename map.** D320 writes `JsonWriter<Monster>({Monster.attributes['health']:
+     "hp"})`, but a writer takes its value in its constructor (`JsonWriter(order)`, D208), and Spite has neither
+     overloading (D59) nor default arguments. Options: (a) a second constructor argument on all four,
+     `JsonWriter(order, keys)` and `JsonReader<Order>(text, keys)`, with `{}` when there is none (every call site
+     changes); (b) an attribute set before the first `write()` or `read()`, `writer.keys = {...}`, the table filled
+     on first use; (c) a class made once from the map that makes the writers and readers. Recommend (a): D320 fills
+     the table "when the serializer is constructed", and one way to call it. Blocks backlog J2
+     ([json.md](docs/json.md#a-key-that-is-not-an-attributes-name)).

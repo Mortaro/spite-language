@@ -225,6 +225,10 @@ business ([style.md](style.md)), as `to_debug()` leaves it out, so it is neither
 default. It is how a class chooses which of its fields travel; a component that sends only some of its state keeps
 the rest in `_` attributes, or the program sends a smaller class that holds only what travels.
 
+**So are attributes holding a singleton** (`var console = Console()`): a singleton is state the whole program
+shares, so writing it out would publish it and reading it would let whoever wrote the input replace it. Such an
+attribute is neither written nor read, and it is not part of the [schema hash](#the-schema-hash) either.
+
 ## The binary format
 
 The table above is the whole format, and it is stable: it depends only on the class's attributes, their order and
@@ -298,8 +302,8 @@ lenient about what it does not need:
 - **An attribute the text does not mention keeps its default**, the value the class declares for it.
 - **A key in camelCase or PascalCase** (`buyPrice`, `BuyPrice`) reads into the attribute it spells, `buy_price`
   ([below](#a-camelcase-or-pascalcase-key)).
-- **A key that cannot be an attribute's name** (`min_lod`, `instances`) is named by the class, with a
-  `json_key_<attribute>()` function ([below](#a-key-that-is-not-an-attributes-name)).
+- **A key that cannot be an attribute's name** (`min_lod`, `instances`) is paired with its attribute in a map
+  the serializer is given ([below](#a-key-that-is-not-an-attributes-name)).
 - **A value of the wrong kind makes the whole read `null`**: text where a number belongs, `null` for an
   attribute that is not a `T?`, an enum name the enum does not have.
 
@@ -373,47 +377,45 @@ potion 30 7.5
 ### A key that is not an attribute's name
 
 Some keys cannot be attribute names: `min_lod` is an abbreviation the naming rules refuse, and `instances` is a
-name reflection gives every class ([reflection.md](reflection.md)). The class names the key itself, with a function
-`json_key_<attribute>()` that returns it as a literal text. `JsonReader` then reads that key into the attribute and
-`JsonWriter` writes the attribute under it, so the text round-trips:
+name reflection gives every object ([reflection.md](reflection.md)). The class does not name them: the program
+gives the serializer a map from each attribute to its key, keyed by the attribute itself, and `JsonWriter` then
+writes the attribute under that key and `JsonReader` reads that key into it, so the text round-trips:
 
-```gdscript title=json_key/mesh_record.spite
+```gdscript
+var keys = {MeshRecord.attributes['minimum_level_of_detail']: "min_lod", MeshRecord.attributes['instance_count']: "instances"}
+```
+
+The key is the one way to write that attribute: `minimum_level_of_detail` and `minimumLevelOfDetail` are then
+unknown keys, skipped like any other. Every serializer takes the same kind of map. A map written as a literal
+costs nothing: its keys are literal text in the code the serializer is compiled to, and reading matches them as it
+matches an attribute's own name. A map made while the program runs is turned into a table once, when the
+serializer is made, so each value then costs what the literal case costs. A map naming an attribute the class does
+not have, a private one or one holding a singleton is an error.
+
+A class that still declares a function `json_key_<attribute>()`, the old way to name a key, is an error at that
+function naming the map, so a key it gave is never silently dropped:
+
+```gdscript title=json_key_function/mesh_record.spite
 var name = ""
 var minimum_level_of_detail = 0
-var instance_count = 0
 
 func json_key_minimum_level_of_detail(): String {
     return "min_lod"
 }
-
-func json_key_instance_count(): String {
-    return "instances"
-}
 ```
-```gdscript title=json_key/json_key.spite entry
+```gdscript title=json_key_function/json_key_function.spite entry error
 var console = Console()
 
-func JsonKey() {
-    var reader = JsonReader<MeshRecord>("\{\"name\": \"rock\", \"min_lod\": 2, \"instances\": 4}")
+func JsonKeyFunction() {
+    var reader = JsonReader<MeshRecord>("\{\"name\": \"rock\"}")
     var mesh = reader.read()
     crash mesh
-    console.print(mesh.name, mesh.minimum_level_of_detail, mesh.instance_count)
-    var writer = JsonWriter(mesh)
-    var text = writer.write()
-    console.print(text)
+    console.print(mesh.name, mesh.minimum_level_of_detail)
 }
 ```
-```output
-rock 2 4
-{"name":"rock","min_lod":2,"instances":4}
+```diagnostic
+'MeshRecord.json_key_minimum_level_of_detail' would name the JSON key of 'minimum_level_of_detail', and JsonReader and JsonWriter do not read a function for it
 ```
-
-The key is the one way to write that attribute: `minimum_level_of_detail` and `minimumLevelOfDetail` are then
-unknown keys, skipped like any other. The compiler reads the key while compiling, so it costs what an attribute's
-own name costs, and a class without such functions compiles exactly as before. A mistake is an error at the
-function: a name that is not an attribute's (`json_key_minimum_level_of_detial`), a body that is anything but
-`return` of a literal text, and a key two attributes would share
-([the rules](#json-is-reflection-not-a-library), `diagnostics/json_key`).
 
 Bytes have no keys to skip, so `BinaryReader` is strict throughout: the bytes are exactly the class, or the read
 is `null`.
@@ -470,28 +472,37 @@ All four are ordinary Spite, and reading them is the best way to learn the two m
 - `if $value_type == List { }` asks at compile time what `T` is, and `JsonWriter<$value_type.element_type>(null)`
   makes the writer for its elements, once per list: each element is given to it in turn as its `value`. Only the
   branch that fits `T` is compiled.
-- A class is written by a Symbol codegen template that ranges over `T`'s attributes, called for every one of them
-  at once by its plural:
+- A class is written by walking the value's attributes with `each`
+  ([reflection.md](reflection.md#a-class-and-an-instance-of-it)). The walk is unrolled while compiling into one
+  call per attribute, and each call is compiled for its attribute, so `attribute.value` has the attribute's own
+  type and the two questions on the attribute fold away:
 
 ```gdscript
-func write_attribute(attribute: Symbol<$value_type>, shown: $value_type, members: List<String>) {
-    var attribute_json = JsonWriter(shown.attributes[attribute])
-    var attribute_text = attribute_json.write()
-    members.append("\"{attribute.name}\":{attribute_text}")
+func write_attribute(attribute: Spite.Attribute) {
+    if not attribute.name.starts_with("_") and not attribute.is_singleton {
+        var attribute_json = JsonWriter(attribute.value)
+        attribute_json.path = "{$value_type.name}.{attribute.name}"
+        var attribute_text = attribute_json.write()
+        crash _members
+        _members.append("\"{attribute.name}\":{attribute_text}")
+    }
 }
 ```
 
-`write_attributes(shown, members)` calls it once per attribute; `read_attributes` in `JsonReader` does the same
-with the key it just read, and the attribute whose name matches takes the value. Both first ask
-`$value_type.has_function("json_key_{attribute.name}")`, decided for each attribute while compiling, and use the
-key the class gives there instead of the name ([A key that is not an attribute's name](#a-key-that-is-not-an-attributes-name)). `--final-classes` does not print
-these instances (a generic class's file is shared by all of its instances), but they are ordinary typed
-functions in the C the program compiles to.
+`each` hands the function only the attribute, so what else the walk needs lives in the writer: `_written` puts a
+fresh list in `_members`, calls `shown.attributes.each(write_attribute)` and joins the list. `JsonReader` walks
+the object it is filling the same way, `created.attributes.each(read_attribute)`, with the key it just read in
+`_key`; the attribute whose name matches parses the value into `attribute.value`, and only a key no name matched
+walks again, comparing the camelCase and PascalCase spellings. A class of the `Spite` namespace, a reflection
+object, is not walked (`if $value_type.namespace != Spite`): its attributes are all private, and its own
+`.attributes` would be the members it describes. `--final-classes` does not print these copies (a
+generic class's file is shared by all of its instances), but they are ordinary typed functions in the C the program
+compiles to.
 
 The binary pair keeps the walk in `BinaryFormat<T>` (`library/binary_format.spite`), a singleton that holds
-nothing, so it is a static object and the walk makes no object at all; its `write_attribute` is the template above
+nothing, so it is a static object and the walk makes no object at all; its `write_attribute` is the one above
 with `BinaryFormat<attribute.class>()` in place of the `JsonWriter`. An enum is walked the same way, over its
-values (`find_value(value: Symbol<$value_type>, ...)`), to find its index. `BinaryOutput` and `BinaryInput` are the
+values, to find its index. `BinaryOutput` and `BinaryInput` are the
 cursors over the bytes. Reading JSON text goes through `JsonCursor` (`library/json_cursor.spite`), a cursor over the
 text that remembers the first thing that went wrong.
 
@@ -561,7 +572,8 @@ makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'` (`diagn
   `BinaryReader<T>(bytes: List<Byte>?)`. `JsonReader.read()` reads the whole text as one value, every time it is
   called; `BinaryReader.read()` reads the next value from `position`, so a buffer of many values is read by
   calling it again.
-- **What it is written with** is [Symbol codegen](metaprogramming.md#templates) and
+- **What it is written with** is reflection, a walk of the value's attributes with `each`
+  ([reflection.md](reflection.md#known-while-compiling)), and
   [Codegen values (`$`)](metaprogramming.md#codegen-values-) and nothing else, as
   [How it is written](#how-it-is-written) shows. The binary walk's helper, `BinaryFormat<T>`, is a `singleton`
   that holds nothing, bound where it is used (`BinaryFormat<attribute.class>()`), which is allowed since a
@@ -575,8 +587,9 @@ makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'` (`diagn
   holds. JSON text escapes `"`, `\`, line feed, carriage return and tab as `\"`, `\\`, `\n`, `\r`, `\t` and every
   other control character as `\u00XX`, and reading turns any `\uXXXX` back into UTF-8, surrogate pairs included. A
   class's attributes are written in declaration order, leaving out private (`_`) ones as `to_debug()` does
-  ([standard_library.md](standard_library.md#system-classes)); a `Dictionary`'s entries in the order
-  they were set.
+  ([standard_library.md](standard_library.md#system-classes)) and ones holding a singleton, which are never read
+  either; a `Dictionary`'s entries in the order they were set. Both questions fold where the walk is compiled, so a
+  skipped attribute costs nothing.
 - **A walk reads every attribute**, so an attribute a program only ever hands to a writer counts as read, and the
   unused-attribute error does not fire for it .
 
@@ -589,7 +602,8 @@ The details:
   is unsigned LEB128, and a count or length above what an `Integer` holds, or above the bytes left, fails the read.
 - **`BinaryWriter<T>.schema()` and `BinaryReader<T>.schema()` answer a `Long` the compiler works out** (the
   name is provisional): the 64-bit FNV-1a hash, as a signed `Long`, of the
-  walk's text: the class's qualified name, then `name:type` for each attribute the bytes carry (not `_...`), in
+  walk's text: the class's qualified name, then `name:type` for each attribute the bytes carry (not `_...`, and
+  not one holding a singleton), in
   order, joined by `;` inside `{ }`, a nested class written the same way, `List<T>`, `Dictionary<T>`, `T?`, an
   enum as its name and `(` its values joined by `,` `)`, a class already being written by its name alone, and any
   other type by its name. It is a bodiless declaration the compiler supplies, a C macro that is the constant,
@@ -622,40 +636,27 @@ The details:
   that matches neither is skipped as before. A snake_case key never matches a spelling (those have no
   underscores), and only a snake_case name has one, so no key can match two attributes; when the text holds both
   `buy_price` and `buyPrice`, the later one wins, as a repeated key does. `JsonWriter` writes the attribute's own
-  name. The spellings are compile-time constants a walked symbol answers, `attribute.camel_case_name` and
+  name. The spellings are compile-time constants a walked attribute answers, `attribute.camel_case_name` and
   `attribute.pascal_case_name` ([metaprogramming.md](metaprogramming.md#templates)),
-  and `JsonReader` compares them in a second walk, `read_camel_attributes`, that runs only for a key the first
-  walk did not match: snake_case input runs the same comparisons it did before (`benchmarks/serialisation`, JSON
+  and `JsonReader` compares them in a second walk, `created.attributes.each(read_camel_attribute)`, that runs only
+  for a key the first walk did not match: snake_case input runs the same comparisons it did before (`benchmarks/serialisation`, JSON
   read, best of eight alternating runs on a loaded machine: 269 ms before, 267 ms after), and a program that reads
   no JSON carries none of it (`conformance/stage6/json_camel_case`).
-- **A class names an attribute's JSON key with `func json_key_<attribute>(): String`.** No syntax: an ordinary member function whose name is
-  `json_key_` followed by an attribute's name, and whose body is `return` of a literal text. `JsonReader` reads that key into
-  the attribute and `JsonWriter` writes the attribute under it, so the text round-trips. **The key replaces the
-  attribute's name**: with one, neither the name (`minimum_level_of_detail`) nor its camelCase and PascalCase
-  spellings read into the attribute any more, so each attribute has exactly one key, and those keys are
-  skipped as unknown. Attributes without one keep the camelCase and PascalCase reading. Built in the library, with no JSON in
-  the compiler's code generation: `read_attribute`, `read_camel_attribute` and `write_attribute` ask
-  `$value_type.has_function("json_key_{attribute.name}")`, which folds for each attribute walked, and in the branch
-  where it is true read the key with `$value_type.returned_text(...)`, a text constant
-  ([metaprogramming.md](metaprogramming.md#walking-a-programs-structure)).
-  So a key is compared exactly as an attribute's name is, and a class with no `json_key_` function compiles to
-  the same C as before. Every class the program declares is checked while compiling, whether or not it is ever
-  read or written as JSON, and each mistake is an error at the function (`diagnostics/json_key`):
-  - a name that is not `json_key_` and one of the class's attributes: "'MeshRecord.json_key_minimum_level_of_detial'
-    names the JSON key of the attribute 'minimum_level_of_detial', and 'MeshRecord' has no attribute
-    'minimum_level_of_detial': it has 'name', ... A function whose name starts with 'json_key_' is read by
-    JsonReader and JsonWriter, so the rest of its name is an attribute's";
-  - a function that takes something, or whose body is anything but one `return` of a literal text with no
-    `{...}` in it: "'MeshRecord.json_key_maximum_distance' must be written 'func json_key_maximum_distance(): String
-    { return "..." }', taking nothing and returning a literal text with no '{...}' in it, since JsonReader and
-    JsonWriter read the key while compiling";
-  - a key that is empty or holds a quote, a backslash or a control character, which the writer would have to
-    escape: the key is written as it is;
-  - a key another attribute already has, its own name or a key given to it: "... gives 'instance_count' the JSON
-    key "level", which is already the key of 'level', so JsonReader could not tell which attribute a value
-    belongs to: give each attribute a key of its own". Two attributes may trade names (`left` keyed `"right"`
-    and `right` keyed `"left"`), since then no key is shared.
-  Each instance of a generic class is checked the same way. `conformance/stage6/json_key`.
+- **A key that is not an attribute's name comes from a map passed to the serializer, keyed by attribute
+  objects**: `{MeshRecord.attributes['minimum_level_of_detail']: "min_lod"}`. `JsonWriter` writes the attribute
+  under its key and `JsonReader` reads that key into it, so the text round-trips. **The key replaces the
+  attribute's name**: with one, neither the name nor its camelCase and PascalCase spellings read into the
+  attribute any more, so each attribute has exactly one key; attributes without one keep the camelCase and
+  PascalCase reading. Every serializer takes the same kind of map. A constant map folds into the code the
+  serializer is compiled to: the keys are literal text, and reading matches them as it matches a name. A map made
+  at run time fills a key table once per attribute when the serializer is made (an array by attribute, and a small
+  hash for reading), so each record then costs what the constant case costs. Naming an attribute the class does
+  not have, a private one or one holding a singleton is an error. Nothing in a class names its own keys.
+- **A function `json_key_<attribute>()`**, where `<attribute>` is one of the class's attributes, is the old way
+  to name a key and an error at the function, so a key it gave is never silently lost: "'MeshRecord.json_key_minimum_level_of_detail'
+  would name the JSON key of 'minimum_level_of_detail', and JsonReader and JsonWriter do not read a function for
+  it: a key that is not an attribute's name is given to the serializer in a map keyed by the attribute,
+  '{MeshRecord.attributes['minimum_level_of_detail']: "..."}'" (`diagnostics/json_key`).
 - **A number reads into whatever number type the attribute has** through the ordinary text-to-number cast, so
   `3.7` read into an `Integer` is `3`; JSON has one number type and the class already says which one it wants.
 - **Infinity and not-a-number crash `JsonWriter`**: JSON

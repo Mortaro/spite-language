@@ -116,6 +116,13 @@ for a design):
   (concurrency.md, "Choosing where Concurrents resume").
 - A `Vector`'s and an `Items`' `remove_at` (and `Items.remove_swapping`) do nothing out of range, where a `List`'s now
   halt (collections.md).
+- A generic singleton that holds state is not made safe for threads (classes_and_files.md, "Safe for threads
+  without a keyword"): only its first fetch is locked. `Spite.DebugInstance<T>` keeps the objects it is showing and
+  the parts of the text in attributes, so three `Parallel`s calling `to_debug()` on a class at once double-free
+  under `--debug-memory` and corrupt the heap without it (found 2026-10-02 on `master` before the walk moved to
+  `each`). Locking it per call would deadlock on a class that holds itself, since the walk calls back into the same
+  singleton; it needs a reentrant lock, or the walk's state kept per call. The same is why `BinaryFormat<T>` keeps
+  its stateless plural walk (json.md below).
 - A Windows `__fastfail` (`0xC0000409`), or a corrupted heap on Linux and macOS (the C library's own message and
   `SIGABRT`), ends the program without Spite's report or frames ("What a native fault reports").
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers
@@ -360,13 +367,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   they do not compile yet: `call_with`, a function taking `value: Number` (D321) and the `map_is_alive()` error (#228,
   being built on its own branch).
 - Still teaching the old forms, to migrate once the compiler reaches them: memory.md's titled engine programs
-  (`Symbol<$row_type>` walks, `fill_attributes(...)` plurals, `Symbol<$system_type.phase_each>`), json.md's
-  `write_attribute(attribute: Symbol<$value_type>, ...)` and `$value_type.has_function("json_key_{attribute.name}")`
-  (a name built from text, which D317 forbids: D320's rename map replaces it, and a map keyed by attribute objects
-  needs a dictionary keyed by them, which no dictionary is yet), the library itself (`json_writer`, `json_reader`
-  and `binary_format` still walk with `Symbol<$value_type>` plurals: a walk function takes only the element, so
-  the output or the object being filled cannot reach it, and how it should is open;
-  `library/spite/*.spite` still declares
+  (`Symbol<$row_type>` walks, `fill_attributes(...)` plurals, `Symbol<$system_type.phase_each>`), the library
+  itself (`binary_format` still walks a class's attributes and an enum's values with `Symbol<$value_type>` plurals,
+  json.md below; `library/spite/*.spite` still declares
   `has_function`, `function_waits`, `argument_count`, `fits_vector`, `source_folder`, `name_fits`, `waits()`), the
   diagnostic "write 'member: Symbol<$element_type>'" (collections.md, `diagnostics/plain_symbol_on_list`), and
   `design/for_ai_writers.md`.
@@ -647,8 +650,18 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ## [json.md](../docs/json.md)
 
 ### JSON is reflection, not a library
-- The section was tagged implemented; nothing is missing. All four classes, the schema hash, the camelCase and
-  PascalCase keys and `json_key_<attribute>()` are built.
+- Built: all four classes, the schema hash, the camelCase and PascalCase keys, the JSON pair and
+  `Spite.DebugInstance` walking with `value.attributes.each(...)`, private attributes and attributes holding a
+  singleton left out by all four and by the schema hash, and the error at a leftover `json_key_<attribute>()`.
+- Not built (D320, backlog J2): the rename map keyed by attribute objects. Until it is, a program has no way to
+  read or write a key that is not an attribute's name. How a serializer is given the map is open
+  (`mortaros_missing_decisions.md` item 281).
+- Not built (D384): `BinaryFormat<T>` (`library/binary_format.spite`) still walks a class's attributes and an
+  enum's values with `Symbol<$value_type>` plurals, which pass the value and the cursor as arguments. An `each` walk
+  hands only the element, so the cursor would have to live in the walker, and `BinaryFormat` is a singleton shared
+  by every thread: state there corrupts memory when two `Parallel`s write at once (tried: a double free under
+  `--debug-memory`), and a walker made per value costs allocations the binary format does not make today.
+  `mortaros_missing_decisions.md` item 280.
 - The page links to targets.md "The wire format", which was tagged planned: the wire format is not built. The
   binary classes are the building block for it.
 
@@ -659,12 +672,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   is provisional" in the rules. The handshake that would carry the hash is not built (it belongs to the wire format).
 
 ### Reading input you did not write
-- Member names `attribute.camel_case_name`, `attribute.pascal_case_name`, `json_key_<attribute>`, `append_to`,
+- Member names `attribute.camel_case_name`, `attribute.pascal_case_name`, `append_to`,
   `read_memory`, `reserve` were proposed by Claude and never confirmed by Mortaro (names are his to pick later).
 
 ### Rules in full
-- Left in place, a compiler error quote containing a decision number: the `there is no 'Json': it is two classes
-  (D208), ...` message (`diagnostics/json_split`). Change it together with the compiler.
 - Removed history: the old `Json` class was split into `JsonWriter` and `JsonReader` by D208; `Vector<Byte>` was
   folded into `List<Byte>` by D225.
 
