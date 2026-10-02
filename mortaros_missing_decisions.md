@@ -138,3 +138,11 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      `(0, 0, 0)`: the components stay `Integer`. Options: (a) the fractional members answer the vector of the
      number's fractional class (`Vector3<Float>` for `Integer`); (b) a compile error on `normalized()` of a
      whole-number vector, naming the conversion; (c) keep it. Recommend (a); (c) is a silent wrong value.
+291. **Which values a failed assert keeps for the crash report** (backlog X1). Text and objects may be freed before a
+     crash prints them. Options: (a) numbers, Booleans and enum values kept as they are, text as its length only;
+     (b) keep a reference to each, a count on every failed assert; (c) no values, as the docs say today. Recommend
+     (a).
+292. **The call chain of an `--optimized` crash on Linux and macOS** (backlog X1). Options: (a) build with
+     `-fno-omit-frame-pointer`, about 1% slower (D398); (b) the C library's unwinder, against D361; (c) an unwinder
+     written in Spite that reads the unwind tables, which is large. Recommend (c) as the direction, with (a) until it
+     exists.

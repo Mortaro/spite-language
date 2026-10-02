@@ -264,10 +264,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### REPL and reload (D280, D301, D305)
 
-- **P3 The reload race on a loaded Linux machine** (from `cloud/linux`, a D244 bug). The watcher's reload and the
-  prompt's `reload` race over `.reload_baseline`/`.reload_files`; also the move of objects while the program's own
-  threads run (failure.md). **M.** Depends on landing `cloud/linux`.
-
 ### Failure reports (D25, D33, D20, D379)
 
 - **X1 The rest of the crash report** (status "Three outcomes"). Built: the call chain (`spite.frame` lines), each
@@ -339,7 +335,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 5 Driver and toolchain | C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
 | 6 Waiting, IO and library | K2, K1, K3, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
 | 7 Language rules | L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
-| 8 REPL and reports | P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
+| 8 REPL and reports | X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | the remaining B items | small fixes, each in the file of the proof it fixes; rebase often |
 | 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |
 
