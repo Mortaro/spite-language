@@ -298,9 +298,11 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 - **S1 WebSocket** (D294). Grows from `Socket` and `HttpServer`/`HttpClient` (upgrade handshake with the existing
   `Sha256` and `Base64`, framing, masking, ping and close). New `library/web_socket.spite`. **M.** `wss` waits on S2.
-- **S2 TLS** (D294, D394). One API on every system for HTTPS and `wss`, over the platform's TLS: SChannel on
+- **S2 TLS** (D294, D394, D395). One API on every system for HTTPS and `wss`, over the platform's TLS: SChannel on
   Windows, the Security framework on macOS, the system's libssl on Linux (not bundled). Client first, then server,
   each tested against real servers. **L** (the unified API plus three bindings; the largest library item).
+- **S10 TLS written in Spite** (D395, later). Replaces S2's platform bindings behind the same API, so no program
+  changes; lands only after an outside security review. **L.** Depends on S2.
 - **S3 HTTP leftovers** (status "HTTP"). Request bodies sent chunked to the server; the server reading one request
   at a time so a slow client holds the others; the client's resend of a `POST` over a new connection. Files:
   `library/http_server.spite`, `http_client.spite`. **M.** Benefits from K5.
@@ -380,7 +382,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 The targets page (D20, `--target=web`, WebAssembly, isomorphic classes, the wire format and its handshake, `Html`
 and the markup builder, which needs a name); bundle splitting and lazy `load` (packages.md); the language server
 (open question 4); defining members from data and hooks on reopening (open question 2); calendars, leap seconds
-and formatting patterns (time.md); running and testing the macOS folders.
+and formatting patterns (time.md); running and testing the macOS folders; S10, TLS written in Spite.
 
 ## Dependency order
 
