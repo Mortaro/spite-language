@@ -27939,20 +27939,23 @@ func allocator_of(placed_class: Analysis.ClassInfo, object_code: String): Expres
     }
     crash allocator_union
     var union_type = union_type_of(allocator_union)
-    return ExpressionResult("SPITE_ALLOCATOR_{placed_class.c_name}({object_code})", union_type)
+    return ExpressionResult(
+        "SPITE_ALLOCATOR_{placed_class.c_name}({object_code}, spite_singleton_Memory_Heap)",
+        union_type,
+    )
 }
 
 func finish_allocator_reads() {
     var index = 0
     while index < allocator_read_names.count() {
         var c_name = allocator_read_names[index]
-        var heap = "((Spite_Allocator)spite_singleton_Memory_Heap())"
+        var heap = "((Spite_Allocator)heap())"
         if allocated_class_names.contains(c_name) {
             builder.add_prototype(
-                "#define SPITE_ALLOCATOR_{c_name}(object) ((object)->spite_allocator != 0 ? (Spite_Allocator)(object)->spite_allocator : {heap})",
+                "#define SPITE_ALLOCATOR_{c_name}(object, heap) ((object)->spite_allocator != 0 ? (Spite_Allocator)(object)->spite_allocator : {heap})",
             )
         } else {
-            builder.add_prototype("#define SPITE_ALLOCATOR_{c_name}(object) ((void)(object), {heap})")
+            builder.add_prototype("#define SPITE_ALLOCATOR_{c_name}(object, heap) ((void)(object), {heap})")
         }
         index = index + 1
     }
