@@ -199,7 +199,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   bindings, binary files and the network, storage stays the smallest class that fits. Files: the parser's enum
   form, the checker, codegen, docs values_and_types.md (enums) and foreign_libraries.md. **M.** No dependencies.
 
-### Compiler driver and outputs (D327, D348, D349, D356, D361, D366, D369 items 134 and 138, D385)
+### Compiler driver and outputs (D327, D348, D349, D356, D390, D361, D366, D369 items 134 and 138, D385)
 
 - **C1 `--check` and `--build` replace `--run=false`** (D348). `--check` writes no C and no executable; a build
   never leaves a stale executable. Files: `bootstrap.spite`, `library/build.spite`, `bin/spite`, `check.sh`, docs
@@ -214,8 +214,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   hot-reload builds for the building machine, `--optimized` stays portable. Files: `bootstrap.spite`,
   `bootstrap/source/translation/*.spite`, `check.sh` (passes `--translation-units`). **M.** Depends on landing
   `wip/fastbuild`.
-- **C5 `--optimized` level by measurement, from `-O2`** (D356). Today `-O3` (`bootstrap.spite` lines 902 to 925).
-  **S** for `-O2`, **M** for the measurement (Q12). Depends on landing `wip/fastbuild`.
+- **C5 `--optimized` stays `-O3`** (D390, superseding D356). Already `-O3` (`bootstrap.spite` lines 902 to 925);
+  nothing to measure. Only check the docs say so. **S.** Depends on landing `wip/fastbuild`.
 - **C6 The object cache cleans itself** (D327). LRU eviction of `.spite/objects` past a size cap. Files:
   `bootstrap/source/translation/unit_build.spite`. **S.** No dependencies.
 - **C7 `--final-classes` shows the winning source** (D366, D382, open question 10, status "Final classes"). Each final
@@ -418,9 +418,6 @@ unconfirmed).
   (b) collect into a `List<Anything>` with `each`, then `call_with(list)`, which travels as a shape and costs a
   dispatch; (c) a read-only attribute on `Spite.Argument` collected with `map_<members>()`, which only works when
   the value depends on the argument alone. Recommendation: (a), the only one that is free at run time.
-- **Q12 What "measured for each program" means for `--optimized`** (`mortaros_missing_decisions.md` item 262) (D356). There is no workload to time in an
-  ordinary build. Recommendation: `-O2` everywhere now; measure `-O3` only where a program carries a benchmark,
-  until a decided way to declare one exists.
 - **Q13 How TLS is built** (`mortaros_missing_decisions.md` item 263) (D294, D350, D361). Options: (a) TLS 1.3 written in Spite (X25519, an AEAD,
   certificate verification against the system's root store), the long road D350 and D361 point to; (b) the
   system's own TLS through `DynamicLibrary` on Windows and macOS, which leaves Linux without one that is not a
