@@ -408,7 +408,7 @@ mkdir -p "$work/unformatted" && cp -r diagnostics "$work/unformatted/"
   for system in windows linux mac; do
     for program in bootstrap conformance/stage6/daylight_saving conformance/stage6/file_watching conformance/stage6/clock_reads \
                    conformance/stage6/mapped_files conformance/stage6/socket_bytes conformance/stage6/socket_waits \
-                   conformance/stage6/datagrams conformance/stage6/hashes; do
+                   conformance/stage6/datagrams conformance/stage6/hashes conformance/stage6/web_socket_exchange; do
       echo "target $system $program"
     done
   done

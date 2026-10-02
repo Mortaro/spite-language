@@ -50,6 +50,7 @@ REPL can look at any of it.
 | `Socket` | TCP over IPv4 and IPv6: listen, connect, lines and bytes, waiting or not | [below](#socket) |
 | `UdpSocket` | UDP datagrams over IPv4 and IPv6 | [below](#udpsocket) |
 | `HttpServer`, `HttpClient`, `HttpRequest`, `HttpResponse` | HTTP/1.1, connections kept alive | [below](#http) |
+| `WebSocket`, `WebSocketText`, `WebSocketBinary` | WebSocket (RFC 6455) over an HTTP upgrade: text and binary messages both ways, ping and close | [below](#websocket) |
 | `Base64`, `Deflate`, `Zlib`, `Gzip` | bytes as base64 and base64url text; bytes compressed as raw DEFLATE, zlib and gzip | [below](#bytes-base64-compression-hashes-and-passwords) |
 | `Sha256`, `SecureRandom`, `Argon2` | SHA-256 and HMAC-SHA256; bytes from the operating system's secure random source; password hashes as PHC strings | [below](#bytes-base64-compression-hashes-and-passwords) |
 | `Memory.Address`, `Memory.Heap`, `Memory.Arena`, `TypedMemory<T>` | a place in memory, the allocators that own it, and values of any type there: the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
@@ -72,9 +73,9 @@ other repository
 ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)). `library/windows/`, `library/linux/` and
 `library/mac/` are not brand packages: they are how a standard class is written for one system.
 
-The library has TCP and UDP over IPv4 and IPv6 and HTTP/1.1 with kept-alive connections ([below](#socket)),
-SHA-256 and HMAC, Argon2id, secure random bytes, base64 and base64url, and DEFLATE, zlib and gzip
-([below](#bytes-base64-compression-hashes-and-passwords)). WebSocket and TLS belong to it as well.
+The library has TCP and UDP over IPv4 and IPv6, HTTP/1.1 with kept-alive connections and WebSocket over it
+([below](#socket)), SHA-256 and HMAC, Argon2id, secure random bytes, base64 and base64url, and DEFLATE, zlib and
+gzip ([below](#bytes-base64-compression-hashes-and-passwords)). TLS belongs to it as well.
 
 ## `String`
 
@@ -666,7 +667,7 @@ func poll(connection: Socket) {
 A write to a closed connection sends nothing, answers `false` or `0`, and sets `closed` too; nothing crashes.
 Addresses are `Memory.Address`es, so a buffer is `heap.allocate(bytes)` and its bytes are written with
 `TypedMemory<Byte>` or a class of the program's own over the heap ([memory.md](memory.md)).
-`UdpSocket` and HTTP are [below](#udpsocket); WebSocket grows from this class.
+`UdpSocket`, HTTP and WebSocket are [below](#udpsocket).
 
 ## `UdpSocket`
 
@@ -716,6 +717,85 @@ A response to `HEAD`, and a `204` or `304`, carries no body. A server still refu
 Inside a `Concurrent`, `next_request` and `send` wait the way `Socket` does, so a server serves while its program
 runs ([concurrency.md](concurrency.md#what-the-compiler-does-at-a-wait)). A server reads one request at a time:
 while a client is slow to send the rest of a request, the other connections wait for it.
+
+## WebSocket
+
+`WebSocket()` keeps one connection open in both directions and carries messages over it, text or bytes, from
+either side at any time: what a browser game or a chat speaks once its page has loaded. A connection starts as an
+HTTP request, so a server takes it from `HttpServer.next_request()`, and from there both ends are the same class.
+
+```gdscript
+var server = HttpServer()
+
+func serve() {
+    var request = server.next_request()
+    crash request
+    var socket = WebSocket()
+    assert socket.accept(request)
+    var message = socket.receive()
+    while message {
+        switch message {
+            WebSocketText: socket.send_text("you said {message.text}")
+            WebSocketBinary: socket.send_bytes(message.bytes)
+        }
+        message = socket.receive()
+    }
+}
+```
+
+A client asks with an `HttpRequest`, whose `path` and headers (an `origin`, a cookie, the subprotocols it speaks
+in `sec-websocket-protocol`) go out with the handshake:
+
+```gdscript
+func talk() {
+    var socket = WebSocket()
+    var request = HttpRequest()
+    request.path = "/chat"
+    crash socket.connect("127.0.0.1", 8080, request)
+    socket.send_text("hello")
+    var answer = socket.receive()
+    crash answer
+    switch answer {
+        WebSocketText: console.print(answer.text)
+        WebSocketBinary: console.print("{answer.bytes.count()} bytes")
+    }
+    socket.close()
+}
+```
+
+| Member | Does |
+|---|---|
+| `accept(request): Boolean` | answers a request from `HttpServer.next_request()` with `101 Switching Protocols` and keeps its connection; a request that is not a WebSocket handshake is answered `400 Bad Request` (or `426 Upgrade Required` for a version other than 13), its connection closed, and `false` |
+| `connect(host, port, request): Boolean` | connects like `Socket.connect`, sends the handshake with the request's path and headers, and checks the server's answer; `false` when nobody answers or the answer is not a WebSocket one |
+| `send_text(text): Boolean`, `send_bytes(bytes): Boolean` | sends one message, a text or a `List<Byte>`; `false`, sending nothing, once the connection has ended or `close()` was called |
+| `send_ping(bytes): Boolean` | sends a ping carrying up to 125 bytes |
+| `receive(): WebSocket.Message?` | waits for the next whole message, a `WebSocketText` (`text`) or a `WebSocketBinary` (`bytes`); `null` once the connection has ended |
+| `close()` | starts the closing handshake with code 1000; messages already on their way still arrive through `receive()`, which answers `null` once the other side has answered the close |
+| `closed: Boolean` | `true` once the connection has ended, and before `accept` or `connect` has opened it |
+| `close_code: Integer?` | how it ended: the code of the closing handshake, `null` while it is open |
+| `close_reason: String` | the text the other side's close carried, often empty |
+| `last_pong: List<Byte>?` | what the latest pong carried, `null` until one arrives |
+| `largest_message: Integer` | the longest message `receive()` takes, 16 MiB unless set |
+
+**What arrives is checked, and a broken connection says so.** Pings are answered with a pong while `receive()`
+waits, and a message sent in pieces arrives whole. Anything the protocol forbids ends the connection instead of
+being skipped: the side that sees it sends a close with the code that names the problem, and its `receive()`
+answers `null` with `close_code` set to that code. The codes are the protocol's own:
+
+| `close_code` | Means |
+|---|---|
+| `1000` | a normal close, by either side |
+| `1001` | the other side went away (a `WebSocket` dropped without `close()` sends it) |
+| `1002` | a frame the protocol forbids: one a client did not mask (or a server did), a reserved bit or opcode, a piece of a message that was never started, a ping or close too long or in pieces, a close code nobody may send |
+| `1005` | the other side closed without giving a code |
+| `1006` | the connection broke without a close at all |
+| `1007` | a text message, or a close's reason, that is not valid UTF-8 |
+| `1009` | a message longer than `largest_message` |
+| `1003`, `1008`, `1010` to `1014`, `3000` to `4999` | whatever the other side closed with |
+
+Inside a `Concurrent`, `receive()`, `accept` and `connect` wait the way `Socket` does
+([concurrency.md](concurrency.md#what-the-compiler-does-at-a-wait)), so one server talks to many sockets at once,
+one `Concurrent` each. `wss`, WebSocket over TLS, belongs here as well.
 
 ## Bytes: base64, compression, hashes and passwords
 
@@ -1080,6 +1160,42 @@ In detail:
   (`getaddrinfo`, `ioctlsocket`, ...) is never looked up. `conformance/stage6/socket_bytes` (a server and a client in one
   program, bytes both ways and a line without waiting, then the close) and `socket_waits` (the waiting calls,
   inside a `Concurrent`) are the proof.
+
+**`WebSocket` is RFC 6455 written in Spite over `Socket`.** `library/web_socket.spite` holds all of it, with
+`WebSocketText` and `WebSocketBinary` beside it:
+
+- **The handshake.** `accept` takes a `GET` over HTTP/1.1 whose `upgrade` is `websocket`, whose `connection` lists
+  `upgrade` (any case, among other tokens), whose `sec-websocket-version` is `13` and whose `sec-websocket-key` is
+  16 bytes in base64; it answers with `sec-websocket-accept`, the key and the protocol's own suffix hashed with
+  SHA-1 and written in base64. SHA-1 is private to the class: it is the protocol's checksum, not a hash to store
+  anything with. A server picks no subprotocol and no extension. `HttpServer` has already let go of the
+  connection: `next_request()` keeps a connection again only when `respond` is called, so a request handed to
+  `accept` is never answered twice. `connect` sends a fresh key of 16 bytes from `SecureRandom`, `host` with the
+  port when it is not 80, and every header of the request; a request that is not a `GET`, has a body, or sets
+  `host`, `upgrade`, `connection`, `content-length` or a `sec-websocket-` header other than
+  `sec-websocket-protocol` halts, since the handshake writes those itself. The answer must be
+  `HTTP/1.1 101` with the right `sec-websocket-accept`, no extension, and a subprotocol only if it is one the
+  request offered. Calling `accept` or `connect` a second time on one `WebSocket` halts.
+- **Frames.** A message goes out as one frame, its length in 7, 16 or 64 bits as the protocol asks. A client masks
+  every frame with 4 bytes from `SecureRandom`; a server masks none. Reading, a frame is refused (`1002`) when a
+  reserved bit is set, its opcode is not continuation, text, binary, close, ping or pong, it is masked the wrong
+  way for its side, its length is not written in the fewest bytes or sets the top bit of 64, or it is a control
+  frame longer than 125 bytes or in pieces; a continuation with no message started, or a new message before the
+  last one ended, is `1002` too. A message whose pieces would pass `largest_message` is `1009` before its payload is
+  read. Text is checked as UTF-8 once whole (`1007`).
+- **Pings, pongs and closes.** A ping is answered with a pong carrying the same bytes, unless this side has sent
+  its close. A pong is kept in `last_pong`. A close's code must be 1000 to 1003, 1007 to 1014 or 3000 to 4999, and
+  its reason UTF-8; a close of one byte is `1002`. Answering a close sends the same code back (or a close with no
+  code for a close with none) and closes the connection. Before closing the connection, either way, `WebSocket`
+  reads away what has already arrived, so the system does not reset the connection and throw away the close
+  frame it just sent.
+- **`drop()`** of a `WebSocket` still open sends a close with `1001` and closes the connection.
+- **What it costs**: nothing for a program that makes no `WebSocket`; for one that does, a frame header and a copy
+  of each message to send, one read of the system per frame piece, and 4 bytes from the operating system's
+  secure source per frame a client sends. `conformance/stage6/web_socket_exchange` (a server and a client in one
+  program: text, binary of each length size, an empty message, a ping, a close, a refused plain request, and a
+  hand-made client sending a message in pieces with a ping between them) and `web_socket_failures` (every close
+  code above, a refused version and a client of a server that does not speak WebSocket) are the proof.
 
 #### Pure Spite: dissolving the runtime
 

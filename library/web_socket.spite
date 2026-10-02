@@ -1,0 +1,685 @@
+union Message {
+    WebSocketText
+    WebSocketBinary
+}
+
+var heap = Memory.Heap()
+var largest_message = 16777216
+var _closed = true
+var _close_code: Integer? = null
+var _close_reason = ""
+var _last_pong: List<Byte>? = null
+var _connection = Socket()
+var _opened = false
+var _masking = false
+var _close_sent = false
+var _final = false
+var _opcode = 0
+var _message_opcode = 0
+var _parts = List<Byte>()
+var _head = List<Byte>()
+var _random = SecureRandom()
+var _base64 = Base64()
+
+func connect(host: String, port: Integer, request: HttpRequest): Boolean {
+    crash not _opened
+    crash request.method == "GET" and request.body.is_empty()
+    _opened = true
+    var connected = _connection.connect(host, port)
+    if not connected {
+        return false
+    }
+    var nonce = _random.bytes(16)
+    var key = _base64.encode(nonce)
+    var host_header = host
+    if host.contains(":") {
+        host_header = "[{host}]"
+    }
+    if port != 80 {
+        host_header = "{host_header}:{port}"
+    }
+    var head = "GET {request.path} HTTP/1.1\r\nhost: {host_header}\r\nupgrade: websocket\r\nconnection: Upgrade\r\n"
+    head = "{head}sec-websocket-key: {key}\r\nsec-websocket-version: 13\r\n"
+    var names = request.headers.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        crash request.headers[name]
+        var handshake = name.starts_with("sec-websocket-") and name != "sec-websocket-protocol"
+        var reserved = name == "host" or name == "upgrade" or name == "connection" or name == "content-length"
+        crash not handshake and not reserved
+        head = "{head}{name}: {request.headers[name]}\r\n"
+        index = index + 1
+    }
+    head = "{head}\r\n"
+    var bytes = head.to_bytes()
+    var counted = bytes.count()
+    var written = _connection.write_bytes(bytes.items, counted)
+    var answered = written and _answer_fits(key, request)
+    if not answered {
+        _connection.close()
+        return false
+    }
+    _masking = true
+    _begin()
+    return true
+}
+
+func accept(request: HttpRequest): Boolean {
+    crash not _opened
+    _opened = true
+    _connection = request.connection
+    var status = _refusal(request)
+    if status != 101 {
+        var reason = "Bad Request"
+        var extra = ""
+        if status == 426 {
+            reason = "Upgrade Required"
+            extra = "sec-websocket-version: 13\r\n"
+        }
+        var refused = "HTTP/1.1 {status} {reason}\r\n{extra}content-length: 0\r\nconnection: close\r\n\r\n"
+        _write_text(refused)
+        _connection.close()
+        return false
+    }
+    var key = request.header("sec-websocket-key")
+    crash key
+    var accepted = _accept_value(key)
+    var answer = "HTTP/1.1 101 Switching Protocols\r\nupgrade: websocket\r\nconnection: Upgrade\r\n"
+    answer = "{answer}sec-websocket-accept: {accepted}\r\n\r\n"
+    var written = _write_text(answer)
+    if not written {
+        _connection.close()
+        return false
+    }
+    _masking = false
+    _begin()
+    return true
+}
+
+func get_closed(): Boolean {
+    return _closed
+}
+
+func get_close_code(): Integer? {
+    return _close_code
+}
+
+func get_close_reason(): String {
+    return _close_reason
+}
+
+func get_last_pong(): List<Byte>? {
+    return _last_pong
+}
+
+func send_text(text: String): Boolean {
+    var bytes = text.to_bytes()
+    return _send_frame(1, bytes)
+}
+
+func send_bytes(bytes: List<Byte>): Boolean {
+    return _send_frame(2, bytes)
+}
+
+func send_ping(bytes: List<Byte>): Boolean {
+    var counted = bytes.count()
+    crash counted <= 125
+    return _send_frame(9, bytes)
+}
+
+func receive(): Message? {
+    while true {
+        assert not _closed
+        var already = _parts.count()
+        var frame = _read_frame(already)
+        assert frame
+        if _opcode >= 8 {
+            _answer_control(frame)
+        } else {
+            var message = _take_data(frame)
+            if message {
+                return message
+            }
+        }
+    }
+}
+
+func close() {
+    assert not _closed and not _close_sent
+    _send_close(1000)
+}
+
+func drop() {
+    assert not _closed
+    if not _close_sent {
+        _send_close(1001)
+    }
+    _drain()
+    _connection.close()
+    _closed = true
+}
+
+func _take_data(frame: List<Byte>): Message? {
+    var continuing = _opcode == 0
+    var started = _message_opcode != 0
+    if continuing != started {
+        _fail(1002)
+    }
+    assert not _closed
+    if started {
+        _append_bytes(_parts, frame)
+    } else {
+        _message_opcode = _opcode
+        _parts = frame
+    }
+    assert _final
+    var kind = _message_opcode
+    var whole = _parts
+    _message_opcode = 0
+    _parts = List<Byte>()
+    if kind == 2 {
+        return WebSocketBinary(whole)
+    }
+    var text = whole.to_utf8_text()
+    if not text {
+        _fail(1007)
+    }
+    assert text
+    return WebSocketText(text)
+}
+
+func _begin() {
+    _closed = false
+    _head.reserve(14)
+}
+
+func _refusal(request: HttpRequest): Integer {
+    var version = request.header("sec-websocket-version")
+    var upgrade = request.header("upgrade")
+    var connection = request.header("connection")
+    var key = request.header("sec-websocket-key")
+    if request.method != "GET" or request.version != "HTTP/1.1" or not upgrade or not connection or not key {
+        return 400
+    }
+    var upgrade_lowered = upgrade.lower_case()
+    var upgrading = _has_token(connection, "upgrade")
+    if upgrade_lowered != "websocket" or not upgrading {
+        return 400
+    }
+    if not version or version != "13" {
+        return 426
+    }
+    var nonce = _base64.decode(key)
+    if not nonce or nonce.count() != 16 {
+        return 400
+    }
+    return 101
+}
+
+func _answer_fits(key: String, request: HttpRequest): Boolean {
+    var status_line = _connection.read_line()
+    if not status_line or not status_line.starts_with("HTTP/1.1 101") {
+        return false
+    }
+    var headers = Dictionary<String>()
+    var count = 0
+    var ended = false
+    while not ended {
+        var line = _connection.read_line()
+        if not line or count >= 200 {
+            return false
+        }
+        if line.is_empty() {
+            ended = true
+        } else {
+            var colon = line.index_of(":")
+            if colon <= 0 {
+                return false
+            }
+            var name = line.slice(0, colon)
+            var line_length = line.length()
+            var value = line.slice(colon + 1, line_length)
+            var lowered = name.lower_case()
+            var trimmed = value.trim()
+            headers[lowered] = trimmed
+            count = count + 1
+        }
+    }
+    var upgrade = headers["upgrade"]
+    var connection = headers["connection"]
+    var accepted = headers["sec-websocket-accept"]
+    if not upgrade or not connection or not accepted {
+        return false
+    }
+    var upgrade_lowered = upgrade.lower_case()
+    var upgrading = _has_token(connection, "upgrade")
+    var expected = _accept_value(key)
+    if upgrade_lowered != "websocket" or not upgrading or accepted != expected or headers["sec-websocket-extensions"] {
+        return false
+    }
+    var chosen = headers["sec-websocket-protocol"]
+    if not chosen {
+        return true
+    }
+    var offered = request.header("sec-websocket-protocol")
+    if not offered {
+        return false
+    }
+    return _has_token(offered, chosen)
+}
+
+func _has_token(list: String, token: String): Boolean {
+    var pieces = list.split(",")
+    var wanted = token.lower_case()
+    var index = 0
+    while index < pieces.count() {
+        var piece = pieces[index].trim()
+        var lowered = piece.lower_case()
+        if lowered == wanted {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func _accept_value(key: String): String {
+    var joined = "{key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+    var bytes = joined.to_bytes()
+    var digest = _sha1(bytes)
+    return _base64.encode(digest)
+}
+
+func _write_text(text: String): Boolean {
+    var bytes = text.to_bytes()
+    var counted = bytes.count()
+    return _connection.write_bytes(bytes.items, counted)
+}
+
+func _send_frame(opcode: Integer, payload: List<Byte>): Boolean {
+    if _closed or _close_sent {
+        return false
+    }
+    var count = payload.count()
+    var header_length = 2
+    var length_mark = count
+    if count > 65535 {
+        header_length = 10
+        length_mark = 127
+    } else if count > 125 {
+        header_length = 4
+        length_mark = 126
+    }
+    var start = header_length
+    if _masking {
+        start = header_length + 4
+        length_mark = length_mark + 128
+    }
+    var total = start + count
+    var frame = heap.allocate(total)
+    frame.write_byte(0, 128 + opcode)
+    frame.write_byte(1, length_mark)
+    if header_length == 4 {
+        var high = count.shifted_right(8)
+        var low = count.bits_and(255)
+        frame.write_byte(2, high)
+        frame.write_byte(3, low)
+    } else if header_length == 10 {
+        var shift = 0
+        while shift < 8 {
+            var length_byte = 0
+            if shift >= 4 {
+                length_byte = count.shifted_right(56 - shift * 8).bits_and(255)
+            }
+            frame.write_byte(2 + shift, length_byte)
+            shift = shift + 1
+        }
+    }
+    var body = frame + start
+    payload.items.copy_to(body, count)
+    if _masking {
+        var mask = _random.bytes(4)
+        var key_at = frame + header_length
+        mask.items.copy_to(key_at, 4)
+        _mask(body, count, key_at)
+    }
+    var sent = _connection.write_bytes(frame, total)
+    heap.free(frame)
+    if not sent {
+        _lost()
+    }
+    return sent
+}
+
+func _send_close(code: Integer) {
+    var payload = List<Byte>()
+    if code != 1005 {
+        var high: Byte = code.shifted_right(8)
+        var low: Byte = code.bits_and(255)
+        payload.append(high)
+        payload.append(low)
+    }
+    _send_frame(8, payload)
+    _close_sent = true
+}
+
+func _mask(body: Memory.Address, count: Integer, key_at: Memory.Address) {
+    var index = 0
+    while index < count {
+        var key: Integer = key_at.read_byte(index % 4)
+        var value: Integer = body.read_byte(index)
+        var masked = value.bits_exclusive_or(key)
+        body.write_byte(index, masked)
+        index = index + 1
+    }
+}
+
+func _read_frame(already: Integer): List<Byte>? {
+    var head = _head.items
+    var got = _read_into(head, 2)
+    assert got
+    var first: Integer = head.read_byte(0)
+    var second: Integer = head.read_byte(1)
+    _final = first.bits_and(128) != 0
+    _opcode = first.bits_and(15)
+    var masked = second.bits_and(128) != 0
+    var length: Long = second.bits_and(127)
+    var reserved_bits = first.bits_and(112) != 0
+    var known = _opcode <= 2 or _opcode >= 8 and _opcode <= 10
+    var control = _opcode >= 8
+    var control_fits = not control or _final and length <= 125
+    if reserved_bits or masked == _masking or not known or not control_fits {
+        _fail(1002)
+    }
+    assert not _closed
+    if length == 126 {
+        var extended = _read_into(head, 2)
+        assert extended
+        length = _read_length(head, 2)
+        if length < 126 {
+            _fail(1002)
+        }
+    } else if length == 127 {
+        var extended = _read_into(head, 8)
+        assert extended
+        var top: Integer = head.read_byte(0)
+        if top >= 128 {
+            _fail(1002)
+        }
+        assert not _closed
+        length = _read_length(head, 8)
+        if length < 65536 {
+            _fail(1002)
+        }
+    }
+    assert not _closed
+    var room: Long = largest_message - already
+    if not control and length > room {
+        _fail(1009)
+    }
+    assert not _closed
+    if masked {
+        var mask_read = _read_into(head, 4)
+        assert mask_read
+    }
+    var count: Integer = length
+    var payload = List<Byte>()
+    payload.reserve(count)
+    var filled = _read_into(payload.items, count)
+    assert filled
+    if masked {
+        _mask(payload.items, count, head)
+    }
+    payload.item_count = count
+    return payload
+}
+
+func _read_length(head: Memory.Address, count: Integer): Long {
+    var length: Long = 0
+    var index = 0
+    while index < count {
+        var piece: Long = head.read_byte(index)
+        length = length * 256 + piece
+        index = index + 1
+    }
+    return length
+}
+
+func _read_into(address: Memory.Address, count: Integer): Boolean {
+    var filled = 0
+    while filled < count {
+        var at = address + filled
+        var received = _connection.read_bytes(at, count - filled)
+        if received <= 0 {
+            _lost()
+            return false
+        }
+        filled = filled + received
+    }
+    return true
+}
+
+func _answer_control(frame: List<Byte>) {
+    if _opcode == 9 {
+        if not _close_sent {
+            _send_frame(10, frame)
+        }
+    } else if _opcode == 10 {
+        _last_pong = frame
+    } else {
+        _answer_close(frame)
+    }
+}
+
+func _answer_close(frame: List<Byte>) {
+    var count = frame.count()
+    var code = 1005
+    var reason = ""
+    if count == 1 {
+        _fail(1002)
+    }
+    assert not _closed
+    if count >= 2 {
+        var high: Integer = frame.items.read_byte(0)
+        var low: Integer = frame.items.read_byte(1)
+        code = high * 256 + low
+        var allowed = code >= 1000 and code <= 1003 or code >= 1007 and code <= 1014 or code >= 3000 and code <= 4999
+        if not allowed {
+            _fail(1002)
+        }
+        assert not _closed
+        var rest = List<Byte>()
+        rest.reserve(count - 2)
+        var reason_at = frame.items + 2
+        reason_at.copy_to(rest.items, count - 2)
+        rest.item_count = count - 2
+        var text = rest.to_utf8_text()
+        if not text {
+            _fail(1007)
+        }
+        assert text
+        reason = text
+    }
+    if not _close_sent {
+        _send_close(code)
+    }
+    _drain()
+    _connection.close()
+    _closed = true
+    _close_code = code
+    _close_reason = reason
+}
+
+func _fail(code: Integer) {
+    assert not _closed
+    if not _close_sent {
+        _send_close(code)
+    }
+    _drain()
+    _connection.close()
+    _closed = true
+    _close_code = code
+}
+
+func _drain() {
+    var buffer = heap.allocate(4096)
+    var got = _connection.read_bytes_now(buffer, 4096)
+    while got > 0 {
+        got = _connection.read_bytes_now(buffer, 4096)
+    }
+    heap.free(buffer)
+}
+
+func _lost() {
+    assert not _closed
+    _connection.close()
+    _closed = true
+    _close_code = 1006
+}
+
+func _append_bytes(parts: List<Byte>, frame: List<Byte>) {
+    var held = parts.count()
+    var added = frame.count()
+    parts.reserve(held + added)
+    var at = parts.items + held
+    frame.items.copy_to(at, added)
+    parts.item_count = held + added
+}
+
+func _sha1(source: List<Byte>): List<Byte> {
+    var length: Long = source.count()
+    var padded: Long = (length + 8) / 64 * 64 + 64
+    var block = heap.allocate(padded)
+    source.items.copy_to(block, length)
+    block.write_byte(length, 128)
+    var index: Long = length + 1
+    while index < padded {
+        block.write_byte(index, 0)
+        index = index + 1
+    }
+    var bits = length * 8
+    var shift = 0
+    while shift < 8 {
+        var length_byte = bits.shifted_right(56 - shift * 8).bits_and(255)
+        block.write_byte(padded - 8 + shift, length_byte)
+        shift = shift + 1
+    }
+    var state = heap.allocate(20)
+    var initial_a: UnsignedInteger = 1732584193
+    var initial_b: UnsignedInteger = 4023233417
+    var initial_c: UnsignedInteger = 2562383102
+    var initial_d: UnsignedInteger = 271733878
+    var initial_e: UnsignedInteger = 3285377520
+    state.write_unsigned_integer(0, initial_a)
+    state.write_unsigned_integer(4, initial_b)
+    state.write_unsigned_integer(8, initial_c)
+    state.write_unsigned_integer(12, initial_d)
+    state.write_unsigned_integer(16, initial_e)
+    var schedule = heap.allocate(320)
+    var offset: Long = 0
+    while offset < padded {
+        var chunk = block + offset
+        _sha1_compress(state, chunk, schedule)
+        offset = offset + 64
+    }
+    var digest = List<Byte>()
+    digest.reserve(20)
+    digest.item_count = 20
+    var word_index = 0
+    while word_index < 5 {
+        var word = state.read_unsigned_integer(word_index * 4)
+        var byte_index = 0
+        while byte_index < 4 {
+            var word_byte = word.shifted_right(24 - byte_index * 8).bits_and(255)
+            digest.items.write_byte(word_index * 4 + byte_index, word_byte)
+            byte_index = byte_index + 1
+        }
+        word_index = word_index + 1
+    }
+    heap.free(block)
+    heap.free(state)
+    heap.free(schedule)
+    return digest
+}
+
+func _sha1_compress(state: Memory.Address, chunk: Memory.Address, schedule: Memory.Address) {
+    var index = 0
+    while index < 16 {
+        var first: UnsignedInteger = chunk.read_byte(index * 4)
+        var second: UnsignedInteger = chunk.read_byte(index * 4 + 1)
+        var third: UnsignedInteger = chunk.read_byte(index * 4 + 2)
+        var fourth: UnsignedInteger = chunk.read_byte(index * 4 + 3)
+        var high = first.shifted_left(24)
+        var upper = second.shifted_left(16)
+        var lower = third.shifted_left(8)
+        var word = high.bits_or(upper).bits_or(lower).bits_or(fourth)
+        schedule.write_unsigned_integer(index * 4, word)
+        index = index + 1
+    }
+    while index < 80 {
+        var three_back = schedule.read_unsigned_integer(index * 4 - 12)
+        var eight_back = schedule.read_unsigned_integer(index * 4 - 32)
+        var fourteen_back = schedule.read_unsigned_integer(index * 4 - 56)
+        var sixteen_back = schedule.read_unsigned_integer(index * 4 - 64)
+        var mixed = three_back.bits_exclusive_or(eight_back).bits_exclusive_or(fourteen_back).bits_exclusive_or(sixteen_back)
+        var word = _rotated_left(mixed, 1)
+        schedule.write_unsigned_integer(index * 4, word)
+        index = index + 1
+    }
+    var working_a = state.read_unsigned_integer(0)
+    var working_b = state.read_unsigned_integer(4)
+    var working_c = state.read_unsigned_integer(8)
+    var working_d = state.read_unsigned_integer(12)
+    var working_e = state.read_unsigned_integer(16)
+    var round = 0
+    while round < 80 {
+        var mixed: UnsignedInteger = 0
+        var constant: UnsignedInteger = 0
+        if round < 20 {
+            var chosen = working_b.bits_and(working_c)
+            var inverted = working_b.bits_inverted()
+            var others = inverted.bits_and(working_d)
+            mixed = chosen.bits_or(others)
+            constant = 1518500249
+        } else if round < 40 {
+            mixed = working_b.bits_exclusive_or(working_c).bits_exclusive_or(working_d)
+            constant = 1859775393
+        } else if round < 60 {
+            var both_bc = working_b.bits_and(working_c)
+            var both_bd = working_b.bits_and(working_d)
+            var both_cd = working_c.bits_and(working_d)
+            mixed = both_bc.bits_or(both_bd).bits_or(both_cd)
+            constant = 2400959708
+        } else {
+            mixed = working_b.bits_exclusive_or(working_c).bits_exclusive_or(working_d)
+            constant = 3395469782
+        }
+        var scheduled = schedule.read_unsigned_integer(round * 4)
+        var rotated_a = _rotated_left(working_a, 5)
+        var sum = rotated_a.wrapping_sum(mixed).wrapping_sum(working_e).wrapping_sum(constant).wrapping_sum(scheduled)
+        working_e = working_d
+        working_d = working_c
+        working_c = _rotated_left(working_b, 30)
+        working_b = working_a
+        working_a = sum
+        round = round + 1
+    }
+    _add_to(state, 0, working_a)
+    _add_to(state, 4, working_b)
+    _add_to(state, 8, working_c)
+    _add_to(state, 12, working_d)
+    _add_to(state, 16, working_e)
+}
+
+func _add_to(state: Memory.Address, at: Integer, value: UnsignedInteger) {
+    var held = state.read_unsigned_integer(at)
+    var sum = held.wrapping_sum(value)
+    state.write_unsigned_integer(at, sum)
+}
+
+func _rotated_left(value: UnsignedInteger, count: Integer): UnsignedInteger {
+    var left = value.shifted_left(count)
+    var right = value.shifted_right(32 - count)
+    return left.bits_or(right)
+}

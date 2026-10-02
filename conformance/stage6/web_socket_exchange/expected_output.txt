@@ -1,0 +1,31 @@
+plain request: 400 Bad Request
+client: text 'echo: hello'
+client: text 'echo: héllo ✓'
+client: 5 bytes, first 4, last 0
+client: 300 bytes, first 43, last 0
+client: 70000 bytes, first 111, last 0
+client: 0 bytes
+client: text 'echo: after the ping'
+client: pong 'are you there'
+client: sending after close: false
+client: nothing after the close: true closed: true
+client: closed with 1000 ''
+raw: HTTP/1.1 101 Switching Protocols
+raw: sec-websocket-accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
+raw: frame 138, 'p'
+raw: frame 129, 'echo: fragmented'
+raw: close frame, code 1002
+served 3
+server: refused /plain
+server: accepted /chat
+server: text 'hello'
+server: text 'héllo ✓'
+server: 5 bytes
+server: 300 bytes
+server: 70000 bytes
+server: 0 bytes
+server: text 'after the ping'
+server: closed with 1000 ''
+server: accepted /raw
+server: text 'fragmented'
+server: closed with 1002 ''
