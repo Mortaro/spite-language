@@ -90,7 +90,7 @@ native() {
 }
 
 # `spite thing` is the common case: every output is a Build field (--check, --build, --executable-path, ...).
-# The first argument not starting with - is the program's folder; the compiler's three path flags are made
+# The first argument not starting with - is the program's folder; the compiler's four path flags are made
 # absolute, and every other argument (a program's settings, its other arguments) is passed through as typed.
 arguments=()
 folder_seen=false
@@ -99,6 +99,7 @@ for argument in "$@"; do
         --final-classes=*)    arguments+=("--final-classes=$(absolute "${argument#*=}")") ;;
         --executable-path=*)  arguments+=("--executable-path=$(absolute "${argument#*=}")") ;;
         --c-path=*)           arguments+=("--c-path=$(absolute "${argument#*=}")") ;;
+        --optimization-report=*) arguments+=("--optimization-report=$(absolute "${argument#*=}")") ;;
         -*)                   arguments+=("$argument") ;;
         *)
             if $folder_seen; then

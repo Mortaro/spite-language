@@ -6,6 +6,7 @@ var executable_path = ""
 var c_source = false
 var c_path = ""
 var final_classes = ""
+var optimization_report = ""
 var optimized = false
 var development = false
 var repl = false

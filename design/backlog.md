@@ -94,10 +94,11 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   array; step 3: partitions per value filter, only where a production benchmark wins (D322). Files:
   `library/list.spite`, `items.spite`, `vector.spite`, generator.spite list layout, `placement.spite`. **L.**
   Depends on M1(b), M4.
-- **M4 The optimisation report** (D36, D332, D389; status "Other optimisations"). A build lists what could not be
-  optimised and why: every list falling back to references (D332's to-do list), copies not elided, objects not
-  placed in the frame, and later every remaining overflow check (N2). Written only when asked, by `--optimization-report` (name unconfirmed), in `--final-classes`' place and style, each entry linking its source line (D389). Files:
-  generator.spite (a collector), `bootstrap.spite` (writing it). **M.** No dependencies; M3 and N2 report into it.
+- **M4 The optimisation report, leftovers** (D36, D332, D389, DNEW1; status "Other optimisations"). Built:
+  `--optimization-report=file` with lists holding references, local lists and objects not in the frame, and copies
+  not elided. Left: results into the caller's slot, temporaries and arguments not framed, call results not fresh,
+  `Items<T>` choosing references, and the overflow checks N2 leaves (its hook is in
+  `generation/optimization_report.spite`). **S.** No dependencies; M3 and N2 report into it.
 - **M5 The rest of the maths generic over `Number`** (D355, D381). `Vector2`, `Vector3` and `Vector4` are built
   (D???); left: whether `Quaternion` (and `Matrix3`/`Matrix4`, `Plane`, `Ray`, `AxisAlignedBox`, `Frustum`,
   `CubicBezier`) take `generic $number_type` too, which would make `Quaternion()` and `Matrix4()` name their class

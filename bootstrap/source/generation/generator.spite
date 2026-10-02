@@ -381,6 +381,7 @@ var framed_cleanups = List<String>()
 var framed_list_counter = 0
 var framed_list_helpers = List<String>()
 var object_frames = ObjectFrames()
+var optimization_report = OptimizationReport()
 var expression_depth = 0
 var into_claim_depth = -1
 var into_claim_name = ""
@@ -399,6 +400,7 @@ var argument_lender_function: Analysis.FunctionInfo? = null
 var frame_helper_classes = List<String>()
 var instance_lists_studied = false
 var every_class_listed = false
+var every_class_listed_by = ""
 var instance_listed_names = List<String>()
 var instance_study_owner = ""
 var read_list_answers = Dictionary<Boolean>()
@@ -12367,7 +12369,7 @@ func note_instance_lists(expression: Syntax.Expressions.Expression) {
         Syntax.Expressions.ListLiteralExpression: expression.elements.each(note_element_instance_lists)
         Syntax.Expressions.StringLiteralExpression: {
             if expression.value.contains("instances") {
-                every_class_listed = true
+                list_every_class("a text in '{instance_study_owner}' names 'instances'")
             }
         }
         _: return
@@ -12397,6 +12399,13 @@ func note_listed_class(listed: Syntax.Expressions.Expression) {
     if member {
         instance_listed_names.append(member.name)
         return
+    }
+    list_every_class("'{instance_study_owner}' reads '.instances' of a class it does not name")
+}
+
+func list_every_class(cause: String) {
+    if not every_class_listed {
+        every_class_listed_by = cause
     }
     every_class_listed = true
 }
@@ -12598,9 +12607,11 @@ func frames_local_list(
     var appended = counted_appends(declaration.name, borrow_statements, start)
     var capacity = literal_count + appended
     if capacity > 256 {
+        report_list_on_heap(declaration, "its {capacity} items are more than the 256 a list in the frame holds")
         return false
     }
     if not rest_only_reads(declaration.name, borrow_statements, start, class_information) {
+        report_list_let_go(declaration, start)
         return false
     }
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
@@ -12614,6 +12625,10 @@ func frames_local_list(
         constant = appended == 0 and literal_is_constant(literal, element)
     }
     if not constant and capacity > 16 {
+        report_list_on_heap(
+            declaration,
+            "its {capacity} items are more than the 16 a list in the frame holds when they are not all constants",
+        )
         return false
     }
     var list_name = ensure_list(element)
@@ -12675,6 +12690,7 @@ func frames_local_object(
     study.counted_allowed = true
     var made = study.fresh_class(declaration.value)
     if not made {
+        report_unframed_value(declaration, study)
         return false
     }
     if declaration.type_reference {
@@ -12695,6 +12711,7 @@ func frames_local_object(
     follower.counted_allowed = true
     follower.follow_local(declaration.name, made, returning)
     if not follower.stays_after(borrow_statements, borrow_index + 1) {
+        report_local_let_go(declaration, made, follower.let_go)
         return false
     }
     var slot_code = "spite_result"
@@ -12724,6 +12741,105 @@ func frames_local_object(
     scope.check_last(current_line)
     check_value_name(declaration.name, "variable")
     return true
+}
+
+func report_list_on_heap(declaration: Syntax.Statements.VariableDeclaration, reason: String) {
+    optimization_report.list_on_heap(current_function_c_name, current_path, declaration.line, declaration.name, reason)
+}
+
+func report_list_let_go(declaration: Syntax.Statements.VariableDeclaration, start: Integer) {
+    assert optimization_report.recording
+    var index = start
+    while index < borrow_statements.count() {
+        var statement = borrow_statements[index]
+        if not appends_to(declaration.name, statement) and not placement.statement_only_reads(declaration.name, statement) {
+            if optimization_report.filled_in_loop(declaration.name, statement) {
+                var line = statement_line(statement)
+                report_list_on_heap(
+                    declaration,
+                    "line {line} appends to it in a loop, so how many items it holds is not known while compiling",
+                )
+                return
+            }
+            var reason = optimization_report.let_go_reason(this, statement)
+            report_list_on_heap(declaration, "{reason}, and a list in the frame is only read once it is filled")
+            return
+        }
+        index = index + 1
+    }
+}
+
+func copied_value(value: Syntax.Expressions.Expression): Boolean {
+    var call = shape.as_call(value)
+    if not call or not call.arguments.is_empty() {
+        return false
+    }
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    if not member {
+        return false
+    }
+    return member.name == "copy" or member.name == "deep_copy"
+}
+
+func called_owner(value: Syntax.Expressions.Expression, study: ObjectEscape): Analysis.ClassInfo? {
+    var call = shape.as_call(value)
+    assert call
+    var resolved = study.resolve_call(call)
+    assert resolved
+    return resolved.owner
+}
+
+func report_unframed_value(declaration: Syntax.Statements.VariableDeclaration, study: ObjectEscape) {
+    assert optimization_report.recording
+    crash declaration.value
+    var owner = called_owner(declaration.value, study)
+    assert owner
+    if copied_value(declaration.value) {
+        var copy_text = optimization_report.statement_text(declaration)
+        var copy_reason = optimization_report.copy_refusal(this, owner)
+        optimization_report.copy_kept(current_function_c_name, current_path, declaration.line, copy_text, copy_reason)
+        return
+    }
+    var call = shape.as_call(declaration.value)
+    crash call
+    var resolved = study.resolve_call(call)
+    assert resolved
+    assert resolved.constructs
+    var refused = optimization_report.class_refusal(this, owner)
+    if not refused.is_empty() {
+        optimization_report.object_on_heap(
+            current_function_c_name,
+            current_path,
+            declaration.line,
+            declaration.name,
+            owner.qualified_dotted,
+            refused,
+        )
+    }
+}
+
+func report_local_let_go(
+    declaration: Syntax.Statements.VariableDeclaration,
+    made: Analysis.ClassInfo,
+    let_go: Syntax.Statements.Statement?,
+) {
+    assert optimization_report.recording
+    crash declaration.value
+    var reason = optimization_report.let_go_reason(this, let_go)
+    if copied_value(declaration.value) {
+        var copy_text = optimization_report.statement_text(declaration)
+        optimization_report.copy_kept(current_function_c_name, current_path, declaration.line, copy_text, reason)
+        return
+    }
+    optimization_report.object_on_heap(
+        current_function_c_name,
+        current_path,
+        declaration.line,
+        declaration.name,
+        made.qualified_dotted,
+        reason,
+    )
 }
 
 func framed_object_name(expression: Syntax.Expressions.Expression, scope: Scope): String {
@@ -20644,6 +20760,9 @@ func ensure_list(element: Analysis.SpiteType): String {
         return list_name
     }
     list_names.append(list_name)
+    if optimization_report.recording {
+        optimization_report.list_by_reference(element, list_name, current_path, current_line)
+    }
     var list_template = find_class_by_qualified("List")
     if not list_template {
         report("List needs the standard library: library/list.spite was not found from the working directory")

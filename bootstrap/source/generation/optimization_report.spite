@@ -1,0 +1,238 @@
+var type_shape = Analysis.TypeShape()
+var printer = Syntax.SourcePrinter()
+var recording = false
+var reports_overflow_checks = false
+var sections = List<List<String>>()
+var holders = Dictionary<String>()
+var pending_elements = List<Analysis.SpiteType>()
+var pending_names = List<String>()
+var pending_paths = List<String>()
+var pending_lines = List<Integer>()
+
+func OptimizationReport() {
+    var index = 0
+    while index < 5 {
+        var section = List<String>()
+        sections.append(section)
+        index = index + 1
+    }
+}
+
+func titles(): List<String> {
+    var shown = [
+        "Lists that hold references"
+        "Lists not in the frame"
+        "Objects not in the frame"
+        "Copies not elided"
+    ]
+    if reports_overflow_checks {
+        shown.append("Overflow checks kept")
+    }
+    return shown
+}
+
+func entries(section: Integer): List<String> {
+    crash sections[section]
+    return sections[section]
+}
+
+func record(section: Integer, holder: String, path: String, line: Integer, text: String) {
+    crash not text.contains("\t") and not path.contains("\t")
+    var key = "{path}\t{padded_line(line)}\t{text}"
+    var held_key = "{section}\t{key}"
+    var earlier = holders[held_key]
+    if earlier {
+        holders[held_key] = "{earlier}\n{holder}"
+        return
+    }
+    holders[held_key] = holder
+    var listed = entries(section)
+    var position = listed.count()
+    while position > 0 {
+        var before = listed[position - 1]
+        crash before
+        if before <= key {
+            listed.insert(position, key)
+            return
+        }
+        position = position - 1
+    }
+    listed.insert(0, key)
+}
+
+func kept_entries(section: Integer, shaker: TreeShaker?): List<String> {
+    var kept = List<String>()
+    var listed = entries(section)
+    var index = 0
+    while index < listed.count() {
+        var key = listed[index]
+        var names = holders["{section}\t{key}"]
+        crash names
+        if held_by_kept(names, shaker) {
+            kept.append(key)
+        }
+        index = index + 1
+    }
+    return kept
+}
+
+func held_by_kept(names: String, shaker: TreeShaker?): Boolean {
+    if not shaker {
+        return true
+    }
+    var held = names.split("\n")
+    var index = 0
+    while index < held.count() {
+        var name = held[index]
+        if name.is_empty() or shaker.is_kept_name(name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func padded_line(line: Integer): String {
+    var digits = line.to_string()
+    while digits.length() < 9 {
+        digits = "0{digits}"
+    }
+    return digits
+}
+
+func list_by_reference(element: Analysis.SpiteType, list_name: String, path: String, line: Integer) {
+    assert recording
+    pending_elements.append(element)
+    pending_names.append(list_name)
+    pending_paths.append(path)
+    pending_lines.append(line)
+}
+
+func finish(generator: Generator) {
+    var index = 0
+    while index < pending_elements.count() {
+        var element = pending_elements[index]
+        if not generator.inline_value_type(element) {
+            var label = generator.type_display_name(element)
+            var reason = reference_reason(generator, element)
+            var list_name = pending_names[index]
+            var path = pending_paths[index]
+            var line = pending_lines[index]
+            crash list_name and path and line
+            record(0, list_name, path, line, "`List<{label}>` keeps a reference to each item: {reason}")
+        }
+        index = index + 1
+    }
+    pending_elements.clear()
+}
+
+func reference_reason(generator: Generator, element: Analysis.SpiteType): String {
+    var label = generator.type_display_name(element)
+    if type_shape.as_nullable(element) {
+        return "an item may be null, and a list holds a missing item as a null reference"
+    }
+    var item_class = generator.inline_item_class(element)
+    if not item_class {
+        return "an item is {generator.type_with_article(element)}, which a list holds by reference"
+    }
+    if item_class.is_container {
+        return "'{label}' is a collection, and a collection is always an object of its own"
+    }
+    var index = 0
+    while index < item_class.fields.count() {
+        var field = item_class.fields[index]
+        var field_type = field.type
+        if not generator.inline_value_type(field_type) and not generator.singleton_type(field_type) {
+            return "its attribute '{field.name}' is {generator.type_with_article(field_type)}, which cannot be laid inline"
+        }
+        index = index + 1
+    }
+    if item_class.drop_function {
+        return "'{label}' has a 'drop()', and an item laid inline is never an object of its own to drop"
+    }
+    var problem = generator.vector_item_problem(element)
+    if not problem.is_empty() {
+        return "'{label}' uses 'this' as a value, and an item laid inline is never an object to keep or pass on"
+    }
+    return "'{label}' is made only of numbers, text and enum values and would fit inline, as it does in a 'Vector<{label}>'"
+}
+
+func list_on_heap(holder: String, path: String, line: Integer, name: String, reason: String) {
+    if recording {
+        record(1, holder, path, line, "`{name}` is made on the heap: {reason}")
+    }
+}
+
+func object_on_heap(holder: String, path: String, line: Integer, name: String, label: String, reason: String) {
+    if recording {
+        record(2, holder, path, line, "`{name}` (`{label}`) is made on the heap: {reason}")
+    }
+}
+
+func copy_kept(holder: String, path: String, line: Integer, copied: String, reason: String) {
+    if recording {
+        record(3, holder, path, line, "`{copied}` allocates a copy: {reason}")
+    }
+}
+
+func overflow_check_kept(holder: String, path: String, line: Integer, operation: String, reason: String) {
+    if recording and reports_overflow_checks {
+        record(4, holder, path, line, "`{operation}` keeps its overflow check: {reason}")
+    }
+}
+
+func statement_text(statement: Syntax.Statements.Statement): String {
+    var printed = printer.source_statement_line(statement, 0).trim()
+    var first = printed.split("\n").first()
+    crash first
+    return first.trim().replace("\t", " ")
+}
+
+func filled_in_loop(name: String, statement: Syntax.Statements.Statement): Boolean {
+    var loop = statement
+    switch loop {
+        Syntax.Statements.WhileStatement: {
+            var printed = printer.source_statement_line(loop, 0)
+            return printed.contains("{name}.append(")
+        }
+        _: return false
+    }
+}
+
+func let_go_reason(generator: Generator, statement: Syntax.Statements.Statement?): String {
+    if not statement {
+        return "it leaves the function"
+    }
+    return "line {generator.statement_line(statement)} lets it go: `{statement_text(statement)}`"
+}
+
+func class_refusal(generator: Generator, information: Analysis.ClassInfo): String {
+    var label = information.qualified_dotted
+    if information.is_container or information.is_value_class or information.is_singleton or information.is_stateless_singleton {
+        return ""
+    }
+    if information.is_generic_template or information.c_name.starts_with("Spite_") {
+        return ""
+    }
+    if information.drop_function {
+        return "'{label}' has a 'drop()', which runs when the object is let go, so it stays an object of its own"
+    }
+    if generator.lists_instances(information.qualified_dotted) and generator.every_class_listed {
+        return "{generator.every_class_listed_by}, so the compiler lists every object of every class, and each is made on the heap"
+    }
+    if generator.lists_instances(information.qualified_dotted) {
+        return "the program reads '{label}.instances', which lists every object of the class, so each is made on the heap"
+    }
+    if information.constructor and not generator.object_frames.lends(generator, information, information.constructor, -1) {
+        return "the constructor of '{label}' lets the object go (it stores or passes on 'this'), so it may outlive the function"
+    }
+    return ""
+}
+
+func copy_refusal(generator: Generator, information: Analysis.ClassInfo): String {
+    var refused = class_refusal(generator, information)
+    if not refused.is_empty() {
+        return refused
+    }
+    return "'{information.qualified_dotted}' holds text, a list or another object, and only a copy of a class of numbers is laid in the frame"
+}

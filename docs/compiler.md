@@ -67,7 +67,8 @@ The compiler reads the program first, and decides what to produce only after, fr
 `spite game` builds the executable and runs it, with its settings and arguments. Two flags say to stop sooner:
 `--check` (`Build.check`) only checks that the program compiles, and `--build` (`Build.build`) builds the
 executable without running it. `final_classes` writes the program back out as Spite into a folder, beside whatever
-else the build does ([below](#inspect-merged-classes)); the defaults are in [Build options](#build-options).
+else the build does ([below](#inspect-merged-classes)), and `optimization_report` writes what the compiler could not
+optimise into a file ([below](#read-what-was-not-optimised)); the defaults are in [Build options](#build-options).
 
 `--check` still reads and compiles the whole program and reports every error, and writes nothing but the
 formatting, which is not an output: every compile does it first ([below](#formatting)). It writes no executable
@@ -150,6 +151,7 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 | `build` | `false` | builds the executable without running it |
 | `executable_path` | `""` | where the executable goes; `""` is `.spite/build/<program>/` in the working folder ([above](#where-the-outputs-go)) |
 | `final_classes` | `""` | writes the merged classes to this folder |
+| `optimization_report` | `""` | writes what could not be optimised, and why, to this file ([below](#read-what-was-not-optimised)) |
 | `optimized` | `false` | a release build: `-O3` instead of `-O0`, and link-time optimisation across the [translation units](#translation-units-the-c-compiled-in-parallel-and-cached) ([below](#release-builds)) |
 | `development` | `false` | an [inspectable build](#development-builds-and-tree-shaking): nothing tree-shaken, internals as ordinary objects |
 | `repl` | `false` | runs the program, then opens a REPL on it at the terminal ([repl.md](repl.md)) |
@@ -432,6 +434,42 @@ so the folder is always named. It combines with every build; with `--check` it i
 spite game --final-classes=.spite/final --check
 ```
 
+## Read what was not optimised
+
+The compiler optimises on its own and says nothing about what worked ([optimizations.md](optimizations.md)). What it
+could **not** do is what costs you, so `--optimization-report=file` writes exactly that: one Markdown file listing
+every place an optimisation fell back, each line a link to the source line and the reason, so every line is
+something you can act on. Nothing is written without the flag, and the program built is the same either way.
+
+```bash
+spite game --optimization-report=.spite/optimization.md --check
+```
+
+The report has one section per optimisation, with how many places it lists:
+
+- **Lists that hold references**: each `List<T>` whose items are kept as references, at the line that first made
+  it, and why `T` cannot be laid inline (an attribute that is a list or another object, a `drop()`, a function
+  using `this` as a value), or that it would fit and a `Vector<T>` holds it inline.
+- **Lists not in the frame**: a local list that could have lived in the function's frame
+  ([optimizations.md](optimizations.md#a-local-list-of-known-size-lives-in-the-frame)) and did not: appended to in
+  a loop, more items than the frame holds, or the line that does more than read it.
+- **Objects not in the frame**: a local made by a constructor that stays on the heap
+  ([optimizations.md](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)), with the line
+  that lets it go (`kept.append(badge)`), or what about its class keeps every object on the heap.
+- **Copies not elided**: a `var twin = original.copy()` that allocates, with the line that lets the copy go, or
+  why its class cannot be copied into the frame.
+
+A line looks like this, its link relative to the report's folder so it opens from wherever the file is read:
+
+```markdown
+- [game/game.spite:23](../game/game.spite#L23): `badge` (`Badge`) is made on the heap: line 24 lets it go: `badges.append(badge)`
+```
+
+Like `--final-classes`, the report describes what the program ends up with: a function that tree shaking removes
+reports nothing, and the library's lines are listed with the program's, sorted by file and line, since they cost
+the program the same. An inspectable build (`--development`, `--repl`, `--repl-port`, `--hot-reload`) places
+nothing in the frame by design; its report says so and lists only the lists that hold references.
+
 ## Errors and usage
 
 With no program, the compiler prints its usage text and exits unsuccessfully. A `.spite` file named instead of
@@ -461,6 +499,7 @@ spite program --check                   format the program and compile it, writi
 spite program --build                   build the executable without running it
 spite program --executable-path=path    put the executable at path (not with --check)
 spite program --final-classes=folder    also write the final classes into folder (inspect merged classes)
+spite program --optimization-report=file   also write what could not be optimised, and why, into file
 spite program --optimized               a release build: -O3, and link-time optimisation across translation units
 spite program --development             an inspectable build: no tree shaking, internals as ordinary objects
 spite program --debug-memory            count allocations and frees, print the balance when the program ends
@@ -552,6 +591,17 @@ it. Tree shaking and every other whole-program step run before any output is wri
   running `spite .` inside a program, whose outputs and checkouts land in its own `.spite/`, reads none of them
   back.
 - **Final classes** are described in full [above](#inspect-merged-classes): a program, not a report.
+- **The optimisation report** (`optimization_report`, `""` is off) is one Markdown file at the path given, its
+  folder created, written after the whole program is compiled and before the executable is built, with `--check`
+  too. It is written only when asked: without the flag the compiler records nothing and the program built is the
+  same. It starts with `# Optimisation report` and a sentence naming the program, then has one `## <section>
+  (<count>)` per optimisation, in this order: `Lists that hold references`, `Lists not in the frame`, `Objects not
+  in the frame`, `Copies not elided`; a section with nothing in it says `None.`. Each entry is one line,
+  `- [<path>:<line>](<path from the report's folder>#L<line>): <what> ...: <why>`, the path as error messages
+  print it; entries are sorted by path and line, a place reported twice (a generic function compiled per class) is
+  listed once, and a place only in functions tree shaking removed is not listed. A list type is listed once, at the
+  line that first needed it. An inspectable build adds a sentence saying that nothing is placed in the frame. A
+  report that cannot be written is `error: could not write '<path>'` and exit status 1.
 - **The executable is built from translation units.** The compiler chooses the number, and no option sets it: the
   largest power of two that is at most the C's size divided by 768 KiB, at most the
   processors (`NUMBER_OF_PROCESSORS` on Windows, `getconf _NPROCESSORS_ONLN` elsewhere, else 4) and at most 64. One unit is the one C file as before.
