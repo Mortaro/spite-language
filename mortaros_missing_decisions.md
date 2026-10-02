@@ -11,7 +11,7 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384 (2026-10-02). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
@@ -30,11 +30,6 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      error, which already refuses a program's `Game.Math.Vector3` beside the library's `Vector3`, more strictly
      than D284's attribute matching with zero false positives. Recommendation: yes, one rule; record a row
      superseding D284.
-258. **Whether a serializer is compiler-written code or library Spite specialised per class** (D319 says "generated
-     while compiling"; D240 says nothing hidden). Recommendation: library Spite over
-     `attributes.each(write_attribute)` with the writer holding its output as an attribute, specialised per class,
-     so the generated code is visible in `--final-classes` and the walk function's missing output (status) is
-     solved by the instance.
 259. **Is D229's `function_runs_in_pieces` retired?** D335 and D362 give the runner `function.accesses`, from which
      "runs in pieces" follows. Recommendation: retire it with a row, the runner deciding from accesses.
 260. **Where the optimisation report goes** (D36, D332). Recommendation: always written beside the build in

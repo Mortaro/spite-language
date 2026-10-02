@@ -67,13 +67,13 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `--final-classes` naming the root of a changed default (with C7). Files: generator.spite class-function
   resolution, `library/spite/class.spite`. **M.** No dependencies.
 
-### Serialization (D319, D320)
+### Serialization (D319, D320, D384)
 
-- **J1 JSON and binary compiled per class** (D319). The writer and reader for each class come from its constant
-  attributes while compiling, skipping private attributes and attributes holding a singleton
+- **J1 JSON and binary as library Spite specialised per class** (D319, D384). The writer and reader are ordinary
+  library Spite walking each class's constant attributes, compiled once per class, shown in `--final-classes`, skipping private attributes and attributes holding a singleton
   (`Spite.Attribute.is_singleton` exists). Today `json_writer.spite`, `json_reader.spite` and `binary_format.spite`
   walk with `Symbol<$value_type>` plurals and `$value_type.has_function("json_key_{attribute.name}")`, a name built
-  from text. Rewrite them over `attributes.each(...)` specialised per class (Q8), delete the `json_key_` checks in
+  from text. Rewrite them over `attributes.each(...)` specialised per class (D384), delete the `json_key_` checks in
   generator.spite (around lines 1766 to 1936) and `diagnostics/json_split`'s decision number. **L.** Depends on R5
   (specialisation), R6.
 - **J2 Rename map keyed by attribute objects** (D320, D329). `JsonWriter<Monster>({Monster.attributes['health']:
@@ -423,11 +423,6 @@ unconfirmed).
   an error, which already refuses a program's `Game.Math.Vector3` beside the library's `Vector3`, more strictly
   than D284's attribute matching with zero false positives. Recommendation: yes, one rule; record a row
   superseding D284.
-- **Q8 Whether a serializer is compiler-written code or library Spite specialised per class** (`mortaros_missing_decisions.md` item 258) (D319 says
-  "generated while compiling"; D240 says nothing hidden). Recommendation: library Spite over
-  `attributes.each(write_attribute)` with the writer holding its output as an attribute, specialised per class,
-  so the generated code is visible in `--final-classes` and the walk function's missing output (status) is
-  solved by the instance.
 - **Q9 Is D229's `function_runs_in_pieces` retired?** (`mortaros_missing_decisions.md` item 259) D335 and D362 give the runner `function.accesses`, from
   which "runs in pieces" follows. Recommendation: retire it with a row, the runner deciding from accesses.
 - **Q10 Where the optimisation report goes** (`mortaros_missing_decisions.md` item 260) (D36, D332). Recommendation: always written beside the build in
