@@ -416,9 +416,9 @@ output build finished
 | `Process(command, arguments)` | | `arguments` is a `List<String>`, each one argument of the child, quoted for you (below) |
 | `working_directory` | `String` | the folder the child runs in; `""`, the default, is the program's own |
 | `environment_variables` | `Dictionary<String>` | variables set for the child alone, on top of the program's own: `process.environment_variables["LOG"] = "1"` |
-| `run()` | `Integer` | runs it through the system's shell, waits for it and answers its exit code (`-1` when it could not start) |
+| `run()` | `Integer` | runs it through the system's shell, waits for it and answers its exit code (`-1` when it could not start; on Linux and macOS, a child a signal ended answers 128 plus the signal's number, as a shell reports it) |
 | `output()` | `String` | what it wrote to its standard output, valid after `run()` |
-| `run_attached()` | `Integer` | runs it with the program's own terminal, so what it writes and reads is the user's, and answers its exit code |
+| `run_attached()` | `Integer` | runs it with the program's own terminal, so what it writes and reads is the user's, and answers its exit code, read as `run()` reads it |
 
 Each argument reaches the child whole, as one argument, whatever it holds. On Linux and macOS each is put in single
 quotes for the shell, so the child's `argv` holds exactly the text given. On Windows a program reads its own

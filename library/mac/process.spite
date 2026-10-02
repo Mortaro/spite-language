@@ -3,7 +3,8 @@ var library = DynamicLibrary("libSystem.dylib", 'identity', "")
 func run_attached(): Integer {
     _flush_output()
     var command_text = command_line()
-    return library.system(command_text)
+    var status = library.system(command_text)
+    return _exit_code(status)
 }
 
 func open_process(line: String): Long {
@@ -16,6 +17,14 @@ func read_into(buffer: Long, bytes: Long, handle: Long): Long {
 
 func close_process(handle: Long): Integer {
     var status = library.pclose(handle)
+    return _exit_code(status)
+}
+
+func _exit_code(status: Integer): Integer {
+    var signal = status.bits_and(127)
+    if signal != 0 {
+        return 128 + signal
+    }
     return status.shifted_right(8).bits_and(255)
 }
 
