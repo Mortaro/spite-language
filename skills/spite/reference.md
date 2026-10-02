@@ -28,7 +28,8 @@ bash check.sh                           the compiler still compiles itself, and 
 `spite program --hot-reload --repl-port=4000` and keep it running (it stays up after its constructor returns, until
 a client sends `exit`). Save a file, then `spite connect 4000 --command="wait_reload"`: it answers once the save is
 compiled and swapped in, with what was rebuilt or the compiler's errors, and objects keep their state. Ask instead
-of printing: a path or call (`World().player.health`, `monsters[0].roar()`), an assignment (`player.health = 5`),
+of printing: a path or call (`World().player.health`, `Channel(1).number`, `monsters[0].roar()`,
+`scores.has("ann")`), an assignment (`player.health = 5`, `follower = Circle(3)`),
 `describe Monster`, `classes`, `enums`, `memory`, and `eval <expression>` / `run <statement>` to compile code into
 the running program. `break monster.spite:42` stops before that line; `where`, `locals` and any path through a local
 answer there, `continue` goes on, `breaks` lists and `clear` removes. A reload that would lose data (an attribute
