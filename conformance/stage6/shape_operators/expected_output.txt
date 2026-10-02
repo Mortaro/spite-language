@@ -1,0 +1,7 @@
+7 coins
+3 coins
+true false
+1024 1001.5 1.75
+25 -4
+1000
+spite> 

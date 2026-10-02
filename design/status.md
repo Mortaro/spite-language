@@ -59,12 +59,9 @@ when a page gains a rule that is not built yet, add it here.
   (`conformance/stage6/number_type`), and a parameter `value: Number` with operators, compiled per number class,
   with a run-time switch over both sides' classes where the function runs as written
   (`conformance/stage6/number_parameter`).
-- Unconfirmed proposals by Claude: the run-time rule for an operator on `Number` in a build that compiles the
-  function as written (the right side is turned into the left side's class and must fit exactly, or the program
-  halts).
-- NOT BUILT: an operator through a `type` that requires its function, on a class instance (not a number) whose
-  class is known only at run time, in a function that runs as written: it halts with "was given a value of a class
-  it is not compiled for" instead of calling the class's operator function.
+- Unconfirmed proposals by Claude (D???): the two halt texts of an operator through a `type` in a function that runs
+  as written ("which would be cut to fit", "which is not one"), and an integer literal written as the right side
+  counting as fitting there as it does while compiling.
 - Unconfirmed proposals by Claude: the member list (`remainder` joined it once `%` on `Float` and `Double` compiled
   to `fmodf`/`fmod`), and a `type`'s own name in a required signature standing for the class that fits.
 

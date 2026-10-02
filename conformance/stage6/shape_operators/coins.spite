@@ -1,0 +1,21 @@
+var count = 0
+
+func Coins(given: Integer) {
+    count = given
+}
+
+func sum(other: Coins): Coins {
+    return Coins(count + other.count)
+}
+
+func less_than(other: Coins): Boolean {
+    return count < other.count
+}
+
+func greater_than(other: Coins): Boolean {
+    return count > other.count
+}
+
+func describe(): String {
+    return "{count} coins"
+}

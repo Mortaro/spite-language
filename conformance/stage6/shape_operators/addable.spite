@@ -1,0 +1,6 @@
+type Addable {
+    sum(Addable): Addable
+    less_than(Addable): Boolean
+    greater_than(Addable): Boolean
+    describe(): String
+}

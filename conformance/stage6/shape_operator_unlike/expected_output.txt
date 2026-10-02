@@ -1,0 +1,2 @@
+4 coins
+spite: 'left + right' works in a Coin, the class of its left side, and its right side is a Gem, which is not one, at conformance/stage6/shape_operator_unlike/shape_operator_unlike.spite:18 in ShapeOperatorUnlike.combined

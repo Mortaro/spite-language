@@ -1,0 +1,1 @@
+This program is meant to crash: an operator through a type on two classes takes the left side's own function, which a value of another class cannot reach

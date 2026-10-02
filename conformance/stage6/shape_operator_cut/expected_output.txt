@@ -1,0 +1,2 @@
+4
+spite: 'value + step' works in a Byte, the class of its left side, and its right side is an Integer, which would be cut to fit, at conformance/stage6/shape_operator_cut/shape_operator_cut.spite:13 in ShapeOperatorCut.grown

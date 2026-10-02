@@ -1,0 +1,13 @@
+var count = 0
+
+func Gem(given: Integer) {
+    count = given
+}
+
+func sum(other: Gem): Gem {
+    return Gem(count + other.count)
+}
+
+func describe(): String {
+    return "{count} gems"
+}

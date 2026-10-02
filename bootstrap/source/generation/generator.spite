@@ -10794,10 +10794,14 @@ func is_wider_right(
     if literal_fits(binary.right, left_scalar.kind) {
         return false
     }
-    if is_float_kind(right_scalar.kind) and not is_float_kind(left_scalar.kind) {
+    return is_wider_kind(right_scalar.kind, left_scalar.kind)
+}
+
+func is_wider_kind(right: Analysis.Types.NumericKind, left: Analysis.Types.NumericKind): Boolean {
+    if is_float_kind(right) and not is_float_kind(left) {
         return true
     }
-    return scalar_bits(right_scalar.kind) > scalar_bits(left_scalar.kind)
+    return scalar_bits(right) > scalar_bits(left)
 }
 
 func scalar_bits(kind: Analysis.Types.NumericKind): Integer {
@@ -11194,6 +11198,12 @@ func shape_operator(
         releases.append("{release_call(left_type, right_held)};")
     }
     var helper = ensure_shape_operator(information, binary.operator)
+    var constant = "false"
+    crash binary.right
+    var written_number = literal_value(binary.right)
+    if written_number {
+        constant = "true"
+    }
     var printer = Syntax.SourcePrinter()
     var expression: Syntax.Expressions.Expression = binary
     var source_text = printer.source_expression(expression)
@@ -11205,7 +11215,7 @@ func shape_operator(
         result_c_type = "bool"
         result_type = boolean_type()
     }
-    var code = "(\{ {held.join(" ")} {result_c_type} spite_operated = {helper}({left_held}, {right_held}, \"{written}\", {where}); {releases.join(" ")} spite_operated; })"
+    var code = "(\{ {held.join(" ")} {result_c_type} spite_operated = {helper}({left_held}, {right_held}, {constant}, \"{written}\", {where}); {releases.join(" ")} spite_operated; })"
     return ExpressionResult(code, result_type)
 }
 
@@ -11238,7 +11248,7 @@ func ensure_shape_operator(information: Analysis.UnionInfo, operator: Syntax.Exp
         returned = "bool"
     }
     builder.add_prototype(
-        "{returned} {name}({information.c_name} left, {information.c_name} right, const char* operation, const char* where);",
+        "{returned} {name}({information.c_name} left, {information.c_name} right, bool constant, const char* operation, const char* where);",
     )
     var position = builder.support_count()
     shape_operator_positions.append(position)
@@ -11251,10 +11261,10 @@ func ensure_operand_checks() {
     assert not operand_checks_written
     operand_checks_written = true
     builder.add_prototype(
-        "static void spite_operand_misfit(const char* operation, const char* type, const char* where) __attribute__((noreturn, cold));",
+        "static void spite_operand_misfit(const char* operation, const char* left, const char* right, const char* reason, const char* where) __attribute__((noreturn, cold));",
     )
     builder.add_support(
-        "static void spite_operand_misfit(const char* operation, const char* type, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' needs its right side to fit in %s, at %s\\n\", operation, type, where);\nexit(1);\n}",
+        "static void spite_operand_misfit(const char* operation, const char* left, const char* right, const char* reason, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' works in %s, the class of its left side, and its right side is %s, which %s, at %s\\n\", operation, left, right, reason, where);\nexit(1);\n}",
     )
     builder.add_prototype(
         "static void spite_operator_unreached(const char* operation, const char* where) __attribute__((noreturn, cold));",
@@ -11299,7 +11309,7 @@ func shape_operator_text(information: Analysis.UnionInfo, operator: Syntax.Expre
     }
     var lines = List<String>()
     lines.append(
-        "{returned} {information.c_name}___operate_{operator_word(operator)}({information.c_name} left, {information.c_name} right, const char* operation, const char* where) \{",
+        "{returned} {information.c_name}___operate_{operator_word(operator)}({information.c_name} left, {information.c_name} right, bool constant, const char* operation, const char* where) \{",
     )
     lines.append("switch (left.tag) \{")
     var index = 0
@@ -11307,39 +11317,9 @@ func shape_operator_text(information: Analysis.UnionInfo, operator: Syntax.Expre
         var member = information.members[index]
         var member_type = operated_number_type(member)
         if member_type {
-            lines.append("case {member.class_id}: \{")
-            var c_type = c_type_name(member_type)
-            var member_name = type_display_name(member_type)
-            var shown = with_article(member_name)
-            lines.append("{c_type} spite_left = SPITE_TAGGED_VALUE(left, {c_type});")
-            lines.append("{c_type} spite_right = 0;")
-            lines.append("switch (right.tag) \{")
-            var other_index = 0
-            while other_index < information.members.count() {
-                var other = information.members[other_index]
-                var other_type = operated_number_type(other)
-                if other_type {
-                    var other_c_type = c_type_name(other_type)
-                    if other.c_name == member.c_name {
-                        lines.append("case {other.class_id}: spite_right = SPITE_TAGGED_VALUE(right, {c_type}); break;")
-                    } else {
-                        var misfit = "({other_c_type})spite_right != spite_given"
-                        var other_scalar = type_shape.as_scalar(other_type)
-                        crash other_scalar
-                        if is_float_kind(other_scalar.kind) {
-                            misfit = "{misfit} && spite_given == spite_given"
-                        }
-                        lines.append(
-                            "case {other.class_id}: \{ {other_c_type} spite_given = SPITE_TAGGED_VALUE(right, {other_c_type}); spite_right = ({c_type})spite_given; if ({misfit}) spite_operand_misfit(operation, \"{shown}\", where); break; }",
-                        )
-                    }
-                }
-                other_index = other_index + 1
-            }
-            lines.append("default: spite_operand_misfit(operation, \"{shown}\", where);")
-            lines.append("}")
-            operated_lines(operator, member, member_type, lines)
-            lines.append("}")
+            number_operator_case(information, operator, member, member_type, lines)
+        } else {
+            class_operator_case(information, operator, member, lines)
         }
         index = index + 1
     }
@@ -11347,6 +11327,143 @@ func shape_operator_text(information: Analysis.UnionInfo, operator: Syntax.Expre
     lines.append("spite_operator_unreached(operation, where);")
     lines.append("}")
     return lines.join("\n")
+}
+
+func number_operator_case(
+    information: Analysis.UnionInfo,
+    operator: Syntax.Expressions.BinaryOperator,
+    member: Analysis.ClassInfo,
+    member_type: Analysis.SpiteType,
+    lines: List<String>,
+) {
+    var c_type = c_type_name(member_type)
+    lines.append("case {member.class_id}: \{")
+    lines.append("{c_type} spite_left = SPITE_TAGGED_VALUE(left, {c_type});")
+    lines.append("{c_type} spite_right = 0;")
+    lines.append("switch (right.tag) \{")
+    var other_index = 0
+    while other_index < information.members.count() {
+        var other = information.members[other_index]
+        var right_case = right_operand_case(member, member_type, other)
+        lines.append(right_case)
+        other_index = other_index + 1
+    }
+    lines.append("default: spite_operator_unreached(operation, where);")
+    lines.append("}")
+    operated_lines(operator, member, member_type, lines)
+    lines.append("}")
+}
+
+func right_operand_case(
+    member: Analysis.ClassInfo,
+    member_type: Analysis.SpiteType,
+    other: Analysis.ClassInfo,
+): String {
+    var c_type = c_type_name(member_type)
+    if other.c_name == member.c_name {
+        return "case {other.class_id}: spite_right = SPITE_TAGGED_VALUE(right, {c_type}); break;"
+    }
+    var left_shown = operand_shown(member)
+    var right_shown = operand_shown(other)
+    var other_type = operated_number_type(other)
+    if not other_type {
+        return "case {other.class_id}: spite_operand_misfit(operation, \"{left_shown}\", \"{right_shown}\", \"is not one\", where);"
+    }
+    var other_c_type = c_type_name(other_type)
+    var given = "{other_c_type} spite_given = SPITE_TAGGED_VALUE(right, {other_c_type});"
+    var scalar = type_shape.as_scalar(member_type)
+    crash scalar
+    var other_scalar = type_shape.as_scalar(other_type)
+    crash other_scalar
+    if not is_wider_kind(other_scalar.kind, scalar.kind) {
+        return "case {other.class_id}: \{ {given} spite_right = ({c_type})spite_given; break; }"
+    }
+    var cut = "spite_operand_misfit(operation, \"{left_shown}\", \"{right_shown}\", \"would be cut to fit\", where);"
+    if is_float_kind(other_scalar.kind) {
+        return "case {other.class_id}: {cut}"
+    }
+    var fits = written_number_fits(scalar.kind)
+    return "case {other.class_id}: \{ {given} if (!constant || !({fits})) {cut} spite_right = ({c_type})spite_given; break; }"
+}
+
+func written_number_fits(kind: Analysis.Types.NumericKind): String {
+    if is_float_kind(kind) {
+        return "true"
+    }
+    var lowest = "0"
+    var highest = "INT64_MAX"
+    if kind == 'tiny_kind' {
+        lowest = "-128"
+        highest = "127"
+    } else if kind == 'byte_kind' {
+        highest = "255"
+    } else if kind == 'short_kind' {
+        lowest = "-32768"
+        highest = "32767"
+    } else if kind == 'unsigned_short_kind' {
+        highest = "65535"
+    } else if kind == 'integer_kind' {
+        lowest = "INT32_MIN"
+        highest = "INT32_MAX"
+    } else if kind == 'unsigned_integer_kind' {
+        highest = "UINT32_MAX"
+    } else if kind != 'unsigned_long_kind' {
+        lowest = "INT64_MIN"
+    }
+    return "(int64_t)spite_given >= {lowest} && (int64_t)spite_given <= {highest}"
+}
+
+func operand_shown(member: Analysis.ClassInfo): String {
+    var member_type = operated_number_type(member)
+    if member_type {
+        var number_name = type_display_name(member_type)
+        return with_article(number_name)
+    }
+    return with_article(member.simple_name)
+}
+
+func class_operator_case(
+    information: Analysis.UnionInfo,
+    operator: Syntax.Expressions.BinaryOperator,
+    member: Analysis.ClassInfo,
+    lines: List<String>,
+) {
+    var function_name = operator_function_name(operator)
+    var function = find_or_instantiate_function(member, function_name)
+    assert function
+    var shape_type = union_type_of(information)
+    var left_value = member_value_code("left", shape_type, member)
+    var right_value = member_value_code("right", shape_type, member)
+    crash function.parameters[0]
+    var right_parameter_type = function.parameters[0].type
+    var right_passed = retain_call(right_parameter_type, right_value)
+    var call = "{function.c_name}({left_value}, {right_passed})"
+    var answer = "return {call};"
+    if operator == 'greater_equal' or operator == 'less_equal' {
+        answer = "return !{call};"
+    } else if not is_boolean_result_operator(operator) {
+        var function_return_type = function.return_type
+        var tagged_answer = tagged_value(call, function_return_type, information)
+        answer = "return {tagged_answer};"
+    }
+    lines.append("case {member.class_id}: \{")
+    lines.append("switch (right.tag) \{")
+    lines.append("case {member.class_id}: {answer}")
+    var left_shown = operand_shown(member)
+    var other_index = 0
+    while other_index < information.members.count() {
+        var other = information.members[other_index]
+        if other.c_name != member.c_name {
+            var right_shown = operand_shown(other)
+            lines.append(
+                "case {other.class_id}: spite_operand_misfit(operation, \"{left_shown}\", \"{right_shown}\", \"is not one\", where);",
+            )
+        }
+        other_index = other_index + 1
+    }
+    lines.append("}")
+    lines.append("break;")
+    lines.append("}")
 }
 
 func operated_lines(

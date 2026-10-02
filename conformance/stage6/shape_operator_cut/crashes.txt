@@ -1,0 +1,1 @@
+This program is meant to crash: an operator through Number on a Byte with an Integer right side would cut it, so it halts as the compile error a copy for those classes would be

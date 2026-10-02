@@ -608,7 +608,8 @@ arrive later and the function is compiled as written. Not for a parameter the fu
 `type`, a row of borrowed items passed to it, a function that waits, a value read at run time in a program that
 runs a `Concurrent` (it reaches the function as written), or the functions of `List`, `Dictionary` and the
 library's other containers, which store what they are given. Where the function as written runs, an operator on a
-value typed `Number` is a `switch` over the classes of both sides
+value typed by a `type` (`Number`, or a shape of your own requiring `sum`) is a `switch` over the classes of both
+sides that reaches the left side's class's own operator
 ([values_and_types.md](values_and_types.md#every-number-fits-number)).
 
 **What you notice.** More functions in the generated C, named `<function>___for_<position>_<class>`, one per class that

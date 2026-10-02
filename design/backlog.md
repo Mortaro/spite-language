@@ -79,7 +79,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   number, boolean and null (names proposed by Claude, unconfirmed), read by `JsonReader` and walked with `switch`.
   Files: `library/json_reader.spite`, a new value class, docs json.md. **M.** No dependencies.
 
-### Types, monomorphisation and storage (D321, D331, D332, D355, D367, D368, D370, D398, D399, D400, D401, D402)
+### Types, monomorphisation and storage (D321, D331, D332, D355, D370, D398, D399, D400, D401, D402)
 
 - **M1 D321 leftovers** (status "Inline types and duck typing"). (a) text and `Symbol` stored as a `type` are
   tagged, not boxed; (b) the closed set at a run-time spot is the classes that reach that spot, not every class
@@ -88,12 +88,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   functions, and a program with a `Concurrent` all get copies instead of the version as written; (e) a class that is
   never instantiated is not emitted. Files: generator.spite copy and dispatch regions, `dispatch_classes.spite`,
   `type_shape.spite`, `tree_shaker.spite`. **L** (a, c, e are M each; b, d are the long part). No dependencies.
-- **M2 Operators and calls through a `type` are the class's own** (D367, D368; status "Every number fits
-  `Number`"). Replace D345's "converted to the left side's class, must fit exactly" with the ordinary casting
-  rules (widening automatic, narrowing a compile error or a halt), and let a call or operator through a `type` on a
-  class instance known only at run time reach that class's function through the dispatch in REPL and hot-reload
-  builds (today it halts "was given a value of a class it is not compiled for"). Files: generator.spite's
-  `___operate_` dispatch, `dispatch_classes.spite`. **M.** Depends on nothing; M5 needs it.
 - **M3 List storage by concrete class** (D331, D222 study in proposals/one_list.md). Step 1: a list over a type or
   union stored as one array per concrete class plus an order array; step 2: `filter_<classes>()` answers from that
   array; step 3: partitions per value filter, only where a production benchmark wins (D322). Files:
@@ -109,7 +103,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `Vector3<Integer>`), one packed copy per class; every member answers the vector's own class, whole numbers truncated like
   integer division (D381); game_maths.md points grid code at `length_squared()` and notes `normalized()` snaps
   toward a grid direction. Migrate `examples/`, the corpus and the game engine package. **L.** Depends on M1(c),
-  M2, M6.
+  M6.
 - **M6 Axis names `x`, `y`, `z`, `w`** (D370 item 205). Exempt them from the single-letter error (generator.spite
   near line 28476) and rename the `x_value`-style attributes in 12 library files (`vector2/3/4`, `quaternion`,
   `matrix3/4`, `plane`, `ray`, `axis_aligned_box`, `cubic_bezier`, `color_text`, `http_client`). **S.** No
@@ -354,12 +348,12 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L7, C5, C6, C7, K2, F3, S9, P1, P2, X1, B1
+2. No dependencies: R8, M1, M4, M6, M7, N1, N3, E1, E2, E4, L7, C5, C6, C7, K2, F3, S9, P1, P2, X1, B1
    to B16, E3, D1's first pass.
 3. After step 2: R5, K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4, R8, then R9.
 5. After J1: J2, S5. After L3: F1, S6 (with L4). After F1: F2.
-6. After M1, M2 and M6: M5. After M1 and M4: M3.
+6. After M1 and M6: M5. After M1 and M4: M3.
 7. After R1, R5 and J1: R7, the end of the reflection migration.
 8. S2 and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
    items sharing their files.
@@ -376,7 +370,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | Stream | Items, in order | Files it owns |
 |---|---|---|
 | 1 Reflection and serialization | R5, R1, R4, J1, J2, R8, R7 | generator.spite reflection, specialisation and template regions; `specialisation.spite`, `reflected*.spite`, `template_walk.spite`, `namespace_walk.spite`, `old_spellings.spite`; `library/spite/*`, `json_*`, `binary_*`, `dictionary.spite`; stage6 walk programs; docs reflection, metaprogramming, json |
-| 2 Types and storage | M2, M1, M7, M4, M3, then M6 and M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
+| 2 Types and storage | M1, M7, M4, M3, then M6 and M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
 | 3 Arithmetic | N3, N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E2, E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C6, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |

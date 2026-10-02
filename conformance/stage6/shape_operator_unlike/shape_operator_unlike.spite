@@ -1,0 +1,19 @@
+var console = Console()
+
+func ShapeOperatorUnlike() {
+    var coin = Coin(2)
+    var gem = Gem(5)
+    var held = List<Addable>()
+    held.append(coin)
+    held.append(gem)
+    var doubled = combined(held[0], held[0])
+    var doubled_text = doubled.describe()
+    console.print(doubled_text)
+    var mixed = combined(held[0], held[1])
+    var mixed_text = mixed.describe()
+    console.print(mixed_text)
+}
+
+func combined(left: Addable, right: Addable): Addable {
+    return left + right
+}

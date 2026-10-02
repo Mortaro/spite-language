@@ -1,0 +1,62 @@
+var console = Console()
+
+func ShapeOperators() {
+    var three = Coins(3)
+    var four = Coins(4)
+    var held = List<Addable>()
+    held.append(three)
+    held.append(four)
+    var total = combined(held[0], held[1])
+    var total_text = total.describe()
+    console.print(total_text)
+    var smaller = smallest(held[1], held[0])
+    var smaller_text = smaller.describe()
+    console.print(smaller_text)
+    var ordered = in_order(held[0], held[1])
+    var reversed = in_order(held[1], held[0])
+    console.print(ordered, reversed)
+    var count = 1000
+    var small: Byte = 24
+    var widened = grown(count, small)
+    var price: Float = 1.5
+    var priced = grown(price, count)
+    var precise: Double = 0.25
+    var doubled = grown(precise, price)
+    console.print(widened, priced, doubled)
+    var stepped = stepped_up(small)
+    var negative: Tiny = -5
+    var stepped_back = stepped_up(negative)
+    console.print(stepped, stepped_back)
+    var compared = larger(count, small)
+    console.print(compared)
+}
+
+func combined(left: Addable, right: Addable): Addable {
+    return left + right
+}
+
+func smallest(left: Addable, right: Addable): Addable {
+    if left < right {
+        return left
+    }
+    return right
+}
+
+func in_order(left: Addable, right: Addable): Boolean {
+    return left <= right
+}
+
+func grown(value: Number, step: Number): Number {
+    return value + step
+}
+
+func stepped_up(value: Number): Number {
+    return value + 1
+}
+
+func larger(first: Number, second: Number): Number {
+    if first >= second {
+        return first
+    }
+    return second
+}

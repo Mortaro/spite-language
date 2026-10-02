@@ -408,11 +408,21 @@ func larger(first: Number, second: Number): Number {
 9
 ```
 
-Since each copy is compiled for its class, `value + 0.5` is the error it would be on an `Integer` when an `Integer`
-reaches it. A value whose class is known only while the program runs (read from a `List<Number>`) reaches the copy
-for its class. In a `--hot-reload` or REPL build, where new code may bring a class later, the function is compiled
-once as written, and an operator there tests both classes while the program runs: the right side is turned into
-the left side's class, and if it does not fit exactly, the program halts naming the operation.
+`Number` has no operators of its own: an operator on a value typed `Number` is always the operator of the class the
+value really is, under the casting rules every number follows. Since each copy is compiled for its class,
+`value + 0.5` is the error it would be on an `Integer` when an `Integer` reaches it. A value whose class is known
+only while the program runs (read from a `List<Number>`) reaches the copy for its class. In a `--hot-reload` or REPL
+build, where new code may bring a class later, the function is compiled once as written, and an operator there
+finds both classes while the program runs and does exactly what the copy would: a right side that widens to the
+left side's class is widened, and one that is wider, which a copy refuses while compiling, halts the program instead:
+
+```
+spite: 'value + step' works in a Byte, the class of its left side, and its right side is an Integer, which would be cut to fit, at game/game.spite:31 in Game.grown
+```
+
+The same holds for a `type` of your own that requires an operator's function: `left + right` on two values read as
+`type Addable { sum(Addable): Addable }` calls the `sum` of the left side's class, and a right side of another
+class, a compile error in a copy, halts with `which is not one`.
 
 ## `String`
 
@@ -1230,10 +1240,16 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   reaches it, and in each copy the operator is that class's arithmetic, with that class's rules (an `Integer` copy
   of `value + 0.5` is the "would be cut to fit" error). A conversion is called on the value's class. In a
   `--hot-reload`, `--repl` or `--repl-port` build the function is compiled as written, and an operator on a value
-  typed `Number` tests the classes of both sides while the program runs: the right side is turned into the left
-  side's class, and a value that does not fit it exactly halts the program with `spite: '<operation>' needs its
-  right side to fit in <class>, at <place>` (`diagnostics/number_type_mistakes`, `conformance/stage6/number_type`,
-  `conformance/stage6/number_parameter`). A `type` that does not require an operator's function still refuses the
+  typed `Number` finds the classes of both sides while the program runs and is the left side's class's own operator,
+  under the casting rules above: a right side that is not wider is converted as the copy would convert it (an
+  integer literal that fits the left side's class is not wider), and a wider one, the copy's compile error, halts
+  with `spite: '<operation>' works in <class>, the class of its left side, and its right side is <class>, which would
+  be cut to fit, at <place>`. `Number` has no operators of its own. An operator through any `type` that requires its
+  function on a class instance is that class's own function (`sum` for `+`, `less_than` for `<` and `>=`,
+  `greater_than` for `>` and `<=`), and a right side of another class halts with `which is not one`
+  (`diagnostics/number_type_mistakes`, `conformance/stage6/number_type`, `conformance/stage6/number_parameter`,
+  `conformance/stage6/shape_operators`, `conformance/stage6/shape_operator_cut`,
+  `conformance/stage6/shape_operator_unlike`). A `type` that does not require an operator's function still refuses the
   operator: `'+' on a value read as '<type>' needs the class that fits the type, which is not known while
   compiling: take the value through a codegen value the type constrains, 'generic $value_type: <type>'`.
 - None of it costs anything at run time: a number stays a plain machine value, a cast is the one conversion written

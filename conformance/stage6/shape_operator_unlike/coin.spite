@@ -1,0 +1,13 @@
+var count = 0
+
+func Coin(given: Integer) {
+    count = given
+}
+
+func sum(other: Coin): Coin {
+    return Coin(count + other.count)
+}
+
+func describe(): String {
+    return "{count} coins"
+}
