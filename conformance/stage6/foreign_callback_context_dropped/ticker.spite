@@ -1,0 +1,10 @@
+var console = Console()
+var name = ""
+
+func Ticker(starting_name: String) {
+    name = starting_name
+}
+
+func ticked(count: Integer) {
+    console.print(name, "ticked", count)
+}

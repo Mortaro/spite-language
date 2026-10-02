@@ -625,7 +625,8 @@ passing `handler.address` as the pointer and `handler.context` as C's user data,
 of a singleton when C gives none (a window procedure; the singleton tells objects apart by the handle C passes). A
 callback takes and returns only numbers, `Boolean` (a 32-bit `BOOL`) and `Memory.Address`; text C passes is an
 address read with `terminated_text()`. Keep the `ForeignCallback` in an attribute of the object that owns the C
-registration and unregister in its `drop()`: C may call only while it is kept. A handed-over function follows a
+registration and unregister in its `drop()`: C may call only while it is kept, and a call after the drop halts
+naming the function. A handed-over function follows a
 `Parallel`'s rules (its own value attributes, locals, singletons). A COM-style interface is a `Memory.Heap` block
 whose first word points at a table filled with `TypedMemory<Long>` and each `ForeignCallback`'s `address`.
 Game maths (docs/game_maths.md): `Vector2`, `Vector3`, `Vector4` are made with their parts, `Vector3(1.0, 2.0, 3.0)`,

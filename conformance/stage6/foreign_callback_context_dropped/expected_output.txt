@@ -1,0 +1,3 @@
+spite: C called 'Ticker.ticked' (conformance/stage6/foreign_callback_context_dropped/foreign_callback_context_dropped.spite:14) after its ForeignCallback was dropped: keep the ForeignCallback for as long as C may call it
+first ticked 1
+the first callback is dropped and its place is taken true
