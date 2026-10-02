@@ -1,0 +1,7 @@
+var program = Program()
+var slept = 0
+
+func Sleeper(milliseconds: Integer) {
+    program.sleep(milliseconds)
+    slept = milliseconds
+}

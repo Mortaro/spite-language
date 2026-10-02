@@ -116,7 +116,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A lock that would wait forever](#a-lock-that-would-wait-forever-is-an-error) | refuses a hang | none |
 | [A loop that can never end](#a-loop-that-can-never-end-is-an-error) | refuses a spin or a lost pool thread | none |
 | [What a `Parallel` may reach](#what-a-parallel-may-reach) | refuses a data race | none |
-| [Which calls suspend](#which-calls-suspend-a-concurrent) | state machines, no fibers | the wait runs in place |
+| [Which calls suspend](#which-calls-suspend-a-concurrent) | state machines, no fibers; temporaries only where a value could change | the wait runs in place |
 | [Other refusals](#other-refusals-built-on-an-analysis) | refuses dead code and leaks | none |
 
 ## Presence and control flow
@@ -913,17 +913,22 @@ counter, one load per call, not a proof: [optimizations.md](optimizations.md#whi
 
 ### Which calls suspend a `Concurrent`
 
-- **Proves.** Which functions a `Concurrent` can pause inside.
-- **Rule.** A function given to a `Concurrent` that can wait, and every function it calls by name that can wait, gets
-  a resumable copy, a state machine; the rest of the program is unchanged. A program that makes no `Concurrent` has
-  no machines, and its waits are plain blocking calls.
-- **Buys.** Hidden async/await with no fibers and no runtime.
-- **Falls back.** A wait reached through a function value, a union, a constructor, the right side of `and`/`or` or
-  a comparison runs in place, holding its `Concurrent` while the others run.
+- **Proves.** Which functions a `Concurrent` can pause inside, and which values cannot change while it is paused.
+- **Rule.** A function given to a `Concurrent` that can wait, and every function it calls that can wait (by name,
+  through a constructor, or through a function value, a union or a `type` whose candidates wait), gets a resumable
+  copy, a state machine; the rest of the program is unchanged. A program that makes no `Concurrent` has no
+  machines, and its waits are plain blocking calls. Inside a machine, what an expression computes before a wait is
+  kept in a temporary so the written order holds, except a local, a parameter, a constant, `self` and another
+  wait's result: only the paused function can change those, so they are read where they are used.
+- **Buys.** Hidden async/await with no fibers and no runtime, and a temporary only where a value could change.
+- **Falls back.** A wait the compiler cannot make a point to return from (dropping the last reference to a
+  `Concurrent` held other than by a local, a function with no state machine, a `crash` report's values) runs the
+  event loop in place, holding its `Concurrent` while the others run; a join that would wait for a machine further
+  down the same stack halts.
 - **See.** [concurrency.md: What the compiler does at a
   wait](concurrency.md#what-the-compiler-does-at-a-wait),
   [optimizations.md](optimizations.md#hidden-asyncawait-as-compile-time-state-machines);
-  `conformance/stage6/concurrent_waits`.
+  `conformance/stage6/concurrent_waits`, `conformance/stage6/waits_never_hang`, `conformance/stage6/wait_order`.
 
 ## Other refusals built on an analysis
 

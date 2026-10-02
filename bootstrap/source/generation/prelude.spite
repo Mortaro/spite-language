@@ -552,6 +552,8 @@ func concurrent_members(): List<String> {
         "written by the generator: the state machine of the work, or 0 when the work never waits"
         "func _frame_result(): $result_type"
         "written per result type by the generator: takes the result out of a finished state machine"
+        "func _free_frame()"
+        "written by the generator: frees the state machine's frame once the handle is dropped, so every join still waiting on it reads a live frame"
     ]
 }
 

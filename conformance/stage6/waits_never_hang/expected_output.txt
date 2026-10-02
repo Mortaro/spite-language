@@ -1,0 +1,24 @@
+the right side of 'and' is a point the Concurrent returns from: true
+the right side of 'or' is a point the Concurrent returns from: true
+the second condition of an 'if' is a point the Concurrent returns from: true
+the second condition of a leaving 'if' is a point the Concurrent returns from: true
+'==' on a nullable is a point the Concurrent returns from: true
+a function value is a point the Concurrent returns from: true
+a union's function is a point the Concurrent returns from: true
+a type's function is a point the Concurrent returns from: true
+a constructor is a point the Concurrent returns from: true
+a handle dropped at its scope's end is a point the Concurrent returns from: true
+a list of handles dropped at its scope's end is a point the Concurrent returns from: true
+a list of handles cleared is a point the Concurrent returns from: true
+answers 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+a join through a function value waited for work the wait below it finishes: 10 13
+a Concurrent joined the one that started it, running below it: 14 15
+ringing, finished: false
+rang
+the scope that dropped the ringing handle was left after it rang
+rang
+rang
+the scope that dropped the list was left after both rang
+rang
+rang
+cleared after they rang

@@ -1,0 +1,21 @@
+var right: ExpressionResult? = null
+var position = 0
+var marks_before = 0
+var counter_before = 0
+
+func WaitedRight(
+    starting_right: ExpressionResult,
+    starting_position: Integer,
+    starting_marks_before: Integer,
+    starting_counter_before: Integer,
+) {
+    right = starting_right
+    position = starting_position
+    marks_before = starting_marks_before
+    counter_before = starting_counter_before
+}
+
+func get_right(): ExpressionResult {
+    crash right
+    return right
+}

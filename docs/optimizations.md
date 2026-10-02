@@ -50,7 +50,7 @@ emit nothing.
 | [A function taking a `type` is compiled per class](#a-function-taking-a-type-is-compiled-per-class) | every but `--repl`, `--repl-port`, `--hot-reload` | no box for a value passed to it; direct calls; a copy per class |
 | [Boxing only where a value travels as a shape](#boxing-only-where-a-value-travels-as-a-shape) | every | numbers, `Boolean` and enum values are never boxed; one allocation per boxed text |
 | [Concurrency machinery only where it is used](#concurrency-machinery-only-where-it-is-used) | every, decided per program | nothing |
-| [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | every, in programs that make a `Concurrent` | one heap frame per waiting call; a wait inside an expression runs first |
+| [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | every, in programs that make a `Concurrent` | one heap frame per waiting call; a temporary for what an expression computes before its wait |
 | [Reads in a row overlap](#reads-in-a-row-overlap) | every | the reads happen at once; the program carries the scheduler |
 | [REPL, live reload and debug machinery only in those builds](#repl-live-reload-and-debug-machinery-only-in-those-builds) | the builds that ask for it | nothing in an ordinary build |
 | [The thread pool only where a `Parallel` is made](#the-thread-pool-only-where-a-parallel-is-made) | every, decided per program | nothing until the first `Parallel` |
@@ -710,21 +710,26 @@ functions, no event loop and no helper threads; its waits are the plain system c
 
 **What you notice.**
 
-- A wait written in the middle of an expression runs before the rest of that statement: in
-  `log.append("{name} read {file.read()}")`, the file is read first and `name` is read after it, so a change another
-  `Concurrent` makes to `name` during the read is seen. Everywhere else the order is the one written.
-- A few waits inside a `Concurrent` are not points it returns from: one in the right side of `and` or `or`, one
-  reached through a function value, a union's dispatch or a constructor, and dropping a `Concurrent` there. They still
-  wait correctly, by running the event loop where they are, as waits outside a `Concurrent` do: the other
-  `Concurrent`s keep going, and this one holds its place until its wait is over. Two such waits that each wait for the
-  other could never end, since the one further down the stack resumes only once the one above it returns, so joining
-  a `Concurrent` whose state machine is running further down the same stack halts at the join
-  (`waits_for_its_own_caller=true`, `conformance/stage6/concurrent_wait_cycle`), even while other `Concurrent`s keep
-  the program busy. A `Concurrent` whose own function cannot be a state machine runs to
-  its end when it is started: a function value a standard-library class made and stored before it reached
-  `Concurrent`, a shape's function, a singleton function that takes [the
-  lock](#singletons-a-parallel-reaches-take-a-lock), or any function of the program in a `--hot-reload` build, which
-  is called through a slot that a reload swaps.
+- A wait written in the middle of an expression keeps the written order: in
+  `log.append("{name} read {file.read()}")`, `name` is read and kept before the file is read, so a change another
+  `Concurrent` makes to `name` during the read is not seen. Only what is computed before the wait and could change
+  is kept in a temporary: a local, a parameter, a constant or `self` is read where it is used, since nothing can
+  change it while the state machine waits. A reference kept that way is retained for the wait and released after
+  the expression, one count each way.
+- Every wait inside a `Concurrent` is a point it returns from, including the right side of `and` or `or`, a call
+  through a function value, a union or a `type`, a constructor, and dropping a handle a local holds. A call
+  through a function value in a state machine costs a comparison of its function against each function made into a
+  value of that signature that waits; a union's or a `type`'s call, one class test per class. The few waits that
+  still run the event loop where they are, as waits outside a `Concurrent` do
+  ([concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting) lists them), hold their place
+  until the wait is over while the other `Concurrent`s keep going. Two such waits that each wait for the other could
+  never end, since the one further down the stack resumes only once the one above it returns, so a join that waits
+  in place for a `Concurrent` whose state machine is running further down the same stack halts at the join
+  (`waits_for_its_own_caller=true`, `conformance/stage6/concurrent_wait_cycle`), even while other `Concurrent`s
+  keep the program busy. A `Concurrent` whose own function cannot be a state machine runs to its end when it is
+  started: a function value a standard-library class made and stored before it reached `Concurrent`, a shape's
+  function, a singleton function that takes [the lock](#singletons-a-parallel-reaches-take-a-lock), or any function
+  of the program in a `--hot-reload` build, which is called through a slot that a reload swaps.
 - Under `--debug-memory`, one allocation per waiting call a `Concurrent` makes (its frame), and no stacks or fiber
   bookkeeping: `conformance/stage6/concurrent_waits` allocates 171 times where a design with stacks allocated 191,
   and its C is 335 275 bytes instead of 345 825.

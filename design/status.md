@@ -97,6 +97,14 @@ for a design):
   narrowing of a joined handle skips the "a `Boolean?` cannot be a condition" check; `assert` asks for `true`).
 - Reference cycles leak without a word unless the program runs with `--debug-memory`, which prints the allocation
   balance (memory.md, "Cycles leak").
+- Some waits inside a `Concurrent` still run the event loop in place (concurrency.md, "Waits in a condition, a
+  comparison, or behind a choice made while running"): dropping the last reference to a `Concurrent` held by an
+  object, an attribute, a list that is not a local's, or a local assigned again; a function value of a value
+  class's function or of a `type`'s function; the waits of a function with no state machine (a locked singleton's,
+  every function of a `--hot-reload` build); the values a `crash` report prints. A join that closes a cycle through
+  one halts, but one such wait buried under another that never ends (a server's accept loop reached that way) is
+  held without a word for as long as that one runs. Arguments of the few built-in calls that do not go through the
+  common argument list (`set_at` on a counted list) are not held in the written order around a join among them.
 - A `--hot-reload` build's watcher thread keeps running while the singletons are destroyed at exit: `start()` now
   waits until it is watching, so it no longer asks for `HotReload` after the teardown, but a file change landing
   during the teardown would still run `compile_changes()` on the destroyed `HotReload`, and so would a reload
@@ -462,9 +470,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 - Section was tagged implemented on Windows. The names and mechanism are decided; several details were only "proposed by Claude, unconfirmed": the written-handle-type rule covering only the declaration that starts the work (handle element types in `List<Parallel<Integer>>()` and parameters are still written), `finished`, `finished_value()` (name provisional, D216), `class`/`attributes`/`functions` staying a handle's own members, comparing handles (nothing has needed a way to compare the handles themselves), the debug text of handles, default-made handles, the `Concurrent` holding its function only while it runs, `Atomic<T>` (names provisional, D205/D214), and all of the ThreadPool, Lock, ThreadSlot and ThreadLocal shapes.
 - `Concurrent` is described as for "IO, sleeps, database calls later": no database classes exist yet.
-- Compiler-supplied members still have bodies written in C inside the compiler: `ThreadPool.entry_address()` and `address()`, `Concurrent._start_frame()` and `_frame_result()`, `Scheduler.step_frame(frame)` and `release_work(frame)`. D147 decides that no compiler-supplied function stays bodiless and no Spite body holds C; turning them into Spite over the backend's primitives is not built. The page now states the rule as if done.
+- Compiler-supplied members still have bodies written in C inside the compiler: `ThreadPool.entry_address()` and `address()`, `Concurrent._start_frame()`, `_frame_result()` and `_free_frame()`, `Scheduler.step_frame(frame)` and `release_work(frame)`. D147 decides that no compiler-supplied function stays bodiless and no Spite body holds C; turning them into Spite over the backend's primitives is not built. The page now states the rule as if done.
 - Thread pool, not tested: the Linux and macOS folders compile but have never run; a `Parallel` made on two non-worker threads at once before the pool has started (each could start it; the program's thread and a `Concurrent`'s helper are the only candidates).
-- Waits that run the loop in place (right side of `and`/`or`/`==` on a nullable, through a function value, a union dispatch or a constructor, a `Concurrent` dropped inside a `Concurrent`): open as `mortaros_missing_decisions.md` item 179.
 - Helper thread per blocking call versus each system's readiness (IOCP, epoll, kqueue): open for sockets, `mortaros_missing_decisions.md` item 180.
 - `resume_only_when_asked()` has no way back ("proposed: nothing has needed a way back").
 - A loop that polls `finished` and never calls `run_ready()` is not detected by the scheduler (documented, not caught).
@@ -810,8 +817,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### Hidden async/await as compile-time state machines
 
 - Open question (`mortaros_missing_decisions.md` item 180): whether sockets should move to the system's own readiness (IOCP, epoll, kqueue) instead of a thread per system call in flight. The page describes the current design (one event, a helper thread per call).
-- Open question (item 179): a `Concurrent` whose function cannot be a state machine runs to its end when started, including any function of a `--hot-reload` build (called through a slot a reload swaps); the question is whether that should change.
-- Proposed by Claude, unconfirmed: the order in which waits inside an expression run, and which waits fall back to running the event loop in place.
+- Not built (D369 item 179 closes every gap): a `Concurrent` whose function cannot be a state machine runs to its end when started, including any function of a `--hot-reload` build (called through a slot a reload swaps), and its waits run the event loop in place; so do the other waits listed under "Nothing fails silently: still open".
+- Proposed by Claude, unconfirmed (the D??? row "every wait is a point to return from"): how each former in-place wait became one, which values the written order copies (not locals, parameters, constants, `self` or wait results), an assignment's value worked out before its target, and the waits still left running the event loop in place.
 - The fibers that came before the state machines, and each system's code for creating and switching them, are gone.
 
 ### Singletons a `Parallel` reaches take a lock

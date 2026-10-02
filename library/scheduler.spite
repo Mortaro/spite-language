@@ -83,10 +83,14 @@ func step_ready(): Integer {
     return finished
 }
 
-func wait_for(frame: Long) {
+func wait_for(frame: Long): Boolean {
+    if runs_below(frame) {
+        return false
+    }
     while not frame_done(frame) {
         idle_stepping(true)
     }
+    return true
 }
 
 func runs_below(frame: Memory.Address): Boolean {

@@ -139,7 +139,17 @@ var current_function_c_name = ""
 var machine_candidate_names = List<String>()
 var machine_candidate_classes = List<Analysis.ClassInfo>()
 var machine_candidate_functions = List<Analysis.FunctionInfo>()
+var machine_candidate_guarded = List<Boolean>()
+var machine_guard_reached: Dictionary<Boolean>? = null
+var machine_guard_touching = Dictionary<Boolean>()
 var waiting_names = Dictionary<Boolean>()
+var value_dispatcher_names = Dictionary<String>()
+var value_dispatcher_keys = List<String>()
+var value_dispatcher_waits = List<ValueWait>()
+var value_target_keys = List<String>()
+var value_targets_noted = Dictionary<Boolean>()
+var value_target_classes = List<Analysis.ClassInfo>()
+var value_target_functions = List<Analysis.FunctionInfo>()
 var machine_names = Dictionary<Boolean>()
 var machine_queue_classes = List<Analysis.ClassInfo>()
 var machine_queue_functions = List<Analysis.FunctionInfo>()
@@ -254,6 +264,10 @@ var key_sites_changed = false
 var another_pass_follows_a_change = false
 var key_flows_ignored = false
 var shape_caller_names = Dictionary<Boolean>()
+var shape_callers_by_c_name = Dictionary<ShapeCaller>()
+var shape_caller_positions = Dictionary<Integer>()
+var emitting_machines = false
+var shape_starters = List<ShapeCaller>()
 var renders_program = true
 var partial_snapshot = Dictionary<String>()
 var reload_host: HotReloadLibrary? = null
@@ -3736,6 +3750,8 @@ func ensure_shape_caller(information: Analysis.UnionInfo, name: String): String 
     if not information.caller_names.contains(name) {
         information.caller_names.append(name)
         shape_caller_names[name] = true
+        var called_shape = ShapeCaller(information, name)
+        shape_callers_by_c_name[function_c_name] = called_shape
         var parameter_types = shape_call_parameter_types(information, name)
         var return_type = shape_call_return_type(information, name)
         var signature = "{c_type_name(return_type)} {function_c_name}({information.c_name} self"
@@ -3858,39 +3874,82 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
             index = index + 1
         }
         lines.append("{signature}) \{")
-        var member_index = 0
-        while member_index < information.members.count() {
-            var member = information.members[member_index]
-            var shape_type = union_type_of(information)
-            var receiver = member_value_code("self", shape_type, member)
-            var called_function = shape_member_function(member, name)
-            crash called_function
-            var call = "{called_function.c_name}({receiver}{passed})"
-            var member_test = value_class_test("self", shape_type, member)
-            if type_shape.is_void(return_type) {
-                lines.append("if {member_test} \{ {call}; return; }")
-            } else {
-                lines.append("if {member_test} return {call};")
-            }
-            member_index = member_index + 1
-        }
-        index = 0
-        while index < parameter_types.count() {
-            var release_line = release_statement(parameter_types[index], "argument_{index}")
-            lines.append(release_line)
-            index = index + 1
-        }
-        lines.append(
-            "fputs(\"spite.crash\\t{information.simple_name}.{name} was called on a value of a class it was not compiled for\\n\", stderr);",
-        )
-        lines.append("abort();")
-        lines.append("}")
-        var joined_lines = lines.join("\n")
+        var joined_lines = shape_caller_text(information, name, lines, passed, parameter_types, return_type)
         note_union_slot(information, "'s call of {name}")
+        var position = builder.support_count()
+        shape_caller_positions["{information.c_name} {name}"] = position
         builder.add_support(joined_lines)
         caller_index = caller_index + 1
     }
     information.emitted_callers = caller_index
+}
+
+func shape_caller_text(
+    information: Analysis.UnionInfo,
+    name: String,
+    lines: List<String>,
+    passed: String,
+    parameter_types: List<Analysis.SpiteType>,
+    return_type: Analysis.SpiteType,
+): String {
+    var member_index = 0
+    while member_index < information.members.count() {
+        var member = information.members[member_index]
+        var shape_type = union_type_of(information)
+        var receiver = member_value_code("self", shape_type, member)
+        var called_function = shape_member_function(member, name)
+        crash called_function
+        var call = "{called_function.c_name}({receiver}{passed})"
+        var member_test = value_class_test("self", shape_type, member)
+        if type_shape.is_void(return_type) {
+            lines.append("if {member_test} \{ {call}; return; }")
+        } else {
+            lines.append("if {member_test} return {call};")
+        }
+        member_index = member_index + 1
+    }
+    var index = 0
+    while index < parameter_types.count() {
+        var release_line = release_statement(parameter_types[index], "argument_{index}")
+        lines.append(release_line)
+        index = index + 1
+    }
+    lines.append(
+        "fputs(\"spite.crash\\t{information.simple_name}.{name} was called on a value of a class it was not compiled for\\n\", stderr);",
+    )
+    lines.append("abort();")
+    lines.append("}")
+    return lines.join("\n")
+}
+
+func refresh_shape_callers() {
+    var index = 0
+    while index < unions.count() {
+        var information = unions[index]
+        var caller_index = 0
+        while information.is_shape and caller_index < information.emitted_callers {
+            crash information.caller_names[caller_index]
+            var name = information.caller_names[caller_index]
+            var position = shape_caller_positions["{information.c_name} {name}"]
+            crash position
+            var parameter_types = shape_call_parameter_types(information, name)
+            var return_type = shape_call_return_type(information, name)
+            var signature = "{c_type_name(return_type)} {information.c_name}___call_{name}({information.c_name} self"
+            var passed = ""
+            var parameter_index = 0
+            while parameter_index < parameter_types.count() {
+                signature = "{signature}, {c_type_name(parameter_types[parameter_index])} argument_{parameter_index}"
+                passed = "{passed}, argument_{parameter_index}"
+                parameter_index = parameter_index + 1
+            }
+            var lines = List<String>()
+            lines.append("{signature}) \{")
+            var text = shape_caller_text(information, name, lines, passed, parameter_types, return_type)
+            builder.replace_support(position, text)
+            caller_index = caller_index + 1
+        }
+        index = index + 1
+    }
 }
 
 func admit_to_union(information: Analysis.UnionInfo, candidate: Analysis.ClassInfo) {
@@ -3908,7 +3967,29 @@ func admit_to_union(information: Analysis.UnionInfo, candidate: Analysis.ClassIn
         return
     }
     information.members.append(candidate)
+    if emitting_machines {
+        wake_shape_callers(information, candidate)
+    }
     admit_along_flows(information, candidate)
+}
+
+func wake_shape_callers(information: Analysis.UnionInfo, candidate: Analysis.ClassInfo) {
+    var woken = false
+    var index = 0
+    while index < information.caller_names.count() {
+        var name = information.caller_names[index]
+        var called = candidate.find_function(name)
+        var caller = "{information.c_name}___call_{name}"
+        if called and not waiting_names.has(caller) {
+            if waiting_names.has(called.c_name) {
+                waiting_names[caller] = true
+                woken = true
+            }
+        }
+        index = index + 1
+    }
+    assert woken
+    wake_all_callers()
 }
 
 func shape_fit_problem(information: Analysis.UnionInfo, candidate: Analysis.ClassInfo): String {
@@ -7497,6 +7578,9 @@ func task_body(information: Analysis.ClassInfo, name: String): String {
     if name == "_frame_result" {
         return frame_result_body(information)
     }
+    if name == "_free_frame" {
+        return "if (self->_frame_ != 0) SPITE_FREE((void*)(intptr_t)self->_frame_);\nself->_frame_ = 0;"
+    }
     var entry = "{information.c_name}___thread_entry"
     builder.add_prototype("static void* {entry}(void* pool);")
     builder.add_support(
@@ -9869,7 +9953,15 @@ func generate_text_join(
     var first = generate_joined(leftmost, scope, class_information)
     first = as_text(first)
     var first_owned = owns(first, leftmost)
-    add_text_piece(join, first.code, first_owned)
+    var piece_codes = List<String>()
+    var pieces_owned = List<Boolean>()
+    var checkpoints = List<Integer>()
+    piece_codes.append(first.code)
+    pieces_owned.append(first_owned)
+    note_checkpoint(checkpoints)
+    if not resumable_mode {
+        add_text_piece(join, first.code, first_owned)
+    }
     var index = 0
     while index < pieces.count() {
         var piece = pieces[index]
@@ -9885,8 +9977,22 @@ func generate_text_join(
         var piece_code = cast(piece_result.code, piece_type, string_spite_type)
         var converted = not type_shape.as_string(piece_type)
         var owned = owns(piece_result, piece) or converted or became_text
-        add_text_piece(join, piece_code, owned)
+        piece_codes.append(piece_code)
+        pieces_owned.append(owned)
+        note_checkpoint(checkpoints)
+        if not resumable_mode {
+            add_text_piece(join, piece_code, owned)
+        }
         index = index + 1
+    }
+    if resumable_mode {
+        keep_pieces_in_order(piece_codes, pieces_owned, checkpoints)
+        index = 0
+        while index < piece_codes.count() {
+            var piece_owned = pieces_owned[index] == true
+            add_text_piece(join, piece_codes[index], piece_owned)
+            index = index + 1
+        }
     }
     flush_constant_text(join)
     var text_type = string_type()
@@ -9918,6 +10024,42 @@ func generate_text_join(
     }
     join.lines.append("{result};")
     return ExpressionResult("(\{ {join.lines.join(" ")} })", text_type)
+}
+
+func note_checkpoint(checkpoints: List<Integer>) {
+    var position = builder.user_count()
+    checkpoints.append(position)
+    var marks_count = wait_mark_counters.count()
+    checkpoints.append(marks_count)
+    checkpoints.append(temporary_counter)
+}
+
+func keep_pieces_in_order(codes: List<String>, owned: List<Boolean>, checkpoints: List<Integer>) {
+    var index = codes.count() - 1
+    while index >= 0 {
+        crash codes[index]
+        crash checkpoints[index * 3]
+        crash checkpoints[index * 3 + 1]
+        crash checkpoints[index * 3 + 2]
+        var code = codes[index]
+        var waited = waited_since(checkpoints[index * 3 + 1])
+        if waited and not stable_code(code) and not constant_texts.has(code) {
+            var kept = code
+            if owned[index] != true {
+                kept = "SpiteString___retain({code})"
+                owned[index] = true
+            }
+            var spilled = next_temporary()
+            insert_wait_line(
+                checkpoints[index * 3],
+                checkpoints[index * 3 + 2],
+                "SpiteString {spilled} = {kept};",
+                spilled,
+            )
+            codes[index] = spilled
+        }
+        index = index - 1
+    }
 }
 
 func text_join_leftmost(
@@ -10444,6 +10586,24 @@ func generate_binary(
     }
     var operator_name = operator_function_name(binary.operator)
     var left = operand_in_frame(binary.left, operator_name, scope, class_information)
+    if not holds_in_order(left) or binary.operator == 'logical_and' or binary.operator == 'logical_or' {
+        return binary_after_left(binary, left, operator_name, scope, class_information)
+    }
+    var held_left = hold_in_order(left, binary.left)
+    crash held_left
+    var made = binary_after_left(binary, held_left.operand, operator_name, scope, class_information)
+    return settle_in_order(held_left, made)
+}
+
+func binary_after_left(
+    binary: Syntax.Expressions.BinaryExpression,
+    left: ExpressionResult,
+    operator_name: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    crash binary.left
+    crash binary.right
     var left_type = left.type
     var left_nullable = type_shape.as_nullable(left_type)
     if left_nullable {
@@ -10502,11 +10662,35 @@ func generate_binary(
         if binary.operator == 'logical_and' {
             narrow_proven_indices(binary.left, right_scope)
         }
-        conditional_depth = conditional_depth + 1
+        var right_position = builder.user_count()
+        var right_marks = wait_mark_counters.count()
+        var right_counter = temporary_counter
+        var waits_in_place = not resumable_mode or conditional_depth != 0
+        if waits_in_place {
+            conditional_depth = conditional_depth + 1
+        }
         var other = generate_joined(binary.right, right_scope, class_information)
-        conditional_depth = conditional_depth - 1
+        if waits_in_place {
+            conditional_depth = conditional_depth - 1
+        }
         report_maybe_boolean(left, "'{binary_operator_symbol(binary.operator)}'")
         report_maybe_boolean(other, "'{binary_operator_symbol(binary.operator)}'")
+        if waited_since(right_marks) {
+            var decided = next_temporary()
+            var opening = List<String>()
+            opening.append("bool {decided} = {owned_truth(left, binary.left)};")
+            if binary.operator == 'logical_and' {
+                opening.append("if ({decided}) \{")
+            } else {
+                opening.append("if (!{decided}) \{")
+            }
+            var closing = List<String>()
+            closing.append("{decided} = {owned_truth(other, binary.right)};")
+            closing.append("}")
+            wrap_waits(right_position, right_marks, right_counter, opening, closing, decided)
+            var decided_type = Analysis.Types.ScalarType('boolean_kind')
+            return ExpressionResult(decided, decided_type)
+        }
         var joined = "({owned_truth(left, binary.left)} {binary_operator_symbol(binary.operator)} {owned_truth(other, binary.right)})"
         var result_type = Analysis.Types.ScalarType('boolean_kind')
         return ExpressionResult(joined, result_type)
@@ -11103,6 +11287,26 @@ func generate_nullable_equality(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
+    if resumable_mode and conditional_depth == 0 {
+        var right_position = builder.user_count()
+        var right_marks = wait_mark_counters.count()
+        var right_counter = temporary_counter
+        var right_first = generate_expression(right_ast, scope, class_information)
+        if waited_since(right_marks) {
+            var after_wait = WaitedRight(right_first, right_position, right_marks, right_counter)
+            return nullable_equality_after_wait(
+                binary,
+                left,
+                inner,
+                left_ast,
+                right_ast,
+                after_wait,
+                scope,
+                class_information,
+            )
+        }
+        rewind_temporaries(right_counter)
+    }
     var compared_name = next_temporary()
     var compared_scope = Scope(scope)
     compared_scope.declare(compared_name, inner)
@@ -11154,6 +11358,75 @@ func generate_nullable_equality(
     }
     var left_type = left.type
     var code = "(\{ {c_type_name(left_type)} {compared_name} = {left.code}; bool spite_equal = ({null_check}) ? ({compared.code}) : {when_null};{release} spite_equal; })"
+    var boolean_spite_type = boolean_type()
+    return ExpressionResult(code, boolean_spite_type)
+}
+
+func nullable_equality_after_wait(
+    binary: Syntax.Expressions.BinaryExpression,
+    left: ExpressionResult,
+    inner: Analysis.SpiteType,
+    left_ast: Syntax.Expressions.Expression,
+    right_ast: Syntax.Expressions.Expression,
+    waited: WaitedRight,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var right = waited.right
+    var right_type = right.type
+    var compared_name = next_temporary()
+    var right_name = next_temporary()
+    var compared_scope = Scope(scope)
+    compared_scope.declare(compared_name, inner)
+    compared_scope.declare(right_name, right_type)
+    compared_scope.set_override(right_name, right_name)
+    var null_check = present_code(compared_name, inner)
+    if type_is_reference(inner) {
+        compared_scope.set_override(compared_name, compared_name)
+    } else {
+        compared_scope.set_override(compared_name, "{compared_name}.value")
+        null_check = "{compared_name}.has_value"
+    }
+    var left_type = left.type
+    var opening = List<String>()
+    opening.append("{c_type_name(left_type)} {compared_name} = {left.code};")
+    var closing = List<String>()
+    closing.append("{c_type_name(right_type)} {right_name} = {right.code};")
+    wrap_waits(waited.position, waited.marks_before, waited.counter_before, opening, closing, compared_name)
+    var narrowed_left: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(compared_name)
+    var narrowed_right: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(right_name)
+    var narrowed_comparison: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression(
+        binary.operator,
+        narrowed_left,
+        narrowed_right,
+    )
+    var compared = generate_expression(narrowed_comparison, compared_scope, class_information)
+    var when_null = "false"
+    if binary.operator == 'not_equal' {
+        when_null = "true"
+    }
+    var releases = ""
+    var right_nullable = type_shape.as_nullable(right_type)
+    if right_nullable {
+        var right_inner = right_nullable.inner
+        var right_present = present_code(right_name, right_inner)
+        if not type_is_reference(right_inner) {
+            right_present = "{right_name}.has_value"
+        }
+        when_null = "!{right_present}"
+        if binary.operator == 'not_equal' {
+            when_null = right_present
+        }
+        if owns(right, right_ast) and type_needs_drop(right_inner) {
+            releases = " {release_call(right_inner, right_name)};"
+        }
+    } else if owns(right, right_ast) and type_needs_drop(right_type) {
+        releases = " {release_call(right_type, right_name)};"
+    }
+    if owns(left, left_ast) and type_needs_drop(inner) {
+        releases = "{releases} {release_call(inner, compared_name)};"
+    }
+    var code = "(\{ bool spite_equal = ({null_check}) ? ({compared.code}) : ({when_null});{releases} spite_equal; })"
     var boolean_spite_type = boolean_type()
     return ExpressionResult(code, boolean_spite_type)
 }
@@ -11827,6 +12100,9 @@ func generate_argument_list(
         return result
     }
     var callee = argument_callee
+    var positions_after = List<Integer>()
+    var marks_after = List<Integer>()
+    var counters_after = List<Integer>()
     var index = 0
     while index < arguments_ast.count() {
         borrow_site = ""
@@ -11862,10 +12138,47 @@ func generate_argument_list(
         } else {
             result.append(framed_code)
         }
+        var position_after = builder.user_count()
+        positions_after.append(position_after)
+        var marks_count = wait_mark_counters.count()
+        marks_after.append(marks_count)
+        counters_after.append(temporary_counter)
         index = index + 1
     }
     borrow_site = ""
+    if resumable_mode {
+        keep_arguments_in_order(result, expected_types, positions_after, marks_after, counters_after)
+    }
     return result
+}
+
+func keep_arguments_in_order(
+    codes: List<String>,
+    expected_types: List<Analysis.SpiteType>,
+    positions_after: List<Integer>,
+    marks_after: List<Integer>,
+    counters_after: List<Integer>,
+) {
+    var index = codes.count() - 1
+    while index >= 0 {
+        crash codes[index]
+        crash expected_types[index]
+        crash positions_after[index]
+        crash marks_after[index]
+        crash counters_after[index]
+        var code = codes[index]
+        var expected = expected_types[index]
+        var position = positions_after[index]
+        var marks_count = marks_after[index]
+        var counter = counters_after[index]
+        if waited_since(marks_count) and not stable_code(code) {
+            var spilled = next_temporary()
+            var line = "{c_type_name(expected)} {spilled} = {code};"
+            insert_wait_line(position, counter, line, spilled)
+            codes[index] = spilled
+        }
+        index = index - 1
+    }
 }
 
 func position_in(positions: List<String>, index: Integer): Integer {
@@ -12993,6 +13306,9 @@ func generate_constructor_call(
     if starts_concurrent {
         concurrent_arguments = concurrent_arguments - 1
     }
+    if into_slot.is_empty() and waits_to_construct(target_class) {
+        return waited_construction(target_class, argument_codes)
+    }
     var call_code = "{target_class.c_name}___make({argument_codes.join(", ")})"
     if not into_slot.is_empty() {
         ensure_frame_helpers(target_class)
@@ -13233,6 +13549,7 @@ func function_value(
         crash value_signature
         var value_call = value_call_key(value_signature.arguments, value_signature.returns)
         wait_facts.add_edge(value_call, function.c_name)
+        note_value_target(value_call, information, function)
     }
     var starts_work = concurrent_arguments > 0 or not is_library_class(information)
     if function.parameters.is_empty() and starts_work and not task_root_names.contains(function.c_name) {
@@ -13336,6 +13653,10 @@ func call_function_value(
     var returned_c = "void"
     if not type_shape.is_void(returned) {
         returned_c = c_type_name(returned)
+    }
+    if resumable_mode and conditional_depth == 0 and waiting_names.has(value_call) {
+        var value_wait = ValueWait(value_call, signature.arguments, returned, pointer_parameters)
+        return waited_value_call(held, held_ast, argument_codes, value_wait)
     }
     var function_temporary = next_temporary()
     var call_arguments = argument_codes.copy()
@@ -14667,6 +14988,24 @@ func generate_method_call(
             return generate_method_call(forwarded, joined_ast, arguments_ast, scope, class_information)
         }
     }
+    if not holds_in_order(object_result) {
+        return method_call_on(member, object_ast, arguments_ast, object_result, scope, class_information)
+    }
+    var held_receiver = hold_in_order(object_result, object_ast)
+    crash held_receiver
+    var made = method_call_on(member, object_ast, arguments_ast, held_receiver.operand, scope, class_information)
+    return settle_in_order(held_receiver, made)
+}
+
+func method_call_on(
+    member: Syntax.Expressions.MemberExpression,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    object_result: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var object_result_type = object_result.type
     var foreign = type_shape.as_class_ref(object_result_type)
     if foreign {
         if foreign.c_name == "DynamicLibrary" and not declared_by_dynamic_library(member.name) {
@@ -15502,9 +15841,13 @@ func generate_list_method(
         if function {
             var parameter_types = parameter_types_of(function.parameters)
             var function_return_type = function.return_type
+            var cleared_list = object_result
+            if name == "clear" and waits_for_handles(element) {
+                cleared_list = waited_before_clearing(element, object_result)
+            }
             var called = generate_generic_call(
                 function.c_name,
-                object_result,
+                cleared_list,
                 object_ast,
                 arguments_ast,
                 parameter_types,
@@ -22356,7 +22699,13 @@ func generate_call(
     var held_function = type_shape.as_class_ref(held_type)
     if held_function {
         if held_function.has_signature {
-            return call_function_value(held, call.callee, call.arguments, scope, class_information)
+            if not holds_in_order(held) {
+                return call_function_value(held, call.callee, call.arguments, scope, class_information)
+            }
+            var held_value = hold_in_order(held, call.callee)
+            crash held_value
+            var called = call_function_value(held_value.operand, call.callee, call.arguments, scope, class_information)
+            return settle_in_order(held_value, called)
         }
     }
     report("unsupported call form")
@@ -23677,6 +24026,7 @@ func emit_scope_drops(scope: Scope, all_the_way_up: Boolean) {
         var owned_local_type = owned_local.type
         var owned_code = c_value_name(owned_local.name)
         if not owned_local.framed {
+            wait_for_dropped_handle(owned_local_type, owned_code)
             builder.add_user("{release_call(owned_local_type, owned_code)};")
         }
         if not owned_local.framed_cleanup.is_empty() {
@@ -31327,14 +31677,24 @@ func generate_leaving_if(
     var tests = List<String>()
     var index = 0
     while index < sides.count() {
-        if index > 0 {
+        var side_position = builder.user_count()
+        var side_marks = wait_mark_counters.count()
+        var side_counter = temporary_counter
+        var waits_in_place = index > 0 and (not resumable_mode or conditional_depth != 0)
+        if waits_in_place {
             conditional_depth = conditional_depth + 1
         }
         var kept_test = leaving_side_test(sides[index], probe_scope, guards, plain_sides, class_information)
-        if index > 0 {
+        if waits_in_place {
             conditional_depth = conditional_depth - 1
         }
-        tests.append(kept_test)
+        if index > 0 and waited_since(side_marks) {
+            var decided = chained_side(tests, kept_test, side_position, side_marks, side_counter)
+            tests.clear()
+            tests.append(decided)
+        } else {
+            tests.append(kept_test)
+        }
         index = index + 1
     }
     adopt_owned(probe_scope, scope)
@@ -33523,6 +33883,10 @@ func generate_union_dispatch(
         mark_members_read(information.members, member_name)
     }
     var owning_object = owns(object_result, object_ast)
+    if is_call and waits_through_union(information, member_name) {
+        var union_wait = UnionWait(information, member_name, expected_types, result_type)
+        return waited_union_call(union_wait, object_result, owning_object, arguments_ast, scope, class_information)
+    }
     var lines = List<String>()
     var object_temporary = next_temporary()
     lines.append("{information.c_name} {object_temporary} = {object_result.code};")
@@ -36106,14 +36470,24 @@ func generate_and_narrowing_if(
     var tests = List<String>()
     var index = 0
     while index < sides.count() {
-        if index > 0 {
+        var side_position = builder.user_count()
+        var side_marks = wait_mark_counters.count()
+        var side_counter = temporary_counter
+        var waits_in_place = index > 0 and (not resumable_mode or conditional_depth != 0)
+        if waits_in_place {
             conditional_depth = conditional_depth + 1
         }
         var side_test = and_side_test(sides[index], then_scope, class_information)
-        if index > 0 {
+        if waits_in_place {
             conditional_depth = conditional_depth - 1
         }
-        tests.append(side_test)
+        if index > 0 and waited_since(side_marks) {
+            var decided = chained_side(tests, side_test, side_position, side_marks, side_counter)
+            tests.clear()
+            tests.append(decided)
+        } else {
+            tests.append(side_test)
+        }
         index = index + 1
     }
     builder.add_user("if ({tests.join(" && ")}) \{")
@@ -36125,6 +36499,24 @@ func generate_and_narrowing_if(
         builder.add_user("}")
     }
     return true
+}
+
+func chained_side(
+    tests: List<String>,
+    side_test: String,
+    position: Integer,
+    marks_before: Integer,
+    counter_before: Integer,
+): String {
+    var decided = next_temporary()
+    var opening = List<String>()
+    opening.append("bool {decided} = {tests.join(" && ")};")
+    opening.append("if ({decided}) \{")
+    var closing = List<String>()
+    closing.append("{decided} = {side_test};")
+    closing.append("}")
+    wrap_waits(position, marks_before, counter_before, opening, closing, decided)
+    return decided
 }
 
 func and_side_test(
@@ -37575,11 +37967,15 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     object_frames_open = true
     current_return_c_name = returned_class_name(function)
     result_slot_local = ""
-    var candidate = not function.result_slot
-    if candidate and not guarded and not function.is_constructor and not is_hot_class(information) and waiting.is_empty() {
+    var candidate = not function.result_slot and not is_hot_class(information) and waiting.is_empty()
+    if candidate and function.is_constructor {
+        candidate = not information.is_singleton and not information.is_value_class
+    }
+    if candidate {
         machine_candidate_names.append(function.c_name)
         machine_candidate_classes.append(information)
         machine_candidate_functions.append(function)
+        machine_candidate_guarded.append(guarded)
     }
     var defined_name = function.c_name
     if is_slotted_function(information, function) {
@@ -41798,11 +42194,11 @@ func frame_result_body(information: Analysis.ClassInfo): String {
     var result_class = type_shape.as_class_ref(result_type)
     if result_class {
         if result_class.c_name == "Nothing" {
-            return "SPITE_FREE({frame});\nreturn Nothing___default();"
+            return "(void){frame};\nreturn Nothing___default();"
         }
     }
     var result_c = c_type_name(result_type)
-    return "{result_c} spite_result = ((struct \{ SpiteFrame spite_head; {result_c} spite_result; }*){frame})->spite_result;\nSPITE_FREE({frame});\nreturn spite_result;"
+    return "return ((struct \{ SpiteFrame spite_head; {result_c} spite_result; }*){frame})->spite_result;"
 }
 
 func record_call(callee: String) {
@@ -41830,8 +42226,12 @@ func hoisted_wait_after(
     argument_codes: List<String>,
     return_type: Analysis.SpiteType,
 ): ExpressionResult? {
-    assert resumable_mode and conditional_depth == 0
-    assert waiting_names.has(callee) and ensure_machine(callee)
+    assert resumable_mode and conditional_depth == 0 and waiting_names.has(callee)
+    var shape_caller = shape_callers_by_c_name[callee]
+    if shape_caller {
+        return waited_shape_call(shape_caller, before, receiver, receiver_owned, argument_codes, return_type)
+    }
+    assert ensure_machine(callee)
     wait_mark_counters.append(temporary_counter)
     var start = builder.user_count()
     wait_mark_positions.append(start)
@@ -41874,6 +42274,686 @@ func hoisted_wait_after(
     return ExpressionResult(code, return_type)
 }
 
+func holds_in_order(result: ExpressionResult): Boolean {
+    var result_type = result.type
+    if not resumable_mode or type_shape.is_void(result_type) or not result.constant_text.is_empty() {
+        return false
+    }
+    return not stable_code(result.code)
+}
+
+func stable_code(code: String): Boolean {
+    if code.is_empty() {
+        return true
+    }
+    var first = code.code_at(0)
+    if first >= 48 and first <= 57 or first == 45 or first == 39 {
+        var index = 1
+        while index < code.length() {
+            var number_code = code.code_at(index)
+            if not is_word_code(number_code) and number_code != 46 {
+                return false
+            }
+            index = index + 1
+        }
+        return true
+    }
+    var index = 0
+    while index < code.length() {
+        var word_code = code.code_at(index)
+        if not is_word_code(word_code) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func hold_in_order(result: ExpressionResult, expression: Syntax.Expressions.Expression): HeldOperand? {
+    assert holds_in_order(result)
+    var token = next_temporary()
+    var result_type = result.type
+    var operand = ExpressionResult(token, result_type)
+    operand.owning_override = result.owning_override
+    operand.borrowed_from = result.borrowed_from
+    operand.peek_union = result.peek_union
+    operand.peek_field = result.peek_field
+    operand.peek_object = result.peek_object
+    var position = builder.user_count()
+    var marks_before = wait_mark_counters.count()
+    var held = HeldOperand(token, result, operand, position, marks_before, temporary_counter)
+    held.retained = type_needs_drop(result_type) and not owns(result, expression)
+    return held
+}
+
+func settle_in_order(held: HeldOperand?, made: ExpressionResult): ExpressionResult {
+    if not held {
+        return made
+    }
+    var original = held.original
+    if not waited_since(held.marks_before) {
+        made.code = replaced_name(made.code, held.token, original.code)
+        var index = held.position
+        while index < builder.user_count() {
+            var line = builder.user_at(index)
+            if mentions_name(line, held.token) {
+                var restored = replaced_name(line, held.token, original.code)
+                builder.replace_user(index, restored)
+            }
+            index = index + 1
+        }
+        return made
+    }
+    var original_type = original.type
+    var kept = original.code
+    if held.retained {
+        kept = retain_call(original_type, original.code)
+    }
+    var spill = "{c_type_name(original_type)} {held.token} = {kept};"
+    insert_wait_line(held.position, held.counter_before, spill, held.token)
+    if not held.retained {
+        return made
+    }
+    var made_type = made.type
+    var release = release_call(original_type, held.token)
+    if type_shape.is_void(made_type) {
+        made.code = "(\{ {made.code}; {release}; })"
+        return made
+    }
+    var kept_result = next_temporary()
+    var kept_code = made.code
+    if type_needs_drop(made_type) and made.owning_override == false {
+        kept_code = retain_call(made_type, made.code)
+        made.owning_override = true
+    }
+    made.code = "(\{ {c_type_name(made_type)} {kept_result} = {kept_code}; {release}; {kept_result}; })"
+    return made
+}
+
+func insert_wait_line(position: Integer, counter_before: Integer, line: String, result: String) {
+    builder.insert_user(position, line)
+    shift_wait_marks(position)
+    wait_mark_counters.append(counter_before)
+    wait_mark_positions.append(position)
+    wait_mark_ends.append(position + 1)
+    wait_mark_results.append(result)
+}
+
+func replaced_name(text: String, name: String, replacement: String): String {
+    var pieces = List<String>()
+    var from = 0
+    var name_length = name.length()
+    var text_length = text.length()
+    var copied = 0
+    while from < text_length {
+        var rest = text.slice(from, text_length)
+        var found = rest.index_of(name)
+        if found < 0 {
+            from = text_length
+        } else {
+            var start = from + found
+            var after = start + name_length
+            var code_before = 32
+            if start > 0 {
+                code_before = text.code_at(start - 1)
+            }
+            var code_after = text.code_at(after)
+            var cut_before = start == 0 or not is_word_code(code_before)
+            var cut_after = after >= text_length or not is_word_code(code_after)
+            if cut_before and cut_after {
+                var before = text.slice(copied, start)
+                pieces.append(before)
+                pieces.append(replacement)
+                copied = after
+            }
+            from = after
+        }
+    }
+    var tail = text.slice(copied, text_length)
+    pieces.append(tail)
+    return pieces.join("")
+}
+
+func waited_since(marks_before: Integer): Boolean {
+    return resumable_mode and wait_mark_counters.count() > marks_before
+}
+
+func wrap_waits(
+    position: Integer,
+    marks_before: Integer,
+    counter_before: Integer,
+    opening: List<String>,
+    closing: List<String>,
+    result: String,
+) {
+    var index = opening.count() - 1
+    while index >= 0 {
+        crash opening[index]
+        builder.insert_user(position, opening[index])
+        shift_wait_marks(position)
+        index = index - 1
+    }
+    closing.each(builder.add_user)
+    while wait_mark_counters.count() > marks_before {
+        drop_last_wait_mark()
+    }
+    wait_mark_counters.append(counter_before)
+    wait_mark_positions.append(position)
+    var end = builder.user_count()
+    wait_mark_ends.append(end)
+    wait_mark_results.append(result)
+}
+
+func wait_for_dropped_handle(local_type: Analysis.SpiteType, code: String) {
+    assert resumable_mode and conditional_depth == 0
+    var listed = type_shape.as_list(local_type)
+    if listed {
+        var element = listed.element
+        var listed_join = handle_join(element)
+        assert not listed_join.is_empty()
+        var index = next_temporary()
+        var item = next_temporary()
+        builder.add_user("if ({code} != 0 && {code}->header.ref_count == 1) \{")
+        builder.add_user("int64_t {index} = 0;")
+        builder.add_user("while ({index} < {code}->item_count_) \{")
+        builder.add_user("{c_type_name(element)} {item} = {list_item_code(element, code, index)};")
+        add_handle_wait(listed_join, item)
+        builder.add_user("{index} = {index} + 1;")
+        builder.add_user("}")
+        builder.add_user("}")
+        return
+    }
+    var join = handle_join(local_type)
+    assert not join.is_empty()
+    add_handle_wait(join, code)
+}
+
+func waits_for_handles(element: Analysis.SpiteType): Boolean {
+    if not resumable_mode or conditional_depth != 0 {
+        return false
+    }
+    return is_concurrent_handle(element)
+}
+
+func is_concurrent_handle(handle_type: Analysis.SpiteType): Boolean {
+    var class_ref = type_shape.as_class_ref(handle_type)
+    if not class_ref {
+        return false
+    }
+    var handle_class = find_class_by_c_name(class_ref.c_name)
+    if not handle_class {
+        return false
+    }
+    return handle_class.qualified_dotted == "Concurrent"
+}
+
+func waited_before_clearing(element: Analysis.SpiteType, list: ExpressionResult): ExpressionResult {
+    var join = handle_join(element)
+    if join.is_empty() {
+        return list
+    }
+    wait_mark_counters.append(temporary_counter)
+    var start = builder.user_count()
+    wait_mark_positions.append(start)
+    var list_type = list.type
+    var held = next_temporary()
+    var index = next_temporary()
+    var item = next_temporary()
+    builder.add_user("{c_type_name(list_type)} {held} = {list.code};")
+    builder.add_user("int64_t {index} = 0;")
+    builder.add_user("while ({index} < {held}->item_count_) \{")
+    builder.add_user("{c_type_name(element)} {item} = {list_item_code(element, held, index)};")
+    add_handle_wait(join, item)
+    builder.add_user("{index} = {index} + 1;")
+    builder.add_user("}")
+    var end = builder.user_count()
+    wait_mark_ends.append(end)
+    wait_mark_results.append(held)
+    var kept = ExpressionResult(held, list_type)
+    kept.owning_override = list.owning_override
+    kept.borrowed_from = list.borrowed_from
+    return kept
+}
+
+func handle_join(handle_type: Analysis.SpiteType): String {
+    if not is_concurrent_handle(handle_type) {
+        return ""
+    }
+    var class_ref = type_shape.as_class_ref(handle_type)
+    crash class_ref
+    var handle_class = find_class_by_c_name(class_ref.c_name)
+    crash handle_class
+    var join = find_or_instantiate_function(handle_class, "_join")
+    if not join {
+        return ""
+    }
+    if not waiting_names.has(join.c_name) or not ensure_machine(join.c_name) {
+        return ""
+    }
+    return join.c_name
+}
+
+func add_handle_wait(join: String, code: String) {
+    resume_point_count = resume_point_count + 1
+    var point = resume_point_count
+    var slot = "spite_frame->spite_wait_{point}"
+    builder.add_user("if ({code} != 0 && {code}->header.ref_count == 1) \{")
+    builder.add_user("{slot} = {join}___begin({code});")
+    builder.add_user("spite_resume_{point}: if (!{join}___step({slot})) SPITE_SUSPEND({point});")
+    builder.add_user("SPITE_FREE({slot});")
+    builder.add_user("}")
+}
+
+func waits_to_construct(target_class: Analysis.ClassInfo): Boolean {
+    if not resumable_mode or conditional_depth != 0 or target_class.is_value_class or target_class.is_singleton {
+        return false
+    }
+    if target_class.qualified_dotted == "Concurrent" or target_class.qualified_dotted == "Parallel" {
+        return false
+    }
+    if not target_class.constructor {
+        return false
+    }
+    return waiting_names.has(target_class.constructor.c_name) and ensure_machine(target_class.constructor.c_name)
+}
+
+func waited_construction(target_class: Analysis.ClassInfo, argument_codes: List<String>): ExpressionResult {
+    crash target_class.constructor
+    var construction = target_class.constructor.c_name
+    var c_name = target_class.c_name
+    wait_mark_counters.append(temporary_counter)
+    var start = builder.user_count()
+    wait_mark_positions.append(start)
+    resume_point_count = resume_point_count + 1
+    var point = resume_point_count
+    var allocating = "{c_name}___allocate"
+    var replaced = constructor_replaced_fields(target_class)
+    if not replaced.is_empty() {
+        allocating = "{c_name}___allocate_constructed"
+    }
+    var made = next_temporary()
+    builder.add_user("{c_name}* {made} = {allocating}();")
+    var passed = argument_codes.copy()
+    passed.prepend(made)
+    var slot = "spite_frame->spite_wait_{point}"
+    builder.add_user("{slot} = {construction}___begin({passed.join(", ")});")
+    builder.add_user("spite_resume_{point}: if (!{construction}___step({slot})) SPITE_SUSPEND({point});")
+    builder.add_user("SPITE_FREE({slot});")
+    var end = builder.user_count()
+    wait_mark_ends.append(end)
+    wait_mark_results.append(made)
+    var class_type = Analysis.Types.ClassRefType(c_name)
+    return ExpressionResult(made, class_type)
+}
+
+func waited_shape_call(
+    shape_caller: ShapeCaller,
+    before: List<String>,
+    receiver: ExpressionResult,
+    receiver_owned: Boolean,
+    argument_codes: List<String>,
+    return_type: Analysis.SpiteType,
+): ExpressionResult? {
+    var information = shape_caller.information
+    var starter = shape_starter(shape_caller)
+    assert not starter.is_empty()
+    wait_mark_counters.append(temporary_counter)
+    var start = builder.user_count()
+    wait_mark_positions.append(start)
+    before.each(builder.add_user)
+    var receiver_type = receiver.type
+    var held = receiver.code
+    if not receiver_owned {
+        held = retain_call(receiver_type, receiver.code)
+    }
+    var receiver_temporary = next_temporary()
+    builder.add_user("{c_type_name(receiver_type)} {receiver_temporary} = {held};")
+    var parameter_types = shape_call_parameter_types(information, shape_caller.name)
+    var passed = List<String>()
+    passed.append(receiver_temporary)
+    var index = 0
+    while index < argument_codes.count() and index < parameter_types.count() {
+        var argument_temporary = next_temporary()
+        builder.add_user("{c_type_name(parameter_types[index])} {argument_temporary} = {argument_codes[index]};")
+        passed.append(argument_temporary)
+        index = index + 1
+    }
+    resume_point_count = resume_point_count + 1
+    var point = resume_point_count
+    var slot = "spite_frame->spite_wait_{point}"
+    var passed_text = passed.join(", ")
+    builder.add_user("{slot} = {starter}({passed_text});")
+    builder.add_user(
+        "spite_resume_{point}: if ({slot} != 0 && !((SpiteFrame*){slot})->step({slot})) SPITE_SUSPEND({point});",
+    )
+    var plain_call = "{information.c_name}___call_{shape_caller.name}({passed_text})"
+    var result_temporary = next_temporary()
+    var code = result_temporary
+    if type_shape.is_void(return_type) {
+        builder.add_user("bool {result_temporary} = true;")
+        builder.add_user("if ({slot} != 0) \{ SPITE_FREE({slot}); } else \{ {plain_call}; }")
+        code = "(void){result_temporary}"
+    } else {
+        var returned_c = c_type_name(return_type)
+        builder.add_user("{returned_c} {result_temporary};")
+        builder.add_user(
+            "if ({slot} != 0) \{ {result_temporary} = ((struct \{ SpiteFrame spite_head; {returned_c} spite_result; }*){slot})->spite_result; SPITE_FREE({slot}); } else \{ {result_temporary} = {plain_call}; }",
+        )
+    }
+    builder.add_user("{release_call(receiver_type, receiver_temporary)};")
+    var end = builder.user_count()
+    wait_mark_ends.append(end)
+    wait_mark_results.append(result_temporary)
+    return ExpressionResult(code, return_type)
+}
+
+func shape_starter(shape_caller: ShapeCaller): String {
+    var information = shape_caller.information
+    var name = "{information.c_name}___call_{shape_caller.name}___start"
+    if shape_caller.starter.is_empty() {
+        shape_caller.starter = name
+        shape_starters.append(shape_caller)
+        var parameter_types = shape_call_parameter_types(information, shape_caller.name)
+        var signature = "static void* {name}({information.c_name} self"
+        var index = 0
+        while index < parameter_types.count() {
+            signature = "{signature}, {c_type_name(parameter_types[index])} argument_{index}"
+            index = index + 1
+        }
+        shape_caller.signature = "{signature})"
+        builder.add_prototype("{signature});")
+    }
+    return name
+}
+
+func emit_shape_starters(first: Integer): Integer {
+    var index = first
+    while index < shape_starters.count() {
+        var shape_caller = shape_starters[index]
+        var information = shape_caller.information
+        var parameter_types = shape_call_parameter_types(information, shape_caller.name)
+        var passed = ""
+        var argument_index = 0
+        while argument_index < parameter_types.count() {
+            passed = "{passed}, argument_{argument_index}"
+            argument_index = argument_index + 1
+        }
+        var lines = List<String>()
+        lines.append("{shape_caller.signature} \{")
+        var shape_type = union_type_of(information)
+        var member_index = 0
+        while member_index < information.members.count() {
+            var member = information.members[member_index]
+            var called_function = shape_member_function(member, shape_caller.name)
+            if called_function and not member.is_value_class {
+                if waiting_names.has(called_function.c_name) and ensure_machine(called_function.c_name) {
+                    var receiver = member_value_code("self", shape_type, member)
+                    var member_test = value_class_test("self", shape_type, member)
+                    lines.append("if {member_test} return {called_function.c_name}___begin({receiver}{passed});")
+                }
+            }
+            member_index = member_index + 1
+        }
+        lines.append("return 0;")
+        lines.append("}")
+        var joined_lines = lines.join("\n")
+        builder.add_user(joined_lines)
+        index = index + 1
+    }
+    return index
+}
+
+func waits_through_union(information: Analysis.UnionInfo, member_name: String): Boolean {
+    if not resumable_mode or conditional_depth != 0 {
+        return false
+    }
+    var waits = false
+    var index = 0
+    while index < information.members.count() {
+        var member = information.members[index]
+        var found = find_or_instantiate_function(member, member_name)
+        if found {
+            if waiting_names.has(found.c_name) and ensure_machine(found.c_name) {
+                waits = true
+            }
+        }
+        index = index + 1
+    }
+    return waits
+}
+
+func waited_union_call(
+    union_wait: UnionWait,
+    object_result: ExpressionResult,
+    owning_object: Boolean,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var information = union_wait.information
+    var expected_types = union_wait.expected_types
+    var result_type = union_wait.result_type
+    wait_mark_counters.append(temporary_counter)
+    var start = builder.user_count()
+    wait_mark_positions.append(start)
+    var object_temporary = next_temporary()
+    var held = object_result.code
+    if not owning_object {
+        held = "{information.c_name}___retain({object_result.code})"
+    }
+    builder.add_user("{information.c_name} {object_temporary} = {held};")
+    var argument_temporaries = List<String>()
+    var argument_index = 0
+    while argument_index < arguments_ast.count() and argument_index < expected_types.count() {
+        var argument_temporary = next_temporary()
+        var expected = expected_types[argument_index]
+        var stored = coerce_for_store(arguments_ast[argument_index], expected, scope, class_information)
+        builder.add_user("{c_type_name(expected)} {argument_temporary} = {stored};")
+        argument_temporaries.append(argument_temporary)
+        argument_index = argument_index + 1
+    }
+    resume_point_count = resume_point_count + 1
+    var point = resume_point_count
+    var slot = "spite_frame->spite_wait_{point}"
+    var has_result = not type_shape.is_void(result_type)
+    var result_temporary = next_temporary()
+    if has_result {
+        builder.add_user(
+            "{c_type_name(result_type)} {result_temporary} = {default_value_for_scalar_or_null(result_type)};",
+        )
+    } else {
+        builder.add_user("bool {result_temporary} = true;")
+    }
+    builder.add_user("{slot} = 0;")
+    var member_index = 0
+    while member_index < information.members.count() {
+        var member = information.members[member_index]
+        var casted_object = "(({member.c_name}*){object_temporary})"
+        var keyword = "if "
+        if member_index > 0 {
+            keyword = "else if "
+        }
+        var member_test = class_id_test(object_temporary, member)
+        var found = find_or_instantiate_function(member, union_wait.member_name)
+        var branch = ""
+        if found {
+            var call_arguments = argument_temporaries.copy()
+            call_arguments.prepend(casted_object)
+            var passed = call_arguments.join(", ")
+            if waiting_names.has(found.c_name) and ensure_machine(found.c_name) {
+                branch = "{slot} = {found.c_name}___begin({passed});"
+            } else if has_result {
+                branch = "{result_temporary} = {found.c_name}({passed});"
+            } else {
+                branch = "{found.c_name}({passed});"
+            }
+        }
+        builder.add_user(keyword + "{member_test} \{ {branch} }")
+        member_index = member_index + 1
+    }
+    builder.add_user(
+        "spite_resume_{point}: if ({slot} != 0 && !((SpiteFrame*){slot})->step({slot})) SPITE_SUSPEND({point});",
+    )
+    if has_result {
+        var result_c = c_type_name(result_type)
+        builder.add_user(
+            "if ({slot} != 0) \{ {result_temporary} = ((struct \{ SpiteFrame spite_head; {result_c} spite_result; }*){slot})->spite_result; SPITE_FREE({slot}); }",
+        )
+    } else {
+        builder.add_user("if ({slot} != 0) \{ SPITE_FREE({slot}); }")
+    }
+    builder.add_user("{information.c_name}___release({object_temporary});")
+    var end = builder.user_count()
+    wait_mark_ends.append(end)
+    wait_mark_results.append(result_temporary)
+    if has_result {
+        return ExpressionResult(result_temporary, result_type)
+    }
+    return ExpressionResult("(void){result_temporary}", result_type)
+}
+
+func waited_value_call(
+    held: ExpressionResult,
+    held_ast: Syntax.Expressions.Expression,
+    argument_codes: List<String>,
+    value_wait: ValueWait,
+): ExpressionResult {
+    var dispatcher = value_dispatcher(value_wait)
+    var counter_before = temporary_counter
+    wait_mark_counters.append(counter_before)
+    var start = builder.user_count()
+    wait_mark_positions.append(start)
+    resume_point_count = resume_point_count + 1
+    var point = resume_point_count
+    var function_temporary = next_temporary()
+    var held_code = held.code
+    if not owns(held, held_ast) {
+        held_code = "Spite_Function___retain({held.code})"
+    }
+    builder.add_user("Spite_Function* {function_temporary} = {held_code};")
+    var passed = List<String>()
+    passed.append(function_temporary)
+    var called = List<String>()
+    called.append("{function_temporary}->spite_owner")
+    var index = 0
+    while index < argument_codes.count() and index < value_wait.arguments.count() {
+        var argument_temporary = next_temporary()
+        builder.add_user("{c_type_name(value_wait.arguments[index])} {argument_temporary} = {argument_codes[index]};")
+        passed.append(argument_temporary)
+        called.append(argument_temporary)
+        index = index + 1
+    }
+    var slot = "spite_frame->spite_wait_{point}"
+    builder.add_user("{slot} = {dispatcher}({passed.join(", ")});")
+    builder.add_user(
+        "spite_resume_{point}: if ({slot} != 0 && !((SpiteFrame*){slot})->step({slot})) SPITE_SUSPEND({point});",
+    )
+    var returned = value_wait.returned
+    var returned_text = "void"
+    if not type_shape.is_void(returned) {
+        returned_text = c_type_name(returned)
+    }
+    var plain_call = "(({returned_text} (*)({value_wait.pointer_parameters.join(", ")})){function_temporary}->spite_typed_call)({called.join(", ")})"
+    var result_temporary = next_temporary()
+    var code = result_temporary
+    if type_shape.is_void(returned) {
+        builder.add_user("bool {result_temporary} = true;")
+        builder.add_user("if ({slot} != 0) \{ SPITE_FREE({slot}); } else \{ {plain_call}; }")
+        code = "(void){result_temporary}"
+    } else {
+        var returned_c = c_type_name(returned)
+        builder.add_user("{returned_c} {result_temporary};")
+        builder.add_user(
+            "if ({slot} != 0) \{ {result_temporary} = ((struct \{ SpiteFrame spite_head; {returned_c} spite_result; }*){slot})->spite_result; SPITE_FREE({slot}); } else \{ {result_temporary} = {plain_call}; }",
+        )
+    }
+    builder.add_user("Spite_Function___release({function_temporary});")
+    var end = builder.user_count()
+    wait_mark_ends.append(end)
+    wait_mark_results.append(result_temporary)
+    var waited = ExpressionResult(code, returned)
+    if not type_shape.is_void(returned) {
+        waited.owning_override = true
+    }
+    return waited
+}
+
+func value_dispatcher(value_wait: ValueWait): String {
+    var known = value_dispatcher_names[value_wait.key]
+    if known {
+        return known
+    }
+    var name = "spite_value_begin_{value_dispatcher_keys.count()}"
+    value_dispatcher_names[value_wait.key] = name
+    value_dispatcher_keys.append(value_wait.key)
+    value_dispatcher_waits.append(value_wait)
+    var parameters = List<String>()
+    parameters.append("Spite_Function* spite_value")
+    var index = 0
+    while index < value_wait.arguments.count() {
+        parameters.append("{c_type_name(value_wait.arguments[index])} spite_argument_{index}")
+        index = index + 1
+    }
+    builder.add_prototype("static void* {name}({parameters.join(", ")});")
+    return name
+}
+
+func note_value_target(value_call: String, information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    var noted = "{value_call} {function.c_name}"
+    assert not value_targets_noted.has(noted)
+    value_targets_noted[noted] = true
+    value_target_keys.append(value_call)
+    value_target_classes.append(information)
+    value_target_functions.append(function)
+}
+
+func emit_value_dispatchers(first: Integer): Integer {
+    var index = first
+    while index < value_dispatcher_keys.count() {
+        crash value_dispatcher_waits[index]
+        var key = value_dispatcher_keys[index]
+        var value_wait = value_dispatcher_waits[index]
+        emit_value_dispatcher(key, value_wait)
+        index = index + 1
+    }
+    return index
+}
+
+func emit_value_dispatcher(key: String, value_wait: ValueWait) {
+    crash value_dispatcher_names[key]
+    var name = value_dispatcher_names[key]
+    var parameters = List<String>()
+    parameters.append("Spite_Function* spite_value")
+    var arguments = List<String>()
+    arguments.append("spite_value->spite_owner")
+    var index = 0
+    while index < value_wait.arguments.count() {
+        parameters.append("{c_type_name(value_wait.arguments[index])} spite_argument_{index}")
+        arguments.append("spite_argument_{index}")
+        index = index + 1
+    }
+    var lines = List<String>()
+    lines.append("static void* {name}({parameters.join(", ")}) \{")
+    index = 0
+    while index < value_target_keys.count() {
+        crash value_target_classes[index]
+        crash value_target_functions[index]
+        var target_class = value_target_classes[index]
+        var target = value_target_functions[index]
+        var resumable = value_target_keys[index] == key and not target_class.is_value_class
+        if resumable and waiting_names.has(target.c_name) and ensure_machine(target.c_name) {
+            lines.append(
+                "if (spite_value->spite_typed_call == (void*){target.c_name}) return {target.c_name}___begin({arguments.join(", ")});",
+            )
+        }
+        index = index + 1
+    }
+    lines.append("return 0;")
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_user(joined_lines)
+}
+
 func rewind_temporaries(saved: Integer) {
     temporary_counter = saved
     while not wait_mark_counters.is_empty() and newest_wait_counter() >= saved {
@@ -41900,16 +42980,48 @@ func drop_last_wait_mark() {
 
 func drop_unread_waits(first: Integer) {
     while wait_mark_counters.count() > first {
-        var result = wait_mark_results.last()
-        crash result
-        var start = wait_mark_positions.last()
-        crash start
-        var end = wait_mark_ends.last()
-        crash end
+        var latest = latest_wait_mark(first)
+        crash wait_mark_results[latest]
+        crash wait_mark_positions[latest]
+        crash wait_mark_ends[latest]
+        var result = wait_mark_results[latest]
+        var start = wait_mark_positions[latest]
+        var end = wait_mark_ends[latest]
+        wait_mark_counters.remove_at(latest)
+        wait_mark_positions.remove_at(latest)
+        wait_mark_ends.remove_at(latest)
+        wait_mark_results.remove_at(latest)
         if not user_lines_mention(end, result) {
             builder.remove_user_range(start, end)
+            unshift_wait_marks(end, end - start)
         }
-        drop_last_wait_mark()
+    }
+}
+
+func latest_wait_mark(first: Integer): Integer {
+    var latest = first
+    var index = first + 1
+    while index < wait_mark_positions.count() {
+        crash wait_mark_positions[latest]
+        if wait_mark_positions[index] > wait_mark_positions[latest] {
+            latest = index
+        }
+        index = index + 1
+    }
+    return latest
+}
+
+func unshift_wait_marks(end: Integer, removed: Integer) {
+    var index = 0
+    while index < wait_mark_positions.count() {
+        crash wait_mark_ends[index]
+        if wait_mark_positions[index] >= end {
+            var shifted = wait_mark_positions[index] - removed
+            wait_mark_positions[index] = shifted
+            var shifted_end = wait_mark_ends[index] - removed
+            wait_mark_ends[index] = shifted_end
+        }
+        index = index + 1
     }
 }
 
@@ -41992,6 +43104,10 @@ func queue_machine(callee: String): Boolean {
             crash machine_candidate_functions[index]
             var candidate_class = machine_candidate_classes[index]
             var candidate_function = machine_candidate_functions[index]
+            var guarded = machine_candidate_guarded[index] == true
+            if guarded and takes_lock_when_waiting(candidate_class, candidate_function) {
+                return false
+            }
             machine_queue_classes.append(candidate_class)
             machine_queue_functions.append(candidate_function)
             return true
@@ -41999,6 +43115,20 @@ func queue_machine(callee: String): Boolean {
         index = index + 1
     }
     return false
+}
+
+func takes_lock_when_waiting(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
+    if not parallel_used {
+        return false
+    }
+    if not machine_guard_reached {
+        machine_guard_reached = call_effects.thread_reached_classes()
+        machine_guard_touching = state_touching_functions()
+    }
+    var reached = machine_guard_reached
+    crash reached
+    var threaded = reached.has(information.qualified_dotted) or called_implicitly(information)
+    return threaded and machine_guard_touching.has(function.c_name)
 }
 
 func find_waiting_functions() {
@@ -42016,21 +43146,37 @@ func find_waiting_functions() {
         }
         index = index + 1
     }
+    settle_wait_facts()
+    wake_all_callers()
+}
+
+func wake_all_callers() {
     var changed = true
     while changed {
-        changed = false
-        index = 0
-        while index < call_edge_callers.count() {
-            crash call_edge_callees[index]
-            var caller = call_edge_callers[index]
-            var callee = call_edge_callees[index]
-            if not waiting_names.has(caller) and waiting_names.has(callee) {
-                waiting_names[caller] = true
-                changed = true
-            }
-            index = index + 1
+        changed = wakes_callers(call_edge_callers, call_edge_callees)
+        if wakes_callers(wait_facts.edge_callers, wait_facts.edge_callees) {
+            changed = true
+        }
+        if wakes_callers(wait_facts.shape_callers, wait_facts.shape_callees) {
+            changed = true
         }
     }
+}
+
+func wakes_callers(callers: List<String>, callees: List<String>): Boolean {
+    var changed = false
+    var index = 0
+    while index < callers.count() {
+        crash callees[index]
+        var caller = callers[index]
+        var callee = callees[index]
+        if not waiting_names.has(caller) and waiting_names.has(callee) {
+            waiting_names[caller] = true
+            changed = true
+        }
+        index = index + 1
+    }
+    return changed
 }
 
 func emit_state_machines() {
@@ -42044,13 +43190,24 @@ func emit_state_machines() {
         }
         index = index + 1
     }
-    while not machine_queue_functions.is_empty() {
-        var information = machine_queue_classes.remove_first()
-        var function = machine_queue_functions.remove_first()
-        crash information
-        crash function
-        emit_resumable_function(information, function)
+    var dispatchers = 0
+    var starters = 0
+    var pending = true
+    emitting_machines = true
+    while pending {
+        while not machine_queue_functions.is_empty() {
+            var information = machine_queue_classes.remove_first()
+            var function = machine_queue_functions.remove_first()
+            crash information
+            crash function
+            emit_resumable_function(information, function)
+        }
+        dispatchers = emit_value_dispatchers(dispatchers)
+        starters = emit_shape_starters(starters)
+        pending = not machine_queue_functions.is_empty()
     }
+    emitting_machines = false
+    refresh_shape_callers()
     var lines = List<String>()
     lines.append("static void* spite_frame_start(Spite_Function* spite_work) \{")
     lines.append("if (spite_work == 0) return 0;")
@@ -42271,7 +43428,12 @@ func join_steps(scheduler_class: Analysis.ClassInfo, function: Analysis.Function
     var frame = c_value_name(function.parameters[0].name)
     var frame_done = find_or_instantiate_function(scheduler_class, "frame_done")
     crash frame_done
-    return "bool spite_over = {frame_done.c_name}(spite_frame->self, spite_frame->{frame});"
+    var over = "bool spite_over = {frame_done.c_name}(spite_frame->self, spite_frame->{frame});"
+    var return_type = function.return_type
+    if type_shape.is_void(return_type) {
+        return over
+    }
+    return "{over}\nif (spite_over) spite_frame->spite_result = true;"
 }
 
 func offload_steps(scheduler_class: Analysis.ClassInfo, function: Analysis.FunctionInfo, fields: List<String>): String {

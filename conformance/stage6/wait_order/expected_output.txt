@@ -1,0 +1,4 @@
+counter + bump(): the counter was read first: 3
+before then 2 then after
+arguments around a join: 2 102 102
+the list read before the wait got the item: the item | the new list:  0

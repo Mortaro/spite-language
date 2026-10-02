@@ -1,0 +1,33 @@
+var token = ""
+var original: ExpressionResult? = null
+var operand: ExpressionResult? = null
+var position = 0
+var marks_before = 0
+var counter_before = 0
+var retained = false
+
+func HeldOperand(
+    starting_token: String,
+    starting_original: ExpressionResult,
+    starting_operand: ExpressionResult,
+    starting_position: Integer,
+    starting_marks_before: Integer,
+    starting_counter_before: Integer,
+) {
+    token = starting_token
+    original = starting_original
+    operand = starting_operand
+    position = starting_position
+    marks_before = starting_marks_before
+    counter_before = starting_counter_before
+}
+
+func get_original(): ExpressionResult {
+    crash original
+    return original
+}
+
+func get_operand(): ExpressionResult {
+    crash operand
+    return operand
+}

@@ -1,0 +1,14 @@
+var information: Analysis.UnionInfo? = null
+var name = ""
+var starter = ""
+var signature = ""
+
+func ShapeCaller(starting_information: Analysis.UnionInfo, starting_name: String) {
+    information = starting_information
+    name = starting_name
+}
+
+func get_information(): Analysis.UnionInfo {
+    crash information
+    return information
+}

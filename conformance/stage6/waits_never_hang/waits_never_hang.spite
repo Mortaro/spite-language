@@ -1,0 +1,230 @@
+union Napper {
+    SlowNapper
+    QuickNapper
+}
+
+type Sleepy {
+    nap(Integer): Integer
+}
+
+var console = Console()
+var program = Program()
+var board = Board()
+var log = List<String>()
+
+func WaitsNeverHang() {
+    var through_and = Concurrent(right_of_and)
+    started("the right side of 'and'", through_and.finished)
+    var through_or = Concurrent(right_of_or)
+    started("the right side of 'or'", through_or.finished)
+    var through_if = Concurrent(second_condition)
+    started("the second condition of an 'if'", through_if.finished)
+    var through_leaving = Concurrent(second_leaving_condition)
+    started("the second condition of a leaving 'if'", through_leaving.finished)
+    var through_equality = Concurrent(nullable_equality)
+    started("'==' on a nullable", through_equality.finished)
+    var through_value = Concurrent(function_value)
+    started("a function value", through_value.finished)
+    var through_union = Concurrent(union_call)
+    started("a union's function", through_union.finished)
+    var through_type = Concurrent(type_call)
+    started("a type's function", through_type.finished)
+    var through_constructor = Concurrent(constructor_call)
+    started("a constructor", through_constructor.finished)
+    var through_drop = Concurrent(dropped_handle)
+    started("a handle dropped at its scope's end", through_drop.finished)
+    var through_list = Concurrent(dropped_handles)
+    started("a list of handles dropped at its scope's end", through_list.finished)
+    var through_clear = Concurrent(cleared_handles)
+    started("a list of handles cleared", through_clear.finished)
+    var answers = List<Integer>()
+    answers.append(through_and)
+    answers.append(through_or)
+    answers.append(through_if)
+    answers.append(through_leaving)
+    answers.append(through_equality)
+    answers.append(through_value)
+    answers.append(through_union)
+    answers.append(through_type)
+    answers.append(through_constructor)
+    answers.append(through_drop)
+    answers.append(through_list)
+    answers.append(through_clear)
+    var shown = answers.join(", ")
+    console.print("answers", shown)
+    var polling = Concurrent(wait_until_ready)
+    board.handles.append(polling)
+    var joining = Concurrent(join_through_value)
+    var readying = Concurrent(make_ready)
+    var readied: Integer = readying
+    var joined_value: Integer = joining
+    console.print("a join through a function value waited for work the wait below it finishes:", readied, joined_value)
+    var starting = Concurrent(starts_its_reader)
+    board.starters.append(starting)
+    var started_value: Integer = starting
+    var read_value = board.reader_value()
+    console.print("a Concurrent joined the one that started it, running below it:", started_value, read_value)
+    var joined = log.join("\n")
+    console.print(joined)
+}
+
+func started(name: String, finished: Boolean) {
+    console.print(name, "is a point the Concurrent returns from:", not finished)
+}
+
+func napped(milliseconds: Integer): Integer {
+    program.sleep(milliseconds)
+    return milliseconds
+}
+
+func napped_or_null(milliseconds: Integer): Integer? {
+    program.sleep(milliseconds)
+    return milliseconds
+}
+
+func right_of_and(): Integer {
+    var awake = true
+    var both = awake and napped(2) > 0
+    if both {
+        return 1
+    }
+    return 0
+}
+
+func right_of_or(): Integer {
+    var asleep = false
+    var either = asleep or napped(2) > 0
+    if either {
+        return 2
+    }
+    return 0
+}
+
+func second_condition(): Integer {
+    var awake = true
+    if awake and napped(2) > 0 {
+        return 3
+    }
+    return 0
+}
+
+func second_leaving_condition(): Integer {
+    var awake = true
+    if not awake or napped(2) == 0 {
+        return 0
+    }
+    return 4
+}
+
+func nullable_equality(): Integer {
+    var maybe: Integer? = 2
+    if maybe == napped_or_null(2) {
+        return 5
+    }
+    return 0
+}
+
+func function_value(): Integer {
+    var nap = napped
+    var slept = nap(6)
+    return slept
+}
+
+func union_call(): Integer {
+    var napper: Napper = SlowNapper()
+    var slept = napper.nap(7)
+    return slept
+}
+
+func type_call(): Integer {
+    var napper = SlowNapper()
+    var slept = nap_through(napper)
+    return slept
+}
+
+func nap_through(sleepy: Sleepy): Integer {
+    return sleepy.nap(8)
+}
+
+func constructor_call(): Integer {
+    var sleeper = Sleeper(9)
+    return sleeper.slept
+}
+
+func dropped_handle(): Integer {
+    ring_and_leave()
+    log.append("the scope that dropped the ringing handle was left after it rang")
+    return 10
+}
+
+func ring_and_leave() {
+    var ringing = Concurrent(ring)
+    log.append("ringing, finished: {ringing.finished}")
+}
+
+func ring() {
+    program.sleep(2)
+    log.append("rang")
+}
+
+func dropped_handles(): Integer {
+    ring_twice_and_leave()
+    log.append("the scope that dropped the list was left after both rang")
+    return 11
+}
+
+func ring_twice_and_leave() {
+    var ringing = List<Concurrent<Nothing>>()
+    var first = Concurrent(ring)
+    ringing.append(first)
+    var second = Concurrent(ring)
+    ringing.append(second)
+}
+
+func cleared_handles(): Integer {
+    var ringing = started_rings()
+    ringing.clear()
+    log.append("cleared after they rang")
+    return 12
+}
+
+func started_rings(): List<Concurrent<Nothing>> {
+    var ringing = List<Concurrent<Nothing>>()
+    var first = Concurrent(ring)
+    ringing.append(first)
+    var second = Concurrent(ring)
+    ringing.append(second)
+    return ringing
+}
+
+func wait_until_ready(): Integer {
+    while not board.ready {
+        program.sleep(1)
+    }
+    return 13
+}
+
+func join_through_value(): Integer {
+    program.sleep(1)
+    var reader = board.value_of
+    return reader(0)
+}
+
+func make_ready(): Integer {
+    var nap = napped
+    var slept = nap(10)
+    board.ready = true
+    return slept
+}
+
+func starts_its_reader(): Integer {
+    program.sleep(1)
+    var reader = Concurrent(read_starter)
+    board.readers.append(reader)
+    return 14
+}
+
+func read_starter(): Integer {
+    var starter_value = board.starter_value()
+    return starter_value + 1
+}

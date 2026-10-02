@@ -187,19 +187,13 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `Spite.Function` dispatch, `String.sum`, `code_at`) become Spite over a short list of named backend primitives.
   Files: `prelude.spite`, generator.spite supplied bodies, the matching `library/` files. **L.** Pairs with E5.
 
-### Concurrency, waiting and output (D346, D369 items 178, 179 and 211, D183, D184, D210, D378)
+### Concurrency, waiting and output (D346, D369 item 211, D183, D184, D210, D378)
 
 - **K1 The compiler picks the flushing per destination** (D346; status "System classes"). The guarantees and the
   private `flush` are built; left is the speed: line by line to a terminal, large buffers to files and pipes, with
   a flush at every place the program waits so a server's log still shows each line. Files: `library/console.spite`,
-  `prelude.spite` (`_flush`), the waiting library classes, `wait_facts.spite`. **M.** Depends on K2's list of waits.
-- **K2 Waits that run the loop in place never hang each other** (D369 item 179; status "Hidden async/await").
-  Close every gap (right side of `and`/`or`/`==` on a nullable, through a function value, a union dispatch or a
-  constructor, a `Concurrent` dropped inside a `Concurrent`), even at a cost in speed; until then a join that
-  closes such a cycle halts (B8, `conformance/stage6/concurrent_wait_cycle`). Files: `state_machine.spite`,
-  `wait_facts.spite`. **L.** No dependencies.
-- **K3 A wait inside an expression keeps the written order** (D369 item 178). Temporaries hold what came before,
-  dropped where nothing can change. Files: `state_machine.spite`. **M.** Do with K2.
+  `prelude.spite` (`_flush`), the waiting library classes, `wait_facts.spite`. **M.** No dependencies (the waits
+  are listed in concurrency.md's rules).
 - **K4 Singleton safety, the rest of the plan** (D183, D184; status "Thread safety for singletons, the rest").
   The check at `return` that a locked singleton hands out only numbers, text, copies or safe singletons (callbacks
   too); a buffer per thread for append-only state; state split per thread; guarding in `--hot-reload` builds; the
@@ -210,12 +204,13 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   Files: `library/socket.spite`, `udp_socket.spite`, `scheduler.spite` and their system folders, `wait_facts.spite`.
   **L.** Lands after cloud/linux so Linux runs it.
 - **K6 Cancelling a `Concurrent`, and one made off the scheduler's thread** (status concurrency.md summary).
-  Decided in concurrency.md, neither built. **M.** Depends on K2.
+  Neither built, and neither is decided yet: concurrency.md names no way to cancel, and says nothing of a
+  `Concurrent` made off the scheduler's thread (`mortaros_missing_decisions.md` items 291 and 292). **M.** No dependencies.
 - **K7 IO is concurrent by default** (D378). Rebuild the standard library's IO (sockets, files, HTTP, the file
   watcher) on the `Concurrent` library, so an IO call that would wait parks and straight-line code needs no
   annotation; the compiler may keep a call blocking where it measures faster (nothing else to run, a tiny local
   read). Once built, concurrency.md leads with the simple story. Files: `library/socket.spite`, `udp_socket.spite`,
-  `http_*.spite`, `file.spite`, the watcher, `scheduler.spite`, `wait_facts.spite`. **L.** With K5; after K2.
+  `http_*.spite`, `file.spite`, the watcher, `scheduler.spite`, `wait_facts.spite`. **L.** With K5.
 
 ### Foreign libraries (D351, D369 items 93, 211 and 233)
 
@@ -316,9 +311,9 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M4, M5, M7, N1, E1, E4, C7, K2, S9, P1, P2, X1, the remaining B items, E3,
-   D1's first pass.
-3. After step 2: R5, K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
+2. No dependencies: R8, M1, M4, M5, M7, N1, E1, E4, C7, K1, K6 (once decided), S9, P1, P2, X1, the remaining B
+   items, E3, D1's first pass.
+3. After step 2: R5, C8, N2 (N1).
 4. After R5: R1, J1, L3, R4, R8, then R9.
 5. After J1: J2, S5. After L3: F1, S6 (with L4). After F1: F2.
 6. After M1 and M4: M3.
@@ -342,7 +337,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 3 Arithmetic | N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
-| 6 Waiting, IO and library | K2, K1, K3, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
+| 6 Waiting, IO and library | K1, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
 | 7 Language rules | L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | P1, P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | the remaining B items | small fixes, each in the file of the proof it fixes; rebase often |

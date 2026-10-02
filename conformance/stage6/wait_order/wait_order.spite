@@ -1,0 +1,73 @@
+var console = Console()
+var program = Program()
+var counter = 0
+var name = "before"
+var current = List<String>()
+var earlier = List<String>()
+
+func WaitOrder() {
+    var summing = Concurrent(sum_in_order)
+    var naming = Concurrent(text_in_order)
+    var passing = Concurrent(arguments_in_order)
+    var appending = Concurrent(receiver_in_order)
+    var sum: Integer = summing
+    var text: String = naming
+    var passed: String = passing
+    var appended: Integer = appending
+    console.print("counter + bump(): the counter was read first:", sum)
+    console.print(text)
+    console.print("arguments around a join:", passed)
+    var kept = earlier.join(", ")
+    var now = current.join(", ")
+    console.print("the list read before the wait got the item:", kept, "| the new list:", now, appended)
+}
+
+func bump_after(milliseconds: Integer): Integer {
+    counter = 100
+    program.sleep(milliseconds)
+    return milliseconds
+}
+
+func rename_after(milliseconds: Integer): Integer {
+    name = "after"
+    program.sleep(milliseconds)
+    return milliseconds
+}
+
+func sum_in_order(): Integer {
+    counter = 1
+    var total = counter + bump_after(2)
+    return total
+}
+
+func text_in_order(): String {
+    return "{name} then {rename_after(2)} then {name}"
+}
+
+func arguments_in_order(): String {
+    counter = 2
+    var bumping = Concurrent(bump_later)
+    return pair(counter, bumping, counter)
+}
+
+func bump_later(): Integer {
+    program.sleep(2)
+    counter = counter + 100
+    return counter
+}
+
+func pair(first: Integer, second: Integer, third: Integer): String {
+    return "{first} {second} {third}"
+}
+
+func receiver_in_order(): Integer {
+    earlier = current
+    current.append("the {replace_after(2)}")
+    return current.count()
+}
+
+func replace_after(milliseconds: Integer): String {
+    current = List<String>()
+    program.sleep(milliseconds)
+    return "item"
+}

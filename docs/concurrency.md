@@ -140,10 +140,38 @@ nothing else.
 **What waits inside a state machine.** A wait written as a call (`program.sleep(5)`, `file.read()`,
 `reading.length()` on a `Concurrent`, a function of your own that waits) is a point the state machine returns
 from, wherever the call is written: in a `var`, an argument, a `{...}` inside text, a `while` condition (which
-waits again on every pass). It runs before the rest of the statement it is written in. A few waits (inside the
-right side of `and`/`or`, through a function value or a constructor) still wait correctly but hold their
-`Concurrent` in place while the others keep running; [the rules](#concurrency-concurrent-parallel-and-hidden-waiting)
-list them.
+waits again on every pass), the right side of `and` or `or`, a call through a function value, a union or a `type`,
+a constructor. Leaving a scope that drops a `Concurrent` waits for it there too. While one `Concurrent` waits, the
+others run, so a value can change during a wait; the order you wrote still holds. Whatever an expression works out
+before its wait is worked out first and kept, and what comes after is worked out after the wait:
+
+```gdscript title=written_order/written_order.spite entry
+var console = Console()
+var program = Program()
+var count = 1
+
+func WrittenOrder() {
+    var adding = Concurrent(add_after_a_bump)
+    var total: Integer = adding
+    console.print("read before the wait:", total, "read after it:", count)
+}
+
+func add_after_a_bump(): Integer {
+    return count + bump()
+}
+
+func bump(): Integer {
+    count = 100
+    program.sleep(1)
+    return 2
+}
+```
+```output
+read before the wait: 3 read after it: 100
+```
+
+`count` is read before `bump()` runs, as written, so the sum is `1 + 2`. A local or a parameter is not copied
+for this, since nothing else can change it while the `Concurrent` waits.
 
 **A call that never waits is not a wait.** A `Socket`'s `accept_client_now`, `read_line_now`, `read_bytes_now`
 and `write_bytes_now` answer at once with what is there ([standard_library.md](standard_library.md#socket)), so
@@ -927,7 +955,7 @@ there is no second pool to create or pass around.
   touch the pool.
 - **What the compiler supplies.** Starting a worker needs the address of a C function that calls the pool's
   private `_serve()`: `ThreadPool` declares two members without a body that the generator writes,
-  `entry_address()` and `address()`. `Concurrent` has two more, `_start_frame()` and `_frame_result()`, and
+  `entry_address()` and `address()`. `Concurrent` has three more, `_start_frame()`, `_frame_result()` and `_free_frame()` (the frame lives until the handle is dropped, so a second join still waiting on it reads it safely), and
   `Scheduler` has `step_frame(frame)` and `release_work(frame)`, whose bodies are a line of C in the compiler. `--final-classes` prints each
   declaration. The rule is that no compiler-supplied function stays bodiless and no Spite body holds C, so each of
   these is Spite over the backend's primitives. Everything else (the queue, the claim, the split) is Spite.
@@ -973,12 +1001,15 @@ compile time. A C target has no coroutines, so the compiler writes them. Every f
 reach a wait from inside a `Concurrent` is compiled twice: the plain function, for code outside a `Concurrent`, and
 a resumable version (`bootstrap/source/generation/state_machine.spite`):
 
-- **Which functions.** A function *waits* when it is one of the waits below or calls, by name, a function that
-  waits (found over the calls the plain bodies make, to a fixpoint). A `Concurrent`'s function gets a state machine
-  when it waits and is a function value made in an argument of `Concurrent(...)`, or of a program class; every
-  function a state machine calls by name that waits gets one too. Constructors, a singleton function that takes
-  the singleton's lock, and every function of a program class in a `--hot-reload` build (called through a slot a reload
-  swaps) get none.
+- **Which functions.** A function *waits* when it is one of the waits below or calls a function that waits: by
+  name, through a constructor, through a union's or a `type`'s function that waits for one of its classes, or
+  through a function value of a signature some function made into a value with that signature waits for (found
+  over the calls the plain bodies make, to a fixpoint). A `Concurrent`'s function gets a state machine when it
+  waits and is a function value made in an argument of `Concurrent(...)`, or of a program class; every function a
+  state machine calls that waits gets one too, constructors included. A singleton's constructor, a function of a
+  singleton that takes the singleton's lock (only in a program a `Parallel` reaches it in, since a lock held across
+  a point the state machine returns from would let another `Concurrent` on the same thread into it), and every
+  function of a program class in a `--hot-reload` build (called through a slot a reload swaps) get none.
 - **The frame** is a C struct on the heap: a header (the step function, the wait it stopped at, whether it runs or
   has finished, and, for a `Concurrent`'s own frame, the function value it runs), the result, `self`, the parameters, every local and temporary of the body (a name declared twice in
   nested blocks gets two fields), and one slot per wait for the frame it waits on.
@@ -1000,13 +1031,41 @@ a resumable version (`bootstrap/source/generation/state_machine.spite`):
   `system.phase_each(made_arguments())`, whose arguments a plural template makes, holds the receiver and then
   makes each argument in order into the frame before the wait, and a helper the template passes its symbol to,
   `nap_again(phase)`, waits the same way (`conformance/stage6/template_argument_wait`).
-- **Waits that run the loop in place.** A wait inside the right side of `and`/`or` or `==` on a nullable value, one
-  reached through a function value, a union's dispatch or a constructor, and a `Concurrent` dropped inside a
-  `Concurrent` are the plain calls: they wait by running the event loop where they are, as code outside a
-  `Concurrent` does, which keeps every other state machine going but holds this one until the wait is over.
-  A `Concurrent` whose function has no state machine runs it to the end when it is made. `is_resumable` still answers `true` for a function whose only wait is one of these, since it
-  does wait: the wait just holds whoever stepped the frame, such as the loop calling `run_ready()`, until it is
-  over.
+- **Waits in a condition, a comparison, or behind a choice made while running** are points the state machine
+  returns from too, so two waits never hold each other on the C stack:
+  - The right side of `and`/`or`, and every side of an `if`'s conditions after the first, is computed inside a C
+    `if` on what came before, with its waits inside it: `bool decided = left; if (decided) { ...waits...; decided =
+    right; }`. A jump back into the `if` needs nothing more.
+  - `==` and `!=` on a nullable left side whose right side waits keep the left side, wait for the right side once,
+    then compare the two kept values.
+  - A call through a function value makes the frame of whichever function the value holds: a small function per
+    signature compares the value's function with each function made into a value with that signature that has a
+    state machine, and makes its frame, or answers none, and the value is then called plainly. A union's or a
+    `type`'s function does the same by class.
+  - A constructor that waits makes the object, then steps the constructor's own state machine on it.
+  - A local that holds a `Concurrent`, or a list of them, waits at the end of its scope for each handle it holds the
+    last reference to, before letting it go; `clear()` on a list of `Concurrent`s waits for each of them first. The
+    drop that follows then finds the work finished.
+  What still waits by running the event loop where it is (holding its `Concurrent` while every other state machine
+  goes on): dropping a `Concurrent` in any other way inside a `Concurrent` (the last reference held by an object,
+  an attribute or an element of a list that is not a local's, or by a local that is assigned again), a wait reached
+  through a function value or a `type` whose function has no state machine (a value of a value class's function, or
+  of a `type`'s function itself), the waits of a function that has none (above), and a wait inside the values a
+  `crash` or `assert` report prints. Two such waits that each wait for the other could never end, so a join that
+  waits in place for a `Concurrent` whose state machine is running further down the same stack halts at the join
+  (`waits_for_its_own_caller=true`, `conformance/stage6/concurrent_wait_cycle`); a join that is a point to return
+  from just waits, and the machine below it carries on. A `Concurrent` whose function has
+  no state machine runs it to the end when it is made. `is_resumable` answers `true` for a function whose only wait
+  is one of these, since it does wait. `conformance/stage6/waits_never_hang` starts a `Concurrent` through each form
+  and finds it unfinished straight after, and joins, through a function value, work that a wait below it finishes.
+- **A wait inside an expression keeps the written order.** What the expression computes before the wait (the
+  left operand of an operator, the earlier pieces of a text, the earlier arguments of a call, the receiver of a
+  call, the left side of an `and`/`or` or a comparison) is computed before it, into a temporary in the frame, and
+  what comes after it is computed after it. A reference read that way is held for the wait and let go once the
+  expression is done, so a change another `Concurrent` makes during the wait (assigning the attribute anew, say)
+  neither frees it nor is seen by it. A local, a parameter, a constant, `self` or another wait's result is not
+  copied, since nothing can change it while the state machine waits. An assignment works out its value before its
+  target. `conformance/stage6/wait_order`.
 - **The waits at the bottom** are small state machines the generator writes: `Program.sleep` registers a deadline
   and is over when the clock passes it; `Console.read_line_into`, `File.read_into`, `File.write_text`,
   `File.write_from`, `Socket.accept_handle`, `Socket.receive_into` and `Socket.first_readable` start their one system call on a helper thread

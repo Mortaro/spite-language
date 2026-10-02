@@ -1,10 +1,15 @@
 singleton
 
-var handles = List<Concurrent<Integer>>()
+var program = Program()
+var first_holder = Holder()
+var second_holder = Holder()
 
-func value_of(index: Integer): Integer {
-    crash handles[index]
-    var handle = handles[index]
-    var value: Integer = handle
-    return value
+func release_second() {
+    program.sleep(1)
+    second_holder = Holder()
+}
+
+func release_first() {
+    program.sleep(5)
+    first_holder = Holder()
 }

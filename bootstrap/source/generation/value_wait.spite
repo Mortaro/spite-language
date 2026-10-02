@@ -1,0 +1,21 @@
+var key = ""
+var arguments = List<Analysis.SpiteType>()
+var returned: Analysis.SpiteType? = null
+var pointer_parameters = List<String>()
+
+func ValueWait(
+    starting_key: String,
+    starting_arguments: List<Analysis.SpiteType>,
+    starting_returned: Analysis.SpiteType,
+    starting_pointer_parameters: List<String>,
+) {
+    key = starting_key
+    arguments = starting_arguments
+    returned = starting_returned
+    pointer_parameters = starting_pointer_parameters
+}
+
+func get_returned(): Analysis.SpiteType {
+    crash returned
+    return returned
+}

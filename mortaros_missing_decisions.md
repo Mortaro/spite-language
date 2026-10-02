@@ -138,3 +138,15 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      `(0, 0, 0)`: the components stay `Integer`. Options: (a) the fractional members answer the vector of the
      number's fractional class (`Vector3<Float>` for `Integer`); (b) a compile error on `normalized()` of a
      whole-number vector, naming the conversion; (c) keep it. Recommend (a); (c) is a silent wrong value.
+291. **Cancelling a `Concurrent`** (backlog K6; status concurrency.md). The page names no way to stop running work,
+     and dropping a handle waits for it. Options: (a) `handle.cancel()`: the work stops at its next wait, its locals
+     are let go, a call already on a helper thread finishes there with its answer dropped, `finished` answers
+     `true`, and reading the value afterwards halts naming the cancel; (b) no cancel in the language: the work
+     reads a flag it is handed and returns; (c) dropping the last handle cancels instead of waiting (reverses
+     "leaving a scope is a join point"). Recommend (a). Blocks backlog K6.
+292. **A `Concurrent` made off the scheduler's thread** (backlog K6). Inside a `Parallel` or a helper there is no
+     event loop, and today the work runs to its end on the spot, its waits blocking that thread. Options: (a) keep
+     that, and say so in the rules; (b) hand it to the scheduler's thread, the handle joining across threads (a
+     `Parallel` that waits for it while the scheduler's thread waits for that `Parallel` would hang); (c) a compile
+     error where the compiler sees `Concurrent(...)` reached from `Parallel` work. Recommend (a), with (c) added
+     where it is visible. Blocks backlog K6.

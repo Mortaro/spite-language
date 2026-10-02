@@ -1,16 +1,16 @@
 var console = Console()
+var program = Program()
 var board = Board()
 
 func ConcurrentWaitCycle() {
-    var ticker = Ticker()
-    var ticking = Concurrent(ticker.tick)
-    var first_worker = Worker(1)
-    var second_worker = Worker(0)
-    var first = Concurrent(first_worker.run)
-    board.handles.append(first)
-    var second = Concurrent(second_worker.run)
-    board.handles.append(second)
-    var total: Integer = first
-    var ticks: Integer = ticking
-    console.print("never printed", total, ticks)
+    start_both()
+    program.sleep(50)
+    console.print("never printed")
+}
+
+func start_both() {
+    var first = Concurrent(board.release_second)
+    board.first_holder.handles.append(first)
+    var second = Concurrent(board.release_first)
+    board.second_holder.handles.append(second)
 }

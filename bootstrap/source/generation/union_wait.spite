@@ -1,0 +1,26 @@
+var information: Analysis.UnionInfo? = null
+var member_name = ""
+var expected_types = List<Analysis.SpiteType>()
+var result_type: Analysis.SpiteType? = null
+
+func UnionWait(
+    starting_information: Analysis.UnionInfo,
+    starting_member_name: String,
+    starting_expected_types: List<Analysis.SpiteType>,
+    starting_result_type: Analysis.SpiteType,
+) {
+    information = starting_information
+    member_name = starting_member_name
+    expected_types = starting_expected_types
+    result_type = starting_result_type
+}
+
+func get_information(): Analysis.UnionInfo {
+    crash information
+    return information
+}
+
+func get_result_type(): Analysis.SpiteType {
+    crash result_type
+    return result_type
+}

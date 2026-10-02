@@ -51,10 +51,9 @@ func _run() {
 }
 
 func _collect() {
-    assert _frame != 0 and _scheduler.frame_done(_frame)
+    assert not _finished and _frame != 0 and _scheduler.frame_done(_frame)
     var value: $result_type = _frame_result()
     _results.append(value)
-    _frame = 0
     _finished = true
 }
 
@@ -66,13 +65,13 @@ func _result(): $result_type {
 
 func _join() {
     if not _finished {
-        var waits_for_its_own_caller = _scheduler.runs_below(_frame)
+        var waits_for_its_own_caller = not _scheduler.wait_for(_frame)
         crash not waits_for_its_own_caller
-        _scheduler.wait_for(_frame)
         _collect()
     }
 }
 
 func drop() {
     _join()
+    _free_frame()
 }
