@@ -220,6 +220,21 @@ func compile_prompt(code: String, answering: Boolean): String {
         name = "prompt_answer_{prompts}"
         text = "func {name}(): String \{\n    var prompt_value: String = {code}\n    return prompt_value\n}\n"
     }
+    compiling.unlock()
+    return compiled_prompt(name, text)
+}
+
+func compile_made(code: String, class_name: String): String {
+    compiling.lock()
+    prompts = prompts + 1
+    var name = "prompt_made_{prompts}"
+    var text = "func {name}(): {class_name} \{\n    var prompt_value = {code}\n    return prompt_value\n}\n"
+    compiling.unlock()
+    return compiled_prompt(name, text)
+}
+
+func compiled_prompt(name: String, text: String): String {
+    compiling.lock()
     var running = program_file()
     var base = running_base(running)
     File("{base}.reload_prompt").write(text)

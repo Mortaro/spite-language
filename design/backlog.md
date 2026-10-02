@@ -70,8 +70,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **J2 Rename map keyed by attribute objects** (D320, D329). `JsonWriter<Monster>({Monster.attributes['health']:
   "hp"})`, the reader taking the same map, every serializer the same kind; a constant map folds into literal keys
   and a generated `switch`, a run-time map fills a key table once per serializer. Needs a `Dictionary` keyed by
-  `Spite.Attribute` (hashing an attribute object). The REPL's `reload {...}` text parsing (D333) moves to the real
-  map once the prompt evaluates map literals (P1). Errors for a missing, private or singleton attribute.
+  `Spite.Attribute` (hashing an attribute object). The REPL reads `reload {...}` as a map literal (`rename_map`) and
+  hands the compiler names as text (D333); with J2 it hands over the real map. Errors for a missing, private or singleton attribute.
   Files: `library/dictionary.spite`, `library/spite/attribute.spite`, `json_writer.spite`, `json_reader.spite`,
   `binary_format.spite`. **M.** Waits on `mortaros_missing_decisions.md` item 283 (how the map is passed).
 - **J3 Reading JSON whose shape is not known.** A program that inspects an unknown file (a tool, an importer) has
@@ -293,10 +293,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### REPL and reload (D280, D301, D305)
 
-- **P1 Prompt gaps** (status "Command language", "One instance per argument values"). A singleton with arguments
-  (`Channel(1)`), `Dictionary`'s `keys()` and `has(key)`, assigning an object made at the prompt, escapes in text
-  literals, and general map expressions (so J2 replaces D333's text parsing). Files:
-  `library/read_evaluate_print_loop.spite`. **M.** No dependencies.
 - **P2 Reloading a class that starts or stops fitting an `Items`' own memory** (D280; status "What a reload can
   change"). Files: `hot_reload_library.spite`, generator.spite object moves. **M.** No dependencies.
 - **P3 The reload race on a loaded Linux machine** (from `cloud/linux`, a D244 bug). The watcher's reload and the
@@ -354,7 +350,7 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L7, C5, C6, C7, K2, F3, S9, P1, P2, X1, B1
+2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L7, C5, C6, C7, K2, F3, S9, P2, X1, B1
    to B16, E3, D1's first pass.
 3. After step 2: R5, K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4, R8, then R9.
@@ -382,7 +378,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 5 Driver and toolchain | C6, C5, C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
 | 6 Waiting, IO and library | F3, K2, K1, K3, K6, S3, K5, S1, S9, S5, then S2 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
 | 7 Language rules | L7, L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
-| 8 REPL and reports | P1, P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
+| 8 REPL and reports | P2, P3, X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | B1 to B16 | small fixes, each in the file of the proof it fixes; rebase often |
 | 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |
 

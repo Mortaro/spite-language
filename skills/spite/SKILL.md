@@ -31,8 +31,9 @@ It keeps running, even after its entry constructor returns, until a client sends
    rebuilt (`rebuilt Monster`) or the compiler's errors. Never poll, never sleep: this is the wait. (`reload` swaps
    in what changed right away, without waiting for the watcher.)
 3. **Ask the program instead of printing.** Every answer is one line of JSON, `{"ok":true,"value":...}`:
-   - a path or a call: `player.health`, `monsters[0].roar()`, `World().entity_count()` (a singleton by name);
-   - an assignment to try a value: `monsters[0].health = 5`;
+   - a path or a call: `player.health`, `monsters[0].roar()`, `World().entity_count()` (a singleton by name,
+     `Channel(1)` one made with arguments), `scores.keys()`;
+   - an assignment to try a value: `monsters[0].health = 5`, or an object made there: `follower = Circle(3)`;
    - `describe Monster` (attributes and functions), `classes`, `enums`, `attributes`, `functions`, `memory` (live
      allocations and bytes);
    - `eval stock.count() + 40` and `run stock.append(9)` compile code typed at the prompt into the running program.

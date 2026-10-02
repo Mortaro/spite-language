@@ -1039,7 +1039,7 @@ for wire in .spite/docs/*/wire.txt; do
   if ! $listening; then kill $served 2>/dev/null; echo "FAILED wire: $name never listened on $port"; cat "$work/wire_$name.txt" | head -5; exit 1; fi
   expected=$(tr -d '\r' < "$wire" | grep -v '^#' | grep -v '^$')
   actual=$(tr -d '\r' < "$wire" | grep '^\$ spite connect ' | while IFS= read -r line; do
-    command=$(echo "$line" | sed -E 's/^\$ spite connect [0-9]+ --command="(.*)"$/\1/')
+    command=$(echo "$line" | sed -E 's/^\$ spite connect [0-9]+ --command="(.*)"$/\1/; s/\\(["\\$`])/\1/g')   # as the shell reads "..."
     echo "$line"
     timeout 10 "$work/generation_two.exe" connect $port --command="$command" 2>&1 | tr -d '\r'
   done)
@@ -1349,6 +1349,7 @@ var console = Console()
 var program = Program()
 var total = 0
 var stopped = false
+var stamp: Stamp? = null
 
 func Ticker() {
     console.print("ticking")
@@ -1363,6 +1364,7 @@ func tick(amount: Integer) {
     total = total + doubled
 }
 SPITE
+printf 'var count = 0\n\nfunc Stamp(starting: Integer) {\n    count = starting\n}\n' > "$break_folder/stamp.spite"
 break_port=$((port + 4))
 "$work/generation_two.exe" "$break_folder" --build --hot-reload --repl-port=$break_port --executable-path="$work/live_break/ticker.exe" > "$job_errors" 2>&1 || {
   echo "FAILED breakpoints: the ticker does not build with --hot-reload"; head -5 "$job_errors"; exit 1; }
@@ -1404,6 +1406,9 @@ break_expect 'eval 20 + 22' '{"ok":true,"value":"42","type":"String"}'
 case "$(break_ask 'eval nope + 1')" in *"unknown identifier 'nope'"*) ;; *) break_fail "eval of an unknown name did not fail naming it" ;; esac
 break_expect 'run stopped = true' '{"ok":true,"value":"","type":"Nothing"}'
 break_expect 'stopped' '{"ok":true,"value":"true","type":"Boolean"}'
+# An assignment whose right side makes an object compiles the construction the same way.
+break_expect 'stamp = Stamp(4)' '{"ok":true,"value":"Stamp { count: 4 }","type":"Stamp?"}'
+break_expect 'reload {Stamp.attributes[count] "total"}' '{"ok":false,"error":"'"'"'Stamp.attributes[count] \"total\"'"'"' is not an entry of the map: a key, a colon and a value, as Hero.attributes['"'"'level'"'"']: \"rank\""}'
 break_expect 'exit' '{"ok":true,"value":"","type":""}'
 for attempt in $(seq 1 50); do kill -0 $ticker 2>/dev/null || break; sleep 0.2; done
 kill -0 $ticker 2>/dev/null && break_fail "the program kept running after exit"

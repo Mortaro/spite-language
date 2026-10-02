@@ -9,7 +9,6 @@ when a page gains a rule that is not built yet, add it here.
 
 ### One instance per argument values
 - Unconfirmed (proposed by Claude), built that way: the arguments are literals the compiler reads while compiling (strings, numbers, `true`, `false`, enum values), so each distinct list is its own static slot; any other argument is an error (`diagnostics/singleton_arguments`).
-- The REPL prompt still refuses a singleton with arguments (`'World' is a singleton, so it takes no arguments`), so an instance such as `Channel(1)` cannot be reached from the prompt yet.
 
 ### Singleton rules
 - Unconfirmed, proposed by Claude, now stated as rules on the page: a generic singleton has one instance per set of codegen values; local-binding exception covers every value class plus `List`, `Vector`, `Dictionary` and generic singletons whose codegen values come from the function's own codegen or Symbol; unchecked uncalled functions for inline singletons; teardown "made" means constructor finished; circle error texts; once-per-thread first-fetch lock; empty singletons may be made again at exit; reopening may add the `singleton` line.
@@ -778,13 +777,12 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Nothing needs a restart
 - Decided (Mortaro, D280): nothing needs a restart; every refusal is a gap to close. Built: step 1 (attributes move), step 2 (dependents rebuilt through a whole-program compile, every function slotted, D333), step 3 (enums keep their numbers), step 4 (`environment.spite`, `build.spite`, D333), and a change to a value class's functions. Not built: moving objects of a class that starts or stops fitting an `Items`' own memory.
-- The rename map (D329) is built as D333 describes; the prompt's `reload {Class.attributes['old']: "new"}` form is read as text by the REPL (proposed by Claude, unconfirmed) until the prompt evaluates maps and `attributes[...]`.
+- The rename map (D329) is built as D333 describes; the prompt reads `reload {Class.attributes['old']: "new"}` as a map literal, entry by entry with its escapes, and hands the compiler the names as text (proposed by Claude, unconfirmed); a map value keyed by attribute objects waits on J2 (a `Dictionary` keyed by `Spite.Attribute`).
 - The rules of step 1 were proposed by Claude and are unconfirmed by Mortaro; the enum rule (D302) was decided by Claude under D205, not by Mortaro.
 
 ### Command language
 - Decisions for the prompt's features (singletons by name D286, breakpoints D303, `bytes` D291, `eval`/`run` D305, `describe`/`enums`/`memory`/union walking/assignment D301) were decided by Claude under D205, not Mortaro. The command names `break`, `breaks`, `clear`, `where`, `locals`, `continue`, `bytes`, `eval`, `run`, `describe`, `enums` and the three `Spite.Attribute` members (`held_memory`, `stored_memory`, `buffer_memory`) are provisional (D214).
-- Not built: `Dictionary<T>`'s `keys()` and `has(key)` at the prompt, and assigning an object made at the prompt (`follower = Circle(3)`); workaround for the second: `run follower = Circle(3)`.
-- A text literal assigned at the prompt has no escapes yet.
+- Proposed by Claude, unconfirmed: naming a singleton made with arguments at the prompt by its arguments (`Channel(1)`), `keys()` answering one key a line, a hole in a prompt text literal refused, and `follower = Circle(3)` compiled as `prompt_made_<n>(): Circle` (only with `--hot-reload` and `--repl-port`).
 - Reading `Spite.Class.functions` anywhere in the library changes how every program is compiled (a bug recorded in failure.md under "nothing fails silently"), which is why `describe` uses `class_descriptions()` instead.
 - The wire format being JSON is not a promise (D96); the format may become whatever an AI client reads best, binary included.
 

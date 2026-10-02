@@ -135,13 +135,22 @@ func compile_before_reload(command: String) {
         hot_reload.compile_for_request()
     }
     if command.starts_with("reload ") {
-        var renames = rename_map_text(command)
-        if not renames.is_empty() {
-            hot_reload.compile_with_renames(renames)
+        var renames = rename_map(command)
+        if renames.succeeded {
+            hot_reload.compile_with_renames(renames.text)
         }
     }
     if command == "wait_reload" {
         hot_reload.settle_for_request()
+    }
+    var equals = assignment_at(command)
+    if equals >= 0 and build.repl_port != 0 {
+        var command_length = command.length()
+        var right = command.slice(equals + 1, command_length).trim()
+        var made = made_class(right)
+        if not made.is_empty() {
+            prompt_function = hot_reload.compile_made(right, made)
+        }
     }
     if command.starts_with("break ") {
         var command_length = command.length()
@@ -246,7 +255,7 @@ func failure(text: String): Answer {
 func answer(command: String, program: Spite.Attribute): Answer {
     if command == "help" {
         return success(
-            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, a call such as player.heal(3), bytes of a path or 'bytes 0x1f2a40 64', describe a class, enums, memory, break file:line, breaks, clear, continue, locals, where, eval an expression, run a statement, reload, reload \{Hero.attributes['level']: \"rank\"} to keep a renamed attribute's values, last_reload, wait_reload, help, exit",
+            "attributes, functions, classes (and attributes or functions of a path), a path such as player.health or World().entity_count(), a path = a literal, another path or a construction such as Circle(3), a call such as player.heal(3) or scores.has(\"ann\"), bytes of a path or 'bytes 0x1f2a40 64', describe a class, enums, memory, break file:line, breaks, clear, continue, locals, where, eval an expression, run a statement, reload, reload \{Hero.attributes['level']: \"rank\"} to keep a renamed attribute's values, last_reload, wait_reload, help, exit",
             "",
         )
     }
@@ -337,10 +346,15 @@ func listed_classes(): String {
     var held = singletons()
     var index = 0
     while index < held.count() {
+        var held_name: String = held[index].name
+        var called = "{held_name}()"
+        if held_name.ends_with(")") {
+            called = held_name
+        }
         if held[index].value {
-            lines.append("{held[index].name}()")
+            lines.append(called)
         } else {
-            lines.append("{held[index].name}() not made yet")
+            lines.append("{called} not made yet")
         }
         index = index + 1
     }
@@ -545,13 +559,15 @@ func parts_of(text: String): List<String> {
     var start = 0
     var depth = 0
     var quoted = false
+    var escaped = false
     var index = 0
     var trimmed_length = trimmed.length()
     while index < trimmed_length {
         var code = trimmed.code_at(index)
-        if code == 34 {
+        if code == 34 and not escaped {
             quoted = not quoted
         }
+        escaped = quoted and code == 92 and not escaped
         if not quoted {
             depth = depth + nesting(code, false)
         }
@@ -592,13 +608,19 @@ func member_name(part: String): String {
     if part.starts_with("[") and part.ends_with("]") {
         var part_length = part.length()
         var key = part.slice(1, part_length - 1).trim()
-        if key.length() >= 2 and key.starts_with("\"") and key.ends_with("\"") {
-            var key_length = key.length()
-            return key.slice(1, key_length - 1)
-        }
-        return key
+        return key_text(key)
     }
     return part
+}
+
+func key_text(key: String): String {
+    if key.length() >= 2 and key.starts_with("\"") and key.ends_with("\"") {
+        var decoded = decoded_text(key)
+        if decoded {
+            return decoded
+        }
+    }
+    return key
 }
 
 func written(parts: List<String>, last: Integer): String {
@@ -665,26 +687,32 @@ func starts_with_capital(name: String): Boolean {
 
 func singleton_named(name: String, inside: String): Spite.Attribute? {
     var typed = name.replace(" ", "")
-    if not inside.is_empty() {
-        unresolved = "'{typed}' is a singleton, so it takes no arguments: there is one instance, and the prompt reads it"
-        return null
+    var arguments = split_arguments(inside)
+    var asked = typed
+    if not arguments.is_empty() {
+        asked = "{typed}({arguments.join(", ")})"
     }
     var held = singletons()
     var index = 0
     while index < held.count() {
-        if held[index].name == typed {
+        if held[index].name == asked {
             return made_singleton(held[index])
         }
         index = index + 1
     }
     var matches = List<Spite.Attribute>()
     var matched_names = List<String>()
+    var instances = List<String>()
     index = 0
     while index < held.count() {
         var held_name: String = held[index].name
-        if unqualified(held_name) == typed {
+        if unqualified(held_name) == asked {
             matches.append(held[index])
             matched_names.append(held_name)
+        }
+        var bare = without_arguments(held_name)
+        if bare != held_name and (bare == typed or unqualified(bare) == typed) {
+            instances.append(held_name)
         }
         index = index + 1
     }
@@ -692,7 +720,11 @@ func singleton_named(name: String, inside: String): Spite.Attribute? {
         return made_singleton(matches[0])
     }
     if matches.count() > 1 {
-        unresolved = "'{typed}' names more than one singleton, {matched_names.join(" and ")}: write the whole name"
+        unresolved = "'{asked}' names more than one singleton, {matched_names.join(" and ")}: write the whole name"
+        return null
+    }
+    if not instances.is_empty() {
+        unresolved = "the program holds no {asked}: a singleton made with arguments has one instance for each argument list the program asks for, {instances.join(", ")}"
         return null
     }
     var class_lines = class_names().split("\n")
@@ -704,8 +736,32 @@ func singleton_named(name: String, inside: String): Spite.Attribute? {
         }
         index = index + 1
     }
+    if not arguments.is_empty() and singleton_exists(typed, held) {
+        unresolved = "'{typed}' is a singleton made without arguments, so it takes none: {typed}()"
+        return null
+    }
     unresolved = "no singleton '{typed}' in the program: 'classes' lists them"
     return null
+}
+
+func singleton_exists(typed: String, held: List<Spite.Attribute>): Boolean {
+    var index = 0
+    while index < held.count() {
+        var held_name: String = held[index].name
+        if held_name == typed or unqualified(held_name) == typed {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func without_arguments(name: String): String {
+    var opening = name.index_of("(")
+    if opening < 0 {
+        return name
+    }
+    return name.slice(0, opening)
 }
 
 func made_singleton(held: Spite.Attribute): Spite.Attribute? {
@@ -718,6 +774,10 @@ func made_singleton(held: Spite.Attribute): Spite.Attribute? {
 
 func unqualified(name: String): String {
     var opening = name.index_of("<")
+    var parenthesis = name.index_of("(")
+    if parenthesis >= 0 and (opening < 0 or parenthesis < opening) {
+        opening = parenthesis
+    }
     var name_length = name.length()
     var head = name
     var tail = ""
@@ -854,8 +914,49 @@ func answered_call(owner: Spite.Attribute, part: String, callee: String): Answer
         var held_total = held_count(owner)
         return success(held_total, "Integer")
     }
+    if kind == "dictionary" and (name == "keys" or name == "has") {
+        return dictionary_answer(owner, name, literals)
+    }
     var refusal = uncallable(owner, name, callee)
     return failure(refusal)
+}
+
+func dictionary_answer(owner: Spite.Attribute, name: String, literals: List<String>): Answer {
+    var wanted_count = 0
+    if name == "has" {
+        wanted_count = 1
+    }
+    if literals.count() != wanted_count {
+        return failure("'{name}' takes {wanted_count} argument(s), and this call passes {literals.count()}")
+    }
+    var key = ""
+    if name == "has" {
+        var literal = literals.first()
+        crash literal
+        if opens_hole(literal) {
+            var refusal = hole_refusal(literal)
+            return failure(refusal)
+        }
+        key = key_text(literal)
+    }
+    var entries = owner.value_attributes()
+    var keys = List<String>()
+    var held = false
+    var index = 0
+    while index < entries.count() {
+        var entry_name: String = entries[index].name
+        keys.append(entry_name)
+        held = held or entry_name == key
+        index = index + 1
+    }
+    if name == "has" {
+        return success(held, "Boolean")
+    }
+    if keys.is_empty() {
+        return success("{owner.name} holds no keys", "List<String>")
+    }
+    var listed = keys.join("\n")
+    return success(listed, "List<String>")
 }
 
 func reloaded(command: String): Answer {
@@ -888,79 +989,144 @@ func reloaded_with_renames(command: String): Answer {
     if not build.hot_reload {
         return reloaded("reload")
     }
-    var renames = rename_map_text(command)
-    if renames.is_empty() {
-        return failure(
-            "'reload' takes a map from the running class's attributes to the new ones' names, as a serializer does: reload \{Hero.attributes['level']: \"rank\"}, or reload \{} to let what the gone attributes hold be released",
-        )
+    var renames = rename_map(command)
+    if not renames.succeeded {
+        return renames
     }
     if not hot_reload.compiled_for_request {
-        hot_reload.compile_with_renames(renames)
+        hot_reload.compile_with_renames(renames.text)
     }
     return reloaded("reload")
 }
 
-func rename_map_text(command: String): String {
+func rename_map(command: String): Answer {
     var command_length = command.length()
     var map = command.slice(7, command_length).trim()
     if not map.starts_with("\{") or not map.ends_with("}") {
-        return ""
+        return failure(
+            "'reload' takes a map from the running class's attributes to the new ones' names, as a serializer does: reload \{Hero.attributes['level']: \"rank\"}, or reload \{} to let what the gone attributes hold be released",
+        )
     }
     var map_length = map.length()
     var inside = map.slice(1, map_length - 1).trim()
     var lines = List<String>()
     lines.append("given")
-    if inside.is_empty() {
-        return lines.join("\n")
-    }
-    var entries = inside.split(",")
+    var entries = split_outside(inside, 44)
     var index = 0
     while index < entries.count() {
-        var entry = entries[index].trim()
-        var line = rename_line(entry)
-        if line.is_empty() {
-            return ""
+        var entry = entries[index]
+        var last_entry = index == entries.count() - 1
+        if entry.is_empty() and not last_entry {
+            return failure("the map has an empty entry: its entries are apart with one comma each")
         }
-        lines.append(line)
+        if not entry.is_empty() {
+            var line = rename_line(entry)
+            if not line.succeeded {
+                return line
+            }
+            lines.append(line.text)
+        }
         index = index + 1
     }
-    return lines.join("\n")
+    var joined = lines.join("\n")
+    return success(joined, "")
 }
 
-func rename_line(entry: String): String {
-    var marker = ".attributes['"
-    var at = entry.index_of(marker)
-    var close = entry.index_of("']")
-    var colon = entry.index_of(":")
-    if at <= 0 or close <= at or colon <= close {
+func rename_line(entry: String): Answer {
+    var form = "Hero.attributes['level']: \"rank\""
+    var halves = split_outside(entry, 58)
+    if halves.count() != 2 {
+        return failure("'{entry}' is not an entry of the map: a key, a colon and a value, as {form}")
+    }
+    var key = halves.first()
+    var value = halves.last()
+    crash key and value
+    var parts = parts_of(key)
+    var part_count = parts.count()
+    var index_part = parts.last()
+    var attributes_part = parts[part_count - 2]
+    var keyed = part_count >= 3 and attributes_part == "attributes"
+    if not keyed or not index_part or not index_part.starts_with("[") or not index_part.ends_with("]") {
+        return failure("the key '{key}' is not an attribute of a class: a key names one, as {form}")
+    }
+    var names = parts.copy()
+    names.truncate(part_count - 2)
+    var class_name = names.join(".").replace(" ", "")
+    var index_length = index_part.length()
+    var index_literal = index_part.slice(1, index_length - 1).trim()
+    var old_name = attribute_literal(index_literal)
+    if old_name.is_empty() {
+        return failure(
+            "the key '{key}' names its attribute with {index_literal}, and an attribute is named by a symbol or a text, as {form}",
+        )
+    }
+    if opens_hole(value) {
+        var refusal = hole_refusal(value)
+        return failure(refusal)
+    }
+    var new_name = ""
+    if value.starts_with("\"") {
+        var decoded = decoded_text(value)
+        if decoded {
+            new_name = decoded
+        }
+    }
+    if not is_attribute_name(new_name) {
+        return failure(
+            "the value {value} is not the name of an attribute: a value is the new attribute's name as a text, as {form}",
+        )
+    }
+    return success("{class_name} {old_name} {new_name}", "")
+}
+
+func attribute_literal(literal: String): String {
+    var literal_length = literal.length()
+    if literal_length >= 3 and literal.starts_with("'") and literal.ends_with("'") {
+        var quoted = literal.slice(1, literal_length - 1)
+        if is_attribute_name(quoted) {
+            return quoted
+        }
         return ""
     }
-    var class_name = entry.slice(0, at).trim()
-    var marker_length = marker.length()
-    var old_name = entry.slice(at + marker_length, close)
-    var entry_length = entry.length()
-    var quoted = entry.slice(colon + 1, entry_length).trim()
-    var quoted_length = quoted.length()
-    if quoted_length < 3 or not quoted.starts_with("\"") or not quoted.ends_with("\"") {
-        return ""
+    if literal.starts_with("\"") {
+        var decoded = decoded_text(literal)
+        if decoded and is_attribute_name(decoded) {
+            return decoded
+        }
     }
-    var new_name = quoted.slice(1, quoted_length - 1)
-    if class_name.is_empty() or old_name.is_empty() or new_name.is_empty() {
-        return ""
+    return ""
+}
+
+func is_attribute_name(name: String): Boolean {
+    if name.is_empty() {
+        return false
     }
-    return "{class_name} {old_name} {new_name}"
+    var index = 0
+    var name_length = name.length()
+    while index < name_length {
+        var code = name.code_at(index)
+        var letter = code >= 97 and code <= 122 or code >= 65 and code <= 90 or code == 95
+        var digit = code >= 48 and code <= 57 and index > 0
+        if not letter and not digit {
+            return false
+        }
+        index = index + 1
+    }
+    return true
 }
 
 func assignment_at(command: String): Integer {
     var depth = 0
     var quoted = false
+    var escaped = false
     var index = 0
     var command_length = command.length()
     while index < command_length {
         var code = command.code_at(index)
-        if code == 34 {
+        if code == 34 and not escaped {
             quoted = not quoted
         }
+        escaped = quoted and code == 92 and not escaped
         if not quoted {
             depth = depth + nesting(code, true)
         }
@@ -1102,11 +1268,7 @@ func shown(attribute: Spite.Attribute, nested: Boolean): String {
 
 func literal_text(literal: String, class_name: String): String? {
     if class_name == "String" {
-        if literal.length() >= 2 and literal.starts_with("\"") and literal.ends_with("\"") {
-            var literal_length = literal.length()
-            return literal.slice(1, literal_length - 1)
-        }
-        return null
+        return decoded_text(literal)
     }
     if class_name == "Boolean" {
         if literal == "true" or literal == "false" {
@@ -1131,6 +1293,65 @@ func literal_text(literal: String, class_name: String): String? {
         return literal.slice(1, literal_length - 1)
     }
     return null
+}
+
+func decoded_text(literal: String): String? {
+    var literal_length = literal.length()
+    assert literal_length >= 2 and literal.starts_with("\"") and literal.ends_with("\"")
+    var last = literal_length - 1
+    var pieces = List<String>()
+    var start = 1
+    var index = 1
+    while index < last {
+        var code = literal.code_at(index)
+        if code == 92 {
+            assert index + 1 < last
+            var run = literal.slice(start, index)
+            pieces.append(run)
+            var after_backslash = literal.slice(index + 1, index + 2)
+            var character = escaped_character(after_backslash)
+            pieces.append(character)
+            index = index + 2
+            start = index
+        } else {
+            assert code != 34 and code != 123
+            index = index + 1
+        }
+    }
+    var rest = literal.slice(start, last)
+    pieces.append(rest)
+    return pieces.join("")
+}
+
+func escaped_character(after_backslash: String): String {
+    switch after_backslash {
+        "n": return "\n"
+        "t": return "\t"
+        "r": return "\r"
+        _: return after_backslash
+    }
+}
+
+func opens_hole(literal: String): Boolean {
+    if not literal.starts_with("\"") {
+        return false
+    }
+    var escaped = false
+    var index = 1
+    var literal_length = literal.length()
+    while index < literal_length {
+        var code = literal.code_at(index)
+        if code == 123 and not escaped {
+            return true
+        }
+        escaped = code == 92 and not escaped
+        index = index + 1
+    }
+    return false
+}
+
+func hole_refusal(literal: String): String {
+    return "{literal} has a hole, and the prompt reads a text literal as it is written: \\\{ writes a brace, and 'eval' makes text from values"
 }
 
 func is_whole_class(class_name: String): Boolean {
@@ -1192,6 +1413,10 @@ func assign(command: String, program: Spite.Attribute): Answer {
             return failure("{target} cannot be assigned")
         }
     } else if looks_like_literal(literal) {
+        if inner_name == "String" and opens_hole(literal) {
+            var refusal = hole_refusal(literal)
+            return failure(refusal)
+        }
         var text = literal_text(literal, inner_name)
         if not text {
             return failure("type mismatch: {target} is {described(class_name)}, and {literal} is not one")
@@ -1200,7 +1425,7 @@ func assign(command: String, program: Spite.Attribute): Answer {
             return failure("{literal} is not {described(class_name)}, or {target} cannot be assigned")
         }
     } else {
-        var source = found_at(literal, program)
+        var source = assigned_source(target, literal, program)
         if not source {
             return failure(unresolved)
         }
@@ -1223,6 +1448,70 @@ func assign(command: String, program: Spite.Attribute): Answer {
     return failure(unresolved)
 }
 
+func assigned_source(target: String, right: String, program: Spite.Attribute): Spite.Attribute? {
+    var made = made_class(right)
+    if made.is_empty() {
+        return found_at(right, program)
+    }
+    if not build.hot_reload or build.repl_port == 0 {
+        unresolved = "'{target} = {right}' makes an object, which answers in a program built with --hot-reload and --repl-port: the construction is compiled into the running program, which the remote REPL then calls"
+        return null
+    }
+    hot_reload.reload()
+    if not hot_reload.answered {
+        unresolved = hot_reload.answer
+        return null
+    }
+    var function = function_named(program, prompt_function)
+    if not function {
+        unresolved = "the code compiled, but the running program has no '{prompt_function}' to call: send it again"
+        return null
+    }
+    var no_arguments = List<String>()
+    return call_found(function, no_arguments)
+}
+
+func made_class(right: String): String {
+    var parts = parts_of(right)
+    var last_part = parts.last()
+    if not last_part or not is_call(last_part) {
+        return ""
+    }
+    var names = parts.copy()
+    var part_count = parts.count()
+    names.truncate(part_count - 1)
+    var call_name = called_name(last_part)
+    names.append(call_name)
+    var plain = names.all(named)
+    var typed = names.join(".").replace(" ", "")
+    if not plain or not starts_with_capital(call_name) {
+        return ""
+    }
+    var matches = List<String>()
+    var class_lines = class_names().split("\n")
+    var index = 0
+    while index < class_lines.count() {
+        var class_line = class_lines[index]
+        if class_line == typed {
+            return class_line
+        }
+        if unqualified(class_line) == typed {
+            matches.append(class_line)
+        }
+        index = index + 1
+    }
+    if matches.count() == 1 {
+        var only = matches.first()
+        crash only
+        return only
+    }
+    return ""
+}
+
+func named(part: String): Boolean {
+    return not part.is_empty() and not is_call(part) and not part.starts_with("[")
+}
+
 func looks_like_literal(literal: String): Boolean {
     if literal.is_empty() or literal == "true" or literal == "false" {
         return true
@@ -1240,6 +1529,11 @@ func call_found(function: Spite.Function, literals: List<String>): Spite.Attribu
     var index = 0
     while index < literals.count() and index < function.arguments.count() {
         var argument = function.arguments[index]
+        var argument_class: String = argument.class.name
+        if argument_class == "String" and opens_hole(literals[index]) {
+            unresolved = hole_refusal(literals[index])
+            return null
+        }
         var text = literal_text(literals[index], argument.class.name)
         if text {
             texts.append(text)
@@ -1258,28 +1552,49 @@ func call_found(function: Spite.Function, literals: List<String>): Spite.Attribu
 }
 
 func split_arguments(inside: String): List<String> {
-    var literals = List<String>()
-    if inside.is_empty() {
-        return literals
+    return split_outside(inside, 44)
+}
+
+func split_outside(text: String, separator: Integer): List<String> {
+    var pieces = List<String>()
+    if text.is_empty() {
+        return pieces
     }
     var start = 0
+    var depth = 0
     var quoted = false
+    var escaped = false
     var index = 0
-    while index < inside.length() {
-        var code = inside.code_at(index)
-        if code == 34 {
+    var text_length = text.length()
+    while index < text_length {
+        var code = text.code_at(index)
+        if code == 34 and not escaped {
             quoted = not quoted
-        } else if code == 44 and not quoted {
-            var trimmed_slice = inside.slice(start, index).trim()
-            literals.append(trimmed_slice)
+        }
+        escaped = quoted and code == 92 and not escaped
+        if not quoted {
+            depth = depth + nesting(code, true) + braces(code)
+        }
+        if code == separator and not quoted and depth == 0 {
+            var piece = text.slice(start, index).trim()
+            pieces.append(piece)
             start = index + 1
         }
         index = index + 1
     }
-    var inside_length = inside.length()
-    var trimmed_slice = inside.slice(start, inside_length).trim()
-    literals.append(trimmed_slice)
-    return literals
+    var rest = text.slice(start, text_length).trim()
+    pieces.append(rest)
+    return pieces
+}
+
+func braces(code: Integer): Integer {
+    if code == 123 {
+        return 1
+    }
+    if code == 125 {
+        return -1
+    }
+    return 0
 }
 
 func described(class_name: String): String {
