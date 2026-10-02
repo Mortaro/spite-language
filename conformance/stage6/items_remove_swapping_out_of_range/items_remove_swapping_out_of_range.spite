@@ -1,0 +1,15 @@
+var console = Console()
+
+func ItemsRemoveSwappingOutOfRange() {
+    var velocities = Items<Velocity>()
+    var slow = Velocity(1.0)
+    velocities.append(slow)
+    var fast = Velocity(2.0)
+    velocities.append(fast)
+    velocities.remove_swapping(0)
+    var left = velocities.count()
+    crash velocities[0]
+    console.print("removed", left, velocities[0].across)
+    velocities.remove_swapping(1)
+    console.print("never printed")
+}

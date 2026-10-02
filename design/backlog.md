@@ -345,7 +345,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **B10** The list template lend proof ignores `drop()` (D269's lend checks it). **S.**
 - **B11** Reading `.functions` anywhere turns on a whole-program flag; set it only from kept code. **S.**
 - **B12** A write to a copy that dies unread (proposed, unconfirmed rule: a compile error). **M.**
-- **B13** `Vector.remove_at`, `Items.remove_at` and `Items.remove_swapping` do nothing out of range (D312). **S.**
 - **B14** A `__fastfail` or a C library heap abort ends the program without Spite's report. **M.**
 - **B15** A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` hangs. **S.**
 - **B16** `call_function()` on a function with parameters silently does nothing (testing.md). **S.**

@@ -196,7 +196,7 @@ templates run on the items in place the same way, and a chain of them is one loo
 | `append(value)` | | copies `value`'s attributes in as a new last item |
 | `vector[index]` (calls `get_at(index)`) | `T?` | the item itself, borrowed once narrowed; `null` out of range |
 | `vector[index] = value` (calls `set_at(index, value)`) | | copies `value` over the item; out of range halts |
-| `remove_at(index)` | | moves every later item down; nothing happens out of range |
+| `remove_at(index)` | | moves every later item down; an index out of range halts |
 | `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` is a `List`'s only |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `reserve(count)` | | makes room for `count` items in all without making any, so appending up to there never grows the block |
@@ -303,8 +303,8 @@ of moving every later one down, which is what a sparse set wants.
 | `append(value)` | | inline: copies `value`'s attributes in; references: keeps `value` |
 | `items[index]` (calls `get_at(index)`) | `T?` | inline: the item, borrowed once narrowed; references: the reference; `null` out of range, either way |
 | `items[index] = value` (calls `set_at(index, value)`) | | replaces the item; out of range halts |
-| `remove_at(index)` | | moves every later item down; nothing happens out of range |
-| `remove_swapping(index)` | | moves the last item into `index`; nothing happens out of range |
+| `remove_at(index)` | | moves every later item down; an index out of range halts |
+| `remove_swapping(index)` | | moves the last item into `index`; an index out of range halts |
 | `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` is a `List`'s only |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `copy()` / `deep_copy()` | `Items<T>` | inline: every item copied; references: one level, or all the way down |
@@ -1171,9 +1171,9 @@ A list's members, their results and their edge cases are [the table under `List<
 a shortcut for `get_at`, [functions_and_operators.md](functions_and_operators.md#operators); an out of
 range read answers `null` and never a default that would read as a real element); `first`, `last`, `remove_first`
 and `remove_last` answer `null` on an empty
-list (like `[]`), `insert` clamps to the nearest end, and `set_at`, `remove_at` and `remove_swapping` do
-nothing. `reserve(count)` grows the buffer to hold `count` elements and adds none. A `List` of numbers, `Boolean`,
-enums or `Memory.Address` is the one way to keep a list of them: its buffer holds the values themselves, which is
+list (like `[]`), `insert` clamps to the nearest end, and `set_at`, `remove_at` and `remove_swapping` halt,
+naming the line. `reserve(count)` grows the buffer to hold `count` elements and adds none. A `List` of numbers,
+`Boolean`, enums or `Memory.Address` is the one way to keep a list of them: its buffer holds the values themselves, which is
 what a `Vector` of them held (`conformance/stage6/plain_items`). There is
 no `for`: a list is walked with a template, a passed function ([above](#standard-library-metaprogramming)),
 or a `while` that does more than they do.
@@ -1298,8 +1298,9 @@ under `Vector<T>`](#vectort-items-inline), which is normative. The readings:
   into the block, counting each `String` attribute once more; the value itself stays an ordinary object. A constructor
   cannot be the argument, so an appended item is made on its own line first: `var slow =
   Velocity(1.0, 0.5)`, then `velocities.append(slow)`.
-- **Removing.** `remove_at(index)` releases the item's `String` attributes and moves every later item down;
-  `clear()` releases every item's and keeps the capacity; dropping the vector releases them and frees the block.
+- **Removing.** `remove_at(index)` releases the item's `String` attributes and moves every later item down, and
+  halts on an index out of range; `clear()` releases every item's and keeps the capacity; dropping the vector
+  releases them and frees the block.
 - **Templates.** `each_`, `map_`, `filter_`, `count_`, `any_`, `all_` and `sum_<member>()` are in
   `library/vector.spite`, written over the borrowed items; `filter_` answers a `Vector<T>` of copies and `map_` a
   `List` of the members' values. A chain of them is one loop over the block, with `filter_` steps in the
@@ -1362,7 +1363,8 @@ members are [the table under `Items<T>`](#itemst-the-storage-chosen-for-you), wh
 - **Writing and removing.** `append` and `set_at` copy the value's attributes in when inline (counting each
   `String` attribute once more) and keep the value when by reference; `remove_at`, `remove_swapping`, `clear` and
   dropping the collection release what they remove. `remove_swapping(index)` moves the last item into `index`
-  and does nothing out of range; it keeps no order, and costs the same however many items there are.
+  and halts on an index out of range, as `remove_at` does; it keeps no order, and costs the same however many
+  items there are.
 - **Templates.** `each_`, `map_`, `filter_`, `count_`, `any_`, `all_` and `sum_<member>()` are in
   `library/items.spite`, each folded the same way; `filter_` answers an `Items<T>` (copies when inline, the same
   references otherwise) and `map_` a `List` of the members' values. A chain is one loop over the block,

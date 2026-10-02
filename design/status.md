@@ -114,8 +114,6 @@ for a design):
   dropped without a word; `exit` should let the program reach its next wait first.
 - A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` never ends
   (concurrency.md, "Choosing where Concurrents resume").
-- A `Vector`'s and an `Items`' `remove_at` (and `Items.remove_swapping`) do nothing out of range, where a `List`'s now
-  halt (collections.md).
 - A Windows `__fastfail` (`0xC0000409`), or a corrupted heap on Linux and macOS (the C library's own message and
   `SIGABRT`), ends the program without Spite's report or frames ("What a native fault reports").
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers

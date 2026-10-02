@@ -1,0 +1,2 @@
+spite.crash	782ead56	library/items.spite:50	Items	remove_at	index=-1	items=...	item_count=0	capacity=4
+removed 0 1

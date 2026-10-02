@@ -1,0 +1,2 @@
+spite.crash	47470228	library/vector.spite:37	Vector	remove_at	index=1	item_count=0	items=...	capacity=4
+removed 0 1

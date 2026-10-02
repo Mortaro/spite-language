@@ -173,8 +173,9 @@ job_program() {
     # a program that is meant to crash: its whole output (stdout and the crash line) must match, and there is no
     # balance line because a crash halts before the program would have released anything. A native fault names where
     # it stopped as module+offset (D244), and the offset is the C compiler's, so it is compared without it; so is an
-    # address on the stack, which the system places anew on every run.
-    actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g; s/address=0x[0-9a-f]{6,}/address=0x.../g')
+    # address on the stack, which the system places anew on every run, and so is a 'Memory.Address' attribute a crash
+    # line shows in decimal (a collection's 'items=').
+    actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g; s/address=0x[0-9a-f]{6,}/address=0x.../g; s/\titems=[0-9]{6,}/\titems=.../g')
     [ "$actual" == "$expected" ] && exit 0
     echo "FAILED: $name"; echo "$actual" | head -8; exit 1
   fi

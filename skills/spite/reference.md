@@ -215,7 +215,7 @@ func is_alive(): Boolean {
   order (`List`, `Vector`, `Items`; the passed-function form on a `List` only, never on a chain or a
   `Dictionary`). `truncate(count)` drops the tail. When the test is not a function of the element (a mask of
   rows), walk the rows, `swap(row, kept)` each one that stays, then `truncate(kept)`.
-- `Vector<T>` holds objects inline for fast walks (`append`, `vector[index]`, `set_at`, `remove_at`, `count`,
+- `Vector<T>` holds objects inline for fast walks (`append`, `vector[index]`, `set_at` and `remove_at` (both halt out of range), `count`,
   `clear`, `copy`, and `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `parallel_each_` templates).
   An item is a `String` or a class whose attributes are only numbers, `Boolean`, enums and `String` (a `List`
   attribute is an error naming it). `velocities[index]` is a `Velocity?`: after `crash velocities[index]` (or
@@ -266,7 +266,7 @@ func is_alive(): Boolean {
 - In a generic class that keeps values of a type it does not know (an engine's `Column<$component_type>`), use
   `Items<$component_type>()` (D218, name provisional): inline and borrowed like a `Vector` when the type fits
   one, references like a `List` when not, with one set of members (`append`, `items[index]` (a `T?`, `null` out
-  of range, narrowed like a list's), `set_at`, `remove_at`, `remove_swapping(index)` (the last item moves into `index`), `count`, `is_empty`,
+  of range, narrowed like a list's), `set_at`, `remove_at`, `remove_swapping(index)` (the last item moves into `index`; all three halt out of range), `count`, `is_empty`,
   `clear`, `copy`, `deep_copy`, and the `each_`/`map_`/`filter_`/`count_`/`any_`/`all_`/`sum_`/`parallel_each_`
   templates; no `each(f)` forms). Then one column class serves every component,
   and the walked row's line is
