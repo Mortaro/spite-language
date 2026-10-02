@@ -334,7 +334,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   default, `diagnostics/empty_collection_guard`). **S.**
 - **B4** A frame buffer's uses are matched by name, not by `TypedMemory` receiver (`placement.spite`). **S.**
 - **B6** A `while true` that can never leave is not reported (with L7). **M.**
-- **B7** Two threads writing one number attribute of a shared instance is not refused (D35, D179). **M.**
+- **B7** Two threads writing one number attribute of a shared instance is refused only for a handed-over local
+  (D35, D179); the rest needs the handle's lifetime. **M.**
 - **B11** Reading `.functions` anywhere turns on a whole-program flag; set it only from kept code. **S.**
 - **B12** A write to a copy that dies unread (proposed, unconfirmed rule: a compile error). **M.**
 - **B14** A Windows `__fastfail` ends the program without Spite's report (the Linux and macOS heap abort is D379,

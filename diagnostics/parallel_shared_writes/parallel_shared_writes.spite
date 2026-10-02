@@ -1,0 +1,9 @@
+var console = Console()
+
+func ParallelSharedWrites() {
+    var counter = Counter()
+    var running = Parallel(counter.bump)
+    counter.count = 7
+    var total: Integer = running
+    console.print(total)
+}

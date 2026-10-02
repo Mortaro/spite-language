@@ -145,8 +145,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   Whether it should halt, with a named function for reading the bits, waits for Mortaro (D359; proposed by Claude).
 - **A `while true` that can never leave** ends its function's paths for the missing-`return` check, and nothing
   reports it outside a locked singleton function: a hang.
-- **Two threads writing one number attribute of an instance they share** is not refused: the reach rules (D35, D179)
-  allow plain-value attributes, and the result is whichever write lands last.
+- **Two threads writing one number attribute of an instance they share** is refused only when the instance is a
+  local handed to the `Parallel` (concurrency.md, "A task may keep what was handed to it"); `Parallel(own_function)`,
+  a parameter, an attribute, or a local used before the `Parallel` still race, the result whichever write lands last.
 
 ### Nothing fails silently: the rule
 

@@ -1,0 +1,1 @@
+diagnostics/parallel_shared_writes/parallel_shared_writes.spite:6: error: 'counter' was handed to 'Parallel(counter.bump)', which writes its 'count' on another thread, so it is not used after that line: make another 'Counter' for what follows, or read the task's result (in ParallelSharedWrites.ParallelSharedWrites)

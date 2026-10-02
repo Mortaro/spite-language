@@ -1209,7 +1209,10 @@ of it at compile time over the source:
   objects, a function value, a union or a `type` stays refused: its elements could be held elsewhere.
 - **The maker lets go.** Any later statement of that block that names `maker` is `'crafter' was handed to
   'Parallel(crafter.craft)', which keeps its 'recipe_ids' on another thread, so it is not used after that line:
-  make another 'Crafter' for what follows, or read the task's result`, on that statement. Each pass of a loop makes
+  make another 'Crafter' for what follows, or read the task's result`, on that statement. The same holds when the
+  task writes an attribute of `maker` that holds a value, since the two threads would write it at once and one write
+  would be lost: `'counter' was handed to 'Parallel(counter.bump)', which writes its 'count' on another thread, so it
+  is not used after that line: ...` (`diagnostics/parallel_shared_writes`). Each pass of a loop makes
   its own, so `var crafter = Crafter(first)` then `Parallel(crafter.craft)` inside a `while` hands over a new one
   every pass.
 

@@ -349,6 +349,7 @@ var lent_result_singletons = Dictionary<String>()
 var lent_result_labels = Dictionary<String>()
 var parallel_handover = ""
 var parallel_keeps = List<String>()
+var parallel_writes = List<String>()
 var argument_callee = ""
 var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
@@ -16133,6 +16134,9 @@ func check_parallel_reach(
     visited.append(function.name)
     var locals = function.parameters.map_names()
     collect_declared_names(function.body, locals)
+    if template_name.starts_with("Parallel(") {
+        note_parallel_writes(owner, function.body, locals)
+    }
     var mentioned = List<String>()
     collect_block_names(function.body, mentioned)
     var index = 0
@@ -16140,6 +16144,27 @@ func check_parallel_reach(
         var name = mentioned[index]
         if not locals.contains(name) {
             check_parallel_name(owner, function, name, template_name, visited)
+        }
+        index = index + 1
+    }
+}
+
+func note_parallel_writes(
+    owner: Analysis.ClassInfo,
+    statements: List<Syntax.Statements.Statement>,
+    locals: List<String>,
+) {
+    var roots = List<String>()
+    collect_assigned_roots(statements, roots)
+    var index = 0
+    while index < roots.count() {
+        var root = roots[index]
+        var field = owner.find_field(root)
+        if field and not locals.contains(root) and not parallel_writes.contains(root) {
+            var field_type = field.type
+            if not reaches_shared(field_type) {
+                parallel_writes.append(root)
+            }
         }
         index = index + 1
     }
@@ -16230,6 +16255,7 @@ func check_parallel_work(
         assert own
         var visited = List<String>()
         check_parallel_reach(class_information, own, "Parallel({work_text})", visited)
+        parallel_writes = List<String>()
         remember_parallel_site(class_information, own, work_text)
         return
     }
@@ -16250,12 +16276,15 @@ func check_parallel_work(
     var task = "Parallel({work_text})"
     parallel_handover = handed_over_name(member.object, owner)
     parallel_keeps = List<String>()
+    parallel_writes = List<String>()
     check_parallel_reach(owner, function, task, visited)
-    if not parallel_keeps.is_empty() {
+    var writes_shared = not parallel_writes.is_empty() and not owner.is_singleton
+    if not parallel_keeps.is_empty() or writes_shared and not parallel_handover.is_empty() {
         report_use_after_handover(parallel_handover, task, owner)
     }
     parallel_handover = ""
     parallel_keeps = List<String>()
+    parallel_writes = List<String>()
     remember_parallel_site(owner, function, work_text)
 }
 
@@ -16369,6 +16398,11 @@ func report_use_after_handover(name: String, task: String, owner: Analysis.Class
     var statements = borrow_statements
     var index = borrow_index + 1
     var kept = parallel_keeps.join("', '")
+    var keeping = "keeps"
+    if parallel_keeps.is_empty() {
+        kept = parallel_writes.join("', '")
+        keeping = "writes"
+    }
     while index < statements.count() {
         var statement = statements[index]
         var mentioned = List<String>()
@@ -16377,7 +16411,7 @@ func report_use_after_handover(name: String, task: String, owner: Analysis.Class
             var saved_line = current_line
             current_line = statement_line(statement)
             report(
-                "'{name}' was handed to '{task}', which keeps its '{kept}' on another thread, so it is not used after that line: make another '{owner.simple_name}' for what follows, or read the task's result",
+                "'{name}' was handed to '{task}', which {keeping} its '{kept}' on another thread, so it is not used after that line: make another '{owner.simple_name}' for what follows, or read the task's result",
             )
             current_line = saved_line
             return
