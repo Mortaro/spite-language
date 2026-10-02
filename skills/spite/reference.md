@@ -207,8 +207,8 @@ func is_alive(): Boolean {
   `crash names.count() == 3` (or `>= 3`, or `> 2`) proves `names[0]` to `names[2]`, so does
   `var names = ["a", "b", "c"]`, `crash not names.is_empty()` proves `names[0]` (a list's, never a dictionary's),
   and `while index < names.count()` proves `names[index]` in the loop body, so a `crash names[index]` inside that
-  loop is an error saying so: delete it). `get_at(index)` is the same function as `[]` and answers the same `T?`;
-  write `names[index]`, which proofs can narrow. Every `[]` answers a `T?`; a `Vector`'s and an `Items`' too. A
+  loop is an error saying so: delete it). `[]` calls `get_at(index)`, which is only ever called through `[]`:
+  `names.get_at(0)` is an error naming `names[0]` (passing `counts.get_at` as a value is fine). Every `[]` answers a `T?`; a `Vector`'s and an `Items`' too. A
   list of numbers, `Boolean`, enums or `Memory.Address` is always a `List` (`Vector<Integer>` is an error naming
   `List<Integer>`); it has `remove_swapping(index)` and `reserve(count)` too.
   `Dictionary<T>` (insertion order): `dictionary["key"] = value`, `has`, `remove`, `count`, `keys`,
@@ -318,7 +318,8 @@ func is_alive(): Boolean {
   built or planned, and what it could ever change that you see, is in [optimizations.md](https://github.com/Mortaro/spite-language/blob/master/docs/optimizations.md).
 - On a list or dictionary of a class or of text: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Boolean` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<members>()`,
-  `each_<member>()` (a function). A member is an attribute or a function that takes nothing; text has them too
+  `each_<member>()` (a function). On a list of a union, `filter_<classes>()` keeps one member class and answers a
+  list of it: `entries.filter_files()` is a `List<File>`. A member is an attribute or a function that takes nothing; text has them too
   (`names.map_upper_cases()`, `names.filter_is_empty()`, `names.sort_by_length()`). A member that does
   not fit is an error naming what the template needs: `count_stars()` on a number member says `but 'count_' needs
   it to return Boolean (to add up a numeric member use 'sum_stars')`, and `each_size()` on an attribute says
@@ -343,7 +344,7 @@ func is_alive(): Boolean {
   `keys.filter(counts.has)`, `words.filter(greeting.contains)`. `counts.get_at` answers `T?`, so it cannot order a
   `sort_by`: pass a function of yours that narrows it. A function that needs more than the element
   (`print_statement(statement, depth)`) keeps its `while`. There is no `map(f)`: a value collected from each
-  element is a read-only attribute of its class (`get_doubled()`), collected with `map_doubled()`, and a value
+  element is a read-only attribute of its class (`get_double()`), collected in the plural with `map_doubles()`, and a value
   that needs more than the element is collected by a `while`. `map_` on a `Boolean` member (`map_is_alive()`)
   is an error naming `filter_`, `count_`, `any_` and `all_`. `Monster.is_alive` is no function value (a class is
   its `Spite.Class` object, which has no `is_alive`): pass an instance's, `monster.is_alive`.
@@ -562,8 +563,8 @@ func is_alive(): Boolean {
 `Console()` (`print`, `write`, `error`, `debug`, `read_line(): String?`; each value printed is its `to_string()`, so
 a class prints once it declares `func to_string(): String`, and `debug` shows any value's state, a class as
 `Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`map(): MappedFile?` for a file too big to read: `size()`, `mapped[position]`, `read_long(position)`, ... each a `T?`; `read(): String?`, `write`,
-`append`, `exists`, `remove`), `Directory(path)` (`path`, `entries(): List<Directory.Entry>` (each entry a `Directory` or a `File`, switched on),
-`files`, `folders`, `exists`, `create`),
+`append`, `exists`, `remove`), `Directory(path)` (`path`, `name`, `entries(): List<Directory.Entry>` (each entry a `Directory` or a `File`, switched on;
+one kind is `entries.filter_files()` or `filter_directories()`, never a helper of its own), `exists`, `create`),
 `Process(command, arguments)` (`run(): Integer`, `output()`: standard output only; each argument reaches the child whole, `-key=value with spaces` as `-key="value with spaces"` on Windows; `working_directory` and `environment_variables["NAME"] = "value"` set for the child alone), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere, bound once
 as `var console = Console()`.
@@ -666,7 +667,8 @@ for 16-bit floats. A number's raw bits are `Float.bits(): UnsignedInteger` and `
 `UnsignedInteger.bits_as_float()` and `Long`'s or `UnsignedLong`'s `bits_as_double()`; they cost nothing (a C
 union), so use them rather than writing a value into memory to read its bytes.
 Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
-same name reopens it: `list.spite` adds a member template, `integer.spite` a function on every `Integer`.
+same name reopens it: `list.spite` adds a member template (`dictionary.spite` one over a dictionary's values,
+`member: Spite.AttributeDeclaration<$value_type>`), `integer.spite` a function on every `Integer`.
 
 A statement is one line: anything after it on the same line (after a `return` value, a call, or the `}` that
 closes an `if`, `while` or `switch`) is a parse error (`'attribute' is left over after the end of the statement`),
@@ -749,7 +751,7 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 | `list.add(x)`, `list.pop()` | `List has no method 'add', which does not say where` | `append`/`prepend`, `remove_last()`/`remove_first()` |
 | `Heap<Node>`, `&Node` | `there is no 'Heap<T>'`, `Spite has no '&Type'` | `Node`: every class is a reference already |
 | `if value do name { }` | `Spite has no 'do'` | `if value { }`: the name itself is narrowed inside |
-| `items.map(item => item * 2)` | `expected ')' to close the argument list` | no lambdas and no `map(function)`: give the element's class a read-only attribute, `get_doubled()`, and write `items.map_doubled()` |
+| `items.map(item => item * 2)` | `expected ')' to close the argument list` | no lambdas and no `map(function)`: give the element's class a read-only attribute, `get_double()`, and write `items.map_doubles()` (the member in the plural) |
 | `value == null`, `value != null` | `'null' is not a value to compare against or pass around` | `if value { } else { }`, `assert value`, `crash value`, or `switch` |
 | `task.wait()`, `await task` | `an Integer has no function 'wait'` | read the handle: it is the result, and reading it waits |
 | `new Date()`, `DateTime.Now`, `datetime.now()` | | `clock.now()`, an `Instant`; shown through a zone from `TimeZones()`, never stored as a local reading |

@@ -363,7 +363,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   `can_`) is never inflected, and `map_` over one is D369's error; `filter_is_<word>` stays the same template as `filter_<word>`; `health` was
   added to the uncountable words, since metaprogramming.md reads `map_health` as `health`; the error texts.
   Not built: `String.Inflection`, the table a program reopens to add words (the compiler inflects with its own
-  copy of `String`, so a program's words would not reach it either).
+  copy of `String`, so a program's words would not reach it either); what a reopening writes waits on
+  `mortaros_missing_decisions.md` item 295.
 - Built: the library's member templates take `member: Spite.Attribute<$element_type>` and collect with
   `map_members`, and every `map_<member>` call in the repository is plural; a `List`, `Vector`, `Items` or
   `Dictionary` template named with its parameter in the singular that answers `List<member.class>` is an error

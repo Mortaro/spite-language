@@ -1,0 +1,14 @@
+func highest_member(member: Spite.AttributeDeclaration<$value_type>): member.class {
+    var listed = values()
+    var highest: member.class = 0
+    var index = 0
+    while index < listed.count() {
+        var item = listed[index]
+        var value = item.attributes[member]
+        if value > highest {
+            highest = value
+        }
+        index = index + 1
+    }
+    return highest
+}

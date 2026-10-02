@@ -1,0 +1,8 @@
+460 2 atlas,poems,novel
+true false atlas,novel
+poems,atlas,novel
+found poems 40
+most pages 300
+on the shelf: atlas
+on the shelf: poems
+on the shelf: novel

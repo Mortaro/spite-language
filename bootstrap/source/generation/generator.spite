@@ -16068,8 +16068,14 @@ func union_class_filter(
     lines.append("func {name}(): List<{kept}> \{")
     lines.append("    var kept = List<{kept}>()")
     lines.append("    var index = 0")
-    lines.append("    while index < item_count \{")
-    lines.append("        var item = values.read_value(items, index)")
+    if list_class.qualified_dotted == "Dictionary" {
+        lines.append("    var listed = values()")
+        lines.append("    while index < listed.count() \{")
+        lines.append("        var item = listed[index]")
+    } else {
+        lines.append("    while index < item_count \{")
+        lines.append("        var item = values.read_value(items, index)")
+    }
     lines.append("        if item == {kept} \{")
     lines.append("            kept.append(item)")
     lines.append("        }")
@@ -21234,35 +21240,22 @@ func generate_dictionary_method(
             class_information,
         )
     }
-    var list_class = list_class_of(element)
-    var template = element_template_of(list_class, name)
+    var dictionary_class = find_class_by_c_name(dictionary_name)
+    crash dictionary_class
+    var template = element_template_of(dictionary_class, name)
     if not template {
         report("Dictionary has no method '{name}'")
         return void_result()
     }
-    var function = instantiate_element_template(list_class, element, template, name, class_information)
+    var function = instantiate_element_template(dictionary_class, element, template, name, class_information)
     if not function {
         return void_result()
     }
-    var empty_types = no_types()
-    var list_type = list_type_of(element)
-    var no_arguments = List<Syntax.Expressions.Expression>()
-    var values_call = generate_generic_call(
-        "{dictionary_name}_values",
-        object_result,
-        object_ast,
-        no_arguments,
-        empty_types,
-        list_type,
-        scope,
-        class_information,
-    )
-    values_call.owning_override = true
     var parameter_types = parameter_types_of(function.parameters)
     var function_return_type = function.return_type
     return generate_generic_call(
         function.c_name,
-        values_call,
+        object_result,
         object_ast,
         arguments_ast,
         parameter_types,

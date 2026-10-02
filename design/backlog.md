@@ -25,10 +25,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **R1 Plural collection leftovers** (D317, D328). The library's templates collect with `map_members` and every
   call is plural (built on master, `4291cca`), and `Spite.DebugInstance` walks with `each`. Left: `String.Inflection`, the irregulars table a program reopens,
   which the compiler must read from the program's `String` rather than its own copy (`library/string.spite`,
-  the inflection lookup near generator.spite's plural errors). **S.** No dependencies left.
-- **R4 Dictionary member templates over values** (D335). Built through the compiler; `library/dictionary.spite`
-  declares none of them. Check they go through declared library templates like `List`'s (D240: nothing hidden).
-  **S.** No dependencies.
+  the inflection lookup near generator.spite's plural errors). Waits on `mortaros_missing_decisions.md` item 295: what
+  a reopening writes to add a word, since nothing evaluates a program's library code while compiling (D328). **S.**
 - **R5 The rest of the object model** (D316, D317; status "Not built" and "Run time only through the old tables").
   Specialisation of enum parameters (which calls it covers needs Mortaro); `.owner`, `.element_type` and
   `.value_type` on run-time objects (`.owner` with R8).
@@ -284,11 +282,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Skills and docs
 
-- **D1 `skills/spite/` kept current.** `reference.md` still teaches `Weak<T>`,
-  `Symbol<...>` walks, `$T.has_function(...)`, `function_waits(...)`, `names.map(measure)`, enum reopening that
-  appends, and `get_at` beside `[]`. Each item above updates it in the same commit; a first pass now fixes what is
-  already decided and built (D315 once landed, `map_members`, `filter_files`, `to_<type>()`). **S** now, then part
-  of every item.
+- **D1 `skills/spite/` kept current.** Each item above updates `reference.md` in the same commit: `Weak<T>` goes
+  with E3, and the `Symbol<$system_type.phase_each>` argument template with R5/R7, when the docs change. Part of
+  every item.
 
 ### Deferred (decided, far off, not ordered here)
 
@@ -303,9 +299,9 @@ Each line can start once everything before it that it names is done; lines with 
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
 2. No dependencies: R8, M1, M4, M5, M7, N1, E1, E4, C7, K1, K6 (once decided), S9, X1, the remaining B items,
-   E3, D1's first pass.
+   E3.
 3. After step 2: R5, C8, N2 (N1).
-4. After R5: R1, J1, L3, R4, R8, then R9.
+4. After R5: R1, J1, L3, R8, then R9.
 5. After J1: J2, S5. After L3: F1, S6 (with L4). After F1: F2.
 6. After M1 and M4: M3.
 7. After R1, R5 and J1: R7, the end of the reflection migration.
@@ -323,7 +319,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 
 | Stream | Items, in order | Files it owns |
 |---|---|---|
-| 1 Reflection and serialization | R5, R1, R4, J1, J2, R8, R7 | generator.spite reflection, specialisation and template regions; `specialisation.spite`, `reflected*.spite`, `template_walk.spite`, `namespace_walk.spite`, `old_spellings.spite`; `library/spite/*`, `json_*`, `binary_*`, `dictionary.spite`; stage6 walk programs; docs reflection, metaprogramming, json |
+| 1 Reflection and serialization | R5, R1, J1, J2, R8, R7 | generator.spite reflection, specialisation and template regions; `specialisation.spite`, `reflected*.spite`, `template_walk.spite`, `namespace_walk.spite`, `old_spellings.spite`; `library/spite/*`, `json_*`, `binary_*`, `dictionary.spite`; stage6 walk programs; docs reflection, metaprogramming, json |
 | 2 Types and storage | M1, M7, M4, M3, M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
 | 3 Arithmetic | N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
@@ -339,7 +335,7 @@ memory stream. Streams 5 and 9 are many small items and the right place for a se
 
 ## Items that need an owner decision
 
-None open: every owner question is answered (D378 to D394).
+R1 waits on `mortaros_missing_decisions.md` item 295 (what a reopening of `String.Inflection` writes).
 
 
 ## Later, in order (D397, [proposals/own_backend.md](proposals/own_backend.md))
