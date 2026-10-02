@@ -226,7 +226,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `Spite.Function` dispatch, `String.sum`, `code_at`) become Spite over a short list of named backend primitives.
   Files: `prelude.spite`, generator.spite supplied bodies, the matching `library/` files. **L.** Pairs with E5.
 
-### Concurrency, waiting and output (D346, D369 items 178, 179 and 211, D183, D184, D210)
+### Concurrency, waiting and output (D346, D369 items 178, 179 and 211, D183, D184, D210, D378)
 
 - **K1 The compiler picks how output is flushed** (D346). Lines never split or interleaved, everything out before
   exit and before a crash report, output before an input read visible; within that, line by line to a terminal,
@@ -251,6 +251,11 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   **L.** Lands after cloud/linux so Linux runs it.
 - **K6 Cancelling a `Concurrent`, and one made off the scheduler's thread** (status concurrency.md summary).
   Decided in concurrency.md, neither built. **M.** Depends on K2.
+- **K7 IO is concurrent by default** (D378). Rebuild the standard library's IO (sockets, files, HTTP, the file
+  watcher) on the `Concurrent` library, so an IO call that would wait parks and straight-line code needs no
+  annotation; the compiler may keep a call blocking where it measures faster (nothing else to run, a tiny local
+  read). Once built, concurrency.md leads with the simple story. Files: `library/socket.spite`, `udp_socket.spite`,
+  `http_*.spite`, `file.spite`, the watcher, `scheduler.spite`, `wait_facts.spite`. **L.** With K5; after K2.
 
 ### Foreign libraries (D351, D369 items 93, 211 and 233)
 
