@@ -946,6 +946,12 @@ calls are in the program. A private member (`_name`) of the element gets none: a
 ([classes_and_files.md](classes_and_files.md#private-names)), so `List<Parallel<Integer>>` has no `each__join`
 in any build.
 
+A `Dictionary`'s templates are written the same way, in `library/dictionary.spite`: their parameter is
+`member: Spite.AttributeDeclaration<$value_type>`, and each walks a copy of the values, `var listed = values()`,
+so `inventory.sum_price()` is `inventory.values().sum_price()` and a member that changes the dictionary while the
+template runs changes nothing the walk sees. There is no `remove_where_` among them, since removing from that copy
+would remove nothing.
+
 ## Write your own member template
 
 A program reopens `List` by putting a `list.spite` in its own folder, and a function there with a
@@ -1060,7 +1066,8 @@ the error naming the member, its type and what the template needs; it writes non
 names a program calls are compiled. A `--repl`/`--repl-port` build compiles every template that fits every
 element class of a list the loop can reach, and lists them as that list's functions, so `monsters.sum_health()`
 works at the prompt. `Dictionary<T>` answers the same names through its values (`inventory.sum_price()` is
-`inventory.values().sum_price()`), and a program's own `list.spite` reopens `List` to add a template of its own.
+`inventory.values().sum_price()`), and a program's own `list.spite` reopens `List` to add a template of its own,
+as its `dictionary.spite` reopens `Dictionary` (over `Spite.AttributeDeclaration<$value_type>`).
 A template there with a plain `member: Symbol` would range over `List`'s own attributes, its buffer, and answer
 nothing, so it is a compile error naming `Symbol<$element_type>` (`diagnostics/plain_symbol_on_list`).
 
@@ -1260,8 +1267,10 @@ It is a hash table over two ordered lists:
 `get`, `has`, `set` and `[]` take the same time however many keys there are, and `remove` takes time in
 proportion to the dictionary's size. An empty dictionary allocates no table.
 
-The whole member template family, and every passed-function form, works on a `Dictionary<T>` through its values,
-as it does on a `List<T>`; to walk keys and values together, use `while` over `dictionary.keys()` and read
+The member templates, declared in `library/dictionary.spite`, and the passed-function forms work on a
+`Dictionary<T>` through a copy of its values, as they do on a `List<T>`, all but `remove_where`: removing from
+that copy would change nothing, so `remove_where_<member>()` and `remove_where(f)` on a dictionary are an error
+naming `remove(key)`. To walk keys and values together, use `while` over `dictionary.keys()` and read
 `dictionary[key]`.
 
 `deep_copy()` works for classes, lists and dictionaries. A `String` is shared rather than duplicated

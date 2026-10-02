@@ -1,0 +1,14 @@
+var console = Console()
+var title = ""
+var pages = 0
+var borrowed = false
+
+func Book(starting_title: String, starting_pages: Integer, starting_borrowed: Boolean) {
+    title = starting_title
+    pages = starting_pages
+    borrowed = starting_borrowed
+}
+
+func announce() {
+    console.print("on the shelf:", title)
+}

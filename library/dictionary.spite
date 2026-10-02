@@ -70,6 +70,183 @@ func copy(): Dictionary<$value_type> {
     return copied
 }
 
+func filter_member(member: Spite.AttributeDeclaration<$value_type>): List<$value_type> {
+    var listed = values()
+    var filtered = List<$value_type>()
+    var index = 0
+    while index < listed.count() {
+        var item = listed[index]
+        if item.attributes[member] {
+            filtered.append(item)
+        }
+        index = index + 1
+    }
+    return filtered
+}
+
+func count_member(member: Spite.AttributeDeclaration<$value_type>): Integer {
+    var listed = values()
+    var counted = 0
+    var index = 0
+    while index < listed.count() {
+        var item = listed[index]
+        if item.attributes[member] {
+            counted = counted + 1
+        }
+        index = index + 1
+    }
+    return counted
+}
+
+func any_member(member: Spite.AttributeDeclaration<$value_type>): Boolean {
+    var listed = values()
+    var index = 0
+    while index < listed.count() {
+        var item = listed[index]
+        if item.attributes[member] {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func all_member(member: Spite.AttributeDeclaration<$value_type>): Boolean {
+    var listed = values()
+    var index = 0
+    while index < listed.count() {
+        var item = listed[index]
+        if not item.attributes[member] {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func sum_member(member: Spite.AttributeDeclaration<$value_type>): member.class {
+    var listed = values()
+    var total: member.class = 0
+    var index = 0
+    while index < listed.count() {
+        var item = listed[index]
+        total = total + item.attributes[member]
+        index = index + 1
+    }
+    return total
+}
+
+func each_member(member: Spite.AttributeDeclaration<$value_type>) {
+    var listed = values()
+    var index = 0
+    while index < listed.count() {
+        var item = listed[index]
+        item.attributes[member]
+        index = index + 1
+    }
+}
+
+func map_members(member: Spite.AttributeDeclaration<$value_type>): List<member.class> {
+    var listed = values()
+    var mapped = List<member.class>()
+    var index = 0
+    while index < listed.count() {
+        var item = listed[index]
+        var value = item.attributes[member]
+        mapped.append(value)
+        index = index + 1
+    }
+    return mapped
+}
+
+func find_by_member(member: Spite.AttributeDeclaration<$value_type>, value: member.class): $value_type? {
+    var listed = values()
+    var index = 0
+    while index < listed.count() {
+        var item = listed[index]
+        if item.attributes[member] == value {
+            return item
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func sort_by_member(member: Spite.AttributeDeclaration<$value_type>): List<$value_type> {
+    var listed = values()
+    var item_count = listed.count()
+    var member_keys = List<member.class>()
+    var order = List<Integer>()
+    var index = 0
+    while index < listed.count() {
+        var item = listed[index]
+        var key = item.attributes[member]
+        member_keys.append(key)
+        order.append(index)
+        index = index + 1
+    }
+    var merged = order.copy()
+    var width = 1
+    while width < item_count {
+        var start = 0
+        while start < item_count {
+            var middle = start + width
+            if middle > item_count {
+                middle = item_count
+            }
+            var end = middle + width
+            if end > item_count {
+                end = item_count
+            }
+            var left = start
+            var right = middle
+            var placed = start
+            while placed < end {
+                var takes_left = right >= end
+                if left < middle and not takes_left {
+                    crash order[left]
+                    crash order[right]
+                    var left_position = order[left]
+                    var right_position = order[right]
+                    crash member_keys[left_position]
+                    crash member_keys[right_position]
+                    var left_key = member_keys[left_position]
+                    var right_key = member_keys[right_position]
+                    var right_first = left_key > right_key
+                    takes_left = not right_first
+                }
+                var taken = right
+                if takes_left {
+                    taken = left
+                    left = left + 1
+                } else {
+                    right = right + 1
+                }
+                crash order[taken]
+                var position = order[taken]
+                merged[placed] = position
+                placed = placed + 1
+            }
+            start = end
+        }
+        var previous = order
+        order = merged
+        merged = previous
+        width = width * 2
+    }
+    var sorted = List<$value_type>()
+    index = 0
+    while index < item_count {
+        crash order[index]
+        var source = order[index]
+        crash listed[source]
+        var item = listed[source]
+        sorted.append(item)
+        index = index + 1
+    }
+    return sorted
+}
+
 func drop() {
     if slots != 0 {
         heap.free(slots)

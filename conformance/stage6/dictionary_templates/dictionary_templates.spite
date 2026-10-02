@@ -1,0 +1,28 @@
+var console = Console()
+
+func DictionaryTemplates() {
+    var shelf = Dictionary<Book>()
+    var atlas = Book("atlas", 120, true)
+    shelf["atlas"] = atlas
+    var poems = Book("poems", 40, false)
+    shelf["poems"] = poems
+    var novel = Book("novel", 300, true)
+    shelf["novel"] = novel
+    var total_pages = shelf.sum_pages()
+    var borrowed_count = shelf.count_borrowed()
+    var titles = shelf.map_titles().join(",")
+    console.print(total_pages, borrowed_count, titles)
+    var any_borrowed = shelf.any_borrowed()
+    var all_borrowed = shelf.all_borrowed()
+    var borrowed_titles = shelf.filter_borrowed().map_titles().join(",")
+    console.print(any_borrowed, all_borrowed, borrowed_titles)
+    var by_pages = shelf.sort_by_pages().map_titles().join(",")
+    console.print(by_pages)
+    var found = shelf.find_by_title("poems")
+    if found {
+        console.print("found", found.title, found.pages)
+    }
+    var most_pages = shelf.highest_pages()
+    console.print("most pages", most_pages)
+    shelf.each_announce()
+}
