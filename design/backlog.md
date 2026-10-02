@@ -282,11 +282,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Skills and docs
 
-- **D1 `skills/spite/` kept current.** `reference.md` still teaches `Weak<T>`,
-  `Symbol<...>` walks, `$T.has_function(...)`, `function_waits(...)`, `names.map(measure)`, enum reopening that
-  appends, and `get_at` beside `[]`. Each item above updates it in the same commit; a first pass now fixes what is
-  already decided and built (D315 once landed, `map_members`, `filter_files`, `to_<type>()`). **S** now, then part
-  of every item.
+- **D1 `skills/spite/` kept current.** Each item above updates `reference.md` in the same commit: `Weak<T>` goes
+  with E3, and the `Symbol<$system_type.phase_each>` argument template with R5/R7, when the docs change. Part of
+  every item.
 
 ### Deferred (decided, far off, not ordered here)
 
@@ -301,7 +299,7 @@ Each line can start once everything before it that it names is done; lines with 
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
 2. No dependencies: R8, M1, M4, M5, M7, N1, E1, E4, C7, K1, K6 (once decided), S9, X1, the remaining B items,
-   E3, D1's first pass.
+   E3.
 3. After step 2: R5, C8, N2 (N1).
 4. After R5: R1, J1, L3, R8, then R9.
 5. After J1: J2, S5. After L3: F1, S6 (with L4). After F1: F2.
