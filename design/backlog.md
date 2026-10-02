@@ -25,7 +25,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **R1 Plural collection leftovers** (D317, D328). The library's templates collect with `map_members` and every
   call is plural (built on master, `4291cca`), and `Spite.DebugInstance` walks with `each`. Left: `String.Inflection`, the irregulars table a program reopens,
   which the compiler must read from the program's `String` rather than its own copy (`library/string.spite`,
-  the inflection lookup near generator.spite's plural errors). **S.** No dependencies left.
+  the inflection lookup near generator.spite's plural errors). Waits on `mortaros_missing_decisions.md` QNEW1: what
+  a reopening writes to add a word, since nothing evaluates a program's library code while compiling (D328). **S.**
 - **R4 Dictionary member templates over values** (D335). Built through the compiler; `library/dictionary.spite`
   declares none of them. Check they go through declared library templates like `List`'s (D240: nothing hidden).
   **S.** No dependencies.
@@ -339,7 +340,7 @@ memory stream. Streams 5 and 9 are many small items and the right place for a se
 
 ## Items that need an owner decision
 
-None open: every owner question is answered (D378 to D394).
+R1 waits on `mortaros_missing_decisions.md` QNEW1 (what a reopening of `String.Inflection` writes).
 
 
 ## Later, in order (D397, [proposals/own_backend.md](proposals/own_backend.md))

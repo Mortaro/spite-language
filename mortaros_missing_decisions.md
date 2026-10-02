@@ -158,3 +158,16 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      `Parallel` that waits for it while the scheduler's thread waits for that `Parallel` would hang); (c) a compile
      error where the compiler sees `Concurrent(...)` reached from `Parallel` work. Recommend (a), with (c) added
      where it is visible. Blocks backlog K6.
+QNEW1. **What a program writes to add a word to `String.Inflection`** (backlog R1; metaprogramming.md's plural
+     error and standard_library.md point at "reopening `String.Inflection`"). D328 says nothing evaluates a library
+     function of the program while compiling, and the compiler inflects with its own copy of `string.spite`, so the
+     compiler can only honour a program's words if they are data it reads, like a `Build` field's default. Nothing
+     settles that data's form. Options: (a) `String.Inflection` is a singleton in `library/string/inflection.spite`
+     with `var irregulars = {"person": "people", ...}` and `var uncountables = ["data", ...]`, literal defaults the
+     compiler reads; a reopening replaces a `var` whole (as a reopened enum restates its list), so a program adding
+     `cactus` restates the library's pairs too, and `pluralize()` reads the same dictionary at run time (one
+     allocation the first time a program inflects); (b) the same singleton, but every `Dictionary<String>` attribute
+     a reopening adds is read as more irregulars (`var game_words = {"cactus": "cacti"}`), so nothing is restated;
+     (c) drop the reopening: the plural error says only "rename the member", and the table stays the library's
+     (a word is added by changing `string.spite`, upstream). Recommend (a): it is how a reopening already works, and
+     whole replacement keeps one place that lists every word. Blocks backlog R1.
