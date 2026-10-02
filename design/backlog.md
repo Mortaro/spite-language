@@ -445,3 +445,19 @@ memory stream. Streams 5 and 9 are many small items and the right place for a se
 
 None open: every owner question is answered (D378 to D394).
 
+
+## Later, in order (D397, [proposals/own_backend.md](proposals/own_backend.md))
+
+Each stage starts after the one before it lands.
+
+1. **No C runtime.** The library calls the system directly (Windows `kernel32`/`ntdll`, Linux raw system calls, macOS
+   `libSystem` as the platform); number formatting, memory, text and maths written in Spite. Builds on C9 and C8.
+   **L.**
+2. **Released builds.** One download per system, the compiler and its library, usable at once; the C seed only for
+   building from source. **M.**
+3. **Spite's development backend.** A shared array-based IR, instruction selection, a simple register allocator,
+   PE/ELF/Mach-O written by Spite; x86-64 then ARM64; hot reload as code generated into the running program through
+   the function slots. Default builds, hot reload and the REPL move to it. **L.**
+4. **Spite's optimising backends.** Optimisations on the shared IR using ownership, proven-safe checks,
+   whole-program specialisation and list storage; `--optimized` leaves C only once these win on the benchmarks.
+   **L**, open-ended.
