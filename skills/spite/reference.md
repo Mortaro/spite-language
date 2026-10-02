@@ -379,7 +379,7 @@ func is_alive(): Boolean {
   the values there. Never add a clause only to get text printed (`crash found or name == ""`).
 - `Monster?` is a value that may be `null`. It must be narrowed before use: `if target { }` (with `else`),
   `assert target`, `crash target`, `while target { }`, or `switch target { Monster: ... Null: ... }`. One
-  `assert a.b.c` narrows the whole path. `null` is never compared against: `value == null` is an error.
+  `assert a.b.c` narrows the whole path. `null` is never compared against: `value == null` is an error. Two `T?` values compare without narrowing, and two missing ones are equal.
   Narrow the name or the path itself (`assert target`, `assert target.weapon`), never a local copied from it,
   which is an error. Comparing needs no narrowing: `target.name == "rat"` needs `target` narrowed, but
   `maybe_name == "rat"` is simply false when it is null.

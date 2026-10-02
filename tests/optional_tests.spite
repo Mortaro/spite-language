@@ -61,6 +61,21 @@ func test_null_is_not_equal_to_anything() {
     crash not (counted == 0)
 }
 
+func test_two_missing_values_are_equal() {
+    var texts = Dictionary<String>()
+    crash texts["a"] == texts["b"]
+    crash not (texts["a"] != texts["b"])
+    texts["a"] = "x"
+    crash texts["a"] != texts["b"]
+    crash texts["b"] != texts["a"]
+    var first: Integer? = null
+    var second: Integer? = null
+    crash first == second
+    second = 2
+    crash first != second
+    crash second != first
+}
+
 func test_a_namespace_compares_with_its_name() {
     crash Spite.Class.namespace == "Spite"
     crash OptionalTests.namespace != "Spite"

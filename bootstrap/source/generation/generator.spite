@@ -11077,6 +11077,28 @@ func generate_nullable_equality(
     if binary.operator == 'not_equal' {
         when_null = "true"
     }
+    conditional_depth = conditional_depth + 1
+    var right = generate_expression(right_ast, scope, class_information)
+    conditional_depth = conditional_depth - 1
+    var right_type = right.type
+    var right_nullable = type_shape.as_nullable(right_type)
+    if right_nullable {
+        var right_inner = right_nullable.inner
+        var right_name = next_temporary()
+        var right_present = present_code(right_name, right_inner)
+        if not type_is_reference(right_inner) {
+            right_present = "{right_name}.has_value"
+        }
+        var right_release = ""
+        if owns(right, right_ast) and type_needs_drop(right_inner) {
+            right_release = " {release_call(right_inner, right_name)};"
+        }
+        var absent = "!{right_present}"
+        if binary.operator == 'not_equal' {
+            absent = right_present
+        }
+        when_null = "(\{ {c_type_name(right_type)} {right_name} = {right.code}; bool spite_absent = {absent};{right_release} spite_absent; })"
+    }
     var release = ""
     if owns(left, left_ast) and type_needs_drop(inner) {
         release = " {release_call(inner, compared_name)};"

@@ -450,9 +450,11 @@ is read inside the index of 'draws': compute it first into a named 'var' and pas
 
 ### Comparing needs no narrowing
 
-`==` and `!=` accept a `T?` on either side: `null` is simply not equal to anything. So `maybe_name == "ada"` is a
-whole test, and is `false` when there is no name. Only the comparison is exempt: reading a member through a `T?`
-still needs it narrowed, and so does assigning through one.
+`==` and `!=` accept a `T?` on either side: `null` is equal only to `null`. So `maybe_name == "ada"` is a
+whole test, and is `false` when there is no name, while two values that are both missing are equal
+(`texts["a"] == texts["b"]` on an empty dictionary is `true`), so comparing two `T?` values to see whether
+something changed never answers "changed" when neither is there. Only the comparison is exempt: reading a member
+through a `T?` still needs it narrowed, and so does assigning through one.
 
 ```gdscript title=nullable_comparison/nullable_comparison.spite entry
 var console = Console()
@@ -460,11 +462,12 @@ var console = Console()
 func NullableComparison() {
     var nobody: String? = null
     var someone: String? = "ada"
-    console.print(nobody == "ada", someone == "ada", nobody != "ada")
+    var nobody_either: String? = null
+    console.print(nobody == "ada", someone == "ada", nobody != "ada", nobody == nobody_either)
 }
 ```
 ```output
-false true true
+false true true true
 ```
 
 ## Three outcomes, and no others
@@ -1346,7 +1349,8 @@ and `remove_last()`: nothing to take from an empty list is a normal outcome. `te
 `diagnostics/index_reads`, `conformance/stage3/lists`.
 
 **Comparing needs no narrowing.** `==` and `!=` accept a `T?` on the left:
-null is not equal to anything, so `crash Spite.Class.namespace == "Spite"` is a whole test. Either side may be the `T?`. Only the comparison
+null is equal only to null, so `crash Spite.Class.namespace == "Spite"` is a whole test, and two missing values are
+equal. Either side may be the `T?`. Only the comparison
 is exempt: reading a member through a `T?` still needs it narrowed first. A `Spite.Namespace` compares with
 text through `equals(String)` in `library/spite/namespace.spite`, against its `name_with_namespaces`; two
 namespaces still compare by identity, because a class's `equals` is used for a right side of that same class
