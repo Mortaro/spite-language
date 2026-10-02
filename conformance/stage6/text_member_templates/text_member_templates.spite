@@ -1,0 +1,25 @@
+var console = Console()
+
+func TextMemberTemplates() {
+    var names = ["Ada", "", "Grace", "Barbara"]
+    var shouted = names.map_upper_cases()
+    var joined = shouted.join(", ")
+    console.print(joined)
+    var letters = names.sum_length()
+    var empty = names.count_is_empty()
+    console.print(letters, empty)
+    var sorted = names.sort_by_length()
+    var sorted_text = sorted.join(" ")
+    console.print(sorted_text)
+    var blank = names.filter_is_empty()
+    var blank_count = blank.count()
+    console.print(blank_count)
+    var lengths = names.map_upper_cases().map_lengths()
+    var length_count = lengths.count()
+    console.print(length_count)
+    var found = names.find_by_upper_case("GRACE")
+    crash found
+    console.print(found)
+    var any_blank = names.any_is_empty()
+    console.print(any_blank)
+}

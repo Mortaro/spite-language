@@ -315,9 +315,10 @@ func is_alive(): Boolean {
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](https://github.com/Mortaro/spite-language/blob/master/docs/optimizations.md).
-- On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Boolean` member),
+- On a list or dictionary of a class or of text: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Boolean` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<members>()`,
-  `each_<member>()` (a function). A member is an attribute or a function that takes nothing. A member that does
+  `each_<member>()` (a function). A member is an attribute or a function that takes nothing; text has them too
+  (`names.map_upper_cases()`, `names.filter_is_empty()`, `names.sort_by_length()`). A member that does
   not fit is an error naming what the template needs: `count_stars()` on a number member says `but 'count_' needs
   it to return Boolean (to add up a numeric member use 'sum_stars')`, and `each_size()` on an attribute says
   `'each_' needs it to be a function`.

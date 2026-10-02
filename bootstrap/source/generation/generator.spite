@@ -6917,6 +6917,17 @@ func is_shape_member_read(expression: Syntax.Expressions.Expression): Boolean {
     return is_bound_member_index(indexed)
 }
 
+func is_text_member_read(expression: Syntax.Expressions.Expression): Boolean {
+    if bound_member_owner_c_name != "SpiteString" {
+        return false
+    }
+    var indexed = shape.as_index(expression)
+    if not indexed {
+        return false
+    }
+    return is_bound_member_index(indexed)
+}
+
 func is_caller_call(expression: Syntax.Expressions.Expression): Boolean {
     if not bound_through_caller {
         return false
@@ -15369,6 +15380,9 @@ func generate_list_method(
 }
 
 func element_class_of(element: Analysis.SpiteType): Analysis.ClassInfo? {
+    if type_shape.as_string(element) {
+        return find_class_by_c_name("SpiteString")
+    }
     var element_class_ref = type_shape.as_class_ref(element)
     assert element_class_ref
     assert not element_class_ref.has_signature
@@ -23334,6 +23348,7 @@ func try_path_guard(
 ): NullableGuard? {
     var path = operand_text(condition_ast)
     assert not path.is_empty() and not is_caller_call(condition_ast) and not is_shape_member_read(condition_ast)
+    assert not is_text_member_read(condition_ast)
     var links = path_links(condition_ast, class_information.qualified_dotted)
     var probe_scope = Scope(scope)
     var tests = List<String>()
