@@ -1,0 +1,2 @@
+spite: 99999997952, a Float, does not fit in an Integer, at conformance/stage6/decimal_narrowing/decimal_narrowing.spite:8 in DecimalNarrowing.DecimalNarrowing
+3

@@ -170,13 +170,14 @@ func hash_of(key: $key_type): UnsignedLong {
         var index = 0
         while index < key_length {
             var code = key.code_at(index)
-            hash = hash.bits_exclusive_or(code) * 1099511628211
+            var mixed = hash.bits_exclusive_or(code)
+            hash = mixed.wrapping_multiply(1099511628211)
             index = index + 1
         }
         return hash
     } else {
         var number: UnsignedLong = key
-        return number * 6364136223846793005
+        return number.wrapping_multiply(6364136223846793005)
     }
 }
 
@@ -188,7 +189,7 @@ func home_slot(hash: UnsignedLong): Integer {
 }
 
 func fragment_of(hash: UnsignedLong): Integer {
-    var fragment: Integer = hash.shifted_right(32)
+    var fragment: Integer = hash.shifted_right(33)
     return fragment
 }
 

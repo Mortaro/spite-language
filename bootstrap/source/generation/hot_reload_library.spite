@@ -470,7 +470,7 @@ func piece_hash(piece: String, constants: Dictionary<String>): String {
             }
             hash = mixed_name(hash, piece, start, index, constants, renamed)
         } else {
-            hash = hash.bits_exclusive_or(code) * 1099511628211
+            hash = hash.bits_exclusive_or(code).wrapping_multiply(1099511628211)
             index = index + 1
         }
     }
@@ -495,7 +495,7 @@ func mixed_name(
     var position = start
     while position < end {
         var name_code = piece.code_at(position)
-        mixed = mixed.bits_exclusive_or(name_code) * 1099511628211
+        mixed = mixed.bits_exclusive_or(name_code).wrapping_multiply(1099511628211)
         position = position + 1
     }
     return mixed
@@ -530,7 +530,7 @@ func mixed_text(hash: UnsignedLong, text: String): UnsignedLong {
     var index = 0
     while index < text_length {
         var code = text.code_at(index)
-        mixed = mixed.bits_exclusive_or(code) * 1099511628211
+        mixed = mixed.bits_exclusive_or(code).wrapping_multiply(1099511628211)
         index = index + 1
     }
     return mixed

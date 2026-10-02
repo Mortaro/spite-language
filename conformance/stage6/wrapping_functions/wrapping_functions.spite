@@ -1,0 +1,28 @@
+var console = Console()
+
+func WrappingFunctions() {
+    var hash: UnsignedInteger = 4000000000
+    var tripled = hash.wrapping_multiply(3)
+    var summed = hash.wrapping_sum(500000000)
+    console.print(tripled, summed)
+    var low: UnsignedInteger = 1
+    var below = low.wrapping_subtract(2)
+    console.print(below)
+    var small: Byte = 250
+    var small_sum = small.wrapping_sum(10)
+    var small_product = small.wrapping_multiply(2)
+    console.print(small_sum, small_product)
+    var tiny: Tiny = 100
+    var tiny_sum = tiny.wrapping_sum(100)
+    var tiny_difference = tiny.wrapping_subtract(-100)
+    console.print(tiny_sum, tiny_difference)
+    var wide = Long.largest
+    var past = wide.wrapping_sum(1)
+    console.print(past)
+    var big: UnsignedLong = 1469598103934665603
+    var hashed = big.wrapping_multiply(1099511628211)
+    console.print(hashed)
+    var fits = hash + 294967295
+    var cut: Byte = fits.bits_and(255)
+    console.print(fits, cut)
+}

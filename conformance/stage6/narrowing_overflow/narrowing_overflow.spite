@@ -1,0 +1,13 @@
+var console = Console()
+
+func NarrowingOverflow() {
+    var wide = 200
+    var fits: Byte = wide
+    console.print(fits)
+    var small = shrunk(wide)
+    console.print("never printed", small)
+}
+
+func shrunk(value: Integer): Tiny {
+    return value
+}

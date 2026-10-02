@@ -65,14 +65,21 @@ func text_hash(text: String): UnsignedLong {
     var index = 0
     while index < text_length {
         var code = text.code_at(index)
-        hash = hash.bits_exclusive_or(code) * 1099511628211
+        hash = hash.bits_exclusive_or(code).wrapping_multiply(1099511628211)
         index = index + 1
     }
     return hash
 }
 
 func distinct_digest(items: List<String>): String {
-    var total = items.sum(text_hash)
+    var total: UnsignedLong = 0
+    var index = 0
+    while index < items.count() {
+        var item = items[index]
+        var hashed = text_hash(item)
+        total = total.wrapping_sum(hashed)
+        index = index + 1
+    }
     return "{items.count()}:{total}"
 }
 
@@ -84,7 +91,8 @@ func deduplicated_digest(items: List<String>): String {
         var item = items[index]
         if not seen.has(item) {
             seen[item] = true
-            total = total + text_hash(item)
+            var hashed = text_hash(item)
+            total = total.wrapping_sum(hashed)
         }
         index = index + 1
     }

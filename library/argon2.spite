@@ -603,7 +603,7 @@ func _multiplied_sum(left: UnsignedLong, right: UnsignedLong): UnsignedLong {
     var low_left = left.bits_and(4294967295)
     var low_right = right.bits_and(4294967295)
     var product = low_left * low_right
-    return left + right + product + product
+    return left.wrapping_sum(right).wrapping_sum(product).wrapping_sum(product)
 }
 
 func _rotated_exclusive_or(value: UnsignedLong, other: UnsignedLong, count: Integer): UnsignedLong {
@@ -739,13 +739,13 @@ func _blake_mix(
     var word_b: UnsignedLong = work.read_long(second * 8)
     var word_c: UnsignedLong = work.read_long(third * 8)
     var word_d: UnsignedLong = work.read_long(fourth * 8)
-    word_a = word_a + word_b + message_x
+    word_a = word_a.wrapping_sum(word_b).wrapping_sum(message_x)
     word_d = _rotated_exclusive_or(word_d, word_a, 32)
-    word_c = word_c + word_d
+    word_c = word_c.wrapping_sum(word_d)
     word_b = _rotated_exclusive_or(word_b, word_c, 24)
-    word_a = word_a + word_b + message_y
+    word_a = word_a.wrapping_sum(word_b).wrapping_sum(message_y)
     word_d = _rotated_exclusive_or(word_d, word_a, 16)
-    word_c = word_c + word_d
+    word_c = word_c.wrapping_sum(word_d)
     word_b = _rotated_exclusive_or(word_b, word_c, 63)
     work.write_long(first * 8, word_a)
     work.write_long(second * 8, word_b)

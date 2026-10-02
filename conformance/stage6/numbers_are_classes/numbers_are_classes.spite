@@ -9,7 +9,7 @@ func NumbersAreClasses() {
     var third_text = third.to_string()
     console.print(third_text, third)
     var small: Byte = 255
-    var wide: UnsignedLong = -1
+    var wide = UnsignedLong.largest
     console.print("{small} {wide} {true}")
     var parsed = "42".to_unsigned_integer()
     var tiny = "-7".to_tiny()

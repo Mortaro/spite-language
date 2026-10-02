@@ -1,0 +1,1 @@
+this program is meant to crash: a counter stepped by one under a bound needs no check, and a second step under the same bound is checked and halts

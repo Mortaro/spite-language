@@ -802,9 +802,12 @@ fi
 if grep -qE "AllocationTable|spite_debug_|spite_live_allocation|SPITE_DEBUG_MEMORY" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C carries --debug-memory's table or an allocation counter"; exit 1
 fi
-# Signed arithmetic is checked for overflow only in a --debug-memory or inspectable build: production is the plain operator.
-if grep -qE "__builtin_(add|sub|mul)_overflow|spite_overflowed" "$work/hello_shaken.c"; then
-  echo "FAILED: examples/hello's C checks arithmetic for overflow in a production build"; exit 1
+# Arithmetic is checked for overflow in every build, production included (D360): integer_overflow's production C
+# checks its multiplication, and its wrapping by name is the plain operator on the bits.
+"$work/generation_two.exe" conformance/stage6/integer_overflow --check --c-source --c-path="$work/overflow_production.c" > /dev/null 2>&1 || {
+  echo "FAILED: integer_overflow does not write its C"; exit 1; }
+if ! grep -q "__builtin_mul_overflow" "$work/overflow_production.c" || ! grep -q "spite_overflowed(" "$work/overflow_production.c"; then
+  echo "FAILED: integer_overflow's production C does not check its arithmetic for overflow"; exit 1
 fi
 # Identical functions are folded into one (D296): two instances of a generic over classes of the same layout keep
 # one function, called through a pointer cast to the folded one's type, and an instance over a class of another
@@ -898,10 +901,11 @@ if ! grep -q "while (((index_ < List_String_count((self->registry_)->names_)))) 
 fi
 echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock, a row borrows a reference column's element, a held argument is not counted again, a singleton's fixed attribute is read in place"
 # D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
-# division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no check for it.
+# division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no zero check for it (it keeps
+# the check that the smallest Integer divided by -1 does not fit, D359).
 "$work/generation_two.exe" conformance/stage6/division_by_zero --check --c-source --c-path="$work/division.c" > /dev/null 2>&1 || {
   echo "FAILED: division_by_zero does not write its C"; exit 1; }
-if grep -q "whole / pieces" "$work/division.c" || ! grep -q "total / parts" "$work/division.c"; then
+if grep -q 'spite_divided_by_zero("whole / pieces"' "$work/division.c" || ! grep -q 'spite_divided_by_zero("total / parts"' "$work/division.c"; then
   echo "FAILED: division_by_zero should check 'total / parts' and not the proven 'whole / pieces'"; exit 1
 fi
 echo "division: a proven divisor carries no zero check"

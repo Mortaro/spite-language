@@ -156,7 +156,7 @@ func hash_of(text: String): String {
     var text_length = text.length()
     while index < text_length {
         var code: UnsignedLong = text.code_at(index)
-        hash = hash.bits_exclusive_or(code) * prime
+        hash = hash.bits_exclusive_or(code).wrapping_multiply(prime)
         index = index + 1
     }
     return hash.to_string()

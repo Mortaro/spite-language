@@ -3,11 +3,12 @@ var level: Tiny = 100
 var port: UnsignedShort = 8080
 
 func NumericTypes() {
-    var wrapped: Tiny = 200
-    var small: Short = 40000
-    var octet: Byte = 300
-    var wide: UnsignedInteger = 0 - 1
-    var huge: UnsignedLong = 0 - 1
+    var wrapped: Tiny = -100
+    var small: Short = 30000
+    var octet: Byte = 44
+    var zero: UnsignedInteger = 0
+    var wide = zero.wrapping_subtract(1)
+    var huge = UnsignedLong.largest
     var long_value: Long = 3000000000
     console.print(level, wrapped, small, octet, port)
     console.print(wide, huge, long_value)
@@ -19,12 +20,12 @@ func NumericTypes() {
     console.print(total, rounded, "port {port}", added_bytes)
     var ports = List<UnsignedShort>()
     ports.append(port)
-    ports.append(70000)
+    ports.append(4464)
     crash ports.count() == 2
     var ports_count = ports.count()
     console.print(ports[0], ports[1], ports_count)
 }
 
 func add_bytes(first: Byte, second: Byte): Byte {
-    return first + second
+    return first.wrapping_sum(second)
 }

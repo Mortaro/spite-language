@@ -1,0 +1,9 @@
+var console = Console()
+
+func UnsignedOverflow() {
+    var count: UnsignedInteger = 2
+    var left = count - 2
+    console.print(left)
+    var below = left - 1
+    console.print("never printed", below)
+}

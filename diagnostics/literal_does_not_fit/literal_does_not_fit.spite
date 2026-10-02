@@ -1,0 +1,7 @@
+var console = Console()
+
+func LiteralDoesNotFit() {
+    var small: Byte = 300
+    var signed: Tiny = -129
+    console.print(small, signed)
+}

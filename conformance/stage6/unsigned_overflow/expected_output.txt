@@ -1,0 +1,2 @@
+spite: 'left - 1' does not fit in an UnsignedInteger (0 - 1), at conformance/stage6/unsigned_overflow/unsigned_overflow.spite:7 in UnsignedOverflow.UnsignedOverflow
+0
