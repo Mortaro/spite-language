@@ -1,0 +1,30 @@
+var console = Console()
+
+func OwnCollectionTemplates() {
+    var velocities = Vector<Velocity>()
+    var fast = Velocity(3.0, "fast")
+    velocities.append(fast)
+    var slow = Velocity(1.0, "slow")
+    velocities.append(slow)
+    var average = velocities.average_across()
+    crash average
+    var moving_average = velocities.filter_moving().average_across()
+    crash moving_average
+    var columns = Items<Velocity>()
+    columns.append(fast)
+    columns.append(slow)
+    var widest = columns.largest_across()
+    var trails = Items<Trail>()
+    var long_trail = Trail(9)
+    trails.append(long_trail)
+    var longest = trails.largest_length()
+    var moving = velocities.count_moving()
+    long_trail.lefts.append(2.5)
+    var marks = trails.largest_mark_count()
+    console.print(average, moving_average, widest, longest, moving, marks)
+    var scores = [Score(5, true), Score(1, true), Score(3, false), Score(4, true)]
+    var best = scores.filter_counted().best_points()
+    var points = best.map_points()
+    var joined = points.join(", ")
+    console.print(joined)
+}

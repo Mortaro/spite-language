@@ -6845,6 +6845,7 @@ func instantiate_template(
         false,
     )
     function.symbol_name = template.symbol_parameter
+    function.source_path = declaration.source_path
     function.symbol_field_name = member_name
     function.symbol_field_type = member_type
     function.symbol_owner_c_name = member_owner_c_name
@@ -17819,7 +17820,7 @@ func fused_chain_source(
         before.append("    var collected = List<{element_spelling}>()")
         loop_lines.append("{indent}if {read} \{\n{indent}    collected.append({current_name})\n{indent}}")
         after.append("    return collected")
-    } else {
+    } else if last.prefix == "sort_by_" {
         returns = ": List<{element_spelling}>"
         before.append("    var sorted = List<{element_spelling}>()")
         before.append("    var keys = List<{member_spelling}>()")
@@ -17827,6 +17828,8 @@ func fused_chain_source(
             "{indent}var key = {read}\n{indent}var previous = keys.count() - 1\n{indent}while previous >= 0 and previous < keys.count() and keys[previous] > key \{\n{indent}    previous = previous - 1\n{indent}}\n{indent}keys.insert(previous + 1, key)\n{indent}sorted.insert(previous + 1, {current_name})",
         )
         after.append("    return sorted")
+    } else {
+        return ""
     }
     var voided = type_shape.is_void(last_member_type)
     if element_spelling.is_empty() or member_spelling.is_empty() and not voided {

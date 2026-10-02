@@ -279,7 +279,8 @@ middle are `filter_` and `map_` (to a member that is a class), and the last may 
 and keep (`var active = teams.filter_is_active()`) starts a new chain, and a chain the compiler cannot write as
 one loop runs step by step, which means the same. On a `Vector` or an `Items`, a chain that ends in `sort_by_` or
 `find_by_` on the items themselves is one of those: it runs step by step, so `velocities.filter_moving().sort_by_across()`
-makes the filtered vector and then the sorted one. See [collections.md](collections.md#chains-run-as-one-loop).
+makes the filtered vector and then the sorted one. So is a chain whose last template is one a program wrote
+itself ([collections.md](collections.md#write-your-own-member-template)). See [collections.md](collections.md#chains-run-as-one-loop).
 
 **Example.** The one thing you could ever see: a member function with a visible effect runs element by element in
 a fused chain, where the written-out steps run it on every element before the next step starts.

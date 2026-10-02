@@ -580,8 +580,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Heading was tagged partial; the page did not say which part is missing. Known gaps found in the section: a
   `String`'s or a number's function can be passed to a form but cannot be held as a value yet (the compiler's error
   text says "cannot be held as a value yet"; that quoted error text is still in the page).
-- A program's own templates on `Vector` and `Items` are not checked as the program's code (their errors name the
-  library's file, and the borrow rules are skipped inside them as they are for the library's).
 - The "a `while` that only does what a template does" rule (control_flow.md) does not look at a `Vector`'s loops yet.
 - Names still provisional (proposed by Claude, unconfirmed by Mortaro): `Items`, `remove_swapping`, `remove_where`,
   `truncate`, `swap`, `first()`/`last()` answering `T?`, `reserve`. The page used to say "name provisional".

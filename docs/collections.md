@@ -994,6 +994,11 @@ func ListAverage() {
 3.5
 ```
 
+A `Vector` and an `Items` are reopened the same way, by a `vector.spite` or an `items.spite` in the program's
+folder; their items are read with `values.item_at(items, index)` (an `Items`, with `inline.item_at` or
+`references.read_value` under `$element_type.fits_vector()`), and an item read so is borrowed, as everywhere
+in the program (`conformance/stage6/own_collection_templates`).
+
 The `<$element_type>` is what makes it a member of the element. A plain `member: Symbol` would name one of the
 list's own attributes, which are its buffer, so it is an error that says what to write:
 
@@ -1317,6 +1322,10 @@ under `Vector<T>`](#vectort-items-inline), which is normative. The readings:
   chain of them is one loop over the block, with `filter_` steps in the middle; a chain ending in `find_by_` or
   `sort_by_` on the items themselves runs step by step, which means the same.
   `parallel_each_<member>()` splits the walk across the thread pool as it does a list's.
+  A program adds a template of its own by reopening `Vector` in a `vector.spite` of its folder, as for a
+  [list](#write-your-own-member-template), reading each item with `values.item_at(items, index)`. Its body is
+  checked like any other code of the program: an item it reads is borrowed, so it is not returned, kept or put in
+  a list (`conformance/stage6/own_collection_templates`).
   No passed-function form is offered, since a `List` of numbers
   takes every form. A passed function would take a class item as an argument, which a borrowed item never is, so
   `velocities.each(f)` is `'each' passes each item to a function, and an item of a
@@ -1382,7 +1391,8 @@ members are [the table under `Items<T>`](#itemst-the-storage-chosen-for-you), wh
   `sort_by_<member>()` are in `library/items.spite`, each folded the same way; `filter_` and `sort_by_` answer an
   `Items<T>` (copies when inline, the same references otherwise) and `map_` a `List` of the members' values.
   `find_by_<member>(value)` answers a `T?` read as `items[index]` is: inline, the item, borrowed once narrowed; by
-  reference, a counted reference. A chain is one loop over the block,
+  reference, a counted reference. A program's own template goes in an `items.spite` of its folder, folded on
+  `$element_type.fits_vector()` as the library's are. A chain is one loop over the block,
   and `parallel_each_<member>()` splits it across the thread pool, as for a vector. The passed-function forms
   (`each(f)`, `filter(f)`, ...) are not offered for either kind, since an inline item is never passed on and plain
   values live in a `List`: `'each'

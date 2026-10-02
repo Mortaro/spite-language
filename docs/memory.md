@@ -1412,8 +1412,9 @@ compile time that it is never kept past its use. The rules:
   [collections.md's rules](collections.md#vectort)).
 - **Only the library is trusted.** The functions of `Vector`, `Items` and `InlineMemory` in `library/` hand out
   and move borrowed items by design, so these rules are not checked inside them. A function a program adds to one
-  of those classes by reopening it in its own file ([packages.md](packages.md)) is checked like any other code
-  (`diagnostics/reopened_vector_borrows`).
+  of those classes by reopening it in its own file ([packages.md](packages.md)) is checked like any other code,
+  a member template of its own included: an item it reads with `values.item_at(items, index)` is borrowed, so it
+  is not returned, kept or put in a list (`diagnostics/reopened_vector_borrows`, `diagnostics/own_template_borrows`).
 - **What stays an object.** `append(value)` and `set_at(index, value)` copy the value's attributes in, counting
   each `String` attribute once more, and the value stays an ordinary object; `remove_at`, `clear` and dropping the
   vector release the `String`s of the items they remove.

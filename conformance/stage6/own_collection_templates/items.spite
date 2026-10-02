@@ -1,0 +1,19 @@
+func largest_member(member: Spite.AttributeDeclaration<$element_type>): member.class {
+    var largest: member.class = 0
+    var index = 0
+    while index < item_count {
+        if $element_type.fits_vector() {
+            var item = inline.item_at(items, index)
+            if item.attributes[member] > largest {
+                largest = item.attributes[member]
+            }
+        } else {
+            var item = references.read_value(items, index)
+            if item.attributes[member] > largest {
+                largest = item.attributes[member]
+            }
+        }
+        index = index + 1
+    }
+    return largest
+}
