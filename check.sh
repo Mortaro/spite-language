@@ -1014,7 +1014,7 @@ echo "number parameters: a function taking Number is compiled per number class, 
 # scale_into checks the list it writes once, before the loop; add_from, whose counter starts at a parameter, is not.
 "$work/generation_two.exe" conformance/stage6/counted_loops --check --c-source --c-path="$work/counted.c" > /dev/null 2>&1 || {
   echo "FAILED: counted_loops does not write its C"; exit 1; }
-if ! grep -qE "^spite_temp_[0-9]+\[index_\] = \(spite_temp_[0-9]+\[index_\] \* 2\.0\);$" "$work/counted.c" \
+if ! grep -qE "^spite_temp_[0-9]+\[index_\] = \(spite_temp_[0-9]+\[index_\] \* 2\.0f\);$" "$work/counted.c" \
    || ! grep -qE "^if \(spite_temp_[0-9]+ <= spite_temp_[0-9]+\) \{$" "$work/counted.c" \
    || [ "$(grep -cE "^while \(\(\(index_ < (List_Integer_count|spite_folded_List_Integer_count)\(values_\)\)\)\) \{$" "$work/counted.c")" != "2" ]; then
   echo "FAILED: counted_loops should read its plain lists without range checks, except in add_from and double_up"; exit 1
