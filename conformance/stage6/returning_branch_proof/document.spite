@@ -6,10 +6,6 @@ func array_text(): String {
 }
 
 func to_string(): String {
-    var texts = elements.map(entry_text)
-    return texts.join(", ")
-}
-
-func entry_text(entry: String): String {
-    return "<{entry}>"
+    var joined = elements.join(">, <")
+    return "<{joined}>"
 }

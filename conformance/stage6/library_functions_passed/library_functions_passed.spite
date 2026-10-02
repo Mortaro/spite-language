@@ -9,8 +9,7 @@ func LibraryFunctionsPassed() {
     var known = keys.filter(counts.has)
     var known_text = known.join(", ")
     console.print(known_text)
-    var amounts = keys.map(counts.get_at)
-    var amount_count = amounts.count()
+    var amount_count = keys.count(counts.has)
     console.print("amounts", amount_count)
     var words = ["hell", "a", "lo", "x"]
     var greeting = "hello"

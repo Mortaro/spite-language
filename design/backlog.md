@@ -15,8 +15,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **Landed:** `cloud/linux` (one seed per system, the Linux check, D376) on 2026-10-02.
 - **Landed:** `cloud/operators` (D315 and D365, recorded as D396), the reload races and `wip/fastbuild` (D403) on
   2026-10-02.
-- **Waiting:** `cloud/nomap` (no `List.map(function)`, no `map_` over a test, no class-qualified function value;
-  its row needs the next free number).
+- **Landed:** `cloud/nomap` (no `List.map(function)`, no `map_` over a test, no class-qualified function value,
+  recorded as D415) on 2026-10-02.
 
 ## Items
 
@@ -38,7 +38,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   objects; specialisation beyond the calling class, of enum parameters, and of functions of `Spite` classes; the
   two narrowing gaps (`var run = $T.functions['run_each']` then `if run`, and `crash Spite.Class.instances[...]`).
   Files: generator.spite reflection and specialisation regions, `specialisation.spite`, `reflected.spite`,
-  `library/spite/*.spite`. **L.** Depends on landing `cloud/nomap`.
+  `library/spite/*.spite`. **L.** No dependencies.
 - **R8 Declarations and bound members are different classes** (D391). `Spite.FunctionDeclaration` and
   `Spite.AttributeDeclaration` (no value) for a class's members; `Spite.Function` and `Spite.Attribute` bound to an
   instance, with `.owner` the instance. Every library and doc walk over `Monster.attributes` retyped to the

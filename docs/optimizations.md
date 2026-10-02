@@ -1143,7 +1143,7 @@ None of these needs anything from you:
 - A `T?` of a class, list or text is the reference itself, with `null` as the absent case: no wrapper object.
 - A generic singleton has one static slot per set of codegen values, so `Column<Health>()` is found without any
   lookup.
-- A function passed to a template by name, `names.each(say_hello)` or `people.map(greeter.label)`, is not made into a
+- A function passed to a template by name, `names.each(say_hello)` or `people.each(greeter.greet)`, is not made into a
   function value: the template is written once for that function and its owner, so the call allocates nothing and
   calls it directly ([collections.md](collections.md#passing-a-function-for-each-element)). Only a function held in a
   variable is called through its `Spite.Function`.

@@ -525,8 +525,14 @@ logger.log(pretty_print)         # passes this instance's pretty_print
 - **There are no free functions and no closures.** A function value is `{instance, function}`: one retain in a
   reference-counted language ([Memory](memory.md#the-memory-model)), capturing the receiver and nothing else, so no local ever escapes its
   scope. That is the whole of the feature; there is no environment to capture and no lifetime to reason about.
+- **A class has no function values.** `Monster.is_alive` names nothing: `Monster` written as a value is the
+  class's `Spite.Class` object ([Reflection](reflection.md)), which has no `is_alive` (the function itself is
+  `Monster.functions['is_alive']`). It is the error "'Monster.is_alive' is not a function: 'Monster' is the
+  class's 'Spite.Class' object, which has no 'is_alive' (the function itself is
+  'Monster.functions['is_alive']'). A function value belongs to an instance: pass 'monster.is_alive', or ask
+  each element of a list through its member template, such as 'filter_is_alive()'" (`diagnostics/passed_functions`).
   At run time a function value is one small object (the owner, retained, and a call pointer) and a call through
-  it is one indirect call; a function passed by name to `each`, `map`, `filter` and the other list functions
+  it is one indirect call; a function passed by name to `each`, `filter` and the other list functions
   builds no value at all, because the element loop is instantiated for that function and calls it
   directly ([Passing a function for each element](collections.md#passing-a-function-for-each-element)). A
   program that uses no function value carries none of this.
@@ -577,7 +583,7 @@ This is the language's first **variadic** generic. `List<T>` and the rest take a
 The indirection is paid only where it was already accepted. An ordinary call, `person.grow(2)`, is a
 direct call and never builds a `Spite.Function`; only a function used *as a value* goes through
 `call_function()`. A function passed *by name* to a list's
-`each`, `map`, `filter` and the rest is not a value either: the element loop is instantiated for it and calls it
+`each`, `filter` and the rest is not a value either: the element loop is instantiated for it and calls it
 directly, so it does not pass through `call_function()`; one held in a variable does.
 
 **`Nothing` is the class a function returns when it returns nothing.**

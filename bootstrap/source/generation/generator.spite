@@ -2328,7 +2328,13 @@ func note_wait_edge(callee: String) {
 }
 
 func value_call_key(arguments: List<Analysis.SpiteType>, returns: Analysis.SpiteType?): String {
-    var pieces = arguments.map(c_type_name)
+    var pieces = List<String>()
+    var pieces_index = 0
+    while pieces_index < arguments.count() {
+        var pieces_item = c_type_name(arguments[pieces_index])
+        pieces.append(pieces_item)
+        pieces_index = pieces_index + 1
+    }
     var returned = "void"
     if returns {
         var returns_class = type_shape.as_class_ref(returns)
@@ -2838,6 +2844,17 @@ func instantiate_generic(
     return instantiated_with(template, types, codes, texts, label)
 }
 
+func fixed_key_types(sources: List<Analysis.SpiteType>): List<Analysis.SpiteType> {
+    var answers = List<Analysis.SpiteType>()
+    var index = 0
+    while index < sources.count() {
+        var answer = fixed_key_type(sources[index])
+        answers.append(answer)
+        index = index + 1
+    }
+    return answers
+}
+
 func fixed_key_type(spite_type: Analysis.SpiteType): Analysis.SpiteType {
     var dictionary = type_shape.as_dictionary(spite_type)
     if dictionary {
@@ -2884,7 +2901,7 @@ func instantiated_with(
     instance.codegen_names = template.codegen_names
     instance.codegen_types = types
     if template.qualified_dotted == "Spite.Debug" or template.qualified_dotted == "Spite.DebugInstance" {
-        instance.codegen_types = types.map(fixed_key_type)
+        instance.codegen_types = fixed_key_types(types)
     }
     instance.codegen_codes = codes
     instance.codegen_texts = texts
@@ -6204,7 +6221,7 @@ func namespace_walk(template: Analysis.TemplateInfo): NamespaceWalk {
 
 func index_namespace_walk(walk: NamespaceWalk) {
     walk.classes = walk.classes.sort_by_qualified_dotted()
-    walk.member_names = walk.classes.map(class_member_name)
+    walk.member_names = member_names_of(walk.classes)
     walk.first_positions = Dictionary<Integer>()
     walk.last_positions = Dictionary<Integer>()
     var index = 0
@@ -6234,7 +6251,7 @@ func range_miss(information: Analysis.ClassInfo, name: String): String {
             if found.is_empty() {
                 return "'{name}' is '{declaration.name}' for a class '{member_name}', but no folder is named for '{range}', so 'Symbol<{range}>' walks nothing here"
             }
-            var members = found.map(class_member_name)
+            var members = member_names_of(found)
             return "'{name}' is '{declaration.name}' for a class '{member_name}', but the folders named for '{range}' hold only '{members.join("', '")}'"
         }
         var missed_value = value_range_miss(information, template, name, member_name)
@@ -6274,6 +6291,17 @@ func value_range_miss(
     var owner = range_function_owner(information, template)
     crash owner
     return "'{name}' is '{declaration.name}' for '{member_name}', a value of '{shown_enum}', but '{owner.qualified_dotted}' has no function '{pattern_prefix(template)}{member_name}{pattern_suffix(template)}'"
+}
+
+func member_names_of(sources: List<Analysis.ClassInfo>): List<String> {
+    var answers = List<String>()
+    var index = 0
+    while index < sources.count() {
+        var answer = class_member_name(sources[index])
+        answers.append(answer)
+        index = index + 1
+    }
+    return answers
 }
 
 func class_member_name(candidate: Analysis.ClassInfo): String {
@@ -14573,6 +14601,10 @@ func generate_method_call(
                 missed = unpassed
             }
         }
+        var listing = vector_like or is_items_class(target_class) or target_class.qualified_dotted == "Vector"
+        if listing and member.name == "map" and arguments_ast.count() == 1 {
+            missed = removed_map_message()
+        }
         if missed.is_empty() {
             if not reported_old_spelling(member.name) {
                 var receiver_type = object_result.type
@@ -14714,7 +14746,13 @@ func report_operator_function_call(
     assert operator_stands_in(name, receiver_type, arguments_ast, scope, class_information)
     var printer = Syntax.SourcePrinter()
     var receiver = printer.source_receiver(object_ast)
-    var arguments = arguments_ast.map(printer.source_expression)
+    var arguments = List<String>()
+    var argument_index = 0
+    while argument_index < arguments_ast.count() {
+        var argument = printer.source_expression(arguments_ast[argument_index])
+        arguments.append(argument)
+        argument_index = argument_index + 1
+    }
     var message = operator_written_for(name, receiver, arguments)
     report(message)
 }
@@ -15100,6 +15138,11 @@ func generate_string_method(
 }
 
 func report_list_method_missing(name: String) {
+    if name == "map" {
+        var removed = removed_map_message()
+        report(removed)
+        return
+    }
     if name == "add" {
         report(
             "List has no method 'add', which does not say where: write 'append' to add at the end, or 'prepend' at the start",
@@ -15111,6 +15154,10 @@ func report_list_method_missing(name: String) {
         return
     }
     report("List has no method '{name}'")
+}
+
+func removed_map_message(): String {
+    return "there is no 'map(function)': collect a member of each element with 'map_<member>()', and a value computed from each element by giving the element's class a read-only attribute (a 'get_<name>()' with no setter) and writing 'map_<name>()'"
 }
 
 func reported_old_spelling(name: String): Boolean {
@@ -15776,6 +15823,9 @@ func member_requirement(
     if template_prefix == "map_" and type_shape.is_void(member_type) {
         return "return a value (to only call it for each element, write 'each_{member_name}()')"
     }
+    if template_prefix == "map_" and is_boolean_type(member_type) {
+        return "be a value to collect, not a test: write 'filter_{member_name}()' to keep the elements it is true for, 'count_{member_name}()' to count them, or 'any_{member_name}()' or 'all_{member_name}()' to ask whether any or all of them pass"
+    }
     var ordered = is_numeric_type(member_type) or type_shape.as_string(member_type)
     if template_prefix == "sort_by_" and not ordered {
         return "return something ordered: a number or a String"
@@ -16250,7 +16300,7 @@ func expression_keeps_this(expression: Syntax.Expressions.Expression, informatio
         crash call.callee
         var member = shape.as_member(call.callee)
         if member {
-            var passing = ["each", "map", "filter", "any", "all", "count", "find", "sort_by", "sum", "remove_where"]
+            var passing = ["each", "filter", "any", "all", "count", "find", "sort_by", "sum", "remove_where"]
             if passing.contains(member.name) {
                 crash member.object
                 if expression_keeps_this(member.object, information) {
@@ -16744,7 +16794,7 @@ func streams(name: String, arguments: List<Syntax.Expressions.Expression>): Bool
     if arguments.is_empty() {
         return name.starts_with("map_") or name.starts_with("filter_")
     }
-    return arguments.count() == 1 and (name == "map" or name == "filter")
+    return arguments.count() == 1 and name == "filter"
 }
 
 func chained_element_of(receiver_type: Analysis.SpiteType): Analysis.SpiteType? {
@@ -16893,9 +16943,13 @@ func fused_step(
     var is_field = is_field_of(element_class, member_name)
     var requirement = member_requirement(template.prefix, is_field, member_name, member_type)
     assert requirement.is_empty()
-    var read = "{member_name}()"
-    if is_field {
-        read = member_name
+    var read = member_name
+    if not is_field {
+        var function = member_function(element_class, member_name)
+        crash function
+        if function.name == member_name {
+            read = "{member_name}()"
+        }
     }
     return FusedStep(template.prefix, member_type, read)
 }
@@ -17112,7 +17166,7 @@ func fused_chain_source(
 }
 
 func is_function_form(name: String, arguments: List<Syntax.Expressions.Expression>): Boolean {
-    var forms = ["each", "map", "filter", "any", "all", "count", "find", "sort_by", "sum", "remove_where"]
+    var forms = ["each", "filter", "any", "all", "count", "find", "sort_by", "sum", "remove_where"]
     return arguments.count() == 1 and forms.contains(name)
 }
 
@@ -17292,9 +17346,6 @@ func form_requirement(name: String, label: String, returned: Analysis.SpiteType)
     if name == "sum" and not is_numeric_type(returned) {
         return "return a numeric type"
     }
-    if name == "map" and type_shape.is_void(returned) {
-        return "return a value (to only call it for each element, write 'each({label})')"
-    }
     var ordered = is_numeric_type(returned) or type_shape.as_string(returned)
     if name == "sort_by" and type_shape.as_nullable(returned) {
         return "return something ordered, a number or a String, and a value that may be null has no place in the order: pass a function of your own that narrows it and returns the plain value"
@@ -17315,6 +17366,11 @@ func function_form_instance(
 ): PassedFunction? {
     var passed = resolve_passed_function(argument, scope, class_information)
     if not passed {
+        var argument_member = shape.as_member(argument)
+        if argument_member {
+            var qualified = class_qualified_function_message(argument_member, class_information)
+            assert qualified.is_empty()
+        }
         var printed = Syntax.SourcePrinter().source_expression(argument)
         report(
             "'{name}' takes a function to call with each element, such as '{name}(say_hello)' or '{name}(greeter.say_hello)', and '{printed}' is not one",
@@ -17885,6 +17941,17 @@ func class_object_call(spite_type: Analysis.SpiteType): String {
     var label = type_label(spite_type)
     var display_name = type_display_name(spite_type)
     return "{ensure_class_object(display_name, "", label)}()"
+}
+
+func display_names_of(sources: List<Analysis.SpiteType>): List<String> {
+    var answers = List<String>()
+    var index = 0
+    while index < sources.count() {
+        var answer = type_display_name(sources[index])
+        answers.append(answer)
+        index = index + 1
+    }
+    return answers
 }
 
 func type_display_name(spite_type: Analysis.SpiteType): String {
@@ -22173,6 +22240,11 @@ func generate_member_read_raw(
                 return function_value(target_class, found_function, object_result, member.object)
             }
         }
+        var qualified = class_qualified_function_message(member, class_information)
+        if not qualified.is_empty() {
+            report(qualified)
+            return void_result()
+        }
         report("'{type_display_name(object_result_type)}' has no attribute '{member.name}'")
         return void_result()
     }
@@ -23425,7 +23497,7 @@ func singleton_display_name(information: Analysis.ClassInfo): String {
     if information.codegen_types.is_empty() {
         return name
     }
-    var shown = information.codegen_types.map(type_display_name)
+    var shown = display_names_of(information.codegen_types)
     return "{name}<{shown.join(", ")}>"
 }
 
@@ -28390,12 +28462,41 @@ func report_template_walk(
     var listed = type_shape.as_list(probe_type)
     assert listed
     var element = listed.element
+    assert walk.members.is_empty() or not is_codegen_type_of(class_information, element)
     assert walked_members_exist(element, walk.members)
     assert passed_functions_fit(walk, scope, class_information)
     var saved_line = current_line
     current_line = loop.line
     report("this 'while' walks every element of '{list_text}' only {walk.purpose}: write '{walk.replacement}'")
     current_line = saved_line
+}
+
+func class_qualified_function_message(
+    member: Syntax.Expressions.MemberExpression,
+    class_information: Analysis.ClassInfo,
+): String {
+    crash member.object
+    var named = try_resolve_static_path(member.object, class_information.qualified_dotted)
+    if not named {
+        return ""
+    }
+    if not named.find_function(member.name) {
+        return ""
+    }
+    var instance_name = snake_words(named.simple_name)
+    return "'{named.simple_name}.{member.name}' is not a function: '{named.simple_name}' is the class's 'Spite.Class' object, which has no '{member.name}' (the function itself is '{named.simple_name}.functions['{member.name}']'). A function value belongs to an instance: pass '{instance_name}.{member.name}', or ask each element of a list through its member template, such as 'filter_{member.name}()'"
+}
+
+func is_codegen_type_of(class_information: Analysis.ClassInfo, spite_type: Analysis.SpiteType): Boolean {
+    var written = type_display_name(spite_type)
+    var index = 0
+    while index < class_information.codegen_types.count() {
+        if type_display_name(class_information.codegen_types[index]) == written {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func walked_list(loop: Syntax.Statements.WhileStatement, counter: String): Syntax.Expressions.Expression? {
@@ -28744,17 +28845,7 @@ func walk_by_call(
         return copied
     }
     var mapped_member = element_member(appended, element_text)
-    if mapped_member.is_empty() {
-        var mapper = passed_call(appended, element_text)
-        assert not mapper.is_empty()
-        var mapped_by = passed_walk(
-            "to collect what '{mapper}' answers for each",
-            "var {result} = {list_text}.map({mapper})",
-            mapper,
-        )
-        mapped_by.result_name = result
-        return mapped_by
-    }
+    assert not mapped_member.is_empty()
     var mapped = TemplateWalk(
         "to collect each '{mapped_member}'",
         "var {result} = {list_text}.map_{collected_word(mapped_member)}()",
@@ -28782,17 +28873,7 @@ func walk_through_local(
     assert appended_text == declared.name
     var result = appended_to(appending)
     assert result != list_text
-    if member.is_empty() {
-        var mapper = passed_call(declared.value, element_text)
-        assert not mapper.is_empty()
-        var mapped_by = passed_walk(
-            "to collect what '{mapper}' answers for each",
-            "var {result} = {list_text}.map({mapper})",
-            mapper,
-        )
-        mapped_by.result_name = result
-        return mapped_by
-    }
+    assert not member.is_empty()
     var mapped = TemplateWalk("to collect each '{member}'", "var {result} = {list_text}.map_{collected_word(member)}()")
     mapped.members.append(member)
     mapped.result_name = result
@@ -29608,7 +29689,13 @@ func reflection_member_meaning(member: String): String {
 
 func joined_case_spelling(snake: String, capitalised_first: Boolean): String {
     var words = snake.split("_")
-    var capitalised_words = words.map(capitalised_word)
+    var capitalised_words = List<String>()
+    var capitalised_words_index = 0
+    while capitalised_words_index < words.count() {
+        var capitalised_words_item = capitalised_word(words[capitalised_words_index])
+        capitalised_words.append(capitalised_words_item)
+        capitalised_words_index = capitalised_words_index + 1
+    }
     var pascal_spelling = capitalised_words.join("")
     if capitalised_first or pascal_spelling.is_empty() {
         return pascal_spelling
@@ -32270,7 +32357,13 @@ func report_chain_of(
     assert arms.count() >= 3
     var first_line = arms[0].line
     var covers = covers_every_value(arms[0], arms, scope, class_information)
-    var cases = arms.map(chain_case)
+    var cases = List<String>()
+    var cases_index = 0
+    while cases_index < arms.count() {
+        var cases_item = chain_case(arms[cases_index])
+        cases.append(cases_item)
+        cases_index = cases_index + 1
+    }
     if not covers {
         cases.append("_: {rest}")
     }
@@ -32306,7 +32399,13 @@ func covers_every_value(
     var binary = shape.as_binary(arm.condition)
     crash binary
     crash binary.left
-    var constants = arms.map(compared_constant)
+    var constants = List<String>()
+    var constants_index = 0
+    while constants_index < arms.count() {
+        var constants_item = compared_constant(arms[constants_index])
+        constants.append(constants_item)
+        constants_index = constants_index + 1
+    }
     var subject_type = lookup_static_type(binary.left, scope, class_information)
     var covers = false
     if subject_type {
@@ -35369,7 +35468,7 @@ func instance_description(class_information: Analysis.ClassInfo): String {
     if class_information.codegen_types.is_empty() {
         return ""
     }
-    var names = class_information.codegen_types.map(type_display_name)
+    var names = display_names_of(class_information.codegen_types)
     return " in {class_information.simple_name}<{names.join(", ")}>"
 }
 
