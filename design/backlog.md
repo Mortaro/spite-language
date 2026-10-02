@@ -53,12 +53,16 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **R8 Declarations and bound members are different classes** (D391). `Spite.FunctionDeclaration` and
   `Spite.AttributeDeclaration` (no value) for a class's members; `Spite.Function` and `Spite.Attribute` bound to an
   instance, with `.owner` the instance. Every library and doc walk over `Monster.attributes` retyped to the
-  declaration class, and reflection.md's titled examples with it; `call_with` removed. Files:
+  declaration class, and reflection.md's titled examples with it; member template parameters become
+  `Spite.AttributeDeclaration<...>` (D392) in README.md's example, WHY_AI.md, docs collections.md and
+  metaprogramming.md's titled examples, `library/list.spite`, `vector.spite`, `items.spite` and the
+  `plural_templates`/`reflection_walks` conformance and diagnostics; `call_with` removed. Files:
   `library/spite/*.spite`, generator.spite reflection region, `reflected.spite`, docs reflection.md and
   metaprogramming.md examples. **L.** Depends on R5.
 - **R9 `Spite.Call`** (D391). `Spite.Call(function)`, `.arguments['name'] = value`, `call()`; folded into the direct
   call when everything is known while compiling; an unfilled argument is a compile error where visible, a halt
-  naming it otherwise. Construction by `Spite.Call(...)` awaits Mortaro's confirmation. **M.** Depends on R8.
+  naming it otherwise; a declaration passed to `Spite.Call` is a compile error naming the bound form (D392). **M.**
+  Depends on R8.
 - **R6 Private attributes in a class's own walk** (D278, D319). `.attributes` and a walk over another class must
   include `_` attributes and allow reading and writing them through the walked attribute; serializers (J1) skip
   them. Files: generator.spite's attribute walk and reflected attribute tables. **S.** No dependencies.

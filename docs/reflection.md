@@ -338,7 +338,7 @@ their `.owner` is the class that declares them. An instance's `.functions` holds
 
 | Member | Answers | Example |
 |---|---|---|
-| `Spite.Call(function)` | a call of a bound `Spite.Function`, nothing run yet | `Spite.Call(system.functions['run_each'])` |
+| `Spite.Call(function)` | a call of a bound `Spite.Function`, nothing run yet; a declaration has nothing to call on and is refused | `Spite.Call(system.functions['run_each'])` |
 | `.arguments` | its arguments by name, each written once before the call runs | `call.arguments['position'] = position` |
 | `call()` | runs it, answering what the function answers | `call.call()` |
 
@@ -852,7 +852,9 @@ on the spot is "only a named value has memory of its own: give this value a name
   fills each argument once, and `call()` runs it. With the function and the arguments known while compiling it is
   the plain direct call, and no object exists. An argument left unfilled is "'call' leaves the argument 'velocity'
   of 'run_each' unfilled: set 'call.arguments['velocity']' before 'call()'" where the compiler sees it; otherwise
-  `call()` halts naming it.
+  `call()` halts naming it. **It takes only a bound function**: `Spite.Call(Monster.functions['hurt'])` is "'hurt'
+  here is a declaration of 'Monster', with nothing to call on: bind it through an instance,
+  'troll.functions['hurt']'".
 - **A walk over another class's attributes sees its private ones**, since a walk that skips some silently builds an
   incomplete copy, column or layout. Naming `_x` outside its class stays the private error.
 - **A `List<T>`'s or `Dictionary<T>`'s attributes are its entries** (named by index or by key), not the fields of the

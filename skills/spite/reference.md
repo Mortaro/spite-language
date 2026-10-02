@@ -443,18 +443,22 @@ func is_alive(): Boolean {
 
 ## Metaprogramming
 
-- Every class is an instance of `Spite.Class`, every function of `Spite.Function`, every attribute of
-  `Spite.Attribute`, and their members are ordinary lists, so "for every attribute" is a walk:
+- Every class is an instance of `Spite.Class`. A class's members are declarations (`Spite.FunctionDeclaration`,
+  `Spite.AttributeDeclaration`, no value); an instance's are bound (`Spite.Function`, `Spite.Attribute` with
+  `.value` and `.owner`). Members are ordinary lists, so "for every attribute" is a walk:
   `Monster.attributes.each(describe)` with `func describe(attribute: Spite.Attribute)`, unrolled while compiling into
   one call per attribute, each copy typed by its attribute. A member by name is `[]` and answers a `T?`
   (`Runner.functions['run_each']`); a selection is a member template (`Runner.functions.filter_name_ends_with("_each")`).
   A name is selected, never built from text. There are no `Symbol` walks.
-- A **template** is a function whose `Spite.Attribute<Label>` parameter is a word of its name:
-  `func show_attribute(attribute: Spite.Attribute<Label>, label: Label)` answers `show_text(label)` and
+- A **template** is a function whose `Spite.AttributeDeclaration<Label>` parameter is a word of its name:
+  `func show_attribute(attribute: Spite.AttributeDeclaration<Label>, label: Label)` answers `show_text(label)` and
   `show_copies(label)`, reading the member as `label.attributes[attribute]` (a member that is a function taking
-  nothing is called). `func set_attribute(attribute: Spite.Attribute<Person>, value: attribute.class) {
+  nothing is called). `func set_attribute(attribute: Spite.AttributeDeclaration<Person>, value: attribute.class) {
   attributes[attribute] = value }` makes `person.set_age(2)` and `person.set_name("x")` work. An exact function
   always wins. A parameter that is not a word of its name makes an ordinary function a walk calls.
+- A call built before it runs: `var call = Spite.Call(system.functions['run_each'])` (a bound function only, never a
+  declaration), `call.arguments['position'] = value`, `call.call()`; known while compiling it is the direct call.
+  There is no `call_with`.
 - Questions are get-only attributes, folded on a constant: `Loader.functions['load_each']` (narrow it), then
   `.is_resumable` (it can reach a wait), `.arguments[1].is_mutated` (it changes what argument 1 is given),
   `.arguments.count()`, `.accesses` (a `Dictionary<Spite.Access>` of what it reads and writes); `Loader.is_stateful`,

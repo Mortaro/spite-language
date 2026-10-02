@@ -139,10 +139,10 @@ shape, never a value. `system.functions['run_each']` is a `Spite.Function` bound
 `troll.attributes['health']` a `Spite.Attribute` bound to `troll`, each with everything its declaration has plus
 `.owner` (and `.value` for the attribute). Calling a function value always calls. **A call can be built before it
 runs**: `var call = Spite.Call(system.functions['run_each'])`, `call.arguments['position'] = value`, `call.call()`
-(the construction by `Spite.Call(...)` proposed by the orchestrator, unconfirmed). Known while compiling, it folds
+(confirmed by D392, which also refuses a declaration there). Known while compiling, it folds
 into the plain direct call; an argument left unfilled is a compile error where visible, otherwise `call()` halts
-naming it. It replaces `call_with` and the proposed `call_with_each`. A template parameter keeps D317's spelling,
-`Spite.Attribute<Monster>`, until it is decided whether it names the declaration class.
+naming it. It replaces `call_with` and the proposed `call_with_each`. A template parameter is a declaration,
+`Spite.AttributeDeclaration<Monster>` (D392).
 
 ### Every member is a get-only attribute
 
