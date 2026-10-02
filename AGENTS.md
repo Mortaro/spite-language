@@ -33,6 +33,8 @@ the docs, the docs win.
   - [`design/decisions.md`](design/decisions.md): the append-only decision log, every decision with when and why;
   - [`design/status.md`](design/status.md): what is decided but not built, or only partly built, page by page,
     and the bugs still open under D244;
+  - [`design/backlog.md`](design/backlog.md): everything decided and not built, as work: size, dependencies and
+    parallel streams;
   - [`design/open_questions.md`](design/open_questions.md): decided work that has no page yet, and open questions;
   - [`design/proposals/`](design/proposals/): proposals under review;
   - [`design/KNOWN_ISSUES.md`](design/KNOWN_ISSUES.md): where the compiler falls short of the docs;

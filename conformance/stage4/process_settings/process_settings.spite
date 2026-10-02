@@ -1,11 +1,12 @@
 var console = Console()
+var build = Build()
 
 func ProcessSettings() {
-    var echoed = Process("cmd", ["/c", "echo", "-script=a b", "-plain=x", "two words", "say \"hi\"", "C:\\a b\\"])
+    var echoed = echoing(["-script=a b", "-plain=x", "two words", "say \"hi\"", "C:\\a b\\"])
     echoed.run()
     var echoed_line = echoed.output().trim()
     console.print(echoed_line)
-    var greeting = Process("cmd", ["/c", "set", "SPITE_GREETING"])
+    var greeting = shell_running("set SPITE_GREETING", "echo \"SPITE_GREETING=$SPITE_GREETING\"")
     greeting.environment_variables["SPITE_GREETING"] = "hello there"
     greeting.run()
     var greeting_line = greeting.output().trim()
@@ -14,9 +15,42 @@ func ProcessSettings() {
     folder.create()
     var marker = File(".spite/process_settings/marker.txt")
     marker.write("found beside the child")
-    var reading = Process("cmd", ["/c", "type", "marker.txt"])
+    var reading = shell_running("type marker.txt", "cat marker.txt")
     reading.working_directory = ".spite/process_settings"
     var code = reading.run()
     var read_line = reading.output().trim()
     console.print(code, read_line)
+}
+
+func echoing(words: List<String>): Process {
+    if build.target_operating_system == "windows" {
+        var line = ["/c", "echo"]
+        var index = 0
+        while index < words.count() {
+            line.append(words[index])
+            index = index + 1
+        }
+        return Process("cmd", line)
+    }
+    var each = ["-c", "printf '[%s] ' \"$@\"", "sh"]
+    var position = 0
+    while position < words.count() {
+        each.append(words[position])
+        position = position + 1
+    }
+    return Process("sh", each)
+}
+
+func shell_running(windows_command: String, other_command: String): Process {
+    if build.target_operating_system == "windows" {
+        var windows_words = windows_command.split(" ")
+        var line = ["/c"]
+        var index = 0
+        while index < windows_words.count() {
+            line.append(windows_words[index])
+            index = index + 1
+        }
+        return Process("cmd", line)
+    }
+    return Process("sh", ["-c", other_command])
 }

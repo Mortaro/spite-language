@@ -5,10 +5,13 @@ var ipv6 = Socket()
 
 # notes.md#why-nothing-listens-on-every-interface
 func Ipv6Addresses() {
+    if not ipv6.listen_at("::1", 47322) {
+        console.print("skipped: this machine has no IPv6, so nothing can listen on ::1")
+        return
+    }
     everywhere()
     crash ipv4.listen_at("127.0.0.1", 47321)
     reach(ipv4, "127.0.0.1", 47321)
-    crash ipv6.listen_at("::1", 47322)
     reach(ipv6, "::1", 47322)
     reach(ipv6, "localhost", 47322)
     var unknown = Socket()
@@ -34,6 +37,7 @@ func everywhere() {
 func reach(server: Socket, host: String, port: Integer) {
     var client = Socket()
     var connected = client.connect(host, port)
+    crash connected
     var peer = server.accept_client()
     crash peer
     crash client.write_line("over {host}")

@@ -143,17 +143,17 @@ Decisions waiting on Mortaro are collected in [`mortaros_missing_decisions.md`](
 
 ## Build and run
 
-Spite compiles itself. `bootstrap/seed/spite_compiler.c` is the committed fixpoint C, so building the compiler
-needs nothing but a C compiler.
+Spite compiles itself. `bootstrap/seed/<system>/spite_compiler.c` is the committed fixpoint C for Linux and for
+Windows, so building the compiler needs nothing but a C compiler.
 
 ```
-cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite -lm
+cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
 ./spite examples/hello
 ```
 
 Check the compiler: `check.sh` builds the seed, requires generation 2 and generation 3 to be byte identical,
 runs every program in `conformance/` requiring exact output and balanced allocations, and reports whether the
-committed seed is current (`bash check.sh --update-seed` refreshes it). It uses the first of `cc`, `clang` or
+committed seeds are current (`bash check.sh --update-seed` refreshes every one of them, from either system). It uses the first of `cc`, `clang` or
 `gcc` it finds, or whatever `CC` names.
 
 ```
@@ -165,7 +165,7 @@ bash check.sh
 Build the compiler once, then point it at a program's folder:
 
 ```
-cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite -lm
+cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
 export CC=cc                     # the compiler shells out to this to build the C it emits
 ./spite path/to/folder
 ```
@@ -181,7 +181,7 @@ contains spaces, so use the short form:
 
 ```
 CL="/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/bin/clang.exe"
-"$CL" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations bootstrap/seed/spite_compiler.c -o spite.exe
+"$CL" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations bootstrap/seed/windows/spite_compiler.c -o spite.exe
 export CC="$(cygpath -d "$CL") -Wno-deprecated-declarations"
 ./spite.exe path/to/thing
 ```

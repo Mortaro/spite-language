@@ -1,0 +1,3 @@
+[-script=a b] [-plain=x] [two words] [say "hi"] [C:\a b\]
+SPITE_GREETING=hello there
+0 found beside the child

@@ -1,11 +1,11 @@
 var console = Console()
+var build = Build()
 
 func ProcessPaths() {
     var folder = Directory(".spite/folder with spaces")
     folder.create()
-    var script = File(".spite/folder with spaces/hello.cmd")
-    script.write("@echo hello from a spaced path %1\r\n")
-    var spaced = Process(".spite/folder with spaces/hello.cmd", ["argument one"])
+    var script = spaced_script()
+    var spaced = Process(script, ["argument one"])
     var run = spaced.run()
     var trimmed_output = spaced.output().trim()
     console.print(run, trimmed_output)
@@ -14,4 +14,17 @@ func ProcessPaths() {
     var with_arguments_run = with_arguments.run()
     var output_starts_with = with_arguments.output().starts_with("git version")
     console.print(with_arguments_run, output_starts_with)
+}
+
+func spaced_script(): String {
+    if build.target_operating_system == "windows" {
+        var batch = File(".spite/folder with spaces/hello.cmd")
+        batch.write("@echo hello from a spaced path %1\r\n")
+        return ".spite/folder with spaces/hello.cmd"
+    }
+    var shell = File(".spite/folder with spaces/hello.sh")
+    shell.write("#!/bin/sh\necho \"hello from a spaced path \\\"$1\\\"\"\n")
+    var executable = Process("chmod", ["+x", ".spite/folder with spaces/hello.sh"])
+    crash executable.run() == 0
+    return ".spite/folder with spaces/hello.sh"
 }

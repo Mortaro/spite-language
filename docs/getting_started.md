@@ -9,12 +9,13 @@ clang that ships with Visual Studio is found on its own). From the repository ro
 bin/spite examples/hello
 ```
 
-`bin/spite` builds the compiler from `bootstrap/seed/spite_compiler.c` into `.spite/` the first time it
-runs (and again whenever that file is newer), then compiles and runs the program. The seed is the C the Spite
-compiler emits for its own sources, so building it by hand is one command too:
+`bin/spite` builds the compiler from the seed for your system, `bootstrap/seed/linux/spite_compiler.c` or
+`bootstrap/seed/windows/spite_compiler.c`, into `.spite/` the first time it runs (and again whenever that file is
+newer), then compiles and runs the program. The seed is the C the Spite compiler emits for its own sources, so
+building it by hand is one command too:
 
 ```bash
-cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite -lm
+cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
 ```
 
 The compiler writes C and builds it with the command in the `CC` environment variable, or the first of `cc`,
