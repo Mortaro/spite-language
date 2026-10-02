@@ -1,0 +1,29 @@
+var console = Console()
+var kept_check: Spite.Function<String, Boolean>? = null
+
+func HeldValueFunctions() {
+    var greeting = "hello there"
+    var check = greeting.contains
+    greeting = "something else"
+    var names = ["hello", "there", "bye"]
+    var found = names.filter(check)
+    var joined = found.join(", ")
+    var shout = greeting.upper_case
+    var ratio = 2.5
+    var at_least = ratio.maximum
+    var raised = at_least(1.0)
+    var shouted = shout()
+    var limit = 10
+    var below = limit.minimum
+    var lowest = below(3)
+    var built = "{greeting} again"
+    kept_check = built.contains
+    keep_using()
+    console.print(joined, shouted, lowest, raised)
+}
+
+func keep_using() {
+    crash kept_check
+    var again = kept_check("again")
+    console.print("kept", again)
+}

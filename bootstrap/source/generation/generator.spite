@@ -22892,14 +22892,122 @@ func library_function_value(
     }
     var container = container_class_of(object_type)
     if not container {
+        var plain_owner = type_shape.as_string(object_type) or type_shape.as_scalar(object_type)
+        if plain_owner {
+            crash member.object
+            return value_function_value(function, object_result, member.object, object_type)
+        }
         report(
-            "'{member.name}' of {type_with_article(object_type)} is passed straight to a form, like 'names.filter(text.{member.name})', and cannot be held as a value yet: a {type_display_name(object_type)} is not an object a function value can keep. To keep one, write a function of your own that calls it",
+            "'{member.name}' of {type_with_article(object_type)} is passed straight to a form, like 'names.filter(text.{member.name})', and cannot be held as a value: a {type_display_name(object_type)} is not an object a function value can keep. To keep one, write a function of your own that calls it",
         )
         return void_result()
     }
     crash member.object
     report_captured_borrow(member, object_result, scope, class_information)
     return function_value(owner_class, function, object_result, member.object)
+}
+
+func value_function_value(
+    function: Analysis.FunctionInfo,
+    owner: ExpressionResult,
+    owner_ast: Syntax.Expressions.Expression,
+    owner_type: Analysis.SpiteType,
+): ExpressionResult {
+    var maker = "spite_value_function_{function.c_name}"
+    var kept_owner = owner.code
+    if not owns(owner, owner_ast) and type_needs_drop(owner_type) {
+        kept_owner = retain_call(owner_type, owner.code)
+    }
+    var boxed_owner = ""
+    var box_release = "spite_string_box_release"
+    var box_type = "SpiteBox_SpiteString"
+    if type_shape.as_string(owner_type) {
+        boxed_owner = boxed_text(kept_owner)
+    } else {
+        var boxed_class = boxed_class_of(owner_type)
+        crash boxed_class
+        boxed_owner = "{ensure_box(boxed_class, owner_type)}({kept_owner})"
+        box_release = "spite_box_release"
+        box_type = "SpiteBox_{boxed_class.c_name}"
+    }
+    note_fact("maker {maker}")
+    if not function_value_makers.contains(maker) {
+        function_value_makers.append(maker)
+        var argument_class = find_class_by_c_name("Spite_Argument")
+        if not find_class_by_c_name("Spite_Function") or not argument_class {
+            report(
+                "a function value needs the standard library: library/spite/function.spite was not found from the working directory",
+            )
+            return void_result()
+        }
+        var class_type = class_type_of(argument_class)
+        var arguments_list_name = ensure_list(class_type)
+        var argument_lines = List<String>()
+        var parameters = List<String>()
+        parameters.append("void* owner")
+        var forwarded = List<String>()
+        forwarded.append("(({box_type}*)owner)->value")
+        var parameter_index = 0
+        while parameter_index < function.parameters.count() {
+            var parameter = function.parameters[parameter_index]
+            var parameter_type = parameter.type
+            argument_lines.append(
+                "{arguments_list_name}_append(described->_arguments_, Spite_Argument___make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
+            )
+            parameters.append("{c_type_name(parameter_type)} spite_argument_{parameter_index}")
+            forwarded.append("spite_argument_{parameter_index}")
+            parameter_index = parameter_index + 1
+        }
+        var return_spite_type = function.return_type
+        var returned_c = "void"
+        if not type_shape.is_void(return_spite_type) {
+            returned_c = c_type_name(return_spite_type)
+        }
+        var forwarder = "{maker}___call"
+        var forwarded_call = "{function.c_name}({forwarded.join(", ")})"
+        var forwarder_body = "return {forwarded_call};"
+        if returned_c == "void" {
+            forwarder_body = "{forwarded_call};"
+        }
+        builder.add_prototype("static {returned_c} {forwarder}({parameters.join(", ")});")
+        builder.add_support("static {returned_c} {forwarder}({parameters.join(", ")}) \{\n{forwarder_body}\n}")
+        var lines = List<String>()
+        lines.append("Spite_Function* {maker}(void* owner) \{")
+        lines.append(
+            "Spite_Function* described = Spite_Function___make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
+        )
+        if not argument_lines.is_empty() {
+            add_lazy_arguments(maker, argument_lines, lines)
+        }
+        lines.append("described->spite_owner = owner;")
+        lines.append("described->spite_release_owner = {box_release};")
+        if function.parameters.is_empty() {
+            var dropping = "{maker}___dropping_call"
+            var dropped_lines = List<String>()
+            dropped_lines.append("static void {dropping}(void* owner) \{")
+            if type_needs_drop(return_spite_type) {
+                dropped_lines.append("{returned_c} returned = {forwarder}(owner);")
+                dropped_lines.append("{release_call(return_spite_type, "returned")};")
+            } else {
+                dropped_lines.append("(void){forwarder}(owner);")
+            }
+            dropped_lines.append("}")
+            builder.add_prototype("static void {dropping}(void* owner);")
+            var joined_dropped = dropped_lines.join("\n")
+            builder.add_support(joined_dropped)
+            lines.append("described->spite_call = (void (*)(void*)){dropping};")
+        }
+        lines.append("described->spite_typed_call = (void*){forwarder};")
+        lines.append("return described;")
+        lines.append("}")
+        builder.add_prototype("Spite_Function* {maker}(void* owner);")
+        var joined_lines = lines.join("\n")
+        builder.add_support(joined_lines)
+    }
+    var signature = signature_of(function)
+    var made = ExpressionResult("{maker}({boxed_owner})", signature)
+    made.owning_override = true
+    return made
 }
 
 func generate_member_read(

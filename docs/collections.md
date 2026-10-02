@@ -1117,11 +1117,11 @@ The caller's function is passed as a bound function value, owned by whoever it i
   member template with another instance's function.
   A list's own function is bound to the list the same way (`numbers.each(found.append)`); a chain that passes one
   is not fused, and runs step by step. So is every library class's: a `Dictionary`'s (`keys.filter(counts.has)`, `keys.count(counts.has)`), and a
-  `String`'s or a number's (`words.filter(greeting.contains)`). A `List`'s or a `Dictionary`'s function may also
-  be held as a value, `var lookup = counts.get_at`, bound to that dictionary; a `String`'s or a number's may only be
-  passed to a form, since a value of text is no object a function value can keep: `var check =
-  greeting.contains` is "'contains' of a String is passed straight to a form, like 'names.filter(text.contains)',
-  and cannot be held as a value yet ...". What the function answers is what the form sees, so `counts.get_at`
+  `String`'s or a number's (`words.filter(greeting.contains)`). Any of them may also be held as a value: `var
+  lookup = counts.get_at` is bound to that dictionary, and `var check = greeting.contains` to the text `greeting`
+  held then. A text or a number is a value, not an object, so the function value keeps its own copy of it, in a
+  small box the value lets go with itself: assigning `greeting` anew afterwards does not change what `check` asks
+  (`conformance/stage6/held_value_functions`). What the function answers is what the form sees, so `counts.get_at`
   answers `Integer?`, and `keys.sort_by(counts.get_at)` is an error naming the fix: a function of your own
   that narrows it (`conformance/stage6/library_functions_passed`, `diagnostics/library_function_mistakes`).
 - **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:

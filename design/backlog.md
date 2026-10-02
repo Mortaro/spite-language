@@ -253,8 +253,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   reopening restates the whole list. Files: `library/environment.spite`, `library/build.spite`. **S.** Depends on
   L3, L4.
 - **S9 Collection leftovers** (status "Standard library metaprogramming", "Deep copy").
-  `deep_copy()` of a cycle (waits on QNEW1); a `String`'s or number's function held as a value.
-  **M.** No dependencies.
+  `deep_copy()` of a cycle. **S.** Waits on QNEW1.
 
 ### REPL and reload (D280, D301, D305)
 

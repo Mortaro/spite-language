@@ -532,7 +532,9 @@ logger.log(pretty_print)         # passes this instance's pretty_print
   'Monster.functions['is_alive']'). A function value belongs to an instance: pass 'monster.is_alive', or ask
   each element of a list through its member template, such as 'filter_is_alive()'" (`diagnostics/passed_functions`).
   At run time a function value is one small object (the owner, retained, and a call pointer) and a call through
-  it is one indirect call; a function passed by name to `each`, `filter` and the other list functions
+  it is one indirect call. A text's or a number's function (`var check = greeting.contains`, `var below =
+  limit.minimum`) is bound to a copy of the value, kept in a box of its own, since a value has no count to
+  retain: one more allocation when the value is made, and a forwarding call that takes the value out of the box; a function passed by name to `each`, `filter` and the other list functions
   builds no value at all, because the element loop is instantiated for that function and calls it
   directly ([Passing a function for each element](collections.md#passing-a-function-for-each-element)). A
   program that uses no function value carries none of this.
