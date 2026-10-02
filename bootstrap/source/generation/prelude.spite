@@ -359,9 +359,7 @@ func maths_members_of(stem: String, type_name: String): List<String> {
     if stem == "float" or stem == "double" {
         return maths.decimal_members(type_name)
     }
-    if stem == "boolean" {
-        return List<String>()
-    }
+    assert stem != "boolean"
     return maths.whole_members(type_name)
 }
 

@@ -110,9 +110,7 @@ func variadic_position_of(key: String): Integer {
 
 func resolved_effects(key: String, classes: DispatchClasses, visiting: List<String>): List<String> {
     var effects = by_function[key]
-    if not effects {
-        return List<String>()
-    }
+    assert effects
     if visiting.contains(key) or visiting.count() > 12 or effects.functions_studied != 1 or not classes.any_known() {
         return effects.keys
     }
@@ -144,9 +142,7 @@ func resolved_call_keys(
     visiting: List<String>,
 ): List<String> {
     var callee_key = resolved_key("{call.callee_class}#{call.callee}")
-    if callee_key.is_empty() {
-        return List<String>()
-    }
+    assert not callee_key.is_empty()
     var dispatched = dispatched_classes(call, caller, classes)
     if not dispatched.is_empty() {
         return dispatched_keys(call.callee, dispatched)

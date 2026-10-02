@@ -296,7 +296,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   error](failure.md#a-default-that-looks-like-an-answer-is-an-error),
   [An `if` that only returns the default is an `assert`](failure.md#an-if-that-only-returns-the-default-is-an-assert),
   [The last `if` of a function](failure.md#the-last-if-of-a-function); `diagnostics/default_answer`,
-  `diagnostics/default_guard`, `diagnostics/returning_guard`, `diagnostics/terminal_if`.
+  `diagnostics/default_guard`, `diagnostics/returning_guard`, `diagnostics/empty_collection_guard`,
+  `diagnostics/terminal_if`.
 
 ### A switch covers every case
 

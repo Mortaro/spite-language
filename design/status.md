@@ -134,9 +134,7 @@ for a design):
 
 Also open, each a bug under D244, found cataloguing the compiler's proofs (proofs.md):
 
-- **The guard lint sees only literal defaults** (D106). An `if` whose only statement returns `null`, `false`, `0`,
-  `0.0`, `""` or nothing is caught; `if ... { return List<T>() }` in a function answering a `List` is not. And a
-  function that lends a list element (D269) is not checked for a guard `assert` at all.
+- **A function that lends a list element (D269) is not checked for a guard `assert`** (D106), as other functions are.
 - **A frame buffer's uses are matched by name.** Placing an allocation in the frame accepts `read_value`,
   `write_value`, `release_value` and `swap_values` on any receiver, not only `TypedMemory`'s, so a program's own
   `write_value` that keeps the address would pass (memory.md, "Placement: the compiler decides where memory lives").

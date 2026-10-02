@@ -30187,6 +30187,9 @@ func returned_default(if_statement: Syntax.Statements.IfStatement, return_type: 
         }
         return null
     }
+    if answers_nothing(return_type) {
+        return empty_collection_text(returned)
+    }
     if shape.is_false_literal(returned) {
         return "false"
     }
@@ -30207,6 +30210,20 @@ func returned_default(if_statement: Syntax.Statements.IfStatement, return_type: 
     var fraction = shape.as_float_literal(returned)
     assert fraction
     assert fraction.value == 0.0
+    return Syntax.SourcePrinter().source_expression(returned)
+}
+
+func empty_collection_text(returned: Syntax.Expressions.Expression): String? {
+    var listed = shape.as_list_literal(returned)
+    if listed {
+        assert listed.elements.is_empty()
+        return "[]"
+    }
+    var made = shape.as_generic_call(returned)
+    assert made and made.arguments.is_empty()
+    crash made.callee
+    var made_name = operand_text(made.callee)
+    assert made_name == "List" or made_name == "Dictionary" or made_name == "Vector" or made_name == "Items"
     return Syntax.SourcePrinter().source_expression(returned)
 }
 
@@ -38366,9 +38383,7 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
     while index < information.fields.count() {
         var field = information.fields[index]
         var field_type = field.type
-        if shares_state(field_type) {
-            return List<String>()
-        }
+        assert not shares_state(field_type)
         index = index + 1
     }
     var targets = List<String>()
@@ -38386,9 +38401,7 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
         var field = information.find_field(target)
         if field and not mutable.contains(target) {
             var field_type = field.type
-            if not is_atomic_capable(field_type) {
-                return List<String>()
-            }
+            assert is_atomic_capable(field_type)
             mutable.append(target)
         }
         index = index + 1
@@ -38398,9 +38411,7 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
         var function = information.declared_functions[index]
         if not function.is_constructor and function.name != "drop" {
             var visiting = List<String>()
-            if function_state_uses(information, function, mutable, visiting) > 1 {
-                return List<String>()
-            }
+            assert function_state_uses(information, function, mutable, visiting) <= 1
         }
         index = index + 1
     }

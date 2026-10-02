@@ -1,0 +1,33 @@
+var console = Console()
+
+func EmptyCollectionGuard() {
+    var names = split_names("a,b")
+    var counts = count_names(names)
+    var shown = shown_names(names)
+    var listed = shown.count()
+    var counted = counts.count()
+    console.print(listed, counted)
+}
+
+func split_names(text: String): List<String> {
+    if text.is_empty() {
+        return List<String>()
+    }
+    return text.split(",")
+}
+
+func count_names(names: List<String>): Dictionary<Integer> {
+    var counts = Dictionary<Integer>()
+    if names.is_empty() {
+        return Dictionary<Integer>()
+    }
+    counts["first"] = names.count()
+    return counts
+}
+
+func shown_names(names: List<String>): List<String> {
+    if names.count() > 9 {
+        return []
+    }
+    return names
+}

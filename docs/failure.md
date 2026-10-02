@@ -701,8 +701,8 @@ zero 20
 ### An `if` that only returns the default is an `assert`
 
 Where a guard `assert` is allowed, it is the only way to write a guard. An `if` with no `else` whose whole body
-returns the function's default (`null` from a function returning a `T?`, or a bare `return` from one returning
-nothing) is a guard spelled the long way. It is a compile error wherever it stands, inside a loop or a nested
+returns the function's default (`null` from a function returning a `T?`, an empty collection made on the spot
+from one returning a collection, or a bare `return` from one returning nothing) is a guard spelled the long way. It is a compile error wherever it stands, inside a loop or a nested
 `if` included, and the message names the `assert` of the opposite condition:
 
 ```gdscript title=default_guard_error/default_guard_error.spite entry error
@@ -1155,7 +1155,8 @@ a lint error.
 
 **An `if` that only returns the default is an `assert`.** In a function returning nothing, a `T?`, or a `List`,
 `Dictionary`, `Vector` or `Items`, an `if` with no `else` whose whole body is one `return` of the function's
-default (`null`, or a bare `return` in a function returning nothing) is a compile error wherever it stands in
+default (`null`; an empty collection, `List<T>()`, `Dictionary<T>()`, `Vector<T>()`, `Items<T>()` or `[]`, in a
+function returning one; or a bare `return` in a function returning nothing) is a compile error wherever it stands in
 the function, inside a `while` or a nested `if` included, and the message names the `assert` of the opposite
 condition:
 
@@ -1176,7 +1177,7 @@ condition is turned around: `==` and `!=` swap, `<` becomes `>=` and `>` becomes
 `x`, anything else becomes `not x`, and `and`/`or` are turned around by De Morgan, side by side, so
 `if count < 0 or count > limit` becomes `assert count >= 0 and count <= limit`. An `else if` is covered too. In a
 constructor, where `assert` is not allowed, the message names `crash` instead. `diagnostics/default_guard`,
-`diagnostics/returning_guard`.
+`diagnostics/returning_guard`, `diagnostics/empty_collection_guard`.
 
 **An `if` that leaves proves the opposite of its condition.** An `if` with no `else` whose block's last statement
 is a `return`, a bare `crash`, or a `switch` whose every case's last statement is one of these proves, for the rest

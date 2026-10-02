@@ -415,7 +415,7 @@ func is_alive(): Boolean {
     answer (`this 'assert' would answer a default Integer (0) that a caller cannot tell from a real one: return a
     value ('if not found { return -1 }'), make the result 'Integer?', or 'crash found' if this is a developer
     mistake`): write the answer (`if handle == -1 { return false }`), make the result a `T?`, or `crash`. Where
-    `assert` is allowed, `if x { return null }` or a bare `if x { return }` is an error naming the `assert` to write
+    `assert` is allowed, `if x { return null }`, `if x { return List<T>() }` (any empty collection made there) or a bare `if x { return }` is an error naming the `assert` to write
     (`write 'assert not x'`), and so is a last `if` with no `else` that only checks a value is there (`write
     'assert maybe_name'`). An `if` with no `else` that ends in `return` proves the opposite of its condition after
     it: `if not found { return -1 }` narrows `found`, `if index >= names.count() { return "" }` proves

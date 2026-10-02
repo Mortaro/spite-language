@@ -46,9 +46,7 @@ func paths_of_row(name: String): List<String> {
         if row_names[index] == name {
             crash row_paths[index]
             var joined_paths = row_paths[index]
-            if joined_paths.is_empty() {
-                return List<String>()
-            }
+            assert not joined_paths.is_empty()
             return joined_paths.split("\n")
         }
         index = index - 1
