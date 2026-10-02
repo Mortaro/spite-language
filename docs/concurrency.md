@@ -1195,7 +1195,7 @@ of it at compile time over the source:
   the `Parallel(...)`; between the two lines it is used only to call its functions and to read or write its
   attributes that hold values (not passed, stored, given another name, or read for an attribute that holds an
   object); and no function of `Maker` uses `this` as a value (naming one of its own functions as the argument
-  of `each`, `map`, `filter`, `any`, `all`, `count`, `find`, `sort_by` or `sum` does not count, since those call it
+  of `each`, `filter`, `any`, `all`, `count`, `find`, `sort_by` or `sum` does not count, since those call it
   and let it go: `stale.each(rebuild)`). `this` itself (`Parallel(own_function)`), a
   parameter, an attribute, or an object made in an enclosing block is never handed over.
 - **The attribute is its own.** Its default is `null` or something made there (a constructor, `List<T>()`, a list

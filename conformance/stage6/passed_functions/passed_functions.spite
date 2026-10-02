@@ -4,9 +4,6 @@ var greeted = 0
 func PassedFunctions() {
     var names = ["Ada", "Grace", "Barbara", "Edsger"]
     names.each(say_hello)
-    var lengths = names.map(measure)
-    var joined_lengths = lengths.join(", ")
-    console.print(joined_lengths)
     var short_names = names.filter(is_short)
     var joined_short = short_names.join(", ")
     console.print(joined_short)
@@ -19,7 +16,7 @@ func PassedFunctions() {
     crash found
     console.print(found)
     names.filter(is_short).each(say_hello)
-    var doubled = names.filter(is_short).map(measure).sum(double_of)
+    var doubled = names.filter(is_short).sum(doubled_length)
     console.print(doubled)
     var people = List<Person>()
     var ada = Person("Ada", 36)
@@ -31,7 +28,7 @@ func PassedFunctions() {
     console.print(short_adults)
     var greeter = Greeter("welcome")
     people.each(greeter.greet)
-    var labels = people.map(greeter.label).filter(is_short)
+    var labels = people.map_shouted_names().filter(is_short)
     var joined_labels = labels.join(", ")
     console.print(joined_labels)
     var team = Dictionary<Person>()
@@ -43,10 +40,10 @@ func PassedFunctions() {
     var sorted = names.sort_by(measure)
     var joined_sorted = sorted.join(", ")
     console.print(joined_sorted)
-    var shout = greeter.shout
-    var shouted = names.map(shout).filter(is_short)
-    var joined_shouted = shouted.join(", ")
-    console.print(joined_shouted)
+    var quiet = greeter.is_quiet
+    var quiet_names = names.filter(quiet)
+    var joined_quiet = quiet_names.join(", ")
+    console.print(joined_quiet)
     console.print(greeted)
 }
 
@@ -71,8 +68,8 @@ func is_long(name: String): Boolean {
     return name.length() > 6
 }
 
-func double_of(value: Integer): Integer {
-    return value * 2
+func doubled_length(name: String): Integer {
+    return name.length() * 2
 }
 
 func introduce(person: Person) {

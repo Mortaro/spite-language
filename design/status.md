@@ -375,7 +375,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   question templates name `is_<word>` as `<word>`; a `Dictionary` takes the member templates over its values.
   Proposed by Claude, unconfirmed: the plural rule is read only on `List`, `Vector`, `Items` and `Dictionary`
   templates (a class's own templates keep the old plural walk until it goes); a question member (`is_`, `has_`,
-  `can_`) is collected by its own name; `filter_is_<word>` stays the same template as `filter_<word>`; `health` was
+  `can_`) is never inflected, and `map_` over one is D369's error; `filter_is_<word>` stays the same template as `filter_<word>`; `health` was
   added to the uncountable words, since metaprogramming.md reads `map_health` as `health`; the error texts.
   Not built: `String.Inflection`, the table a program reopens to add words (the compiler inflects with its own
   copy of `String`, so a program's words would not reach it either).
@@ -581,6 +581,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Proposed by Claude, unconfirmed, removed as bookkeeping but the behaviour stays on the page: how the templates are
   written, chains fused by one generated function, passed-function details (library-class functions bound as
   values), the dictionary key-kind rules, the Vector and Items readings.
+- D369 is built: `map(function)` on a list, an `Items` or a `Vector` is an error naming `map_<member>()` and a
+  read-only attribute; `map_` over a `Boolean` member names `filter_`, `count_`, `any_` and `all_`; a class-qualified
+  function value (`Monster.is_alive`) names an instance's function. The error texts are proposed by Claude,
+  unconfirmed. A `while` collecting what a passed function answers is no longer reported by the loop rule.
 
 ### Member templates over an enum value
 - Whole section decided and NOT built: `filter_<value>`, `count_<value>`, `any_<value>`, `all_<value>` and

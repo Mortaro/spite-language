@@ -347,7 +347,14 @@ func native_fault_text(typedef_text: String, bodies: String): String {
 
 func reached_functions(names: List<String>): List<Boolean> {
     var shaker = reaching_shaker()
-    return names.map(shaker.is_kept_name)
+    var reached = List<Boolean>()
+    var reached_index = 0
+    while reached_index < names.count() {
+        var reached_item = shaker.is_kept_name(names[reached_index])
+        reached.append(reached_item)
+        reached_index = reached_index + 1
+    }
+    return reached
 }
 
 func reaching_shaker(): TreeShaker {

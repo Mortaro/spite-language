@@ -9,10 +9,6 @@ func greet(person: Person) {
     console.print("{greeting}, {person.name}")
 }
 
-func label(person: Person): String {
-    return person.name.upper_case()
-}
-
-func shout(name: String): String {
-    return "{name}!"
+func is_quiet(name: String): Boolean {
+    return name.length() < 4
 }

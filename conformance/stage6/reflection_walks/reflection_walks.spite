@@ -1,11 +1,12 @@
 var console = Console()
+var lines = List<String>()
 
 func ReflectionWalks() {
     Monster.attributes.each(describe)
     var troll = Monster()
     troll.attributes.each(show)
     troll.attributes.each(bump)
-    var lines = troll.attributes.map(line)
+    troll.attributes.each(add_line)
     var joined = lines.join(", ")
     console.print(joined)
     show_name(troll)
@@ -40,8 +41,8 @@ func bump(attribute: Spite.Attribute) {
     }
 }
 
-func line(attribute: Spite.Attribute): String {
-    return "{attribute.pascal_case_name}: {attribute.value}"
+func add_line(attribute: Spite.Attribute) {
+    lines.append("{attribute.pascal_case_name}: {attribute.value}")
 }
 
 func show_attribute(attribute: Spite.Attribute<Monster>, monster: Monster) {

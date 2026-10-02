@@ -14,7 +14,9 @@ func PassedFunctions() {
     names.each(numbers)
     var people = List<Person>()
     people.each_greet()
-    console.print(greetings, measured, counted, sorted)
+    var adults = people.map_is_adult()
+    var kept = people.filter(Person.is_adult)
+    console.print(greetings, measured, counted, sorted, adults, kept)
 }
 
 func say_hello(name: String) {
