@@ -28,15 +28,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `Spite` class's function is never specialised; and `String.Inflection`, the irregulars table a program reopens,
   which the compiler must read from the program's `String` rather than its own copy (`library/string.spite`,
   the inflection lookup near generator.spite's plural errors). **S.** Depends on R5 (specialising `Spite` classes).
-- **R2 `function.accesses` at run time** (D335, D362, D363). Built on constants only. Left: `.accesses` on a
-  run-time `Spite.Function`, reads followed through `this.f()`, and the runner's needs from D362 (no markers; a
-  component's `pinned_to_creating_thread()` found through `functions[...]`). Files: `library/spite/function.spite`,
-  `library/spite/access.spite`, generator.spite's reflected-function tables. **M.** No dependencies.
-- **R3 Union and enum-value member templates** (D295, D330; status "Member templates over an enum value").
-  `filter_<classes>()` on a list of a union is built. Left: `filter_`, `count_`, `any_`, `all_`, `remove_where_`
-  over a named enum's value (`filter_files()` reading the one member typed with the enum, with the ambiguity
-  error), and `count_`/`any_`/`all_`/`remove_where_` by member class on a union list. Files: generator.spite's
-  member template resolution, `library/list.spite`, `vector.spite`, `items.spite`. **M.** Feeds M3 step 2.
 - **R4 Dictionary member templates over values** (D335). Built through the compiler; `library/dictionary.spite`
   declares none of them. Check they go through declared library templates like `List`'s (D240: nothing hidden).
   **S.** No dependencies.
@@ -62,9 +53,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   call when everything is known while compiling; an unfilled argument is a compile error where visible, a halt
   naming it otherwise; an instance not of the declaring class is a compile error (D393). **M.**
   Depends on R8.
-- **R6 Private attributes in a class's own walk** (D278, D319). `.attributes` and a walk over another class must
-  include `_` attributes and allow reading and writing them through the walked attribute; serializers (J1) skip
-  them. Files: generator.spite's attribute walk and reflected attribute tables. **S.** No dependencies.
 - **R7 Remove the old Symbol machinery and plural walks** (D316, D317; proposal section 11). Make each old form an
   error naming its new spelling, migrate, then delete: `Symbol<...>` templates and plural walks, `Symbol<$T.f>`
   argument walks, name patterns and folder ranges, `$T.has_function`, `function_waits`, `argument_count`,
@@ -73,7 +61,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   100 `Symbol<` lines in 75 files (conformance/stage6, diagnostics, benchmarks, `docs/memory.md`, `json.md`,
   `collections.md`, the diagnostic "write 'member: Symbol<$element_type>'") and about 120 name-keyed questions,
   plus the game engine package (17 files, outside this repository). Retires D114, D115, D180's pattern holes, D209,
-  D219, D261, D288. **L.** Depends on R1, R5, R6, J1.
+  D219, D261, D288. **L.** Depends on R1, R5, J1.
 - **R8 Overriding functions of `Spite.Class`** (status "Functions of `Spite.Class`"). The three override rules
   (only what `Spite.Class` declares, a colliding instance function is an error, the override folds), and
   `--final-classes` naming the root of a changed default (with C7). Files: generator.spite class-function
@@ -87,7 +75,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   walk with `Symbol<$value_type>` plurals and `$value_type.has_function("json_key_{attribute.name}")`, a name built
   from text. Rewrite them over `attributes.each(...)` specialised per class (D384), delete the `json_key_` checks in
   generator.spite (around lines 1766 to 1936) and `diagnostics/json_split`'s decision number. **L.** Depends on R5
-  (specialisation), R6.
+  (specialisation).
 - **J2 Rename map keyed by attribute objects** (D320, D329). `JsonWriter<Monster>({Monster.attributes['health']:
   "hp"})`, the reader taking the same map, every serializer the same kind; a constant map folds into literal keys
   and a generated `switch`, a run-time map fills a key table once per serializer. Needs a `Dictionary` keyed by
@@ -118,7 +106,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   union stored as one array per concrete class plus an order array; step 2: `filter_<classes>()` answers from that
   array; step 3: partitions per value filter, only where a production benchmark wins (D322). Files:
   `library/list.spite`, `items.spite`, `vector.spite`, generator.spite list layout, `placement.spite`. **L.**
-  Depends on M1(b), R3, M4.
+  Depends on M1(b), M4.
 - **M4 The optimisation report** (D36, D332, D389; status "Other optimisations"). A build lists what could not be
   optimised and why: every list falling back to references (D332's to-do list), copies not elided, objects not
   placed in the frame, and later every remaining overflow check (N2). Written only when asked, by `--optimization-report` (name unconfirmed), in `--final-classes`' place and style, each entry linking its source line (D389). Files:
@@ -391,13 +379,13 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R2, R3, R6, R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L1, L7, C5, C6, C7,
-   K2, F3, S9, P1, P2, X1, B1 to B16, E3, D1's first pass.
+2. No dependencies: R8, M1, M2, M4, M6, M7, N1, N3, E1, E2, E4, L1, L7, C5, C6, C7, K2, F3, S9, P1, P2, X1, B1
+   to B16, E3, D1's first pass.
 3. After step 2: R5, L2 (L1), K3 (with K2), K1 (K2), C8, N2 (N1), K6 (K2).
 4. After R5: R1, J1, L3, R4, R8, then R9.
 5. After J1: J2, S5. After L3: F1, S6 (with L4). After F1: F2.
-6. After M1, M2 and M6: M5. After M1, R3 and M4: M3.
-7. After R1, R5, R6 and J1: R7, the end of the reflection migration.
+6. After M1, M2 and M6: M5. After M1 and M4: M3.
+7. After R1, R5 and J1: R7, the end of the reflection migration.
 8. S2 and then S1's `wss`; K4, K5, S3, C9, E5, F4 at any point, best after the
    items sharing their files.
 
@@ -412,7 +400,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 
 | Stream | Items, in order | Files it owns |
 |---|---|---|
-| 1 Reflection and serialization | R6, R2, R3, R5, R1, R4, J1, J2, R8, R7 | generator.spite reflection, specialisation and template regions; `specialisation.spite`, `reflected*.spite`, `template_walk.spite`, `namespace_walk.spite`, `old_spellings.spite`; `library/spite/*`, `json_*`, `binary_*`, `dictionary.spite`; stage6 walk programs; docs reflection, metaprogramming, json |
+| 1 Reflection and serialization | R5, R1, R4, J1, J2, R8, R7 | generator.spite reflection, specialisation and template regions; `specialisation.spite`, `reflected*.spite`, `template_walk.spite`, `namespace_walk.spite`, `old_spellings.spite`; `library/spite/*`, `json_*`, `binary_*`, `dictionary.spite`; stage6 walk programs; docs reflection, metaprogramming, json |
 | 2 Types and storage | M2, M1, M7, M4, M3, then M6 and M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
 | 3 Arithmetic | N3, N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E2, E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |

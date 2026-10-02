@@ -462,7 +462,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 - **Proves.** A condition's answer is a fact of the build.
 - **Rule.** An `if` whose condition is a `Build` field, a codegen value (`$is_magic`), a test on a codegen type
-  (`$T == List`, `$T.element_type == Float`), `attribute.class == X` in a walk, a class test the value's type already
+  (`$T == List`, `$T.element_type == Float`), `attribute.class == X` in a walk, `attribute.name.starts_with("_")`
+  or `ends_with` with a literal in a walk, a class test the value's type already
   answers (in a copy of a function made for one class that reaches a `type`, a test on its parameter), one of the questions below, or `not`, `and`, `or`, `==`, `!=` over them. An `and` whose left folds false,
   or an `or` whose left folds true, folds whatever the right side is. A function of a generic class is compiled for
   an instance only when code that survived folding names it.
@@ -471,7 +472,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **See.** [optimizations.md: Deciding conditions at compile
   time](optimizations.md#deciding-conditions-at-compile-time),
   [metaprogramming.md: Asking what a generic was given](metaprogramming.md#asking-what-a-generic-was-given);
-  `conformance/stage6/codegen_member_fold`, `conformance/stage6/walked_class_fold`.
+  `conformance/stage6/codegen_member_fold`, `conformance/stage6/walked_class_fold`, `conformance/stage6/private_walk`.
 
 ### Whether a function waits
 

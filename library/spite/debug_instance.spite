@@ -25,7 +25,9 @@ func text(value: $value_type): String {
 }
 
 func debug_attribute(attribute: Symbol<$value_type>, value: $value_type, parts: List<String>) {
-    var attribute_debug = Debug<attribute.class>()
-    var attribute_text = attribute_debug.text(value.attributes[attribute])
-    parts.append("{attribute.name}: {attribute_text}")
+    if not attribute.name.starts_with("_") {
+        var attribute_debug = Debug<attribute.class>()
+        var attribute_text = attribute_debug.text(value.attributes[attribute])
+        parts.append("{attribute.name}: {attribute_text}")
+    }
 }

@@ -1,0 +1,3 @@
+diagnostics/enum_value_templates/enum_value_templates.spite:5: error: 'filter_draft' could read 'stage' or 'review', whose enums both list 'draft': write the comparison as a Boolean member of Post, or pass a function (in EnumValueTemplates.EnumValueTemplates)
+diagnostics/enum_value_templates/enum_value_templates.spite:6: error: 'count_published' could read the member 'published' of 'Post' or compare 'stage' with 'published', a value of its enum: rename the member 'published' (in EnumValueTemplates.EnumValueTemplates)
+diagnostics/enum_value_templates/enum_value_templates.spite:7: error: 'Post' has no attribute or zero argument function 'deleted' for 'any_deleted', and no enum of its members lists 'deleted' (in EnumValueTemplates.EnumValueTemplates)

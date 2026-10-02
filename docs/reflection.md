@@ -428,6 +428,14 @@ written: 2
 2
 ```
 
+A function known only at run time answers the same dictionary: one kept in a list and read later, a function value
+like `movement.remember`, or one read from `value.class.functions` through `Anything`. The program carries a table
+of what each function reads and writes only when some code asks `.accesses` of such a function, and builds each
+dictionary the first time it is asked. The table covers the functions of the program and the packages it loads;
+a function of the standard library, a function value taken through a `type` (which has no single function behind
+it) and any function in a `--hot-reload` build, where reloading would make the table stale, are not in it, and
+asking their `.accesses` at run time halts.
+
 ### `Spite.Memory`
 
 `value.memory` is where a named value lives: `.address: Long`, `.bytes: Long` and `.section` (`'heap'`,
@@ -860,7 +868,11 @@ on the spot is "only a named value has memory of its own: give this value a name
   `call()` halts naming it. An instance of another class is "'rock' is a 'Rock', and 'hurt' is declared by
   'Monster': a call runs a declaration on an instance of its own class".
 - **A walk over another class's attributes sees its private ones**, since a walk that skips some silently builds an
-  incomplete copy, column or layout. Naming `_x` outside its class stays the private error.
+  incomplete copy, column or layout: `.attributes` lists them in declaration order with the rest, and
+  `value.attributes[attribute]` and a bound attribute's `.value` read and write them. Naming `_x` outside its class
+  stays the private error. A serializer and `to_debug()` leave them out by testing `attribute.name`, which folds.
+- **A number's, a `Boolean`'s and a `String`'s `.attributes` is empty**: the compiler stores those values itself,
+  so the fields their library classes declare to say so are not attributes a walk could read or write.
 - **A `List<T>`'s or `Dictionary<T>`'s attributes are its entries** (named by index or by key), not the fields of the
   class that stores them, so a class object's `.attributes` is empty for a collection.
 
@@ -919,7 +931,10 @@ on the spot is "only a named value has memory of its own: give this value a name
   something calls it with a run-time object or uses it as a value.
 - **A run-time object** (a value typed `Anything` or a union, a reflection object kept in an attribute, anything
   typed at the REPL) is answered from the run-time tables, built only for the classes such a read can reach, and for
-  every class in a `--repl`, `--repl-port` or `--development` build. Its `attribute.value` is `Anything?`, a number
+  every class in a `--repl`, `--repl-port` or `--development` build. A run-time function's `.accesses` comes from
+  a table of every function the program makes an object for, emitted only when some code reads `.accesses` at run
+  time. A standard library function, a function value taken through a `type` and every function of a `--hot-reload`
+  build are not in it, and asking them halts. Its `attribute.value` is `Anything?`, a number
   held with its class's tag and text boxed. Handing one to a function whose result is typed by its reflection parameter is the error shown
   [above](#known-only-at-run-time); naming a type through a reflection object that is not a constant is "'<path>'
   is not a class known while compiling, so it cannot be a type here"; and using a specialisation's parameter as a

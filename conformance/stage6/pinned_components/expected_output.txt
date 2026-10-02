@@ -1,0 +1,3 @@
+update_each writes 1
+  position runs on any thread
+  sprite runs on the thread that made it

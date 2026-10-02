@@ -1,0 +1,3 @@
+func update_each(position: Position, sprite: Sprite) {
+    position.left = position.left + sprite.frame
+}

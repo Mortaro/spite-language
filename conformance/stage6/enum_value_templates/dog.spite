@@ -1,0 +1,8 @@
+var barks = 0
+
+func get_mood(): Mood {
+    if barks > 2 {
+        return 'angry'
+    }
+    return 'calm'
+}
