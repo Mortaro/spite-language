@@ -1397,14 +1397,14 @@ for attempt in $(seq 1 100); do
 done
 $listening || break_fail "the program never listened on $break_port"
 break_expect 'break ticker.spite:3' '{"ok":false,"error":"the program keeps the code it runs: error: no statement starts on '"'"'ticker.spite:3'"'"': a breakpoint stops before a statement, so name the line a statement starts on"}'
-break_expect 'break ticker.spite:16' '{"ok":true,"value":"the program stops before ticker.spite:16: rebuilt Ticker","type":""}'
+break_expect 'break ticker.spite:17' '{"ok":true,"value":"the program stops before ticker.spite:17: rebuilt Ticker","type":""}'
 where=""
 for attempt in $(seq 1 100); do   # the loop meets the breakpoint at its next tick
   where=$(break_ask where)
-  case "$where" in *'ticker.spite:16"'*) break ;; esac
+  case "$where" in *'ticker.spite:17"'*) break ;; esac
   sleep 0.1
 done
-case "$where" in *'ticker.spite:16"'*) ;; *) break_fail "the loop never stopped at the breakpoint: $where" ;; esac
+case "$where" in *'ticker.spite:17"'*) ;; *) break_fail "the loop never stopped at the breakpoint: $where" ;; esac
 break_expect 'doubled' '{"ok":true,"value":"2","type":"Integer"}'
 break_expect 'amount' '{"ok":true,"value":"1","type":"Integer"}'
 held=$(break_ask 'locals')
