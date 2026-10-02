@@ -95,6 +95,10 @@ for a design):
   waits until it is watching, so it no longer asks for `HotReload` after the teardown, but a file change landing
   during the teardown would still run `compile_changes()` on the destroyed `HotReload`.
 - Signed arithmetic wraps in production builds and unsigned arithmetic wraps in every build (D249).
+- A REPL `exit` answered at the same wait as the command before it ends the program before its loop sees that
+  command: on Linux, concurrency.md's `frame_loop` session (`program.running = false`, then `exit`) lost its
+  `stopped` line in 3 of 5 runs, so `check.sh` fails its wire replay intermittently. The program's last output is
+  dropped without a word; `exit` should let the program reach its next wait first.
 - A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` never ends
   (concurrency.md, "Choosing where Concurrents resume").
 - A `Vector`'s and an `Items`' `remove_at` (and `Items.remove_swapping`) do nothing out of range, where a `List`'s now
