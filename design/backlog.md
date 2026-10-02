@@ -61,7 +61,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   100 `Symbol<` lines in 75 files (conformance/stage6, diagnostics, benchmarks, `docs/memory.md`, `json.md`,
   `collections.md`, the diagnostic "write 'member: Symbol<$element_type>'") and about 120 name-keyed questions,
   plus the game engine package (17 files, outside this repository). Retires D114, D115, D180's pattern holes, D209,
-  D219, D229's spelling (Q9), D261, D288. **L.** Depends on R1, R5, R6, J1.
+  D219, D261, D288. **L.** Depends on R1, R5, R6, J1.
 - **R8 Overriding functions of `Spite.Class`** (status "Functions of `Spite.Class`"). The three override rules
   (only what `Spite.Class` declares, a colliding instance function is an error, the override folds), and
   `--final-classes` naming the root of a changed default (with C7). Files: generator.spite class-function
@@ -418,8 +418,6 @@ unconfirmed).
   (b) collect into a `List<Anything>` with `each`, then `call_with(list)`, which travels as a shape and costs a
   dispatch; (c) a read-only attribute on `Spite.Argument` collected with `map_<members>()`, which only works when
   the value depends on the argument alone. Recommendation: (a), the only one that is free at run time.
-- **Q9 Is D229's `function_runs_in_pieces` retired?** (`mortaros_missing_decisions.md` item 259) D335 and D362 give the runner `function.accesses`, from
-  which "runs in pieces" follows. Recommendation: retire it with a row, the runner deciding from accesses.
 - **Q10 Where the optimisation report goes** (`mortaros_missing_decisions.md` item 260) (D36, D332). Recommendation: always written beside the build in
   `.spite/build/<program>/`, one line per refusal with its source line, no flag to ask for it.
 - **Q12 What "measured for each program" means for `--optimized`** (`mortaros_missing_decisions.md` item 262) (D356). There is no workload to time in an
