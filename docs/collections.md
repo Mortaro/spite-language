@@ -28,8 +28,8 @@ var empty = List<String>()
 | `append(value)` / `prepend(value)` | | adds to the end / to the front (index 0) |
 | `insert(index, value)` | | an index out of range is clamped to the nearest end |
 | `list[index]` | `T?` | may not be there, so it is narrowed ([failure.md](failure.md#reading-with--answers-t)) |
-| `list[index] = value` | | the explicit form is `set_at(index, value)`; an index out of range halts, naming the line |
-| `get_at(index)` | `T?` | what `list[index]` calls, so it answers the same `T?`, `null` out of range |
+| `list[index] = value` | | calls `set_at(index, value)`; an index out of range halts, naming the line |
+| `get_at(index)` | `T?` | what `list[index]` calls, `null` out of range; it is only called through `[]` ([Use the operator](functions_and_operators.md#use-the-operator-not-its-function)) |
 | `remove_at(index)` | | an index out of range halts |
 | `remove_swapping(index)` | | moves the last element into `index` instead of moving every later one down ; an index out of range halts |
 | `remove_where(test)` / `remove_where_<member>()` | | removes every element the test is true for, in one pass, keeping the rest in order ([below](#removing-many-at-once)) |
@@ -62,7 +62,7 @@ given text keys is keyed by text, and one given whole numbers is keyed by number
 |---|---|---|
 | `Dictionary<T>()` | | an empty one, with no table until the first key |
 | `set(key, value)` / `dictionary[key] = value` | | replaces the value of a key already there |
-| `get(key)` / `dictionary[key]` | `T?` | `null` when the key is absent |
+| `dictionary[key]` | `T?` | `null` when the key is absent; it calls `get(key)`, which is only called through `[]` |
 | `has(key)` | `Boolean` | |
 | `remove(key)` | | nothing happens when the key is absent |
 | `count()` | `Integer` | |
@@ -74,9 +74,9 @@ var console = Console()
 
 func DictionaryTasks() {
     var inventory = Dictionary<Integer>()
-    inventory.set("sword", 1)
-    inventory.set("potion", 4)
-    inventory.set("potion", 6)
+    inventory["sword"] = 1
+    inventory["potion"] = 4
+    inventory["potion"] = 6
     var inventory_count = inventory.count()
     console.print("count", inventory_count)
     var has_shield = inventory.has("shield")
@@ -119,7 +119,7 @@ var names = Dictionary<String>()
 func NumberKeysTasks() {
     names[3] = "fern"
     names[11] = "moss"
-    names.set(7, "reed")
+    names[7] = "reed"
     names.remove(11)
     crash names[7]
     console.print("seven", names[7])
@@ -193,8 +193,8 @@ templates run on the items in place the same way, and a chain of them is one loo
 | Member | Result | Notes |
 |---|---|---|
 | `append(value)` | | copies `value`'s attributes in as a new last item |
-| `vector[index]` / `get_at(index)` | `T?` | the item itself, borrowed once narrowed; `null` out of range |
-| `vector[index] = value` / `set_at(index, value)` | | copies `value` over the item; out of range halts |
+| `vector[index]` (calls `get_at(index)`) | `T?` | the item itself, borrowed once narrowed; `null` out of range |
+| `vector[index] = value` (calls `set_at(index, value)`) | | copies `value` over the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
 | `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` is a `List`'s only |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
@@ -300,8 +300,8 @@ of moving every later one down, which is what a sparse set wants.
 | Member | Result | Notes |
 |---|---|---|
 | `append(value)` | | inline: copies `value`'s attributes in; references: keeps `value` |
-| `items[index]` / `get_at(index)` | `T?` | inline: the item, borrowed once narrowed; references: the reference; `null` out of range, either way |
-| `items[index] = value` / `set_at(index, value)` | | replaces the item; out of range halts |
+| `items[index]` (calls `get_at(index)`) | `T?` | inline: the item, borrowed once narrowed; references: the reference; `null` out of range, either way |
+| `items[index] = value` (calls `set_at(index, value)`) | | replaces the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
 | `remove_swapping(index)` | | moves the last item into `index`; nothing happens out of range |
 | `remove_where_<member>()` / `truncate(count)` / `swap(first, second)` | | as on a list ([below](#removing-many-at-once)); `remove_where(f)` is a `List`'s only |

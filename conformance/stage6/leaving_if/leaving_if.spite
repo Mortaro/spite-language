@@ -4,7 +4,7 @@ var prices = Dictionary<Integer>()
 var handle = -1
 
 func LeavingIf() {
-    prices.set("apple", 3)
+    prices["apple"] = 3
     var found = length_of("abc")
     var missing = length_of("")
     var second = name_at(1)

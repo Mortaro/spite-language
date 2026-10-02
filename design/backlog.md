@@ -13,9 +13,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 ## Landing from branches (do not build again)
 
 - **Landed:** `cloud/linux` (one seed per system, the Linux check, D376) on 2026-10-02.
-- **Being merged:** `cloud/operators` (D315 and D365: an operator's function called by name is an error naming the
-  shortcut, a word after `.` is always a member name, `Dictionary.set` is `d[key] = value`, a kept `[]` read is
-  narrowed). D369 item 220 (S7 below) renames the dictionary's `[]` functions after it lands.
+- **Landed:** `cloud/operators` (D315 and D365, recorded as D396) on 2026-10-02.
 - **Waiting:** `cloud/nomap` (no `List.map(function)`, no `map_` over a test, no class-qualified function value;
   its row needs the next free number) and `wip/fastbuild` (the default and `--hot-reload` builds at `-O0`, units
   split in default builds; its row needs the next free number, and it changes C4 and C5).
@@ -317,7 +315,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   L3, L4.
 - **S7 `Dictionary`'s `[]` is `get_at`/`set_at`** (D369 item 220). Rename `get`/`set` in
   `library/dictionary.spite` and the compiler's lowering of `d[key]`, and the operator errors from
-  `cloud/operators`. **S.** Depends on landing `cloud/operators`.
+  `cloud/operators` (D396). **S.** No dependencies.
 - **S8 `bytes.to_utf8_text(): String?`** (D370 item 237). `null` for invalid UTF-8. Files: `library/list.spite` or
   `string.spite`. **S.** No dependencies.
 - **S9 Collection leftovers** (status "Standard library metaprogramming", "Deep copy"). `sort_by_`, `find_by_` and

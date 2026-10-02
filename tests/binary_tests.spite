@@ -184,7 +184,7 @@ func test_a_bad_enum_index_reads_nothing() {
     var ship = Ship()
     var writer = BinaryWriter(ship)
     var bytes = writer.write()
-    bytes.set_at(13, 7)
+    bytes[13] = 7
     var reader = BinaryReader<Ship>(bytes)
     var read = reader.read()
     crash not read
@@ -219,8 +219,8 @@ func full_ship(): Ship {
     ship.crew.append(ada)
     var bo = Sailor("Bo")
     ship.crew.append(bo)
-    ship.cargo.set("rope", 3)
-    ship.cargo.set("tea", 40)
+    ship.cargo["rope"] = 3
+    ship.cargo["tea"] = 40
     ship.captain = Sailor("Cy")
     ship.launched = 1902
     ship.logbook.append(["calm"])

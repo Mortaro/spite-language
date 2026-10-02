@@ -19,7 +19,7 @@ var asked_functions = List<String>()
 func add_edge(caller: String, callee: String) {
     var key = "{caller} {callee}"
     if not edge_keys.has(key) {
-        edge_keys.set(key, true)
+        edge_keys[key] = true
         edge_callers.append(caller)
         edge_callees.append(callee)
     }
@@ -44,7 +44,7 @@ func settle(call_callers: List<String>, call_callees: List<String>, seeds: List<
     while index < seeds.count() {
         var seed = seeds[index]
         if not waits.has(seed) {
-            waits.set(seed, true)
+            waits[seed] = true
             pending.append(seed)
         }
         index = index + 1
@@ -63,7 +63,7 @@ func wake_callers(callers: List<String>?, pending: List<String>) {
     while index < callers.count() {
         var caller = callers[index]
         if not waits.has(caller) {
-            waits.set(caller, true)
+            waits[caller] = true
             pending.append(caller)
         }
         index = index + 1
@@ -102,7 +102,7 @@ func answer(name: String, text: String, path: String, line: Integer, owner: Stri
         return answers[name] == true
     }
     var answered = waits.has(name)
-    answers.set(name, answered)
+    answers[name] = answered
     asked_names.append(name)
     asked_texts.append(text)
     asked_paths.append(path)

@@ -355,20 +355,42 @@ way and a reader never wonders whether `get_x()` and `.x` differ:
 | `point.get_x()` | `point.x` |
 | `point.set_x(4)` | `point.x = 4` |
 | `shelf.get_at(0)` / `shelf.set_at(0, book)` | `shelf[0]` / `shelf[0] = book` |
-| `names.get("ann")` on a `Dictionary` | `names["ann"]` |
+| `names.get("ann")` / `names.set("ann", 3)` on a `Dictionary` | `names["ann"]` / `names["ann"] = 3` |
 | `a.sum(b)`, `a.subtract(b)`, `a.multiply(b)`, `a.divide(b)`, `a.remainder(b)` | `a + b`, `a - b`, `a * b`, `a / b`, `a % b` |
 | `a.equals(b)` / `not a.equals(b)` | `a == b` / `a != b` |
 | `a.less_than(b)` / `a.greater_than(b)` | `a < b` / `a > b` |
 | `a.negate()` | `-a` |
 
-```gdscript
-var total = wallet.sum(found)
-# error: 'sum' is what '+' calls: write 'wallet + found'
+```gdscript title=operator_by_name/money.spite
+var cents = 0
+
+func Money(starting_cents: Integer) {
+    cents = starting_cents
+}
+
+func sum(other: Money): Money {
+    return Money(cents + other.cents)
+}
+```
+```gdscript title=operator_by_name/operator_by_name.spite entry error
+var console = Console()
+
+func OperatorByName() {
+    var wallet = Money(150)
+    var found = Money(50)
+    var total = wallet.sum(found)
+    console.print(total.cents)
+}
+```
+```diagnostic
+'sum' is what '+' calls: write 'wallet + found'
 ```
 
 **The one exception is the function used as a value**, where no operator can stand in: `run_callback(point.get_x)`
 hands over the function itself, so it is written by name. Declaring the function stays as it is: `func
-get_x()`, `func sum(other)`, `func get_at(index)` are how a class offers the operator.
+get_x()`, `func sum(other)`, `func get_at(index)` are how a class offers the operator. **After a `.`, a word is
+always a member name**, never a keyword, so a getter named after a keyword is read like any other: `get_type()` is
+read as `thing.type`.
 
 ## One name, one function
 
@@ -552,7 +574,7 @@ This is the language's first **variadic** generic. `List<T>` and the rest take a
 - Because `Spite.Function` is an ordinary standard library class, `call_function` can be reopened ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading))
   to trace or count every callback in a program. That is the foot, and it is yours to shoot.
 
-The indirection is paid only where it was already accepted. An ordinary call, `person.set_age(2)`, is a
+The indirection is paid only where it was already accepted. An ordinary call, `person.grow(2)`, is a
 direct call and never builds a `Spite.Function`; only a function used *as a value* goes through
 `call_function()`. A function passed *by name* to a list's
 `each`, `map`, `filter` and the rest is not a value either: the element loop is instantiated for it and calls it
@@ -665,13 +687,16 @@ For `Integer`/`Float`/`Boolean`/enum/`String`/`List<T>`/`Dictionary<T>` these ar
 the same C as before this table existed).
 
 **A direct call of an operator's function is an error naming the operator**: `a.sum(b)` is "write 'a + b'", and the same for every row of the table above, for `get_<name>()`
-and `set_<name>(value)` (write `.name` and `.name = value`), and for a `Dictionary`'s `get(key)` (write
-`[key]`). It holds for every class (built-in, library or the program's own) wherever the operator could be
+and `set_<name>(value)` (write `.name` and `.name = value`), and for a `Dictionary`'s `get(key)` and
+`set(key, value)` (write `[key]` and `[key] = value`). It holds for every class (built-in, library or the program's own) wherever the operator could be
 written instead. The only exception is the function used as a value (`run_callback(point.get_x)`,
 [Functions are values](#functions-are-values)), since no operator can be passed. A call with no receiver inside the class's own functions (`get_x()`) is not covered, since a bare `x` there is
 the raw field and no shortcut reaches the getter; nor is `get_attribute(attribute)`/`set_attribute`, which
 Symbol codegen offers per attribute rather than as one operator. This also settles `get_x()` against `.x`: there
-is one spelling.
+is one spelling. A union receiver is covered when every member offers the operator. After a `.` a word is always
+a member name and never a keyword, so a getter or setter named after a keyword is covered like any other
+(`thing.type`, `thing.type = value`). An `equals` that `==` would not call (an `equals` whose parameter is not a
+class, where `==` compares identity) is called by name.
 
 For a user class or union, `a + b` compiles to `a.sum(b)` when the class defines (an exact function, or Symbol
 codegen answers) `sum`; a union duck-types the same way a method call already does (every member must define

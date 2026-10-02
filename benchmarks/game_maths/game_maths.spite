@@ -46,7 +46,7 @@ func matrix_pass(): Float {
 func transform_pass(): Float {
     var model = Matrix4()
     var place = Vector3(1.0, 2.0, 3.0)
-    model.set_translation(place)
+    model.translation = place
     var point = Vector3(0.5, 0.5, 0.5)
     var total = 0.0
     var step = 0

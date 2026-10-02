@@ -251,7 +251,7 @@ func pinned_into_version(
     }
     crash pins[key]
     var version = pins[key]
-    var assigned = version_commits.get(checkout)
+    var assigned = version_commits[checkout]
     if assigned and assigned != version {
         crash version_sites[checkout]
         problem = "'load \"{text}\"' reads {display} at {commit} as part of its package's version from {version.slice(0, 7)}, and {version_sites[checkout]} reads that commit as part of the version from {assigned.slice(0, 7)}: a commit's files are read once, into one version, so pin it the same way in both packages"

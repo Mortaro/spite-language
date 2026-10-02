@@ -454,7 +454,7 @@ func is_alive(): Boolean {
   `func show_attribute(attribute: Spite.AttributeDeclaration<Label>, label: Label)` answers `show_text(label)` and
   `show_copies(label)`, reading the member as `label.attributes[attribute]` (a member that is a function taking
   nothing is called). `func set_attribute(attribute: Spite.AttributeDeclaration<Person>, value: attribute.class) {
-  attributes[attribute] = value }` makes `person.set_age(2)` and `person.set_name("x")` work. An exact function
+  attributes[attribute] = value }` makes `person.age = 2` and `person.name = "x"` work. An exact function
   always wins. A parameter that is not a word of its name makes an ordinary function a walk calls.
 - A call built before it runs: `var call = Spite.Call(MoveSystem.functions['run_each'], system)` (a declaration and
   an instance of its class, the only way to build one), `call.arguments['position'] = value`, `call.call()`; known

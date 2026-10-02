@@ -41,9 +41,9 @@ func MemberTemplates() {
     }
     var by_name = Dictionary<Repository>()
     var named_engine = Repository("engine", 10, true)
-    by_name.set("engine", named_engine)
+    by_name["engine"] = named_engine
     var idle = Repository("idle", 4, false)
-    by_name.set("idle", idle)
+    by_name["idle"] = idle
     var stars_by_name = by_name.sum_stars()
     var active_names = by_name.filter_active().map_names().join(",")
     var any_active_by_name = by_name.any_active()

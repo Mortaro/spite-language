@@ -37,9 +37,9 @@ func run() {
     var index = 0
     while index < studied.parameters.count() {
         var parameter = studied.parameters[index]
-        roots.set(parameter.name, "|{index}|")
+        roots[parameter.name] = "|{index}|"
         if parameter.spite_type {
-            types.set(parameter.name, parameter.spite_type)
+            types[parameter.name] = parameter.spite_type
         }
         index = index + 1
     }
@@ -116,7 +116,7 @@ func declare(declaration: Syntax.Statements.VariableDeclaration) {
     var value = declaration.value
     visit(value)
     var value_roots = roots_of(value)
-    roots.set(declaration.name, value_roots)
+    roots[declaration.name] = value_roots
     var value_type = type_of(value)
     if declaration.type_reference {
         var written_type = declared_type(declaration.type_reference)
@@ -125,7 +125,7 @@ func declare(declaration: Syntax.Statements.VariableDeclaration) {
         }
     }
     if value_type {
-        types.set(declaration.name, value_type)
+        types[declaration.name] = value_type
     } else {
         types.remove(declaration.name)
     }
@@ -153,10 +153,10 @@ func assign(assignment: Syntax.Statements.AssignmentStatement) {
     if named {
         if roots.has(named.name) {
             var renamed_roots = roots_of(value)
-            roots.set(named.name, renamed_roots)
+            roots[named.name] = renamed_roots
             var renamed_type = type_of(value)
             if renamed_type {
-                types.set(named.name, renamed_type)
+                types[named.name] = renamed_type
             }
             return
         }
@@ -260,7 +260,7 @@ func narrow_case(switched: Syntax.Statements.SwitchStatement, switch_case: Synta
     assert subject and switch_case.type_reference
     var narrowed = declared_type(switch_case.type_reference)
     assert narrowed
-    types.set(subject.name, narrowed)
+    types[subject.name] = narrowed
 }
 
 func join(other: Dictionary<String>) {
@@ -271,9 +271,9 @@ func join(other: Dictionary<String>) {
         crash other[name]
         if roots[name] {
             var both = united(roots[name], other[name])
-            roots.set(name, both)
+            roots[name] = both
         } else {
-            roots.set(name, other[name])
+            roots[name] = other[name]
         }
         index = index + 1
     }

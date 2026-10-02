@@ -1283,6 +1283,7 @@ func parse_postfix_rest(expression: Syntax.Expressions.Expression): Syntax.Expre
         advance()
         var name = expect('identifier', "a member name after '.'")
         var member = Syntax.Expressions.MemberExpression(expression, name.text)
+        member.written = true
         return parse_postfix_rest(member)
     }
     if check('left_paren') {

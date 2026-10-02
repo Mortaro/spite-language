@@ -1,0 +1,23 @@
+var _height = 0
+
+func get_height(): Integer {
+    return _height
+}
+
+func set_height(value: Integer) {
+    _height = value
+}
+
+func equals(other: Point): Boolean {
+    return _height == other.height
+}
+
+func negate(): Point {
+    var flipped = Point()
+    flipped.height = -_height
+    return flipped
+}
+
+func get_type(): String {
+    return "point"
+}

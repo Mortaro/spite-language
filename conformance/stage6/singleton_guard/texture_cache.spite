@@ -4,7 +4,7 @@ var sizes = Dictionary<Integer>()
 var loads = 0
 
 func remember(name: String, size: Integer) {
-    sizes.set(name, size)
+    sizes[name] = size
     loads = loads + 1
 }
 

@@ -54,5 +54,6 @@ func store_argument(argument: Symbol<$system_type.phase_each>, rows: List<Intege
     var column = Column<argument.class>()
     var copied = Copied<argument.class>()
     crash rows[argument.index]
-    column.values.set_at(rows[argument.index], copied.current)
+    var row = rows[argument.index]
+    column.values[row] = copied.current
 }

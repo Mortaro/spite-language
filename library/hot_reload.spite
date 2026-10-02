@@ -89,7 +89,6 @@ func compile_for_request() {
 
 func compile_changes(): Long {
     compiling.lock()
-    swap_in_pending()
     ready.write_long_atomically(8, 1)
     var seen = files_seen()
     var arguments = build_arguments().split("\n")
@@ -118,23 +117,6 @@ func compile_changes(): Long {
     compiling.unlock()
     scheduler.signal()
     return stamp
-}
-
-func swap_in_pending() {
-    while library_pending() {
-        if scheduler.current_thread() == scheduler.scheduler_thread {
-            install_ready()
-        } else {
-            program.sleep(10)
-        }
-    }
-}
-
-func library_pending(): Boolean {
-    handing.lock()
-    var pending = ready.read_long_atomically(0) == 1 and not ready_library.is_empty()
-    handing.unlock()
-    return pending
 }
 
 func publish_library(output: String) {

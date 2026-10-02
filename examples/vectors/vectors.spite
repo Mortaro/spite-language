@@ -18,7 +18,7 @@ func Vectors() {
     crash scaled[0] and scaled[1]
     console.print("scaled", scaled[0], scaled[1])
     first_vector[0] = 10.0
-    first_vector.set_at(1, 20.0)
+    first_vector[1] = 20.0
     crash first_vector[0] and first_vector[1]
     console.print("mutated", first_vector[0], first_vector[1])
     var length_squared = second_vector.length_squared()

@@ -3,7 +3,7 @@ var console = Console()
 func NumberKeys() {
     var ages = Dictionary<String>()
     ages[7] = "seven"
-    ages.set(3, "three")
+    ages[3] = "three"
     ages[42] = "forty-two"
     ages[7] = "SEVEN"
     crash ages[7]
@@ -11,7 +11,7 @@ func NumberKeys() {
     var has_three = ages.has(3)
     var has_four = ages.has(4)
     console.print(ages_count, ages[7], has_three, has_four, ages[4] == "")
-    var found = ages.get(42)
+    var found = ages[42]
     if found {
         console.print("42 is", found)
     }

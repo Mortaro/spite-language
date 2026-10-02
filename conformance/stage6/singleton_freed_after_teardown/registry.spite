@@ -7,5 +7,5 @@ type Named {
 var holders = Dictionary<Named>()
 
 func keep(key: String, held: Named) {
-    holders.set(key, held)
+    holders[key] = held
 }

@@ -12,5 +12,5 @@ func header(name: String): String? {
 
 func set_header(name: String, value: String) {
     var lowered = name.lower_case()
-    headers.set(lowered, value)
+    headers[lowered] = value
 }

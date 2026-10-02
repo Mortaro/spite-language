@@ -5,9 +5,8 @@ func place(slot: Integer, label: String) {
 }
 
 func named(slot: Integer): String {
-    var label = labels.get(slot)
-    if label {
-        return label
+    if labels[slot] {
+        return labels[slot]
     }
     return "empty"
 }

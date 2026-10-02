@@ -13,7 +13,7 @@ func storage(): Storage<$component_type> {
         return found
     }
     var made = Storage<$component_type>()
-    registry.storages.set(key, made)
+    registry.storages[key] = made
     return made
 }
 

@@ -9,7 +9,7 @@ var values = Items<$component_type>()
 func insert(entity: Integer, value: $component_type) {
     var dense = dense_index(entity)
     if dense >= 0 {
-        values.set_at(dense, value)
+        values[dense] = value
         return
     }
     while dense_of.count() <= entity {

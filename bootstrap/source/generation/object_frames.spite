@@ -7,9 +7,9 @@ func frames_class(generator: Generator, information: Analysis.ClassInfo): Boolea
     if frame_answers.has(information.c_name) {
         return frame_answers[information.c_name] == true
     }
-    frame_answers.set(information.c_name, false)
+    frame_answers[information.c_name] = false
     var answer = holds_only_numbers(generator, information)
-    frame_answers.set(information.c_name, answer)
+    frame_answers[information.c_name] = answer
     return answer
 }
 
@@ -38,7 +38,7 @@ func holds_only_numbers(generator: Generator, information: Analysis.ClassInfo): 
 func fields_hold_nothing_counted(generator: Generator, information: Analysis.ClassInfo): Boolean {
     var index = 0
     while index < information.fields.count() {
-        var field_type = information.fields[index].get_type()
+        var field_type = information.fields[index].type
         if not holds_nothing_counted(generator, field_type) {
             return false
         }
@@ -75,9 +75,9 @@ func lends(
     if lend_answers.has(key) {
         return lend_answers[key] == true
     }
-    lend_answers.set(key, false)
+    lend_answers[key] = false
     var answer = keeps_nothing(generator, owner, function, position)
-    lend_answers.set(key, answer)
+    lend_answers[key] = answer
     return answer
 }
 
@@ -104,7 +104,7 @@ func keeps_nothing(
         return false
     }
     var parameter = function.parameters[position]
-    var parameter_type = parameter.get_type()
+    var parameter_type = parameter.type
     var listed = type_shape.as_list(parameter_type)
     if listed {
         if listed.is_variadic {
@@ -126,10 +126,10 @@ func fresh_result(
         assert not fresh_answers[key].is_empty()
         return generator.find_class_by_c_name(fresh_answers[key])
     }
-    fresh_answers.set(key, "")
+    fresh_answers[key] = ""
     var found = returns_only_fresh(generator, owner, function)
     if found {
-        fresh_answers.set(key, found.c_name)
+        fresh_answers[key] = found.c_name
     }
     return found
 }

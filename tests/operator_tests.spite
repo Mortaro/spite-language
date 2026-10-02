@@ -1,7 +1,6 @@
 func test_plus_and_minus_go_through_the_named_functions() {
     var first = Money(150)
     var second = Money(50)
-    crash first.sum(second).cents == 200
     crash (first + second).cents == 200
     crash (first - second).cents == 100
 }

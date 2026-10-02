@@ -23,9 +23,9 @@ func UnionMemberTemplates() {
     console.print("folders:", directory_count, inner.name)
     var tasks = Dictionary<Task>()
     var sweep = Task("sweep", true)
-    tasks.set("sweep", sweep)
+    tasks["sweep"] = sweep
     var cook = Task("cook", false)
-    tasks.set("cook", cook)
+    tasks["cook"] = cook
     var done_count = tasks.count_done()
     var finished = tasks.filter_is_done()
     var finished_count = finished.count()

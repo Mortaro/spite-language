@@ -69,7 +69,7 @@ func parse(cursor: JsonCursor): $value_type {
             }
             cursor.expect(":")
             var entry = entry_json.parse(cursor)
-            dictionary.set(key, entry)
+            dictionary[key] = entry
             more = cursor.consume(",")
             if not more {
                 cursor.expect("}")

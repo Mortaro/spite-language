@@ -8,9 +8,8 @@ func open(handle: Long, title: String) {
 }
 
 func handle_message(window: Long, message: UnsignedInteger, parameter: Long): Long {
-    var title = titles.get(window)
-    if title {
-        console.print("{title} got message {message} with {parameter}")
+    if titles[window] {
+        console.print("{titles[window]} got message {message} with {parameter}")
         return parameter * 2
     }
     return 0

@@ -428,8 +428,8 @@ var console = Console()
 
 func JsonValues() {
     var scores = Dictionary<Integer>()
-    scores.set("ada", 3)
-    scores.set("bo", 5)
+    scores["ada"] = 3
+    scores["bo"] = 5
     var writer = JsonWriter(scores)
     var text = writer.write()
     console.print(text)

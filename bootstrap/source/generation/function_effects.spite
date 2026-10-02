@@ -22,7 +22,7 @@ func add(added: String): Boolean {
     if key_set.has(added) {
         return false
     }
-    key_set.set(added, true)
+    key_set[added] = true
     keys.append(added)
     fresh_keys.append(added)
     return true

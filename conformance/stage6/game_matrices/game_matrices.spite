@@ -13,12 +13,12 @@ func basics() {
     console.print("identity {identity}")
     var moved = Matrix4()
     var offset = Vector3(1.0, 2.0, 3.0)
-    moved.set_translation(offset)
+    moved.translation = offset
     var point = Vector3(1.0, 1.0, 1.0)
     console.print("translated point {moved.transform_point(point)} direction {moved.transform_direction(point)}")
     var grown = Matrix4()
     var factor = Vector3(2.0, 3.0, 4.0)
-    grown.set_scale(factor)
+    grown.scale = factor
     var both = moved * grown
     console.print("translation after scale {both.transform_point(point)} determinant {both.determinant()}")
     console.print("transposed {moved.transposed()}")
@@ -31,7 +31,7 @@ func basics() {
     }
     var flat = Matrix4()
     var squashed = Vector3(1.0, 0.0, 1.0)
-    flat.set_scale(squashed)
+    flat.scale = squashed
     var flattened_inverse = flat.inverse()
     if flattened_inverse {
         console.print("a flattening matrix has an inverse")
@@ -58,7 +58,7 @@ func transforms() {
     console.print("decomposed {translation} {near_vector(scale)} {near_quaternion(rotation)}")
     var mirror = Matrix4()
     var flipped = Vector3(-1.0, 1.0, 1.0)
-    mirror.set_scale(flipped)
+    mirror.scale = flipped
     var mirrored = mirror.scale_part()
     console.print("a mirrored scale {mirrored}")
     var normals = model.normal_matrix()
@@ -149,7 +149,7 @@ func third_order() {
     var quarter = Float.pi * 0.5
     turn.set_axis_angle(axis, quarter)
     var rotation = Matrix3()
-    rotation.set_rotation(turn)
+    rotation.rotation = turn
     var along = Vector3(1.0, 0.0, 0.0)
     var turned = rotation.transform(along)
     var turned_determinant = rotation.determinant()

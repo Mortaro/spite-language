@@ -64,7 +64,7 @@ func copy(): Dictionary<$value_type> {
         crash entry_values[index]
         var key = entry_keys[index]
         var value = entry_values[index]
-        copied.set(key, value)
+        copied[key] = value
         index = index + 1
     }
     return copied

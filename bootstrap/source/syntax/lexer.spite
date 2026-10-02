@@ -199,6 +199,9 @@ func scan_identifier(): Boolean {
     }
     var lexeme = source.slice(start_index, index)
     var kind = keyword_kind(lexeme)
+    if not tokens.is_empty() and last_kind() == 'dot' {
+        kind = 'identifier'
+    }
     push_token(kind, lexeme, lexeme, token_line, token_column)
     return false
 }

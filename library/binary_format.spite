@@ -206,7 +206,7 @@ func read_dictionary(input: BinaryInput): $value_type {
     while index < count and not input.failed {
         var key = key_format.read(input)
         var item = entry.read(input)
-        dictionary.set(key, item)
+        dictionary[key] = item
         index = index + 1
     }
     return dictionary

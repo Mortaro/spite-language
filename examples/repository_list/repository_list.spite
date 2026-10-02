@@ -10,8 +10,8 @@ func RepositoryList() {
     repositories.append(compiler)
     crash repositories[0]
     var first = repositories[0]
-    first.set_stars(15)
-    var first_stars = first.get_stars()
+    first.stars = 15
+    var first_stars = first.stars
     console.print("first stars", first_stars)
     var sum_stars = repositories.filter_active().sum_stars()
     console.print("active stars", sum_stars)

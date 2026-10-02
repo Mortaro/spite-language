@@ -239,16 +239,16 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Use the operator, not its function
 
-- Not built (decided): the compiler does not refuse the direct call of an operator's function yet (`a.sum(b)`,
-  `point.get_x()`, `point.set_x(4)`, `shelf.get_at(0)`, a `Dictionary`'s `get(key)`, and the rest of the table); it
-  accepts both spellings. The error wording shown (`'sum' is what '+' calls: write 'wallet + found'`) is planned
-  wording, not final.
+- Built (D315, D365). Unconfirmed (proposed by Claude, not decided by Mortaro): the error wording; a union receiver
+  covered only when every member offers the operator; an `equals` that `==` would not call exempt; only calls
+  written in the source are checked (a call the compiler writes for a member template is not).
+- Unconfirmed (proposed by Claude, not decided by Mortaro), built as described in failure.md: the narrowed read
+  local of D365 is any `var` whose value is a path reading through a `[]` anywhere (`grid[row].cells[column]` too),
+  not only a `Dictionary` key. A `.` makes the next word a member name in the lexer, so it holds everywhere a word
+  follows a `.` (namespaces, type paths, codegen paths), not only after a value.
 
 ### Operators
 
-- Not built (decided): the direct-call error above. Until it exists `String`, `List<T>` and `Dictionary<T>` also
-  accept the explicit call form (`list.get_at(0)` next to `list[0]`), and calling a getter or setter by name
-  (`person.get_full_name()`) is accepted.
 - Open question: whether a `Dictionary`'s `[]` should also be spelled `get_at` (`mortaros_missing_decisions.md`).
 - Unconfirmed (proposed by Claude, not decided by Mortaro), built as described on the page: the `get_at` and `set_at`
   details, the read half of getter interception mirroring the setter half, a setter answering a write with no
