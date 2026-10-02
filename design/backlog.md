@@ -96,6 +96,10 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `Spite.Attribute` (hashing an attribute object). The REPL's `reload {...}` text parsing (D333) moves to the real
   map once the prompt evaluates map literals (P1). Errors for a missing, private or singleton attribute.
   Files: `library/dictionary.spite`, `library/spite/attribute.spite`, the J1 files. **M.** Depends on J1.
+- **J3 Reading JSON whose shape is not known.** A program that inspects an unknown file (a tool, an importer) has
+  no value to read it into: `JsonReader<T>` needs a class. Add an untyped value, a union of object, list, text,
+  number, boolean and null (names proposed by Claude, unconfirmed), read by `JsonReader` and walked with `switch`.
+  Files: `library/json_reader.spite`, a new value class, docs json.md. **M.** No dependencies.
 
 ### Types, monomorphisation and storage (D321, D331, D332, D355, D367, D368, D370)
 
@@ -303,6 +307,12 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   each tested against real servers. **L** (the unified API plus three bindings; the largest library item).
 - **S10 TLS written in Spite** (D395, later). Replaces S2's platform bindings behind the same API, so no program
   changes; lands only after an outside security review. **L.** Depends on S2.
+- **S11 `File.rename` and moving a file or folder.** There is no way to rename or move one without a foreign call.
+  One function on `File` and `Directory` (name proposed by Claude, unconfirmed), on every system. Files:
+  `library/file.spite`, `directory.spite` and their system folders, docs standard_library.md. **S.** No dependencies.
+- **S12 `List.index_of(item): Integer?`.** `find_by_<member>` answers the item, never its place; add the index form
+  (and its member template, `find_index_by_<member>`; names proposed by Claude, unconfirmed). Files:
+  `library/list.spite`, `vector.spite`, `items.spite`, docs collections.md. **S.** No dependencies.
 - **S3 HTTP leftovers** (status "HTTP"). Request bodies sent chunked to the server; the server reading one request
   at a time so a slow client holds the others; the client's resend of a `POST` over a new connection. Files:
   `library/http_server.spite`, `http_client.spite`. **M.** Benefits from K5.
@@ -368,6 +378,14 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **B15** A `Concurrent` polled for `finished` under `resume_only_when_asked()` without `run_ready()` hangs. **S.**
 - **B16** `call_function()` on a function with parameters silently does nothing (testing.md). **S.**
 - **B17** Reference cycles leak silently without `--debug-memory` (largely answered by E3). Depends on E3.
+- **B18** A compile can write back old text over an edit made while it runs: every compile formats the program's
+  files (D385), and one that read a file before someone else's edit wrote its formatted copy over that edit. Write a
+  file only when it is unchanged since it was read, and otherwise report the file as changed (a D244 lost write).
+  Files: the formatter's write in `bootstrap.spite`. **S.**
+- **B19** Whether a walked row's ignored `_x` parameter counts as read depends on the shapes of the other
+  parameters. It must not. Files: the walked-row reads in generator.spite. **S.**
+- **B20** The generated C contains a bare `spite_temp_N;` statement with no effect, which clang reports under
+  `-Wunused-value`. Stop emitting it. Files: generator.spite temporaries. **S.**
 
 ### Skills and docs
 
