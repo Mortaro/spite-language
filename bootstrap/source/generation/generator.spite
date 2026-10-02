@@ -25098,10 +25098,18 @@ func lent_argument_name(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): String {
-    if lent_name_free(parameter_name, mentioned, names, scope, class_information) {
-        return parameter_name
+    var local_name = parameter_name
+    while local_name.starts_with("_") {
+        var local_length = local_name.length()
+        local_name = local_name.slice(1, local_length)
     }
-    return "{parameter_name}_argument"
+    if local_name.is_empty() {
+        local_name = "ignored"
+    }
+    if lent_name_free(local_name, mentioned, names, scope, class_information) {
+        return local_name
+    }
+    return "{local_name}_argument"
 }
 
 func lent_name_free(

@@ -1516,7 +1516,9 @@ compile time that it is never kept past its use. The rules:
     `Stream<$system_type, $row_type>` fill the one argument of its row type this way
     (`conformance/stage6/streamed_rows`).
   Any other body is the template's ordinary call; a call none of whose arguments borrows is left as
-  it was. **The call may not resize what it borrows from**: a call whose call effects may append to or remove
+  it was. A parameter the function ignores, named `_position`, is filled and passed like the others, and a
+  local written for it drops the underscore, since the call reads it
+  (`conformance/stage6/ignored_lent_argument`). **The call may not resize what it borrows from**: a call whose call effects may append to or remove
   from a borrowed argument's collection is `'Position' fits a Vector, so the items of 'Column<Position>().values'
   are borrowed: 'position' is borrowed from 'Column<Position>().values' for the one call
   'system.phase_each(made_arguments(found))' stands for, and 'system.update_each()' on line 20 may move the items
