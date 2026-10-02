@@ -1,0 +1,73 @@
+var console = Console()
+var program = Program()
+
+func Formatting() {
+    load "../../bootstrap/source"
+    var arguments = Arguments()
+    var files = List<String>()
+    var index = 0
+    while index < arguments.count() {
+        var named = arguments.get(index)
+        collect_spite_files(named, files)
+        index = index + 1
+    }
+    var unformatted = false
+    var file_index = 0
+    while file_index < files.count() {
+        if not is_formatted(files[file_index]) {
+            unformatted = true
+        }
+        file_index = file_index + 1
+    }
+    if unformatted {
+        program.exit(1)
+    }
+}
+
+func collect_spite_files(named: String, files: List<String>) {
+    var path = named
+    while path.ends_with("/") {
+        var path_length = path.length()
+        path = path.slice(0, path_length - 1)
+    }
+    var folder = Directory(path)
+    if not folder.exists() {
+        files.append(path)
+        return
+    }
+    var names = folder.entries().filter_files().map_names()
+    var index = 0
+    while index < names.count() {
+        if names[index].ends_with(".spite") {
+            files.append("{path}/{names[index]}")
+        }
+        index = index + 1
+    }
+    var folders = folder.entries().filter_directories().map_names()
+    var folder_index = 0
+    while folder_index < folders.count() {
+        if folders[folder_index] != ".spite" and folders[folder_index] != ".spite-cache" {
+            collect_spite_files("{path}/{folders[folder_index]}", files)
+        }
+        folder_index = folder_index + 1
+    }
+}
+
+func is_formatted(path: String): Boolean {
+    var content = File(path).read()
+    if not content {
+        console.print("{path}: could not be read")
+        return false
+    }
+    var formatter = Syntax.Formatter()
+    var formatted = formatter.format(content)
+    if not formatted {
+        console.print("{path}: the formatter refuses it: {formatter.refusal}")
+        return false
+    }
+    if formatted == content {
+        return true
+    }
+    console.print(path)
+    return false
+}

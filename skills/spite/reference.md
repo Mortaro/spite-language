@@ -18,10 +18,9 @@ spite program                           build .spite/build/program/program.exe a
 spite program --optimized               optimized build (a Build field)
 spite program --debug-memory            print the allocation balance at the end
 spite program --repl-port=4000          serve the REPL; spite connect 4000 --command="..." asks it
-spite program --check                   only compile: the errors, if any (writes nothing, keeps an old executable)
+spite program --check                   format and compile: the errors, if any (builds nothing, keeps an old executable)
 spite program --build                   build .spite/build/program/program.exe without running it
 spite program --player-name=ada         a setting the program's Environment declares (kebab-case, no '--')
-spite format game                       format files without compiling them (every compile formats first anyway)
 bash check.sh                           the compiler still compiles itself, and every corpus passes
 ```
 

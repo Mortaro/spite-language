@@ -229,9 +229,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Compiler driver and outputs (D327, D348, D349, D356, D390, D361, D366, D369 items 134 and 138, D385)
 
-- **C2 `spite format` goes; every compile formats first** (D385, reversing D369 item 138). Remove the `format`
-  subcommand from `bin/spite` (lines 79 to 88) and the compiler's `format` mode; no `--format` flag. `--check`
-  formats and validates without building (C1). **S.** No dependencies (C1 is built).
 - **C5 `--optimized` stays `-O3`** (D390, superseding D356). Already `-O3` (`bootstrap.spite` lines 902 to 925);
   nothing to measure. Only check the docs say so. **S.** No dependencies (`wip/fastbuild` has landed).
 - **C6 The object cache cleans itself** (D327). LRU eviction of `.spite/objects` past a size cap. Files:
@@ -385,7 +382,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Skills and docs
 
-- **D1 `skills/spite/` kept current.** `reference.md` still teaches `spite format`, `Weak<T>`,
+- **D1 `skills/spite/` kept current.** `reference.md` still teaches `Weak<T>`,
   `Symbol<...>` walks, `$T.has_function(...)`, `function_waits(...)`, `names.map(measure)`, enum reopening that
   appends, and `get_at` beside `[]`. Each item above updates it in the same commit; a first pass now fixes what is
   already decided and built (D315 once landed, `map_members`, `filter_files`, `to_<type>()`). **S** now, then part

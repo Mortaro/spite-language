@@ -483,7 +483,7 @@ echo "operating systems: the compiler, a time zone program, a file watching prog
 # Every compile formats first (D190) and the formatter deletes an empty line inside a function (D196), so compiling
 # diagnostics/blank_line above fixed its copy: the copy changed, and is now in the one style.
 if cmp -s "$work/unformatted/diagnostics/blank_line/blank_line.spite" diagnostics/blank_line/blank_line.spite \
-   || [ -n "$("$work/generation_two.exe" format --check "$work/unformatted/diagnostics/blank_line" 2>&1)" ]; then
+   || [ -n "$("$work/generation_two.exe" "$work/unformatted/diagnostics/blank_line" --check 2>&1)" ]; then
   echo "FAILED: compiling diagnostics/blank_line should have deleted the empty line inside its function"; exit 1
 fi
 echo "format: compiling deletes an empty line inside a function"
@@ -1406,15 +1406,24 @@ echo "breakpoints: a breakpoint compiled into a running loop stopped it with its
 }
 
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
-# already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would
-# change and fails; a docs/ program that must fail may be wrong on purpose, formatting included.
+# already in the one style, so formatting it changes nothing. There is no command that only formats, and a compile
+# formats a program's own files but never library/, so scripts/formatting runs the compiler's formatter over files
+# and lists every one that would change; a docs/ program that must fail may be wrong on purpose, formatting
+# included. It loads the compiler's sources, whose comments link to ../docs from the entry file's folder, so it is
+# built from a copy in which docs/ sits there.
 job_formatting() {
+formatting_tool="$work/formatting_tool"
+mkdir -p "$formatting_tool/scripts" "$formatting_tool/bootstrap"
+cp -r scripts/formatting "$formatting_tool/scripts/" && cp -r docs "$formatting_tool/scripts/docs" && cp -r bootstrap/source "$formatting_tool/bootstrap/" || {
+  echo "FAILED: could not copy scripts/formatting"; exit 1; }
+"$work/generation_two.exe" "$formatting_tool/scripts/formatting" --build --executable-path="$work/formatting.exe" > /dev/null || {
+  echo "FAILED: scripts/formatting does not build"; exit 1; }
 formatted_folders=(bootstrap launcher library tests conformance examples scripts benchmarks)
 for folder in .spite/docs/*/; do
   [ -f "$folder/must_fail.txt" ] || formatted_folders+=("$folder")
 done
-unformatted=$("$work/generation_two.exe" format --check "${formatted_folders[@]}" 2>&1 | tr -d '\r')
-if [ -n "$unformatted" ]; then echo "FAILED: not formatted (run: bin/spite format <path>):"; echo "$unformatted"; exit 1; fi
+unformatted=$("$work/formatting.exe" "${formatted_folders[@]}" 2>&1 | tr -d '\r')
+if [ -n "$unformatted" ]; then echo "FAILED: not formatted (compile the program, or for library/, the program that loads it):"; echo "$unformatted"; exit 1; fi
 echo "formatting: every file is in the one style"
 }
 

@@ -1067,7 +1067,7 @@ func hardcode_build(build: Syntax.SourceFile): List<String> {
         if variable {
             if variable.name == "format" {
                 has_error = true
-                error_message = "{variable.source_path}:{variable.line}: error: 'Build.format' cannot be declared: every compile formats the program's own files first, and nothing turns that off. To format files without compiling them: spite format file_or_folder"
+                error_message = "{variable.source_path}:{variable.line}: error: 'Build.format' cannot be declared: every compile formats the program's own files first, and nothing turns that off: '--check' formats and checks a program without building it"
                 return declared
             }
             if overrides_platform(variable) {
@@ -1311,7 +1311,7 @@ func check_supplied_settings(build_names: List<String>, environment_names: List<
         var name = supplied_names[index]
         if name == "format" {
             has_error = true
-            error_message = "error: '--format' is not a compiler option: every compile formats the program's own files first, and nothing turns that off. To format files without compiling them: spite format file_or_folder"
+            error_message = "error: '--format' is not a compiler option: every compile formats the program's own files first, and nothing turns that off: '--check' formats and checks a program without building it"
         } else if not build_names.contains(name) and not environment_names.contains(name) {
             has_error = true
             error_message = removed_flag_error(name)

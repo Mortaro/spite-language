@@ -626,7 +626,7 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
     later (a cache a plugin writes beside its source at run time) is not the commit's and is left alone; the
     compiler reads only `.spite` files. Other files are compared by size and modification time rather than read,
     so a package's assets cost a directory listing per compile, not a read.
-  - **A copy is read-only in the compile too**: its files are never formatted ([compiler.md](compiler.md#formatting-before-compiling-and-spite-format)),
+  - **A copy is read-only in the compile too**: its files are never formatted ([compiler.md](compiler.md#formatting-before-compiling)),
     its root is not held to snake_case (the folder is named by the commit; a folder after the commit is), and a
     `--hot-reload` build does not watch it ([repl.md](repl.md#live-reload---hot-reload)).
   - **Pins inside a fetched package**: a relative repository path in a file of a copy is resolved from the

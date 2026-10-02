@@ -7,8 +7,8 @@ a rule off. What cannot be rewritten safely, such as a name or a structure, is a
 ## What the formatter rewrites
 
 Every compile formats the program's own files, printing `formatted <path>` for each one it changed, and then reads
-the program again, so what it compiles is the formatted file. Nothing turns this off; `spite format` runs it alone
-on files, without compiling them ([compiler.md](compiler.md#formatting)):
+the program again, so what it compiles is the formatted file. Nothing turns this off, and there is no command
+that only formats: `--check` formats and checks without building ([compiler.md](compiler.md#formatting)):
 
 - 4 spaces per level, never a tab; no trailing whitespace; one line break at the end of the file.
 - K&R braces: `func name() {`, `} else {`, `} else if other {`. An empty body is `{ }`.
@@ -430,7 +430,7 @@ What counts as a read, and the exceptions:
 
 The compiler is the linter and the formatter. Style is arbitrary and there is only one way: the compiler rewrites
 source files to the one style automatically instead of complaining. Formatting on
-every compile and `spite format` are documented in [Command line](compiler.md#command-line); the naming/abbreviation
+every compile is documented in [Command line](compiler.md#command-line); the naming/abbreviation
 lints that cannot be auto-fixed are their own subsection below.
 
 #### One call per line, and nothing said twice
@@ -497,8 +497,8 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   end of the file.
 - A `<...>` list holding a single named codegen value is rewritten to the positional form
   ([Codegen values (`$`)](metaprogramming.md#codegen-values-)), so there is one way to write each call.
-- The formatter is `spite format [--check] <file-or-folder> ...`, a command of the compiler that needs a file
-  to parse, not to compile. It does: 4-space indentation, one space around binary
+- The formatter is the compiler, and it runs on every compile; there is no command that only formats. It needs
+  a file to parse, not to compile. It does: 4-space indentation, one space around binary
   operators, the minimum parentheses (a receiver that is an operation always keeps them), `else if` on one line,
   a switch case with one short statement on its own line, a call or a signature wider than 120 columns broken
   one argument per line with trailing commas, floats as written, `: Nothing` dropped from a shape function,
@@ -508,7 +508,7 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   printed. **Every compile formats** the entry folder's files and every `load`-ed root once the whole program is
   read (not `library/`), printing `formatted <path>` for each file it rewrote and reading the program again when one
   was; nothing turns it off (the errors for trying are in
-  [compiler.md](compiler.md#formatting-before-compiling-and-spite-format)). `crash false` prints as a bare `crash`.
+  [compiler.md](compiler.md#formatting-before-compiling)). `crash false` prints as a bare `crash`.
   A file whose function body has an empty line has it deleted, and a run of empty lines outside functions becomes
   one, so compiling fixes it. A file the formatter refuses is left alone with its reason, as an error that stops
   the compile, so a program is never compiled from text that is not in the one style.

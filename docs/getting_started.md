@@ -104,8 +104,8 @@ the compiler as plain loops where they are used, so they cost exactly what the l
 ## What the compiler will do to your file
 
 Every compile formats the program's own files first, and may rewrite them: the compiler is the formatter, there
-is one style, and nothing turns it off ([style.md](style.md)). `spite format` formats files without compiling
-them ([compiler.md](compiler.md#formatting)). The compiler will also refuse things other languages accept: an
+is one style, and nothing turns it off ([style.md](style.md)). `spite game --check` formats and checks the program
+without building it ([compiler.md](compiler.md#formatting)). The compiler will also refuse things other languages accept: an
 abbreviated name, a variable nobody reads, a blank line inside a function, a call passed straight into another
 call, an object constructed and thrown away. Each comes with an error that says exactly what to write instead. There
 are no warnings: read the error and do what it says; there is no flag to silence it.
