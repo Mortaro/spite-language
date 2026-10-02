@@ -1079,7 +1079,7 @@ The caller's function is passed as a bound function value, owned by whoever it i
   enum (attributes and functions taking no arguments, non-nullable) and at the values each enum lists. Exactly
   one such member whose enum lists `<name>` makes the template read `element.<member> == '<name>'`, and nothing
   else changes: same result type, same fusion, same order, same cost as a `Boolean` member, one comparison of two
-  small integers. A reopened enum's added values count ([packages.md](packages.md#reopening-an-enum-adds-values)).
+  small integers. A reopened enum's values are the reopening's list ([packages.md](packages.md#reopening-an-enum-replaces-it)).
 - **A union element** is read through a member every class of the union answers, with the same enum type; a
   member only some of them answer is not a candidate.
 - **Errors, never a guess.** No member and no enum value: the usual error, which then also says no enum of

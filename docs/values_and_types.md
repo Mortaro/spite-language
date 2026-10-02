@@ -624,8 +624,8 @@ dessert false
 
 It is all decided while compiling: the walk becomes three calls, and no list of an enum's values exists at run
 time ([rules](#enums-in-full)). An enum is also open to the program that loads it: reopening its
-class declares the enum again with more values ([packages.md](packages.md#reopening-an-enum-adds-values)), and a
-walk then includes them.
+class declares the enum again with the whole new list of values
+([packages.md](packages.md#reopening-an-enum-replaces-it)), and a walk then walks that list.
 
 ## Unions
 
@@ -1196,12 +1196,13 @@ That is all an enum is; the integer it compiles to is a representation detail.
 
 **An enum can be reopened, and walked.**
 
-- **Reopening adds values.** A file that reopens a class ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading)) and declares one of its enums again adds
-  the values it lists to that enum instead of replacing it. They come after the values already merged, in merge
-  order (the program's own folder, then each loaded folder in load order), and a value the enum already has
-  stays where it was, so a reopening may restate the whole enum (as `--final-classes` output does) without
-  changing it. Nothing removes a value. `conformance/stage6/enum_reopening` reopens one from a loaded folder and
-  from the program's own folder.
+- **Reopening replaces the enum.** A file that reopens a class ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading)) and declares one of its enums again
+  replaces it whole, as a later function replaces an earlier one: the later declaration, in merge order (the
+  program's own folder, then each loaded folder in load order), is the enum's whole list of values, in its
+  order. Nothing is appended or merged, so adding a value means restating the list with it; a value only an
+  earlier declaration listed is no value of the enum, and naming it is an error. A hot reload replaces it the
+  same way. `conformance/stage6/enum_reopening` replaces one from two loaded folders, and
+  `diagnostics/enum_reopening_replaces` names a value the replacement left out.
 - **`Course.values` lists the values** of an enum in its order, an ordinary list of `Course`
   ([Walking a program's structure](metaprogramming.md#walking-a-programs-structure)): `each` over it is unrolled into one
   call per value, `Course.values[1]` is `'soup'`, and `find_by_name` finds one by its name.

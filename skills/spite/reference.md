@@ -38,8 +38,8 @@ target system's folder of it, then `game/`, whose every sub folder is a
 namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
 folder's own class). `load "folder"` inside a function loads another package (the path is relative to the file,
 or absolute: `load "D:/Projects/engine/core"`); a file at the same namespace path
-reopens the class: same-named functions and attributes replace, the rest are added, and an enum declared again
-gains the values it lists. `Build` is the exception: a field the program's own `build.spite` declares keeps the
+reopens the class: same-named functions, attributes and enums replace (an enum declared again is its whole new
+list of values), the rest are added. `Build` is the exception: a field the program's own `build.spite` declares keeps the
 program's value over a loaded package's (a flag, then the program, then the package). A package opens the files
 beside its own source through `class.source_folder()` (or `$item_type.source_folder()`), the absolute folder of
 the class's file on the machine that built it, never through a path relative to where the program runs.
@@ -335,7 +335,7 @@ func is_alive(): Boolean {
   ```
 
 - An enum's values are single quoted and resolve from where they are used. A reopening file that declares the
-  enum again adds the values it lists that it did not have. `course: Symbol<Course>` walks the values in order:
+  enum again replaces it: its list is all the values the enum has, so adding one means restating the rest. `course: Symbol<Course>` walks the values in order:
   `course.name` is the text, `course.value` the value, and `list_courses()` calls `list_course` once per value.
   A name pattern's hole (`phase: Symbol<$system_type.phase_all>`) matches only the values of the enum named for
   it, `Phase`.
