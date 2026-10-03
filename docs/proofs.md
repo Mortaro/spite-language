@@ -86,6 +86,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A wider operand is written first](#a-wider-operand-is-written-first) | refuses a silent cut | write the wider side first |
 | [A dictionary's key kind](#a-dictionarys-key-kind-is-decided-while-compiling) | numbers hashed as numbers | text keys; mixing is an error |
 | [Maths on constants](#maths-on-constants-is-worked-out-while-compiling) | no call | the call |
+| [A dictionary only read by literal keys](#a-dictionary-only-read-by-literal-keys-is-never-made) | no dictionary, no hashing | the dictionary |
 | [Conditions decided while compiling](#conditions-decided-while-compiling) | the branch not taken is absent | a run-time test |
 | [Whether a function waits](#whether-a-function-waits) | engines branch while compiling | `true` where unsure |
 | [How many arguments a function takes](#how-many-arguments-a-function-takes) | one branch per arity | none |
@@ -195,8 +196,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   (`clear`, `remove_at`, `remove_first`, `remove_last`, `remove`, `remove_swapping`, `remove_where...`, `truncate`,
   `swap`). A proof that reads through one of them is undone. A class is known by its full name, resolved where it is
   written, so a program's `Stock.Items` and the library's `Items<T>` never share effects. The receiver's class comes
-  from declared types, the class a constructor makes, the class a called function returns, a `[]` read's element
-  class and an attribute's declared class; `List`, `Dictionary` and `String` reach only their own functions. Growing
+  from declared types, the class a constructor makes, the class a called function returns (a local made by a call,
+  `var here = loop()`, has that class too), a `[]` read's element class and an attribute's declared class; `List`, `Dictionary` and `String` reach only their own functions. Growing
   a list keeps an index proof. A `return`'s own calls undo nothing. Locals and parameters are never changed by a
   call.
 - **Buys.** No re-check after a call that provably cannot change the value.
@@ -462,6 +463,19 @@ A short guide by task. Find what you are writing; the entries below say the rest
   to the C compiler.
 - **See.** [optimizations.md: Maths on constants is worked out while
   compiling](optimizations.md#maths-on-constants-is-worked-out-while-compiling); `conformance/stage6/maths_folding`.
+
+### A dictionary only read by literal keys is never made
+
+- **Proves.** A local made from a dictionary literal is only ever read with a key written out, so every read's
+  answer is known while compiling.
+- **Rule.** The literal's keys and values are literals of one kind each, the local has no declared type, and every
+  later mention of its name in its block is `name[literal]` that is not assigned to.
+- **Buys.** The dictionary is never made: each read is the value written for its key, or `null` for a key the
+  literal lacks, still typed `T?`, so a `crash` or an `if` narrows it as before.
+- **Falls back.** Any other mention (a variable key, a write, passing it, `count()`, a loop over it), a dictionary held
+  in an attribute, and a `--hot-reload` or inspectable build keep the dictionary as written.
+- **See.** [optimizations.md](optimizations.md#a-dictionary-written-out-and-only-read-by-literal-keys-is-folded);
+  `conformance/stage6/dictionary_folding`.
 
 ## Compile-time questions
 

@@ -345,6 +345,7 @@ var temporary_counter = 0
 var literal_counter = 0
 var constant_texts = Dictionary<String>()
 var borrow_statements = List<Syntax.Statements.Statement>()
+var folded_dictionaries = Dictionary<Syntax.Expressions.ObjectLiteralExpression>()
 var borrow_index = 0
 var borrowed_names = List<String>()
 var items_sources = Dictionary<String>()
@@ -21147,6 +21148,10 @@ func generate_index_read(
 ): ExpressionResult {
     crash index_expression.object
     crash index_expression.index
+    var folded_entry = folded_dictionary_read(index_expression, scope, class_information)
+    if folded_entry {
+        return narrowed_reflection_read(folded_entry, index_expression, scope)
+    }
     var reflected_read = reflected_field_read(index_expression, scope, class_information)
     if reflected_read {
         return generate_expression(reflected_read, scope, class_information)
@@ -24910,6 +24915,8 @@ func generate_variable_declaration(
     scope.forget_room(declaration.name)
     assert declaration.value
     assert not constant_local(declaration, scope, class_information)
+    assert not folds_dictionary_local(declaration, scope, class_information)
+    folded_dictionaries.remove(declaration.name)
     if pending_allocator {
         generate_allocated_declaration(declaration, pending_allocator, scope, class_information)
         return
@@ -39466,6 +39473,7 @@ func lets_go_with_effect(held_type: Analysis.SpiteType): Boolean {
 
 func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
     site_ordinal = 0
+    folded_dictionaries = Dictionary<Syntax.Expressions.ObjectLiteralExpression>()
     frame_candidates.clear()
     placed_names.clear()
     placed_frames.clear()
@@ -48570,6 +48578,185 @@ func statement_reassigns(statement: Syntax.Statements.Statement, name: String): 
         Syntax.Statements.WhileStatement: return reassigned_in(statement.body, name)
         _: return false
     }
+}
+
+# ../../../docs/optimizations.md#a-dictionary-written-out-and-only-read-by-literal-keys-is-folded
+func folds_dictionary_local(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash declaration.value
+    var literal = shape.as_object_literal(declaration.value)
+    if not literal or declaration.type_reference or hot_reload or keeps_internals {
+        return false
+    }
+    if not literal.is_dictionary or literal.fields.is_empty() or not entries_are_literals(literal) {
+        return false
+    }
+    var following = borrow_index + 1
+    var printer = Syntax.SourcePrinter()
+    while following < borrow_statements.count() {
+        var later = printer.source_statement(borrow_statements[following], 0)
+        if not only_read_by_literal_keys(later, declaration.name) {
+            return false
+        }
+        following = following + 1
+    }
+    var first = literal.fields.first()
+    crash first
+    crash first.value
+    var probe_counter = temporary_counter
+    var probe = generate_expression(first.value, scope, class_information)
+    rewind_temporaries(probe_counter)
+    var key_type = string_type()
+    if not first.name.starts_with("\"") {
+        key_type = integer_type()
+    }
+    var folded_type: Analysis.SpiteType = Analysis.Types.DictionaryType(probe.type, key_type, "")
+    scope.declare(declaration.name, folded_type)
+    scope.mark_used(declaration.name)
+    folded_dictionaries[declaration.name] = literal
+    return true
+}
+
+func entries_are_literals(literal: Syntax.Expressions.ObjectLiteralExpression): Boolean {
+    var first_kind = ""
+    var index = 0
+    while index < literal.fields.count() {
+        var entry = literal.fields[index]
+        crash entry.value
+        var kind = literal_kind(entry.value)
+        if kind.is_empty() {
+            return false
+        }
+        if index == 0 {
+            first_kind = kind
+        }
+        if kind != first_kind {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func literal_kind(value: Syntax.Expressions.Expression): String {
+    var text = shape.as_string_literal(value)
+    if text {
+        if text.value.contains("\{") {
+            return ""
+        }
+        return "text"
+    }
+    if shape.as_integer_literal(value) {
+        return "integer"
+    }
+    if shape.as_float_literal(value) {
+        return "decimal"
+    }
+    if shape.is_true_literal(value) or shape.is_false_literal(value) {
+        return "boolean"
+    }
+    return ""
+}
+
+func only_read_by_literal_keys(text: String, name: String): Boolean {
+    var name_length = name.length()
+    var text_length = text.length()
+    var at = text.index_of(name)
+    while at >= 0 {
+        var after = at + name_length
+        var stands_alone = name_boundary_before(text, at) and name_boundary_after(text, after)
+        if stands_alone and not read_by_literal_key(text, after) {
+            return false
+        }
+        var rest = text.slice(after, text_length)
+        var next = rest.index_of(name)
+        if next < 0 {
+            at = -1
+        } else {
+            at = after + next
+        }
+    }
+    return true
+}
+
+func name_boundary_before(text: String, at: Integer): Boolean {
+    if at == 0 {
+        return true
+    }
+    var code = text.code_at(at - 1)
+    return not is_name_code(code) and code != 46
+}
+
+func name_boundary_after(text: String, at: Integer): Boolean {
+    if at >= text.length() {
+        return true
+    }
+    var code = text.code_at(at)
+    return not is_name_code(code)
+}
+
+func is_name_code(code: Integer): Boolean {
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
+
+func read_by_literal_key(text: String, at: Integer): Boolean {
+    var text_length = text.length()
+    if at >= text_length or text.code_at(at) != 91 {
+        return false
+    }
+    var close = at + 1
+    while close < text_length and text.code_at(close) != 93 {
+        close = close + 1
+    }
+    if close >= text_length {
+        return false
+    }
+    var key = text.slice(at + 1, close)
+    var quoted = key.length() >= 2 and key.starts_with("\"") and key.ends_with("\"") and not key.contains("\\") and not key.contains("\{")
+    var number = key.to_long()
+    if not quoted and not number {
+        return false
+    }
+    var rest = text.slice(close + 1, text_length)
+    var after = rest.trim()
+    return not after.starts_with("=") or after.starts_with("==")
+}
+
+func folded_dictionary_read(
+    index_expression: Syntax.Expressions.IndexExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    crash index_expression.object
+    crash index_expression.index
+    var named = shape.as_identifier(index_expression.object)
+    assert named and folded_dictionaries.has(named.name)
+    var literal = folded_dictionaries[named.name]
+    crash literal
+    var first = literal.fields.first()
+    crash first
+    crash first.value
+    var probe_counter = temporary_counter
+    var probe = generate_expression(first.value, scope, class_information)
+    rewind_temporaries(probe_counter)
+    var answer_type = nullable_type_of(probe.type)
+    var printer = Syntax.SourcePrinter()
+    var wanted = printer.source_expression(index_expression.index)
+    var index = 0
+    while index < literal.fields.count() {
+        var entry = literal.fields[index]
+        crash entry.value
+        if entry.name == wanted {
+            var code = coerce_for_store(entry.value, answer_type, scope, class_information)
+            return ExpressionResult(code, answer_type)
+        }
+        index = index + 1
+    }
+    var missing = default_value_for_type(answer_type)
+    return ExpressionResult(missing, answer_type)
 }
 
 func constant_local(

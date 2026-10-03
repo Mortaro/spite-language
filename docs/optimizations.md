@@ -1372,6 +1372,21 @@ is not a literal, and every call in a program that reopens `String.Inflection` w
 inflections are literals carries none of the inflection code or its table (`conformance/stage6/inflection_fold`
 makes 5 allocations, against 19 when the calls run).
 
+### A dictionary written out and only read by literal keys is folded
+
+**What it does.** A local made from a dictionary literal whose keys and values are all literals of one kind, and that
+the rest of its block only ever reads with a literal key (`plurals["cactus"]`), is never made: each read is replaced
+by the value written for that key, or by `null` for a key the literal does not have. The read keeps its type, a
+`T?`, so `crash plurals["cactus"]` and `if` narrow it as before. The keys no read names cost nothing, since no
+dictionary exists to hold them.
+
+**When.** Every build except `--hot-reload` and the inspectable ones, for a local whose literal has only literal
+entries of one kind and whose every later mention in its block is a read by a literal key. Any other use (a
+variable key, a write, passing it, a loop over it, `count()`) keeps the dictionary as written, and so does a
+dictionary held in an attribute, which reflection could write. **What you notice.** No dictionary, no allocation and
+no hashing for the folded ones (`conformance/stage6/dictionary_folding`), and nothing else: each read answers what
+the dictionary would.
+
 ### A dictionary keyed by numbers hashes the numbers
 
 **What it does.** A `Dictionary` the program gives whole-number keys

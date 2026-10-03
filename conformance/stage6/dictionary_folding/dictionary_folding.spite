@@ -1,0 +1,23 @@
+var console = Console()
+
+func DictionaryFolding() {
+    var plurals = {"cactus": "cacti", "foot": "feet", "goose": "geese"}
+    crash plurals["cactus"]
+    console.print(plurals["cactus"])
+    var missing = plurals["sheep"]
+    if missing {
+        console.print("never printed", missing)
+    } else {
+        console.print("no sheep")
+    }
+    var squares = {1: 1, 2: 4, 3: 9}
+    crash squares[3]
+    var nine = squares[3]
+    console.print(nine)
+    var kept = {"a": 1, "b": 2}
+    var key = "b"
+    var found = kept[key]
+    crash found
+    var kept_count = kept.count()
+    console.print(found, kept_count)
+}

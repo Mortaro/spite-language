@@ -104,8 +104,10 @@ when a page gains a rule that is not built yet, add it here.
   [proposals/automatic_memory.md](proposals/automatic_memory.md).
 - D486: a whole-number vector's fractional members answer a `Float` vector; waits on item 300 (how the signature
   names the fractional class).
-- D487: built are the table and the fold of a literal's `pluralize()`/`singularize()`; not built are folding a
-  constant-key lookup into any other dictionary known while compiling, and leaving out keys no lookup reaches.
+- D487: built are the table, the fold of a literal's `pluralize()`/`singularize()`, and the fold of a local
+  dictionary literal read only by literal keys (no dictionary is made). Not built: the same for a dictionary held in
+  an attribute, which needs a proof that no reflection walk writes it, and leaving out only the unread keys of a
+  dictionary that is still made.
 
 ### Nothing fails silently: still open
 
