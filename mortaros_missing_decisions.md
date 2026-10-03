@@ -11,7 +11,7 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391, 263 by D394 (2026-10-02); 266 to 296 by D468 to D488, and 268, 269, 271 and 276 to 279 by D493 to D497, 298 by D498, 301 by D499 (2026-10-03). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391, 263 by D394 (2026-10-02); 266 to 296 by D468 to D488, and 268, 269, 271 and 276 to 279 by D493 to D497, 298 by D498, 301 by D499, 291 by D500 (2026-10-03). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
@@ -42,23 +42,6 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      table is C the generator writes, carried only by programs that make context callbacks. Options: (a) keep it C
      until C9 gives the backend primitives a home; (b) write it now as a library singleton the emitted C calls.
      Recommend (a): it is a few lines beside the callback C that already exists, and C9 moves both together.
-291. **What a failed assert keeps for the crash report** (backlog X1, D33, D244). Mortaro (2026-10-03): "we should
-     figure out what we actually need, the values kept are only for the sake of finding a crash, and I suspect the
-     syntax is so rigid right now that just knowing which lines failed an assert should tell the moron all it needs
-     to fix something." Claude's finding: the line is enough for what an assert can say. A guard `assert` is either
-     a narrowing (`assert user`, `assert names[index]`), whose failure is an absence with no value to show, or a
-     predicate (`assert count > 0`), whose operands are named on the line the `.crashes` map gives with its
-     condition; the crash that ends the run already prints every value at its own site. What is built today already
-     keeps no values: a ring entry is one pointer to its site's line, so (c) is the state of the code, and only
-     failure.md's sentence "values are stored raw in the ring buffer" and backlog X1's "values stored raw" still
-     promise more. What the line alone does not survive is a hot guard: one site failing every frame fills all 32
-     entries and pushes out the trail that led there. Options: (a) values for predicates only, at a cost on every
-     failure; (b) no values (as built), and drop the promise from failure.md and X1; (c) no values, and a run of the
-     same site failing in a row is one entry with `repeated=<count>`, as the call chain already folds a function
-     called again and again, so 32 entries are 32 different steps (one compare with the newest entry per failure).
-     Recommend (c): it costs a compare, keeps the ring the trail of which lines failed, and needs nothing kept alive
-     for the report.
-
 297. **Values and generic classes as union members** (D459, D244; values_and_types.md "Unions in full"). A union
      with `String`, a number, `Boolean` or `List<Byte>` among its members was accepted and then failed later with
      an error that did not name the cause. It is now refused where the union is declared, saying to wrap the value
