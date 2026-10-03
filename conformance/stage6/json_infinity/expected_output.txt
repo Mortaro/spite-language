@@ -1,10 +1,10 @@
-spite.crash	3595b8e9	library/json_writer.spite:95	JsonWriter	written_decimal	shown=inf	value=inf	path=Order.price
-spite.frame	library/json_writer.spite:94	JsonWriter	written_decimal
-spite.frame	library/json_writer.spite:31	JsonWriter	_written
-spite.frame	library/json_writer.spite:11	JsonWriter	write
-spite.frame	library/json_writer.spite:84	JsonWriter	write_attribute_for_price
-spite.frame	library/json_writer.spite:31	JsonWriter	_written
-spite.frame	library/json_writer.spite:11	JsonWriter	write
+spite.crash	3595b8e9	library/json_writer.spite:87	JsonWriter	written_decimal	shown=inf	path=Order.price
+spite.frame	library/json_writer.spite:86	JsonWriter	written_decimal
+spite.frame	library/json_writer.spite:26	JsonWriter	_written
+spite.frame	library/json_writer.spite:6	JsonWriter	write
+spite.frame	library/json_writer.spite:76	JsonWriter	write_attribute_for_price
+spite.frame	library/json_writer.spite:26	JsonWriter	_written
+spite.frame	library/json_writer.spite:6	JsonWriter	write
 spite.frame	conformance/stage6/json_infinity/json_infinity.spite:3	JsonInfinity	JsonInfinity
 spite.frame	launcher/launcher.spite:3	Launcher	Launcher
 spite.frame	-	-	main

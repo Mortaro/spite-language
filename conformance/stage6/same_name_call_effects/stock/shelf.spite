@@ -3,7 +3,7 @@ singleton
 var count = 0
 
 func Shelf() {
-    var reader = JsonReader<List<Integer>>("[1, 2]")
-    var read = reader.read_or_crash()
+    var reader = JsonReader<List<Integer>>()
+    var read = reader.read_or_crash("[1, 2]")
     count = read.count()
 }

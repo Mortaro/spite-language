@@ -65,10 +65,10 @@ func NumberKeys() {
     var has_zero = many.has(0)
     var has_seven = many.has(7)
     console.print(many_count, many[6993], has_zero, has_seven)
-    var ages_writer = JsonWriter(ages)
-    var ages_text = ages_writer.write()
-    var ages_reader = JsonReader<Dictionary<String>>(ages_text)
-    var read_ages = ages_reader.read()
+    var ages_writer = JsonWriter<Dictionary<String>>()
+    var ages_text = ages_writer.write(ages)
+    var ages_reader = JsonReader<Dictionary<String>>()
+    var read_ages = ages_reader.read(ages_text)
     crash read_ages
     crash read_ages[42]
     console.print(ages_text, read_ages[42])

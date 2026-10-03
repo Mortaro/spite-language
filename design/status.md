@@ -91,7 +91,8 @@ when a page gains a rule that is not built yet, add it here.
 - D476: `JsonValue`, `move_to(path)` on `File` and `Directory`, `List.index_of` and `find_index_by_<member>` (backlog
   J3, S11, S12); `JsonValue`'s shape waits on item 297.
 - D477: `Quaternion` and the matrices generic over `Number`.
-- D478: `JsonWriter<T>()`/`JsonReader<T>()` reused with `write(value)`/`read(text)` and an optional `keys` map.
+- D478: the optional `keys` attribute of `JsonWriter<T>()`/`JsonReader<T>()` (the map waits on backlog J2); the
+  reusable serializers with `write(value)`/`read(text)` are built.
 - D479: an unwinder written in Spite for the call chain of an `--optimized` crash on Linux and macOS.
 - D480: `Concurrent.cancel()`.
 - D481: a `Concurrent` made inside a `Parallel`'s work overlaps like any other.

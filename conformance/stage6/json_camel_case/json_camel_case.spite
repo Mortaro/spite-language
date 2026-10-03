@@ -1,23 +1,23 @@
 var console = Console()
 
 func JsonCamelCase() {
-    var camel_reader = JsonReader<ItemRecord>(
+    var camel_reader = JsonReader<ItemRecord>()
+    var camel = camel_reader.read(
         "\{\"Name\": \"potion\", \"buyPrice\": 30, \"SellPriceEach\": 7.5, \"isStackable\": true, \"noSuchKey\": [1]}",
     )
-    var camel = camel_reader.read()
     crash camel
     console.print(camel.name, camel.buy_price, camel.sell_price_each, camel.is_stackable)
-    var both_reader = JsonReader<ItemRecord>("\{\"buy_price\": 1, \"buyPrice\": 2}")
-    var both = both_reader.read()
+    var both_reader = JsonReader<ItemRecord>()
+    var both = both_reader.read("\{\"buy_price\": 1, \"buyPrice\": 2}")
     crash both
     console.print(both.buy_price)
-    var list_reader = JsonReader<List<ItemRecord>>("[\{\"buyPrice\": 4}, \{\"buy_price\": 5}]")
-    var records = list_reader.read()
+    var list_reader = JsonReader<List<ItemRecord>>()
+    var records = list_reader.read("[\{\"buyPrice\": 4}, \{\"buy_price\": 5}]")
     crash records
     var prices = records.map_buy_prices()
     var joined = prices.join(" ")
     console.print(joined)
-    var writer = JsonWriter(camel)
-    var text = writer.write()
+    var writer = JsonWriter<ItemRecord>()
+    var text = writer.write(camel)
     console.print(text)
 }

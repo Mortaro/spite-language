@@ -441,8 +441,8 @@ One line declares one value, and the lines sit at the top of the file, so skimmi
 accepts. Every hole is filled at every call: there are no defaults, and the wrong number of values is an error
 that lists the class's values in order (the second program below). A generic class needs no constructor
 (`library/list.spite` is `generic $element_type` and its functions), and when the constructor's arguments say
-every value, the `<...>` may be left out: `Pair("Hero", 7)` is a `Pair<String, Integer>`, `JsonWriter(order)` a
-`JsonWriter<Order>` ([json.md](json.md)) and `Concurrent(file.read)` a `Concurrent<String?>`
+every value, the `<...>` may be left out: `Pair("Hero", 7)` is a `Pair<String, Integer>`, `BinaryWriter(order)` a
+`BinaryWriter<Order>` ([json.md](json.md)) and `Concurrent(file.read)` a `Concurrent<String?>`
 ([concurrency.md](concurrency.md)). `Pair` may declare `var left: $left_type = null` because its constructor
 assigns `left` at once; anywhere else `null` belongs to `T?` alone, and `var left = $left_type()` makes
 the default of whatever `$left_type` is bound to.
@@ -990,7 +990,7 @@ var sword = Weapon<Integer, true>(10)
   `Dictionary<$name>`, and the arguments and return of a `Spite.Function<...>`). A `null` argument says nothing.
   Only when every `$name` is found; otherwise the error asks for them between `<` and `>`: "'Box' takes 1 codegen
   value(s), in this order: $held_type. Write them between < and > before the arguments". `Pair("Hero", 7)`,
-  `Concurrent(file.read)`, `JsonWriter(order)`.
+  `Concurrent(file.read)`, `BinaryWriter(order)`.
 - `$name()` makes the default of what `$name` is bound to: a class through
   its constructor with no arguments, an empty `List` or `Dictionary`, `0`, `""`, and for a `type` whose members
   are all attributes a real object. `var held: $held_type = null` is an error, since `null` belongs to `T?`

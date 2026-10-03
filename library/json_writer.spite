@@ -1,18 +1,13 @@
 generic $value_type
 
-var value: $value_type? = null
 var path = ""
 var _members: List<String>? = null
 
-func JsonWriter(new_value: $value_type?) {
-    value = new_value
-}
-
-func write(): String {
+func write(value: $value_type?): String {
     if $value_type == Null {
-        var inner = JsonWriter<$value_type.value_type>(value)
+        var inner = JsonWriter<$value_type.value_type>()
         inner.path = path
-        return inner.write()
+        return inner.write(value)
     } else if $value_type == Boolean {
         if value == true {
             return "true"
@@ -39,31 +34,28 @@ func _written(shown: $value_type): String {
         var name: String = shown
         return quoted(name)
     } else if $value_type == List {
-        var element_json = JsonWriter<$value_type.element_type>(null)
+        var element_json = JsonWriter<$value_type.element_type>()
         var elements = List<String>()
         var index = 0
         while index < shown.count() {
-            element_json.value = shown[index]
             element_json.path = "{path}[{index}]"
-            var element_text = element_json.write()
+            var element_text = element_json.write(shown[index])
             elements.append(element_text)
             index = index + 1
         }
         var joined_elements = elements.join(",")
         return "[{joined_elements}]"
     } else if $value_type == Dictionary {
-        var entry_json = JsonWriter<$value_type.value_type>(null)
-        var key_json = JsonWriter<$value_type.key_type>(null)
+        var entry_json = JsonWriter<$value_type.value_type>()
+        var key_json = JsonWriter<$value_type.key_type>()
         var keys = shown.keys()
         var values = shown.values()
         var entries = List<String>()
         var index = 0
         while index < keys.count() {
-            key_json.value = keys[index]
-            var quoted_key = key_json.key_text()
-            entry_json.value = values[index]
+            var quoted_key = key_json.key_text(keys[index])
             entry_json.path = "{path}[{quoted_key}]"
-            var entry_text = entry_json.write()
+            var entry_text = entry_json.write(values[index])
             entries.append("{quoted_key}:{entry_text}")
             index = index + 1
         }
@@ -83,9 +75,9 @@ func _written(shown: $value_type): String {
 
 func write_attribute(attribute: Spite.Attribute) {
     if not attribute.name.starts_with("_") and not attribute.is_singleton {
-        var attribute_json = JsonWriter(attribute.value)
+        var attribute_json = JsonWriter<attribute.class>()
         attribute_json.path = "{$value_type.name}.{attribute.name}"
-        var attribute_text = attribute_json.write()
+        var attribute_text = attribute_json.write(attribute.value)
         crash _members
         _members.append("\"{attribute.name}\":{attribute_text}")
     }
@@ -137,10 +129,10 @@ func escape_of(code: Integer): String {
     }
 }
 
-func key_text(): String {
-    crash value
+func key_text(key: $value_type?): String {
+    crash key
     if $value_type == String {
-        return quoted(value)
+        return quoted(key)
     }
-    return "\"{value}\""
+    return "\"{key}\""
 }

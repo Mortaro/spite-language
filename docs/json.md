@@ -5,9 +5,9 @@ text, `BinaryWriter` and `BinaryReader` for compact bytes. None of them is a ser
 one generic class in `library/`, written with Spite's own metaprogramming, and the compiler makes the functions a
 type needs only when a program uses one with it. A program that never names them carries none of it.
 
-A writer takes the value, so writing names no type: `JsonWriter(order)`, then `write()`. A reader has no value
-yet, so it names the class it makes and takes what to read it from: `JsonReader<Order>(text)`, then `read()`,
-which answers `Order?`, `null` when the input is not an `Order`.
+A JSON serializer is made once, with no arguments, and used as often as needed: `JsonWriter<Order>()`, then
+`write(order)` for each order to write, and `JsonReader<Order>()`, then `read(text)` for each text to read, which
+answers `Order?`, `null` when the input is not an `Order`.
 
 Which one to use: **binary between Spite programs, JSON for everything else.** Two Spite programs compile from
 the same source, so both ends already know every type and nothing has to describe itself; the bytes are about a
@@ -50,11 +50,11 @@ func JsonBasics() {
     order.status = 'shipped'
     var tea = Item("tea", 2)
     order.items.append(tea)
-    var writer = JsonWriter(order)
-    var text = writer.write()
+    var writer = JsonWriter<Order>()
+    var text = writer.write(order)
     console.print(text)
-    var reader = JsonReader<Order>(text)
-    var read = reader.read()
+    var reader = JsonReader<Order>()
+    var read = reader.read(text)
     crash read
     var first_item = read.items.first()
     crash first_item
@@ -66,16 +66,15 @@ func JsonBasics() {
 Ada "the" first shipped tea 2
 ```
 
-- `JsonWriter(value)` is `JsonWriter<T>` for the value's type, read from the argument like any generic class whose
-  constructor takes its `$T` ([metaprogramming.md](metaprogramming.md#generics-and-codegen-values-)). A `T?`
-  gives `JsonWriter<T>`, and writes `null` when it is empty.
-- `write(): String` answers the text: every attribute has a type the compiler knows. Attributes are written in
+- `JsonWriter<T>()` names the type it writes and takes nothing; `write(value: T?): String` answers the text of one
+  value, and writes `null` for an empty `T?`. One writer writes any number of values, one call each: every
+  attribute has a type the compiler knows. Attributes are written in
   the order the class declares them. The one thing it cannot write is a `Float` or `Double` that is infinity or
   not-a-number, which JSON cannot hold, and there it crashes naming the attribute and the value (see below).
-- `JsonReader<T>(text)` holds the text, and `read(): T?` answers `null` when it is not JSON, or not this class's
-  JSON. Narrow it like any other `T?`: `crash` when bad input is a bug, `assert` when the program should carry on,
+- `JsonReader<T>()` names the type it makes and takes nothing, and `read(text: String): T?` answers `null` when the
+  text is not JSON, or not this class's JSON; one reader reads any number of texts. Narrow it like any other `T?`: `crash` when bad input is a bug, `assert` when the program should carry on,
   `if` when absence is a case.
-- `read_or_crash(): T` halts on bad input instead, at the point the reader finds it, and the crash line shows what
+- `read_or_crash(text: String): T` halts on bad input instead, at the point the reader finds it, and the crash line shows what
   was wanted there, the position and the text: `wanted=a number	text={"count": three}	position=10`.
 
 ## Write and read bytes
@@ -316,20 +315,20 @@ var tags = List<String>()
 var console = Console()
 
 func JsonInput() {
-    var partial_reader = JsonReader<Reading>("\{ \"name\": \"probe\", \"vendor\": \{ \"id\": [1, 2] } }")
-    var partial = partial_reader.read()
+    var partial_reader = JsonReader<Reading>()
+    var partial = partial_reader.read("\{ \"name\": \"probe\", \"vendor\": \{ \"id\": [1, 2] } }")
     crash partial
     var tag_count = partial.tags.count()
     console.print(partial.name, partial.level, tag_count)
-    var mistyped_reader = JsonReader<Reading>("\{\"level\": \"high\"}")
-    var mistyped = mistyped_reader.read()
+    var mistyped_reader = JsonReader<Reading>()
+    var mistyped = mistyped_reader.read("\{\"level\": \"high\"}")
     if mistyped {
         console.print("unexpected")
     } else {
         console.print("level must be a number")
     }
-    var broken_reader = JsonReader<Reading>("\{\"name\": \"probe\"")
-    var broken = broken_reader.read()
+    var broken_reader = JsonReader<Reading>()
+    var broken = broken_reader.read("\{\"name\": \"probe\"")
     if broken {
         console.print("unexpected")
     } else {
@@ -360,12 +359,12 @@ var sell_price_each = 0.0
 var console = Console()
 
 func JsonCamelCase() {
-    var reader = JsonReader<Price>("\{\"name\": \"potion\", \"buyPrice\": 30, \"SellPriceEach\": 7.5}")
-    var price = reader.read()
+    var reader = JsonReader<Price>()
+    var price = reader.read("\{\"name\": \"potion\", \"buyPrice\": 30, \"SellPriceEach\": 7.5}")
     crash price
     console.print(price.name, price.buy_price, price.sell_price_each)
-    var writer = JsonWriter(price)
-    var text = writer.write()
+    var writer = JsonWriter<Price>()
+    var text = writer.write(price)
     console.print(text)
 }
 ```
@@ -378,18 +377,21 @@ potion 30 7.5
 
 Some keys cannot be attribute names: `min_lod` is an abbreviation the naming rules refuse, and `instances` is a
 name reflection gives every object ([reflection.md](reflection.md)). The class does not name them: the program
-gives the serializer a map from each attribute to its key, keyed by the attribute itself, and `JsonWriter` then
-writes the attribute under that key and `JsonReader` reads that key into it, so the text round-trips:
+sets the serializer's `keys`, a map from each attribute to its key, keyed by the attribute itself, before its
+first use, and `JsonWriter` then writes the attribute under that key and `JsonReader` reads that key into it, so the
+text round-trips:
 
 ```gdscript
-var keys = {MeshRecord.attributes['minimum_level_of_detail']: "min_lod", MeshRecord.attributes['instance_count']: "instances"}
+var writer = JsonWriter<MeshRecord>()
+writer.keys = {MeshRecord.attributes['minimum_level_of_detail']: "min_lod", MeshRecord.attributes['instance_count']: "instances"}
 ```
 
 The key is the one way to write that attribute: `minimum_level_of_detail` and `minimumLevelOfDetail` are then
 unknown keys, skipped like any other. Every serializer takes the same kind of map. A map written as a literal
 costs nothing: its keys are literal text in the code the serializer is compiled to, and reading matches them as it
 matches an attribute's own name. A map made while the program runs is turned into a table once, when the
-serializer is made, so each value then costs what the literal case costs. A map naming an attribute the class does
+`keys` is set, so each value then costs what the literal case costs. A serializer whose `keys` is never set has
+no map, and writes and reads every attribute under its own name. A map naming an attribute the class does
 not have, a private one or one holding a singleton is an error.
 
 A class that still declares a function `json_key_<attribute>()`, the old way to name a key, is an error at that
@@ -407,8 +409,8 @@ func json_key_minimum_level_of_detail(): String {
 var console = Console()
 
 func JsonKeyFunction() {
-    var reader = JsonReader<MeshRecord>("\{\"name\": \"rock\"}")
-    var mesh = reader.read()
+    var reader = JsonReader<MeshRecord>()
+    var mesh = reader.read("\{\"name\": \"rock\"}")
     crash mesh
     console.print(mesh.name, mesh.minimum_level_of_detail)
 }
@@ -422,8 +424,8 @@ is `null`.
 
 ## Values that are not classes
 
-All four take any type, not only classes: `JsonWriter(scores)` for a `Dictionary<Integer>`,
-`JsonReader<List<Double>>(text)` to read a list, `BinaryWriter(12)`.
+All four take any type, not only classes: `JsonWriter<Dictionary<Integer>>()` for a dictionary,
+`JsonReader<List<Double>>()` to read a list, `BinaryWriter(12)`.
 
 ```gdscript title=json_values/json_values.spite entry
 var console = Console()
@@ -432,11 +434,11 @@ func JsonValues() {
     var scores = Dictionary<Integer>()
     scores["ada"] = 3
     scores["bo"] = 5
-    var writer = JsonWriter(scores)
-    var text = writer.write()
+    var writer = JsonWriter<Dictionary<Integer>>()
+    var text = writer.write(scores)
     console.print(text)
-    var numbers = JsonReader<List<Double>>("[1.5, -2, 3e2]")
-    var read = numbers.read()
+    var numbers = JsonReader<List<Double>>()
+    var read = numbers.read("[1.5, -2, 3e2]")
     crash read
     var joined = read.join(" ")
     console.print(joined)
@@ -469,8 +471,8 @@ each value read back.
 All four are ordinary Spite, and reading them is the best way to learn the two metaprogramming forms they rest on
 ([metaprogramming.md](metaprogramming.md)):
 
-- `if $value_type == List { }` asks at compile time what `T` is, and `JsonWriter<$value_type.element_type>(null)`
-  makes the writer for its elements, once per list: each element is given to it in turn as its `value`. Only the
+- `if $value_type == List { }` asks at compile time what `T` is, and `JsonWriter<$value_type.element_type>()`
+  makes the writer for its elements, once per list: each element is given in turn to its `write(element)`. Only the
   branch that fits `T` is compiled.
 - A class is written by walking the value's attributes with `each`
   ([reflection.md](reflection.md#a-class-and-an-instance-of-it)). The walk is unrolled while compiling into one
@@ -480,9 +482,9 @@ All four are ordinary Spite, and reading them is the best way to learn the two m
 ```gdscript
 func write_attribute(attribute: Spite.Attribute) {
     if not attribute.name.starts_with("_") and not attribute.is_singleton {
-        var attribute_json = JsonWriter(attribute.value)
+        var attribute_json = JsonWriter<attribute.class>()
         attribute_json.path = "{$value_type.name}.{attribute.name}"
-        var attribute_text = attribute_json.write()
+        var attribute_text = attribute_json.write(attribute.value)
         crash _members
         _members.append("\"{attribute.name}\":{attribute_text}")
     }
@@ -534,19 +536,20 @@ for talking to foreign systems; it is not what Spite programs send each other
   say which member a value is`, and `has no JSON form` or `has no binary form`.
 - The one exception to "writing never fails" is below: a `Float` or `Double` JSON cannot hold.
 
-**Four classes: `JsonWriter`, `JsonReader`, `BinaryWriter`, `BinaryReader`.** Writing takes the object; reading names the
+**Four classes: `JsonWriter`, `JsonReader`, `BinaryWriter`, `BinaryReader`.** A JSON serializer names its type and is
+reused; a binary writer takes the object; reading names the
 class it makes. Each class is generic, and every conversion it makes is a function the compiler writes from it for
 the types a program actually uses, so a program that never names one carries none of it: no table of
 types, no reflection and no registry exists at run time. At run time a conversion costs what its Spite says:
-`JsonWriter.write()` makes one `String` per member and joins them, `JsonReader.read()` walks the text once through
+`JsonWriter.write(value)` makes one `String` per member and joins them, `JsonReader.read(text)` walks the text once through
 one `JsonCursor`, and the binary pair writes and reads each number with one machine store or load.
 
 ```gdscript
-var writer = JsonWriter(order)          # JsonWriter<Order>, read from the argument
-var text = writer.write()               # String: never fails
-var reader = JsonReader<Order>(text)    # no object yet, so the class is named
-var read = reader.read()                # Order?: null on text that is not an Order
-var order = reader.read_or_crash()      # Order: halts, naming the position and what was expected
+var writer = JsonWriter<Order>()        # made once, reused for every order
+var text = writer.write(order)          # String: never fails
+var reader = JsonReader<Order>()        # made once, reused for every text
+var read = reader.read(text)            # Order?: null on text that is not an Order
+var order = reader.read_or_crash(text)  # Order: halts, naming the position and what was expected
 
 var packer = BinaryWriter(order)        # BinaryWriter<Order>
 var bytes = packer.write()              # List<Byte>: never fails
@@ -559,19 +562,21 @@ var from_socket = unpacker.read_memory(buffer, received)
 The names: `write`, `read` and `read_or_crash`; `append_to(bytes)` says where the bytes go ("append", not
 "add"); `read_memory(address, count)` says what it reads from; `position` and `remaining()` are the reader's
 cursor, as on the cursors the standard library already has. The old name `Json` is an error that names the new
-pair: `there is no 'Json': it is two classes, 'JsonWriter(value)' whose 'write()'
-makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'` (`diagnostics/json_split`).
+pair: `there is no 'Json': it is two classes, 'JsonWriter<T>()' whose 'write(value)'
+makes the text, and 'JsonReader<T>()' whose 'read(text)' answers a 'T?'` (`diagnostics/json_split`).
 
-- **A writer takes the value in its constructor** and infers its generic from it, by the general rule of
+- **A JSON serializer is made with no arguments and reused**: `JsonWriter<T>()` and `JsonReader<T>()` name their
+  type, and each call carries its own input: `write(value: T?): String`, which writes `null` for an empty `T?`,
+  `read(text: String): T?` and `read_or_crash(text: String): T`, each reading the whole text as one value. Nothing
+  is held between calls but the serializer's settings, so one writer or reader serves a whole program.
+- **A binary writer takes the value in its constructor** and infers its generic from it, by the general rule of
   [Codegen values (`$`)](metaprogramming.md#codegen-values-) for a constructor that takes a `$name`;
-  nothing about the writers is special to the compiler. The constructor
-  takes a `$value_type?`, so a `T?` argument gives a writer of `T`; `JsonWriter.write()` of an empty one is `null`,
-  and `BinaryWriter` writes nothing for it (a `T?` inside a value has its presence byte; at the top the caller
-  knows whether it wrote anything). `JsonWriter<Order>(null)` names the class when there is no value.
-- **A reader names its class and takes its input in its constructor**: `JsonReader<T>(text: String)`,
-  `BinaryReader<T>(bytes: List<Byte>?)`. `JsonReader.read()` reads the whole text as one value, every time it is
-  called; `BinaryReader.read()` reads the next value from `position`, so a buffer of many values is read by
-  calling it again.
+  nothing about the writers is special to the compiler. The constructor takes a `$value_type?`, so a `T?` argument
+  gives a writer of `T`, and `BinaryWriter` writes nothing for an empty one (a `T?` inside a value has its presence
+  byte; at the top the caller knows whether it wrote anything).
+- **A binary reader names its class and takes its input in its constructor**: `BinaryReader<T>(bytes:
+  List<Byte>?)`, whose `read()` reads the next value from `position`, so a buffer of many values is read by calling
+  it again.
 - **What it is written with** is reflection, a walk of the value's attributes with `each`
   ([reflection.md](reflection.md#known-while-compiling)), and
   [Codegen values (`$`)](metaprogramming.md#codegen-values-) and nothing else, as
@@ -642,8 +647,8 @@ The details:
   for a key the first walk did not match: snake_case input runs the same comparisons it did before (`benchmarks/serialisation`, JSON
   read, best of eight alternating runs on a loaded machine: 269 ms before, 267 ms after), and a program that reads
   no JSON carries none of it (`conformance/stage6/json_camel_case`).
-- **A key that is not an attribute's name comes from a map passed to the serializer, keyed by attribute
-  objects**: `{MeshRecord.attributes['minimum_level_of_detail']: "min_lod"}`. `JsonWriter` writes the attribute
+- **A key that is not an attribute's name comes from the serializer's optional `keys` attribute, a map keyed by
+  attribute objects and set before the serializer's first use**: `{MeshRecord.attributes['minimum_level_of_detail']: "min_lod"}`. `JsonWriter` writes the attribute
   under its key and `JsonReader` reads that key into it, so the text round-trips. **The key replaces the
   attribute's name**: with one, neither the name nor its camelCase and PascalCase spellings read into the
   attribute any more, so each attribute has exactly one key; attributes without one keep the camelCase and

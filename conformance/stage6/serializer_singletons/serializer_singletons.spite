@@ -3,11 +3,11 @@ var console = Console()
 func SerializerSingletons() {
     var player = Player()
     player.score = 9
-    var writer = JsonWriter(player)
-    var text = writer.write()
+    var writer = JsonWriter<Player>()
+    var text = writer.write(player)
     console.print(text)
-    var reader = JsonReader<Player>("\{\"name\": \"bo\", \"console\": \{\"x\": 1}, \"_secret\": 1}")
-    var read = reader.read()
+    var reader = JsonReader<Player>()
+    var read = reader.read("\{\"name\": \"bo\", \"console\": \{\"x\": 1}, \"_secret\": 1}")
     crash read
     read.shout()
     var packer = BinaryWriter(player)

@@ -6977,7 +6977,7 @@ static SpiteString spite_lit_14328 = SPITE_STATIC_STRING("there is no 'map(funct
 static SpiteString spite_lit_14330 = SPITE_STATIC_STRING("Heap", 4);
 static SpiteString spite_lit_14331 = SPITE_STATIC_STRING("there is no 'Heap<T>': a class, a list and a text are references already, so a class that holds one of its own kind declares an ordinary attribute, like 'var left: Expression? = null' ('Memory.Heap' is the allocator, for containers of your own)", 244);
 static SpiteString spite_lit_14333 = SPITE_STATIC_STRING("Json", 4);
-static SpiteString spite_lit_14334 = SPITE_STATIC_STRING("there is no 'Json': it is two classes, 'JsonWriter(value)' whose 'write()' makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'", 146);
+static SpiteString spite_lit_14334 = SPITE_STATIC_STRING("there is no 'Json': it is two classes, 'JsonWriter<T>()' whose 'write(value)' makes the text, and 'JsonReader<T>()' whose 'read(text)' answers a 'T?'", 149);
 static SpiteString spite_lit_14336 = SPITE_STATIC_STRING("'", 1);
 static SpiteString spite_lit_14338 = SPITE_STATIC_STRING("' is spelled '", 14);
 static SpiteString spite_lit_14340 = SPITE_STATIC_STRING("'", 1);

@@ -1,21 +1,21 @@
 func test_writes_every_kind_of_attribute() {
     var ship = full_ship()
-    var ship_json = JsonWriter(ship)
-    var text = ship_json.write()
+    var ship_json = JsonWriter<Ship>()
+    var text = ship_json.write(ship)
     crash text == "\{\"name\":\"Wren\",\"length\":12,\"speed\":7.5,\"rig\":\"schooner\",\"afloat\":true,\"crew\":[\{\"name\":\"Ada\",\"knots\":[\"bowline\",\"hitch\"]},\{\"name\":\"Bo\",\"knots\":[]}],\"cargo\":\{\"rope\":3,\"tea\":40},\"captain\":\{\"name\":\"Cy\",\"knots\":[]},\"launched\":1902,\"logbook\":[[\"calm\"],[]]}"
 }
 
 func test_writes_null_for_an_empty_nullable() {
     var ship = Ship()
-    var ship_json = JsonWriter(ship)
-    var text = ship_json.write()
+    var ship_json = JsonWriter<Ship>()
+    var text = ship_json.write(ship)
     crash text == "\{\"name\":\"\",\"length\":0,\"speed\":0,\"rig\":\"sloop\",\"afloat\":false,\"crew\":[],\"cargo\":\{},\"captain\":null,\"launched\":null,\"logbook\":[]}"
 }
 
 func test_reads_back_what_it_wrote() {
     var ship = full_ship()
-    var ship_json = JsonWriter(ship)
-    var text = ship_json.write()
+    var ship_json = JsonWriter<Ship>()
+    var text = ship_json.write(ship)
     var read = read_ship(text)
     crash read
     crash read.name == "Wren"
@@ -29,8 +29,8 @@ func test_reads_back_what_it_wrote() {
     crash read.captain
     crash read.captain.name == "Cy"
     crash read.launched == 1902
-    var read_json = JsonWriter(read)
-    var again = read_json.write()
+    var read_json = JsonWriter<Ship>()
+    var again = read_json.write(read)
     crash again == text
 }
 
@@ -81,8 +81,8 @@ func test_malformed_text_reads_nothing() {
 func test_text_escapes_round_trip() {
     var ship = Ship()
     ship.name = "quote \" slash \\ line\nend\ttab"
-    var ship_json = JsonWriter(ship)
-    var text = ship_json.write()
+    var ship_json = JsonWriter<Ship>()
+    var text = ship_json.write(ship)
     crash text.starts_with("\{\"name\":\"quote \\\" slash \\\\ line\\nend\\ttab\",")
     var read = read_ship(text)
     crash read
@@ -96,42 +96,42 @@ func test_unicode_escapes_become_utf8() {
 }
 
 func test_values_that_are_not_classes() {
-    var numbers = JsonWriter([1, -2, 3])
-    var list_text = numbers.write()
+    var numbers = JsonWriter<List<Integer>>()
+    var list_text = numbers.write([1, -2, 3])
     crash list_text == "[1,-2,3]"
-    var list_reader = JsonReader<List<Integer>>(" [4, 5] ")
-    var list_read = list_reader.read()
+    var list_reader = JsonReader<List<Integer>>()
+    var list_read = list_reader.read(" [4, 5] ")
     crash list_read
     crash list_read.count() == 2
     var roster = Dictionary<Sailor>()
     var ada = Sailor("Ada")
     roster["first"] = ada
-    var sailors = JsonWriter(roster)
-    var roster_text = sailors.write()
+    var sailors = JsonWriter<Dictionary<Sailor>>()
+    var roster_text = sailors.write(roster)
     crash roster_text == "\{\"first\":\{\"name\":\"Ada\",\"knots\":[]}}"
-    var roster_reader = JsonReader<Dictionary<Sailor>>(roster_text)
-    var roster_read = roster_reader.read()
+    var roster_reader = JsonReader<Dictionary<Sailor>>()
+    var roster_read = roster_reader.read(roster_text)
     crash roster_read
     crash roster_read["first"]
     crash roster_read["first"].name == "Ada"
-    var text = JsonWriter("hi")
-    var quoted = text.write()
+    var text = JsonWriter<String>()
+    var quoted = text.write("hi")
     crash quoted == "\"hi\""
 }
 
 func test_a_missing_value_writes_null() {
     var captain: Sailor? = null
-    var captain_json = JsonWriter(captain)
-    var captain_text = captain_json.write()
+    var captain_json = JsonWriter<Sailor>()
+    var captain_text = captain_json.write(captain)
     crash captain_text == "null"
-    var nothing_yet = JsonWriter<Ship>(null)
-    var nothing_text = nothing_yet.write()
+    var nothing_yet = JsonWriter<Ship>()
+    var nothing_text = nothing_yet.write(null)
     crash nothing_text == "null"
 }
 
 func read_ship(text: String): Ship? {
-    var reader = JsonReader<Ship>(text)
-    return reader.read()
+    var reader = JsonReader<Ship>()
+    return reader.read(text)
 }
 
 func full_ship(): Ship {

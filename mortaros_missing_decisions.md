@@ -99,3 +99,11 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      the library writes `func normalized(): Vector3<Fraction<$number_type>>`; (b) a codegen value with a default
      worked out from another, `generic $fraction_type = $number_type.fraction`. Recommend (a): one type, readable where it is used, and nothing a program
      writes changes. Blocks building D486.
+301. **Should the binary pair be reused the same way?** (D478.) `JsonWriter<T>()` and `JsonReader<T>()` are now made
+     once and called with each value or text. `BinaryWriter(value)` and `BinaryReader<T>(bytes)` still take their
+     input in the constructor, since a binary reader is a cursor over one buffer (`position`, `remaining()`, many
+     values read in turn) and `append_to(bytes)` writes the value into a list the program has. Options: (a) keep the
+     binary pair as it is: the reader is a cursor, and the writer is one value; (b) the same shape as JSON,
+     `BinaryWriter<T>()` with `write(value)` and `append_to(value, bytes)`, and `BinaryReader<T>()` with
+     `read(bytes)`, giving up the cursor; (c) a writer like JSON's and the reader as a cursor. Recommend (c): a
+     reusable writer costs nothing, and the cursor is what reading many values from one socket buffer needs.

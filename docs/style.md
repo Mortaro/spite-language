@@ -292,7 +292,7 @@ func ConstructorArgumentError() {
 
 A constructor is a call whose last name starts with an upper-case letter, so this covers a constructor inside
 another constructor's arguments (`Label(Font())`) and a collection made for a call
-(`buffers.set(List<String>())`). An object made to be read at once is not an argument: `JsonWriter(order).write()` is
+(`buffers.set(List<String>())`). An object made to be read at once is not an argument: `BinaryWriter(order).write()` is
 fine, and so is `var label = Label("new")` itself. `Parallel(worker.run)` passes a function value, not an object.
 
 **An `if` and its `else` do not repeat the same work.** When both branches compute the same call, it is
@@ -503,7 +503,7 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   (`buffers.set(List<String>())`), and every argument list: of a `var`, an assignment, a call standing alone, a
   `return`, an `assert` or `crash`, an `if`, `while` or `switch` condition, an attribute's default, and a call
   inside a text's hole. A constructor used as a
-  receiver (`JsonWriter(order).write()`) and the whole value of a `var` are not arguments; `Parallel(worker.run)` and
+  receiver (`BinaryWriter(order).write()`) and the whole value of a `var` are not arguments; `Parallel(worker.run)` and
   `Concurrent(worker.run)` take a function value, so they are fine; a singleton's constructor passed as an
   argument keeps its own error instead of this one.
 - **An `if` and its `else` do not repeat the same work**: when both branches compute the same thing,

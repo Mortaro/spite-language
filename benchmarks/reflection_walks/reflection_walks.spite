@@ -22,8 +22,8 @@ func ReflectionWalks() {
             walked = walked + joined.length()
             described = described + describe(stats)
             if index % 10 == 0 {
-                var json = JsonWriter(stats)
-                var text = json.write()
+                var json = JsonWriter<Stats>()
+                var text = json.write(stats)
                 written = written + text.length()
             }
             index = index + 1

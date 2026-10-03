@@ -110,7 +110,7 @@ func is_alive(): Boolean {
   `'Bundle.CounterButton(screen.id)' is constructed inside an argument of 'world.create_entity_from_bundle': a
   constructor call is never an argument, so make it first on a line of its own, 'var counter_button =
   Bundle.CounterButton(screen.id)', and pass 'counter_button'`. That goes for `Label(Font())` and
-  `buffers.set(List<String>())` too. A constructor read at once is fine (`JsonWriter(order).write()`), and
+  `buffers.set(List<String>())` too. A constructor read at once is fine (`BinaryWriter(order).write()`), and
   `Parallel(worker.run)` passes a function, not an object.
 - The two branches of an `if`/`else` never compute the same call (`'measure(2)' is computed in both branches`):
   compute it once before the `if`.
@@ -616,8 +616,8 @@ is decided while compiling the same way: `true` when the function, or anything i
 number 1 (from 0) is given or anything reached through it; an engine writes `crash not update.arguments[1].is_mutated`
 to make a system that breaks its rule a compile error
 ([metaprogramming.md](https://github.com/Mortaro/spite-language/blob/master/docs/metaprogramming.md#asking-a-question-while-compiling)).
-`JsonWriter(value).write(): String` writes JSON and `JsonReader<T>(text).read(): T?` reads it
-(`read_or_crash(): T` halts instead), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`;
+`JsonWriter<T>()` made once, then `write(value): String`, writes JSON, and `JsonReader<T>()`, then
+`read(text): T?`, reads it (`read_or_crash(text): T` halts instead), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`;
 `read` skips unknown keys, keeps defaults for missing ones, reads a camelCase or PascalCase key (`buyPrice`,
 `BuyPrice`) into its snake_case attribute (`buy_price`) when no attribute has the key's exact name, so never
 rename attributes to match foreign JSON, and is `null` on a value of the wrong kind; a `Symbol`

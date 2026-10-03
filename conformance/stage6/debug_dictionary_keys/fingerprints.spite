@@ -1,8 +1,8 @@
 var known = Dictionary<String>()
 
 func read(text: String) {
-    var json = JsonReader<Dictionary<String>>(text)
-    var parsed = json.read()
+    var json = JsonReader<Dictionary<String>>()
+    var parsed = json.read(text)
     assert parsed
     known = parsed
 }

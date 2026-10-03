@@ -1,14 +1,9 @@
 generic $value_type
 
-var text = ""
 var _key = ""
 var _cursor: JsonCursor? = null
 
-func JsonReader(new_text: String) {
-    text = new_text
-}
-
-func read(): $value_type? {
+func read(text: String): $value_type? {
     var cursor = JsonCursor(text)
     var parsed = parse(cursor)
     cursor.finish()
@@ -16,7 +11,7 @@ func read(): $value_type? {
     return parsed
 }
 
-func read_or_crash(): $value_type {
+func read_or_crash(text: String): $value_type {
     var cursor = JsonCursor(text)
     cursor.crashes = true
     var parsed = parse(cursor)
@@ -41,11 +36,11 @@ func parse(cursor: JsonCursor): $value_type {
         return read_symbol(cursor)
     } else if $value_type == Null {
         assert not cursor.read_null()
-        var inner = JsonReader<$value_type.value_type>("")
+        var inner = JsonReader<$value_type.value_type>()
         return inner.parse(cursor)
     } else if $value_type == List {
         var list = $value_type()
-        var element_json = JsonReader<$value_type.element_type>("")
+        var element_json = JsonReader<$value_type.element_type>()
         cursor.expect("[")
         var more = not cursor.consume("]")
         while more and not cursor.failed() {
@@ -59,7 +54,7 @@ func parse(cursor: JsonCursor): $value_type {
         return list
     } else if $value_type == Dictionary {
         var dictionary = $value_type()
-        var entry_json = JsonReader<$value_type.value_type>("")
+        var entry_json = JsonReader<$value_type.value_type>()
         cursor.expect("\{")
         var more = not cursor.consume("}")
         while more and not cursor.failed() {
@@ -144,7 +139,7 @@ func read_camel_attribute(attribute: Spite.Attribute) {
 
 func store_value(attribute: Spite.Attribute) {
     crash _cursor
-    var attribute_json = JsonReader<attribute.class>("")
+    var attribute_json = JsonReader<attribute.class>()
     attribute.value = attribute_json.parse(_cursor)
     crash _cursor
     _cursor.matched = true

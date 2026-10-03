@@ -60,8 +60,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   walks a class's attributes and an enum's values with `Symbol<$value_type>` plurals, since an `each` walk would
   keep the cursor in `BinaryFormat`, a singleton every thread shares (status.md, json.md). Waits on
   `mortaros_missing_decisions.md` item 280. **M.**
-- **J2 Rename map keyed by attribute objects** (D320, D329). `JsonWriter<Monster>({Monster.attributes['health']:
-  "hp"})`, the reader taking the same map, every serializer the same kind; a constant map folds into literal keys
+- **J2 Rename map keyed by attribute objects** (D320, D329). `JsonWriter<Monster>()` with its `keys` set to
+  `{Monster.attributes['health']: "hp"}` (D478), the reader taking the same map, every serializer the same kind; a constant map folds into literal keys
   and a generated `switch`, a run-time map fills a key table once per serializer. Needs a `Dictionary` keyed by
   `Spite.Attribute` (hashing an attribute object). The REPL reads `reload {...}` as a map literal (`rename_map`) and
   hands the compiler names as text (D333); with J2 it hands over the real map. Errors for a missing, private or singleton attribute.

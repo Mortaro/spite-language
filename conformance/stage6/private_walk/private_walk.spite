@@ -11,9 +11,9 @@ func PrivateWalk() {
     show_attributes(gadget)
     var shown = gadget.to_debug()
     console.print(shown)
-    var written = JsonWriter(gadget).write()
+    var written = JsonWriter<Gadget>().write(gadget)
     console.print(written)
-    var read = JsonReader<Gadget>("\{\"power\":4,\"_charge\":9}").read()
+    var read = JsonReader<Gadget>().read("\{\"power\":4,\"_charge\":9}")
     crash read
     var read_charge = read.charge()
     console.print("read", read.power, read_charge)

@@ -51,8 +51,8 @@ func json_texts(units: List<Unit>): List<String> {
     var texts = List<String>()
     var index = 0
     while index < units.count() {
-        var writer = JsonWriter(units[index])
-        var text = writer.write()
+        var writer = JsonWriter<Unit>()
+        var text = writer.write(units[index])
         texts.append(text)
         index = index + 1
     }
@@ -63,8 +63,8 @@ func json_units(texts: List<String>): Integer {
     var read = 0
     var index = 0
     while index < texts.count() {
-        var reader = JsonReader<Unit>(texts[index])
-        var unit = reader.read()
+        var reader = JsonReader<Unit>()
+        var unit = reader.read(texts[index])
         if unit {
             read = read + 1
         }

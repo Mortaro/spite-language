@@ -11,16 +11,16 @@ func JsonSymbols() {
     crash found
     marker.tag = found
     marker.color = 'blue'
-    var writer = JsonWriter(marker)
-    var text = writer.write()
+    var writer = JsonWriter<Marker>()
+    var text = writer.write(marker)
     console.print(text)
-    var reader = JsonReader<Marker>(text)
-    var read_back = reader.read()
+    var reader = JsonReader<Marker>()
+    var read_back = reader.read(text)
     crash read_back
     crash read_back.tag
     console.print(read_back.tag, read_back.color)
-    var unknown_reader = JsonReader<Marker>("\{\"tag\":\"no such symbol anywhere\"}")
-    var unknown = unknown_reader.read()
+    var unknown_reader = JsonReader<Marker>()
+    var unknown = unknown_reader.read("\{\"tag\":\"no such symbol anywhere\"}")
     if unknown {
         console.print("read a symbol the program never uses")
     } else {

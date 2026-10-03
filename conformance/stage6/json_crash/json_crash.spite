@@ -1,10 +1,10 @@
 var console = Console()
 
 func JsonCrash() {
-    var reader = JsonReader<Tally>("\{\"count\": 3}")
-    var tally = reader.read_or_crash()
+    var reader = JsonReader<Tally>()
+    var tally = reader.read_or_crash("\{\"count\": 3}")
     console.print("count", tally.count)
-    var broken = JsonReader<Tally>("\{\"count\": three}")
-    broken.read_or_crash()
+    var broken = JsonReader<Tally>()
+    broken.read_or_crash("\{\"count\": three}")
     console.print("never printed")
 }

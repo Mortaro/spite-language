@@ -16121,7 +16121,7 @@ func reported_old_spelling(name: String): Boolean {
     }
     if name == "Json" {
         report(
-            "there is no 'Json': it is two classes, 'JsonWriter(value)' whose 'write()' makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'",
+            "there is no 'Json': it is two classes, 'JsonWriter<T>()' whose 'write(value)' makes the text, and 'JsonReader<T>()' whose 'read(text)' answers a 'T?'",
         )
         return true
     }
