@@ -108,12 +108,44 @@ func stays_in_frame(
 ): Boolean {
     var index = start
     while index < statements.count() {
-        if not statement_keeps_in_frame(name, receiver, statements[index]) {
+        var derived = derived_address(name, receiver, statements[index])
+        if not derived.is_empty() {
+            if not stays_in_frame(derived, receiver, statements, index + 1) {
+                return false
+            }
+        } else if not statement_keeps_in_frame(name, receiver, statements[index]) {
             return false
         }
         index = index + 1
     }
     return true
+}
+
+# ../../../docs/proofs.md#a-buffer-freed-in-its-block-lives-in-the-frame
+func derived_address(name: String, receiver: String, statement: Syntax.Statements.Statement): String {
+    var declaration = shape.as_variable_declaration(statement)
+    if not declaration {
+        return ""
+    }
+    crash declaration.value
+    var offset = shape.as_binary(declaration.value)
+    if not offset {
+        return ""
+    }
+    crash offset.left
+    crash offset.right
+    var base = shape.as_identifier(offset.left)
+    if not base {
+        return ""
+    }
+    var moves = offset.operator == 'add' or offset.operator == 'subtract'
+    if not moves or base.name != name or declaration.name == receiver {
+        return ""
+    }
+    if not expression_keeps_in_frame(name, receiver, offset.right, false) {
+        return ""
+    }
+    return declaration.name
 }
 
 func block_keeps_in_frame(name: String, receiver: String, statements: List<Syntax.Statements.Statement>): Boolean {

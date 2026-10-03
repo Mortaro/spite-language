@@ -51,7 +51,8 @@ func remove_at(index: Integer) {
     _release(index)
     var bytes = _item_bytes()
     var start = items + _item_start()
-    (start + bytes * (index + 1)).copy_to(start + bytes * index, bytes * (item_count - index - 1))
+    var following: Memory.Address = start + bytes * (index + 1)
+    following.copy_to(start + bytes * index, bytes * (item_count - index - 1))
     item_count = item_count - 1
 }
 
@@ -62,7 +63,8 @@ func remove_swapping(index: Integer) {
     if index != last {
         var bytes = _item_bytes()
         var start = items + _item_start()
-        (start + bytes * last).copy_to(start + bytes * index, bytes)
+        var last_item: Memory.Address = start + bytes * last
+        last_item.copy_to(start + bytes * index, bytes)
     }
     item_count = last
 }

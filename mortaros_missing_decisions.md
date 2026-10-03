@@ -83,7 +83,7 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      (`(a + b).copy_to(...)`, `(-x).absolute()`). Options: (a) a compile error only on a computed receiver (an
      operator or a unary minus in parentheses), naming a local to introduce, and chains stay; (b) also refuse
      chains longer than two calls; (c) refuse every receiver that is not a name. Recommend (a): it removes the
-     unreadable form and keeps fused chains. Being built as (a) unless Mortaro says otherwise.
+     unreadable form and keeps fused chains. Built as (a) (D492); (b) or (c) would go further.
 299. **Frame arenas: the first step of automatic memory** (D485; [proposal](design/proposals/automatic_memory.md)).
      The proposal makes "a frame" a pass of a loop that ends in a wait (`program.sleep`, a present, a `Concurrent`
      wait), and puts a value made in a pass and proven never to outlive it into an arena the compiler resets at the

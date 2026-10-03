@@ -5,11 +5,15 @@ func Operators() {
     var second = Displacement(3, 4)
     var total = first + second
     var total_description = total.describe()
-    var difference_description = (first - second).describe()
-    var scaled_description = (first * 3).describe()
+    var difference = first - second
+    var difference_description = difference.describe()
+    var scaled = first * 3
+    var scaled_description = scaled.describe()
     console.print(total_description, difference_description, scaled_description)
-    var sum_description = (first + second + Displacement(10, 10)).describe()
-    var negated_description = (-first).describe()
+    var combined = first + second + Displacement(10, 10)
+    var sum_description = combined.describe()
+    var negated = -first
+    var negated_description = negated.describe()
     console.print(sum_description, negated_description)
     var equal_to_first = Displacement(1, 2)
     console.print(first == equal_to_first, first != second, first < second, first >= second, first <= equal_to_first)

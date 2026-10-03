@@ -1,0 +1,8 @@
+var console = Console()
+
+func ComputedReceiver() {
+    var start = 3
+    var offset = 4
+    var furthest = (start + offset).maximum(10)
+    console.print(furthest)
+}

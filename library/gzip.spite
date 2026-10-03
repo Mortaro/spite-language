@@ -58,7 +58,8 @@ func decompress(bytes: List<Byte>): List<Byte>? {
     var body_count = total - 8 - position
     var body = List<Byte>()
     body.reserve(body_count)
-    (items + position).copy_to(body.items, body_count)
+    var body_start: Memory.Address = items + position
+    body_start.copy_to(body.items, body_count)
     body.item_count = body_count
     var deflate = Deflate()
     var output = deflate.decompress(body)

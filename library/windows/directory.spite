@@ -19,7 +19,8 @@ func entry_names(want_folders: Boolean): List<String> {
         while more {
             var attributes = found.read_integer(0)
             var is_folder = attributes.bits_and(16) != 0
-            var name = (found + 44).terminated_text()
+            var name_start: Memory.Address = found + 44
+            var name = name_start.terminated_text()
             if is_folder == want_folders and name != "." and name != ".." {
                 names.append(name)
             }

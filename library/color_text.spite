@@ -156,7 +156,8 @@ func _from_hue(hue: Float, saturation: Float, lightness: Float, alpha: Float): C
     var turns = hue / 360.0
     var whole_turns = turns.floor()
     var sector = (turns - whole_turns) * 6.0
-    var lightness_share = 1.0 - (2.0 * lightness - 1.0).absolute()
+    var centered = 2.0 * lightness - 1.0
+    var lightness_share = 1.0 - centered.absolute()
     var chroma = lightness_share * saturation
     var half_sector = sector * 0.5
     var within_pair = (half_sector - half_sector.floor()) * 2.0

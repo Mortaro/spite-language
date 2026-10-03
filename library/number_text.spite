@@ -57,7 +57,8 @@ func exact_digits(multiplier: Long, exponent: Long): String {
     while address.read_byte(start) == 48 {
         start = start + 1
     }
-    var text = (address + start).text(size - start)
+    var first_character: Memory.Address = address + start
+    var text = first_character.text(size - start)
     heap.free(address)
     return text
 }
@@ -122,7 +123,8 @@ func rounded_digits(digits: String, count: Long): String {
     if address.read_byte(0) != 48 {
         start = 0
     }
-    var text = (address + start).text(count + 1 - start)
+    var first_character: Memory.Address = address + start
+    var text = first_character.text(count + 1 - start)
     heap.free(address)
     return text
 }

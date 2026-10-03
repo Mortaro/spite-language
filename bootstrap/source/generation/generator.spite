@@ -384,6 +384,11 @@ var parallel_locked_depth = 0
 var argument_callee = ""
 var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
+var inflection_words = String.Inflection()
+var program_inflection_read = false
+var program_uncountables = List<String>()
+var program_irregular_singulars = List<String>()
+var program_irregular_plurals = List<String>()
 var placement = Placement()
 var old_spellings = OldSpellings()
 var maths = MathsPrimitives()
@@ -5596,6 +5601,9 @@ func resolve_field(
         default_code = coerce_for_store(declaration.hardcoded_value, field_type, scope, information)
         hardcoded_settings.append(declaration)
     }
+    if information.qualified_dotted == "String.Inflection" {
+        read_inflection_words(declaration)
+    }
     var field = Analysis.FieldInfo(declaration.name, field_type, default_code)
     field.line = declaration.line
     information.fields.append(field)
@@ -5867,7 +5875,7 @@ func register_template(declaration: Syntax.Statements.FunctionDeclaration, infor
     }
     var padded_name = "_{declaration.name}_"
     var position = padded_name.index_of("_{symbol_parameter}_")
-    var plural_word = symbol_parameter.pluralize()
+    var plural_word = program_inflected(symbol_parameter, true)
     var plural_position = padded_name.index_of("_{plural_word}_")
     if position < 0 and plural_position >= 0 and plural_word != symbol_parameter and has_element_templates(information) {
         var plural_prefix = declaration.name.slice(0, plural_position)
@@ -5921,7 +5929,7 @@ func report_singular_collection(
     var printer = Syntax.SourcePrinter()
     var returned = printer.source_type(declaration.return_type)
     assert returned == "List<{symbol_parameter}.class>"
-    var plural_word = symbol_parameter.pluralize()
+    var plural_word = program_inflected(symbol_parameter, true)
     assert plural_word != symbol_parameter
     var renamed = declaration.name.replace(symbol_parameter, plural_word)
     var saved_function = current_function
@@ -9600,6 +9608,16 @@ func coerce_for_store(
             var expected_list_element = expected_list.element
             var literal_result = generate_list_literal(list_literal, expected_list_element, scope, class_information)
             return literal_result.code
+        }
+    }
+    var dictionary_literal = shape.as_object_literal(expression_ast)
+    if dictionary_literal {
+        var expected_inner_type = expected_type_without_nullable(expected_type)
+        var expected_dictionary = type_shape.as_dictionary(expected_inner_type)
+        if expected_dictionary and dictionary_literal.is_dictionary {
+            var expected_value = expected_dictionary.element
+            var made = generate_dictionary_literal(dictionary_literal, expected_value, scope, class_information)
+            return made.code
         }
     }
     var enum_literal = shape.as_enum_literal(expression_ast)
@@ -15226,6 +15244,12 @@ func generate_method_call(
             return folded_maths
         }
     }
+    if member.name == "pluralize" or member.name == "singularize" {
+        var folded_word = folded_inflection(member.name, object_ast, arguments_ast)
+        if folded_word {
+            return folded_word
+        }
+    }
     if member.name == "absolute" and arguments_ast.is_empty() {
         var checked_absolute = checked_absolute_call(member, object_ast, scope, class_information)
         if checked_absolute {
@@ -16382,7 +16406,8 @@ func union_member_class(information: Analysis.UnionInfo, word: String): Analysis
     var index = 0
     while index < information.members.count() {
         var member_class = information.members[index]
-        var plural = snake_words(member_class.simple_name).pluralize()
+        var class_words = snake_words(member_class.simple_name)
+        var plural = program_inflected(class_words, true)
         if plural == word {
             return member_class
         }
@@ -16467,7 +16492,7 @@ func collected_word(member_name: String): String {
     if is_question_name(member_name) {
         return member_name
     }
-    return member_name.pluralize()
+    return program_inflected(member_name, true)
 }
 
 func is_question_name(member_name: String): Boolean {
@@ -16479,7 +16504,7 @@ func plural_members(member_names: List<String>, word: String): List<String> {
     var index = 0
     while index < member_names.count() {
         var member_name = member_names[index]
-        if not is_question_name(member_name) and member_name.pluralize() == word and not found.contains(member_name) {
+        if not is_question_name(member_name) and program_inflected(member_name, true) == word and not found.contains(member_name) {
             found.append(member_name)
         }
         index = index + 1
@@ -16507,7 +16532,7 @@ func template_member_name(template: Analysis.TemplateInfo, name: String, member_
         return ""
     }
     var member_name = found[0]
-    if word != member_name and word.singularize() != member_name {
+    if word != member_name and program_inflected(word, false) != member_name {
         return ""
     }
     return member_name
@@ -16526,11 +16551,12 @@ func plural_member_problem(
     }
     if found.count() == 1 {
         var member_name = found[0]
-        var singular = word.singularize()
+        var singular = program_inflected(word, false)
         return "'{name}' would collect '{member_name}', but its plural '{word}' gives back '{singular}', not '{member_name}': add the word to the irregulars by reopening 'String.Inflection', or rename '{member_name}'"
     }
-    if member_names.contains(word) and word.pluralize() != word {
-        return "'{name}' answers every '{word}', so it is written in the plural: '{template.prefix}{word.pluralize()}{template.suffix}'"
+    var plural_word = program_inflected(word, true)
+    if member_names.contains(word) and plural_word != word {
+        return "'{name}' answers every '{word}', so it is written in the plural: '{template.prefix}{plural_word}{template.suffix}'"
     }
     return ""
 }
@@ -16799,7 +16825,7 @@ func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
                 var requirement = member_requirement(template.prefix, is_field, member_name, member_type)
                 var word = member_name
                 if template.plural and not is_question_name(member_name) {
-                    word = member_name.pluralize()
+                    word = program_inflected(member_name, true)
                 }
                 var name = "{template.prefix}{word}{template.suffix}"
                 if requirement.is_empty() and not list_class.find_function(name) {
@@ -20827,6 +20853,57 @@ func generate_list_literal(
     return ExpressionResult("(\{ {lines.join(" ")} })", list_type)
 }
 
+# ../../../docs/collections.md#dictionaryt
+func generate_dictionary_literal(
+    literal: Syntax.Expressions.ObjectLiteralExpression,
+    element: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var made_type = dictionary_type_at(element, current_line, -1)
+    var dictionary = type_shape.as_dictionary(made_type)
+    crash dictionary
+    var dictionary_name = ensure_dictionary(dictionary)
+    var container = find_class_by_c_name(dictionary_name)
+    crash container
+    var setter = find_or_instantiate_function(container, "set_at")
+    crash setter
+    var temporary = next_temporary()
+    var lines = List<String>()
+    lines.append("{dictionary_name}* {temporary} = {dictionary_name}___make();")
+    var written = List<String>()
+    var index = 0
+    while index < literal.fields.count() {
+        var entry = literal.fields[index]
+        crash entry.key
+        crash entry.value
+        if written.contains(entry.name) {
+            report("{entry.name} is written twice in this dictionary: keep one entry for each key")
+        }
+        written.append(entry.name)
+        var key_type = dictionary_key_parameter(dictionary, entry.key, scope, class_information)
+        var key_code = coerce_for_store(entry.key, key_type, scope, class_information)
+        var value_code = coerce_for_store(entry.value, element, scope, class_information)
+        lines.append("{setter.c_name}({temporary}, {key_code}, {value_code});")
+        index = index + 1
+    }
+    lines.append("{temporary};")
+    return ExpressionResult("(\{ {lines.join(" ")} })", made_type)
+}
+
+func generate_untyped_dictionary_literal(
+    literal: Syntax.Expressions.ObjectLiteralExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    crash literal.fields[0].value
+    var saved_counter = temporary_counter
+    var probe = generate_expression(literal.fields[0].value, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var probe_type = probe.type
+    return generate_dictionary_literal(literal, probe_type, scope, class_information)
+}
+
 func generate_untyped_list_literal(
     literal: Syntax.Expressions.ListLiteralExpression,
     scope: Scope,
@@ -24100,6 +24177,9 @@ func generate_expression_kind(
     }
     var object_literal = shape.as_object_literal(expression)
     if object_literal {
+        if object_literal.is_dictionary {
+            return generate_untyped_dictionary_literal(object_literal, scope, class_information)
+        }
         return generate_object_literal(object_literal, scope, class_information)
     }
     var generic_call = shape.as_generic_call(expression)
@@ -25496,6 +25576,9 @@ func lends_row(
     crash declaration.value
     var literal = shape.as_object_literal(declaration.value)
     if not literal or in_vector_library(class_information) {
+        return false
+    }
+    if literal.is_dictionary {
         return false
     }
     if scope.entry_names.contains(declaration.name) or not borrows_an_item(literal, scope, class_information) {
@@ -31697,6 +31780,136 @@ func report_shadow(name: String, what: String, function_names: List<String>) {
     report(
         "the {what} '{name}' has the name of a function of this class, and a function is a value passed by its name: give the {what} a name of its own",
     )
+}
+
+# ../../../docs/standard_library.md#the-string-class
+func read_inflection_words(declaration: Syntax.Statements.VariableDeclaration) {
+    crash declaration.value
+    if declaration.name == "uncountables" {
+        program_uncountables = literal_texts(declaration.value)
+        program_inflection_read = true
+        return
+    }
+    assert declaration.name == "irregulars"
+    var literal = shape.as_object_literal(declaration.value)
+    assert literal
+    var singulars = List<String>()
+    var plurals = List<String>()
+    var index = 0
+    while index < literal.fields.count() {
+        var entry = literal.fields[index]
+        crash entry.key
+        crash entry.value
+        var key_text = shape.as_string_literal(entry.key)
+        var value_text = shape.as_string_literal(entry.value)
+        if key_text and value_text {
+            singulars.append(key_text.value)
+            plurals.append(value_text.value)
+        }
+        index = index + 1
+    }
+    program_irregular_singulars = singulars
+    program_irregular_plurals = plurals
+    program_inflection_read = true
+}
+
+func literal_texts(value: Syntax.Expressions.Expression): List<String> {
+    var texts = List<String>()
+    var listed = shape.as_list_literal(value)
+    if not listed {
+        return texts
+    }
+    var index = 0
+    while index < listed.elements.count() {
+        crash listed.elements[index].value
+        var text = shape.as_string_literal(listed.elements[index].value)
+        if text {
+            texts.append(text.value)
+        }
+        index = index + 1
+    }
+    return texts
+}
+
+# ../../../docs/optimizations.md#a-word-inflected-while-compiling
+func folded_inflection(
+    name: String,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+): ExpressionResult? {
+    assert arguments_ast.is_empty() and same_inflection_table()
+    var written = shape.as_string_literal(object_ast)
+    assert written
+    var text = written.value
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        assert code == 95 or code >= 97 and code <= 122
+        index = index + 1
+    }
+    var inflected = program_inflected(text, name == "pluralize")
+    var rendered = render_string_literal(inflected)
+    var inflected_type = Analysis.Types.StringType()
+    return ExpressionResult(rendered, inflected_type)
+}
+
+func same_inflection_table(): Boolean {
+    if not program_inflection_read {
+        return true
+    }
+    var own_singulars = inflection_words.irregulars.keys()
+    var own_plurals = inflection_words.irregulars.values()
+    var same_uncountables = same_texts(inflection_words.uncountables, program_uncountables)
+    var same_singulars = same_texts(own_singulars, program_irregular_singulars)
+    return same_uncountables and same_singulars and same_texts(own_plurals, program_irregular_plurals)
+}
+
+func same_texts(left: List<String>, right: List<String>): Boolean {
+    if left.count() != right.count() {
+        return false
+    }
+    var index = 0
+    while index < left.count() {
+        if left[index] != right[index] {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func program_inflected(word: String, to_plural: Boolean): String {
+    var start = 0
+    var index = 0
+    var word_length = word.length()
+    while index < word_length {
+        if word.code_at(index) == 95 {
+            start = index + 1
+        }
+        index = index + 1
+    }
+    var head = word.slice(0, start)
+    var last = word.slice(start, word_length)
+    if program_inflection_read and program_uncountables.contains(last) {
+        return word
+    }
+    var position = 0
+    while program_inflection_read and position < program_irregular_singulars.count() {
+        var singular = program_irregular_singulars[position]
+        var plural = program_irregular_plurals[position]
+        crash plural
+        if last == singular or last == plural {
+            if to_plural {
+                return head + plural
+            }
+            return head + singular
+        }
+        position = position + 1
+    }
+    if to_plural {
+        return word.pluralize()
+    }
+    return word.singularize()
 }
 
 func check_value_name(name: String, what: String) {

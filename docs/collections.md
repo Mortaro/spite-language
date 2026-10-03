@@ -106,6 +106,31 @@ total items 7
 `inventory["shield"]` is `null`, and `null` equals nothing, so `inventory["shield"] == 0` is `false`: absent is
 not zero. `has(key)` asks the question directly.
 
+A dictionary whose entries are known when it is written is a **dictionary literal**: each entry a key, a colon and
+a value, apart with commas or one per line, as a list literal's items are (the formatter puts a short one on one
+line). Its keys are text or whole numbers
+written out, and its value type comes from the first value, or from the declared type when there is one:
+
+```gdscript title=dictionary_literals/dictionary_literals.spite entry
+var console = Console()
+
+func DictionaryLiterals() {
+    var plurals = {"cactus": "cacti", "foot": "feet"}
+    var squares = {1: 1, 2: 4, 3: 9}
+    var weights: Dictionary<Float> = {"feather": 0.01, "anvil": 50}
+    crash plurals["cactus"]
+    crash squares[3]
+    crash weights["anvil"]
+    console.print(plurals["cactus"], squares[3], weights["anvil"])
+}
+```
+```output
+cacti 9 50
+```
+
+A key written twice is an error (`"cactus" is written twice in this dictionary: keep one entry for each key`), and
+an empty dictionary is made with `Dictionary<T>()`, since `{}` names no value type.
+
 ### Keyed by numbers
 
 Give a dictionary whole numbers (`Integer`, `Long` or any other whole-number type) and it is keyed by them: it
@@ -1211,6 +1236,14 @@ Insertion-ordered, keyed by text or by whole numbers; its members are [the table
 `Dictionary<T>`](#dictionaryt), which is normative. `dictionary[key]` is `get_at(key)`, a `T?` that is `null` for an
 absent key, and `dictionary[key] = value` is `set_at(key, value)`, the same functions as every other `[]`.
 `keys()` and `values()` answer fresh copies, in insertion order.
+
+**A dictionary literal** is `{` then entries apart with commas or newlines (a last comma allowed), each a key, `:`
+and a value, then `}`. A key is a text literal or a whole-number literal, and the first key decides which: a brace
+that opens on a name is an object literal instead. The entries are set in the order written; the value type is the
+declared type's when the literal is stored where a `Dictionary<T>` is declared, and the first value's otherwise.
+The same key twice is `"key" is written twice in this dictionary: keep one entry for each key`, and a text key and
+a number key in one literal are the mixed-key error below. `{}` is an empty object literal, never a dictionary:
+an empty dictionary is `Dictionary<T>()`.
 
 **The key kind is decided while compiling.** Each dictionary is keyed by text or by whole numbers, never both, and nothing is written for
 it: `Dictionary<T>` stays the one spelling.

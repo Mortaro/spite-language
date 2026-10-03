@@ -1,0 +1,8 @@
+var console = Console()
+
+func InflectionFold() {
+    var plural = "cactus".pluralize()
+    var singular = "active_quests".singularize()
+    var heroes = "hero".pluralize()
+    console.print(plural, singular, heroes)
+}

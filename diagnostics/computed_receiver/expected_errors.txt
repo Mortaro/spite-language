@@ -1,0 +1,1 @@
+diagnostics/computed_receiver/computed_receiver.spite:6:44: '(start + offset).maximum(...)' calls a function on a value computed in place: name it first ('var named = start + offset') and call 'named.maximum(...)', since only a name calls a function

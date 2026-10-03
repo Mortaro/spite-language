@@ -1,5 +1,5 @@
-spite.crash	75fe54ef	library/items.spite:59	Items	remove_swapping	index=1	item_count=1	items=...	capacity=4
-spite.frame	library/items.spite:58	Items	remove_swapping
+spite.crash	75fe54ef	library/items.spite:60	Items	remove_swapping	index=1	item_count=1	items=...	capacity=4
+spite.frame	library/items.spite:59	Items	remove_swapping
 spite.frame	conformance/stage6/items_remove_swapping_out_of_range/items_remove_swapping_out_of_range.spite:3	ItemsRemoveSwappingOutOfRange	ItemsRemoveSwappingOutOfRange
 spite.frame	launcher/launcher.spite:3	Launcher	Launcher
 spite.frame	-	-	main

@@ -85,7 +85,8 @@ func collect() {
             var name_length = events.read_integer(offset + 12)
             var name = ""
             if name_length > 0 {
-                name = (events + offset + 16).terminated_text()
+                var name_start: Memory.Address = events + offset + 16
+                name = name_start.terminated_text()
             }
             note_event(number, mask, name)
             offset = offset + 16 + name_length

@@ -38,7 +38,8 @@ func remove_at(index: Integer) {
     values.release_item(items, index)
     var bytes = values.item_bytes()
     var start = items + values.item_start()
-    (start + bytes * (index + 1)).copy_to(start + bytes * index, bytes * (item_count - index - 1))
+    var following: Memory.Address = start + bytes * (index + 1)
+    following.copy_to(start + bytes * index, bytes * (item_count - index - 1))
     item_count = item_count - 1
 }
 

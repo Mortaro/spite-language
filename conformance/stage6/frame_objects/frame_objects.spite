@@ -44,7 +44,8 @@ func measured_length(): Float {
     var second = Point(3.0, 4.0)
     var third = Point(-1.0, 0.5)
     var total = first + second + -third
-    return total.length_squared() + (first + second).length_squared()
+    var pair = first + second
+    return total.length_squared() + pair.length_squared()
 }
 
 func show_sections() {

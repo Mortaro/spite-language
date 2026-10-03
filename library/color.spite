@@ -78,7 +78,8 @@ func to_hsl_text(): String {
     var saturation = 0.0
     var hue = 0.0
     if spread > 0.0 {
-        var denominator = 1.0 - (2.0 * lightness - 1.0).absolute()
+        var centered = 2.0 * lightness - 1.0
+        var denominator = 1.0 - centered.absolute()
         saturation = spread / denominator
         hue = _hue_of(highest, spread)
     }

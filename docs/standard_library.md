@@ -900,18 +900,31 @@ name and its collection read as a pair: `"active_quest".pluralize()` is `"active
 `"map_names".singularize()` is `"map_name"`. Only the last word changes: the text after the last `_` or space, or
 from the last capital that follows a lower-case letter (`"ActiveQuest"` → `"ActiveQuests"`). The word is inflected
 in lower case and handed back in the case it came in: `"Person"` → `"People"`, `"ACTIVE_QUEST"` →
-`"ACTIVE_QUESTS"`. In order, a whole last word that is **uncountable** stays as it is (`data`, `equipment`, `health`,
-`information`, `rice`, `money`, `species`, `series`, `fish`, `sheep`, `jeans`, `police`); an **irregular** one
-swaps with its pair (`person`/`people`, `man`/`men`, `woman`/`women`, `child`/`children`, `sex`/`sexes`,
-`move`/`moves`, `zombie`/`zombies`); otherwise the first of ActiveSupport's ending rules that matches applies
-(`box` → `boxes`, `enemy` → `enemies`, `wolf` → `wolves`, `knife` → `knives`, `analysis` → `analyses`, `medium`
-→ `media`, `index` → `indices`, `matrix` → `matrices`, `vertex` → `vertices`, `mouse` → `mice`, `ox` → `oxen`,
-`octopus` → `octopi`, `quiz` → `quizzes`, `status` → `statuses`), and a word no rule names takes or loses an `s`.
-A word already in the asked number is left alone (`"quests".pluralize()` is `"quests"`, `"people".pluralize()` is
-`"people"`), and `""` answers `""`. The rules are ActiveSupport's own, oddities included (`"potato".pluralize()` is
-`"potatos"`: only `buffalo` and `tomato` take `-oes`). They are ordinary Spite in `library/string.spite`, so the
-compiler, itself a Spite program, can call them while compiling; a user program has no compile-time call of its own.
-They are functions, like `upper_case()`, because a `String` has no attributes for a getter to answer.
+`"ACTIVE_QUESTS"`. In order, a whole last word that is **uncountable** stays as it is; an **irregular** one
+swaps with its pair; otherwise the first of ActiveSupport's ending rules that matches applies (`box` → `boxes`,
+`enemy` → `enemies`, `wolf` → `wolves`, `knife` → `knives`, `analysis` → `analyses`, `medium` → `media`, `index` →
+`indices`, `matrix` → `matrices`, `vertex` → `vertices`, `mouse` → `mice`, `ox` → `oxen`, `octopus` → `octopi`, `quiz`
+→ `quizzes`, `status` → `statuses`), and a word no rule names takes or loses an `s`. A word already in the asked
+number is left alone (`"quests".pluralize()` is `"quests"`, `"people".pluralize()` is `"people"`), and `""` answers
+`""`. The rules are ActiveSupport's own; the words they would get wrong are in the table.
+
+The uncountable and irregular words are a table in the library, the singleton `String.Inflection`
+(`library/string/inflection.spite`): `irregulars`, a dictionary from each singular to its plural (`person` →
+`people`, `man` → `men`, `woman` → `women`, `child` → `children`, `foot` → `feet`, `tooth` → `teeth`, `goose` →
+`geese`, `cactus` → `cacti`, `fungus` → `fungi`, `radius` → `radii`, `criterion` → `criteria`, `phenomenon` →
+`phenomena`, `appendix` → `appendices`, `leaf` → `leaves`, `hero` → `heroes`, `potato` → `potatoes` and the rest),
+and `uncountables`, a list (`data`, `equipment`, `health`, `information`, `money`, `news`, `series`, `sheep`,
+`software` and the rest). A program adds a word by reopening it: a file `string/inflection.spite` in the program
+that declares `irregulars` or `uncountables` replaces that list whole, so it restates the library's words it keeps:
+
+```gdscript
+var irregulars = {"person": "people", "sheaf": "sheaves"}
+```
+
+`pluralize()` reads the program's table at run time, and the compiler reads the same table where it inflects a
+member's name ([metaprogramming.md](metaprogramming.md)), so `map_sheaves()` collects a `sheaf` attribute once
+`sheaf` is in it (`conformance/stage6/inflection_table`). Called on a literal (`"cactus".pluralize()`), the answer is worked out while compiling
+([optimizations.md](optimizations.md#a-word-inflected-while-compiling)). They are functions, like `upper_case()`, because a `String` has no attributes for a getter to answer.
 
 #### Maths
 

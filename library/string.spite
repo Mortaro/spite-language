@@ -13,7 +13,8 @@ func slice(start: Integer, end: Integer): String {
     if last <= first {
         return ""
     }
-    return (_bytes + first).text(last - first)
+    var first_byte: Memory.Address = _bytes + first
+    return first_byte.text(last - first)
 }
 
 func _clamped(position: Integer): Integer {
@@ -391,40 +392,20 @@ func _cased_like(original: String, changed: String): String {
 }
 
 func _is_uncountable(word: String): Boolean {
-    return word == "data" or word == "equipment" or word == "health" or word == "information" or word == "rice" or word == "money" or word == "species" or word == "series" or word == "fish" or word == "sheep" or word == "jeans" or word == "police"
+    var inflection = String.Inflection()
+    return inflection.is_uncountable(word)
 }
 
 func _irregular(word: String, to_plural: Boolean): String {
-    var found = _irregular_pair(word, "person", "people", to_plural)
-    if found.is_empty() {
-        found = _irregular_pair(word, "man", "men", to_plural)
-    }
-    if found.is_empty() {
-        found = _irregular_pair(word, "woman", "women", to_plural)
-    }
-    if found.is_empty() {
-        found = _irregular_pair(word, "child", "children", to_plural)
-    }
-    if found.is_empty() {
-        found = _irregular_pair(word, "sex", "sexes", to_plural)
-    }
-    if found.is_empty() {
-        found = _irregular_pair(word, "move", "moves", to_plural)
-    }
-    if found.is_empty() {
-        found = _irregular_pair(word, "zombie", "zombies", to_plural)
-    }
-    return found
-}
-
-func _irregular_pair(word: String, singular: String, plural: String, to_plural: Boolean): String {
-    if word != singular and word != plural {
-        return ""
-    }
+    var inflection = String.Inflection()
+    var found = inflection.singular_of(word)
     if to_plural {
-        return plural
+        found = inflection.plural_of(word)
     }
-    return singular
+    if found {
+        return found
+    }
+    return ""
 }
 
 func _cut(word: String, count: Integer): String {

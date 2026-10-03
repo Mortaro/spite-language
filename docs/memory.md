@@ -1246,7 +1246,7 @@ is the same whichever it makes:
   `Integer`). The wrapper is flattened: a number is its C scalar, and `this` is the value.
 - **Frame:** `var name = heap.allocate(bytes)` in a function, when a later statement of the same block
   is `heap.free(name)` and every other use of `name` reads or writes through it (`name.read_long(offset)`, also
-  as `(name + offset)`), copies or compares with it (`copy_to`, `compare_bytes`), turns it into `text`, or hands
+  through a local made by adding an offset, `var start = name + offset`, whose uses meet the same rule), copies or compares with it (`copy_to`, `compare_bytes`), turns it into `text`, or hands
   it to a `TypedMemory`'s `read_value`, `write_value` or `release_value` (a `TypedMemory` the class binds; the same
   names on any other class are an ordinary call, `conformance/stage6/kept_buffer_address`), or lends it to a function of the same
   class, called by its bare name, whose `Memory.Address` parameter is proven to keep nothing (the same rules,

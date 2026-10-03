@@ -77,7 +77,7 @@ moved`. Operators chain freely, `first + second - third`, because an operator is
 
 `Matrix4()` is the identity. Its sixteen parts are `column_0_row_0` to `column_3_row_3`, **column-major**: the
 four parts of a column sit next to each other in memory, as Vulkan, OpenGL and glTF expect, and a point is a
-column the matrix multiplies from the left. `a * b` is `a` applied after `b`: `(a * b).transform_point(point)` is
+column the matrix multiplies from the left. `a * b` is `a` applied after `b`: with `var both = a * b`, `both.transform_point(point)` is
 `a.transform_point(b.transform_point(point))`. A matrix is set to a transform in place, the usual
 way: `set_translation(offset)`, `set_scale(factor)`, `set_rotation(rotation)`, `set_transform(translation,
 rotation, scale)` (scale first, then rotation, then translation), `set_look_at(eye, target, up)`,
@@ -291,7 +291,7 @@ functions that keep nothing, given a new value, or returned) the compiler keeps 
 the function that made it writes it straight there
 ([optimizations.md](optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)), so
 `position = position + velocity.scaled(delta)` in a loop allocates nothing, and neither do `a + b + c` or
-`(first - second).length()`. An answer that is stored (in an attribute, a list, a `Vector<T>` column) or printed
+`var offset = first - second` read only by `offset.length()`. An answer that is stored (in an attribute, a list, a `Vector<T>` column) or printed
 is an object on the heap, one allocation, as any object is.
 
 `benchmarks/game_maths` measures it against the same passes written in C with plain structs

@@ -64,7 +64,8 @@ func remove_swapping(index: Integer) {
     var final_index = item_count - 1
     if index != final_index {
         var bytes = values.value_bytes()
-        (items + bytes * final_index).copy_to(items + bytes * index, bytes)
+        var final_item: Memory.Address = items + bytes * final_index
+        final_item.copy_to(items + bytes * index, bytes)
     }
     item_count = final_index
 }
@@ -136,8 +137,10 @@ func reverse() {
         var front: Long = 0
         var back: Long = item_count - 1
         while front < back {
-            (items + front * bytes).copy_to(spare, bytes)
-            (items + back * bytes).copy_to(items + front * bytes, bytes)
+            var front_item: Memory.Address = items + front * bytes
+            var back_item: Memory.Address = items + back * bytes
+            front_item.copy_to(spare, bytes)
+            back_item.copy_to(front_item, bytes)
             spare.copy_to(items + back * bytes, bytes)
             front = front + 1
             back = back - 1
@@ -512,5 +515,6 @@ func _resized(old_bytes: Long, new_bytes: Long): Memory.Address {
 
 func move_items(from: Integer, to: Integer, moved_count: Integer) {
     var bytes = values.value_bytes()
-    (items + bytes * from).copy_to(items + bytes * to, bytes * moved_count)
+    var moved_items: Memory.Address = items + bytes * from
+    moved_items.copy_to(items + bytes * to, bytes * moved_count)
 }

@@ -1,0 +1,14 @@
+var console = Console()
+
+func InflectionTable() {
+    var bundles = [Bundle("wheat"), Bundle("barley")]
+    var sheaves = bundles.map_sheaves()
+    var joined = sheaves.join(", ")
+    var word = "sheaf"
+    var plural = word.pluralize()
+    var person = "Person"
+    var people = person.pluralize()
+    var foot = "foot"
+    var feet = foot.pluralize()
+    console.print(joined, plural, people, feet)
+}

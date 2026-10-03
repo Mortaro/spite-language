@@ -1,0 +1,86 @@
+singleton
+
+var irregulars = {
+    "person": "people"
+    "man": "men"
+    "woman": "women"
+    "child": "children"
+    "sex": "sexes"
+    "move": "moves"
+    "zombie": "zombies"
+    "foot": "feet"
+    "tooth": "teeth"
+    "goose": "geese"
+    "cactus": "cacti"
+    "fungus": "fungi"
+    "nucleus": "nuclei"
+    "radius": "radii"
+    "stimulus": "stimuli"
+    "syllabus": "syllabi"
+    "alumnus": "alumni"
+    "criterion": "criteria"
+    "phenomenon": "phenomena"
+    "appendix": "appendices"
+    "leaf": "leaves"
+    "loaf": "loaves"
+    "thief": "thieves"
+    "hoof": "hooves"
+    "hero": "heroes"
+    "potato": "potatoes"
+    "echo": "echoes"
+    "veto": "vetoes"
+    "torpedo": "torpedoes"
+}
+var uncountables = [
+    "data"
+    "equipment"
+    "health"
+    "information"
+    "rice"
+    "money"
+    "species"
+    "series"
+    "fish"
+    "sheep"
+    "jeans"
+    "police"
+    "deer"
+    "moose"
+    "aircraft"
+    "news"
+    "furniture"
+    "luggage"
+    "advice"
+    "software"
+    "hardware"
+    "knowledge"
+]
+
+func is_uncountable(word: String): Boolean {
+    return uncountables.contains(word)
+}
+
+func plural_of(word: String): String? {
+    if irregulars.has(word) {
+        return irregulars[word]
+    }
+    var plurals = irregulars.values()
+    assert plurals.contains(word)
+    return word
+}
+
+func singular_of(word: String): String? {
+    if irregulars.has(word) {
+        return word
+    }
+    var singulars = irregulars.keys()
+    var plurals = irregulars.values()
+    var index = 0
+    while index < plurals.count() {
+        if plurals[index] == word {
+            return singulars[index]
+        }
+        index = index + 1
+    }
+    return null
+}

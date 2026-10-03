@@ -1297,6 +1297,17 @@ func parse_unary(): Syntax.Expressions.Expression {
     return parse_postfix()
 }
 
+func is_computed_receiver(expression: Syntax.Expressions.Expression): Boolean {
+    if expression == Syntax.Expressions.BinaryExpression {
+        return not expression.is_text_join
+    }
+    if expression == Syntax.Expressions.UnaryExpression {
+        crash expression.operand
+        return not (expression.operand == Syntax.Expressions.IntegerLiteral or expression.operand == Syntax.Expressions.FloatLiteral)
+    }
+    return false
+}
+
 func parse_postfix(): Syntax.Expressions.Expression {
     var parsed_primary = parse_primary()
     return parse_postfix_rest(parsed_primary)
@@ -1306,6 +1317,12 @@ func parse_postfix_rest(expression: Syntax.Expressions.Expression): Syntax.Expre
     if check('dot') {
         advance()
         var name = expect('identifier', "a member name after '.'")
+        if check('left_paren') and is_computed_receiver(expression) {
+            var receiver = Syntax.SourcePrinter().source_expression(expression)
+            fail(
+                "'({receiver}).{name.text}(...)' calls a function on a value computed in place: name it first ('var named = {receiver}') and call 'named.{name.text}(...)', since only a name calls a function",
+            )
+        }
         var member = Syntax.Expressions.MemberExpression(expression, name.text)
         member.written = true
         return parse_postfix_rest(member)
@@ -1520,13 +1537,24 @@ func parse_object_literal(): Syntax.Expressions.Expression {
     advance()
     skip_trivia()
     var fields = List<Syntax.Expressions.ObjectField>()
+    var keyed = check('string_literal') or check('integer_literal')
     var finished = check('right_brace') or check('end_of_file')
     while not finished {
-        var name = expect('identifier', "a field name")
-        expect('colon', "':' followed by the field's value")
-        var value = parse_expression()
-        var field = Syntax.Expressions.ObjectField(name.text, value)
-        fields.append(field)
+        if keyed {
+            var key_token = current()
+            var key = parse_expression()
+            expect('colon', "':' followed by the entry's value")
+            var entry_value = parse_expression()
+            var entry = Syntax.Expressions.ObjectField(key_token.lexeme, entry_value)
+            entry.key = key
+            fields.append(entry)
+        } else {
+            var name = expect('identifier', "a field name")
+            expect('colon', "':' followed by the field's value")
+            var value = parse_expression()
+            var field = Syntax.Expressions.ObjectField(name.text, value)
+            fields.append(field)
+        }
         consume_field_separator('right_brace')
         skip_trivia()
         if check('right_brace') or check('end_of_file') or has_error {
@@ -1534,5 +1562,7 @@ func parse_object_literal(): Syntax.Expressions.Expression {
         }
     }
     expect('right_brace', "'}' to close the object literal")
-    return Syntax.Expressions.ObjectLiteralExpression(fields)
+    var literal = Syntax.Expressions.ObjectLiteralExpression(fields)
+    literal.is_dictionary = keyed
+    return literal
 }

@@ -217,7 +217,9 @@ func is_alive(): Boolean {
   `values`, `dictionary["key"]` (a `T?`, through `get_at` like every `[]`, like `list[index]`: `inventory["shield"] == 0` is false for an absent
   key). Keys are text or whole numbers, decided from the keys you give it: key by the number itself
   (`created_layouts[entity]`), never by text made from it (no `"{entity}"`). `keys()` answers the numbers.
-  One dictionary never takes both kinds (a compile error naming both places). A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
+  One dictionary never takes both kinds (a compile error naming both places). A dictionary literal writes its
+  entries, `{"cactus": "cacti", "foot": "feet"}` or `{1: 1, 2: 4}`; a key written twice is an error, and an empty
+  one is `Dictionary<T>()`. A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
   'Printable'`; print `list.join(", ")`, or `console.debug(list)`.
 - A chain of templates, `teams.filter_active().map_leads().sum_age()`, runs as one loop with no list in between.
 - To remove many elements, never call `remove_at` or `remove_swapping` in a loop: `creatures.remove_where_dead()`

@@ -20,7 +20,8 @@ func entry_names(want_folders: Boolean): List<String> {
         var entry: Memory.Address = library.readdir_as_long(directory)
         while entry != 0 {
             var is_folder = entry.read_byte(20) == 4
-            var name = (entry + 21).terminated_text()
+            var name_start: Memory.Address = entry + 21
+            var name = name_start.terminated_text()
             if is_folder == want_folders and name != "." and name != ".." {
                 names.append(name)
             }

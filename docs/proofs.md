@@ -619,7 +619,9 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Rule.** `var name = heap.allocate(size)` whose block later calls `heap.free(name)` at its own level, with every
   use in between an address primitive, a read or write through a `TypedMemory` attribute of the class (a
   function of the same name on anything else is any other use), or a call to a function of the same class that
-  provably keeps the parameter; neither name is assigned again.
+  provably keeps the parameter; neither name is assigned again. A local made from the address by adding or
+  subtracting an offset (`var first_digit = address + position`) is the same buffer, and its uses must meet the
+  same rule.
 - **Buys.** No allocation: a slot of the frame, and `free` does nothing.
 - **Falls back.** The heap, for a size over 256 bytes known only at run time, any other use, a recursive call, or a
   `--hot-reload` build.
@@ -633,7 +635,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
   singleton, its constructor keeps nothing and nothing reads its `.instances`. Four places qualify: a **local** only
   read and written through its attributes, compared, passed to functions proven to keep nothing, or returned from a
   function answering its class; a **result** of a function whose every `return` is fresh, written into the caller's
-  slot through a hidden `___into` version; a **temporary** (`(a + b).length()`); and a **copy used as a value**
+  slot through a hidden `___into` version; a **temporary** (the `a + b` inside `a + b + c`); and a **copy used as a value**
   (`var local = other.copy()`). "Keeps nothing" is proven per parameter from the function's source. A local made
   by its constructor qualifies also when its class holds text, lists or other objects (still no `drop()`, not a
   container): those attributes are let go where its scope ends, and `return` moves it to the heap whole. A generic

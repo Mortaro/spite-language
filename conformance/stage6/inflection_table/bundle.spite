@@ -1,0 +1,5 @@
+var sheaf = ""
+
+func Bundle(grain: String) {
+    sheaf = grain
+}

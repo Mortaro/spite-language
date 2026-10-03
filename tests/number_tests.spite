@@ -47,7 +47,8 @@ func test_a_fraction_reads_as_its_shortest_digits() {
     var tie: Double = 1125899906842624.25
     crash tenth.to_string() == "0.1"
     crash wide_tenth.to_string() == "0.1"
-    crash (wide_tenth + wide_fifth).to_string() == "0.30000000000000004"
+    var wide_sum = wide_tenth + wide_fifth
+    crash wide_sum.to_string() == "0.30000000000000004"
     crash third.to_string() == "0.3333333333333333"
     crash (-2.5).to_string() == "-2.5"
     crash 0.0001.to_string() == "0.0001"
@@ -59,7 +60,8 @@ func test_a_whole_float_reads_without_a_point() {
     var sixteen_digits: Double = 10000000000000000.0
     var float_limit: Float = 16777216.0
     crash zero.to_string() == "0"
-    crash (-zero).to_string() == "-0"
+    var negative_zero = -zero
+    crash negative_zero.to_string() == "-0"
     crash 100.0.to_string() == "100"
     crash sixteen_digits.to_string() == "10000000000000000"
     crash float_limit.to_string() == "16777216"
@@ -85,8 +87,10 @@ func test_infinity_and_not_a_number_read_as_words() {
         huge = huge * 2.0
     }
     crash huge.to_string() == "inf"
-    crash (-huge).to_string() == "-inf"
-    crash (huge - huge).to_string() == "nan"
+    var negative_huge = -huge
+    var no_number = huge - huge
+    crash negative_huge.to_string() == "-inf"
+    crash no_number.to_string() == "nan"
 }
 
 func test_a_large_unsigned_long_reads_as_positive() {

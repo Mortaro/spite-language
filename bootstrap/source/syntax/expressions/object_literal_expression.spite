@@ -1,4 +1,5 @@
 var fields = List<ObjectField>()
+var is_dictionary = false
 
 func ObjectLiteralExpression(starting_fields: List<ObjectField>) {
     fields = starting_fields

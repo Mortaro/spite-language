@@ -26,7 +26,8 @@ func decompress(bytes: List<Byte>): List<Byte>? {
     assert flags.bits_and(32) == 0
     var body = List<Byte>()
     body.reserve(total - 6)
-    (bytes.items + 2).copy_to(body.items, total - 6)
+    var body_start: Memory.Address = bytes.items + 2
+    body_start.copy_to(body.items, total - 6)
     body.item_count = total - 6
     var deflate = Deflate()
     var output = deflate.decompress(body)
@@ -44,7 +45,8 @@ func _adler32(bytes: List<Byte>): UnsignedInteger {
     var items = bytes.items
     var index = 0
     while index < total {
-        var chunk_end = (index + 5552).minimum(total)
+        var chunk_limit = index + 5552
+        var chunk_end = chunk_limit.minimum(total)
         while index < chunk_end {
             var value: UnsignedInteger = items.read_byte(index)
             low = low + value

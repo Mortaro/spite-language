@@ -443,7 +443,8 @@ func _emit_run(value: Integer, repeat: Integer): Integer {
         return repeat
     } else if repeat >= 4 {
         _add_run(value, 0)
-        var copies = (repeat - 1).minimum(6)
+        var repeated = repeat - 1
+        var copies = repeated.minimum(6)
         _add_run(16, copies - 3)
         return copies + 1
     }
@@ -624,7 +625,8 @@ func _assign_codes(lengths: Memory.Address, symbol_count: Integer, limit: Intege
     var bits = 1
     while bits <= limit {
         var shorter = counts.items.read_integer((bits - 1) * 4)
-        code = (code + shorter).shifted_left(1)
+        var counted_code = code + shorter
+        code = counted_code.shifted_left(1)
         next.items.write_integer(bits * 4, code)
         bits = bits + 1
     }
@@ -775,7 +777,8 @@ func _copy_stored() {
     _fail_when(size + complement != 65535 or _position + size > _input_length)
     assert not _failed
     _ensure_room(size)
-    (_input + _position).copy_to(_result.items + _result.item_count, size)
+    var stored: Memory.Address = _input + _position
+    stored.copy_to(_result.items + _result.item_count, size)
     _result.item_count = _result.item_count + size
     _position = _position + size
 }
@@ -820,7 +823,8 @@ func _copy_match(symbol: Integer) {
     var at = _result.item_count
     var from = at - distance
     if distance >= match_length {
-        (items + from).copy_to(items + at, match_length)
+        var matched: Memory.Address = items + from
+        matched.copy_to(items + at, match_length)
     } else {
         var copied = 0
         while copied < match_length {

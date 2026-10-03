@@ -317,6 +317,27 @@ func RepeatedBranchError() {
 'source.slice(0, 3)' is computed in both branches: compute it once before the 'if'
 ```
 
+**Only a name calls a function.** A function is called on a name, a literal, or the result of another call (a
+chain), never on a value computed in place: `(start + bytes * last).copy_to(target, bytes)` makes the reader
+work out the receiver before reading the call, so the value is named first:
+
+```gdscript title=computed_receiver_error/computed_receiver_error.spite entry error
+var console = Console()
+
+func ComputedReceiverError() {
+    var first = 3
+    var second = 4
+    var largest = (first + second).maximum(5)
+    console.print(largest)
+}
+```
+```diagnostic
+'(first + second).maximum(...)' calls a function on a value computed in place: name it first ('var named = first + second') and call 'named.maximum(...)', since only a name calls a function
+```
+
+Write `var total = first + second`, then `total.maximum(5)`. A negative number written out (`(-2.5).floor()`) is a
+literal, not a computation, and may be called on.
+
 ## The short form is the only form
 
 When the language has a short way to say something, the long way is an error that names it. Each has its own
@@ -459,6 +480,13 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
     `print(names[index_of(name)])` and `print(first == Displacement(1, 2))` put a call inside an argument.
   - A method called on a call's result is not an argument: `source.slice(0, 2).upper_case()` is fine on its own,
     and an error only when it is itself passed to something.
+- **Only a name calls a function.** A call whose receiver is an operator expression in parentheses
+  (`(a + b).length()`, `(not done).to_string()`, `(-offset).absolute()`) is a parse error: `'(a + b).length(...)'
+  calls a function on a value computed in place: name it first ('var named = a + b') and call
+  'named.length(...)', since only a name calls a function` (`diagnostics/computed_receiver`). A receiver may be a
+  name, a member path, a literal (a negated number literal and a text with holes included), an index or the result
+  of a call. Reading an
+  attribute of a computed value (`(a + b).x`) is not a call and is not refused.
   - A text with holes is not a call argument, and each hole is read like a line of its own:
     `console.print("{count_words(text)} words")` is legal, `console.print("{shout(count_words(text))} words")` is not.
   - A call in an `if` or `while` condition, a `return`, an assignment or an index is not an argument.

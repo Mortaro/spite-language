@@ -1358,6 +1358,20 @@ copies as fast as before. A copy of a graph allocates its table once per outermo
 counted allocations `--debug-memory` reports, and frees it before `deep_copy()` returns. A program that never deep
 copies a class that needs the table carries none of it.
 
+### A word inflected while compiling
+
+**What it does.** `pluralize()` or `singularize()` called on a text literal of lower-case letters and underscores
+(`"cactus".pluralize()`) is worked out while compiling, through the same rules and the same
+[`String.Inflection`](standard_library.md#the-string-class) table the call would read at run time, and the program
+holds the answer as a constant (`"cacti"`): no call, no table read, no allocation.
+
+**When.** Every build, for a literal receiver of lower-case letters and underscores, while the program's
+`String.Inflection` table is the library's own. A literal with capitals, spaces or other characters, a receiver that
+is not a literal, and every call in a program that reopens `String.Inflection` with other words run at run time.
+**What you notice.** Nothing but speed and size: the answer is the one the call gives, and a program whose only
+inflections are literals carries none of the inflection code or its table (`conformance/stage6/inflection_fold`
+makes 5 allocations, against 19 when the calls run).
+
 ### A dictionary keyed by numbers hashes the numbers
 
 **What it does.** A `Dictionary` the program gives whole-number keys
@@ -1798,7 +1812,7 @@ and a list do. Four places use it:
   and neither is visible). So `var moved = velocity.scaled(delta)`, whose `moved` stays in the
   frame, calls the hidden version with `moved`'s slot, and nothing is allocated. `Matrix4.multiply`, which builds
   its product in a local and returns it, becomes the same.
-- **A temporary.** In `a + b + c`, `(first + second).length_squared()` or `transform.transform_point(point)` passed
+- **A temporary.** In `a + b + c`, `first + second - third` or `transform.transform_point(point)` passed
   to a function that keeps nothing, each intermediate answer is written into a frame slot of its own.
 - **A copy used as a value.** Spite has no value classes: `copy()` is how a program asks for an independent
   object, and a copy that is only used as a value is compiled as a value. `var local = other.copy()` (or
