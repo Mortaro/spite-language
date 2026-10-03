@@ -28,7 +28,7 @@ func loop(): SchedulerLoop {
 }
 
 func start() {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     if not here.started {
         here.started = true
         create_event(here)
@@ -40,7 +40,7 @@ func start() {
 }
 
 func resume_only_when_asked() {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     here.resumes_when_asked = true
 }
 
@@ -49,7 +49,7 @@ func on_main_thread(): Boolean {
 }
 
 func waits_here(): Boolean {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     var serves_here = serving and on_main_thread()
     if not here.started or paused or (here.tasks.is_empty() or here.resumes_when_asked) and not serves_here {
         return false
@@ -60,13 +60,13 @@ func waits_here(): Boolean {
 func begin(frame: Long) {
     start()
     if not run_frame(frame) {
-        var here: SchedulerLoop = loop()
+        var here = loop()
         here.tasks.append(frame)
     }
 }
 
 func run_frame(frame: Memory.Address): Boolean {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     here.unfinished_polls_with_no_frame_stepped = 0
     frame.write_integer(12, 1)
     var outer = here.stepping
@@ -88,7 +88,7 @@ func frame_done(frame: Memory.Address): Boolean {
 }
 
 func joins(frame: Long): Boolean {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     if frame_done(frame) {
         forget_wait(here.stepping)
         return true
@@ -108,7 +108,7 @@ func joins(frame: Long): Boolean {
 }
 
 func awaited_by(frame: Long): Long {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     var index = 0
     while index < here.waiting_frames.count() {
         if here.waiting_frames[index] == frame {
@@ -121,7 +121,7 @@ func awaited_by(frame: Long): Long {
 }
 
 func forget_wait(frame: Long) {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     var index = 0
     while index < here.waiting_frames.count() {
         if here.waiting_frames[index] == frame {
@@ -134,13 +134,13 @@ func forget_wait(frame: Long) {
 }
 
 func polled_unfinished() {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     here.unfinished_polls_with_no_frame_stepped = here.unfinished_polls_with_no_frame_stepped + 1
     crash here.unfinished_polls_with_no_frame_stepped < 1000000
 }
 
 func run_ready(): Integer {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     if not here.started {
         return 0
     }
@@ -148,7 +148,7 @@ func run_ready(): Integer {
 }
 
 func step_ready(): Integer {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     var finished = 0
     var index = 0
     while index < here.tasks.count() {
@@ -175,12 +175,12 @@ func wait_for(frame: Long): Boolean {
 }
 
 func runs_below(frame: Memory.Address): Boolean {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     return frame.read_integer(12) == 1 and here.started
 }
 
 func timer_start(milliseconds: Integer): Long {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     var deadline = clock() + milliseconds
     here.deadlines.append(deadline)
     return deadline
@@ -190,7 +190,7 @@ func timer_over(deadline: Long): Boolean {
     if clock() < deadline {
         return false
     }
-    var here: SchedulerLoop = loop()
+    var here = loop()
     remove_one(here.deadlines, deadline)
     return true
 }
@@ -229,7 +229,7 @@ func yield_now() {
     if reloads and main {
         reloads()
     }
-    var here: SchedulerLoop = loop()
+    var here = loop()
     if not here.resumes_when_asked {
         step_ready()
     }
@@ -255,7 +255,7 @@ func offload(call: Memory.Address, entry: Long): Boolean {
 func offload_start(call: Memory.Address, entry: Long): Long {
     var thread = start_thread(entry, call)
     crash thread != 0
-    var here: SchedulerLoop = loop()
+    var here = loop()
     here.offloads_running = here.offloads_running + 1
     return thread
 }
@@ -265,7 +265,7 @@ func offload_over(call: Memory.Address, thread: Long): Boolean {
         return false
     }
     end_thread(thread)
-    var here: SchedulerLoop = loop()
+    var here = loop()
     here.offloads_running = here.offloads_running - 1
     return true
 }
@@ -286,7 +286,7 @@ func ask_check_point() {
 }
 
 func will_wake(): Boolean {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     return not here.deadlines.is_empty() or here.offloads_running > 0
 }
 
@@ -305,7 +305,7 @@ func signal() {
 }
 
 func idle() {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     idle_stepping(not here.resumes_when_asked)
 }
 
@@ -324,7 +324,7 @@ func idle_stepping(steps: Boolean) {
         finished = step_ready()
     }
     if finished == 0 {
-        var here: SchedulerLoop = loop()
+        var here = loop()
         var wait_limit = timeout()
         crash wait_limit >= 0 or here.offloads_running > 0 or serving and main
         wait_event(here, wait_limit)
@@ -332,7 +332,7 @@ func idle_stepping(steps: Boolean) {
 }
 
 func timeout(): Integer {
-    var here: SchedulerLoop = loop()
+    var here = loop()
     if here.deadlines.is_empty() {
         return -1
     }

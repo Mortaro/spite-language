@@ -106,19 +106,11 @@ func returned_class(value: Syntax.Expressions.Expression): String {
     if not called {
         return ""
     }
-    crash called.callee
-    var member = shape.as_member(called.callee)
-    if not member {
+    var owner = call_owner(called)
+    if owner == "*" {
         return ""
     }
-    crash member.object
-    var receiver_class = owner_class(member.object)
-    crash table
-    var found = table.return_classes["{receiver_class}#{member.name}"]
-    if not found {
-        return ""
-    }
-    return found
+    return owner
 }
 
 func study_assignment(assignment: Syntax.Statements.AssignmentStatement) {

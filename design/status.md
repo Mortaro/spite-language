@@ -869,12 +869,12 @@ recorded below.
 
 ### A local typed only by what made it
 
-- The call-effects study reads a local's class from its declared type or a constructor, not from a call's result
-  or an operator (`var here = loop()`, `var start = address + offset`). A call on such a local is resolved by its
-  name against every class, so it may count as a write to a class it never touches and undo a proof or a cheaper
-  lock (found twice building D481 and D492: `Column.at` lost its readers' lock, `receiver_call_effects` lost its
-  proofs). Nothing goes wrong silently, since the fallback keeps the check or the lock; the library writes the
-  type out (`var here: SchedulerLoop = loop()`) until the study reads a function's declared result.
+- The call-effects study reads a local's class from its declared type, a constructor, or the declared result of the
+  function that made it (`var here = loop()`), but not from an operator (`var start = address + offset`). A call on
+  such a local is resolved by its name against every class, so it may count as a write to a class it never touches
+  and undo a proof or a cheaper lock (`receiver_call_effects` lost its proofs that way building D492). Nothing goes
+  wrong silently, since the fallback keeps the check or the lock; the library writes the type out
+  (`var start: Memory.Address = address + offset`) until the study types an operator's result.
 
 ### A note on the whole page
 
