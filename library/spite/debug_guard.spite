@@ -1,0 +1,20 @@
+singleton
+
+var _depth = ThreadSlot()
+var _lock = Lock()
+
+func enter() {
+    var depth = _depth.read()
+    if depth == 0 {
+        _lock.lock()
+    }
+    _depth.write(depth + 1)
+}
+
+func leave() {
+    var depth = _depth.read()
+    _depth.write(depth - 1)
+    if depth == 1 {
+        _lock.unlock()
+    }
+}

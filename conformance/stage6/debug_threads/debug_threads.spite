@@ -1,0 +1,23 @@
+var console = Console()
+
+func DebugThreads() {
+    var first = Parallel(describe)
+    var second = Parallel(describe)
+    var third = Parallel(describe)
+    var first_text: String = first
+    var second_text: String = second
+    var third_text: String = third
+    console.print(first_text)
+    console.print(first_text == second_text and second_text == third_text)
+}
+
+func describe(): String {
+    var room = Room()
+    var text = ""
+    var index = 0
+    while index < 3000 {
+        text = room.to_debug()
+        index = index + 1
+    }
+    return text
+}

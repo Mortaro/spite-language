@@ -182,3 +182,11 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      can reach itself, naming the attribute (which also refuses trees and linked lists, which copy correctly
      today); (d) keep the stack overflow. Recommend (a): it is what "an independent copy" means for a graph, and it
      costs nothing for a class that cannot reach itself. Blocks the cycle part of backlog S9.
+297. **Values and generic classes as union members** (D459, D244; values_and_types.md "Unions in full"). A union
+     with `String`, a number, `Boolean` or `List<Byte>` among its members was accepted and then failed later with
+     an error that did not name the cause. It is now refused where the union is declared, saying to wrap the value
+     in a class of the program's own. Options: (a) **refuse them**, as built: a union is a set of classes a `switch`
+     tests by the header's class, which a value does not have; (b) make them work: a value member boxed with a tag
+     (as `String?` already is), and a generic member tested with its codegen values (`List<Byte>`, as
+     `found == Storage<$component_type>` is). Recommend (a): one representation of a union, and wrapping costs one
+     small class. Blocks nothing; (b) can be built later without breaking a program written for (a).

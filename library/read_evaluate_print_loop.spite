@@ -25,6 +25,11 @@ var pausing = Lock()
 var answer_depth = 0
 var prompt_function = ""
 var early_at_depth = 0
+var exiting = false
+var exit_after_waits = 0
+var exit_after_check_points = 0
+var check_points_before_exit = 1
+var program_finished = false
 
 func step(program: Spite.Attribute): Boolean {
     console.write("spite> ")
@@ -49,10 +54,11 @@ func listen_in_background(port: Integer, entry: Long) {
         running_program.exit(1)
         return
     }
-    handover = heap.allocate(24)
+    handover = heap.allocate(32)
     handover.write_long(0, 0)
     handover.write_long(8, 0)
     handover.write_long(16, 0)
+    handover.write_long(24, 0)
     scheduler.start()
     scheduler.serving = true
     scheduler.commands = answer_pending
@@ -64,6 +70,7 @@ func listen_in_background(port: Integer, entry: Long) {
 }
 
 func wait_for_exit() {
+    program_finished = true
     while handover.read_long_atomically(8) == 0 {
         scheduler.idle()
     }
@@ -103,8 +110,10 @@ func serve_client(client: Socket) {
             if trimmed_line == "exit" {
                 client.write_line("\{\"ok\":true,\"value\":\"\",\"type\":\"\"}")
                 client.close()
-                running_program.exit(0)
-                return
+                handover.write_long_atomically(24, 1)
+                while true {
+                    pause_briefly()
+                }
             }
             var json_answer = json_line(answered)
             connected = client.write_line(json_answer)
@@ -174,6 +183,13 @@ func compile_before_reload(command: String) {
 }
 
 func answer_pending() {
+    if exiting {
+        var check_points = scheduler.check_points_passed - exit_after_check_points
+        if program_finished or scheduler.waits_begun != exit_after_waits or check_points >= check_points_before_exit {
+            exit_once_answered()
+        }
+        scheduler.ask_check_point()
+    }
     if handover.read_long_atomically(0) == 1 {
         handover.write_long_atomically(0, 3)
         crash served
@@ -190,11 +206,29 @@ func answer_pending() {
         answered = command_answer
         handover.write_long_atomically(0, 2)
         if pending_command == "exit" {
-            while true {
-                pause_briefly()
-            }
+            exit_at_next_wait()
         }
     }
+}
+
+func exit_at_next_wait() {
+    if program_finished or scheduler.answering_in_wait and not scheduler.will_wake() {
+        exit_once_answered()
+    }
+    exiting = true
+    exit_after_waits = scheduler.waits_begun
+    exit_after_check_points = scheduler.check_points_passed
+    if scheduler.answering_in_wait {
+        check_points_before_exit = 2
+    }
+    scheduler.ask_check_point()
+}
+
+func exit_once_answered() {
+    while handover.read_long_atomically(24) == 0 {
+        pause_briefly()
+    }
+    running_program.exit(0)
 }
 
 func json_line(answered: Answer): String {

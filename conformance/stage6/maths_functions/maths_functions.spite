@@ -96,9 +96,9 @@ func whole_numbers() {
         "Integer absolute {count.absolute()} minimum {count.minimum(other)} maximum {count.maximum(other)} clamp {count.clamp(-3, 3)}",
     )
     console.print("Integer largest {Integer.largest} smallest {Integer.smallest}")
-    var lowest = Integer.smallest
-    console.print("absolute of the smallest wraps to itself: {lowest.absolute()}")
-    var tiny: Tiny = -128
+    var near_lowest = Integer.smallest + 1
+    console.print("absolute of one above the smallest: {near_lowest.absolute()}")
+    var tiny: Tiny = -127
     console.print("Tiny {Tiny.largest} {Tiny.smallest} {tiny.absolute()}")
     var byte: Byte = 200
     console.print("Byte {Byte.largest} {Byte.smallest} {byte.absolute()} {byte.clamp(10, 100)} {byte.minimum(250)}")

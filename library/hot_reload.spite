@@ -30,21 +30,25 @@ var settled_for_request = false
 var breakpoints = List<String>()
 var prompts = 0
 var settle_problem: String? = null
+var watcher_thread: Long = 0
+var stale_at_start = false
 
 func start() {
     folder = build.program
     restart_state()
-    ready = heap.allocate(24)
+    ready = heap.allocate(32)
     ready.write_long(0, 0)
     ready.write_long(8, 0)
     ready.write_long(16, 0)
+    ready.write_long(24, 0)
     compiled_files = files_seen()
+    stale_at_start = saved_while_building()
     scheduler.start()
     scheduler.serving = true
     scheduler.reloads = install_if_ready
     var entry = watcher_entry()
     var no_argument: Long = 0
-    var watcher_thread = scheduler.start_thread(entry, no_argument)
+    watcher_thread = scheduler.start_thread(entry, no_argument)
     crash watcher_thread != 0
     while ready.read_long_atomically(16) == 0 {
         program.sleep(1)
@@ -53,8 +57,16 @@ func start() {
 
 func drop() {
     if ready != 0 {
+        ready.write_long_atomically(24, 1)
+        if watcher_thread != 0 {
+            scheduler.end_thread(watcher_thread)
+        }
         heap.free(ready)
     }
+}
+
+func closing(): Boolean {
+    return ready.read_long_atomically(24) == 1
 }
 
 func watch() {
@@ -62,10 +74,20 @@ func watch() {
     var watching = watch_folders(watcher)
     ready.write_long_atomically(16, 1)
     assert watching
-    while true {
-        watcher.wait_for_changes()
-        watcher.changes()
+    if stale_at_start {
         compile_changes()
+    }
+    while not closing() {
+        watcher.collect()
+        if watcher.pending.is_empty() {
+            watcher.wait_for_event(250)
+            watcher.collect()
+        }
+        if not watcher.pending.is_empty() and not closing() {
+            watcher.wait_for_changes()
+            watcher.changes()
+            compile_changes()
+        }
     }
 }
 
@@ -92,6 +114,11 @@ func compile_changes(): Long {
     compiling.lock()
     ready.write_long_atomically(8, 1)
     swap_in_flight()
+    if closing() {
+        ready.write_long_atomically(8, 0)
+        compiling.unlock()
+        return published
+    }
     var seen = files_seen()
     var arguments = build_arguments().split("\n")
     var running = program_file()
@@ -123,7 +150,7 @@ func compile_changes(): Long {
 
 func swap_in_flight() {
     var on_main_thread = scheduler.current_thread() == scheduler.scheduler_thread
-    while library_in_flight() {
+    while library_in_flight() and not closing() {
         if on_main_thread {
             crash ready.read_long_atomically(0) == 1
             install_ready()
@@ -336,6 +363,50 @@ func files_seen(): Dictionary<String> {
         index = index + 1
     }
     return seen
+}
+
+func saved_while_building(): Boolean {
+    var running = program_file()
+    var base = running_base(running)
+    var state = File("{base}.reload_files").read()
+    crash state
+    var saved = false
+    var lines = state.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index].trim()
+        if line.starts_with("file ") {
+            var line_length = line.length()
+            var after_hash = line.slice(5, line_length).index_of(" ")
+            if after_hash > 0 {
+                var built_hash = line.slice(5, 5 + after_hash)
+                var path = line.slice(6 + after_hash, line_length)
+                var text = File(path).read()
+                var changed = true
+                if text {
+                    changed = text_hash(text) != built_hash
+                }
+                if changed {
+                    compiled_files[path] = "saved while the build was compiling"
+                    saved = true
+                }
+            }
+        }
+        index = index + 1
+    }
+    return saved
+}
+
+func text_hash(text: String): String {
+    var hash: Long = 7
+    var index = 0
+    var text_length = text.length()
+    while index < text_length {
+        var code = text.code_at(index)
+        hash = (hash * 31 + code) % 4294967291
+        index = index + 1
+    }
+    return hash
 }
 
 func file_stamp(path: String): String {

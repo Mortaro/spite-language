@@ -1,0 +1,1 @@
+diagnostics/joined_maybe_boolean/joined_maybe_boolean.spite:5: error: this is a Boolean? used by a condition, which would only test that it is there, not that it is true: prove it is there first ('crash index < flags.count()' proves 'flags[index]') or switch over it (in JoinedMaybeBoolean.JoinedMaybeBoolean)

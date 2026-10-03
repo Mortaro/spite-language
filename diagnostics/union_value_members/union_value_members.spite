@@ -1,0 +1,11 @@
+union Message {
+    String
+    List<Byte>
+    Integer
+}
+
+var console = Console()
+
+func UnionValueMembers() {
+    console.print("never compiled")
+}

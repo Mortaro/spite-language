@@ -1,0 +1,2 @@
+Room { name: "hall", door: Door { open: false, label: "front" }, lights: 3 }
+true

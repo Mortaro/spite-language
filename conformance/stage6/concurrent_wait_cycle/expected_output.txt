@@ -9,10 +9,10 @@ spite.frame	-	-	List_Concurrent__Nothing___release
 spite.frame	-	-	Holder___release
 spite.frame	-	-	Board_release_first___step
 spite.frame	bootstrap/source/generation/prelude.spite:1	Scheduler	step_frame
-spite.frame	library/scheduler.spite:42	Scheduler	run_frame
-spite.frame	library/scheduler.spite:71	Scheduler	step_ready
-spite.frame	library/scheduler.spite:194	Scheduler	idle_stepping
-spite.frame	library/scheduler.spite:86	Scheduler	wait_for
+spite.frame	library/scheduler.spite:45	Scheduler	run_frame
+spite.frame	library/scheduler.spite:74	Scheduler	step_ready
+spite.frame	library/scheduler.spite:217	Scheduler	idle_stepping
+spite.frame	library/scheduler.spite:89	Scheduler	wait_for
 spite.frame	library/concurrent.spite:66	Concurrent	_join
 spite.frame	library/concurrent.spite:74	Concurrent	drop
 spite.frame	more

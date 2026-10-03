@@ -91,9 +91,6 @@ when a page gains a rule that is not built yet, add it here.
 Moved whole from the old "Still open" list under the rule (each is a bug under D244, recorded so it is not mistaken
 for a design):
 
-- A `Concurrent` or `Parallel` handle whose function answers a `Boolean?` is accepted as a condition by `if`,
-  `while` and `crash` and tests only that a value came back, so a joined `false` runs the `if`'s block (the
-  narrowing of a joined handle skips the "a `Boolean?` cannot be a condition" check; `assert` asks for `true`).
 - Reference cycles leak without a word unless the program runs with `--debug-memory`, which prints the allocation
   balance (memory.md, "Cycles leak").
 - Some waits inside a `Concurrent` still run the event loop in place (concurrency.md, "Waits in a condition, a
@@ -104,31 +101,14 @@ for a design):
   one halts, but one such wait buried under another that never ends (a server's accept loop reached that way) is
   held without a word for as long as that one runs. Arguments of the few built-in calls that do not go through the
   common argument list (`set_at` on a counted list) are not held in the written order around a join among them.
-- A `--hot-reload` build's watcher thread keeps running while the singletons are destroyed at exit: `start()` now
-  waits until it is watching, so it no longer asks for `HotReload` after the teardown, but a file change landing
-  during the teardown would still run `compile_changes()` on the destroyed `HotReload`, and so would a reload
-  still waiting for the library before it to be swapped in.
-- A `--hot-reload` program takes the size and modification time of its files when it starts, not when the build
-  read them, so a file saved while the build was still compiling looks compiled: `wait_reload` answers at once and
-  the program runs the code before the save until the next save reaches the watcher. The build should record each
-  file's size and modification time beside its hash in `.reload_start`, or the watcher should compile once when it
-  starts (proposed by Claude, unconfirmed).
-- A REPL `exit` answered at the same wait as the command before it ends the program before its loop sees that
-  command: on Linux, concurrency.md's `frame_loop` session (`program.running = false`, then `exit`) lost its
-  `stopped` line in 3 of 5 runs, so `check.sh` fails its wire replay intermittently. The program's last output is
-  dropped without a word; `exit` should let the program reach its next wait first.
 - A generic singleton that holds state is not made safe for threads (classes_and_files.md, "Safe for threads
-  without a keyword"): only its first fetch is locked. `Spite.DebugInstance<T>` keeps the objects it is showing and
-  the parts of the text in attributes, so three `Parallel`s calling `to_debug()` on a class at once double-free
-  under `--debug-memory` and corrupt the heap without it (found 2026-10-02 on `master` before the walk moved to
-  `each`). Locking it per call would deadlock on a class that holds itself, since the walk calls back into the same
-  singleton; it needs a reentrant lock, or the walk's state kept per call. The same is why `BinaryFormat<T>` keeps
-  its stateless plural walk (json.md below).
-- A `union` with `String` or a generic class such as `List<Byte>` among its members is accepted where it is
-  declared and then fails later: a `List<Byte>` member narrows in a `switch` to a bare `List` ("a List cannot be
-  used where a List<Byte> is needed"), and a `String` member compiles to C the C compiler refuses (the union's
-  pointer type cast from a `SpiteString` value). Loud, but neither names the cause; the members should either work
-  or be refused where the union is declared. Found building WebSocket, whose messages are classes for this reason.
+  without a keyword"): only its first fetch is locked. The compiler's lock is not reentrant, so a walk that calls
+  back into the same singleton (a class that holds itself) would deadlock under it. `Spite.DebugInstance<T>`, the
+  one in the library that held state, now takes `Spite.DebugGuard`, one reentrant guard every class's walk shares
+  (a `ThreadSlot` depth and a `Lock`, so two threads walking classes in opposite orders cannot deadlock), and three
+  `Parallel`s calling `to_debug()` at once balance (`conformance/stage6/debug_threads`). A program's own generic
+  singleton that holds state is still unguarded; the same is why `BinaryFormat<T>` keeps its stateless plural walk
+  (json.md below).
 - A Windows `__fastfail` (`0xC0000409`) ends the program without Spite's report or frames ("What a native fault
   reports"): the system ends the process without asking it, so only something outside the process could report it.
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers
@@ -143,9 +123,6 @@ for a design):
 
 Also open, each a bug under D244, found cataloguing the compiler's proofs (proofs.md):
 
-- **A function that lends a list element (D269) is not checked for a guard `assert`** (D106), as other functions are.
-- **`absolute()` of the smallest signed value** answers that value itself (`Integer.smallest.absolute()` is
-  negative): it is a supplied macro with no line to name, so it is not yet checked like `-value` is (D359).
 - **A change of signedness at the same width or wider** (`var bits: UnsignedInteger = count` with a negative
   `count`) keeps the bits unchecked: D162's "wider" leaves signedness out, and the hashes read words this way.
   Whether it should halt, with a named function for reading the bits, waits for Mortaro (D359; proposed by Claude).
@@ -976,12 +953,6 @@ recorded below.
 - `while true` ends a path whether or not its body can leave, and nothing reports such a loop outside a locked
   singleton function; statements after a `return` in the same block compile without an error. Both still open in
   failure.md.
-
-### A guard `assert` answers only "nothing"
-
-- The lint for an `if` that only returns the default recognises only the literal defaults `null`, `false`, `0`, `0.0`,
-  `""` and a bare `return`, so `if ... { return List<T>() }` in a function answering a `List` is not refused, and a
-  function that lends a list element (D269) is not checked for a guard `assert`. Still open in failure.md.
 
 ### A switch covers every case
 

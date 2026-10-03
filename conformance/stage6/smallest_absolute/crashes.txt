@@ -1,0 +1,1 @@
+this program is meant to crash: the smallest signed value has no absolute value that fits, and absolute() halts like '-value' does

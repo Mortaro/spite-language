@@ -3416,6 +3416,7 @@ func register_unions(entry: Discovery.DiscoveredClass) {
             current_owner = entry.qualified_dotted
             current_function = ""
             check_type_name(declaration.name, "union")
+            check_union_members(declaration.name, declaration.members)
             var information = Analysis.UnionInfo(
                 "{entry.mangled_name}_{declaration.name}",
                 declaration.name,
@@ -3431,6 +3432,28 @@ func register_unions(entry: Discovery.DiscoveredClass) {
             }
         }
         statement_index = statement_index + 1
+    }
+}
+
+func check_union_members(union_name: String, members: List<Syntax.Types.Type>) {
+    var value_names = value_class_names()
+    var index = 0
+    while index < members.count() {
+        var named = shape.as_named_type(members[index])
+        if named {
+            var joined_path = named.path.join(".")
+            if joined_path == "String" or value_names.contains(joined_path) {
+                var shown = with_article(joined_path)
+                report(
+                    "'{joined_path}' cannot be a member of union '{union_name}': a union holds objects whose class a switch tests, and {shown} is a value; make the member a class of your own that keeps it in an attribute",
+                )
+            } else if not named.arguments.is_empty() {
+                report(
+                    "a generic class cannot be a member of union '{union_name}': a switch could tell only that it is a '{joined_path}', not of what; make the member a class of your own that keeps it in an attribute",
+                )
+            }
+        }
+        index = index + 1
     }
 }
 
@@ -12078,6 +12101,38 @@ func checked_negation(
     return "(\{ {c_type} {value} = {code}; {c_type} {result}; if (__builtin_expect(__builtin_sub_overflow(({c_type})0, {value}, &{result}), 0)) {failure}(\"{operation}\", \"{with_article(type_name)}\", \"-\", {shown}0, {shown}{value}, {where}); {result}; })"
 }
 
+func checked_absolute_call(
+    member: Syntax.Expressions.MemberExpression,
+    object_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    var saved_counter = temporary_counter
+    var probe = generate_expression(object_ast, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var probe_type = probe.type
+    var scalar = type_shape.as_scalar(probe_type)
+    assert scalar
+    assert is_signed_kind(scalar.kind)
+    var receiver = generate_expression(object_ast, scope, class_information)
+    var receiver_type = receiver.type
+    var printer = Syntax.SourcePrinter()
+    var callee: Syntax.Expressions.Expression = member
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var call: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, no_arguments)
+    var call_text = printer.source_expression(call)
+    var operation = escape_c_string(call_text)
+    var c_type = c_type_name(receiver_type)
+    var value = next_temporary()
+    var result = next_temporary()
+    var where = located(current_path, current_line, current_owner, current_function)
+    var failure = overflow_failure(scalar.kind)
+    var shown = operand_cast(scalar.kind)
+    var type_name = type_display_name(receiver_type)
+    var code = "(\{ {c_type} {value} = {receiver.code}; {c_type} {result} = {value}; if ({value} < 0 && __builtin_expect(__builtin_sub_overflow(({c_type})0, {value}, &{result}), 0)) {failure}(\"{operation}\", \"{with_article(type_name)}\", \"-\", {shown}0, {shown}{value}, {where}); {result}; })"
+    return ExpressionResult(code, receiver_type)
+}
+
 func generate_argument_list(
     arguments_ast: List<Syntax.Expressions.Expression>,
     expected_types: List<Analysis.SpiteType>,
@@ -15055,6 +15110,12 @@ func generate_method_call(
         var folded_maths = folded_maths_call(member.name, object_ast, arguments_ast, class_information)
         if folded_maths {
             return folded_maths
+        }
+    }
+    if member.name == "absolute" and arguments_ast.is_empty() {
+        var checked_absolute = checked_absolute_call(member, object_ast, scope, class_information)
+        if checked_absolute {
+            return checked_absolute
         }
     }
     var fused = generate_fused_chain(member, object_ast, arguments_ast, scope, class_information)
@@ -24244,6 +24305,7 @@ func joined_guard(
     assert nullable
     var joined_ast = implicit_join_ast(condition_ast)
     var joined = generate_expression(joined_ast, scope, class_information)
+    report_maybe_boolean(joined, "a condition")
     var held_name = next_temporary()
     var held = c_value_name(held_name)
     builder.add_user("{c_type_name(result_type)} {held} = {joined.code};")
@@ -37815,6 +37877,7 @@ func generate_statement_kind(
     }
     var assert_statement = shape.as_assert_statement(statement)
     if assert_statement and not function_information.lent_element.is_empty() {
+        report_default_assert(assert_statement, scope, class_information, function_information)
         var range_failed = lent_element_range_failed(class_information, function_information)
         builder.add_user("if ({range_failed}) \{")
         generate_assert_statement(assert_statement, scope, class_information, function_information)

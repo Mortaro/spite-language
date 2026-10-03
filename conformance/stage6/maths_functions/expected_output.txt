@@ -29,8 +29,8 @@ Double largest 1.7976931348623157e+308 smallest -1.7976931348623157e+308
 Double infinity inf -inf true false
 Integer absolute 7 minimum -7 maximum 3 clamp -3
 Integer largest 2147483647 smallest -2147483648
-absolute of the smallest wraps to itself: -2147483648
-Tiny 127 -128 -128
+absolute of one above the smallest: 2147483647
+Tiny 127 -128 127
 Byte 255 0 200 100 200
 Long 9223372036854775807 -9223372036854775808 9000000000 4
 UnsignedLong 18446744073709551615 Short -32768 UnsignedShort 65535

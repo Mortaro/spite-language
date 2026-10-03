@@ -371,7 +371,8 @@ func is_alive(): Boolean {
   error), only where a C library, a file format or the network fixes the numbers.
 - `union Enemy { Player Monster }`, written one member per line: `switch enemy { Player: ... Monster: { ... } }`
   must cover every member and narrows `enemy` inside each case; a function or attribute every member has can be
-  used on the union directly.
+  used on the union directly. Every member is a class of objects: `String`, a number, `Boolean` or `List<Byte>` is
+  refused as a member, so wrap it in a class of your own that keeps it in an attribute.
 - A `type` declares a shape (`label: String` and `render(Integer): String`, one per line, a required function
   naming the *types* it takes and never the names) and accepts any class, or
   object literal `{ label: "x" }`, with those attributes and functions.
@@ -420,7 +421,8 @@ func is_alive(): Boolean {
   is already proven by the loop condition`). Delete the line.
 - A `Boolean?` is not a condition (`which would only test that it is there, not that it is true`): narrow it
   first, or compare it `== true`. The one exception is `assert flag`, which means the flag is there and `true`
-  (as on a `Boolean`); there is no `flag != null`.
+  (as on a `Boolean`); there is no `flag != null`. A `Concurrent` or `Parallel` handle of a `Boolean?` is refused
+  as a condition too: `if ready == true`.
 - There are no exceptions and no error values. Three outcomes only:
   - the compiler can know it: a compile error;
   - absence is fine: `assert condition` stops the function and answers "nothing": it returns, answers `null`

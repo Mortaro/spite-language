@@ -882,7 +882,8 @@ one waits; the value is kept, so later ones do not). Exactly, a `Concurrent<T>` 
 - as the receiver of a member the handle does not have: `greeting.upper_case()`, `greeting.length()`;
 - as a condition: `if ready`, `while`, `assert`, `crash`; and when `T` is nullable, narrowing the handle narrows its
   value (`if reading { use(reading) }`, `crash reading`), because narrowing applies to a name itself rather than a copy.
-  The value is read once, into a hidden local, and the narrowed name reads that.
+  The value is read once, into a hidden local, and the narrowed name reads that. A handle whose `T` is `Boolean?` is refused as a
+  condition as any `Boolean?` is, since it would test only that a value came back: compare it, `if ready == true`.
 
 It stays a handle where a handle is expected (`List<Parallel<T>>.append(handle)`), in a `var` without a written
 type (`var loading = Parallel(asset.load)` is the running work), and for the handle's own members, `finished` and

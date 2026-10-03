@@ -1,0 +1,3 @@
+singleton
+
+var values = Items<Layout>()

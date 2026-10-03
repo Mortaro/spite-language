@@ -4,8 +4,16 @@ generic $value_type
 
 var _trail = List<$value_type>()
 var _parts: List<String>? = null
+var _guard = DebugGuard()
 
 func text(value: $value_type): String {
+    _guard.enter()
+    var walked = _walked(value)
+    _guard.leave()
+    return walked
+}
+
+func _walked(value: $value_type): String {
     var name = value.class.name
     var index = 0
     while index < _trail.count() {

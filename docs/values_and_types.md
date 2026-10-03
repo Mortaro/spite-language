@@ -1365,6 +1365,10 @@ That is all an enum is; the integer it compiles to is a representation detail.
 
 Tagged unions. A `switch` must cover every member and narrows the value inside each case.
 When every member has the same function or attribute (same signature), it can be used directly on the union.
+**Every member is a class of objects.** `String`, a number class, `Boolean` and a generic class with its values
+(`List<Byte>`) are refused where the union is declared: a value has no class for a `switch` to test, and a test
+could tell only that a generic member is a `List`, not of what. Make the member a class of your own that keeps
+the value in an attribute (`diagnostics/union_value_members`).
 
 ```gdscript
 union Enemy {

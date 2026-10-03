@@ -1,0 +1,13 @@
+var console = Console()
+
+func JoinedMaybeBoolean() {
+    var ready = Concurrent(answer)
+    if ready {
+        console.print("ready")
+    }
+    console.print("after")
+}
+
+func answer(): Boolean? {
+    return false
+}

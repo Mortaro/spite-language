@@ -775,9 +775,13 @@ worked out while compiling, so the check folds away with the branch it guards.
 - **The watcher is the standard library's [`FileSystemWatcher`](standard_library.md#watch-files-and-folders)**, the one any
   program can use, started on a thread of its own: `ReadDirectoryChangesW` on Windows, `inotify` on Linux and
   `kqueue` on macOS, with no polling. It is watching before the program's entry runs and before the REPL listens,
-  so a save made once the REPL answers is never missed. The thread sits in `wait_for_changes()`, which the
-  operating system wakes; a burst of changes is waited out until 100 ms pass without one, so a save that writes a
-  file in pieces reloads once. The program's own folder is watched with every folder below it, and so is every folder it `load`s, except
+  so a save made once the REPL answers is never missed. A save made while the build was still compiling is not
+  missed either: when the program starts, each of its files is held against the text the build compiled, and if
+  any differs the watcher compiles once before it waits, so `wait_reload` waits for that compile too. The
+  operating system wakes the thread; a burst of changes is waited out until 100 ms pass without one, so a save
+  that writes a file in pieces reloads once. When the program ends, the watcher is stopped before anything it
+  uses is let go, after the compile it is running finishes: it looks every quarter of a second whether the program
+  is ending, so ending a `--hot-reload` program can take that long. The program's own folder is watched with every folder below it, and so is every folder it `load`s, except
   a repository's checkout under `.spite/git/` ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)),
   which is read-only: a pinned commit never changes, so there is nothing to reload there, and a change to that
   package is a new commit and a restart. Each reload's library is written beside the executable, into
@@ -1113,8 +1117,10 @@ The design:
   that returns nothing. Every message the console loop prints as a complaint is `"ok":false` on the wire.
   JSON escapes are `\"`, `\\`, `\n`, `\r`, `\t` and `\u00XX` for any other control character.
 - **`exit`** answers `{"ok":true,"value":"","type":""}`, closes the connection and calls `program.exit(0)`,
-  which flushes what the program printed. It is handed over like any command, so the program stops at a wait
-  first. When the constructor returns first, `main` serves commands until then. With `--repl` too, the console
+  which flushes what the program printed. It is handed over like any command, and the program ends at the next
+  wait or pass of a loop it reaches after the one that answered it, so what the command before `exit` changed
+  still runs (a loop told to stop prints its last line): it ends at once only when nothing would wake the wait it
+  answered at (no sleep or helper thread running), or when the constructor has already returned. When the constructor returns first, `main` serves commands until then. With `--repl` too, the console
   loop runs first, and after its `exit` the process keeps serving.
 - `spite program --repl-port=4000` is the form, as for every `Build` field; a port outside 1 to 65535 is
   `error: --repl-port takes a port number from 1 to 65535: spite program --repl-port=4000`.

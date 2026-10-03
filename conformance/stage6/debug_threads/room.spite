@@ -1,0 +1,3 @@
+var name = "hall"
+var door = Door()
+var lights = 3

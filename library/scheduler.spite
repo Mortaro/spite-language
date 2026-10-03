@@ -6,6 +6,9 @@ var tasks = List<Long>()
 var deadlines = List<Long>()
 var offloads_running = 0
 var serving = false
+var waits_begun = 0
+var check_points_passed = 0
+var answering_in_wait = false
 var commands: Spite.Function<Nothing>? = null
 var reloads: Spite.Function<Nothing>? = null
 var paused = false
@@ -87,6 +90,7 @@ func wait_for(frame: Long): Boolean {
     if runs_below(frame) {
         return false
     }
+    begin_wait()
     while not frame_done(frame) {
         idle_stepping(true)
     }
@@ -123,6 +127,9 @@ func remove_one(values: List<Long>, value: Long) {
 
 func check_point() {
     assert started and current_thread() == scheduler_thread and _take_check_point()
+    if serving {
+        check_points_passed = check_points_passed + 1
+    }
     if commands {
         commands()
     }
@@ -147,6 +154,7 @@ func yield_now() {
 }
 
 func sleep(milliseconds: Integer) {
+    begin_wait()
     var deadline = timer_start(milliseconds)
     while not timer_over(deadline) {
         idle()
@@ -154,6 +162,7 @@ func sleep(milliseconds: Integer) {
 }
 
 func offload(call: Memory.Address, entry: Long): Boolean {
+    begin_wait()
     var thread = offload_start(call, entry)
     while not offload_over(call, thread) {
         idle()
@@ -182,6 +191,20 @@ func offload_done(call: Memory.Address) {
     signal()
 }
 
+func begin_wait() {
+    if serving {
+        waits_begun = waits_begun + 1
+    }
+}
+
+func ask_check_point() {
+    _want_check_point()
+}
+
+func will_wake(): Boolean {
+    return not deadlines.is_empty() or offloads_running > 0
+}
+
 func signal() {
     _want_check_point()
     signal_event()
@@ -193,7 +216,9 @@ func idle() {
 
 func idle_stepping(steps: Boolean) {
     if commands {
+        answering_in_wait = true
         commands()
+        answering_in_wait = false
     }
     if reloads {
         reloads()

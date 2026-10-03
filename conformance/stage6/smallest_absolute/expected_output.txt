@@ -1,0 +1,2 @@
+spite: 'lowest.absolute()' does not fit in an Integer (0 - -2147483648), at conformance/stage6/smallest_absolute/smallest_absolute.spite:10 in SmallestAbsolute.SmallestAbsolute
+2147483647 7

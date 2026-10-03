@@ -1,0 +1,15 @@
+var console = Console()
+var column = Column()
+
+func LentElementGuard() {
+    var made = Layout()
+    column.values.append(made)
+    var layout = layout_at(0)
+    layout.order = 3
+    console.print(layout.order)
+}
+
+func layout_at(row: Integer): Layout {
+    assert row < column.values.count()
+    return column.values[row]
+}
