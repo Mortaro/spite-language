@@ -297,8 +297,7 @@ func number_key_type(label: String): Analysis.SpiteType? {
 }
 
 func scalar_key(kind: Analysis.Types.NumericKind): Analysis.SpiteType {
-    var key_type: Analysis.SpiteType = Analysis.Types.ScalarType(kind)
-    return key_type
+    return Analysis.Types.ScalarType(kind)
 }
 
 func read_state(text: String) {

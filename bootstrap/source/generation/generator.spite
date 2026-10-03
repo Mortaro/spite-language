@@ -16,6 +16,9 @@ var class_object_names = List<String>()
 var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
+var reaching_classes = Dictionary<Boolean>()
+var copy_table_written = false
+var weak_copy_pending_written = false
 var terminal_if: Syntax.Statements.IfStatement? = null
 var leaving_statements = List<Syntax.Statements.Statement>()
 var trace_asserts = false
@@ -369,6 +372,7 @@ var lent_plural_text = ""
 var walk_refused = ""
 var walk_refused_attribute = ""
 var walk_partial: Syntax.Expressions.ObjectLiteralExpression? = null
+var returned_handle_escapes = true
 var constructed_roots = Dictionary<String>()
 var lent_results = Dictionary<String>()
 var lent_result_singletons = Dictionary<String>()
@@ -2182,8 +2186,7 @@ func asked_parameter_index(expression: Syntax.Expressions.Expression): Long {
     if read.name != "index" or not is_identifier_named(read.object, bound_symbol_name) {
         return -1
     }
-    var place: Long = bound_field_index
-    return place
+    return bound_field_index
 }
 
 func class_writes_parameter(
@@ -2843,8 +2846,7 @@ func fixed_key_type(spite_type: Analysis.SpiteType): Analysis.SpiteType {
         var element = dictionary.element
         var fixed_element = fixed_key_type(element)
         var key = dictionary.key
-        var fixed: Analysis.SpiteType = Analysis.Types.DictionaryType(fixed_element, key, "")
-        return fixed
+        return Analysis.Types.DictionaryType(fixed_element, key, "")
     }
     var listed = type_shape.as_list(spite_type)
     if listed {
@@ -4567,13 +4569,11 @@ func find_union_by_c_name(c_name: String): Analysis.UnionInfo? {
 }
 
 func union_type_of(information: Analysis.UnionInfo): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.UnionType(information.c_name)
-    return resolved
+    return Analysis.Types.UnionType(information.c_name)
 }
 
 func class_type_of(information: Analysis.ClassInfo): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.ClassRefType(information.c_name)
-    return resolved
+    return Analysis.Types.ClassRefType(information.c_name)
 }
 
 func is_attribute_field(field: Syntax.Statements.FieldDeclaration): Boolean {
@@ -5178,8 +5178,7 @@ func find_enum_with_value(value: String): Analysis.EnumInfo? {
 }
 
 func enum_type_of(information: Analysis.EnumInfo): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.EnumType(information.c_name, information.values)
-    return resolved
+    return Analysis.Types.EnumType(information.c_name, information.values)
 }
 
 func enum_value_code(literal: Syntax.Expressions.EnumLiteralExpression, enum_type: Analysis.Types.EnumType): String {
@@ -7027,8 +7026,7 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
 func chained_read(read: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
     if not bound_compared_value.is_empty() {
         var value: Syntax.Expressions.Expression = Syntax.Expressions.EnumLiteralExpression(bound_compared_value)
-        var compared: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression('equal', read, value)
-        return compared
+        return Syntax.Expressions.BinaryExpression('equal', read, value)
     }
     if bound_chain_method.is_empty() {
         return read
@@ -7042,8 +7040,7 @@ func chained_read(read: Syntax.Expressions.Expression): Syntax.Expressions.Expre
         index = index + 1
     }
     var method: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(read, bound_chain_method)
-    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(method, arguments)
-    return called
+    return Syntax.Expressions.CallExpression(method, arguments)
 }
 
 func bound_member_is_function(): Boolean {
@@ -7117,12 +7114,10 @@ func caller_call_expression(element: Syntax.Expressions.Expression): Syntax.Expr
     var arguments = List<Syntax.Expressions.Expression>()
     arguments.append(element)
     if bound_field_name.is_empty() {
-        var held: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(owner, arguments)
-        return held
+        return Syntax.Expressions.CallExpression(owner, arguments)
     }
     var callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(owner, bound_field_name)
-    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, arguments)
-    return called
+    return Syntax.Expressions.CallExpression(callee, arguments)
 }
 
 func generate_bound_member_read(
@@ -7247,8 +7242,7 @@ func received_type(parameter: Syntax.Statements.Parameter, resolved: Analysis.Sp
         var element = listed.element
         var spread = Analysis.Types.ListType(element)
         spread.is_variadic = true
-        var typed: Analysis.SpiteType = spread
-        return typed
+        return spread
     }
     return resolved
 }
@@ -8325,23 +8319,19 @@ func resolve_generic_argument(argument: Syntax.Types.GenericArgument, current_na
 }
 
 func list_type_of(element: Analysis.SpiteType): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.ListType(element)
-    return resolved
+    return Analysis.Types.ListType(element)
 }
 
 func integer_type(): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('integer_kind')
-    return resolved
+    return Analysis.Types.ScalarType('integer_kind')
 }
 
 func boolean_type(): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('boolean_kind')
-    return resolved
+    return Analysis.Types.ScalarType('boolean_kind')
 }
 
 func string_type(): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.StringType()
-    return resolved
+    return Analysis.Types.StringType()
 }
 
 func value_class_names(): List<String> {
@@ -8384,33 +8374,27 @@ func value_class_type(information: Analysis.ClassInfo): Analysis.SpiteType {
     if value_type {
         return value_type
     }
-    var class_type: Analysis.SpiteType = Analysis.Types.ClassRefType(information.c_name)
-    return class_type
+    return Analysis.Types.ClassRefType(information.c_name)
 }
 
 func address_type(): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('address_kind')
-    return resolved
+    return Analysis.Types.ScalarType('address_kind')
 }
 
 func long_type(): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('long_kind')
-    return resolved
+    return Analysis.Types.ScalarType('long_kind')
 }
 
 func float_type(): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('float_kind')
-    return resolved
+    return Analysis.Types.ScalarType('float_kind')
 }
 
 func double_type(): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('double_kind')
-    return resolved
+    return Analysis.Types.ScalarType('double_kind')
 }
 
 func void_type(): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.VoidType()
-    return resolved
+    return Analysis.Types.VoidType()
 }
 
 func void_result(): ExpressionResult {
@@ -9718,8 +9702,7 @@ func implicit_join_ast(handle_ast: Syntax.Expressions.Expression): Syntax.Expres
     var joining = Syntax.Expressions.MemberExpression(handle_ast, "_result")
     implicit_joins.append(joining)
     var no_arguments = List<Syntax.Expressions.Expression>()
-    var joined: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(joining, no_arguments)
-    return joined
+    return Syntax.Expressions.CallExpression(joining, no_arguments)
 }
 
 func is_implicit_join(member: Syntax.Expressions.MemberExpression): Boolean {
@@ -13501,8 +13484,7 @@ func singleton_with_arguments(
     }
     var function_c_name = "spite_singleton_{target_class.c_name}___with_{slot_number}"
     var argument_code = argument_codes.join(", ")
-    var call_code = singleton_slot_call(target_class, function_c_name, display_name, argument_code)
-    return call_code
+    return singleton_slot_call(target_class, function_c_name, display_name, argument_code)
 }
 
 func is_singleton_key_literal(argument: Syntax.Expressions.Expression): Boolean {
@@ -13837,8 +13819,7 @@ func signature_of(function: Analysis.FunctionInfo): Analysis.SpiteType {
     } else {
         signature.returns = function.return_type
     }
-    var typed: Analysis.SpiteType = signature
-    return typed
+    return signature
 }
 
 func function_value(
@@ -19261,8 +19242,7 @@ func type_name_written(spite_type: Analysis.SpiteType, qualified: Boolean): Stri
 }
 
 func spite_class_type(): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.ClassRefType("Spite_Class")
-    return resolved
+    return Analysis.Types.ClassRefType("Spite_Class")
 }
 
 func ensure_attributes_function(information: Analysis.ClassInfo): String {
@@ -20475,6 +20455,11 @@ func deep_copy_code(spite_type: Analysis.SpiteType, code: String): String {
     if class_ref {
         var copied_class = find_class_by_c_name(class_ref.c_name)
         if copied_class {
+            var held = weak_held_class(copied_class)
+            if held {
+                var weak_copy = ensure_weak_deep_copy(copied_class, held)
+                return "{weak_copy}({code})"
+            }
             if not copied_class.is_singleton {
                 var own_deep_copy = find_or_instantiate_function(copied_class, "deep_copy")
                 if own_deep_copy {
@@ -20601,7 +20586,17 @@ func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
         builder.add_support(joined_singleton_lines)
         return function_c_name
     }
+    var remembers = remembers_copies(information)
+    if remembers {
+        ensure_copy_table()
+        lines.append("{information.c_name}* seen = ({information.c_name}*)spite_copy_table_find(self);")
+        lines.append("if (seen != 0) return {information.c_name}___retain(seen);")
+        lines.append("bool spite_opened = spite_copy_table_open();")
+    }
     lines.append("{information.c_name}* copied = {information.c_name}___allocate();")
+    if remembers {
+        lines.append("spite_copy_table_add(self, copied);")
+    }
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
@@ -20613,12 +20608,165 @@ func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
         lines.append("{target} = {deep_copy_code(field_type, source)};")
         index = index + 1
     }
+    if remembers {
+        lines.append("if (spite_opened) spite_copy_table_close();")
+    }
     lines.append("return copied;")
     lines.append("}")
     var joined_lines = lines.join("\n")
     note_support_slot(information, "'s deep copy")
     builder.add_support(joined_lines)
     return function_c_name
+}
+
+# ../../../docs/memory.md#do-call-copydeep_copy-for-an-independent-object
+func remembers_copies(information: Analysis.ClassInfo): Boolean {
+    if reaching_classes.has(information.c_name) {
+        var known = reaching_classes[information.c_name]
+        crash known
+        return known
+    }
+    var seen = List<String>()
+    var pending = List<Analysis.SpiteType>()
+    add_field_types(information, pending)
+    var answer = weakly_held(information)
+    while not pending.is_empty() and not answer {
+        var next = pending.remove_last()
+        crash next
+        var reached = classes_in_type(next)
+        var index = 0
+        while index < reached.count() {
+            var reached_class = reached[index]
+            var held = weak_held_class(reached_class)
+            if reached_class.c_name == information.c_name or held {
+                answer = true
+            } else if not seen.contains(reached_class.c_name) {
+                seen.append(reached_class.c_name)
+                add_field_types(reached_class, pending)
+            }
+            index = index + 1
+        }
+    }
+    reaching_classes[information.c_name] = answer
+    return answer
+}
+
+func weakly_held(information: Analysis.ClassInfo): Boolean {
+    var index = 0
+    while index < classes.count() {
+        var held = weak_held_class(classes[index])
+        if held {
+            if held.c_name == information.c_name {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func add_field_types(information: Analysis.ClassInfo, pending: List<Analysis.SpiteType>) {
+    assert not information.is_singleton
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        pending.append(field.type)
+        index = index + 1
+    }
+}
+
+func classes_in_type(spite_type: Analysis.SpiteType): List<Analysis.ClassInfo> {
+    var found = List<Analysis.ClassInfo>()
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if class_ref {
+        var referenced = find_class_by_c_name(class_ref.c_name)
+        if referenced {
+            found.append(referenced)
+            var held = weak_held_class(referenced)
+            if held {
+                found.append(held)
+            }
+        }
+        return found
+    }
+    var union_type = type_shape.as_union(spite_type)
+    if union_type {
+        var referenced_union = find_union_by_c_name(union_type.c_name)
+        if referenced_union {
+            var member_index = 0
+            while member_index < referenced_union.members.count() {
+                found.append(referenced_union.members[member_index])
+                member_index = member_index + 1
+            }
+        }
+        return found
+    }
+    var list_type = type_shape.as_list(spite_type)
+    if list_type {
+        return classes_in_type(list_type.element)
+    }
+    var dictionary_type = type_shape.as_dictionary(spite_type)
+    if dictionary_type {
+        return classes_in_type(dictionary_type.element)
+    }
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        return classes_in_type(nullable.inner)
+    }
+    return found
+}
+
+func ensure_copy_table() {
+    assert not copy_table_written
+    copy_table_written = true
+    builder.add_support(
+        "typedef struct \{ void* from; void* to; } spite_copy_pair;\nstatic SPITE_THREAD_LOCAL spite_copy_pair* spite_copy_pairs = 0;\nstatic SPITE_THREAD_LOCAL uint64_t spite_copy_count = 0;\nstatic SPITE_THREAD_LOCAL uint64_t spite_copy_capacity = 0;\nstatic SPITE_THREAD_LOCAL bool spite_copy_open = false;\nstatic uint64_t spite_copy_slot(void* from, uint64_t capacity) \{ return (((uint64_t)(uintptr_t)from >> 4) * 11400714819323198485ull) & (capacity - 1); }\nstatic void* spite_copy_table_find(void* from) \{\nif (!spite_copy_open) return 0;\nuint64_t slot = spite_copy_slot(from, spite_copy_capacity);\nwhile (spite_copy_pairs[slot].from != 0) \{ if (spite_copy_pairs[slot].from == from) return spite_copy_pairs[slot].to; slot = (slot + 1) & (spite_copy_capacity - 1); }\nreturn 0;\n}\nstatic bool spite_copy_table_open(void) \{\nif (spite_copy_open) return false;\nspite_copy_capacity = 64;\nspite_copy_count = 0;\nspite_copy_pairs = (spite_copy_pair*)calloc(spite_copy_capacity, sizeof(spite_copy_pair));\nif (spite_copy_pairs == 0) \{ fprintf(stderr, \"spite: out of memory remembering the objects of a deep copy\\n\"); abort(); }\nspite_copy_open = true;\nreturn true;\n}\nstatic void spite_copy_table_add(void* from, void* to) \{\nif ((spite_copy_count + 1) * 2 > spite_copy_capacity) \{\nuint64_t old_capacity = spite_copy_capacity;\nspite_copy_pair* old_pairs = spite_copy_pairs;\nspite_copy_capacity = old_capacity * 2;\nspite_copy_pairs = (spite_copy_pair*)calloc(spite_copy_capacity, sizeof(spite_copy_pair));\nif (spite_copy_pairs == 0) \{ fprintf(stderr, \"spite: out of memory remembering the objects of a deep copy\\n\"); abort(); }\nfor (uint64_t index = 0; index < old_capacity; index = index + 1) \{\nif (old_pairs[index].from == 0) continue;\nuint64_t moved = spite_copy_slot(old_pairs[index].from, spite_copy_capacity);\nwhile (spite_copy_pairs[moved].from != 0) moved = (moved + 1) & (spite_copy_capacity - 1);\nspite_copy_pairs[moved] = old_pairs[index];\n}\nfree(old_pairs);\n}\nuint64_t slot = spite_copy_slot(from, spite_copy_capacity);\nwhile (spite_copy_pairs[slot].from != 0) slot = (slot + 1) & (spite_copy_capacity - 1);\nspite_copy_pairs[slot].from = from;\nspite_copy_pairs[slot].to = to;\nspite_copy_count = spite_copy_count + 1;\n}\nstatic SPITE_THREAD_LOCAL void (*spite_copy_closing)(void) = 0;\nstatic void spite_copy_table_close(void) \{\nif (spite_copy_closing != 0) spite_copy_closing();\nfree(spite_copy_pairs);\nspite_copy_pairs = 0;\nspite_copy_capacity = 0;\nspite_copy_count = 0;\nspite_copy_open = false;\n}",
+    )
+}
+
+func weak_held_class(information: Analysis.ClassInfo): Analysis.ClassInfo? {
+    assert information.qualified_dotted == "Weak" and information.codegen_types.count() == 1
+    var held_type = information.codegen_types[0]
+    var held_ref = type_shape.as_class_ref(held_type)
+    assert held_ref
+    return find_class_by_c_name(held_ref.c_name)
+}
+
+# ../../../docs/memory.md#do-call-copydeep_copy-for-an-independent-object
+func ensure_weak_deep_copy(information: Analysis.ClassInfo, held: Analysis.ClassInfo): String {
+    var function_c_name = "{information.c_name}___deep_copy"
+    if deep_copy_names.contains(function_c_name) {
+        return function_c_name
+    }
+    deep_copy_names.append(function_c_name)
+    ensure_weak_runtime(held.c_name)
+    ensure_copy_table()
+    ensure_weak_copy_pending()
+    builder.add_prototype("{information.c_name}* {function_c_name}({information.c_name}* self);")
+    var box = field_place("copied", information, "_box")
+    var source = field_place("self", information, "_box")
+    var lines = List<String>()
+    lines.append("{information.c_name}* {function_c_name}({information.c_name}* self) \{")
+    lines.append("if (self == 0) return 0;")
+    lines.append("{information.c_name}* copied = {information.c_name}___allocate();")
+    lines.append("void* spite_object = spite_weak_object({source});")
+    lines.append("void* spite_moved = spite_copy_table_find(spite_object);")
+    lines.append("if (spite_moved != 0) spite_object = spite_moved;")
+    lines.append("else if (spite_object != 0 && spite_copy_open) spite_weak_copy_wait(&{box}, spite_object);")
+    lines.append("{box} = spite_weak_box_of(spite_object);")
+    lines.append("return copied;")
+    lines.append("}")
+    var joined = lines.join("\n")
+    builder.add_support(joined)
+    return function_c_name
+}
+
+func ensure_weak_copy_pending() {
+    assert not weak_copy_pending_written
+    weak_copy_pending_written = true
+    builder.add_support(
+        "typedef struct \{ int64_t* box; void* object; } spite_weak_copy_entry;\nstatic SPITE_THREAD_LOCAL spite_weak_copy_entry* spite_weak_copies = 0;\nstatic SPITE_THREAD_LOCAL int64_t spite_weak_copy_count = 0;\nstatic SPITE_THREAD_LOCAL int64_t spite_weak_copy_capacity = 0;\nstatic void spite_weak_copies_settle(void) \{\nfor (int64_t index = 0; index < spite_weak_copy_count; index = index + 1) \{\nvoid* moved = spite_copy_table_find(spite_weak_copies[index].object);\nif (moved == 0) continue;\nint64_t old_box = *spite_weak_copies[index].box;\n*spite_weak_copies[index].box = spite_weak_box_of(moved);\nspite_weak_box_release(old_box);\n}\nfree(spite_weak_copies);\nspite_weak_copies = 0;\nspite_weak_copy_count = 0;\nspite_weak_copy_capacity = 0;\nspite_copy_closing = 0;\n}\nstatic void spite_weak_copy_wait(int64_t* box, void* object) \{\nif (spite_weak_copy_count == spite_weak_copy_capacity) \{\nspite_weak_copy_capacity = spite_weak_copy_capacity == 0 ? 16 : spite_weak_copy_capacity * 2;\nspite_weak_copies = (spite_weak_copy_entry*)realloc(spite_weak_copies, (size_t)spite_weak_copy_capacity * sizeof(spite_weak_copy_entry));\nif (spite_weak_copies == 0) \{ fprintf(stderr, \"spite: out of memory remembering the objects of a deep copy\\n\"); abort(); }\n}\nspite_weak_copies[spite_weak_copy_count].box = box;\nspite_weak_copies[spite_weak_copy_count].object = object;\nspite_weak_copy_count = spite_weak_copy_count + 1;\nspite_copy_closing = spite_weak_copies_settle;\n}",
+    )
 }
 
 func ensure_list_deep_copy(element: Analysis.SpiteType): String {
@@ -21297,12 +21445,7 @@ func dictionary_key_suffix(dictionary: Analysis.Types.DictionaryType): String {
 func fixed_dictionary_type(information: Analysis.ClassInfo): Analysis.SpiteType {
     crash information.codegen_types[0]
     crash information.codegen_types[1]
-    var resolved: Analysis.SpiteType = Analysis.Types.DictionaryType(
-        information.codegen_types[0],
-        information.codegen_types[1],
-        "",
-    )
-    return resolved
+    return Analysis.Types.DictionaryType(information.codegen_types[0], information.codegen_types[1], "")
 }
 
 func dictionary_type_at(element: Analysis.SpiteType, line: Integer, column: Integer): Analysis.SpiteType {
@@ -21324,8 +21467,7 @@ func dictionary_type_at(element: Analysis.SpiteType, line: Integer, column: Inte
     if number_key_sites[site] {
         key_type = number_key_sites[site]
     }
-    var resolved: Analysis.SpiteType = Analysis.Types.DictionaryType(element, key_type, site)
-    return resolved
+    return Analysis.Types.DictionaryType(element, key_type, site)
 }
 
 func key_site_root(site: String): String {
@@ -21580,8 +21722,7 @@ func nullable_type_of(inner: Analysis.SpiteType): Analysis.SpiteType {
     if type_shape.as_nullable(inner) {
         return inner
     }
-    var resolved: Analysis.SpiteType = Analysis.Types.NullableType(inner)
-    return resolved
+    return Analysis.Types.NullableType(inner)
 }
 
 func generate_dictionary_method(
@@ -22015,8 +22156,7 @@ func generate_symbol_lookup(
     crash text_code.count() == 1
     var symbol_type = Analysis.Types.SymbolType()
     var nullable_type = nullable_type_of(symbol_type)
-    var found = ExpressionResult("spite_symbol_find({text_code[0]})", nullable_type)
-    return found
+    return ExpressionResult("spite_symbol_find({text_code[0]})", nullable_type)
 }
 
 func emit_symbol_table() {
@@ -26743,8 +26883,7 @@ func made_walked_local(
     made.source_path = local.source_path
     steps.append(made)
     walk.make_local(local.name)
-    var named: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(made_name)
-    return named
+    return Syntax.Expressions.IdentifierExpression(made_name)
 }
 
 func written_root(statement: Syntax.Statements.Statement): String {
@@ -27341,8 +27480,7 @@ func qualified_type_reference(spite_type: Analysis.SpiteType?, written: Syntax.T
         if walked_class.codegen_types.is_empty() and not walked_class.qualified_dotted.is_empty() {
             var no_arguments = List<Syntax.Types.GenericArgument>()
             var path = walked_class.qualified_dotted.split(".")
-            var qualified: Syntax.Types.Type = Syntax.Types.NamedType(path, no_arguments)
-            return qualified
+            return Syntax.Types.NamedType(path, no_arguments)
         }
     }
     return written
@@ -30175,6 +30313,7 @@ func generate_statement_list(
             report_template_walk(statements, index, scope, class_information)
         }
         report_value_chain(statements, index, scope, class_information)
+        report_returned_local(statements, index, class_information, function_information)
         var statement = statements[index]
         var read_name = overlapped_read_name(statement, overlapped_reads, scope, class_information)
         if read_name.is_empty() {
@@ -30308,8 +30447,7 @@ func overlapped_declaration(statement: Syntax.Statements.Statement): Syntax.Stat
     var overlapped = Syntax.Statements.VariableDeclaration(declaration.name, null, started)
     overlapped.line = declaration.line
     overlapped.source_path = declaration.source_path
-    var overlapped_statement: Syntax.Statements.Statement = overlapped
-    return overlapped_statement
+    return overlapped
 }
 
 func join_overlapped_reads(pending: List<String>, scope: Scope) {
@@ -34216,6 +34354,35 @@ func report_value_chain(
     report_chain_of(arms, subject, rest, scope, class_information)
 }
 
+# ../../../docs/control_flow.md#return-converts-to-the-functions-type
+func report_returned_local(
+    statements: List<Syntax.Statements.Statement>,
+    index: Integer,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    assert index + 1 < statements.count()
+    var declaration = shape.as_variable_declaration(statements[index])
+    assert declaration
+    assert declaration.value
+    var returned = shape.as_return_statement(statements[index + 1])
+    assert returned
+    assert returned.value
+    var returned_name = shape.as_identifier(returned.value)
+    assert returned_name
+    assert returned_name.name == declaration.name
+    var return_type_name = type_display_name(function_information.return_type)
+    if declaration.type_reference {
+        var declared = resolve_type(declaration.type_reference, class_information.qualified_dotted)
+        assert types_equal(declared, function_information.return_type)
+    }
+    var source = Syntax.SourcePrinter().source_expression(declaration.value)
+    current_line = declaration.line
+    report(
+        "'{declaration.name}' is declared only to be returned on the next line: write 'return {source}', since 'return' already makes the value the function's {return_type_name}",
+    )
+}
+
 func statement_subject(statements: List<Syntax.Statements.Statement>, index: Integer): String {
     var subject = ""
     if index >= 0 and index < statements.count() {
@@ -35048,8 +35215,7 @@ func stride_reach(stride: Syntax.Expressions.BinaryExpression): Integer {
     if reach.value < 1 or reach.value > 63 {
         return -1
     }
-    var reach_value: Integer = reach.value
-    return reach_value
+    return reach.value
 }
 
 func narrow_stride(
@@ -40427,6 +40593,10 @@ func report_waits_in(
         if declared {
             report_joined_parallel(declared, whole, information, function, locked_keys)
         }
+        var returned = shape.as_return_statement(statement)
+        if returned {
+            report_returned_parallel(returned, information, function, locked_keys)
+        }
         var branched = shape.as_if_statement(statement)
         if branched {
             report_waits_in(branched.then_branch, whole, information, function, locked_keys)
@@ -40454,8 +40624,39 @@ func report_joined_parallel(
     crash called.callee
     var starter = shape.as_identifier(called.callee)
     assert starter
-    assert starter.name == "Parallel" and not handle_escapes(declared.name, whole)
-    var site = parallel_site_at(declared.line, information, function)
+    assert starter.name == "Parallel"
+    returned_handle_escapes = returns_task_handle(function.return_type)
+    var escapes = handle_escapes(declared.name, whole)
+    returned_handle_escapes = true
+    assert not escapes
+    report_locked_join(declared.line, information, function, locked_keys)
+}
+
+func report_returned_parallel(
+    returned: Syntax.Statements.ReturnStatement,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    locked_keys: Dictionary<String>,
+) {
+    crash returned.value
+    var called = shape.as_call(returned.value)
+    assert called
+    assert called.arguments.count() == 1
+    crash called.callee
+    var starter = shape.as_identifier(called.callee)
+    assert starter
+    var handed_on = returns_task_handle(function.return_type)
+    assert starter.name == "Parallel" and not handed_on
+    report_locked_join(returned.line, information, function, locked_keys)
+}
+
+func report_locked_join(
+    line: Integer,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    locked_keys: Dictionary<String>,
+) {
+    var site = parallel_site_at(line, information, function)
     assert site >= 0
     crash parallel_site_keys[site]
     var work_key = parallel_site_keys[site]
@@ -40467,12 +40668,29 @@ func report_joined_parallel(
         var key = reached_keys[index]
         if locked_keys[key] {
             if locked_keys[key] == information.qualified_dotted {
-                report_locked_wait(declared, information, function, site, key)
+                report_locked_wait(line, information, function, site, key)
                 return
             }
         }
         index = index + 1
     }
+}
+
+func returns_task_handle(return_type: Analysis.SpiteType): Boolean {
+    var inner = return_type
+    var nullable = type_shape.as_nullable(return_type)
+    if nullable {
+        inner = nullable.inner
+    }
+    var class_ref = type_shape.as_class_ref(inner)
+    if not class_ref {
+        return false
+    }
+    var returned = find_class_by_c_name(class_ref.c_name)
+    if not returned {
+        return false
+    }
+    return returned.qualified_dotted == "Parallel" or returned.qualified_dotted == "Concurrent"
 }
 
 func parallel_site_at(line: Integer, information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Integer {
@@ -40490,7 +40708,7 @@ func parallel_site_at(line: Integer, information: Analysis.ClassInfo, function: 
 }
 
 func report_locked_wait(
-    declared: Syntax.Statements.VariableDeclaration,
+    line: Integer,
     information: Analysis.ClassInfo,
     function: Analysis.FunctionInfo,
     site: Integer,
@@ -40502,7 +40720,7 @@ func report_locked_wait(
     var place = site_place.split("\n")
     crash place[0]
     current_path = place[0]
-    current_line = declared.line
+    current_line = line
     current_owner = information.qualified_dotted
     current_function = function.name
     var work_text = parallel_site_texts[site]
@@ -40537,7 +40755,7 @@ func statement_hands_on(statement: Syntax.Statements.Statement, name: String): B
         }
         Syntax.Statements.ReturnStatement: {
             if names_identifier(statement.value, name) {
-                return true
+                return returned_handle_escapes
             }
             return optional_hands_on(statement.value, name)
         }
@@ -47957,8 +48175,7 @@ func reflected_walk_call(function: Analysis.FunctionInfo, element: Reflected): S
     }
     var call_arguments = [element_argument]
     var callee: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(function.name)
-    var call: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, call_arguments)
-    return call
+    return Syntax.Expressions.CallExpression(callee, call_arguments)
 }
 
 func unrolled_map(

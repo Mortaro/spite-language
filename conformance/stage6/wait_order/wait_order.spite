@@ -36,8 +36,7 @@ func rename_after(milliseconds: Integer): Integer {
 
 func sum_in_order(): Integer {
     counter = 1
-    var total = counter + bump_after(2)
-    return total
+    return counter + bump_after(2)
 }
 
 func text_in_order(): String {

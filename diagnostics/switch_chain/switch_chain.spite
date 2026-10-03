@@ -48,8 +48,7 @@ func sign_for(language: String): String {
     if language == "de" {
         return "hallo"
     }
-    var fallback = "hello"
-    return fallback
+    return "hello"
 }
 
 func two_arms(index: Integer): String {

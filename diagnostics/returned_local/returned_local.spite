@@ -1,0 +1,33 @@
+var console = Console()
+
+func ReturnedLocal() {
+    var whole = rounded(2.6)
+    var greeting = named("ada")
+    var wide = widened(3)
+    var found = maybe(true)
+    crash found
+    console.print(whole, greeting, wide, found)
+}
+
+func rounded(scaled: Float): Integer {
+    var whole: Integer = scaled.round()
+    return whole
+}
+
+func named(name: String): String {
+    var greeting = "hello {name}"
+    return greeting
+}
+
+func widened(small: Integer): Long {
+    var narrowed: Short = small
+    return narrowed
+}
+
+func maybe(wanted: Boolean): String? {
+    var found: String = "found"
+    if wanted {
+        return found
+    }
+    return null
+}

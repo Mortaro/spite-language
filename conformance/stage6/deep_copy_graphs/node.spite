@@ -1,0 +1,7 @@
+var name = ""
+var parent: Node? = null
+var children = List<Node>()
+
+func Node(starting_name: String) {
+    name = starting_name
+}

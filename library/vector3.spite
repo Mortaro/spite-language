@@ -113,8 +113,7 @@ func _square_root(squared: $number_type): $number_type {
     if $number_type == Float or $number_type == Double {
         return squared.square_root()
     }
-    var root: $number_type = squared.to_double().square_root()
-    return root
+    return squared.to_double().square_root()
 }
 
 func to_string(): String {

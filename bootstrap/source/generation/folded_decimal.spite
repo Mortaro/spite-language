@@ -15,6 +15,5 @@ func operand(is_float: Boolean): Double {
         return value
     }
     var narrow: Float = value
-    var wide: Double = narrow
-    return wide
+    return narrow
 }

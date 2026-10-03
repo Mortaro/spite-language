@@ -584,6 +584,30 @@ func double(value: Integer): Integer {
 this statement comes after a 'return', so it never runs: remove it
 ```
 
+## `return` converts to the function's type
+
+`return` already makes its value the function's result type, checking a number that would not fit as any
+assignment does. So a local declared only to be returned on the next line says nothing the `return` does not:
+
+```gdscript title=returned_local_error/returned_local_error.spite entry error
+var console = Console()
+
+func ReturnedLocalError() {
+    console.print(rounded(2.6))
+}
+
+func rounded(scaled: Float): Integer {
+    var whole: Integer = scaled.round()
+    return whole
+}
+```
+```diagnostic
+'whole' is declared only to be returned on the next line: write 'return scaled.round()', since 'return' already makes the value the function's Integer
+```
+
+Write `return scaled.round()`. A local whose type differs from the function's (a narrower number, or a `T` in a
+function that answers `T?`) is a different conversion, and is left alone.
+
 ## Rules in full
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
@@ -616,6 +640,12 @@ the statement: a statement ends with its line, so remove it, or put it on a line
 (`diagnostics/left_over_after_return`). An `if`, `while` or `switch` ends with the `}` that closes it (after its
 `else` chain, for an `if`), and a word after that `}` on the same line is `'console' is left over after the '}'
 that closes this statement: ...` (`diagnostics/left_over_after_block`).
+
+**A local declared only to be returned is a compile error.** A `var name = value` or `var name: T = value`,
+with `T` written as the function's result type, followed at once by `return name`, is `'name' is declared only to
+be returned on the next line: write 'return value', since 'return' already makes the value the function's T`
+(`diagnostics/returned_local`). A local declared with any other type is a conversion of its own and is not
+refused.
 
 **A `while true` that can never leave and calls nothing is a compile error.** No `return`, `assert` or `crash`
 anywhere inside its body, and no call (a function, a method, a constructor) in it: `this 'while true' never ends:

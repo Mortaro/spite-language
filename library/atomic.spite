@@ -60,14 +60,12 @@ func _raw(value: $value_type): Long {
         }
         return 0
     }
-    var raw: Long = value
-    return raw
+    return value
 }
 
 func _value(raw: Long): $value_type {
     if $value_type == Boolean {
         return raw != 0
     }
-    var value: $value_type = raw
-    return value
+    return raw
 }

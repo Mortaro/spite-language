@@ -117,21 +117,17 @@ func read(input: BinaryInput): $value_type {
         }
         return flag == 1
     } else if $value_type == Byte {
-        var small: $value_type = input.read_byte()
-        return small
+        return input.read_byte()
     } else if $value_type == Tiny {
         var stored = input.read_byte()
         if stored > 127 {
             stored = stored - 256
         }
-        var tiny: $value_type = stored
-        return tiny
+        return stored
     } else if $value_type == Short {
-        var short: $value_type = input.read_short()
-        return short
+        return input.read_short()
     } else if $value_type == UnsignedShort {
-        var unsigned_short: $value_type = input.read_unsigned_short()
-        return unsigned_short
+        return input.read_unsigned_short()
     } else if $value_type == Integer {
         return input.read_integer()
     } else if $value_type == UnsignedInteger {

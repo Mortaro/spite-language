@@ -179,8 +179,7 @@ func read_enum(): Analysis.SpiteType {
         values.append(value)
         index = index + 1
     }
-    var enum_type: Analysis.SpiteType = Analysis.Types.EnumType(enum_name, values)
-    return enum_type
+    return Analysis.Types.EnumType(enum_name, values)
 }
 
 func read_nullable(): Analysis.SpiteType? {

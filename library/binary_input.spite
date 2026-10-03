@@ -24,24 +24,21 @@ func read_byte(): Integer {
     if not take(1) {
         return 0
     }
-    var value: Integer = address.read_byte(position - 1)
-    return value
+    return address.read_byte(position - 1)
 }
 
 func read_short(): Integer {
     if not take(2) {
         return 0
     }
-    var value: Integer = address.read_short(position - 2)
-    return value
+    return address.read_short(position - 2)
 }
 
 func read_unsigned_short(): Integer {
     if not take(2) {
         return 0
     }
-    var value: Integer = address.read_unsigned_short(position - 2)
-    return value
+    return address.read_unsigned_short(position - 2)
 }
 
 func read_integer(): Integer {
@@ -85,8 +82,7 @@ func read_count(): Integer {
             fail()
         }
     }
-    var counted: Integer = result
-    return counted
+    return result
 }
 
 func read_text(): String {

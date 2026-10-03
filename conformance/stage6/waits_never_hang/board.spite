@@ -7,21 +7,15 @@ var readers = List<Concurrent<Integer>>()
 
 func value_of(index: Integer): Integer {
     crash handles[index]
-    var handle = handles[index]
-    var value: Integer = handle
-    return value
+    return handles[index]
 }
 
 func starter_value(): Integer {
     crash starters[0]
-    var starter = starters[0]
-    var value: Integer = starter
-    return value
+    return starters[0]
 }
 
 func reader_value(): Integer {
     crash readers[0]
-    var reader = readers[0]
-    var value: Integer = reader
-    return value
+    return readers[0]
 }

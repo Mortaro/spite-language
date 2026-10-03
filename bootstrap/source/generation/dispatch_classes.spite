@@ -27,14 +27,12 @@ func value_at(position: Integer): String {
     if position < 0 or position >= values.count() {
         return ""
     }
-    var value = values[position]
-    return value
+    return values[position]
 }
 
 func element_at(position: Integer): String {
     if position < 0 or position >= elements.count() {
         return ""
     }
-    var element = elements[position]
-    return element
+    return elements[position]
 }

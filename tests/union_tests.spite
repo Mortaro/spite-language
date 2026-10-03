@@ -5,11 +5,9 @@ union Holding {
 
 func held(creature: Boolean): Holding {
     if creature {
-        var living: Holding = Creature("rat", 3, true)
-        return living
+        return Creature("rat", 3, true)
     }
-    var coin: Holding = Money(25)
-    return coin
+    return Money(25)
 }
 
 func test_switch_narrows_each_case() {

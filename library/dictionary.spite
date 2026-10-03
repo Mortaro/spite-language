@@ -365,13 +365,11 @@ func hash_of(key: $key_type): UnsignedLong {
 func home_slot(hash: UnsignedLong): Integer {
     var high = hash.shifted_right(29)
     var mixed = hash.bits_exclusive_or(high)
-    var slot: Integer = mixed.bits_and(slot_count - 1)
-    return slot
+    return mixed.bits_and(slot_count - 1)
 }
 
 func fragment_of(hash: UnsignedLong): Integer {
-    var fragment: Integer = hash.shifted_right(33)
-    return fragment
+    return hash.shifted_right(33)
 }
 
 func next_slot(slot: Integer): Integer {

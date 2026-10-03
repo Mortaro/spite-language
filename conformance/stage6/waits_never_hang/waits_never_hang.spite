@@ -126,20 +126,17 @@ func nullable_equality(): Integer {
 
 func function_value(): Integer {
     var nap = napped
-    var slept = nap(6)
-    return slept
+    return nap(6)
 }
 
 func union_call(): Integer {
     var napper: Napper = SlowNapper()
-    var slept = napper.nap(7)
-    return slept
+    return napper.nap(7)
 }
 
 func type_call(): Integer {
     var napper = SlowNapper()
-    var slept = nap_through(napper)
-    return slept
+    return nap_through(napper)
 }
 
 func nap_through(sleepy: Sleepy): Integer {

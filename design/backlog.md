@@ -251,8 +251,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **S6 Environments as a reopenable, walkable enum** (D180; status "Symbol codegen and enums"). With D373 a
   reopening restates the whole list. Files: `library/environment.spite`, `library/build.spite`. **S.** Depends on
   L3, L4.
-- **S9 Collection leftovers** (status "Standard library metaprogramming", "Deep copy").
-  `deep_copy()` of a cycle. **S.** Waits on item 296.
 
 ### REPL and reload (D280, D301, D305)
 
@@ -297,7 +295,7 @@ and formatting patterns (time.md); running and testing the macOS folders; S10, T
 Each line can start once everything before it that it names is done; lines with no dependency can start at once.
 
 1. Land the four branches (operators, nomap, fastbuild, linux), renumbering three rows.
-2. No dependencies: R8, M1, M4, M5, M7, N1, E1, E4, C7, K1, K6 (once decided), S9, X1, the remaining B items,
+2. No dependencies: R8, M1, M4, M5, M7, N1, E1, E4, C7, K1, K6 (once decided), X1, the remaining B items,
    E3.
 3. After step 2: R5, C8, N2 (N1).
 4. After R5: R1, J1, L3, R8, then R9.
@@ -323,7 +321,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 3 Arithmetic | N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
 | 5 Driver and toolchain | C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
-| 6 Waiting, IO and library | K1, K6, S3, K5, S9, S5, then S2 and S1 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
+| 6 Waiting, IO and library | K1, K6, S3, K5, S5, then S2 and S1 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
 | 7 Language rules | L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | the remaining B items | small fixes, each in the file of the proof it fixes; rebase often |

@@ -91,3 +91,11 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      the proposal orders it; (b) start with structure of arrays for lists, the larger win for the engine; (c) another
      order. Recommend (a): it reuses the placement proof and deletes the engine's hand scratch pools. Blocks
      backlog E1 and the rest of the proposal.
+300. **How a signature names a number's fractional class** (D486, answering item 290). D486 makes
+     `Vector3(3, 4, 12).normalized()` a `Vector3<Float>`, but a generic class can only name `$number_type` itself
+     in a signature, so `Vector3<$number_type>.normalized()` has no way to say "the fractional class of
+     `$number_type`". Options: (a) a type the compiler works out, `Fraction<$number_type>` (`Float` for every whole
+     number up to 32 bits, `Double` for `Long` and `UnsignedLong`, the class itself for `Float` and `Double`), so
+     the library writes `func normalized(): Vector3<Fraction<$number_type>>`; (b) a codegen value with a default
+     worked out from another, `generic $fraction_type = $number_type.fraction`. Recommend (a): one type, readable where it is used, and nothing a program
+     writes changes. Blocks building D486.

@@ -7,11 +7,9 @@ func collect(handle: Concurrent<String>): String {
 }
 
 func join(handle: Concurrent<String>): String {
-    var level: String = handle
-    return level
+    return handle
 }
 
 func total(counting: Parallel<Integer>, _slot: ThreadSlot, _guard: Lock): Integer {
-    var counted: Integer = counting
-    return counted
+    return counting
 }

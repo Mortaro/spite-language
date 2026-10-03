@@ -508,9 +508,7 @@ var removed = List<Integer>()
 
 func despawn_all(last: Integer): Integer {
     var remover = Remover(last)
-    var removing = Parallel(remover.run)
-    var done: Integer = removing
-    return done
+    return Parallel(remover.run)
 }
 
 func remove_row(entity: Integer) {

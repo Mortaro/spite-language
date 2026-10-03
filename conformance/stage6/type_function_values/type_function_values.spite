@@ -24,6 +24,5 @@ func slow_through_value(): Integer {
 
 func nap_through(sleepy: Sleepy): Integer {
     var nap = sleepy.nap
-    var slept = nap(8)
-    return slept
+    return nap(8)
 }

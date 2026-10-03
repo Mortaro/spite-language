@@ -1345,6 +1345,19 @@ character and comparing the whole key text on a hit is slower.
 against 413 ms with the slower hash. Keys, values and their order are the same, and so is every allocation: the slot
 table is one block, twice as large.
 
+### A deep copy is written per class, with a table only where a graph needs one
+
+**What it does.** The compiler writes one deep copy function per class it is used on. A class whose attributes can
+lead back to itself, lead to a `Weak`, or that some `Weak` holds, gets a copy that looks each object up in a table
+of the objects copied during that `deep_copy()` call, so an object reached twice is copied once and the copy keeps
+the original's cycles and weak references ([memory.md](memory.md#the-memory-model)). Every other class gets a plain
+copy: allocate, copy each attribute, return, with no table and no lookup.
+
+**When.** Every build, for each class `deep_copy()` reaches. **What you notice.** A tree or a list of plain records
+copies as fast as before. A copy of a graph allocates its table once per outermost `deep_copy()` call, outside the
+counted allocations `--debug-memory` reports, and frees it before `deep_copy()` returns. A program that never deep
+copies a class that needs the table carries none of it.
+
 ### A dictionary keyed by numbers hashes the numbers
 
 **What it does.** A `Dictionary` the program gives whole-number keys

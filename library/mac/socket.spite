@@ -30,8 +30,7 @@ func write_family(address: Memory.Address, family: Integer) {
 }
 
 func read_family(address: Memory.Address): Integer {
-    var family: Integer = address.read_byte(1)
-    return family
+    return address.read_byte(1)
 }
 
 func ipv4_family(): Integer {

@@ -99,9 +99,9 @@ when a page gains a rule that is not built yet, add it here.
 - D484: a comment links a `.spite` file only inside a `--final-classes` folder (backlog C7).
 - D485: the compiler decides arenas, rings, structure of arrays and freeing; see
   [proposals/automatic_memory.md](proposals/automatic_memory.md).
-- D486: a whole-number vector's fractional members answer a `Float` vector.
+- D486: a whole-number vector's fractional members answer a `Float` vector; waits on item 300 (how the signature
+  names the fractional class).
 - D487: a complete inflection table in the library, constant dictionary lookups folded and unreachable keys left out.
-- D488: `deep_copy()` copies cycles, with a copy function written per class.
 
 ### Nothing fails silently: still open
 
@@ -604,10 +604,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### Vector<T>
 - The class named `Vector` in `examples/vectors`, `conformance/stage6/operators` and `benchmarks/small_allocations`
   was renamed `Displacement`; page no longer records this.
-
-### Deep copy (Dictionary<T> rules)
-- `deep_copy()` of a structure whose references form a cycle runs out of stack (a crash naming the deep copy);
-  what it should do is item 296 in `mortaros_missing_decisions.md`.
 
 ### Rules in full
 - The page no longer says its rules were moved from the language manual when D193 dissolved it, nor that a `D`

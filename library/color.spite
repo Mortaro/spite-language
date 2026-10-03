@@ -109,8 +109,7 @@ func _hue_of(highest: Float, spread: Float): Float {
 func _byte_of(channel: Float): Integer {
     var held = channel.clamp(0.0, 1.0)
     var scaled = held * 255.0
-    var whole: Integer = scaled.round()
-    return whole
+    return scaled.round()
 }
 
 func _byte_hex(channel: Float): String {

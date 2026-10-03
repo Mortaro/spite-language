@@ -26,12 +26,10 @@ func short(struct: String): String {
 func register(for: Integer): Integer {
     var goto = for
     var case = goto * 2
-    var do = case + linux + errno
-    return do
+    return case + linux + errno
 }
 
 func static(const: String): String {
     var restrict = const
-    var void = "{restrict}/{interface}"
-    return void
+    return "{restrict}/{interface}"
 }

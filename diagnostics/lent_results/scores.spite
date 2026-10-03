@@ -10,6 +10,5 @@ func at_or_made(index: Integer): Layout {
     if index < values.count() {
         return values[index]
     }
-    var made = Layout()
-    return made
+    return Layout()
 }

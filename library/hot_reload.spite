@@ -256,7 +256,7 @@ func compile_prompt(code: String, answering: Boolean): String {
     var text = "func {name}() \{\n    {code}\n}\n"
     if answering {
         name = "prompt_answer_{prompts}"
-        text = "func {name}(): String \{\n    var prompt_value: String = {code}\n    return prompt_value\n}\n"
+        text = "func {name}(): String \{\n    return {code}\n}\n"
     }
     compiling.unlock()
     return compiled_prompt(name, text)
@@ -266,7 +266,7 @@ func compile_made(code: String, class_name: String): String {
     compiling.lock()
     prompts = prompts + 1
     var name = "prompt_made_{prompts}"
-    var text = "func {name}(): {class_name} \{\n    var prompt_value = {code}\n    return prompt_value\n}\n"
+    var text = "func {name}(): {class_name} \{\n    return {code}\n}\n"
     compiling.unlock()
     return compiled_prompt(name, text)
 }

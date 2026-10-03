@@ -1,0 +1,29 @@
+var console = Console()
+
+func DeepCopyGraphs() {
+    var root = Node("root")
+    var child = Node("child")
+    root.children.append(child)
+    child.parent = root
+    var copied = root.deep_copy()
+    var copied_child = copied.children.first()
+    crash copied_child
+    crash copied_child.parent
+    var back_to_copy = copied_child.parent == copied
+    var back_to_original = copied_child.parent == root
+    console.print(copied_child.parent.name, back_to_copy, back_to_original)
+    child.parent = null
+    copied_child.parent = null
+    var holder = Holder()
+    var lamp = Item("lamp")
+    holder.favorite = Weak(lamp)
+    holder.items.append(lamp)
+    var copied_holder = holder.deep_copy()
+    var first = copied_holder.items.first()
+    crash first
+    var favorite = copied_holder.favorite.get()
+    crash favorite
+    var own_lamp = favorite == first
+    var original_lamp = favorite == lamp
+    console.print(favorite.name, own_lamp, original_lamp)
+}

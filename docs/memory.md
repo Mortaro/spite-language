@@ -72,7 +72,9 @@ original label a
 independent label b
 ```
 
-`deep_copy()` does not follow a cycle safely: see [the rules](#the-memory-model).
+`deep_copy()` copies the shape of what it reaches: an object reached twice in one copy, through a cycle or a
+`Weak`, is copied once, so a child's `parent` in the copy is the copied parent, and a `Weak` in the copy holds the
+copy of its object when the same `deep_copy()` copied it ([the rules](#the-memory-model)).
 
 ## A `Vector` lends its items
 
@@ -1109,9 +1111,15 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
   `deep_copy()` is copied through it wherever it is reached, which is how a `Vector` or an `Items` attribute gets a
   block of its own instead of sharing the original's. A self-referring structure (a tree, a linked list, an
   expression whose operands are expressions) is copied node by node (`conformance/stage6/deep_copy_unions`).
-  **Cycles are not supported** by `deep_copy()`: a structure whose references lead back to an object already being
-  copied recurses until the stack runs out, and the crash names the deep copy; break the cycle by hand first if you
-  need to deep-copy one.
+  **`deep_copy()` copies a graph with its shape**: a structure whose references lead back to an object already being
+  copied (a parent holding its children, each holding its parent) gets one copy of each object, and the copied
+  references point at the copies, so the copy has the same cycles as the original (and leaks as every cycle does,
+  unless one side is a `Weak`). A `Weak` attribute's copy holds the copy of its object when the same `deep_copy()`
+  copies that object, before or after reaching the `Weak`, and the original object otherwise, since a `Weak` does
+  not own what it holds. The compiler writes each class's deep copy: one whose attributes can reach itself, reach a
+  `Weak`, or are held by a `Weak` remembers the objects copied during the call in a table made for that call; every
+  other class is copied plainly, with no table (`conformance/stage6/deep_copy_graphs`). An object reached twice
+  through classes that cannot reach themselves (two attributes holding the same leaf) is copied twice.
 - **Cycles leak.** Reference counting cannot free a cycle (two objects holding a reference to each other, directly
   or through several hops): neither one's count ever reaches zero. This is a known, accepted tradeoff, not a bug.
   Break a cycle by hand when you are done with it (set the back-reference to `null` inside `drop()`-time logic, or

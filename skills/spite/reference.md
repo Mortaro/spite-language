@@ -688,7 +688,9 @@ same name reopens it: `list.spite` adds a member template (`dictionary.spite` on
 
 A statement is one line: anything after it on the same line (after a `return` value, a call, or the `}` that
 closes an `if`, `while` or `switch`) is a parse error (`'attribute' is left over after the end of the statement`),
-never a second statement.
+never a second statement. `return` converts to the function's type, so a local declared only to be returned on
+the next line (`var whole: Integer = scaled.round()` then `return whole`) is an error: write
+`return scaled.round()`.
 
 ## Bindings: a library from another language
 

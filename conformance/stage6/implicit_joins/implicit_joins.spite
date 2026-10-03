@@ -61,6 +61,5 @@ func doubled(value: Integer): Integer {
 }
 
 func later_count(): Integer {
-    var later = Parallel(count_to_three)
-    return later
+    return Parallel(count_to_three)
 }

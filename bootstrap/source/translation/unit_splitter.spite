@@ -428,8 +428,7 @@ func unit_of(name: String): Integer {
         index = index + 1
     }
     var buckets: UnsignedLong = unit_count
-    var unit: Integer = hash % buckets
-    return unit
+    return hash % buckets
 }
 
 func unit_text(unit: Integer): String {

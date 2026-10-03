@@ -418,8 +418,7 @@ func float_constant_value(name: String): Double {
     } else if name == "largest" {
         narrow = Float.largest
     }
-    var wide: Double = narrow
-    return wide
+    return narrow
 }
 
 func operand_count(name: String): Integer {
@@ -533,8 +532,7 @@ func folded_float(name: String, wide_value: Double, wide_first: Double, wide_sec
         var raised = float_maximum(value, first)
         result = float_minimum(raised, second)
     }
-    var wide: Double = result
-    return wide
+    return result
 }
 
 func double_minimum(value: Double, other: Double): Double {

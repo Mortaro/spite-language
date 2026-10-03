@@ -9,8 +9,7 @@ func despawn_all(first: Integer, last: Integer): Integer {
     while not removing.finished and polls < 3 {
         polls = polls + 1
     }
-    var done: Integer = removing
-    return done
+    return removing
 }
 
 func despawn_later(first: Integer, last: Integer): Boolean {
