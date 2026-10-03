@@ -1170,10 +1170,17 @@ own. [Live reload](#live-reload---hot-reload) above teaches it; this section hol
   running meanwhile. A file new since the last compile is seen only through the watcher's event. It never hangs:
   after ten minutes it answers `the watcher has not swapped in the saved files after 10 minutes: 'reload'
   compiles them now`.
-- **A `Concurrent` does not overlap in a `--hot-reload` build.** A program function, called through its slot, is not
-  compiled into a state machine, so a `Concurrent` of one runs to its end when it is made, before the line
-  after it: `var ringing = Concurrent(ring)` followed by `console.print("started")` prints what `ring` prints
-  first. The program's results are the same; only the overlap is lost.
+- **A reload waits for the waits of what it swaps.** A program function that waits inside a `Concurrent` is a state
+  machine in a `--hot-reload` build too, so a `Concurrent` overlaps as in any other build. A reload that would swap
+  a function while a `Concurrent` is stopped at a wait inside it (the function's own wait, or a call below it that
+  has not returned) is held until no `Concurrent` is stopped inside any function it swaps; the program runs on
+  meanwhile, and the reload is swapped in at the first check point after that. So a wait always finishes on the
+  code that started it, and the code after it is the new code the next time the function is called. A reload held
+  for more than 10 seconds says once which function it waits for: `spite: the reload waits for
+  'Server.accept_next', where a Concurrent is stopped at a wait, and is swapped in once it returns`. `reload` and
+  `wait_reload` answer once it is swapped in, as for any reload. Each such function's first frame (its machine's
+  entry, `<name>___begin`) goes through a slot like every function, and each frame counts itself in a table kept
+  by name while it lives, only in a `--hot-reload` build.
 - **The swap mechanism: one slot per function.** In a `--hot-reload` build every function (the program's own,
   the standard library's, and every helper the compiler writes that keeps no static state of its own) and each
   program class's `_init` (its attribute defaults) is written as `<name>_hot`, with a function pointer

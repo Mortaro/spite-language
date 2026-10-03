@@ -96,9 +96,7 @@ for a design):
 - Some waits inside a `Concurrent` still run the event loop in place (concurrency.md, "Waits in a condition, a
   comparison, or behind a choice made while running"): a `Concurrent` dropped by `remove_at` or `remove_where` on a
   list, or by a release no local or assignment makes; a wait through a `String`'s or a number's function held as a
-  value; a join of a `Concurrent` inside a locked singleton function; and every wait of a `--hot-reload` build,
-  whose functions have no state machine (waiting on item 298 of `mortaros_missing_decisions.md`: what a suspended
-  frame does when a reload swaps its function's code). A join that closes a cycle through one halts, but one such
+  value; and a join of a `Concurrent` inside a locked singleton function. A join that closes a cycle through one halts, but one such
   wait buried under another that never ends is held without a word for as long as that one runs.
 - A Windows `__fastfail` (`0xC0000409`) ends the program without Spite's report or frames ("What a native fault
   reports"): the system ends the process without asking it, so only something outside the process could report it.
@@ -107,6 +105,9 @@ for a design):
   compile error when an object only this function holds (escape analysis already proves a function's result fresh)
   has its attributes written and then dies unread, unpassed, unreturned and unkept; checked while compiling, it costs
   nothing at run time.
+- A reload of a class with a state machine compiles the whole program (`spite: compiling the whole program, since
+  'Worker_slow___begin' of a changed class is not made without compiling the whole program`): a reload library made
+  for one class does not yet write the class's machine entries. Loud and correct, only slower.
 - A reload the compiler refuses is announced again and again: with an error in the saved code (an attribute never
   read, say), a `--hot-reload` program printed the same `spite: the program keeps the code it runs: ...` line 28
   times in about a minute, on `master` before D461 as after it, so something compiles it again without a new save.

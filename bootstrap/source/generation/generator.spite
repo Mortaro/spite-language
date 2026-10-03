@@ -89,6 +89,7 @@ var check_point_flag_written = false
 var world_gate_written = false
 var guard_count_asked = false
 var shape_boxes_written = List<String>()
+var hot_machine_names = List<String>()
 var shape_value_keys = List<String>()
 var shape_value_forwarders = List<String>()
 var shape_value_boxes = List<String>()
@@ -38709,7 +38710,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     object_frames_open = true
     current_return_c_name = returned_class_name(function)
     result_slot_local = ""
-    var candidate = not function.result_slot and not is_hot_class(information) and waiting.is_empty()
+    var candidate = not function.result_slot and waiting.is_empty()
     if candidate and function.is_constructor {
         candidate = not information.is_singleton and not information.is_value_class
     }
@@ -42663,7 +42664,7 @@ func hot_reload_body(name: String): String {
                 return "(void)library_;\nreturn spite_string_from_cstring_owned(\"this program was not built with --hot-reload\");"
             }
             ensure_world_gate()
-            return "typedef const char* (*SpiteHotBind)(void* (*)(const char*), int32_t (*)(const char*, void*));\n#ifdef _WIN32\nSpiteHotBind bind = (SpiteHotBind)(void*)GetProcAddress((HMODULE)(intptr_t)library_, \"spite_reload_bind\");\n#else\nSpiteHotBind bind = (SpiteHotBind)dlsym((void*)(intptr_t)library_,\"spite_reload_bind\");\n#endif\nif (bind == 0) return spite_string_from_cstring_owned(\"spite_reload_bind\");\nif (spite_world_stop() == 0) return spite_string_from_cstring_owned(\"refused: a task on another thread did not reach a loop's check point within 10 seconds, so nothing was swapped in and no object moved under it: reload again once that work has finished\");\nconst char* missing = bind(spite_hot_find, spite_hot_install);\nspite_world_start();\nif (missing == 0) spite_settings_reread();\nreturn spite_string_from_cstring_owned(missing == 0 ? \"\" : missing);"
+            return "typedef const char* (*SpiteHotBind)(void* (*)(const char*), int32_t (*)(const char*, void*));\n#ifdef _WIN32\nSpiteHotBind bind = (SpiteHotBind)(void*)GetProcAddress((HMODULE)(intptr_t)library_, \"spite_reload_bind\");\n#else\nSpiteHotBind bind = (SpiteHotBind)dlsym((void*)(intptr_t)library_,\"spite_reload_bind\");\n#endif\nif (bind == 0) return spite_string_from_cstring_owned(\"spite_reload_bind\");\ntypedef const char* (*SpiteHotInstalls)(int64_t);\n#ifdef _WIN32\nSpiteHotInstalls installs = (SpiteHotInstalls)(void*)GetProcAddress((HMODULE)(intptr_t)library_, \"spite_reload_installs\");\n#else\nSpiteHotInstalls installs = (SpiteHotInstalls)dlsym((void*)(intptr_t)library_, \"spite_reload_installs\");\n#endif\nif (installs != 0) for (int64_t spite_index = 0; installs(spite_index) != 0; spite_index = spite_index + 1) \{ const char* spite_held = spite_machine_waiting(installs(spite_index)); if (spite_held != 0) \{ char spite_text[512]; snprintf(spite_text, sizeof spite_text, \"waits: %s\", spite_held); return spite_string_from_cstring_owned(spite_text); } }\nif (spite_world_stop() == 0) return spite_string_from_cstring_owned(\"refused: a task on another thread did not reach a loop's check point within 10 seconds, so nothing was swapped in and no object moved under it: reload again once that work has finished\");\nconst char* missing = bind(spite_hot_find, spite_hot_install);\nspite_world_start();\nif (missing == 0) spite_settings_reread();\nreturn spite_string_from_cstring_owned(missing == 0 ? \"\" : missing);"
         }
     }
 }
@@ -42685,6 +42686,7 @@ func emit_hot_reload_support() {
         "void* spite_hot_realloc(void* pointer, size_t size) \{\nreturn SPITE_REALLOC(pointer, size);\n}",
     )
     builder.add_support("void spite_hot_free(void* pointer) \{\nSPITE_FREE(pointer);\n}")
+    emit_machine_frame_table()
     var settings = settings_reread_lines()
     builder.add_prototype("void spite_settings_reread(void);")
     builder.add_support(
@@ -42704,6 +42706,48 @@ func emit_hot_reload_support() {
     builder.add_support(
         "static const char* spite_hot_slot_names[] = \{ {names.join(", ")} };\nstatic void** spite_hot_slot_cells[] = \{ {cells.join(", ")} };\nstatic int32_t spite_hot_install(const char* name, void* address) \{\nfor (int64_t index = 0; spite_hot_slot_names[index] != 0; index = index + 1) \{\nif (strcmp(spite_hot_slot_names[index], name) == 0) \{ if (address != 0) \{ __atomic_store_n(spite_hot_slot_cells[index], address, __ATOMIC_SEQ_CST); if (strcmp(name, \"Environment_Environment\") == 0 || strcmp(name, \"Build___init\") == 0) spite_settings_changed = 1; } return 1; }\n}\nreturn 0;\n}",
     )
+}
+
+func emit_machine_frame_table() {
+    builder.add_typedef(
+        "typedef struct SpiteMachineCount \{ struct SpiteMachineCount* next; char* name; char* shown; int64_t count; } SpiteMachineCount;",
+    )
+    builder.add_prototype("int64_t* spite_machine_frames(const char* name, const char* shown);")
+    builder.add_prototype("static const char* spite_machine_waiting(const char* name);")
+    var lines = List<String>()
+    lines.append("static SpiteMachineCount* spite_machine_counts = 0;")
+    lines.append("static char* spite_machine_text(const char* text) \{")
+    lines.append("size_t spite_length = strlen(text) + 1;")
+    lines.append("char* spite_kept = (char*)malloc(spite_length);")
+    lines.append(
+        "if (spite_kept == 0) \{ fflush(stdout); fprintf(stderr, \"spite: out of memory for the table of the waits a reload holds for\\n\"); exit(1); }",
+    )
+    lines.append("memcpy(spite_kept, text, spite_length);")
+    lines.append("return spite_kept;")
+    lines.append("}")
+    lines.append("int64_t* spite_machine_frames(const char* name, const char* shown) \{")
+    lines.append(
+        "for (SpiteMachineCount* spite_at = spite_machine_counts; spite_at != 0; spite_at = spite_at->next) if (strcmp(spite_at->name, name) == 0) return &spite_at->count;",
+    )
+    lines.append("SpiteMachineCount* spite_made = (SpiteMachineCount*)malloc(sizeof(SpiteMachineCount));")
+    lines.append(
+        "if (spite_made == 0) \{ fflush(stdout); fprintf(stderr, \"spite: out of memory for the table of the waits a reload holds for\\n\"); exit(1); }",
+    )
+    lines.append("spite_made->name = spite_machine_text(name);")
+    lines.append("spite_made->shown = spite_machine_text(shown);")
+    lines.append("spite_made->count = 0;")
+    lines.append("spite_made->next = spite_machine_counts;")
+    lines.append("spite_machine_counts = spite_made;")
+    lines.append("return &spite_made->count;")
+    lines.append("}")
+    lines.append("static const char* spite_machine_waiting(const char* name) \{")
+    lines.append(
+        "for (SpiteMachineCount* spite_at = spite_machine_counts; spite_at != 0; spite_at = spite_at->next) if (strcmp(spite_at->name, name) == 0 && spite_at->count > 0) return spite_at->shown;",
+    )
+    lines.append("return 0;")
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_support(joined_lines)
 }
 
 func settings_reread_lines(): List<String> {
@@ -43110,7 +43154,7 @@ func hoisted_wait_after(
     passed.prepend(receiver_temporary)
     var slot = "spite_frame->spite_wait_{point}"
     builder.add_user("{slot} = {callee}___begin({passed.join(", ")});")
-    builder.add_user("spite_resume_{point}: if (!{callee}___step({slot})) SPITE_SUSPEND({point});")
+    builder.add_user("spite_resume_{point}: if (!{machine_step_call(callee, slot)}) SPITE_SUSPEND({point});")
     var result_temporary = next_temporary()
     var code = result_temporary
     if type_shape.is_void(return_type) {
@@ -43534,7 +43578,7 @@ func waited_construction(target_class: Analysis.ClassInfo, argument_codes: List<
     passed.prepend(made)
     var slot = "spite_frame->spite_wait_{point}"
     builder.add_user("{slot} = {construction}___begin({passed.join(", ")});")
-    builder.add_user("spite_resume_{point}: if (!{construction}___step({slot})) SPITE_SUSPEND({point});")
+    builder.add_user("spite_resume_{point}: if (!{machine_step_call(construction, slot)}) SPITE_SUSPEND({point});")
     builder.add_user("SPITE_FREE({slot});")
     var end = builder.user_count()
     wait_mark_ends.append(end)
@@ -44265,12 +44309,29 @@ func emit_resumable_function(information: Analysis.ClassInfo, function: Analysis
         result_field = " {c_type_name(return_type)} spite_result;"
     }
     crash parts[0]
+    var hot = is_hot_class(information)
+    var counted_field = ""
+    if hot {
+        counted_field = " int64_t* spite_frames;"
+        hot_machine_names.append(name)
+    }
     builder.add_typedef(
-        "typedef struct {name}___frame \{ SpiteFrame spite_head;{result_field} {parts[0]} self; {machine.frame_fields()} {waits.join(" ")} } {name}___frame;",
+        "typedef struct {name}___frame \{ SpiteFrame spite_head;{result_field}{counted_field} {parts[0]} self; {machine.frame_fields()} {waits.join(" ")} } {name}___frame;",
     )
     emit_machine_begin(name, parts)
+    if hot {
+        emit_hot_machine_begin(information, function, parts)
+    }
+    var step_name = "{name}___step"
+    if hot {
+        step_name = "{name}___step_body"
+        builder.add_prototype("static bool {step_name}(void* spite_raw);")
+        builder.add_user(
+            "static bool {name}___step(void* spite_raw) \{\nbool spite_done = {step_name}(spite_raw);\nif (spite_done) *((({name}___frame*)spite_raw)->spite_frames) -= 1;\nreturn spite_done;\n}",
+        )
+    }
     var lines = List<String>()
-    lines.append("static bool {name}___step(void* spite_raw) \{")
+    lines.append("static bool {step_name}(void* spite_raw) \{")
     lines.append("{name}___frame* spite_frame = ({name}___frame*)spite_raw;")
     lines.append("{parts[0]} self = spite_frame->self;")
     var resume_switch = machine.resume_switch()
@@ -44306,6 +44367,53 @@ func machine_parts(
     return parts
 }
 
+func emit_hot_machine_begin(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, parts: List<String>) {
+    var name = function.c_name
+    var parameters = List<String>()
+    var types = List<String>()
+    var arguments = List<String>()
+    crash parts[0]
+    parameters.append("{parts[0]} self")
+    types.append(parts[0])
+    arguments.append("self")
+    var index = 1
+    while index + 1 < parts.count() {
+        var c_type = parts[index]
+        var parameter = parts[index + 1]
+        parameters.append("{c_type} {parameter}")
+        types.append(c_type)
+        arguments.append(parameter)
+        index = index + 2
+    }
+    var begun = "{name}___begin"
+    var shown = escape_c_string("{information.qualified_dotted}.{function.name}")
+    var lines = List<String>()
+    lines.append("void* {begun}___hot({parameters.join(", ")}) \{")
+    lines.append("static int64_t* spite_counted = 0;")
+    lines.append("if (spite_counted == 0) spite_counted = spite_machine_frames(\"{name}\", \"{shown}\");")
+    lines.append("{name}___frame* spite_frame = ({name}___frame*){name}___begin_frame({arguments.join(", ")});")
+    lines.append("spite_frame->spite_frames = spite_counted;")
+    lines.append("*spite_counted += 1;")
+    lines.append("return spite_frame;")
+    lines.append("}")
+    builder.add_prototype("void* {begun}___hot({parameters.join(", ")});")
+    builder.add_prototype("void* {begun}({parameters.join(", ")});")
+    builder.add_slot(begun, "static void* (*{begun}___slot)({types.join(", ")}) = {begun}___hot;")
+    var joined_lines = lines.join("\n")
+    builder.add_user(joined_lines)
+    builder.add_user("void* {begun}({parameters.join(", ")}) \{\nreturn {slot_read(begun)}({arguments.join(", ")});\n}")
+    hot_slot_names.append(begun)
+    hot_slot_owners.append(information.c_name)
+    hot_slot_displays.append("{information.qualified_dotted}.{function.name}")
+}
+
+func machine_step_call(callee: String, slot: String): String {
+    if hot_reload {
+        return "((SpiteFrame*){slot})->step({slot})"
+    }
+    return "{callee}___step({slot})"
+}
+
 func emit_machine_begin(name: String, parts: List<String>) {
     var parameters = List<String>()
     crash parts[0]
@@ -44317,7 +44425,11 @@ func emit_machine_begin(name: String, parts: List<String>) {
         parameters.append("{c_type} {parameter}")
         index = index + 2
     }
-    var signature = "static void* {name}___begin({parameters.join(", ")})"
+    var begin_name = "{name}___begin"
+    if hot_machine_names.contains(name) {
+        begin_name = "{name}___begin_frame"
+    }
+    var signature = "static void* {begin_name}({parameters.join(", ")})"
     var lines = List<String>()
     lines.append("{signature} \{")
     lines.append("{name}___frame* spite_frame = ({name}___frame*)SPITE_MALLOC(sizeof({name}___frame));")

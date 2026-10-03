@@ -1009,8 +1009,10 @@ a resumable version (`bootstrap/source/generation/state_machine.spite`):
   waits and is a function value made in an argument of `Concurrent(...)`, or of a program class; every function a
   state machine calls that waits gets one too, constructors included. A singleton's constructor, a function of a
   singleton that takes the singleton's lock (only in a program a `Parallel` reaches it in, since a lock held across
-  a point the state machine returns from would let another `Concurrent` on the same thread into it), and every
-  function of a program class in a `--hot-reload` build (called through a slot a reload swaps) get none.
+  a point the state machine returns from would let another `Concurrent` on the same thread into it) get none. In a
+  `--hot-reload` build a program class's state machine starts through a slot a reload swaps, and a reload waits
+  while a `Concurrent` is stopped inside a function it swaps
+  ([repl.md](repl.md#rules-in-full), "A reload waits for the waits of what it swaps").
 - **The frame** is a C struct on the heap: a header (the step function, the wait it stopped at, whether it runs or
   has finished, and, for a `Concurrent`'s own frame, the function value it runs), the result, `self`, the parameters, every local and temporary of the body (a name declared twice in
   nested blocks gets two fields), and one slot per wait for the frame it waits on.
@@ -1062,8 +1064,7 @@ a resumable version (`bootstrap/source/generation/state_machine.spite`):
   goes on): dropping a `Concurrent` held in some other way inside a `Concurrent` (an element taken out of a list
   with `remove_at` or `remove_where`, an object let go by a release no local or assignment makes), a wait through
   a `String`'s or a number's function held as a value (a reopening's function that waits), a join of a
-  `Concurrent` inside a function of a singleton that holds its lock, and every wait of a `--hot-reload` build, whose
-  functions have no state machine (above). Two such waits that each wait for the other could never end, so a join that
+  `Concurrent` inside a function of a singleton that holds its lock. Two such waits that each wait for the other could never end, so a join that
   waits in place for a `Concurrent` whose state machine is running further down the same stack halts at the join
   (`waits_for_its_own_caller=true`); a join that is a point to return from just waits, and the machine below it
   carries on, unless the `Concurrent` it joins waits, through joins of its own, for the one that is joining: two

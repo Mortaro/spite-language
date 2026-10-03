@@ -190,13 +190,3 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      (as `String?` already is), and a generic member tested with its codegen values (`List<Byte>`, as
      `found == Storage<$component_type>` is). Recommend (a): one representation of a union, and wrapping costs one
      small class. Blocks nothing; (b) can be built later without breaking a program written for (a).
-298. **State machines in a `--hot-reload` build** (D244; concurrency.md, "Which functions"). Every program function
-     of a `--hot-reload` build is called through a slot a reload swaps, so none has a state machine, and every wait
-     inside a `Concurrent` there runs the event loop in place (a `Concurrent` runs to its end when it is made).
-     Giving them state machines means deciding what a frame suspended at a wait does when a reload swaps its
-     function. Options: (a) **the frame finishes on the code it started with**, and only calls made after the swap
-     take the new code (each suspended frame keeps the old library loaded until it ends); (b) the reload waits
-     until no frame is suspended in a function it swaps, refusing by name after a while, as D464 does for threads;
-     (c) keep it, and say in the rules that a `--hot-reload` build runs every `Concurrent` to its end. Recommend
-     (a): a reload never stops work in flight, and the new code is seen at the next call. Blocks the hot-reload part
-     of the waits item in design/status.md.

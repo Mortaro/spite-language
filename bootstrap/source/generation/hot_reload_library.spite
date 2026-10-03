@@ -928,5 +928,30 @@ func bind_function(redirected: List<String>, migrates: Boolean): String {
         lines.append("return 0;")
     }
     lines.append("}")
+    var swapped = List<String>()
+    index = 0
+    while index < installed.count() {
+        var installed_name = installed[index]
+        var swapped_name = installed_name
+        if installed_name.ends_with("___begin") {
+            var installed_length = installed_name.length()
+            swapped_name = installed_name.slice(0, installed_length - 8)
+        }
+        var quoted = "\"{swapped_name}\""
+        if not swapped.contains(quoted) {
+            swapped.append(quoted)
+        }
+        index = index + 1
+    }
+    swapped.append("0")
+    lines.append("#ifdef _WIN32")
+    lines.append("__declspec(dllexport)")
+    lines.append("#else")
+    lines.append("__attribute__((visibility(\"default\")))")
+    lines.append("#endif")
+    lines.append("const char* spite_reload_installs(int64_t index) \{")
+    lines.append("static const char* const spite_names[] = \{ {swapped.join(", ")} };")
+    lines.append("return spite_names[index];")
+    lines.append("}")
     return lines.join("\n")
 }

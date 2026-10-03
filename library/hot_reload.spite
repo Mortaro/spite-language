@@ -31,16 +31,20 @@ var breakpoints = List<String>()
 var prompts = 0
 var settle_problem: String? = null
 var watcher_thread: Long = 0
+var clock = Clock()
+var held_since: Long = 0
+var held_noticed = false
 var stale_at_start = false
 
 func start() {
     folder = build.program
     restart_state()
-    ready = heap.allocate(32)
+    ready = heap.allocate(40)
     ready.write_long(0, 0)
     ready.write_long(8, 0)
     ready.write_long(16, 0)
     ready.write_long(24, 0)
+    ready.write_long(32, 0)
     compiled_files = files_seen()
     stale_at_start = saved_while_building()
     scheduler.start()
@@ -154,6 +158,9 @@ func swap_in_flight() {
         if on_main_thread {
             crash ready.read_long_atomically(0) == 1
             install_ready()
+            if held() {
+                scheduler.idle()
+            }
         } else {
             program.sleep(10)
         }
@@ -233,9 +240,13 @@ func reload() {
     if ready.read_long_atomically(0) == 1 {
         install_ready()
     }
-    assert installed_stamp < requested_stamp
+    assert installed_stamp < requested_stamp and not held()
     answered = true
     answer = "nothing changed since the code the program runs"
+}
+
+func held(): Boolean {
+    return ready.read_long_atomically(32) == 1
 }
 
 func compile_prompt(code: String, answering: Boolean): String {
@@ -326,7 +337,7 @@ func settle(): String? {
 }
 
 func settled(): Boolean {
-    if ready.read_long_atomically(8) == 1 {
+    if ready.read_long_atomically(8) == 1 or held() {
         return false
     }
     var same = true
@@ -451,6 +462,7 @@ func install_ready() {
     var state_path = ready_state
     var told = ready_told
     var problem = ready_problem
+    var previous_stamp = installed_stamp
     installed_stamp = ready_stamp
     ready.write_long_atomically(0, 0)
     handing.unlock()
@@ -465,11 +477,37 @@ func install_ready() {
         return
     }
     scheduler.paused = true
-    swap_in(library_path, state_path, told)
+    var waiting_for = swap_in(library_path, state_path, told)
     scheduler.paused = false
+    if not waiting_for.is_empty() {
+        installed_stamp = previous_stamp
+        hold(waiting_for)
+        handing.lock()
+        ready.write_long_atomically(0, 1)
+        handing.unlock()
+        return
+    }
+    held_since = 0
+    held_noticed = false
+    ready.write_long_atomically(32, 0)
     handing.lock()
     in_flight = false
     handing.unlock()
+}
+
+func hold(waiting_for: String) {
+    var now = clock.elapsed_milliseconds()
+    var holding = "the reload waits for '{waiting_for}', where a Concurrent is stopped at a wait, and is swapped in once it returns"
+    if held_since == 0 {
+        held_since = now
+        ready.write_long_atomically(32, 1)
+    } else if not held_noticed and now - held_since > 10000 {
+        held_noticed = true
+        console.error("spite: {holding}")
+    }
+    answered = true
+    answer = holding
+    reported = false
 }
 
 func tell(worked: Boolean, text: String) {
@@ -480,27 +518,31 @@ func tell(worked: Boolean, text: String) {
     reported = true
 }
 
-func swap_in(library_path: String, state_path: String, told: String) {
+func swap_in(library_path: String, state_path: String, told: String): String {
     var library = open(library_path)
     if library == 0 {
         tell(false, "the program keeps the code it runs: '{library_path}' could not be loaded")
-        return
+        return ""
     }
     var missing = install(library)
+    var missing_length = missing.length()
+    if missing.starts_with("waits: ") {
+        return missing.slice(7, missing_length)
+    }
     if missing.starts_with("refused: ") {
-        var missing_length = missing.length()
         var refusal = missing.slice(9, missing_length)
         tell(false, "the program keeps the code it runs: {refusal}")
-        return
+        return ""
     }
     if not missing.is_empty() {
         tell(false, "the program keeps the code it runs: it has no '{missing}', which the new code calls")
-        return
+        return ""
     }
     var running = program_file()
     commit(running, state_path)
     swaps.note_swap(told)
     tell(true, told)
+    return ""
 }
 
 func commit(running: String, state_path: String) {
