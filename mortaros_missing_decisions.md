@@ -11,7 +11,7 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391, 263 by D394 (2026-10-02); 266 to 296 by D468 to D488, and 268, 269, 271 and 276 to 279 by D493 to D497, 298 by D498, 301 by D499, 291 by D500 (2026-10-03). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391, 263 by D394 (2026-10-02); 266 to 296 by D468 to D488, and 268, 269, 271 and 276 to 279 by D493 to D497, 298 by D498, 301 by D499, 291 by D500, 299 by D501 (2026-10-03). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
@@ -50,13 +50,6 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      (as `String?` already is), and a generic member tested with its codegen values (`List<Byte>`, as
      `found == Storage<$component_type>` is). Recommend (a): one representation of a union, and wrapping costs one
      small class. Blocks nothing; (b) can be built later without breaking a program written for (a).
-299. **Frame arenas: the first step of automatic memory** (D485; [proposal](design/proposals/automatic_memory.md)).
-     The proposal makes "a frame" a pass of a loop that ends in a wait (`program.sleep`, a present, a `Concurrent`
-     wait), and puts a value made in a pass and proven never to outlive it into an arena the compiler resets at the
-     end of the pass; anything else stays on the heap, so nothing is freed early. Options: (a) build that first, as
-     the proposal orders it; (b) start with structure of arrays for lists, the larger win for the engine; (c) another
-     order. Recommend (a): it reuses the placement proof and deletes the engine's hand scratch pools. Blocks
-     backlog E1 and the rest of the proposal.
 300. **How a signature names a number's fractional class** (D486, answering item 290). D486 makes
      `Vector3(3, 4, 12).normalized()` a `Vector3<Float>`, but a generic class can only name `$number_type` itself
      in a signature, so `Vector3<$number_type>.normalized()` has no way to say "the fractional class of
