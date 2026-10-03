@@ -1,0 +1,12 @@
+var started = false
+var thread: Long = 0
+var tasks = List<Long>()
+var deadlines = List<Long>()
+var offloads_running = 0
+var stepping: Long = 0
+var waiting_frames = List<Long>()
+var awaited_frames = List<Long>()
+var resumes_when_asked = false
+var unfinished_polls_with_no_frame_stepped = 0
+var wake: Long = 0
+var wake_signal: Long = 0

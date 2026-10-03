@@ -1,14 +1,14 @@
-spite.crash	7062279b	library/scheduler.spite:81	Scheduler	joins	joins_a_concurrent_that_waits_for_this_one=true	frame=...	awaited=...	hops=1	started=true	scheduler_thread=...	offloads_running=0	serving=false	waits_begun=0	check_points_passed=0	stepping=...	answering_in_wait=false	paused=false
-spite.frame	library/scheduler.spite:69	Scheduler	joins
+spite.crash	7062279b	library/scheduler.spite:103	Scheduler	joins	joins_a_concurrent_that_waits_for_this_one=true	frame=...	awaited=...	hops=1	started=true	scheduler_thread=...	serving=false	waits_begun=0	check_points_passed=0	answering_in_wait=false	paused=false
+spite.frame	library/scheduler.spite:90	Scheduler	joins
 spite.frame	-	-	Scheduler_wait_for___step
 spite.frame	-	-	Concurrent__Nothing__join___step
 spite.frame	-	-	Board_release_first___step
 spite.frame	bootstrap/source/generation/prelude.spite:1	Scheduler	step_frame
-spite.frame	library/scheduler.spite:48	Scheduler	run_frame
-spite.frame	library/scheduler.spite:124	Scheduler	step_ready
-spite.frame	library/scheduler.spite:267	Scheduler	idle_stepping
-spite.frame	library/scheduler.spite:263	Scheduler	idle
-spite.frame	library/scheduler.spite:206	Scheduler	sleep
+spite.frame	library/scheduler.spite:68	Scheduler	run_frame
+spite.frame	library/scheduler.spite:150	Scheduler	step_ready
+spite.frame	library/scheduler.spite:312	Scheduler	idle_stepping
+spite.frame	library/scheduler.spite:307	Scheduler	idle
+spite.frame	library/scheduler.spite:238	Scheduler	sleep
 spite.frame	library/linux/program.spite:3	Program	sleep
 spite.frame	conformance/stage6/concurrent_wait_cycle/concurrent_wait_cycle.spite:5	ConcurrentWaitCycle	ConcurrentWaitCycle
 spite.frame	launcher/launcher.spite:3	Launcher	Launcher

@@ -2,56 +2,77 @@ singleton
 
 var started = false
 var scheduler_thread: Long = 0
-var tasks = List<Long>()
-var deadlines = List<Long>()
-var offloads_running = 0
 var serving = false
 var waits_begun = 0
 var check_points_passed = 0
-var stepping: Long = 0
-var waiting_frames = List<Long>()
-var awaited_frames = List<Long>()
 var answering_in_wait = false
 var commands: Spite.Function<Nothing>? = null
 var reloads: Spite.Function<Nothing>? = null
 var paused = false
-var resumes_when_asked = false
-var unfinished_polls_with_no_frame_stepped = 0
-var wake: Long = 0
+var _loops = ThreadLocal<SchedulerLoop>()
+var _every_loop = List<SchedulerLoop>()
+var _loops_lock = Lock()
+
+func loop(): SchedulerLoop {
+    var found = _loops.get()
+    if found {
+        return found
+    }
+    var made = SchedulerLoop()
+    made.thread = current_thread()
+    _loops.set(made)
+    _loops_lock.lock()
+    _every_loop.append(made)
+    _loops_lock.unlock()
+    return made
+}
 
 func start() {
+    var here: SchedulerLoop = loop()
+    if not here.started {
+        here.started = true
+        create_event(here)
+    }
     if not started {
         started = true
-        scheduler_thread = current_thread()
-        wake = create_event()
+        scheduler_thread = here.thread
     }
 }
 
 func resume_only_when_asked() {
-    resumes_when_asked = true
+    var here: SchedulerLoop = loop()
+    here.resumes_when_asked = true
+}
+
+func on_main_thread(): Boolean {
+    return started and current_thread() == scheduler_thread
 }
 
 func waits_here(): Boolean {
-    if not started or paused or (tasks.is_empty() or resumes_when_asked) and not serving {
+    var here: SchedulerLoop = loop()
+    var serves_here = serving and on_main_thread()
+    if not here.started or paused or (here.tasks.is_empty() or here.resumes_when_asked) and not serves_here {
         return false
     }
-    return current_thread() == scheduler_thread
+    return true
 }
 
 func begin(frame: Long) {
     start()
     if not run_frame(frame) {
-        tasks.append(frame)
+        var here: SchedulerLoop = loop()
+        here.tasks.append(frame)
     }
 }
 
 func run_frame(frame: Memory.Address): Boolean {
-    unfinished_polls_with_no_frame_stepped = 0
+    var here: SchedulerLoop = loop()
+    here.unfinished_polls_with_no_frame_stepped = 0
     frame.write_integer(12, 1)
-    var outer = stepping
-    stepping = frame
+    var outer = here.stepping
+    here.stepping = frame
     var done = step_frame(frame)
-    stepping = outer
+    here.stepping = outer
     if done {
         frame.write_integer(12, 2)
         forget_wait(frame)
@@ -67,17 +88,18 @@ func frame_done(frame: Memory.Address): Boolean {
 }
 
 func joins(frame: Long): Boolean {
+    var here: SchedulerLoop = loop()
     if frame_done(frame) {
-        forget_wait(stepping)
+        forget_wait(here.stepping)
         return true
     }
-    forget_wait(stepping)
-    waiting_frames.append(stepping)
-    awaited_frames.append(frame)
+    forget_wait(here.stepping)
+    here.waiting_frames.append(here.stepping)
+    here.awaited_frames.append(frame)
     var awaited = frame
     var hops = 0
-    while awaited != 0 and hops <= waiting_frames.count() {
-        var joins_a_concurrent_that_waits_for_this_one = awaited == stepping
+    while awaited != 0 and hops <= here.waiting_frames.count() {
+        var joins_a_concurrent_that_waits_for_this_one = awaited == here.stepping
         crash not joins_a_concurrent_that_waits_for_this_one
         awaited = awaited_by(awaited)
         hops = hops + 1
@@ -86,11 +108,12 @@ func joins(frame: Long): Boolean {
 }
 
 func awaited_by(frame: Long): Long {
+    var here: SchedulerLoop = loop()
     var index = 0
-    while index < waiting_frames.count() {
-        if waiting_frames[index] == frame {
-            crash awaited_frames[index]
-            return awaited_frames[index]
+    while index < here.waiting_frames.count() {
+        if here.waiting_frames[index] == frame {
+            crash here.awaited_frames[index]
+            return here.awaited_frames[index]
         }
         index = index + 1
     }
@@ -98,11 +121,12 @@ func awaited_by(frame: Long): Long {
 }
 
 func forget_wait(frame: Long) {
+    var here: SchedulerLoop = loop()
     var index = 0
-    while index < waiting_frames.count() {
-        if waiting_frames[index] == frame {
-            waiting_frames.remove_at(index)
-            awaited_frames.remove_at(index)
+    while index < here.waiting_frames.count() {
+        if here.waiting_frames[index] == frame {
+            here.waiting_frames.remove_at(index)
+            here.awaited_frames.remove_at(index)
             return
         }
         index = index + 1
@@ -110,24 +134,27 @@ func forget_wait(frame: Long) {
 }
 
 func polled_unfinished() {
-    unfinished_polls_with_no_frame_stepped = unfinished_polls_with_no_frame_stepped + 1
-    crash unfinished_polls_with_no_frame_stepped < 1000000
+    var here: SchedulerLoop = loop()
+    here.unfinished_polls_with_no_frame_stepped = here.unfinished_polls_with_no_frame_stepped + 1
+    crash here.unfinished_polls_with_no_frame_stepped < 1000000
 }
 
 func run_ready(): Integer {
-    if not started or current_thread() != scheduler_thread {
+    var here: SchedulerLoop = loop()
+    if not here.started {
         return 0
     }
     return step_ready()
 }
 
 func step_ready(): Integer {
+    var here: SchedulerLoop = loop()
     var finished = 0
     var index = 0
-    while index < tasks.count() {
-        var frame: Memory.Address = tasks[index]
+    while index < here.tasks.count() {
+        var frame: Memory.Address = here.tasks[index]
         if frame.read_integer(12) == 0 and run_frame(frame) {
-            remove_one(tasks, frame)
+            remove_one(here.tasks, frame)
             finished = finished + 1
         } else {
             index = index + 1
@@ -148,12 +175,14 @@ func wait_for(frame: Long): Boolean {
 }
 
 func runs_below(frame: Memory.Address): Boolean {
-    return frame.read_integer(12) == 1 and started and current_thread() == scheduler_thread
+    var here: SchedulerLoop = loop()
+    return frame.read_integer(12) == 1 and here.started
 }
 
 func timer_start(milliseconds: Integer): Long {
+    var here: SchedulerLoop = loop()
     var deadline = clock() + milliseconds
-    deadlines.append(deadline)
+    here.deadlines.append(deadline)
     return deadline
 }
 
@@ -161,7 +190,8 @@ func timer_over(deadline: Long): Boolean {
     if clock() < deadline {
         return false
     }
-    remove_one(deadlines, deadline)
+    var here: SchedulerLoop = loop()
+    remove_one(here.deadlines, deadline)
     return true
 }
 
@@ -176,7 +206,7 @@ func remove_one(values: List<Long>, value: Long) {
 }
 
 func check_point() {
-    assert started and current_thread() == scheduler_thread and _take_check_point()
+    assert on_main_thread() and _take_check_point()
     if serving {
         check_points_passed = check_points_passed + 1
     }
@@ -192,13 +222,15 @@ func reload_at_check_point() {
 }
 
 func yield_now() {
-    if commands {
+    var main = on_main_thread()
+    if commands and main {
         commands()
     }
-    if reloads {
+    if reloads and main {
         reloads()
     }
-    if not resumes_when_asked {
+    var here: SchedulerLoop = loop()
+    if not here.resumes_when_asked {
         step_ready()
     }
 }
@@ -223,7 +255,8 @@ func offload(call: Memory.Address, entry: Long): Boolean {
 func offload_start(call: Memory.Address, entry: Long): Long {
     var thread = start_thread(entry, call)
     crash thread != 0
-    offloads_running = offloads_running + 1
+    var here: SchedulerLoop = loop()
+    here.offloads_running = here.offloads_running + 1
     return thread
 }
 
@@ -232,7 +265,8 @@ func offload_over(call: Memory.Address, thread: Long): Boolean {
         return false
     }
     end_thread(thread)
-    offloads_running = offloads_running - 1
+    var here: SchedulerLoop = loop()
+    here.offloads_running = here.offloads_running - 1
     return true
 }
 
@@ -242,7 +276,7 @@ func offload_done(call: Memory.Address) {
 }
 
 func begin_wait() {
-    if serving {
+    if serving and on_main_thread() {
         waits_begun = waits_begun + 1
     }
 }
@@ -252,25 +286,37 @@ func ask_check_point() {
 }
 
 func will_wake(): Boolean {
-    return not deadlines.is_empty() or offloads_running > 0
+    var here: SchedulerLoop = loop()
+    return not here.deadlines.is_empty() or here.offloads_running > 0
 }
 
 func signal() {
     _want_check_point()
-    signal_event()
+    _loops_lock.lock()
+    var index = 0
+    while index < _every_loop.count() {
+        var each_loop: SchedulerLoop = _every_loop[index]
+        if each_loop.started {
+            signal_event(each_loop)
+        }
+        index = index + 1
+    }
+    _loops_lock.unlock()
 }
 
 func idle() {
-    idle_stepping(not resumes_when_asked)
+    var here: SchedulerLoop = loop()
+    idle_stepping(not here.resumes_when_asked)
 }
 
 func idle_stepping(steps: Boolean) {
-    if commands {
+    var main = on_main_thread()
+    if commands and main {
         answering_in_wait = true
         commands()
         answering_in_wait = false
     }
-    if reloads {
+    if reloads and main {
         reloads()
     }
     var finished = 0
@@ -278,21 +324,23 @@ func idle_stepping(steps: Boolean) {
         finished = step_ready()
     }
     if finished == 0 {
+        var here: SchedulerLoop = loop()
         var wait_limit = timeout()
-        crash wait_limit >= 0 or offloads_running > 0 or serving
-        wait_event(wait_limit)
+        crash wait_limit >= 0 or here.offloads_running > 0 or serving and main
+        wait_event(here, wait_limit)
     }
 }
 
 func timeout(): Integer {
-    if deadlines.is_empty() {
+    var here: SchedulerLoop = loop()
+    if here.deadlines.is_empty() {
         return -1
     }
     var now = clock()
-    var earliest = deadlines[0]
+    var earliest = here.deadlines[0]
     var index = 1
-    while index < deadlines.count() {
-        var deadline = deadlines[index]
+    while index < here.deadlines.count() {
+        var deadline = here.deadlines[index]
         if deadline < earliest {
             earliest = deadline
         }

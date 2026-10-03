@@ -750,7 +750,7 @@ printf '%s\n' 'var console = Console()' 'var program = Program()' 'var scheduler
   'func counted(frames: Integer): Integer {' '    return frames + 1' '}' \
   > "$work/polled_without_steps/polled_without_steps.spite"
 polled=$(limited "$work/generation_two.exe" "$work/polled_without_steps" --executable-path="$work/polled_without_steps.exe" < /dev/null 2>&1 | tr -d '\r')
-if ! echo "$polled" | grep -qE "^spite.crash	[0-9a-f]{8}	library/scheduler.spite:[0-9]+	Scheduler	polled_unfinished	unfinished_polls_with_no_frame_stepped=1000000	" \
+if ! echo "$polled" | grep -qE "^spite.crash	[0-9a-f]{8}	library/scheduler.spite:[0-9]+	Scheduler	polled_unfinished	here.unfinished_polls_with_no_frame_stepped=1000000	" \
    || echo "$polled" | grep -q "never printed"; then
   echo "FAILED: a loop polling an unfinished Concurrent that nothing steps did not halt"; echo "$polled" | head -5; exit 1
 fi

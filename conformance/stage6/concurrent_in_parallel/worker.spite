@@ -1,0 +1,14 @@
+var program = Program()
+
+func run(): Integer {
+    var first = Concurrent(nap)
+    var second = Concurrent(nap)
+    var one: Integer = first
+    var two: Integer = second
+    return one + two
+}
+
+func nap(): Integer {
+    program.sleep(20)
+    return 1
+}

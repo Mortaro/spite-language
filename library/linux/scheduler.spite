@@ -1,31 +1,29 @@
 var library = DynamicLibrary("libc.so.6", 'identity', "")
 var heap = Memory.Heap()
-var signal_ending = 0
 
 func current_thread(): Long {
     return library.pthread_self_as_long()
 }
 
-func create_event(): Long {
+func create_event(event_loop: SchedulerLoop) {
     var ends = heap.allocate(8)
     library.pipe(ends)
-    var reading = ends.read_integer(0)
-    signal_ending = ends.read_integer(4)
+    event_loop.wake = ends.read_integer(0)
+    event_loop.wake_signal = ends.read_integer(4)
     heap.free(ends)
-    return reading
 }
 
-func signal_event() {
-    library.write(signal_ending, "!", 1)
+func signal_event(event_loop: SchedulerLoop) {
+    library.write(event_loop.wake_signal, "!", 1)
 }
 
-func wait_event(milliseconds: Integer) {
+func wait_event(event_loop: SchedulerLoop, milliseconds: Integer) {
     var watched = heap.allocate(8)
-    watched.write_integer(0, wake)
+    watched.write_integer(0, event_loop.wake)
     watched.write_integer(4, 1)
     if library.poll(watched, 1, milliseconds) > 0 {
         var drained = heap.allocate(64)
-        library.read(wake, drained, 64)
+        library.read(event_loop.wake, drained, 64)
         heap.free(drained)
     }
     heap.free(watched)

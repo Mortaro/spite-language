@@ -1,0 +1,17 @@
+var console = Console()
+
+func ConcurrentInParallel() {
+    var first_worker = Worker()
+    var second_worker = Worker()
+    var third_worker = Worker()
+    var fourth_worker = Worker()
+    var first = Parallel(first_worker.run)
+    var second = Parallel(second_worker.run)
+    var third = Parallel(third_worker.run)
+    var fourth = Parallel(fourth_worker.run)
+    var one: Integer = first
+    var two: Integer = second
+    var three: Integer = third
+    var four: Integer = fourth
+    console.print("total", one + two + three + four)
+}

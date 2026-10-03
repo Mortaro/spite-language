@@ -94,8 +94,8 @@ when a page gains a rule that is not built yet, add it here.
 - D478: the optional `keys` attribute of `JsonWriter<T>()`/`JsonReader<T>()` (the map waits on backlog J2); the
   reusable serializers with `write(value)`/`read(text)` are built.
 - D479: an unwinder written in Spite for the call chain of an `--optimized` crash on Linux and macOS.
-- D480: `Concurrent.cancel()`.
-- D481: a `Concurrent` made inside a `Parallel`'s work overlaps like any other.
+- D480: `Concurrent.cancel()`. It needs a path out of every wait of a compiled state machine that lets go of the
+  locals and temporaries alive there and cancels the frame being waited on, at each of the six kinds of wait site.
 - D483: every function of a class overridable, the compiler-added ones printed by `--final-classes` (backlog R8).
 - D484: a comment links a `.spite` file only inside a `--final-classes` folder (backlog C7).
 - D485: the compiler decides arenas, rings, structure of arrays and freeing; see

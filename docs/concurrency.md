@@ -1102,11 +1102,15 @@ runs, and a `Parallel` join joins and then runs whatever is ready once (none of 
 wrapper, no scheduler, no state machine, the same C as before.
 
 **Blocking is what the compiler picks when it is faster.** The wrapper asks the scheduler first: when no
-`Concurrent` is alive and no REPL is listening, or the caller is not on the scheduler's thread (a `Parallel`, a
-helper, the REPL's socket thread), nothing else could run meanwhile, so the wrapper makes the plain blocking call.
+`Concurrent` made on the caller's thread is alive and no REPL is listening there, nothing else could run on that
+thread meanwhile, so the wrapper makes the plain blocking call.
 
 **The scheduler** (`library/scheduler.spite`, a singleton; each operating system's folder reopens it with the
-thread, event and clock calls) keeps the frames of the `Concurrent`s that have not finished, the deadlines of the
+thread, event and clock calls) keeps one loop per thread (`library/scheduler_loop.spite`, made the first time a
+thread waits and found again through a `ThreadLocal`), so a `Concurrent` made inside a `Parallel`'s work runs on that
+pool thread's own loop and overlaps with the others made there, with nothing for the program to write
+(`conformance/stage6/concurrent_in_parallel`). The REPL's commands and reloads are answered only on the program's
+own thread. Each loop keeps the frames of the `Concurrent`s that have not finished, the deadlines of the
 sleeps in them and a count of helper threads in flight. Its loop answers the REPL's pending command and a pending
 reload, if any, steps every frame that is not already running further down the C stack, and, when none finished,
 waits on one event (an auto-reset event on Windows, a pipe read with `poll` elsewhere) that the helper threads
@@ -1132,7 +1136,7 @@ functions for a program that wants `Concurrent`s to resume only between its own 
   steps a `Concurrent` cannot move, so a loop that polls `finished` without stepping one, under
   `resume_only_when_asked()` or with no wait in it at all, could only spin forever: at a million polls in a row
   it halts with `spite.crash ... library/scheduler.spite:<line> Scheduler polled_unfinished
-  unfinished_polls_with_no_frame_stepped=1000000` (`check.sh`, "polling"). Where the compiler can see it, it is a
+  here.unfinished_polls_with_no_frame_stepped=1000000` (`check.sh`, "polling"). Where the compiler can see it, it is a
   compile error first: a `while` whose condition reads `finished` of a `Concurrent` held in a local, and which calls
   nothing in its condition or its body, is `this loop reads 'napping.finished' and calls nothing, so nothing steps
   'napping' between two reads and it never finishes` (`diagnostics/unstepped_poll`). A loop that calls anything is

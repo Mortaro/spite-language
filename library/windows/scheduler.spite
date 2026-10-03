@@ -4,17 +4,18 @@ func current_thread(): Long {
     return kernel.GetCurrentThreadId_as_long()
 }
 
-func create_event(): Long {
+func create_event(event_loop: SchedulerLoop) {
     var no_value: Long = 0
-    return kernel.CreateEventA_as_long(no_value, 0, 0, no_value)
+    event_loop.wake = kernel.CreateEventA_as_long(no_value, 0, 0, no_value)
+    event_loop.wake_signal = event_loop.wake
 }
 
-func signal_event() {
-    kernel.SetEvent(wake)
+func signal_event(event_loop: SchedulerLoop) {
+    kernel.SetEvent(event_loop.wake_signal)
 }
 
-func wait_event(milliseconds: Integer) {
-    kernel.WaitForSingleObject(wake, milliseconds)
+func wait_event(event_loop: SchedulerLoop, milliseconds: Integer) {
+    kernel.WaitForSingleObject(event_loop.wake, milliseconds)
 }
 
 func clock(): Long {
