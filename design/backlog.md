@@ -168,9 +168,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ### Compiler driver and outputs (D327, D348, D349, D356, D390, D361, D366, D369 items 134 and 138, D385)
 
-- **C7 `--final-classes` shows the winning source** (D366, D382, open question 10, status "Final classes"). Each final
-  class printed as Spite with its generics as written, each declaration marked with the file and load root that
-  supplied it, as one comment line linking that file (D382); used library helpers and template instances appear as source, not C names. Files:
+- **C7 `--final-classes` shows the winning source** (D366, D382, open question 10, status "Final classes"). Built:
+  each declaration marked with one comment line linking the file that supplied it (D382, D484). Left: each final
+  class printed with its generics as written, and used library helpers and template instances as source, not C names. Files:
   generator.spite final-class printing, `syntax/source_printer.spite`. **M.** No dependencies.
 - **C8 The C left in `main` moves into Spite** (D361, D342). `argv` reaches the program only through `Arguments`;
   `_setmode`, singleton teardown and the `--debug-memory` report run through singletons' `drop()`. Files:

@@ -399,6 +399,12 @@ printed program takes its flags again. A repository loaded at two commits is pri
 a folder named by the repository and the commit (`engine_6c7dca9/`), since the versions are two libraries
 ([packages.md](packages.md#two-versions-of-one-repository)).
 
+Each attribute and function is marked with one comment line linking the `.spite` file that supplied it, the
+program's own file, a file it loads, the reopening that replaced it, or the compiler's own reopening
+(`bootstrap/source/generation/prelude.spite`) for a body the compiler supplies, as a path relative to the printed
+file. The folder holds a `.final-classes` file, which is what lets a comment there link a `.spite` file
+([style.md](style.md#comments-are-links)), so the printed program compiles with its links checked like any other.
+
 What is written is what the program **ends up with**, not what was written down: the classes come from the
 generator after it has run, so a class the generator never made is not there, a generic template is not there,
 and each of its instantiations is. The tree shaking of a production build's C runs after that, so a library class

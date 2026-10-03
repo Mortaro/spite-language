@@ -107,3 +107,13 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      `BinaryWriter<T>()` with `write(value)` and `append_to(value, bytes)`, and `BinaryReader<T>()` with
      `read(bytes)`, giving up the cursor; (c) a writer like JSON's and the reader as a cursor. Recommend (c): a
      reusable writer costs nothing, and the cursor is what reading many values from one socket buffer needs.
+302. **How a class file overrides a function of its class object** (D483, answering item 270: "anything can be
+     overridden"). A class file's functions are its instances' functions: `func to_string()` in `gadget.spite` is how
+     a gadget prints. `Spite.Class` declares functions of the class object too (`Gadget.has_function(name)`,
+     `Gadget.get_name()`, `to_string()` of the class itself), and today a class file cannot replace those, since the
+     same name in the file means the instance's function. Options: (a) a function the file marks as the class's own,
+     `func Gadget.has_function(name: String): Boolean`, a dotted name naming the class object; (b) a file
+     `gadget/class.spite` beside the class that reopens its class object; (c) only through reopening `Spite.Class`
+     for every class at once. Recommend (a): one line says what it replaces, and it reads like the call it changes.
+     Blocks the class-object half of D483 (backlog R8); the instance half (getters, setters, `to_string`, `copy`) is
+     replaceable today.

@@ -97,7 +97,9 @@ when a page gains a rule that is not built yet, add it here.
 - D480: `Concurrent.cancel()`. It needs a path out of every wait of a compiled state machine that lets go of the
   locals and temporaries alive there and cancels the frame being waited on, at each of the six kinds of wait site.
 - D483: every function of a class overridable, the compiler-added ones printed by `--final-classes` (backlog R8).
-- D484: a comment links a `.spite` file only inside a `--final-classes` folder (backlog C7).
+  A class's instance functions, its getters and setters included, are replaceable today; a class object's
+  functions wait on item 302, and printing the compiler-added ones (`get_<attribute>`, `copy`, `deep_copy`) as
+  Spite needs a Spite form for what is C today (a copy made without calling the constructor).
 - D485: the compiler decides arenas, rings, structure of arrays and freeing; see
   [proposals/automatic_memory.md](proposals/automatic_memory.md).
 - D486: a whole-number vector's fractional members answer a `Float` vector; waits on item 300 (how the signature
@@ -119,11 +121,6 @@ for a design):
   wait buried under another that never ends is held without a word for as long as that one runs.
 - A Windows `__fastfail` (`0xC0000409`) ends the program without Spite's report or frames ("What a native fault
   reports"): the system ends the process without asking it, so only something outside the process could report it.
-- A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers
-  `values[row].copy()`, the caller sets `layout.width` on it, and the copy dies. Proposed by Claude, unconfirmed: a
-  compile error when an object only this function holds (escape analysis already proves a function's result fresh)
-  has its attributes written and then dies unread, unpassed, unreturned and unkept; checked while compiling, it costs
-  nothing at run time.
 - A reload of a class with a state machine compiles the whole program (`spite: compiling the whole program, since
   'Worker_slow___begin' of a changed class is not made without compiling the whole program`): a reload library made
   for one class does not yet write the class's machine entries. Loud and correct, only slower.
@@ -429,7 +426,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Final classes
 
-- Not built: which root supplied each declaration is not printed. The folder is written and recompiles, but no `#` comment names a root yet, and an instantiated Symbol codegen function and a used `List<T>`/`Dictionary<T>` helper signature do not appear; only the source classes are declared.
+- Not built: an instantiated Symbol codegen function and a used `List<T>`/`Dictionary<T>` helper signature do not appear in `--final-classes`; only the source classes are declared, each declaration linking the file that supplied it.
 
 ### Packages, namespaces and loading
 
@@ -869,6 +866,15 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 Every proof entry on the page was marked "Built" except the ones listed here. The "Status" line was removed from every
 entry, and so was every "Compiler today" line (a difference between the rule on the page and the compiler); both are
 recorded below.
+
+### A local typed only by what made it
+
+- The call-effects study reads a local's class from its declared type or a constructor, not from a call's result
+  or an operator (`var here = loop()`, `var start = address + offset`). A call on such a local is resolved by its
+  name against every class, so it may count as a write to a class it never touches and undo a proof or a cheaper
+  lock (found twice building D481 and D492: `Column.at` lost its readers' lock, `receiver_call_effects` lost its
+  proofs). Nothing goes wrong silently, since the fallback keeps the check or the lock; the library writes the
+  type out (`var here: SchedulerLoop = loop()`) until the study reads a function's declared result.
 
 ### A note on the whole page
 

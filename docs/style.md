@@ -197,6 +197,13 @@ knowledge, write the section and link to it; if it warns against a change, a tes
 harder than prose. A line inside a function that seems to need explaining becomes a named function instead:
 a name, unlike a comment, is visible to reflection, `--final-classes` and every tool.
 
+The one other link is the one `--final-classes` writes: in the folder it prints, each attribute and function is
+marked with a comment linking the `.spite` file that supplied it (`# ../../game/hero.spite`), with no anchor, so
+the printed classes name where every declaration came from and still compile. Only a file under a folder
+`--final-classes` wrote (it holds a `.final-classes` file) may link a `.spite` file; anywhere else it is `this
+comment links to 'helper.spite', a .spite file, and only a file '--final-classes' wrote may link one`
+(`diagnostics/spite_link_outside_final`).
+
 ```gdscript title=prose_comment_error/prose_comment_error.spite entry error
 var console = Console()
 
@@ -606,6 +613,12 @@ func Game() {
   becomes a named function instead, and unlike a comment a name is visible to `functions`, to `--final-classes`
   and to every tool.
 - `//` and `/* */` are recognised by the lexer only to be rejected with the explanation.
+- In a file under a folder that holds a `.final-classes` file (the folder `--final-classes` writes), a comment may
+  instead link an existing `.spite` file, a path with no anchor, as `--final-classes` marks each declaration with
+  the file that supplied it. Anywhere else such a link is `this comment links to '<path>', a .spite file, and only a
+  file '--final-classes' wrote may link one, to name the file that supplied a declaration: anywhere else a comment
+  links a markdown section` (`diagnostics/spite_link_outside_final`); a `.spite` link to a missing file is the
+  missing-file error.
 - Every one of these errors teaches: it states the one legal form, then asks whether the note is needed at all.
   If a reader could work it out from the code, delete it; if it is lasting knowledge, write the section first and
   link to it; if it warns against a change, a test or a compile error pushes harder than prose.

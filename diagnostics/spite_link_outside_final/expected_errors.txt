@@ -1,0 +1,1 @@
+diagnostics/spite_link_outside_final/spite_link_outside_final.spite:1: error: this comment links to 'helper.spite', a .spite file, and only a file '--final-classes' wrote may link one, to name the file that supplied a declaration: anywhere else a comment links a markdown section

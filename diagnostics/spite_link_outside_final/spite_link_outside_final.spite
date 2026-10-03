@@ -1,0 +1,6 @@
+# helper.spite
+var console = Console()
+
+func SpiteLinkOutsideFinal() {
+    console.print("linked")
+}

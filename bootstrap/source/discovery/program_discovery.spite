@@ -611,6 +611,9 @@ func comment_problem(path: String, text: String, depth: Integer): String {
     if depth > 0 {
         return "a comment may not appear inside a function or a declaration body: a line that needs explaining becomes a named function instead. {comment_lesson()}"
     }
+    if text.ends_with(".spite") and not text.contains(" ") and not text.contains("#") {
+        return spite_link_problem(path, text)
+    }
     var hash_position = text.index_of("#")
     if text.contains(" ") or hash_position < 1 or not text.slice(0, hash_position).ends_with(".md") {
         return "this comment is not a link: {comment_lesson()}"
@@ -627,6 +630,37 @@ func comment_problem(path: String, text: String, depth: Integer): String {
         return "this comment links to '{markdown_path}#{anchor}', but that file has no heading with that anchor"
     }
     return ""
+}
+
+# ../../../docs/compiler.md#inspect-merged-classes
+func spite_link_problem(path: String, linked: String): String {
+    var folder = directory_of(path)
+    if not in_final_classes(folder) {
+        return "this comment links to '{linked}', a .spite file, and only a file '--final-classes' wrote may link one, to name the file that supplied a declaration: anywhere else a comment links a markdown section"
+    }
+    var linked_file = File("{folder}/{linked}")
+    if not linked_file.exists() {
+        return "this comment links to '{linked}', which does not exist (the path is relative to the folder of the file the comment is in, like load)"
+    }
+    return ""
+}
+
+func in_final_classes(folder: String): Boolean {
+    var current = folder
+    var climbs = 0
+    while climbs < 64 {
+        var marker = File("{current}/.final-classes")
+        if marker.exists() {
+            return true
+        }
+        var parent = "{current}/.."
+        if current == "." {
+            parent = ".."
+        }
+        current = parent
+        climbs = climbs + 1
+    }
+    return false
 }
 
 func markdown_anchors(content: String): List<String> {

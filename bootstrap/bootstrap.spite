@@ -729,7 +729,14 @@ func wrote_final_classes(
     output_directory: String,
 ): Boolean {
     var kept = generator.emitted_qualified_names()
-    var written = true
+    create_folder(output_directory)
+    var marker = File("{output_directory}/.final-classes")
+    var written = marker.write(
+        "written by spite --final-classes: a comment here may link the .spite file that supplied a declaration\n",
+    )
+    if not written {
+        console.error("error: could not write '{output_directory}/.final-classes'")
+    }
     var index = 0
     while index < discovery.class_files.count() and written {
         var class_file = discovery.class_files[index]
@@ -851,13 +858,52 @@ func wrote_final_class(
     create_folder(final_class_directory)
     var class_file_file = class_file.file
     var ordered = in_file_order(class_file_file, class_file.simple_name)
-    var source = "{Syntax.SourcePrinter().source_file(ordered)}{generator.generated_functions_source(class_file.qualified_dotted)}"
+    var linked = linked_source(ordered, final_class_directory, class_file_file.path)
+    var source = "{linked}{generator.generated_functions_source(class_file.qualified_dotted)}"
     var formatted = formatted_or_as_printed(source)
     if File(path).write(formatted) {
         return true
     }
     console.error("error: could not write '{path}'")
     return false
+}
+
+# ../docs/compiler.md#inspect-merged-classes
+func linked_source(file: Syntax.SourceFile, folder: String, own_path: String): String {
+    var shape = Analysis.AstShape()
+    var lines = List<Integer>()
+    var comments_at = List<Integer>()
+    var comments = List<String>()
+    var index = 0
+    while index < file.statements.count() {
+        var statement = file.statements[index]
+        var supplied_by = ""
+        var attribute = shape.as_variable_declaration(statement)
+        if attribute {
+            supplied_by = attribute.source_path
+        }
+        var function = shape.as_function_declaration(statement)
+        if function {
+            supplied_by = function.source_path
+        }
+        if supplied_by.is_empty() and (attribute or function) {
+            supplied_by = own_path
+        }
+        if not supplied_by.is_empty() {
+            var link = relative_link(folder, supplied_by)
+            comments_at.append(index * 2 + 1)
+            comments.append("# {link}")
+        }
+        lines.append(index * 2 + 2)
+        index = index + 1
+    }
+    var printer = Syntax.SourcePrinter()
+    var text = printer.formatted_file(file, lines, comments_at, comments)
+    var text_length = text.length()
+    if text.ends_with("\n") {
+        return text.slice(0, text_length - 1)
+    }
+    return text
 }
 
 func in_file_order(file: Syntax.SourceFile, class_name: String): Syntax.SourceFile {
