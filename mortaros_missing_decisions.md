@@ -42,10 +42,23 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      table is C the generator writes, carried only by programs that make context callbacks. Options: (a) keep it C
      until C9 gives the backend primitives a home; (b) write it now as a library singleton the emitted C calls.
      Recommend (a): it is a few lines beside the callback C that already exists, and C9 moves both together.
-291. **Which values a failed assert keeps for the crash report** (backlog X1). Text and objects may be freed before a
-     crash prints them. Options: (a) numbers, Booleans and enum values kept as they are, text as its length only;
-     (b) keep a reference to each, a count on every failed assert; (c) no values, as the docs say today. Recommend
-     (a).
+291. **What a failed assert keeps for the crash report** (backlog X1, D33, D244). Mortaro (2026-10-03): "we should
+     figure out what we actually need, the values kept are only for the sake of finding a crash, and I suspect the
+     syntax is so rigid right now that just knowing which lines failed an assert should tell the moron all it needs
+     to fix something." Claude's finding: the line is enough for what an assert can say. A guard `assert` is either
+     a narrowing (`assert user`, `assert names[index]`), whose failure is an absence with no value to show, or a
+     predicate (`assert count > 0`), whose operands are named on the line the `.crashes` map gives with its
+     condition; the crash that ends the run already prints every value at its own site. What is built today already
+     keeps no values: a ring entry is one pointer to its site's line, so (c) is the state of the code, and only
+     failure.md's sentence "values are stored raw in the ring buffer" and backlog X1's "values stored raw" still
+     promise more. What the line alone does not survive is a hot guard: one site failing every frame fills all 32
+     entries and pushes out the trail that led there. Options: (a) values for predicates only, at a cost on every
+     failure; (b) no values (as built), and drop the promise from failure.md and X1; (c) no values, and a run of the
+     same site failing in a row is one entry with `repeated=<count>`, as the call chain already folds a function
+     called again and again, so 32 entries are 32 different steps (one compare with the newest entry per failure).
+     Recommend (c): it costs a compare, keeps the ring the trail of which lines failed, and needs nothing kept alive
+     for the report.
+
 297. **Values and generic classes as union members** (D459, D244; values_and_types.md "Unions in full"). A union
      with `String`, a number, `Boolean` or `List<Byte>` among its members was accepted and then failed later with
      an error that did not name the cause. It is now refused where the union is declared, saying to wrap the value
