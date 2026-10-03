@@ -115,6 +115,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A counted loop takes the lock once](#a-counted-loop-takes-a-singletons-lock-once) | one lock per loop | one lock per call |
 | [A lock that would wait forever](#a-lock-that-would-wait-forever-is-an-error) | refuses a hang | none |
 | [A loop that can never end](#a-loop-that-can-never-end-is-an-error) | refuses a spin or a lost pool thread | none |
+| [A poll that nothing steps](#a-poll-that-nothing-steps-is-an-error) | refuses a hang | the run-time halt |
+| [A write to an object only this function holds](#a-write-to-an-object-only-this-function-holds-must-be-read) | refuses a lost write | none |
 | [What a `Parallel` may reach](#what-a-parallel-may-reach) | refuses a data race | none |
 | [Which calls suspend](#which-calls-suspend-a-concurrent) | state machines, no fibers; temporaries only where a value could change | the wait runs in place |
 | [Other refusals](#other-refusals-built-on-an-analysis) | refuses dead code and leaks | none |
@@ -899,6 +901,32 @@ counter, one load per call, not a proof: [optimizations.md](optimizations.md#whi
 - **See.** [control_flow.md: `while` is the only loop](control_flow.md#while-is-the-only-loop),
   [concurrency.md: The thread pool](concurrency.md#the-thread-pool); `diagnostics/spinning_loop`,
   `diagnostics/endless_parallel_work`.
+
+### A poll that nothing steps is an error
+
+- **Proves.** A loop reads a `Concurrent`'s `finished` and nothing in the loop can let it make progress.
+- **Rule.** A `while` loop whose condition reads `handle.finished` of a local `Concurrent` and whose body calls
+  nothing at all is an error: no call means nothing steps the scheduler between two reads.
+- **Buys.** A loop that would spin forever becomes a build error naming the handle and what to write.
+- **Falls back.** A loop that calls anything is not refused, since the call may step the scheduler or wait; if it
+  never does, the scheduler halts the program after a million polls with no frame stepped, naming the handle's
+  scheduler. Read the value (`var done: T = handle`), which waits.
+- **See.** [concurrency.md: Choosing where `Concurrent`s
+  resume](concurrency.md#choosing-where-concurrents-resume); `diagnostics/unstepped_poll`.
+
+### A write to an object only this function holds must be read
+
+- **Proves.** A local holds an object nothing else can reach (a constructor's result, a `copy()` or `deep_copy()`,
+  or the result of a function of the program whose every `return` makes a new object or a copy), and nothing
+  reads it after a write to one of its attributes.
+- **Rule.** The local must not escape before the write: not passed to a call, stored in an attribute or a list,
+  returned, captured, or used in text. A class with `drop()` or a `set_` function for the attribute is left alone,
+  since either may read the value, and so is a value whose release does something (a handle, a `Parallel` or
+  `Concurrent`, a class with `drop()`).
+- **Buys.** A write that is lost when the function lets the object go becomes a build error at the write.
+- **Falls back.** An object that has escaped, or one the compiler cannot prove is only held here, is not refused.
+- **See.** [failure.md: Nothing fails silently](failure.md#nothing-fails-silently-the-rule);
+  `diagnostics/lost_writes`.
 
 ### What a `Parallel` may reach
 

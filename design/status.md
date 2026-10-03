@@ -86,6 +86,24 @@ when a page gains a rule that is not built yet, add it here.
 
 ## [failure.md](../docs/failure.md)
 
+### Decided by Mortaro, not built yet
+
+- D476: `JsonValue`, `move_to(path)` on `File` and `Directory`, `List.index_of` and `find_index_by_<member>` (backlog
+  J3, S11, S12); `JsonValue`'s shape waits on item 297.
+- D477: `Quaternion` and the matrices generic over `Number`.
+- D478: `JsonWriter<T>()`/`JsonReader<T>()` reused with `write(value)`/`read(text)` and an optional `keys` map.
+- D479: an unwinder written in Spite for the call chain of an `--optimized` crash on Linux and macOS.
+- D480: `Concurrent.cancel()`.
+- D481: a `Concurrent` made inside a `Parallel`'s work overlaps like any other.
+- D482: checked signedness changes, and `bits_as_unsigned()`/`bits_as_signed()`.
+- D483: every function of a class overridable, the compiler-added ones printed by `--final-classes` (backlog R8).
+- D484: a comment links a `.spite` file only inside a `--final-classes` folder (backlog C7).
+- D485: the compiler decides arenas, rings, structure of arrays and freeing; see
+  [proposals/automatic_memory.md](proposals/automatic_memory.md).
+- D486: a whole-number vector's fractional members answer a `Float` vector.
+- D487: a complete inflection table in the library, constant dictionary lookups folded and unreachable keys left out.
+- D488: `deep_copy()` copies cycles, with a copy function written per class.
+
 ### Nothing fails silently: still open
 
 Moved whole from the old "Still open" list under the rule (each is a bug under D244, recorded so it is not mistaken

@@ -1134,7 +1134,11 @@ functions for a program that wants `Concurrent`s to resume only between its own 
   steps a `Concurrent` cannot move, so a loop that polls `finished` without stepping one, under
   `resume_only_when_asked()` or with no wait in it at all, could only spin forever: at a million polls in a row
   it halts with `spite.crash ... library/scheduler.spite:<line> Scheduler polled_unfinished
-  unfinished_polls_with_no_frame_stepped=1000000` (`check.sh`, "polling").
+  unfinished_polls_with_no_frame_stepped=1000000` (`check.sh`, "polling"). Where the compiler can see it, it is a
+  compile error first: a `while` whose condition reads `finished` of a `Concurrent` held in a local, and which calls
+  nothing in its condition or its body, is `this loop reads 'napping.finished' and calls nothing, so nothing steps
+  'napping' between two reads and it never finishes` (`diagnostics/unstepped_poll`). A loop that calls anything is
+  left to the count, since the call may step it.
 - `conformance/stage6/frames_between_waits`: an engine-shaped loop whose stages join a `Parallel`, sleep and
   write to a socket while a `Concurrent` reads that socket with `read_bytes` three times; the reader resumes only
   at `run_ready()`, never inside a stage. Without `resume_only_when_asked()` the same program's reader resumes

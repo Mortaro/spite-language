@@ -1,0 +1,1 @@
+diagnostics/unstepped_poll/unstepped_poll.spite:7: error: this loop reads 'napping.finished' and calls nothing, so nothing steps 'napping' between two reads and it never finishes: read its value instead ('var done: T = napping' waits for it), or call something that waits in the loop (in UnsteppedPoll.UnsteppedPoll)

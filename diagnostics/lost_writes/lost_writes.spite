@@ -1,0 +1,18 @@
+var console = Console()
+var layouts = [Layout()]
+
+func LostWrites() {
+    var resized = row_layout(0)
+    resized.width = 40
+    var made = Layout()
+    console.print(made.height)
+    made.height = 3
+    var kept = Layout()
+    kept.width = 5
+    layouts.append(kept)
+}
+
+func row_layout(row: Integer): Layout {
+    crash layouts[row]
+    return layouts[row].copy()
+}

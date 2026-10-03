@@ -739,13 +739,15 @@ if [ -n "$evicted" ]; then
 fi
 echo "object cache: past its cap, a build evicts what was used least recently and keeps what it uses"
 # A loop that polls a Concurrent's finished while nothing steps its frame never ends, so it halts instead
-# (docs/concurrency.md#choosing-where-concurrents-resume). The report names the scheduler's attributes, whose values
+# (docs/concurrency.md#choosing-where-concurrents-resume). The loop calls a function, so the compiler cannot refuse
+# it as it refuses a loop that calls nothing (diagnostics/unstepped_poll), and the halt is the backstop. The report names the scheduler's attributes, whose values
 # (a thread, an event) differ per run and per system, so only its start is compared.
 mkdir -p "$work/polled_without_steps"
 printf '%s\n' 'var console = Console()' 'var program = Program()' 'var scheduler = Scheduler()' '' \
   'func PolledWithoutSteps() {' '    scheduler.resume_only_when_asked()' '    var napping = Concurrent(nap)' \
-  '    var frames = 0' '    while not napping.finished {' '        frames = frames + 1' '    }' \
-  '    console.print("never printed", frames)' '}' '' 'func nap(): Integer {' '    program.sleep(1)' '    return 1' '}' \
+  '    var frames = 0' '    while not napping.finished {' '        frames = counted(frames)' '    }' \
+  '    console.print("never printed", frames)' '}' '' 'func nap(): Integer {' '    program.sleep(1)' '    return 1' '}' '' \
+  'func counted(frames: Integer): Integer {' '    return frames + 1' '}' \
   > "$work/polled_without_steps/polled_without_steps.spite"
 polled=$(limited "$work/generation_two.exe" "$work/polled_without_steps" --executable-path="$work/polled_without_steps.exe" < /dev/null 2>&1 | tr -d '\r')
 if ! echo "$polled" | grep -qE "^spite.crash	[0-9a-f]{8}	library/scheduler.spite:[0-9]+	Scheduler	polled_unfinished	unfinished_polls_with_no_frame_stepped=1000000	" \

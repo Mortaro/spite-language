@@ -35119,6 +35119,7 @@ func generate_while_statement(
     function_information: Analysis.FunctionInfo,
 ) {
     report_spinning_loop(while_statement)
+    report_unstepped_poll(while_statement, scope, class_information)
     var coarse = coarse_singleton(while_statement, scope, class_information)
     if coarse.is_empty() {
         generate_while_loop(while_statement, scope, class_information, function_information)
@@ -35151,6 +35152,57 @@ func report_spinning_loop(while_statement: Syntax.Statements.WhileStatement) {
     report(
         "this 'while true' never ends: nothing inside it returns, asserts or crashes, and it calls nothing, so the program would spin here for good: leave it with a 'return' ('if done \{ return }'), or loop 'while' a condition",
     )
+}
+
+func report_unstepped_poll(
+    while_statement: Syntax.Statements.WhileStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    crash while_statement.condition
+    var polled = polled_handle(while_statement.condition, scope, class_information)
+    assert polled
+    var expressions = List<Syntax.Expressions.Expression>()
+    collect_block_expressions(while_statement.body, expressions)
+    expressions.append(while_statement.condition)
+    var calls = List<Syntax.Expressions.Expression>()
+    collect_each_expression_call(expressions, calls)
+    assert calls.is_empty()
+    report(
+        "this loop reads '{polled}.finished' and calls nothing, so nothing steps '{polled}' between two reads and it never finishes: read its value instead ('var done: T = {polled}' waits for it), or call something that waits in the loop",
+    )
+}
+
+func polled_handle(
+    condition: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String? {
+    var unary = shape.as_unary(condition)
+    if unary {
+        crash unary.operand
+        return polled_handle(unary.operand, scope, class_information)
+    }
+    var binary = shape.as_binary(condition)
+    if binary {
+        crash binary.left
+        crash binary.right
+        var left = polled_handle(binary.left, scope, class_information)
+        if left {
+            return left
+        }
+        return polled_handle(binary.right, scope, class_information)
+    }
+    var member = shape.as_member(condition)
+    assert member
+    assert member.name == "finished"
+    crash member.object
+    var named = shape.as_identifier(member.object)
+    assert named
+    var static_type = lookup_static_type(member.object, scope, class_information)
+    assert static_type
+    assert is_concurrent_handle(static_type)
+    return named.name
 }
 
 func coarse_singleton(
@@ -38702,6 +38754,323 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     emit_user_function_body(information, function)
 }
 
+func report_lost_writes(statements: List<Syntax.Statements.Statement>, information: Analysis.ClassInfo) {
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        var declared = shape.as_variable_declaration(statement)
+        if declared {
+            var made = only_held_here(declared.value, information)
+            if made {
+                report_lost_write(declared.name, made, statements, index + 1)
+            }
+        }
+        var branched = shape.as_if_statement(statement)
+        if branched {
+            report_lost_writes(branched.then_branch, information)
+            report_lost_writes(branched.else_branch, information)
+        }
+        var looped = shape.as_while_statement(statement)
+        if looped {
+            report_lost_writes(looped.body, information)
+        }
+        var switched = shape.as_switch_statement(statement)
+        if switched {
+            var case_index = 0
+            while case_index < switched.cases.count() {
+                report_lost_writes(switched.cases[case_index].body, information)
+                case_index = case_index + 1
+            }
+        }
+        index = index + 1
+    }
+}
+
+func only_held_here(value: Syntax.Expressions.Expression?, information: Analysis.ClassInfo): Analysis.ClassInfo? {
+    assert value
+    var call = shape.as_call(value)
+    assert call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    if member {
+        assert (member.name == "copy" or member.name == "deep_copy") and call.arguments.is_empty()
+        crash member.object
+        var copied = shape.as_identifier(member.object)
+        assert copied
+        var copied_field = information.find_field(copied.name)
+        assert copied_field
+        var copied_type = copied_field.type
+        return writable_class(copied_type)
+    }
+    var named = shape.as_identifier(call.callee)
+    assert named
+    var made = find_class(named.name, information.namespace_dotted)
+    if made {
+        assert not made.is_singleton and not made.is_value_class and not is_library_class(made)
+        return made
+    }
+    var own = information.find_function(named.name)
+    assert own and not own.is_constructor and own.has_body and own.lent_element.is_empty()
+    var answered = own.return_type
+    var made_class = writable_class(answered)
+    assert made_class
+    assert returns_made_only(own.body, information)
+    return made_class
+}
+
+func returns_made_only(statements: List<Syntax.Statements.Statement>, information: Analysis.ClassInfo): Boolean {
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        var returned = shape.as_return_statement(statement)
+        if returned {
+            if not returned.value or not makes_object(returned.value, information) {
+                return false
+            }
+        }
+        var branched = shape.as_if_statement(statement)
+        if branched {
+            if not returns_made_only(branched.then_branch, information) or not returns_made_only(branched.else_branch, information) {
+                return false
+            }
+        }
+        var looped = shape.as_while_statement(statement)
+        if looped {
+            if not returns_made_only(looped.body, information) {
+                return false
+            }
+        }
+        var switched = shape.as_switch_statement(statement)
+        if switched {
+            var case_index = 0
+            while case_index < switched.cases.count() {
+                if not returns_made_only(switched.cases[case_index].body, information) {
+                    return false
+                }
+                case_index = case_index + 1
+            }
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func makes_object(value: Syntax.Expressions.Expression?, information: Analysis.ClassInfo): Boolean {
+    if not value {
+        return false
+    }
+    var call = shape.as_call(value)
+    if not call {
+        return false
+    }
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    if member {
+        return (member.name == "copy" or member.name == "deep_copy") and call.arguments.is_empty()
+    }
+    var named = shape.as_identifier(call.callee)
+    if not named {
+        return false
+    }
+    var made = find_class(named.name, information.namespace_dotted)
+    if not made {
+        return false
+    }
+    return not made.is_singleton and not made.is_value_class
+}
+
+func writable_class(held_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var class_ref = type_shape.as_class_ref(held_type)
+    assert class_ref
+    var held = find_class_by_c_name(class_ref.c_name)
+    assert held
+    assert not held.is_singleton and not held.is_value_class and not is_library_class(held)
+    return held
+}
+
+func report_lost_write(
+    name: String,
+    made: Analysis.ClassInfo,
+    statements: List<Syntax.Statements.Statement>,
+    from: Integer,
+) {
+    assert not made.drop_function
+    var last = -1
+    var index = from
+    while index < statements.count() {
+        var mentioned = List<String>()
+        collect_statement_names(statements[index], mentioned)
+        if mentioned.contains(name) {
+            last = index
+        }
+        index = index + 1
+    }
+    assert last >= 0
+    var written = shape.as_assignment_statement(statements[last])
+    assert written
+    crash written.target
+    var target = shape.as_member(written.target)
+    assert target
+    crash target.object
+    var holder = shape.as_identifier(target.object)
+    assert holder
+    assert holder.name == name and not made.find_function("set_{target.name}")
+    assert not escapes_before(made, name, statements, from, last)
+    var written_field = made.find_field(target.name)
+    assert written_field
+    var written_type = written_field.type
+    assert not lets_go_with_effect(written_type)
+    crash written.value
+    var value_names = List<String>()
+    var value_statement: Syntax.Statements.Statement = Syntax.Statements.ExpressionStatement(written.value)
+    collect_statement_names(value_statement, value_names)
+    assert not value_names.contains(name)
+    var saved_line = current_line
+    current_line = statement_line(statements[last])
+    report(
+        "'{name}.{target.name}' is written here and '{name}' is never read after it: '{name}' is a '{made.simple_name}' only this function holds, so the write is lost when it is let go. Use what was written, return '{name}', keep it in an attribute or a list, or drop the write",
+    )
+    current_line = saved_line
+}
+
+func escapes_before(
+    made: Analysis.ClassInfo,
+    name: String,
+    statements: List<Syntax.Statements.Statement>,
+    from: Integer,
+    last: Integer,
+): Boolean {
+    var expressions = List<Syntax.Expressions.Expression>()
+    var index = from
+    while index < last {
+        var one = List<Syntax.Statements.Statement>()
+        one.append(statements[index])
+        collect_block_expressions(one, expressions)
+        index = index + 1
+    }
+    var written = shape.as_assignment_statement(statements[last])
+    crash written
+    crash written.value
+    expressions.append(written.value)
+    var expression_index = 0
+    while expression_index < expressions.count() {
+        if expression_escapes(expressions[expression_index], name, made) {
+            return true
+        }
+        expression_index = expression_index + 1
+    }
+    return false
+}
+
+func expression_escapes(expression: Syntax.Expressions.Expression?, name: String, made: Analysis.ClassInfo): Boolean {
+    if not expression {
+        return false
+    }
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return expression.name == name
+        Syntax.Expressions.MemberExpression: {
+            if names_identifier(expression.object, name) {
+                var named_function = made.find_function(expression.name)
+                if named_function {
+                    return true
+                }
+                return false
+            }
+            return expression_escapes(expression.object, name, made)
+        }
+        Syntax.Expressions.CallExpression: {
+            var method = shape.as_member(expression.callee)
+            if method {
+                if names_identifier(method.object, name) {
+                    return true
+                }
+            }
+            if expression_escapes(expression.callee, name, made) {
+                return true
+            }
+            return any_argument_escapes(expression.arguments, name, made)
+        }
+        Syntax.Expressions.GenericCallExpression: return any_argument_escapes(expression.arguments, name, made)
+        Syntax.Expressions.BinaryExpression: {
+            if expression_escapes(expression.left, name, made) {
+                return true
+            }
+            return expression_escapes(expression.right, name, made)
+        }
+        Syntax.Expressions.UnaryExpression: return expression_escapes(expression.operand, name, made)
+        Syntax.Expressions.IndexExpression: {
+            if expression_escapes(expression.object, name, made) {
+                return true
+            }
+            return expression_escapes(expression.index, name, made)
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var element_index = 0
+            while element_index < expression.elements.count() {
+                if expression_escapes(expression.elements[element_index].value, name, made) {
+                    return true
+                }
+                element_index = element_index + 1
+            }
+            return false
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var field_index = 0
+            while field_index < expression.fields.count() {
+                if expression_escapes(expression.fields[field_index].value, name, made) {
+                    return true
+                }
+                field_index = field_index + 1
+            }
+            return false
+        }
+        Syntax.Expressions.StringLiteralExpression: return expression.value.contains(name)
+        _: return false
+    }
+}
+
+func any_argument_escapes(
+    arguments: List<Syntax.Expressions.Expression>,
+    name: String,
+    made: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < arguments.count() {
+        if expression_escapes(arguments[index], name, made) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func lets_go_with_effect(held_type: Analysis.SpiteType): Boolean {
+    var visiting = List<String>()
+    if holds_handles(held_type, visiting) {
+        return true
+    }
+    var inner = held_type
+    var nullable = type_shape.as_nullable(held_type)
+    if nullable {
+        inner = nullable.inner
+    }
+    var class_ref = type_shape.as_class_ref(inner)
+    if not class_ref {
+        return false
+    }
+    var held = find_class_by_c_name(class_ref.c_name)
+    if not held {
+        return false
+    }
+    if held.qualified_dotted == "Parallel" or held.qualified_dotted == "Concurrent" {
+        return true
+    }
+    if held.drop_function {
+        return true
+    }
+    return false
+}
+
 func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
     site_ordinal = 0
     frame_candidates.clear()
@@ -38718,6 +39087,9 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     }
     bind_symbol_of(function)
     bind_reflected_of(function)
+    if not is_library_class(information) {
+        report_lost_writes(function.body, information)
+    }
     key_flows_ignored = function.kept_for_prompt
     var outer_fact_owner = fact_owner
     fact_owner = information.c_name

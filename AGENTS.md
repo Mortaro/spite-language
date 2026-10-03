@@ -101,6 +101,16 @@ and anything a user could observe (allocation counts under `--debug-memory`, ref
 it is built yet goes into [`design/status.md`](design/status.md). An optimisation with a user-visible cost says so
 on the page; one that contradicts a rule in the docs goes into `mortaros_missing_decisions.md`.
 
+**No optimisation is undocumented** (Mortaro, 2026-10-03). `docs/optimizations.md` is how users learn what the
+compiler does for them, and it is the specification a port to another backend rebuilds from: an optimisation that
+lives only in the generator is lost the day the backend changes. Give each one its section with an example program
+that shows it, in the same commit that builds it, and an existing one you find without a section gets one.
+
+**Whatever can be worked out while compiling is worked out while compiling** (Mortaro, 2026-10-03). Before building
+anything that runs at run time (a table, a lookup, a check, a dispatch, a copy), ask whether the compiler can decide
+it instead: fold it, specialise it per class or per call site, or prove it unneeded and leave it out. Run-time work is
+the fallback for what only the run can know, and the page that documents it says why it could not be done earlier.
+
 A change that adds a proof (a fact the compiler establishes while compiling to accept code, drop a run-time check,
 choose cheaper code or refuse code) or changes what an existing proof covers updates
 [`docs/proofs.md`](docs/proofs.md) in the same commit (D276): what it proves, the rule, what it buys, when it does

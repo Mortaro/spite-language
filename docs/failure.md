@@ -1074,7 +1074,9 @@ know, or a crash naming its cause for what only the run can find, and never:
 
 It is a rule for the language, the compiler, the standard library and the programs written in it: a proposal that
 lets one of the five happen without a word needs a reason, and a place where the compiler lets one through is a bug
-to fix, not a style to document.
+to fix, not a style to document. **What the compiler can see is refused while compiling**, even when the run would
+also stop it: behaviour that is wrong is a compile error wherever it can be one, so code that compiles is code worth
+keeping, and the run's halt is the backstop for what only the run can find.
 
 **What the language already refuses.** Each is a compile error or a crash naming its cause:
 
@@ -1084,6 +1086,7 @@ to fix, not a style to document.
 | an index past the end, a key never set | `[]`, `first()`, `last()`, `remove_first()` answer a `T?` | [reading with `[]`](#reading-with--answers-t) |
 | a read a loop bound proved, with a counter gone below zero | halts naming the read and the line | [reading with `[]`](#reading-with--answers-t) |
 | a guard `assert` answering a `0`, `false`, `""` or default object the caller takes for a real answer | compile error unless the result can say "nothing" | [a default that looks like an answer](#a-default-that-looks-like-an-answer-is-an-error) |
+| a write to an object only this function holds (made here, a copy, or a function's result that is always made new), with the object never read after it | compile error at the write naming the object (`diagnostics/lost_writes`); a class with `drop()` or a setter for the attribute is left alone, since either may read it | [this section](#nothing-fails-silently-the-rule) |
 | a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is a condition only in `assert` and `crash`, which ask for `true` | [null safety](#narrowing) |
 | text that is not a number, read as `0` | `to_integer()` and the other readings answer a `T?`; text assigned to a plain number is an error | [standard_library.md](standard_library.md#string) |
 | a function that declares a result reaching its end without a `return` | compile error at its last line naming the path | [every path ends in a `return`](#every-path-ends-in-a-return) |
