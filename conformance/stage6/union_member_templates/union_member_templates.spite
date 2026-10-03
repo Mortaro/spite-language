@@ -21,6 +21,14 @@ func UnionMemberTemplates() {
     crash inner
     var directory_count = directories.count()
     console.print("folders:", directory_count, inner.name)
+    var file_count = entries.count_files()
+    var any_folder = entries.any_directories()
+    var all_files = entries.all_files()
+    console.print("by class:", file_count, any_folder, all_files)
+    entries.remove_where_directories()
+    var left = entries.count()
+    var only_files = entries.all_files()
+    console.print("without folders:", left, only_files)
     var tasks = Dictionary<Task>()
     var sweep = Task("sweep", true)
     tasks["sweep"] = sweep

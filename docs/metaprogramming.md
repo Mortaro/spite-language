@@ -385,8 +385,10 @@ var sources = entries.filter_name_ends_with(".spite")
 var names = entries.map_names()
 ```
 
-`entries()` is a `List<Directory.Entry>`, a union of `Directory` and `File`; `filter_files()` answers a `List<File>`. A name that matches both a member
-class and an attribute is a compile error naming the fix.
+`entries()` is a `List<Directory.Entry>`, a union of `Directory` and `File`; `filter_files()` answers a `List<File>`.
+The other templates take a member class the same way: `entries.count_files()`, `any_directories()`,
+`all_files()` and `remove_where_directories()`. A name that matches both a member class and an attribute is a
+compile error naming the fix.
 
 ### Templates and walks, side by side
 
@@ -882,7 +884,11 @@ items whose `member` answers `function(arguments)`: `players.filter_name_starts_
 answer its name's text functions itself.
 
 **A list of a union** takes a member class in the plural as a filter that keeps that class and narrows the list to
-it (`entries.filter_files()` answers a `List<File>`), and templates an attribute every member class has as on any
+it (`entries.filter_files()` answers a `List<File>`), and every other template takes it the same way, in the plural:
+`count_files()` answers how many items are `File`s, `any_directories()` whether one is, `all_files()` whether every
+one is (`true` for an empty list), and `remove_where_directories()` removes the `Directory` items in place; on a
+`Dictionary`'s values, `remove_where_` by class is an error naming `keys()` and `remove(key)`
+(`conformance/stage6/union_member_templates`). It templates an attribute every member class has as on any
 list, the result typed from that common attribute. A name that matches both a member class and an attribute is a
 compile error naming the fix.
 

@@ -104,6 +104,10 @@ when a page gains a rule that is not built yet, add it here.
   [proposals/automatic_memory.md](proposals/automatic_memory.md).
 - D486: a whole-number vector's fractional members answer a `Float` vector; waits on item 300 (how the signature
   names the fractional class).
+- D496: the test runner makes an instance of each test class and calls each test through
+  `Spite.Call(declaration, instance)`; `tests/tests.spite` and testing.md's runner still call `call_function()` on a
+  stand-in until `Spite.Call` is built (backlog R8).
+- D497: an enum parameter specialised only for values from reflection (backlog R5).
 - D487: built are the table, the fold of a literal's `pluralize()`/`singularize()`, and the fold of a local
   dictionary literal read only by literal keys (no dictionary is made). Not built: the same for a dictionary held in
   an attribute, which needs a proof that no reflection walk writes it, and leaving out only the unread keys of a
@@ -588,9 +592,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   named enum's values, on a class, a union and a dictionary's values, with the three errors
   (`conformance/stage6/enum_value_templates`, `diagnostics/enum_value_templates`, collections.md's `post_stages`).
   A union member answered by an attribute in one class and a getter in another is read through each (it was a C
-  compile error, "'Dog' has no member named 'mood_'"). Not decided, so not built: `count_<classes>()`,
-  `any_<classes>()`, `all_<classes>()` and `remove_where_<classes>()` by member class on a list of a union (D330
-  names only `filter_<classes>()`).
+  compile error, "'Dog' has no member named 'mood_'").
 - Open question for Mortaro: `Spite.Namespace`'s `.classes` and `.namespaces` have the same shape (one node's
   children split by kind) and may get the same treatment; undecided.
 - Rule details (which templates, how a name is read, error texts) are proposed by Claude, unconfirmed.

@@ -1,0 +1,5 @@
+var size = 0
+
+func Arena(starting_size: Integer) {
+    size = starting_size
+}

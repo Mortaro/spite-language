@@ -11,37 +11,14 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391, 263 by D394 (2026-10-02); 266 to 296 by D468 to D488 (2026-10-03). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391, 263 by D394 (2026-10-02); 266 to 296 by D468 to D488, and 268, 269, 271 and 276 to 279 by D493 to D497, 298 by D498 (2026-10-03). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
-268. **`clamp` and not-a-number** (D369 item 249). `minimum` and `maximum` now pass `nan` on; `clamp` was built the
-     same way, answering `nan` when the value or either bound is `nan` (it used to answer the low bound). Recommend
-     confirming: the same rule as `minimum` and `maximum`.
-269. **The name `wrapping_subtract`** (D359). D359 names `wrapping_sum` and `wrapping_multiply`; the subtraction
-     was built as `wrapping_subtract`, after the `subtract` operator function. Recommend confirming it.
-271. **Member templates by class on a union list beyond `filter_`**: D330 names only `filter_<classes>()`;
-     `count_`, `any_`, `all_` and `remove_where_` by member class are not built. Recommend allowing them the same
-     way (one rule for every member template). Blocks nothing.
 275. **Loading a subfolder of a package** (D364 says never `load "kal/physics"`). It is not enforced: when only the
      subfolder is loaded the compiler cannot tell that `kal/` is a package root. Options: (a) leave it unenforced;
      (b) refuse a load whose folder lies inside another loaded root, once both loads are seen. Recommend (a) now
      and (b) when both loads are visible.
-276. **Which library classes the shadowing rule counts** (D387). It compares the last name, so a program class
-     named `Function`, `Debug` or `Arena` is refused because of `Spite.Function`, `Spite.Debug` and
-     `Memory.Arena`. Options: (a) every library class counts, as built; (b) only classes outside `Spite.` and
-     `Memory.`. Recommend (a).
-277. **Does a nested `enum`, `union` or `type` count as a class for shadowing?** A program class `Entry` is legal
-     beside `Directory`'s union `Entry` today. Recommend yes, legal: a nested declaration is only visible through
-     its class.
-278. **How the test runner calls a test once declarations cannot be called** (D391, D393). `tests/` calls
-     `call_function()` on a class's `.functions`, which run on a stand-in instance; a declaration cannot be called.
-     Options: (a) the runner makes an instance and calls `Spite.Call(declaration, instance)`, running the test
-     class's constructor; (b) keep a stand-in instance the runner can reach. Recommend (a), the one way D393 allows.
-     Blocks backlog R8's function half and R9.
-279. **Which calls an enum parameter is specialised for** (reflection proposal rule 5). Options: (a) only values
-     that come from reflection (`Phase.values`); (b) every enum literal too, which needs `==` on enum values to fold
-     and specialises many existing functions. Recommend (a).
 280. **How a walk passes values beyond the element.** `each` hands only the element; a walk that needs more (a
      value, a writer) keeps it in attributes of the walking object today. Options: (a) that is the way (one
      argument, state in the walker, as D384's serializers do); (b) `each` with extra arguments. Recommend (a).
@@ -77,15 +54,6 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      (as `String?` already is), and a generic member tested with its codegen values (`List<Byte>`, as
      `found == Storage<$component_type>` is). Recommend (a): one representation of a union, and wrapping costs one
      small class. Blocks nothing; (b) can be built later without breaking a program written for (a).
-298. **Which receivers may call a function** (Mortaro's note: `(start + bytes * last).copy_to(...)` is unreadable;
-     "maybe only named identifiers call functions"). Counted across the repository: about 561 calls have a receiver
-     that is not a name. Most are chains (`list.filter_x().count()`, `text.trim().lowercase()`), which are a
-     language feature: member templates fuse a chain into one loop, and naming every step would add a local per
-     step and lose nothing but readability. The rest are computed receivers: an operator expression in parentheses
-     (`(a + b).copy_to(...)`, `(-x).absolute()`). Options: (a) a compile error only on a computed receiver (an
-     operator or a unary minus in parentheses), naming a local to introduce, and chains stay; (b) also refuse
-     chains longer than two calls; (c) refuse every receiver that is not a name. Recommend (a): it removes the
-     unreadable form and keeps fused chains. Built as (a) (D492); (b) or (c) would go further.
 299. **Frame arenas: the first step of automatic memory** (D485; [proposal](design/proposals/automatic_memory.md)).
      The proposal makes "a frame" a pass of a loop that ends in a wait (`program.sleep`, a present, a `Concurrent`
      wait), and puts a value made in a pass and proven never to outlive it into an arena the compiler resets at the

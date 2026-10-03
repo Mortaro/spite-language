@@ -1006,7 +1006,10 @@ func check_class_name(checked: DiscoveredClass) {
         if other.plain_dotted.starts_with("{checked.plain_dotted}.") and not (checked_in_library and other_in_library) {
             report_class_and_namespace(checked, other, checked_in_library)
         } else if other.simple_name == checked.simple_name and other.plain_dotted != checked.plain_dotted and not checked_in_library {
-            report_same_name(checked, other, other_in_library)
+            var always_prefixed = other_in_library and other.plain_dotted.contains(".")
+            if not always_prefixed {
+                report_same_name(checked, other, other_in_library)
+            }
         }
         index = index + 1
     }

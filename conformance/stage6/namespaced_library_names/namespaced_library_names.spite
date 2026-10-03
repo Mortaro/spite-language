@@ -1,0 +1,9 @@
+var console = Console()
+
+func NamespacedLibraryNames() {
+    var spell = Function("fireball")
+    var pit = Arena(40)
+    var scratch = Memory.Arena(4096)
+    var block = scratch.allocate(16)
+    console.print(spell.name, pit.size, block != 0)
+}

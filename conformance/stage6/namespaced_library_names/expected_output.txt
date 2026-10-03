@@ -1,0 +1,1 @@
+fireball 40 true

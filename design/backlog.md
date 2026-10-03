@@ -23,7 +23,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 ### Reflection migration (D316, D317, D318, D335, D330; status.md "Reflection known while compiling")
 
 - **R5 The rest of the object model** (D316, D317; status "Not built" and "Run time only through the old tables").
-  Specialisation of enum parameters (which calls it covers needs Mortaro); `.owner`, `.element_type` and
+  Specialisation of enum parameters (only for values from reflection, D497); `.owner`, `.element_type` and
   `.value_type` on run-time objects (`.owner` with R8).
   Files: generator.spite reflection and specialisation regions, `specialisation.spite`, `reflected.spite`,
   `library/spite/*.spite`. **L.** No dependencies.

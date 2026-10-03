@@ -16417,9 +16417,11 @@ func union_member_class(information: Analysis.UnionInfo, word: String): Analysis
     return null
 }
 
-func union_class_filter(
+# ../../../docs/collections.md#member-templates-loops-you-do-not-write
+func union_class_template(
     list_class: Analysis.ClassInfo,
     member_class: Analysis.ClassInfo,
+    prefix: String,
     name: String,
 ): Analysis.FunctionInfo? {
     var existing = list_class.find_function(name)
@@ -16427,11 +16429,28 @@ func union_class_filter(
         return existing
     }
     var kept = member_class.qualified_dotted
+    var dictionary = list_class.qualified_dotted == "Dictionary"
+    if prefix == "remove_where_" and dictionary {
+        report(
+            "'{name}' removes items in place, and a dictionary's values are removed by key: walk 'keys()' and 'remove(key)' the ones whose value is a '{member_class.simple_name}'",
+        )
+        return null
+    }
     var lines = List<String>()
-    lines.append("func {name}(): List<{kept}> \{")
-    lines.append("    var kept = List<{kept}>()")
+    switch prefix {
+        "filter_": {
+            lines.append("func {name}(): List<{kept}> \{")
+            lines.append("    var kept = List<{kept}>()")
+        }
+        "count_": {
+            lines.append("func {name}(): Integer \{")
+            lines.append("    var counted = 0")
+        }
+        "remove_where_": lines.append("func {name}() \{")
+        _: lines.append("func {name}(): Boolean \{")
+    }
     lines.append("    var index = 0")
-    if list_class.qualified_dotted == "Dictionary" {
+    if dictionary {
         lines.append("    var listed = values()")
         lines.append("    while index < listed.count() \{")
         lines.append("        var item = listed[index]")
@@ -16439,12 +16458,47 @@ func union_class_filter(
         lines.append("    while index < item_count \{")
         lines.append("        var item = values.read_value(items, index)")
     }
-    lines.append("        if item == {kept} \{")
-    lines.append("            kept.append(item)")
-    lines.append("        }")
-    lines.append("        index = index + 1")
+    switch prefix {
+        "filter_": {
+            lines.append("        if item == {kept} \{")
+            lines.append("            kept.append(item)")
+            lines.append("        }")
+            lines.append("        index = index + 1")
+        }
+        "count_": {
+            lines.append("        if item == {kept} \{")
+            lines.append("            counted = counted + 1")
+            lines.append("        }")
+            lines.append("        index = index + 1")
+        }
+        "any_": {
+            lines.append("        if item == {kept} \{")
+            lines.append("            return true")
+            lines.append("        }")
+            lines.append("        index = index + 1")
+        }
+        "all_": {
+            lines.append("        if item != {kept} \{")
+            lines.append("            return false")
+            lines.append("        }")
+            lines.append("        index = index + 1")
+        }
+        _: {
+            lines.append("        if item == {kept} \{")
+            lines.append("            remove_at(index)")
+            lines.append("        } else \{")
+            lines.append("            index = index + 1")
+            lines.append("        }")
+        }
+    }
     lines.append("    }")
-    lines.append("    return kept")
+    switch prefix {
+        "filter_": lines.append("    return kept")
+        "count_": lines.append("    return counted")
+        "any_": lines.append("    return false")
+        "all_": lines.append("    return true")
+        _: {}
+    }
     lines.append("}")
     var source = lines.join("\n")
     return register_fused_function(list_class, source, name)
@@ -16628,7 +16682,8 @@ func instantiate_element_template(
             )
         }
     }
-    if element_union and template.prefix == "filter_" and template.suffix.is_empty() {
+    var class_prefixes = ["filter_", "count_", "any_", "all_", "remove_where_"]
+    if element_union and class_prefixes.contains(template.prefix) and template.suffix.is_empty() {
         var member_class = union_member_class(element_union, member_name)
         if member_class {
             if member_type {
@@ -16637,7 +16692,7 @@ func instantiate_element_template(
                 )
                 return null
             }
-            return union_class_filter(list_class, member_class, name)
+            return union_class_template(list_class, member_class, template.prefix, name)
         }
     }
     if not member_type and not element_shape {

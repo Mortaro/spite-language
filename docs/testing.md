@@ -180,9 +180,12 @@ disagree, the rules win.
   registration. The names are the repository's convention, not a rule of the language: the runner decides them.
   The program's entry class has no stand-in instance, so its `.functions` is empty
   ([reflection.md](reflection.md)): tests go in a class of their own.
-- **`call_function()`** calls a function found through reflection that takes no arguments, so a test takes
-  none. A value a test returns is dropped. Called on a function that takes arguments, it halts, naming the
-  function: `spite: call_function() cannot call 'greet': it takes arguments, and call_function() passes none`.
+- **A test runs on an instance the runner makes**: the runner calls the walked class (`tested()`, as any walk of
+  classes makes an object, [reflection.md](reflection.md)), which runs the test class's constructor, and runs each
+  test through `Spite.Call(declaration, instance)` and `call.call()`, the one way a declaration is called. The
+  program decides what each test's instance holds and when it is let go, and every call is known while compiling,
+  so a test compiles and runs like the rest of the program. A test takes no arguments; one that does is the
+  unfilled-argument error of `Spite.Call`. A value a test returns is dropped.
 - **Running one test, one class or a folder** is the runner's business, through `Arguments()`: the runner on this
   page and the repository's `tests/` run only the class or test named by the first argument, and crash when it
   names nothing, so a mistyped name never passes. A folder of tests is one program, named on the command line.
@@ -192,10 +195,10 @@ disagree, the rules win.
 - **Every test is a leak test** in the repository's runner: each test runs twice, and the second run must leave
   `program.live_allocations()` where it was, and a run of `tests/` with `--debug-memory` prints nothing and
   balances its allocations.
-- **A test runs on a stand-in at its defaults**: walking `.functions` over `Spite.Class.instances` runs no
-  constructor, so a test class's constructor is not a set-up step, and loading another program to test it does
-  not run that program ([reflection.md](reflection.md)). A test that needs state gets it from an attribute's default
-  (`var creatures = [Creature("rat", 3, true), ...]` in `tests/member_tests.spite`) or makes it in its own body.
+- **The constructor is the set-up**: the instance is made by its constructor, so a test class sets up what its
+  tests share there, or in an attribute's default (`var creatures = [Creature("rat", 3, true), ...]` in
+  `tests/member_tests.spite`), and a test that needs its own state makes it in its body. Loading another program to
+  test it does not run that program's entry ([reflection.md](reflection.md)).
 
 ---
 

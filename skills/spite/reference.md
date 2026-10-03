@@ -325,7 +325,8 @@ func is_alive(): Boolean {
 - On a list or dictionary of a class or of text: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Boolean` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<members>()`,
   `each_<member>()` (a function). On a list of a union, `filter_<classes>()` keeps one member class and answers a
-  list of it: `entries.filter_files()` is a `List<File>`. A member is an attribute or a function that takes nothing; text has them too
+  list of it: `entries.filter_files()` is a `List<File>`, and `count_files()`, `any_directories()`, `all_files()`
+  and `remove_where_directories()` take a member class the same way. A member is an attribute or a function that takes nothing; text has them too
   (`names.map_upper_cases()`, `names.filter_is_empty()`, `names.sort_by_length()`). A member that does
   not fit is an error naming what the template needs: `count_stars()` on a number member says `but 'count_' needs
   it to return Boolean (to add up a numeric member use 'sum_stars')`, and `each_size()` on an attribute says
