@@ -1,0 +1,76 @@
+var console = Console()
+var program = Program()
+var log = List<String>()
+
+func DroppedHandleWaits() {
+    var through_reassign = Concurrent(reassigned_local)
+    started("a local assigned again", through_reassign.finished)
+    var through_object = Concurrent(dropped_keeper)
+    started("an object holding a handle, dropped at its scope's end", through_object.finished)
+    var through_attribute = Concurrent(reassigned_attribute)
+    started("an attribute assigned again", through_attribute.finished)
+    var through_keepers = Concurrent(dropped_keepers)
+    started("a list of objects holding handles", through_keepers.finished)
+    var answers = List<Integer>()
+    answers.append(through_reassign)
+    answers.append(through_object)
+    answers.append(through_attribute)
+    answers.append(through_keepers)
+    var shown = answers.join(", ")
+    console.print("answers", shown)
+    var joined = log.join("\n")
+    console.print(joined)
+}
+
+func started(name: String, finished: Boolean) {
+    console.print(name, "is a point the Concurrent returns from:", not finished)
+}
+
+func ring() {
+    program.sleep(2)
+    log.append("rang")
+}
+
+func reassigned_local(): Integer {
+    var ringing = Concurrent(ring)
+    log.append("the first ring is running: {not ringing.finished}")
+    ringing = Concurrent(ring)
+    log.append("the first ring was let go after it rang")
+    return 1
+}
+
+func dropped_keeper(): Integer {
+    keep_and_leave()
+    log.append("the keeper was let go after its job rang")
+    return 2
+}
+
+func keep_and_leave() {
+    var keeper = Keeper()
+    keeper.job = Concurrent(ring)
+}
+
+func reassigned_attribute(): Integer {
+    var keeper = Keeper()
+    keeper.job = Concurrent(ring)
+    log.append("the keeper's first job is running: {keeper.busy()}")
+    keeper.job = Concurrent(ring)
+    log.append("the keeper's first job was let go after it rang")
+    return 3
+}
+
+func dropped_keepers(): Integer {
+    keep_two_and_leave()
+    log.append("the keepers were let go after their jobs rang")
+    return 4
+}
+
+func keep_two_and_leave() {
+    var keepers = List<Keeper>()
+    var first = Keeper()
+    first.job = Concurrent(ring)
+    keepers.append(first)
+    var second = Keeper()
+    second.job = Concurrent(ring)
+    keepers.append(second)
+}

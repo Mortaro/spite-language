@@ -1,0 +1,6 @@
+var count = 0
+
+func bump(): Boolean {
+    count = count + 1
+    return true
+}

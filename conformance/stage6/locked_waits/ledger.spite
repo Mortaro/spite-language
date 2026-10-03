@@ -1,0 +1,18 @@
+singleton
+
+var program = Program()
+var entries = List<String>()
+
+func record(name: String) {
+    entries.append("{name} starts")
+    program.sleep(5)
+    entries.append("{name} ends")
+}
+
+func count(): Integer {
+    return entries.count()
+}
+
+func shown(): String {
+    return entries.join(", ")
+}

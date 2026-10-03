@@ -1,18 +1,15 @@
-spite.crash	53d916b5	library/concurrent.spite:69	Concurrent	_join	waits_for_its_own_caller=true	_frame=...	_finished=false
-spite.frame	library/concurrent.spite:66	Concurrent	_join
-spite.frame	library/concurrent.spite:74	Concurrent	drop
-spite.frame	-	-	Concurrent__Nothing___release
-spite.frame	bootstrap/source/generation/prelude.spite:3	TypedMemory	release_value
-spite.frame	library/list.spite:123	List	clear
-spite.frame	library/list.spite:470	List	drop
-spite.frame	-	-	List_Concurrent__Nothing___release
-spite.frame	-	-	Holder___release
+spite.crash	7062279b	library/scheduler.spite:81	Scheduler	joins	joins_a_concurrent_that_waits_for_this_one=true	frame=...	awaited=...	hops=1	started=true	scheduler_thread=...	offloads_running=0	serving=false	waits_begun=0	check_points_passed=0	stepping=...	answering_in_wait=false	paused=false
+spite.frame	library/scheduler.spite:69	Scheduler	joins
+spite.frame	-	-	Scheduler_wait_for___step
+spite.frame	-	-	Concurrent__Nothing__join___step
 spite.frame	-	-	Board_release_first___step
 spite.frame	bootstrap/source/generation/prelude.spite:1	Scheduler	step_frame
-spite.frame	library/scheduler.spite:45	Scheduler	run_frame
-spite.frame	library/scheduler.spite:74	Scheduler	step_ready
-spite.frame	library/scheduler.spite:217	Scheduler	idle_stepping
-spite.frame	library/scheduler.spite:89	Scheduler	wait_for
-spite.frame	library/concurrent.spite:66	Concurrent	_join
-spite.frame	library/concurrent.spite:74	Concurrent	drop
-spite.frame	more
+spite.frame	library/scheduler.spite:48	Scheduler	run_frame
+spite.frame	library/scheduler.spite:124	Scheduler	step_ready
+spite.frame	library/scheduler.spite:267	Scheduler	idle_stepping
+spite.frame	library/scheduler.spite:263	Scheduler	idle
+spite.frame	library/scheduler.spite:206	Scheduler	sleep
+spite.frame	library/linux/program.spite:3	Program	sleep
+spite.frame	conformance/stage6/concurrent_wait_cycle/concurrent_wait_cycle.spite:5	ConcurrentWaitCycle	ConcurrentWaitCycle
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main

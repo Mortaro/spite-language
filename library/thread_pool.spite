@@ -146,7 +146,9 @@ func run_queued(position: Integer) {
     job.state.write_long_atomically(0, 1)
     unlock_queue()
     crash job.work
+    _world_enter()
     job.work.call_function(job.first, job.end)
+    _world_leave()
     _task_ended()
     lock_queue()
     job.state.write_long_atomically(0, 2)

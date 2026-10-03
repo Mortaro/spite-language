@@ -86,6 +86,13 @@ var scheduler_used = false
 var implicit_joins = List<Syntax.Expressions.MemberExpression>()
 var parallel_used = false
 var check_point_flag_written = false
+var world_gate_written = false
+var guard_count_asked = false
+var shape_boxes_written = List<String>()
+var shape_value_keys = List<String>()
+var shape_value_forwarders = List<String>()
+var shape_value_boxes = List<String>()
+var shape_value_callers = List<ShapeCaller>()
 var parallel_site_keys = List<String>()
 var parallel_site_texts = List<String>()
 var parallel_site_places = List<String>()
@@ -367,6 +374,7 @@ var lent_result_labels = Dictionary<String>()
 var parallel_handover = ""
 var parallel_keeps = List<String>()
 var parallel_writes = List<String>()
+var parallel_locked_depth = 0
 var argument_callee = ""
 var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
@@ -981,6 +989,9 @@ func generate(
     finish_wait_questions()
     if parallel_used {
         finish_singleton_guards()
+    }
+    if parallel_used or guard_count_asked {
+        finish_guard_count()
     }
     if builder.threads {
         finish_skipped_guards()
@@ -3830,18 +3841,53 @@ func shape_function_value(
             )
             parameter_index = parameter_index + 1
         }
+        var box_type = ensure_shape_box(information)
+        var forwarder = "{maker}___call"
+        var forwarder_parameters = List<String>()
+        forwarder_parameters.append("void* owner")
+        var forwarded = List<String>()
+        forwarded.append("(({box_type}*)owner)->value")
+        var forwarded_index = 0
+        while forwarded_index < parameter_types.count() {
+            forwarder_parameters.append("{c_type_name(parameter_types[forwarded_index])} argument_{forwarded_index}")
+            forwarded.append("argument_{forwarded_index}")
+            forwarded_index = forwarded_index + 1
+        }
+        var returned_c = "void"
+        var forwarded_body = "{caller}({forwarded.join(", ")});"
+        if not type_shape.is_void(return_type) {
+            returned_c = c_type_name(return_type)
+            forwarded_body = "return {forwarded_body}"
+        }
+        var forwarder_signature = "static {returned_c} {forwarder}({forwarder_parameters.join(", ")})"
+        builder.add_prototype("{forwarder_signature};")
+        builder.add_support("{forwarder_signature} \{\n{forwarded_body}\n}")
+        var box_release = "{maker}___release_owner"
+        builder.add_prototype("static void {box_release}(void* owner);")
+        builder.add_support(
+            "static void {box_release}(void* owner) \{\n{box_type}* spite_box = ({box_type}*)owner;\n{information.c_name}___release(spite_box->value);\nSPITE_FREE(spite_box);\n}",
+        )
         var lines = List<String>()
         lines.append("Spite_Function* {maker}({information.c_name} owner) \{")
         lines.append(
             "Spite_Function* described = Spite_Function___make({ensure_symbol(wanted.name)}, {class_object_call(returned)});",
         )
         add_lazy_arguments(maker, argument_lines, lines)
-        lines.append("described->spite_owner = {information.c_name}___retain(owner);")
-        lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
+        lines.append("{box_type}* spite_box = ({box_type}*)SPITE_MALLOC(sizeof({box_type}));")
+        lines.append("spite_box->value = {information.c_name}___retain(owner);")
+        lines.append("described->spite_owner = spite_box;")
+        lines.append("described->spite_release_owner = {box_release};")
         if parameter_types.is_empty() and type_shape.is_void(return_type) {
-            lines.append("described->spite_call = (void (*)(void*)){caller};")
+            lines.append("described->spite_call = (void (*)(void*)){forwarder};")
         }
-        lines.append("described->spite_typed_call = (void*){caller};")
+        lines.append("described->spite_typed_call = (void*){forwarder};")
+        var valued_caller = shape_callers_by_c_name[caller]
+        crash valued_caller
+        var valued_key = value_call_key(signature.arguments, signature.returns)
+        shape_value_keys.append(valued_key)
+        shape_value_forwarders.append(forwarder)
+        shape_value_boxes.append(box_type)
+        shape_value_callers.append(valued_caller)
         lines.append("return described;")
         lines.append("}")
         builder.add_prototype("Spite_Function* {maker}({information.c_name} owner);")
@@ -3858,6 +3904,15 @@ func shape_function_value(
     var made = ExpressionResult(code, typed)
     made.owning_override = true
     return made
+}
+
+func ensure_shape_box(information: Analysis.UnionInfo): String {
+    var box_type = "SpiteShapeBox_{information.c_name}"
+    if not shape_boxes_written.contains(box_type) {
+        shape_boxes_written.append(box_type)
+        builder.add_typedef("typedef struct {box_type} \{ {information.c_name} value; } {box_type};")
+    }
+    return box_type
 }
 
 func shape_member_function(member: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
@@ -7454,6 +7509,61 @@ func check_point_flag_body(name: String): String {
     return "(void)self;\nreturn __atomic_exchange_n(&spite_check_point_wanted, 0, __ATOMIC_ACQ_REL) != 0;"
 }
 
+func ensure_world_gate() {
+    assert not world_gate_written
+    world_gate_written = true
+    ensure_check_point_flag()
+    builder.add_prototype("void spite_world_enter(void);")
+    builder.add_prototype("void spite_world_leave(void);")
+    builder.add_prototype("void spite_world_park(void);")
+    builder.add_prototype("int32_t spite_world_stop(void);")
+    builder.add_prototype("void spite_world_start(void);")
+    var lines = List<String>()
+    lines.append("static int32_t spite_world_stopping = 0;")
+    lines.append("static int32_t spite_world_running = 0;")
+    lines.append("static SPITE_THREAD_LOCAL int32_t spite_world_mine = 0;")
+    lines.append("static void spite_world_join(int32_t held) \{")
+    lines.append("for (;;) \{")
+    lines.append("while (__atomic_load_n(&spite_world_stopping, __ATOMIC_ACQUIRE) != 0) \{}")
+    lines.append("__atomic_fetch_add(&spite_world_running, held, __ATOMIC_SEQ_CST);")
+    lines.append("if (__atomic_load_n(&spite_world_stopping, __ATOMIC_SEQ_CST) == 0) return;")
+    lines.append("__atomic_fetch_sub(&spite_world_running, held, __ATOMIC_SEQ_CST);")
+    lines.append("}")
+    lines.append("}")
+    lines.append("void spite_world_enter(void) \{")
+    lines.append(
+        "if (spite_world_mine > 0) \{ __atomic_fetch_add(&spite_world_running, 1, __ATOMIC_SEQ_CST); } else spite_world_join(1);",
+    )
+    lines.append("spite_world_mine = spite_world_mine + 1;")
+    lines.append("}")
+    lines.append("void spite_world_leave(void) \{")
+    lines.append("spite_world_mine = spite_world_mine - 1;")
+    lines.append("__atomic_fetch_sub(&spite_world_running, 1, __ATOMIC_SEQ_CST);")
+    lines.append("}")
+    lines.append("void spite_world_park(void) \{")
+    lines.append("int32_t held = spite_world_mine;")
+    lines.append("if (held == 0 || __atomic_load_n(&spite_world_stopping, __ATOMIC_SEQ_CST) == 0) return;")
+    lines.append("__atomic_fetch_sub(&spite_world_running, held, __ATOMIC_SEQ_CST);")
+    lines.append("spite_world_join(held);")
+    lines.append("}")
+    lines.append("int32_t spite_world_stop(void) \{")
+    lines.append("__atomic_store_n(&spite_world_stopping, 1, __ATOMIC_SEQ_CST);")
+    lines.append("time_t spite_deadline = time(0) + 10;")
+    lines.append("while (__atomic_load_n(&spite_world_running, __ATOMIC_SEQ_CST) > spite_world_mine) \{")
+    lines.append("__atomic_store_n(&spite_check_point_wanted, 1, __ATOMIC_RELEASE);")
+    lines.append(
+        "if (time(0) > spite_deadline) \{ __atomic_store_n(&spite_world_stopping, 0, __ATOMIC_SEQ_CST); return 0; }",
+    )
+    lines.append("}")
+    lines.append("return 1;")
+    lines.append("}")
+    lines.append("void spite_world_start(void) \{")
+    lines.append("__atomic_store_n(&spite_world_stopping, 0, __ATOMIC_SEQ_CST);")
+    lines.append("}")
+    var joined = lines.join("\n")
+    builder.add_support(joined)
+}
+
 func ensure_check_point_flag() {
     assert not check_point_flag_written
     check_point_flag_written = true
@@ -7597,6 +7707,13 @@ func task_body(information: Analysis.ClassInfo, name: String): String {
         "_task_begun": return "#ifdef SPITE_THREADS\nfor (int32_t spite_index = 0; spite_index < spite_skipped_depth; spite_index++) \{ if (!spite_skipped_taken[spite_index]) \{ spite_enter_skipped(spite_skipped[spite_index]); spite_skipped_taken[spite_index] = 1; } }\n__atomic_fetch_add(&spite_tasks_in_flight, 1, __ATOMIC_SEQ_CST);\n#endif"
         "_task_ended": return "#ifdef SPITE_THREADS\n__atomic_fetch_sub(&spite_tasks_in_flight, 1, __ATOMIC_RELEASE);\n#endif"
         _: {}
+    }
+    if name == "_world_enter" or name == "_world_leave" {
+        if not hot_reload {
+            return "(void)self;"
+        }
+        ensure_world_gate()
+        return "(void)self;\nspite{name}();"
     }
     if name == "_start_frame" {
         builder.add_prototype("static void* spite_frame_start(Spite_Function* spite_work);")
@@ -16895,16 +17012,73 @@ func check_parallel_reach(
     visited.append(function.name)
     var locals = function.parameters.map_names()
     collect_declared_names(function.body, locals)
-    if template_name.starts_with("Parallel(") {
+    if template_name.starts_with("Parallel(") and parallel_locked_depth == 0 {
         note_parallel_writes(owner, function.body, locals)
     }
+    var locked = List<String>()
+    collect_locked_work(owner, function.body, locked)
     var mentioned = List<String>()
     collect_block_names(function.body, mentioned)
     var index = 0
     while index < mentioned.count() {
         var name = mentioned[index]
         if not locals.contains(name) {
+            var under_lock = locked.contains(name)
+            if under_lock {
+                parallel_locked_depth = parallel_locked_depth + 1
+            }
             check_parallel_name(owner, function, name, template_name, visited)
+            if under_lock {
+                parallel_locked_depth = parallel_locked_depth - 1
+            }
+        }
+        index = index + 1
+    }
+}
+
+func holds_lock(owner: Analysis.ClassInfo, member: Syntax.Expressions.MemberExpression): Boolean {
+    crash member.object
+    var receiver = shape.as_identifier(member.object)
+    if not receiver {
+        return false
+    }
+    var field = owner.find_field(receiver.name)
+    if not field {
+        return false
+    }
+    var field_type = field.type
+    var held = type_shape.as_class_ref(field_type)
+    if not held {
+        return false
+    }
+    var held_class = find_class_by_c_name(held.c_name)
+    if not held_class {
+        return false
+    }
+    return held_class.qualified_dotted == "Lock"
+}
+
+func collect_locked_work(
+    owner: Analysis.ClassInfo,
+    statements: List<Syntax.Statements.Statement>,
+    locked: List<String>,
+) {
+    var expressions = List<Syntax.Expressions.Expression>()
+    collect_block_expressions(statements, expressions)
+    var index = 0
+    while index < expressions.count() {
+        var call = shape.as_call(expressions[index])
+        if call {
+            crash call.callee
+            var member = shape.as_member(call.callee)
+            if member {
+                if member.name == "while_locked" and call.arguments.count() == 1 and holds_lock(owner, member) {
+                    var named = shape.as_identifier(call.arguments[0])
+                    if named {
+                        locked.append(named.name)
+                    }
+                }
+            }
         }
         index = index + 1
     }
@@ -17016,6 +17190,9 @@ func check_parallel_work(
         assert own
         var visited = List<String>()
         check_parallel_reach(class_information, own, "Parallel({work_text})", visited)
+        if not parallel_writes.is_empty() and not class_information.is_singleton {
+            report_shared_parallel_writes("Parallel({work_text})", class_information, "this")
+        }
         parallel_writes = List<String>()
         remember_parallel_site(class_information, own, work_text)
         return
@@ -17042,11 +17219,27 @@ func check_parallel_work(
     var writes_shared = not parallel_writes.is_empty() and not owner.is_singleton
     if not parallel_keeps.is_empty() or writes_shared and not parallel_handover.is_empty() {
         report_use_after_handover(parallel_handover, task, owner)
+    } else if writes_shared {
+        var holder = printer.source_expression(member.object)
+        report_shared_parallel_writes(task, owner, holder)
     }
     parallel_handover = ""
     parallel_keeps = List<String>()
     parallel_writes = List<String>()
     remember_parallel_site(owner, function, work_text)
+}
+
+func report_shared_parallel_writes(task: String, owner: Analysis.ClassInfo, holder: String) {
+    var written = parallel_writes.join("', '")
+    if holder == "this" {
+        report(
+            "'{task}' writes '{written}' of this '{owner.simple_name}' on another thread while this thread may write it too, so one write would be lost: move the work into a class of its own and hand a new one over ('var worker = Worker(...)' then 'Parallel(worker.work)'), answer the value from the work and read the task's result, or keep it in a singleton, which is made safe for threads",
+        )
+        return
+    }
+    report(
+        "'{task}' writes '{written}' of '{holder}' on another thread, and '{holder}' is not handed over to it, so another thread may write it at the same time and one write would be lost: make a new '{owner.simple_name}' on the line before and hand it over ('var worker = {owner.simple_name}(...)' then 'Parallel(worker.work)'), answer the value from the work and read the task's result, or keep it in a singleton, which is made safe for threads",
+    )
 }
 
 func handed_over_name(object_ast: Syntax.Expressions.Expression, owner: Analysis.ClassInfo): String {
@@ -24414,7 +24607,9 @@ func emit_scope_drops(scope: Scope, all_the_way_up: Boolean) {
         var owned_local_type = owned_local.type
         var owned_code = c_value_name(owned_local.name)
         if not owned_local.framed {
-            wait_for_dropped_handle(owned_local_type, owned_code)
+            if drop_may_wait(owned_local_type) {
+                wait_for_released(owned_local_type, owned_code)
+            }
             builder.add_user("{release_call(owned_local_type, owned_code)};")
         }
         if not owned_local.framed_cleanup.is_empty() {
@@ -29273,6 +29468,16 @@ func emit_owning_assignment(
     class_information: Analysis.ClassInfo,
 ) {
     var value_code = coerce_for_store(value_ast, target_type, scope, class_information)
+    if type_needs_drop(target_type) and drop_may_wait(target_type) {
+        var stored = next_temporary()
+        var replaced = next_temporary()
+        builder.add_user("{c_type_name(target_type)} {stored} = {value_code};")
+        builder.add_user("{c_type_name(target_type)} {replaced} = {target_code};")
+        builder.add_user("{target_code} = {stored};")
+        wait_for_released(target_type, replaced)
+        builder.add_user("{release_call(target_type, replaced)};")
+        return
+    }
     if type_needs_drop(target_type) {
         var temporary = next_temporary()
         builder.add_user("{c_type_name(target_type)} {temporary} = {value_code};")
@@ -36370,8 +36575,15 @@ func add_loop_check_point(class_information: Analysis.ClassInfo) {
     crash check_point
     var scheduler = singleton_call(scheduler_class)
     ensure_check_point_flag()
+    var parking = ""
+    if hot_reload {
+        if not world_gate_written {
+            ensure_world_gate()
+        }
+        parking = "spite_world_park(); "
+    }
     builder.add_user(
-        "if (__atomic_load_n(&spite_check_point_wanted, __ATOMIC_RELAXED) != 0) \{ Scheduler* spite_check_point = {scheduler}; {check_point.c_name}(spite_check_point); Scheduler___release(spite_check_point); }",
+        "if (__atomic_load_n(&spite_check_point_wanted, __ATOMIC_RELAXED) != 0) \{ {parking}Scheduler* spite_check_point = {scheduler}; {check_point.c_name}(spite_check_point); Scheduler___release(spite_check_point); }",
     )
 }
 
@@ -39061,6 +39273,17 @@ func collect_statement_assigned_roots(statement: Syntax.Statements.Statement, ro
     }
 }
 
+func finish_guard_count() {
+    if parallel_used and guard_count_asked {
+        builder.add_typedef("static SPITE_THREAD_LOCAL int32_t spite_guards_held = 0;")
+        builder.add_typedef("#define SPITE_GUARDS_HELD() spite_guards_held")
+        builder.add_typedef("#define SPITE_GUARDS_COUNT(change) (spite_guards_held = spite_guards_held + (change))")
+        return
+    }
+    builder.add_typedef("#define SPITE_GUARDS_HELD() 0")
+    builder.add_typedef("#define SPITE_GUARDS_COUNT(change) ((void)0)")
+}
+
 func finish_singleton_guards() {
     builder.add_typedef("typedef struct SpiteGuard \{ _Alignas(64) int64_t owner; int64_t depth; } SpiteGuard;")
     builder.add_prototype("static void spite_guard_enter(SpiteGuard* guard);")
@@ -40855,12 +41078,15 @@ func emit_guard_wrapper(information: Analysis.ClassInfo, function: Analysis.Func
     } else {
         lines.append("spite_guard_enter({guard});")
     }
+    lines.append("SPITE_GUARDS_COUNT(1);")
     if type_shape.is_void(return_type) {
         lines.append("{called};")
         lines.append(leave)
+        lines.append("SPITE_GUARDS_COUNT(-1);")
     } else {
         lines.append("{c_type_name(return_type)} spite_guarded = {called};")
         lines.append(leave)
+        lines.append("SPITE_GUARDS_COUNT(-1);")
         lines.append("return spite_guarded;")
     }
     lines.append("}")
@@ -40874,6 +41100,7 @@ func append_unshared_path(lines: List<String>, called: String, guard: String, re
     lines.append("spite_skipped[spite_skip] = (void*){guard};")
     lines.append("spite_skipped_taken[spite_skip] = 0;")
     lines.append("spite_skipped_depth = spite_skip + 1;")
+    lines.append("SPITE_GUARDS_COUNT(1);")
     var done = "return;"
     if type_shape.is_void(return_type) {
         lines.append("{called};")
@@ -40883,6 +41110,7 @@ func append_unshared_path(lines: List<String>, called: String, guard: String, re
     }
     lines.append("spite_skipped_depth = spite_skip;")
     lines.append("if (spite_skipped_taken[spite_skip]) spite_guard_leave({guard});")
+    lines.append("SPITE_GUARDS_COUNT(-1);")
     lines.append(done)
     lines.append("}")
 }
@@ -40935,6 +41163,7 @@ func emit_waiting_wrapper(
     kind: String,
     scheduler: String,
 ) {
+    guard_count_asked = true
     var arguments = List<String>()
     arguments.append("self")
     var index = 0
@@ -40949,12 +41178,14 @@ func emit_waiting_wrapper(
     lines.append("Scheduler* spite_scheduler = {scheduler};")
     if kind == "yield" {
         lines.append("{waited};")
-        lines.append("if (Scheduler_waits_here(spite_scheduler)) Scheduler_yield_now(spite_scheduler);")
+        lines.append(
+            "if (SPITE_GUARDS_HELD() == 0 && Scheduler_waits_here(spite_scheduler)) Scheduler_yield_now(spite_scheduler);",
+        )
         lines.append("Scheduler___release(spite_scheduler);")
     } else if kind == "sleep" {
         crash function.parameters[0]
         lines.append(
-            "if (Scheduler_waits_here(spite_scheduler)) Scheduler_sleep(spite_scheduler, {c_value_name(function.parameters[0].name)}); else {waited};",
+            "if (SPITE_GUARDS_HELD() == 0 && Scheduler_waits_here(spite_scheduler)) Scheduler_sleep(spite_scheduler, {c_value_name(function.parameters[0].name)}); else {waited};",
         )
         lines.append("Scheduler___release(spite_scheduler);")
     } else {
@@ -41003,7 +41234,7 @@ func offloaded_call_lines(
         "static void {function.c_name}___perform(void* raw) \{\n{call_type}* call = ({call_type}*)raw;\n{stored}{function.c_name}___waiting({passed.join(", ")});\n}",
     )
     var lines = List<String>()
-    lines.append("if (!Scheduler_waits_here(spite_scheduler)) \{ {blocked} }")
+    lines.append("if (SPITE_GUARDS_HELD() != 0 || !Scheduler_waits_here(spite_scheduler)) \{ {blocked} }")
     lines.append(
         "{call_type} spite_call = \{ \{ 0, &{function.c_name}___perform, spite_scheduler }, {arguments.join(", ")} };",
     )
@@ -42431,7 +42662,8 @@ func hot_reload_body(name: String): String {
             if not hot_reload {
                 return "(void)library_;\nreturn spite_string_from_cstring_owned(\"this program was not built with --hot-reload\");"
             }
-            return "typedef const char* (*SpiteHotBind)(void* (*)(const char*), int32_t (*)(const char*, void*));\n#ifdef _WIN32\nSpiteHotBind bind = (SpiteHotBind)(void*)GetProcAddress((HMODULE)(intptr_t)library_, \"spite_reload_bind\");\n#else\nSpiteHotBind bind = (SpiteHotBind)dlsym((void*)(intptr_t)library_,\"spite_reload_bind\");\n#endif\nif (bind == 0) return spite_string_from_cstring_owned(\"spite_reload_bind\");\nconst char* missing = bind(spite_hot_find, spite_hot_install);\nif (missing == 0) spite_settings_reread();\nreturn spite_string_from_cstring_owned(missing == 0 ? \"\" : missing);"
+            ensure_world_gate()
+            return "typedef const char* (*SpiteHotBind)(void* (*)(const char*), int32_t (*)(const char*, void*));\n#ifdef _WIN32\nSpiteHotBind bind = (SpiteHotBind)(void*)GetProcAddress((HMODULE)(intptr_t)library_, \"spite_reload_bind\");\n#else\nSpiteHotBind bind = (SpiteHotBind)dlsym((void*)(intptr_t)library_,\"spite_reload_bind\");\n#endif\nif (bind == 0) return spite_string_from_cstring_owned(\"spite_reload_bind\");\nif (spite_world_stop() == 0) return spite_string_from_cstring_owned(\"refused: a task on another thread did not reach a loop's check point within 10 seconds, so nothing was swapped in and no object moved under it: reload again once that work has finished\");\nconst char* missing = bind(spite_hot_find, spite_hot_install);\nspite_world_start();\nif (missing == 0) spite_settings_reread();\nreturn spite_string_from_cstring_owned(missing == 0 ? \"\" : missing);"
         }
     }
 }
@@ -43091,6 +43323,108 @@ func wait_for_dropped_handle(local_type: Analysis.SpiteType, code: String) {
     add_handle_wait(join, code)
 }
 
+func drop_may_wait(released_type: Analysis.SpiteType): Boolean {
+    if not resumable_mode or conditional_depth != 0 {
+        return false
+    }
+    var visiting = List<String>()
+    return holds_handles(released_type, visiting)
+}
+
+func holds_handles(held_type: Analysis.SpiteType, visiting: List<String>): Boolean {
+    var nullable = type_shape.as_nullable(held_type)
+    if nullable {
+        var inner = nullable.inner
+        return holds_handles(inner, visiting)
+    }
+    if not handle_join(held_type).is_empty() {
+        return true
+    }
+    var listed = type_shape.as_list(held_type)
+    if listed {
+        var element = listed.element
+        return holds_handles(element, visiting)
+    }
+    var held = handle_holder_class(held_type)
+    if not held or visiting.contains(held.c_name) {
+        return false
+    }
+    visiting.append(held.c_name)
+    var index = 0
+    while index < held.fields.count() {
+        var field = held.fields[index]
+        var field_type = field.type
+        if holds_handles(field_type, visiting) {
+            visiting.remove_last()
+            return true
+        }
+        index = index + 1
+    }
+    visiting.remove_last()
+    return false
+}
+
+func handle_holder_class(held_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var class_ref = type_shape.as_class_ref(held_type)
+    assert class_ref
+    var held = find_class_by_c_name(class_ref.c_name)
+    assert held
+    assert not held.is_singleton and not held.is_value_class and not is_library_class(held)
+    return held
+}
+
+func wait_for_released(released_type: Analysis.SpiteType, code: String) {
+    var visiting = List<String>()
+    wait_for_held_handles(released_type, code, visiting)
+}
+
+func wait_for_held_handles(held_type: Analysis.SpiteType, code: String, visiting: List<String>) {
+    var nullable = type_shape.as_nullable(held_type)
+    if nullable {
+        var inner = nullable.inner
+        wait_for_held_handles(inner, code, visiting)
+        return
+    }
+    assert holds_handles(held_type, visiting)
+    var join = handle_join(held_type)
+    if not join.is_empty() {
+        add_handle_wait(join, code)
+        return
+    }
+    var listed = type_shape.as_list(held_type)
+    if listed {
+        var element = listed.element
+        var index = next_temporary()
+        var item = next_temporary()
+        builder.add_user("if ({code} != 0 && {code}->header.ref_count == 1) \{")
+        builder.add_user("int64_t {index} = 0;")
+        builder.add_user("while ({index} < {code}->item_count_) \{")
+        builder.add_user("{c_type_name(element)} {item} = {list_item_code(element, code, index)};")
+        wait_for_held_handles(element, item, visiting)
+        builder.add_user("{index} = {index} + 1;")
+        builder.add_user("}")
+        builder.add_user("}")
+        return
+    }
+    var held = handle_holder_class(held_type)
+    crash held
+    visiting.append(held.c_name)
+    builder.add_user("if ({code} != 0 && {code}->header.ref_count == 1) \{")
+    var field_index = 0
+    while field_index < held.fields.count() {
+        var field = held.fields[field_index]
+        var field_type = field.type
+        if holds_handles(field_type, visiting) {
+            var place = next_temporary()
+            builder.add_user("{c_type_name(field_type)} {place} = {field_place(code, held, field.name)};")
+            wait_for_held_handles(field_type, place, visiting)
+        }
+        field_index = field_index + 1
+    }
+    builder.add_user("}")
+    visiting.remove_last()
+}
+
 func waits_for_handles(element: Analysis.SpiteType): Boolean {
     if not resumable_mode or conditional_depth != 0 {
         return false
@@ -43571,6 +43905,29 @@ func emit_value_dispatcher(key: String, value_wait: ValueWait) {
         }
         index = index + 1
     }
+    var shape_index = 0
+    while shape_index < shape_value_keys.count() {
+        if shape_value_keys[shape_index] == key {
+            var valued_caller = shape_value_callers[shape_index]
+            var forwarder = shape_value_forwarders[shape_index]
+            var box_type = shape_value_boxes[shape_index]
+            crash valued_caller
+            crash forwarder
+            crash box_type
+            var starter = shape_starter(valued_caller)
+            var started = List<String>()
+            started.append("(({box_type}*)spite_value->spite_owner)->value")
+            var argument_index = 1
+            while argument_index < arguments.count() {
+                started.append(arguments[argument_index])
+                argument_index = argument_index + 1
+            }
+            lines.append(
+                "if (spite_value->spite_typed_call == (void*){forwarder}) return {starter}({started.join(", ")});",
+            )
+        }
+        shape_index = shape_index + 1
+    }
     lines.append("return 0;")
     lines.append("}")
     var joined_lines = lines.join("\n")
@@ -44049,9 +44406,9 @@ func sleep_steps(scheduler_class: Analysis.ClassInfo, function: Analysis.Functio
 func join_steps(scheduler_class: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
     crash function.parameters[0]
     var frame = c_value_name(function.parameters[0].name)
-    var frame_done = find_or_instantiate_function(scheduler_class, "frame_done")
-    crash frame_done
-    var over = "bool spite_over = {frame_done.c_name}(spite_frame->self, spite_frame->{frame});"
+    var joins = find_or_instantiate_function(scheduler_class, "joins")
+    crash joins
+    var over = "bool spite_over = {joins.c_name}(spite_frame->self, spite_frame->{frame});"
     var return_type = function.return_type
     if type_shape.is_void(return_type) {
         return over

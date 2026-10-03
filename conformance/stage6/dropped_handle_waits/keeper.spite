@@ -1,0 +1,8 @@
+var job: Concurrent<Nothing>? = null
+
+func busy(): Boolean {
+    if job {
+        return not job.finished
+    }
+    return false
+}

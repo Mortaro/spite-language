@@ -1,0 +1,6 @@
+var program = Program()
+
+func nap(milliseconds: Integer): Integer {
+    program.sleep(milliseconds)
+    return milliseconds
+}

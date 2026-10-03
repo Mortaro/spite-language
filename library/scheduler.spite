@@ -8,6 +8,9 @@ var offloads_running = 0
 var serving = false
 var waits_begun = 0
 var check_points_passed = 0
+var stepping: Long = 0
+var waiting_frames = List<Long>()
+var awaited_frames = List<Long>()
 var answering_in_wait = false
 var commands: Spite.Function<Nothing>? = null
 var reloads: Spite.Function<Nothing>? = null
@@ -45,9 +48,13 @@ func begin(frame: Long) {
 func run_frame(frame: Memory.Address): Boolean {
     unfinished_polls_with_no_frame_stepped = 0
     frame.write_integer(12, 1)
+    var outer = stepping
+    stepping = frame
     var done = step_frame(frame)
+    stepping = outer
     if done {
         frame.write_integer(12, 2)
+        forget_wait(frame)
         release_work(frame)
     } else {
         frame.write_integer(12, 0)
@@ -57,6 +64,49 @@ func run_frame(frame: Memory.Address): Boolean {
 
 func frame_done(frame: Memory.Address): Boolean {
     return frame.read_integer(12) == 2
+}
+
+func joins(frame: Long): Boolean {
+    if frame_done(frame) {
+        forget_wait(stepping)
+        return true
+    }
+    forget_wait(stepping)
+    waiting_frames.append(stepping)
+    awaited_frames.append(frame)
+    var awaited = frame
+    var hops = 0
+    while awaited != 0 and hops <= waiting_frames.count() {
+        var joins_a_concurrent_that_waits_for_this_one = awaited == stepping
+        crash not joins_a_concurrent_that_waits_for_this_one
+        awaited = awaited_by(awaited)
+        hops = hops + 1
+    }
+    return false
+}
+
+func awaited_by(frame: Long): Long {
+    var index = 0
+    while index < waiting_frames.count() {
+        if waiting_frames[index] == frame {
+            crash awaited_frames[index]
+            return awaited_frames[index]
+        }
+        index = index + 1
+    }
+    return 0
+}
+
+func forget_wait(frame: Long) {
+    var index = 0
+    while index < waiting_frames.count() {
+        if waiting_frames[index] == frame {
+            waiting_frames.remove_at(index)
+            awaited_frames.remove_at(index)
+            return
+        }
+        index = index + 1
+    }
 }
 
 func polled_unfinished() {

@@ -729,8 +729,9 @@ functions, no event loop and no helper threads; its waits are the plain system c
   until the wait is over while the other `Concurrent`s keep going. Two such waits that each wait for the other could
   never end, since the one further down the stack resumes only once the one above it returns, so a join that waits
   in place for a `Concurrent` whose state machine is running further down the same stack halts at the join
-  (`waits_for_its_own_caller=true`, `conformance/stage6/concurrent_wait_cycle`), even while other `Concurrent`s
-  keep the program busy. A `Concurrent` whose own function cannot be a state machine runs to its end when it is
+  (`waits_for_its_own_caller=true`), even while other `Concurrent`s keep the program busy; and a circle of joins
+  that are points to return from halts at the join that closes it (`joins_a_concurrent_that_waits_for_this_one=true`,
+  `conformance/stage6/concurrent_wait_cycle`). A `Concurrent` whose own function cannot be a state machine runs to its end when it is
   started: a function value a standard-library class made and stored before it reached `Concurrent`, a shape's
   function, a singleton function that takes [the lock](#singletons-a-parallel-reaches-take-a-lock), or any function
   of the program in a `--hot-reload` build, which is called through a slot that a reload swaps.

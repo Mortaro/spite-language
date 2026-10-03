@@ -35,7 +35,8 @@ func run_first(stages: List<Runnable>) {
 }
 
 func run_in_parallel(stage: Runnable) {
-    var running = List<Parallel<Nothing>>()
-    var stage_run = Parallel(stage.run_once)
-    running.append(stage_run)
+    stage.run_once()
+    var running = List<Parallel<String>>()
+    var stage_label = Parallel(stage.label)
+    running.append(stage_label)
 }

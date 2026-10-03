@@ -1,0 +1,18 @@
+a local assigned again is a point the Concurrent returns from: true
+an object holding a handle, dropped at its scope's end is a point the Concurrent returns from: true
+an attribute assigned again is a point the Concurrent returns from: true
+a list of objects holding handles is a point the Concurrent returns from: true
+answers 1, 2, 3, 4
+the first ring is running: true
+the keeper's first job is running: true
+rang
+rang
+the first ring was let go after it rang
+rang
+the keeper was let go after its job rang
+rang
+rang
+the keeper's first job was let go after it rang
+rang
+rang
+the keepers were let go after their jobs rang

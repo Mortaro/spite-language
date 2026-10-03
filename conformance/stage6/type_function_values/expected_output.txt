@@ -1,0 +1,3 @@
+a type's function held as a value, called plainly: 9
+a type's function held as a value is a point the Concurrent returns from: true
+and it answers 8

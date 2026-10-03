@@ -819,6 +819,14 @@ is a gap to close, not a rule. The steps, in the order a game meets them:
      took is released after every object of every changed class has moved, so a release that reaches another
      moved object finds it moved. Objects made while moving (a new attribute's default) are made in the new layout
      and not moved again.
+   - Nothing else runs while it installs and moves: the scheduler's tasks are paused, and every task on the thread
+     pool (a `Parallel`'s work, a `parallel_each_` pass) stops first at the next pass of one of its loops, where it
+     holds no attribute half read, and goes on once the swap is done; a task that starts meanwhile waits to start.
+     A task that reaches no such point within 10 seconds (it waits on a lock, sleeps, or reads a socket) refuses
+     the reload: `a task on another thread did not reach a loop's check point within 10 seconds, so nothing was
+     swapped in and no object moved under it: reload again once that work has finished`. This is a
+     `--hot-reload` build's alone: each task counts itself in and out of a gate, and each check point a task
+     passes looks whether a swap is waiting.
    - An attribute of a new type is a new attribute: it holds its default. The reload names every class it moved,
      and for each what is new, gone, renamed or retyped. When, in one class, an attribute is gone while another is
      new and the reload was given no map, the reload is held: nothing is swapped in, and the answer names both and

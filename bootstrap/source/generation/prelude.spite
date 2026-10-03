@@ -543,6 +543,10 @@ func task_members(): List<String> {
         "written by the generator: takes the singleton locks this thread skipped while no task ran, and counts a task in flight"
         "func _task_ended()"
         "written by the generator: counts a task out of flight"
+        "func _world_enter()"
+        "written by the generator: in a --hot-reload build, waits while a reload moves objects, then counts this thread as running the program"
+        "func _world_leave()"
+        "written by the generator: in a --hot-reload build, counts this thread out of running the program"
     ]
 }
 

@@ -1,0 +1,29 @@
+type Sleepy {
+    nap(Integer): Integer
+}
+
+var console = Console()
+
+func TypeFunctionValues() {
+    var quick = QuickNapper()
+    var plain = nap_through(quick)
+    console.print("a type's function held as a value, called plainly:", plain)
+    var through_value = Concurrent(slow_through_value)
+    console.print(
+        "a type's function held as a value is a point the Concurrent returns from:",
+        not through_value.finished,
+    )
+    var slept: Integer = through_value
+    console.print("and it answers", slept)
+}
+
+func slow_through_value(): Integer {
+    var napper = SlowNapper()
+    return nap_through(napper)
+}
+
+func nap_through(sleepy: Sleepy): Integer {
+    var nap = sleepy.nap
+    var slept = nap(8)
+    return slept
+}

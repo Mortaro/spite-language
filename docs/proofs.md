@@ -905,13 +905,16 @@ counter, one load per call, not a proof: [optimizations.md](optimizations.md#whi
 - **Proves.** Work run on another thread touches nothing another thread may touch at the same time.
 - **Rule.** A `Parallel(function)` and a `parallel_each_` member may reach only their own instance's plain values,
   their locals and singletons (which the compiler makes safe); an object handed over and held only by the task may
-  keep its lists and objects; a `Weak` a `Parallel` reaches is an error.
+  keep its lists and objects; a `Parallel`'s work writes a value attribute only of an object handed over to it
+  (not `this`, a parameter, an attribute or a local named again before), except inside a function it passes to a
+  `Lock` attribute's `while_locked(...)`; a `Weak` a `Parallel` reaches is an error.
 - **Buys.** A data race is a compile error.
 - **Falls back.** Refused, naming what the other thread could reach.
 - **See.** [concurrency.md: A value per thread, and a
   lock](concurrency.md#a-value-per-thread-and-a-lock), [`parallel_each_`: a member on every
   element](concurrency.md#parallel_each_-a-member-on-every-element); `diagnostics/parallel_reach`,
-  `diagnostics/parallel_function_reach`, `diagnostics/parallel_handover`, `diagnostics/weak_across_threads`.
+  `diagnostics/parallel_function_reach`, `diagnostics/parallel_handover`, `diagnostics/parallel_shared_value_writes`,
+  `diagnostics/weak_across_threads`.
 
 ### Which calls suspend a `Concurrent`
 

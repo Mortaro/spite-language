@@ -1,0 +1,26 @@
+var console = Console()
+var total = 0
+var kept = Counter()
+
+func ParallelSharedValueWrites() {
+    var own = Parallel(add_one)
+    var from_attribute = Parallel(kept.bump)
+    var given = Counter()
+    bump_given(given)
+    var shared = Counter()
+    var also = shared
+    var from_shared = Parallel(shared.bump)
+    var done = own and from_attribute and from_shared
+    console.print(done, total, also.count)
+}
+
+func bump_given(counter: Counter) {
+    var from_parameter = Parallel(counter.bump)
+    var done: Boolean = from_parameter
+    console.print(done)
+}
+
+func add_one(): Boolean {
+    total = total + 1
+    return true
+}

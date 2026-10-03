@@ -1,0 +1,29 @@
+var console = Console()
+var program = Program()
+var slot = 0
+var values = [0, 0, 0]
+
+func WaitIndexOrder() {
+    var writing = Concurrent(write_late)
+    var moving = Concurrent(move_slot)
+    var written: Integer = writing
+    var moved: Integer = moving
+    var shown = values.join(" ")
+    console.print(shown, written, moved)
+}
+
+func write_late(): Integer {
+    crash slot < values.count()
+    values[slot] = napped(5)
+    return 1
+}
+
+func move_slot(): Integer {
+    slot = 2
+    return 2
+}
+
+func napped(milliseconds: Integer): Integer {
+    program.sleep(milliseconds)
+    return milliseconds
+}

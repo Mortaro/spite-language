@@ -1,0 +1,31 @@
+var console = Console()
+var ledger = Ledger()
+var program = Program()
+
+func LockedWaits() {
+    var counting = Parallel(counted)
+    var first = Concurrent(record_first)
+    var second = Concurrent(record_second)
+    var counted_entries: Integer = counting
+    var first_done: Boolean = first
+    var second_done: Boolean = second
+    var shown = ledger.shown()
+    console.print(shown)
+    console.print(counted_entries >= 0, first_done, second_done)
+}
+
+func counted(): Integer {
+    return ledger.count()
+}
+
+func record_first(): Boolean {
+    program.sleep(1)
+    ledger.record("first")
+    return true
+}
+
+func record_second(): Boolean {
+    program.sleep(1)
+    ledger.record("second")
+    return true
+}

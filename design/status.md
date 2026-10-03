@@ -94,21 +94,12 @@ for a design):
 - Reference cycles leak without a word unless the program runs with `--debug-memory`, which prints the allocation
   balance (memory.md, "Cycles leak").
 - Some waits inside a `Concurrent` still run the event loop in place (concurrency.md, "Waits in a condition, a
-  comparison, or behind a choice made while running"): dropping the last reference to a `Concurrent` held by an
-  object, an attribute, a list that is not a local's, or a local assigned again; a function value of a value
-  class's function or of a `type`'s function; the waits of a function with no state machine (a locked singleton's,
-  every function of a `--hot-reload` build); the values a `crash` report prints. A join that closes a cycle through
-  one halts, but one such wait buried under another that never ends (a server's accept loop reached that way) is
-  held without a word for as long as that one runs. Arguments of the few built-in calls that do not go through the
-  common argument list (`set_at` on a counted list) are not held in the written order around a join among them.
-- A generic singleton that holds state is not made safe for threads (classes_and_files.md, "Safe for threads
-  without a keyword"): only its first fetch is locked. The compiler's lock is not reentrant, so a walk that calls
-  back into the same singleton (a class that holds itself) would deadlock under it. `Spite.DebugInstance<T>`, the
-  one in the library that held state, now takes `Spite.DebugGuard`, one reentrant guard every class's walk shares
-  (a `ThreadSlot` depth and a `Lock`, so two threads walking classes in opposite orders cannot deadlock), and three
-  `Parallel`s calling `to_debug()` at once balance (`conformance/stage6/debug_threads`). A program's own generic
-  singleton that holds state is still unguarded; the same is why `BinaryFormat<T>` keeps its stateless plural walk
-  (json.md below).
+  comparison, or behind a choice made while running"): a `Concurrent` dropped by `remove_at` or `remove_where` on a
+  list, or by a release no local or assignment makes; a wait through a `String`'s or a number's function held as a
+  value; a join of a `Concurrent` inside a locked singleton function; and every wait of a `--hot-reload` build,
+  whose functions have no state machine (waiting on item 298 of `mortaros_missing_decisions.md`: what a suspended
+  frame does when a reload swaps its function's code). A join that closes a cycle through one halts, but one such
+  wait buried under another that never ends is held without a word for as long as that one runs.
 - A Windows `__fastfail` (`0xC0000409`) ends the program without Spite's report or frames ("What a native fault
   reports"): the system ends the process without asking it, so only something outside the process could report it.
 - A write to the attributes of a copy that nothing reads afterwards is lost without a word: a function answers
@@ -116,10 +107,10 @@ for a design):
   compile error when an object only this function holds (escape analysis already proves a function's result fresh)
   has its attributes written and then dies unread, unpassed, unreturned and unkept; checked while compiling, it costs
   nothing at run time.
-- A reload that moves objects to new attributes (repl.md, "Changing a class's attributes") moves them while the
-  program's own threads may run: the swap pauses the scheduler's tasks, not a thread the program started itself, so a
-  thread reading an object of the class while it moves could read its old attributes. The move should wait for every
-  thread to reach a point where it holds nothing, as the swap of code does for the main loop.
+- A reload the compiler refuses is announced again and again: with an error in the saved code (an attribute never
+  read, say), a `--hot-reload` program printed the same `spite: the program keeps the code it runs: ...` line 28
+  times in about a minute, on `master` before D461 as after it, so something compiles it again without a new save.
+  Loud, but it hides the next message and burns a core; a refused compile should wait for the next save.
 
 Also open, each a bug under D244, found cataloguing the compiler's proofs (proofs.md):
 
@@ -130,9 +121,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   check, and is reported only in work a `Parallel` reaches (when its function never waits) and in a locked singleton
   function: elsewhere a call inside it may end the program, so it is left alone, and one that never does is a hang.
   Only a loop that calls nothing is refused everywhere (control_flow.md).
-- **Two threads writing one number attribute of an instance they share** is refused only when the instance is a
-  local handed to the `Parallel` (concurrency.md, "A task may keep what was handed to it"); `Parallel(own_function)`,
-  a parameter, an attribute, or a local used before the `Parallel` still race, the result whichever write lands last.
 
 ### Nothing fails silently: the rule
 

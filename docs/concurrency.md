@@ -1044,18 +1044,33 @@ a resumable version (`bootstrap/source/generation/state_machine.spite`):
     state machine, and makes its frame, or answers none, and the value is then called plainly. A union's or a
     `type`'s function does the same by class.
   - A constructor that waits makes the object, then steps the constructor's own state machine on it.
-  - A local that holds a `Concurrent`, or a list of them, waits at the end of its scope for each handle it holds the
-    last reference to, before letting it go; `clear()` on a list of `Concurrent`s waits for each of them first. The
-    drop that follows then finds the work finished.
+  - A local that holds a `Concurrent`, a list of them, or an object of a program class whose attributes hold one
+    (through a `T?`, a list or another such object, however deep, a class seen once on the way), waits at the end
+    of its scope for each handle it holds the last reference to, before letting it go; `clear()` on a list of
+    `Concurrent`s waits for each of them first. An assignment that replaces such a value (a local assigned again,
+    an attribute assigned again, `keeper.job = Concurrent(ring)` a second time) stores the new value first, then
+    waits the same way for the old one, then lets it go. The drop that follows then finds the work finished
+    (`conformance/stage6/dropped_handle_waits`).
+  - A `type`'s function held as a value (`var nap = sleepy.nap`) is a value of its own that holds the shape's value,
+    and calling it waits like a call through any function value, by class (`conformance/stage6/type_function_values`).
+  - A function of a singleton that holds the singleton's lock has no state machine (a lock held across a point the
+    state machine returns from would let another `Concurrent` on the same thread into it), so a wait inside it does
+    not run the event loop: it blocks there, as it would outside a `Concurrent`, and every other `Concurrent` waits
+    until the call is done, which keeps the call one step (`conformance/stage6/locked_waits`). Each locked call
+    counts itself on its thread to decide this, only in a program that has both locks and waits.
   What still waits by running the event loop where it is (holding its `Concurrent` while every other state machine
-  goes on): dropping a `Concurrent` in any other way inside a `Concurrent` (the last reference held by an object,
-  an attribute or an element of a list that is not a local's, or by a local that is assigned again), a wait reached
-  through a function value or a `type` whose function has no state machine (a value of a value class's function, or
-  of a `type`'s function itself), the waits of a function that has none (above), and a wait inside the values a
-  `crash` or `assert` report prints. Two such waits that each wait for the other could never end, so a join that
+  goes on): dropping a `Concurrent` held in some other way inside a `Concurrent` (an element taken out of a list
+  with `remove_at` or `remove_where`, an object let go by a release no local or assignment makes), a wait through
+  a `String`'s or a number's function held as a value (a reopening's function that waits), a join of a
+  `Concurrent` inside a function of a singleton that holds its lock, and every wait of a `--hot-reload` build, whose
+  functions have no state machine (above). Two such waits that each wait for the other could never end, so a join that
   waits in place for a `Concurrent` whose state machine is running further down the same stack halts at the join
-  (`waits_for_its_own_caller=true`, `conformance/stage6/concurrent_wait_cycle`); a join that is a point to return
-  from just waits, and the machine below it carries on. A `Concurrent` whose function has
+  (`waits_for_its_own_caller=true`); a join that is a point to return from just waits, and the machine below it
+  carries on, unless the `Concurrent` it joins waits, through joins of its own, for the one that is joining: two
+  `Concurrent`s that each drop the other's last handle would wait for each other for ever, so the join that closes
+  the circle halts there (`joins_a_concurrent_that_waits_for_this_one=true`,
+  `conformance/stage6/concurrent_wait_cycle`). The scheduler keeps, for each `Concurrent` waiting at such a join,
+  the one it waits for, only in a program that makes a `Concurrent`. A `Concurrent` whose function has
   no state machine runs it to the end when it is made. `is_resumable` answers `true` for a function whose only wait
   is one of these, since it does wait. `conformance/stage6/waits_never_hang` starts a `Concurrent` through each form
   and finds it unfinished straight after, and joins, through a function value, work that a wait below it finishes.
@@ -1298,6 +1313,16 @@ of it at compile time over the source:
   is not used after that line: ...` (`diagnostics/parallel_shared_writes`). Each pass of a loop makes
   its own, so `var crafter = Crafter(first)` then `Parallel(crafter.craft)` inside a `while` hands over a new one
   every pass.
+
+**A task writes a value attribute only of an object handed to it.** When the work of `Parallel(...)` writes an
+attribute holding a value (a number, a `Boolean`, an enum or text) of an object that was not handed over as above
+(`this` for `Parallel(own_function)`, a parameter, an attribute, or a local named again or passed before the
+`Parallel` line), it is a compile error: another thread may write the same attribute at the same time, and one write
+would be lost. `'Parallel(kept.bump)' writes 'count' of 'kept' on another thread, and 'kept' is not handed over to
+it, ...` names the ways out: hand over a new object, answer the value from the work and read the task's result, or
+keep the value in a singleton, which is made safe for threads. A write the work makes inside a function it passes to
+a `Lock` attribute's `while_locked(...)` is not counted, since the lock makes it one step. A singleton's own
+attributes are never counted either. `diagnostics/parallel_shared_value_writes`.
 
 The task runs exactly as it did; nothing is added at run time. `conformance/stage6/parallel_handover`,
 `diagnostics/parallel_handover`.
