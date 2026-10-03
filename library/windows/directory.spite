@@ -31,3 +31,7 @@ func entry_names(want_folders: Boolean): List<String> {
     heap.free(found)
     return names
 }
+
+func rename_to(new_path: String): Boolean {
+    return kernel.MoveFileExA(path, new_path, 0) != 0
+}

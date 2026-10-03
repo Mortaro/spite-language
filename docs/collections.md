@@ -40,6 +40,7 @@ var empty = List<String>()
 | `first()` / `last()` | `T?` | `null` when empty, like `[]`: narrow it, `crash first` or `if first { }` |
 | `count()` / `is_empty()` | `Integer` / `Boolean` | `count()` is only ever the list's size |
 | `contains(value)` | `Boolean` | elements that are numbers, `Boolean`, `String` or an enum only |
+| `index_of(value)` | `Integer?` | the place of the first element equal to `value`, or `null` when none is; the same elements as `contains` |
 | `clear()` / `reverse()` | | in place; `clear()` keeps the buffer's capacity |
 | `join(separator)` | `String` | every element becomes text: a `String`, a number, a `Boolean`, an enum value |
 | `copy()` / `deep_copy()` | `List<T>` | one level, or all the way down ([memory.md](memory.md)) |
@@ -228,6 +229,7 @@ templates run on the items in place the same way, and a chain of them is one loo
 | `copy()` / `deep_copy()` | `Vector<T>` | a new vector with its own copy of every item |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()` | | as on a list; `filter_` gives a `Vector<T>` of copies |
 | `find_by_<member>(value)` | `T?` | the first item whose member equals `value`, borrowed once narrowed; `null` when none does |
+| `find_index_by_<member>(value)` | `Integer?` | the place of that item, or `null` when none matches |
 | `sort_by_<member>()` | `Vector<T>` | a new vector with a copy of every item, sorted ascending and stable, as on a list |
 | `parallel_each_<member>()` | | as on a list ([concurrency.md](concurrency.md#parallel_each_-a-member-on-every-element)) |
 
@@ -337,6 +339,7 @@ of moving every later one down, which is what a sparse set wants.
 | `copy()` / `deep_copy()` | `Items<T>` | inline: every item copied; references: one level, or all the way down |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()`, `parallel_each_<member>()` | | as on a vector; `filter_` gives an `Items<T>`, and a chain is one loop |
 | `find_by_<member>(value)` | `T?` | the first item whose member equals `value`: inline, borrowed once narrowed; references, the reference; `null` when none does |
+| `find_index_by_<member>(value)` | `Integer?` | the place of that item, or `null` when none matches |
 | `sort_by_<member>()` | `Items<T>` | sorted ascending and stable: inline, a copy of every item; references, the same references |
 
 Where the items are inline every rule of a borrowed item applies, and the error says why the item is borrowed,
@@ -466,6 +469,7 @@ names a program calls. Text has members too: `names.map_upper_cases()` collects 
 | `any_<member>()` / `all_<member>()` | `Boolean` | take nothing, return `Boolean` |
 | `sum_<member>()` | the member's number type | take nothing, return a number |
 | `find_by_<member>(value)` | `T?`, the first element whose member equals `value` | return something comparable to `value` |
+| `find_index_by_<member>(value)` | `Integer?`, the place of that element | return something comparable to `value` |
 | `sort_by_<member>()` | `List<T>`, sorted ascending, stable, in `n log n` time | return a number or a `String` |
 | `map_<members>()` | `List<U>`, one value per element | return a value |
 | `each_<member>()` | nothing: calls it on every element | be a function that takes nothing; what it returns is discarded |
@@ -1224,6 +1228,9 @@ or a `while` that does more than they do.
 
 `contains(value)` compares with `==`, so it is there only for elements that are numbers, `Boolean`, `String` or an
 enum; on a list of a class the call is `List has no method 'contains'`: ask with `any(f)` or `find_by_<member>`.
+`index_of(value)` is the same comparison answering where: the first element's index, or `null` when no element is
+equal, so a missing value is never read as a place. On a list of a class, `find_index_by_<member>(value)` answers
+the index of the first element whose member equals `value`, the place `find_by_<member>` would have found.
 
 Names say where: `add` does not, so it is `append` (and `prepend`); `pop()` is `remove_last()`, beside
 `remove_first()`. Writing `add` or `pop` is a compile error naming the replacement: `List has no method 'add', which

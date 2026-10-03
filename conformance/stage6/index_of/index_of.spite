@@ -1,0 +1,39 @@
+var console = Console()
+
+func IndexOf() {
+    var words = ["red", "green", "blue"]
+    var green = words.index_of("green")
+    crash green
+    var missing = words.index_of("pink")
+    var absent = true
+    if missing {
+        absent = false
+    }
+    console.print(green, absent)
+    var tools = List<Tool>()
+    var hammer = Tool("hammer", 4)
+    tools.append(hammer)
+    var saw = Tool("saw", 2)
+    tools.append(saw)
+    var place = tools.find_index_by_name("saw")
+    crash place
+    var heavy = tools.find_index_by_weight(4)
+    crash heavy
+    var nowhere = tools.find_index_by_name("drill")
+    var unfound = true
+    if nowhere {
+        unfound = false
+    }
+    console.print(place, heavy, unfound)
+    var packed = Vector<Tool>()
+    packed.append(hammer)
+    packed.append(saw)
+    var packed_place = packed.find_index_by_weight(2)
+    crash packed_place
+    var columns = Items<Tool>()
+    columns.append(saw)
+    columns.append(hammer)
+    var column_place = columns.find_index_by_name("hammer")
+    crash column_place
+    console.print(packed_place, column_place)
+}

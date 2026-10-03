@@ -162,7 +162,7 @@ func visit_call(call: Syntax.Expressions.CallExpression) {
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
-        var reading = ["count", "is_empty", "get_at", "first", "last", "contains"]
+        var reading = ["count", "is_empty", "get_at", "first", "last", "contains", "index_of"]
         if is_named_here(member.object) {
             if not reading.contains(member.name) {
                 list_kept = false

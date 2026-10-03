@@ -1,0 +1,5 @@
+true false renamed.txt
+true hello
+false in the way renamed.txt
+true true outer
+false

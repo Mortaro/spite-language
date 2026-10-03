@@ -672,7 +672,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Proves.** A list is only read after it is filled, or only read by the function it is handed to.
 - **Rule.** A local list made by a literal or `List<T>()` and filled by `append` statements at its own level, then only
   read, lives in the frame (16 items) or in constant data (256). A variadic list whose callee only reads it
-  (`count`, `[]`, `get_at`, `first`, `last`, `contains`, `join`, ...), in a call that is a statement of its own, lives
+  (`count`, `[]`, `get_at`, `first`, `last`, `contains`, `index_of`, `join`, ...), in a call that is a statement of its own, lives
   in the caller's frame.
 - **Buys.** Two allocations fewer per list.
 - **Falls back.** The heap, when the list is stored, returned, changed after filling, handed to a template, asked for

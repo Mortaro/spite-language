@@ -160,6 +160,17 @@ func contains(value: $element_type): Boolean {
     return false
 }
 
+func index_of(value: $element_type): Integer? {
+    var index = 0
+    while index < item_count {
+        if values.read_value(items, index) == value {
+            return index
+        }
+        index = index + 1
+    }
+    return null
+}
+
 func join(separator: String): String {
     var pieces = List<String>()
     var total: Long = 0
@@ -392,6 +403,18 @@ func find_by_member(member: Spite.AttributeDeclaration<$element_type>, value: me
         var item = values.read_value(items, index)
         if item.attributes[member] == value {
             return item
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func find_index_by_member(member: Spite.AttributeDeclaration<$element_type>, value: member.class): Integer? {
+    var index = 0
+    while index < item_count {
+        var item = values.read_value(items, index)
+        if item.attributes[member] == value {
+            return index
         }
         index = index + 1
     }

@@ -203,7 +203,8 @@ func is_alive(): Boolean {
   goes. Two objects that refer to each other leak: hold the back reference as a `Weak<T>` (`get()` is a `T?`, `null` once the object is freed), or clear one side.
 - `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
   `last` (both a `T?`, `null` on an empty list, like `[]`: `var first = names.first()` then `crash first`), `count`, `contains` (elements that are numbers, `Boolean`, `String`
-  or an enum only: on a list of a class use `any(f)` or `find_by_<member>`), `is_empty`, `clear`, `reverse`,
+  or an enum only: on a list of a class use `any(f)` or `find_by_<member>`), `index_of` (an `Integer?`, the same
+  elements as `contains`), `is_empty`, `clear`, `reverse`,
   `join` (text, numbers, `Boolean` and enum values all join), never `add` or `pop`. `list[index]` is a `T?` (out of range gives nothing), and `crash names[index]` narrows it like a path,
   and so does `crash glyphs[code - 32]`, or any index with no call in it, with no copy into a local first;
   `crash names.count() == 3` (or `>= 3`, or `> 2`) proves `names[0]` to `names[2]`, so does
@@ -323,7 +324,8 @@ func is_alive(): Boolean {
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](https://github.com/Mortaro/spite-language/blob/master/docs/optimizations.md).
 - On a list or dictionary of a class or of text: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Boolean` member),
-  `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<members>()`,
+  `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`),
+  `find_index_by_<member>(value)` (an `Integer?`, on a list, vector or items, never a dictionary), `map_<members>()`,
   `each_<member>()` (a function). On a list of a union, `filter_<classes>()` keeps one member class and answers a
   list of it: `entries.filter_files()` is a `List<File>`, and `count_files()`, `any_directories()`, `all_files()`
   and `remove_where_directories()` take a member class the same way. A member is an attribute or a function that takes nothing; text has them too
@@ -573,8 +575,8 @@ func is_alive(): Boolean {
 `Console()` (`print`, `write`, `error`, `debug`, `read_line(): String?`; each value printed is its `to_string()`, so
 a class prints once it declares `func to_string(): String`, and `debug` shows any value's state, a class as
 `Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`map(): MappedFile?` for a file too big to read: `size()`, `mapped[position]`, `read_long(position)`, ... each a `T?`; `read(): String?`, `write`,
-`append`, `exists`, `remove`), `Directory(path)` (`path`, `name`, `entries(): List<Directory.Entry>` (each entry a `Directory` or a `File`, switched on;
-one kind is `entries.filter_files()` or `filter_directories()`, never a helper of its own), `exists`, `create`),
+`append`, `exists`, `remove`, `move_to(path)`: renames or moves, `false` when something is already there), `Directory(path)` (`path`, `name`, `entries(): List<Directory.Entry>` (each entry a `Directory` or a `File`, switched on;
+one kind is `entries.filter_files()` or `filter_directories()`, never a helper of its own), `exists`, `create`, `move_to(path)`),
 `Process(command, arguments)` (`run(): Integer`, `output()`: standard output only; each argument reaches the child whole, `-key=value with spaces` as `-key="value with spaces"` on Windows; `working_directory` and `environment_variables["NAME"] = "value"` set for the child alone), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere, bound once
 as `var console = Console()`.

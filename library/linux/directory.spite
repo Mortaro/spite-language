@@ -31,3 +31,7 @@ func entry_names(want_folders: Boolean): List<String> {
     }
     return names
 }
+
+func rename_to(new_path: String): Boolean {
+    return library.rename(path, new_path) == 0
+}

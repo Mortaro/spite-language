@@ -128,6 +128,7 @@ ADA 3 -1 da []
 | `read()` | `String?` | `null` when the file cannot be read |
 | `write(text)` / `append(text)` | `Boolean` | replaces the content / adds to its end |
 | `exists()` / `remove()` | `Boolean` | |
+| `move_to(path)` | `Boolean` | renames or moves it ([below](#rename-or-move-a-file-or-folder)) |
 | `size()` | `Long?` | how many bytes it holds; `null` when it cannot be opened |
 | `modified()` | `Instant?` | when it was last written ([time.md](time.md)); `null` when it does not exist |
 | `read_bytes(position, count, address)` | `Long?` | reads up to `count` bytes starting `position` bytes in, into memory at `address`; answers how many it read (`0` at the end), `null` when it cannot be opened |
@@ -196,6 +197,39 @@ func ByteRecords() {
 ```
 ```output
 the second record starts at 8 and holds 2222 of 16 bytes
+```
+
+### Rename or move a file or folder
+
+`move_to(path)` is one function for both, on a `File` and on a `Directory`: a new name in the same folder renames
+it, a path in another folder moves it there. It answers `true` when it moved, and the value then names the new
+path, so the same `File` keeps working. It never replaces anything: when a file or folder is already at `path` it
+answers `false` and changes nothing, so a move can never lose what was there. It answers `false` too when there is
+nothing to move, or when the system cannot move it (a folder to another drive).
+
+```gdscript title=moving_files/moving_files.spite entry
+var console = Console()
+
+func MovingFiles() {
+    var folder = Directory(".spite/documentation_moving")
+    folder.create()
+    var draft = File(".spite/documentation_moving/draft.txt")
+    draft.write("notes")
+    var renamed = draft.move_to(".spite/documentation_moving/final.txt")
+    console.print(renamed, draft.name)
+    var keeper = File(".spite/documentation_moving/keeper.txt")
+    keeper.write("keep me")
+    var replaced = draft.move_to(".spite/documentation_moving/keeper.txt")
+    var kept = keeper.read()
+    crash kept
+    console.print(replaced, kept)
+    draft.remove()
+    keeper.remove()
+}
+```
+```output
+true final.txt
+false keep me
 ```
 
 ### A file larger than memory: map it
@@ -268,6 +302,7 @@ way ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-
 | `name` | `String` | the last piece of the path: `Directory("levels/forest").name` is `forest` |
 | `entries()` | `List<Directory.Entry>` | every folder and file inside it, as `Directory` and `File` values, each kind sorted by name with a merge sort (`n log n`), so a folder of thousands of files lists quickly |
 | `exists()` / `create()` | `Boolean` | |
+| `move_to(path)` | `Boolean` | renames or moves it with everything inside ([below](#rename-or-move-a-file-or-folder)) |
 
 ```gdscript title=directory_tasks/directory_tasks.spite entry
 var console = Console()
@@ -1011,9 +1046,9 @@ library through `DynamicLibrary`. What each member answers is in the section of 
 
 | Class | Members |
 |---|---|
-| `File(path)` | `path`, `name` (the last piece of the path), `to_string(): String` (the path), `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes: `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?`, `map(): MappedFile?`; see [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
+| `File(path)` | `path`, `name` (the last piece of the path), `to_string(): String` (the path), `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`, `move_to(path): Boolean`; bytes: `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?`, `map(): MappedFile?`; see [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS. `move_to(path)`, on a `File` and on a `Directory`, answers `false` and changes nothing when a file or folder is already at `path`, and otherwise moves with `rename` on Linux and macOS and `MoveFileExA` on Windows (a file may be copied across drives there; a folder never is); on `true` the value names `path` |
 | `MappedFile` | made by `File.map()`: a read-only mapping of the whole file (`CreateFileMappingA`/`MapViewOfFile` on Windows, `mmap` with `PROT_READ` and `MAP_PRIVATE` on Linux and macOS, the file itself closed once mapped), undone by `drop()` (`UnmapViewOfFile`, `munmap`). `size(): Long`; `get_at(position): Byte?` (`mapped[position]`), `read_short`, `read_integer`, `read_long`, `read_float`, `read_double` (each `(position): T?`) and `text(position, count): String?` answer `null` unless every byte they would read is inside the file, so a bad offset read from the file cannot read outside it; a read inside is one load from the mapping. An empty file maps to a `MappedFile` of size 0, since the operating systems refuse to map nothing. `conformance/stage6/mapped_files`; see [A file larger than memory](#a-file-larger-than-memory-map-it) |
-| `Directory(path)` | `path`, `name` (the last piece of the path), `entries(): List<Directory.Entry>` (below), `exists(): Boolean`, `create(): Boolean`; see [List a directory](#list-a-directory) |
+| `Directory(path)` | `path`, `name` (the last piece of the path), `entries(): List<Directory.Entry>` (below), `exists(): Boolean`, `create(): Boolean`, `move_to(path): Boolean`; see [List a directory](#list-a-directory) |
 | `Process(command, arguments)` | `working_directory`, `environment_variables`, `run(): Integer`, `output(): String`, `run_attached(): Integer`; see [Run a process](#run-a-process). Each argument reaches the child whole: single-quoted for the shell on Linux and macOS, and quoted by the `CommandLineToArgvW` rules on Windows, a `key=value` argument quoting only its value (`-script="a b"`). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
 | `Program()` | a singleton: `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String`, `live_allocations(): Integer`; see [Program](#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |
 | `Clock()` | a singleton: `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant`; `elapsed_nanoseconds()` is the monotonic clock, with a nanosecond unit and no allocation per reading; see [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation) |

@@ -87,3 +87,9 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      for every class at once. Recommend (a): one line says what it replaces, and it reads like the call it changes.
      Blocks the class-object half of D483 (backlog R8); the instance half (getters, setters, `to_string`, `copy`) is
      replaceable today.
+303. **Does `move_to(path)` replace what is already there?** (D476, D244, D205; standard_library.md "Rename or move
+     a file or folder".) Built so that it never does: when a file or folder is at `path` it answers `false` and
+     changes nothing, since the system calls (`rename`, `MoveFileExA`) would silently replace a file. Options: (a)
+     never replace (built); (b) replace, as the system calls do; (c) a second function that replaces. Recommend
+     (a): a move that drops a file the program did not know was there is a lost write; a program that means to
+     replace removes the old one first, in one more line that says so.

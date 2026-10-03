@@ -1,0 +1,7 @@
+var name = ""
+var weight = 0
+
+func Tool(new_name: String, new_weight: Integer) {
+    name = new_name
+    weight = new_weight
+}

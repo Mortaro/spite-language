@@ -302,6 +302,25 @@ func find_by_member(member: Spite.AttributeDeclaration<$element_type>, value: me
     return null
 }
 
+func find_index_by_member(member: Spite.AttributeDeclaration<$element_type>, value: member.class): Integer? {
+    var index = 0
+    while index < item_count {
+        if $element_type.fits_vector() {
+            var item = inline.item_at(items, index)
+            if item.attributes[member] == value {
+                return index
+            }
+        } else {
+            var item = references.read_value(items, index)
+            if item.attributes[member] == value {
+                return index
+            }
+        }
+        index = index + 1
+    }
+    return null
+}
+
 func sort_by_member(member: Spite.AttributeDeclaration<$element_type>): Items<$element_type> {
     var keys = List<member.class>()
     var order = List<Integer>()

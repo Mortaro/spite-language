@@ -230,12 +230,6 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   each tested against real servers. **L** (the unified API plus three bindings; the largest library item).
 - **S10 TLS written in Spite** (D395, later). Replaces S2's platform bindings behind the same API, so no program
   changes; lands only after an outside security review. **L.** Depends on S2.
-- **S11 `File.rename` and moving a file or folder.** There is no way to rename or move one without a foreign call.
-  One function on `File` and `Directory` (name proposed by Claude, unconfirmed), on every system. Files:
-  `library/file.spite`, `directory.spite` and their system folders, docs standard_library.md. **S.** No dependencies.
-- **S12 `List.index_of(item): Integer?`.** `find_by_<member>` answers the item, never its place; add the index form
-  (and its member template, `find_index_by_<member>`; names proposed by Claude, unconfirmed). Files:
-  `library/list.spite`, `vector.spite`, `items.spite`, docs collections.md. **S.** No dependencies.
 - **S3 HTTP leftovers** (status "HTTP"). Request bodies sent chunked to the server; the server reading one request
   at a time so a slow client holds the others; the client's resend of a `POST` over a new connection. Files:
   `library/http_server.spite`, `http_client.spite`. **M.** Benefits from K5.

@@ -657,7 +657,7 @@ pointer.
 
 **What it does.** The `...values` of a variadic call arrive in a `List`. When the call is a statement of its own
 (`console.print(name, count)`), outside `and`/`or` and outside a function that waits, and the function called only
-reads its list (`count()`, `is_empty()`, `[index]`, `get_at`, `first`, `last`, `contains`, `join`, or passing it to a
+reads its list (`count()`, `is_empty()`, `[index]`, `get_at`, `first`, `last`, `contains`, `index_of`, `join`, or passing it to a
 function of its own class that only reads it too), the list and its items are in the caller's frame: no allocation for
 the list or its items, and its elements (the boxes of text above) are released after the call. A function that stores,
 returns, grows or passes on its list anywhere else gets a list on the heap as before, and so does a function of a
@@ -987,7 +987,7 @@ eight systems reading one column per row do not hand a cache line from core to c
 compiler proves from its source that it changes nothing: its statements declare and assign only its own locals,
 branch, loop, `return`, `assert` or `crash`; it calls only reading functions of its own class, the reading members
 of a `List` or `Dictionary` it holds or is passed (`count`, `get_at`, `[]`, `get`, `has`, `is_empty`, `first`,
-`last`, `contains`, `keys`, `values`, `join`, `copy`), anything on text and numbers but a `write_` or `copy_to`,
+`last`, `contains`, `index_of`, `keys`, `values`, `join`, `copy`), anything on text and numbers but a `write_` or `copy_to`,
 `read_value`-like reads of `TypedMemory` and `InlineMemory`, and reading functions of a singleton that holds no
 state (an engine's `Raw.read_long`); it reads attributes that have no getter; its text has no holes (a hole could
 call `to_string`); and its operators are on numbers, or the program declares no operator function at all. Anything
@@ -1026,7 +1026,7 @@ holds, so that the lock held longer can neither deadlock nor wait on anything:
   `.count()` of a list of plain values. So it never waits for another thread to change the singleton (a poll such
   as `while got == 0 { got = mailbox.take() }` keeps a lock per call), and every `while` inside it is counted too.
 - **It locks nothing else.** Its calls are functions of that one singleton, reached through the attribute that binds
-  it, and the reads and writes of a list of plain values (`count`, `get_at`, `set_at`, `append`, `contains`,
+  it, and the reads and writes of a list of plain values (`count`, `get_at`, `set_at`, `append`, `contains`, `index_of`,
   `is_empty`, `[]`); what it computes is numbers, `Boolean`, text without holes and enum values, so no operator,
   getter or `to_string` of a class of the program's can run in it. A lock it takes nothing else under adds no new
   order between two locks: whatever the singleton's functions lock, they lock under its lock already.
@@ -1661,7 +1661,7 @@ function's own frame, the way [a variadic list](#a-variadic-list-the-callee-only
 already is. Known size means the literal's items plus the `append`s written as statements of their own in the
 same block after it (not inside a loop, a branch or another statement), since each of those runs at most once;
 the items get exactly that many slots. Never leaving means every later statement of the block only reads it:
-`count()`, `is_empty()`, `[index]`, `get_at`, `first`, `last`, `contains`, `join`, or passing it to a
+`count()`, `is_empty()`, `[index]`, `get_at`, `first`, `last`, `contains`, `index_of`, `join`, or passing it to a
 function of its own class that only reads it too. A list that is returned, stored, assigned, put into another list
 or object, changed with `set_at`, `insert`, a `remove_...` or `clear`, handed to a template, or whose `.memory` is
 read is made on the heap as before. At the end of the block its items are let go, and nothing else.
@@ -1713,7 +1713,7 @@ the plain C loop a C compiler can turn into vector instructions (SIMD), when the
   below `values.count()`.
 - **Nothing in the loop changes a list's size.** The body only declares and assigns numbers and `Boolean`s (its own
   locals, not attributes), reads and writes the items of lists of plain values (`[index]`, `get_at`, `set_at`,
-  `first`, `last`, `contains`, `count`, `is_empty`), and calls the maths functions of the number
+  `first`, `last`, `contains`, `index_of`, `count`, `is_empty`), and calls the maths functions of the number
   classes. Any other call, even one to a function that looks harmless, keeps the loop as it was: a call is where a
   list could be resized through another name.
 - **The loop cannot be interrupted.** A `--repl`, `--repl-port` or `--hot-reload` build may run code between two

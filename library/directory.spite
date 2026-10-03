@@ -9,6 +9,19 @@ func Directory(starting_path: String) {
     path = starting_path
 }
 
+func move_to(new_path: String): Boolean {
+    var file_there = File(new_path)
+    var folder_there = Directory(new_path)
+    if file_there.exists() or folder_there.exists() {
+        return false
+    }
+    if not rename_to(new_path) {
+        return false
+    }
+    path = new_path
+    return true
+}
+
 func get_name(): String {
     var end = path.length()
     while end > 1 and path.code_at(end - 1) == 47 {

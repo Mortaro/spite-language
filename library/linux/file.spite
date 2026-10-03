@@ -60,3 +60,7 @@ func map(): MappedFile? {
     assert bytes >= 0 and view != -1
     return MappedFile(view, bytes)
 }
+
+func rename_to(new_path: String): Boolean {
+    return library.rename(path, new_path) == 0
+}

@@ -16193,6 +16193,7 @@ func generate_list_method(
         "is_empty"
         "count"
         "contains"
+        "index_of"
         "join"
         "copy"
         "reserve"
@@ -16751,7 +16752,7 @@ func enum_members_listing(element: Analysis.SpiteType, value: String): List<Stri
 }
 
 func passing_hint(caller: Analysis.ClassInfo, prefix: String, member_name: String): String {
-    if prefix == "find_by_" {
+    if prefix == "find_by_" or prefix == "find_index_by_" {
         return ""
     }
     var function = caller.find_function(member_name)
@@ -16853,7 +16854,8 @@ func member_requirement(
     if template_prefix == "sort_by_" and not ordered {
         return "return something ordered: a number or a String"
     }
-    if template_prefix == "find_by_" and not joins_as_text(member_type) {
+    var finds = template_prefix == "find_by_" or template_prefix == "find_index_by_"
+    if finds and not joins_as_text(member_type) {
         return "return something comparable: a number, Boolean, String, Symbol or enum value"
     }
     return ""
@@ -21511,7 +21513,8 @@ func supply_list_functions(list_class: Analysis.ClassInfo, element: Analysis.Spi
     var index = 0
     while index < list_class.declared_functions.count() {
         var function = list_class.declared_functions[index]
-        var unsupported = function.name == "contains" and not comparable or function.name == "join" and not joins_as_text(element)
+        var compares = function.name == "contains" or function.name == "index_of"
+        var unsupported = compares and not comparable or function.name == "join" and not joins_as_text(element)
         if not unsupported {
             kept.append(function)
         }
@@ -35967,7 +35970,7 @@ func coarse_call(
     if not receiver {
         return false
     }
-    var list_calls = ["count", "get_at", "is_empty", "set_at", "append", "contains"]
+    var list_calls = ["count", "get_at", "is_empty", "set_at", "append", "contains", "index_of"]
     if list_calls.contains(member.name) and plain_list_named(receiver.name, scope, class_information) {
         return coarse_arguments(call.arguments, true, scope, class_information)
     }
@@ -36685,7 +36688,7 @@ func is_counted_call(
     }
     var receiver = shape.as_identifier(member.object)
     if receiver and holds_counted_values(receiver.name, scope) {
-        var reads = ["count", "is_empty", "get_at", "set_at", "first", "last", "contains"]
+        var reads = ["count", "is_empty", "get_at", "set_at", "first", "last", "contains", "index_of"]
         return reads.contains(member.name)
     }
     return maths.is_member(member.name) and is_counted_plain(member.object, plain_names, scope, class_information)
@@ -40523,6 +40526,7 @@ func call_reads_only(
             "first"
             "last"
             "contains"
+            "index_of"
             "keys"
             "values"
             "join"

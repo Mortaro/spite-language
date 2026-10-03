@@ -80,3 +80,8 @@ func map(): MappedFile? {
     assert bytes == 0 or view != 0
     return MappedFile(view, bytes)
 }
+
+func rename_to(new_path: String): Boolean {
+    var copy_across_volumes = 2
+    return kernel.MoveFileExA(path, new_path, copy_across_volumes) != 0
+}
