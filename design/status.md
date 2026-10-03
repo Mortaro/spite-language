@@ -126,10 +126,6 @@ for a design):
 - A reload of a class with a state machine compiles the whole program (`spite: compiling the whole program, since
   'Worker_slow___begin' of a changed class is not made without compiling the whole program`): a reload library made
   for one class does not yet write the class's machine entries. Loud and correct, only slower.
-- A reload the compiler refuses is announced again and again: with an error in the saved code (an attribute never
-  read, say), a `--hot-reload` program printed the same `spite: the program keeps the code it runs: ...` line 28
-  times in about a minute, on `master` before D461 as after it, so something compiles it again without a new save.
-  Loud, but it hides the next message and burns a core; a refused compile should wait for the next save.
 
 Also open, each a bug under D244, found cataloguing the compiler's proofs (proofs.md):
 

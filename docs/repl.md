@@ -779,7 +779,9 @@ worked out while compiling, so the check folds away with the branch it guards.
   missed either: when the program starts, each of its files is held against the text the build compiled, and if
   any differs the watcher compiles once before it waits, so `wait_reload` waits for that compile too. The
   operating system wakes the thread; a burst of changes is waited out until 100 ms pass without one, so a save
-  that writes a file in pieces reloads once. When the program ends, the watcher is stopped before anything it
+  that writes a file in pieces reloads once. Only a change to a `.spite` file, or to a folder, compiles again, and
+  never one under a `.spite/` folder: the compiler writes its own output there, so a compile started by its own
+  output (which, with an error in the saved code, would refuse the same code again and again) cannot happen. When the program ends, the watcher is stopped before anything it
   uses is let go, after the compile it is running finishes: it looks every quarter of a second whether the program
   is ending, so ending a `--hot-reload` program can take that long. The program's own folder is watched with every folder below it, and so is every folder it `load`s, except
   a repository's checkout under `.spite/git/` ([packages.md](packages.md#loading-a-repository-pinned-to-a-commit)),

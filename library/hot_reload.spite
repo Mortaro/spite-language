@@ -89,10 +89,45 @@ func watch() {
         }
         if not watcher.pending.is_empty() and not closing() {
             watcher.wait_for_changes()
-            watcher.changes()
-            compile_changes()
+            var changed = watcher.changes()
+            if touches_source(changed) {
+                compile_changes()
+            }
         }
     }
+}
+
+func touches_source(changed: List<String>): Boolean {
+    var roots = loaded_folders().split("\n")
+    roots.append(folder)
+    var index = 0
+    while index < changed.count() {
+        var below = below_root(changed[index], roots)
+        var segments = below.split("/")
+        var last = segments.last()
+        crash last
+        var in_output = below.contains("/.spite/") or below.starts_with(".spite/") or below.starts_with("/.spite/") or last == ".spite"
+        if not in_output and (below.ends_with(".spite") or not last.contains(".")) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func below_root(path: String, roots: List<String>): String {
+    var longest = ""
+    var index = 0
+    while index < roots.count() {
+        var root = roots[index]
+        if not root.is_empty() and path.starts_with(root) and root.length() > longest.length() {
+            longest = root
+        }
+        index = index + 1
+    }
+    var path_length = path.length()
+    var longest_length = longest.length()
+    return path.slice(longest_length, path_length)
 }
 
 func watch_folders(watcher: FileSystemWatcher): Boolean {
