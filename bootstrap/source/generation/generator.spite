@@ -12398,6 +12398,9 @@ func may_be_fresh(expression: Syntax.Expressions.Expression): Boolean {
     if shape.as_call(expression) or shape.as_binary(expression) {
         return true
     }
+    if shape.as_generic_call(expression) {
+        return true
+    }
     if shape.as_unary(expression) {
         return true
     }

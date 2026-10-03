@@ -74,21 +74,24 @@ func json_units(texts: List<String>): Integer {
 }
 
 func binary_bytes(units: List<Unit>, bytes: List<Byte>) {
+    var writer = BinaryWriter<Unit>()
     var index = 0
     while index < units.count() {
-        var writer = BinaryWriter(units[index])
-        writer.append_to(bytes)
+        writer.append_to(units[index], bytes)
         index = index + 1
     }
 }
 
 func binary_units(bytes: List<Byte>): Integer {
     var read = 0
-    var reader = BinaryReader<Unit>(bytes)
-    var unit = reader.read()
+    var reader = BinaryReader<Unit>()
+    var unit = reader.read_from(bytes, 0)
     while unit {
         read = read + 1
-        unit = reader.read()
+        if reader.position == bytes.count() {
+            return read
+        }
+        unit = reader.read_from(bytes, reader.position)
     }
     return read
 }

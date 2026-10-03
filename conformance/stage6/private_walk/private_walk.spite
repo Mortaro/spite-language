@@ -17,8 +17,8 @@ func PrivateWalk() {
     crash read
     var read_charge = read.charge()
     console.print("read", read.power, read_charge)
-    var bytes = BinaryWriter(gadget).write()
-    var back = BinaryReader<Gadget>(bytes).read()
+    var bytes = BinaryWriter<Gadget>().write(gadget)
+    var back = BinaryReader<Gadget>().read(bytes)
     crash back
     var back_charge = back.charge()
     var back_pet = back.has_pet()

@@ -1261,7 +1261,7 @@ it: `Dictionary<T>` stays the one spelling.
   key. A dictionary given no key at all is keyed by text.
 - The kind follows the dictionary wherever it goes, like its value type: a local it is assigned to, a parameter it
   is passed to, an attribute that holds it, a function that returns it, a list of dictionaries, and a generic
-  class it is handed to (`BinaryWriter(scores)`, `BinaryReader<Shelf>`). A key given anywhere along that path
+  class it is handed to (`BinaryWriter<Shelf>`, `BinaryReader<Shelf>`). A key given anywhere along that path
   decides it for all of them.
 - One dictionary given a text key and a number key is a compile error at the number key, naming the text key's
   place: `this dictionary is given a whole-number key here and a text key at <file>:<line> (in <class>.<function>):

@@ -10,11 +10,11 @@ func SerializerSingletons() {
     var read = reader.read("\{\"name\": \"bo\", \"console\": \{\"x\": 1}, \"_secret\": 1}")
     crash read
     read.shout()
-    var packer = BinaryWriter(player)
-    var bytes = packer.write()
+    var packer = BinaryWriter<Player>()
+    var bytes = packer.write(player)
     var byte_count = bytes.count()
-    var unpacker = BinaryReader<Player>(bytes)
-    var unpacked = unpacker.read()
+    var unpacker = BinaryReader<Player>()
+    var unpacked = unpacker.read(bytes)
     crash unpacked
     unpacked.shout()
     var same = packer.schema() == unpacker.schema()

@@ -1,38 +1,31 @@
 generic $value_type
 
-var bytes: List<Byte>? = null
 var position = 0
 var format = BinaryFormat<$value_type>()
 var input = BinaryInput()
 
-func BinaryReader(source: List<Byte>?) {
-    bytes = source
+func read(bytes: List<Byte>): $value_type? {
+    var read_value = read_from(bytes, 0)
+    assert position == bytes.count()
+    return read_value
 }
 
-func read(): $value_type? {
-    assert bytes
+func read_from(bytes: List<Byte>, start: Integer): $value_type? {
+    crash start >= 0
     input.address = bytes.items
     input.count = bytes.count()
-    return read_input()
+    return read_input(start)
 }
 
 func read_memory(address: Memory.Address, count: Integer): $value_type? {
     input.address = address
     input.count = count
-    position = 0
-    return read_input()
+    return read_input(0)
 }
 
-func remaining(): Integer {
-    if bytes {
-        return bytes.count() - position
-    }
-    return input.count - position
-}
-
-func read_input(): $value_type? {
-    assert position < input.count
-    input.position = position
+func read_input(start: Integer): $value_type? {
+    assert start < input.count
+    input.position = start
     input.failed = false
     var read_value = format.read(input)
     assert not input.failed

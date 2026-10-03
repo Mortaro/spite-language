@@ -1810,7 +1810,8 @@ that made it, it is not made on the heap at all: it gets a slot in the function'
 and a list do. Four places use it:
 
 - **A local.** `var name = <a fresh object>` gets a frame slot when nothing after it in its block lets the object
-  go: it is only read and written through its attributes, handed as the receiver or as an argument to functions
+  go (a constructor written with its codegen values counts, `var writer = BinaryWriter<Order>()` or
+  `var tally = Tally<Integer>()`, as one whose values are inferred does): it is only read and written through its attributes, handed as the receiver or as an argument to functions
   proven to keep nothing, compared, or asked for its `.memory`. It may be given a new fresh object
   (`position = position + moved`), which is worked out in a second slot and copied into the first; and when the
   function returns its class, `return name` copies it to the heap once, at the return, instead of once per step.

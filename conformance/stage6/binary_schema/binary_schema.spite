@@ -4,16 +4,13 @@ func BinarySchema() {
     var point = Point()
     var place = Place()
     var route = Route()
-    var point_writer = BinaryWriter(point)
-    var point_writer_again = BinaryWriter(point)
-    var place_writer = BinaryWriter(place)
-    var route_writer = BinaryWriter(route)
-    var point_bytes = point_writer.write()
-    var place_bytes = place_writer.write()
-    var route_bytes = route_writer.write()
-    var point_reader = BinaryReader<Point>(point_bytes)
-    var place_reader = BinaryReader<Place>(place_bytes)
-    var route_reader = BinaryReader<Route>(route_bytes)
+    var point_writer = BinaryWriter<Point>()
+    var point_writer_again = BinaryWriter<Point>()
+    var place_writer = BinaryWriter<Place>()
+    var route_writer = BinaryWriter<Route>()
+    var point_reader = BinaryReader<Point>()
+    var place_reader = BinaryReader<Place>()
+    var route_reader = BinaryReader<Route>()
     var point_schema = point_writer.schema()
     var place_schema = place_writer.schema()
     var again_schema = point_writer_again.schema()
@@ -26,13 +23,12 @@ func BinarySchema() {
     console.print("writer and reader agree: {point_schema == reader_schema}")
     console.print("same layout, other name, other schema: {point_schema != place_schema}")
     console.print("Route {route_schema}, reader {route_reader_schema}")
-    show(point_reader, place_reader, route_reader)
-}
-
-func show(point_reader: BinaryReader<Point>, place_reader: BinaryReader<Place>, route_reader: BinaryReader<Route>) {
-    var read_point = point_reader.read()
-    var read_place = place_reader.read()
-    var read_route = route_reader.read()
+    var point_bytes = point_writer.write(point)
+    var place_bytes = place_writer.write(place)
+    var route_bytes = route_writer.write(route)
+    var read_point = point_reader.read(point_bytes)
+    var read_place = place_reader.read(place_bytes)
+    var read_route = route_reader.read(route_bytes)
     crash read_point
     crash read_place
     crash read_route

@@ -338,6 +338,7 @@ func own_constructor_or_none(information: Analysis.ClassInfo, name: String): Boo
 func fresh_class(expression: Syntax.Expressions.Expression): Analysis.ClassInfo? {
     switch expression {
         Syntax.Expressions.CallExpression: return fresh_call(expression)
+        Syntax.Expressions.GenericCallExpression: return fresh_generic(expression)
         Syntax.Expressions.BinaryExpression: {
             var operator_resolved = operator_call(expression)
             assert operator_resolved
@@ -371,6 +372,30 @@ func fresh_call(call: Syntax.Expressions.CallExpression): Analysis.ClassInfo? {
     }
     assert member.name == "copy"
     return fresh_construction(resolved.owner, "_copy")
+}
+
+func fresh_generic(construction: Syntax.Expressions.GenericCallExpression): Analysis.ClassInfo? {
+    assert not construction.names_class
+    crash construction.callee
+    var named = shape.as_identifier(construction.callee)
+    if named {
+        assert named.name != "List" and named.name != "Dictionary"
+    }
+    var printer = Syntax.SourcePrinter()
+    var index = 0
+    while index < construction.type_arguments.count() {
+        var argument_text = printer.source_generic_argument(construction.type_arguments[index])
+        assert not argument_text.contains("$")
+        index = index + 1
+    }
+    var template = constructed_class(construction.callee)
+    assert template
+    assert template.is_generic_template
+    var generation = generating()
+    var information = studied()
+    var made = generation.instantiate_generic(template, construction.type_arguments, information.qualified_dotted)
+    assert made
+    return fresh_construction(made, "___make")
 }
 
 func fresh_resolved(resolved: ResolvedCall): Analysis.ClassInfo? {

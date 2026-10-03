@@ -72,10 +72,10 @@ func NumberKeys() {
     crash read_ages
     crash read_ages[42]
     console.print(ages_text, read_ages[42])
-    var shelf_writer = BinaryWriter(shelf)
-    var shelf_bytes = shelf_writer.write()
-    var shelf_reader = BinaryReader<Shelf>(shelf_bytes)
-    var read_shelf = shelf_reader.read()
+    var shelf_writer = BinaryWriter<Shelf>()
+    var shelf_bytes = shelf_writer.write(shelf)
+    var shelf_reader = BinaryReader<Shelf>()
+    var read_shelf = shelf_reader.read(shelf_bytes)
     crash read_shelf
     var read_twenty = read_shelf.named(20)
     var shelf_keys = read_shelf.labels.keys().join(",")

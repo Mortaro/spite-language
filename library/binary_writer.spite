@@ -1,20 +1,14 @@
 generic $value_type
 
-var value: $value_type? = null
 var format = BinaryFormat<$value_type>()
 
-func BinaryWriter(new_value: $value_type?) {
-    value = new_value
-}
-
-func write(): List<Byte> {
+func write(value: $value_type): List<Byte> {
     var bytes = List<Byte>()
-    append_to(bytes)
+    append_to(value, bytes)
     return bytes
 }
 
-func append_to(bytes: List<Byte>) {
-    assert value
+func append_to(value: $value_type, bytes: List<Byte>) {
     var output = BinaryOutput(bytes)
     format.write(value, output)
 }

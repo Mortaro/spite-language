@@ -79,7 +79,8 @@ Ada "the" first shipped tea 2
 
 ## Write and read bytes
 
-`BinaryWriter` and `BinaryReader` have the same shape. The bytes are a `List<Byte>`, the bytes themselves in one
+`BinaryWriter` and `BinaryReader` have the same shape as the JSON pair: each names its type, is made once and is
+reused, and each call carries its own input. The bytes are a `List<Byte>`, the bytes themselves in one
 block ([collections.md](collections.md#listt)):
 
 ```gdscript title=binary_basics/order.spite
@@ -115,12 +116,12 @@ func BinaryBasics() {
     order.status = 'shipped'
     var tea = Item("tea", 2)
     order.items.append(tea)
-    var writer = BinaryWriter(order)
-    var bytes = writer.write()
+    var writer = BinaryWriter<Order>()
+    var bytes = writer.write(order)
     var size = bytes.count()
     console.print("bytes:", size)
-    var reader = BinaryReader<Order>(bytes)
-    var read = reader.read()
+    var reader = BinaryReader<Order>()
+    var read = reader.read(bytes)
     crash read
     var first_item = read.items.first()
     crash first_item
@@ -136,22 +137,24 @@ The same `Order` is 23 bytes here and 104 as JSON: `id` and `total` (a `Float`) 
 `"Ada"` a length byte and three, the empty `note` one, and there are no keys, quotes or commas at all. [The binary format](#the-binary-format)
 says exactly what each type becomes.
 
-- `write(): List<Byte>` answers a new list holding the value. `append_to(bytes)` writes it at the end of a
-  list the program already has instead, so many values (a network frame's worth of messages, a file's records)
-  go into one buffer with no copying.
-- `BinaryReader<T>(bytes)` reads from a `List<Byte>`. Each `read(): T?` reads the next value from `position`
-  (an attribute, starting at `0`) and moves past it, so values written one after another are read one after
-  another; `remaining()` is how many bytes are left. It answers `null` when there is nothing left, when the bytes
-  run out in the middle of a value, and when they are not a `T` (a `Boolean` byte that is neither 0 nor 1, an enum
-  index the enum does not have, a count larger than the bytes left). A failed read leaves `position` where it
-  was.
+- `write(value): List<Byte>` answers a new list holding the value. `append_to(value, bytes)` writes it at the
+  end of a list the program already has instead, so many values (a network frame's worth of messages, a file's
+  records) go into one buffer with no copying.
+- `read(bytes): T?` reads one value that fills the bytes exactly. It answers `null` when the bytes run out in the
+  middle of the value, when they are not a `T` (a `Boolean` byte that is neither 0 nor 1, an enum index the enum
+  does not have, a count larger than the bytes left), and when bytes are left over after it, as JSON's `read`
+  does with text after the value.
+- `read_from(bytes, start): T?` reads one value starting `start` bytes in and leaves the bytes after it alone:
+  `position` (an attribute) is then where the value ended, so values written one after another are read one
+  after another by starting each read at the last one's `position`. It answers `null` for the same bad bytes and
+  when `start` is at or past the end, and a failed read leaves `position` where it was; a negative `start` halts.
 - `read_memory(address, count): T?` reads one value from `count` bytes at a `Memory.Address` (a buffer a
-  `Socket` filled, say) without copying them into a list first; the reader is made with `null` for its bytes.
-  Afterwards `position` is how many of the bytes the value took.
+  `Socket` filled, say) without copying them into a list first. Afterwards `position` is how many of the bytes
+  the value took.
 
 ```gdscript
 var received = connection.read_bytes_now(buffer, 4096)
-var reader = BinaryReader<Move>(null)
+var reader = BinaryReader<Move>()
 var move = reader.read_memory(buffer, received)
 ```
 
@@ -165,21 +168,19 @@ var console = Console()
 func BinaryStream() {
     var bytes = List<Byte>()
     var names = ["ada", "bo", "cy"]
-    var name_writer = BinaryWriter(names)
-    name_writer.append_to(bytes)
-    var turn = 12
-    var turn_writer = BinaryWriter(turn)
-    turn_writer.append_to(bytes)
+    var name_writer = BinaryWriter<List<String>>()
+    name_writer.append_to(names, bytes)
+    var turn_writer = BinaryWriter<Integer>()
+    turn_writer.append_to(12, bytes)
     var size = bytes.count()
     console.print("bytes:", size)
-    var name_reader = BinaryReader<List<String>>(bytes)
-    var read_names = name_reader.read()
+    var name_reader = BinaryReader<List<String>>()
+    var read_names = name_reader.read_from(bytes, 0)
     crash read_names
-    var turn_reader = BinaryReader<Integer>(bytes)
-    turn_reader.position = name_reader.position
-    var read_turn = turn_reader.read()
+    var turn_reader = BinaryReader<Integer>()
+    var read_turn = turn_reader.read_from(bytes, name_reader.position)
     crash read_turn
-    var left = turn_reader.remaining()
+    var left = size - turn_reader.position
     var joined = read_names.join(" ")
     console.print(joined, read_turn, left)
 }
@@ -266,17 +267,19 @@ var down = 0
 var console = Console()
 
 func SchemaHeader() {
-    var point = Point()
-    var writer = BinaryWriter(point)
-    var bytes = writer.write()
-    var reader = BinaryReader<Point>(bytes)
-    var place = Place()
-    var other_writer = BinaryWriter(place)
+    var writer = BinaryWriter<Point>()
+    var reader = BinaryReader<Point>()
+    var other_writer = BinaryWriter<Place>()
     var written = writer.schema()
     var expected = reader.schema()
     var other = other_writer.schema()
     console.print("{written == expected} {written == other}")
-    var corner = place.across + place.down
+    var point = Point()
+    var bytes = writer.write(point)
+    var read = reader.read(bytes)
+    crash read
+    var place = Place()
+    var corner = place.across + place.down + read.across + read.down
     console.print(corner)
 }
 ```
@@ -425,7 +428,7 @@ is `null`.
 ## Values that are not classes
 
 All four take any type, not only classes: `JsonWriter<Dictionary<Integer>>()` for a dictionary,
-`JsonReader<List<Double>>()` to read a list, `BinaryWriter(12)`.
+`JsonReader<List<Double>>()` to read a list, `BinaryWriter<Integer>()`.
 
 ```gdscript title=json_values/json_values.spite entry
 var console = Console()
@@ -536,9 +539,8 @@ for talking to foreign systems; it is not what Spite programs send each other
   say which member a value is`, and `has no JSON form` or `has no binary form`.
 - The one exception to "writing never fails" is below: a `Float` or `Double` JSON cannot hold.
 
-**Four classes: `JsonWriter`, `JsonReader`, `BinaryWriter`, `BinaryReader`.** A JSON serializer names its type and is
-reused; a binary writer takes the object; reading names the
-class it makes. Each class is generic, and every conversion it makes is a function the compiler writes from it for
+**Four classes: `JsonWriter`, `JsonReader`, `BinaryWriter`, `BinaryReader`.** Each names its type and is made once
+and reused, and each call carries its own input. Each class is generic, and every conversion it makes is a function the compiler writes from it for
 the types a program actually uses, so a program that never names one carries none of it: no table of
 types, no reflection and no registry exists at run time. At run time a conversion costs what its Spite says:
 `JsonWriter.write(value)` makes one `String` per member and joins them, `JsonReader.read(text)` walks the text once through
@@ -551,17 +553,18 @@ var reader = JsonReader<Order>()        # made once, reused for every text
 var read = reader.read(text)            # Order?: null on text that is not an Order
 var order = reader.read_or_crash(text)  # Order: halts, naming the position and what was expected
 
-var packer = BinaryWriter(order)        # BinaryWriter<Order>
-var bytes = packer.write()              # List<Byte>: never fails
-packer.append_to(frame)                 # the same bytes, at the end of a List<Byte> the program has
-var unpacker = BinaryReader<Order>(bytes)
-var next = unpacker.read()              # Order?: the next value from 'position', null on bad or missing bytes
+var packer = BinaryWriter<Order>()      # made once, reused for every order
+var bytes = packer.write(order)         # List<Byte>: never fails
+packer.append_to(order, frame)          # the same bytes, at the end of a List<Byte> the program has
+var unpacker = BinaryReader<Order>()    # made once, reused for every buffer
+var read = unpacker.read(bytes)         # Order?: null on bytes that are not exactly one Order
+var next = unpacker.read_from(frame, unpacker.position)  # the next value in a buffer of many
 var from_socket = unpacker.read_memory(buffer, received)
 ```
 
-The names: `write`, `read` and `read_or_crash`; `append_to(bytes)` says where the bytes go ("append", not
-"add"); `read_memory(address, count)` says what it reads from; `position` and `remaining()` are the reader's
-cursor, as on the cursors the standard library already has. The old name `Json` is an error that names the new
+The names: `write`, `read` and `read_or_crash`; `append_to(value, bytes)` says where the bytes go ("append", not
+"add"); `read_from(bytes, start)` and `read_memory(address, count)` say what they read from; `position` is where
+the last value read ended. The old name `Json` is an error that names the new
 pair: `there is no 'Json': it is two classes, 'JsonWriter<T>()' whose 'write(value)'
 makes the text, and 'JsonReader<T>()' whose 'read(text)' answers a 'T?'` (`diagnostics/json_split`).
 
@@ -569,14 +572,14 @@ makes the text, and 'JsonReader<T>()' whose 'read(text)' answers a 'T?'` (`diagn
   type, and each call carries its own input: `write(value: T?): String`, which writes `null` for an empty `T?`,
   `read(text: String): T?` and `read_or_crash(text: String): T`, each reading the whole text as one value. Nothing
   is held between calls but the serializer's settings, so one writer or reader serves a whole program.
-- **A binary writer takes the value in its constructor** and infers its generic from it, by the general rule of
-  [Codegen values (`$`)](metaprogramming.md#codegen-values-) for a constructor that takes a `$name`;
-  nothing about the writers is special to the compiler. The constructor takes a `$value_type?`, so a `T?` argument
-  gives a writer of `T`, and `BinaryWriter` writes nothing for an empty one (a `T?` inside a value has its presence
-  byte; at the top the caller knows whether it wrote anything).
-- **A binary reader names its class and takes its input in its constructor**: `BinaryReader<T>(bytes:
-  List<Byte>?)`, whose `read()` reads the next value from `position`, so a buffer of many values is read by calling
-  it again.
+- **A binary serializer is made with no arguments and reused, as a JSON one is**: `BinaryWriter<T>()` with
+  `write(value: T): List<Byte>` and `append_to(value: T, bytes: List<Byte>)`, and `BinaryReader<T>()` with
+  `read(bytes: List<Byte>): T?`, which reads one value that must fill the bytes, `read_from(bytes: List<Byte>,
+  start: Integer): T?`, which reads one value from `start` and leaves what follows, and `read_memory(address,
+  count): T?`. The value a writer takes is a `T`, not a `T?`: an empty `T?` is narrowed by the caller, who then
+  knows whether anything was written (a `T?` inside a value has its presence byte). `position` is where the last
+  successful read ended, so a buffer of many values is read by starting each `read_from` there; nothing else is
+  held between calls.
 - **What it is written with** is reflection, a walk of the value's attributes with `each`
   ([reflection.md](reflection.md#known-while-compiling)), and
   [Codegen values (`$`)](metaprogramming.md#codegen-values-) and nothing else, as
@@ -614,16 +617,17 @@ The details:
   other type by its name. It is a bodiless declaration the compiler supplies, a C macro that is the constant,
   so it costs nothing at run time and a program that never asks carries none of it. A writer and a reader of the
   same `T` answer the same value (`conformance/stage6/binary_schema`).
-- **The bytes are a `List<Byte>`**: one block, no count per byte, and a reader over it borrows nothing, since it
-  keeps the list itself and reads its block afresh at every `read()`. `read_memory` covers memory the program did
+- **The bytes are a `List<Byte>`**: one block, no count per byte, and a reader borrows nothing, since each
+  call reads the block of the list it is given and keeps nothing of it. `read_memory` covers memory the program did
   not put in a list. `List<T>` has `reserve(count)` for this, making room for `count` items without making any;
   the library's binary classes grow the list and write into its block directly, which only `library/` may do.
 - **`BinaryReader` answers `null` for every bad input** (bad input is a normal condition, never a crash):
   bytes that end inside a value, a `Boolean` byte other than 0 or 1, a presence byte other than 0 or 1, an enum
   index past the enum's last value, a plain `Symbol` name the program does not use, and a count past the bytes
-  left. A failed read leaves `position` where it was. There is no `read_or_crash` for bytes: the bytes a Spite
+  left, and for `read`, bytes left over after the value. A failed read leaves `position` where it was, and a
+  negative `start` for `read_from` halts, since it is a mistake in the program and not bad bytes. There is no `read_or_crash` for bytes: the bytes a Spite
   program reads were written by a Spite program, and what went wrong is not something a position would explain.
-- **The API is a class you make once per value, or once per input**, with `write` and `read`. The generic is on
+- **The API is a class you make once and reuse**, with `write` and `read`. The generic is on
   the class because that is where Spite puts generics. `write` needs no crashing twin, since it cannot fail.
 - **`JsonReader` is strict about what it cannot use and lenient about what it does not need**
   ([Reading input you did not write](#reading-input-you-did-not-write), and

@@ -4,8 +4,8 @@ var byte_memory = TypedMemory<Byte>()
 func test_writes_a_class_as_its_attributes_in_order() {
     var ada = Sailor("Ada")
     ada.knots.append("hitch")
-    var writer = BinaryWriter(ada)
-    var bytes = writer.write()
+    var writer = BinaryWriter<Sailor>()
+    var bytes = writer.write(ada)
     var shown = shown_bytes(bytes)
     crash shown == "3 65 100 97 1 5 104 105 116 99 104"
 }
@@ -13,20 +13,20 @@ func test_writes_a_class_as_its_attributes_in_order() {
 func test_writes_numbers_little_endian_at_their_width() {
     var ship = Ship()
     ship.length = 258
-    var writer = BinaryWriter(ship)
-    var bytes = writer.write()
+    var writer = BinaryWriter<Ship>()
+    var bytes = writer.write(ship)
     var shown = shown_bytes(bytes)
     crash shown == "0 2 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
 }
 
 func test_reads_back_what_it_wrote() {
     var ship = full_ship()
-    var writer = BinaryWriter(ship)
-    var bytes = writer.write()
-    var reader = BinaryReader<Ship>(bytes)
-    var read = reader.read()
+    var writer = BinaryWriter<Ship>()
+    var bytes = writer.write(ship)
+    var reader = BinaryReader<Ship>()
+    var read = reader.read(bytes)
     crash read
-    crash reader.remaining() == 0
+    crash reader.position == bytes.count()
     crash read.name == "Wren"
     crash read.length == 12
     crash read.speed == 7.5
@@ -39,8 +39,8 @@ func test_reads_back_what_it_wrote() {
     crash read.captain.name == "Cy"
     crash read.launched == 1902
     crash read.logbook.count() == 2
-    var again_writer = BinaryWriter(read)
-    var again = again_writer.write()
+    var again_writer = BinaryWriter<Ship>()
+    var again = again_writer.write(read)
     var first_bytes = shown_bytes(bytes)
     var second_bytes = shown_bytes(again)
     crash first_bytes == second_bytes
@@ -57,11 +57,11 @@ func test_every_number_width_round_trips() {
     gauge.unsigned_long = 9000000000
     gauge.ratio = 0.25
     gauge.marker = Symbol("schooner")
-    var writer = BinaryWriter(gauge)
-    var bytes = writer.write()
+    var writer = BinaryWriter<Gauge>()
+    var bytes = writer.write(gauge)
     crash bytes.count() == 1 + 1 + 2 + 2 + 4 + 8 + 8 + 4 + 1 + 1 + 8
-    var reader = BinaryReader<Gauge>(bytes)
-    var read = reader.read()
+    var reader = BinaryReader<Gauge>()
+    var read = reader.read(bytes)
     crash read
     crash read.tiny == -2
     crash read.byte == 250
@@ -80,26 +80,27 @@ func test_values_follow_each_other_in_one_buffer() {
     var bytes = List<Byte>()
     var ada = Sailor("Ada")
     var bo = Sailor("Bo")
-    var ada_writer = BinaryWriter(ada)
-    ada_writer.append_to(bytes)
-    var bo_writer = BinaryWriter(bo)
-    bo_writer.append_to(bytes)
-    var reader = BinaryReader<Sailor>(bytes)
-    var first = reader.read()
-    var second = reader.read()
-    var third = reader.read()
+    var ada_writer = BinaryWriter<Sailor>()
+    ada_writer.append_to(ada, bytes)
+    var bo_writer = BinaryWriter<Sailor>()
+    bo_writer.append_to(bo, bytes)
+    var reader = BinaryReader<Sailor>()
+    var first = reader.read_from(bytes, 0)
     crash first
+    var second = reader.read_from(bytes, reader.position)
     crash second
     crash first.name == "Ada"
     crash second.name == "Bo"
-    crash not third
+    crash reader.position == bytes.count()
+    var whole = reader.read(bytes)
+    crash not whole
 }
 
 func test_reads_from_memory() {
     var bo = Sailor("Bo")
-    var writer = BinaryWriter(bo)
-    var bytes = writer.write()
-    var reader = BinaryReader<Sailor>(null)
+    var writer = BinaryWriter<Sailor>()
+    var bytes = writer.write(bo)
+    var reader = BinaryReader<Sailor>()
     var count = bytes.count()
     var memory = heap.allocate(count)
     var index = 0
@@ -116,23 +117,23 @@ func test_reads_from_memory() {
 
 func test_values_that_are_not_classes() {
     var numbers = [1, -2, 3]
-    var list_writer = BinaryWriter(numbers)
-    var list_bytes = list_writer.write()
+    var list_writer = BinaryWriter<List<Integer>>()
+    var list_bytes = list_writer.write(numbers)
     crash list_bytes.count() == 13
-    var list_reader = BinaryReader<List<Integer>>(list_bytes)
-    var list_read = list_reader.read()
+    var list_reader = BinaryReader<List<Integer>>()
+    var list_read = list_reader.read(list_bytes)
     crash list_read
     crash list_read.join(" ") == "1 -2 3"
     var captains = List<Sailor?>()
     var cy = Sailor("Cy")
     captains.append(cy)
     captains.append(null)
-    var captains_writer = BinaryWriter(captains)
-    var captains_bytes = captains_writer.write()
+    var captains_writer = BinaryWriter<List<Sailor?>>()
+    var captains_bytes = captains_writer.write(captains)
     var shown = shown_bytes(captains_bytes)
     crash shown == "2 1 2 67 121 0 0"
-    var captains_reader = BinaryReader<List<Sailor?>>(captains_bytes)
-    var captains_read = captains_reader.read()
+    var captains_reader = BinaryReader<List<Sailor?>>()
+    var captains_read = captains_reader.read(captains_bytes)
     crash captains_read
     var first_name = captain_name(captains_read[0])
     var second_name = captain_name(captains_read[1])
@@ -149,11 +150,11 @@ func captain_name(captain: Sailor?): String {
 
 func test_bad_bytes_read_nothing() {
     var ship = full_ship()
-    var writer = BinaryWriter(ship)
-    var bytes = writer.write()
+    var writer = BinaryWriter<Ship>()
+    var bytes = writer.write(ship)
     bytes.remove_at(10)
-    var reader = BinaryReader<Ship>(bytes)
-    var cut = reader.read()
+    var reader = BinaryReader<Ship>()
+    var cut = reader.read(bytes)
     crash not cut
     var flag = List<Byte>()
     flag.append(0)
@@ -171,22 +172,22 @@ func test_bad_bytes_read_nothing() {
     flag.append(0)
     flag.append(0)
     flag.append(2)
-    var flag_reader = BinaryReader<Ship>(flag)
-    var bad_flag = flag_reader.read()
+    var flag_reader = BinaryReader<Ship>()
+    var bad_flag = flag_reader.read(flag)
     crash not bad_flag
     var empty = List<Byte>()
-    var empty_reader = BinaryReader<Ship>(empty)
-    var nothing = empty_reader.read()
+    var empty_reader = BinaryReader<Ship>()
+    var nothing = empty_reader.read(empty)
     crash not nothing
 }
 
 func test_a_bad_enum_index_reads_nothing() {
     var ship = Ship()
-    var writer = BinaryWriter(ship)
-    var bytes = writer.write()
+    var writer = BinaryWriter<Ship>()
+    var bytes = writer.write(ship)
     bytes[13] = 7
-    var reader = BinaryReader<Ship>(bytes)
-    var read = reader.read()
+    var reader = BinaryReader<Ship>()
+    var read = reader.read(bytes)
     crash not read
 }
 
@@ -197,8 +198,8 @@ func test_a_count_larger_than_the_bytes_left_reads_nothing() {
     huge.append(255)
     huge.append(255)
     huge.append(7)
-    var reader = BinaryReader<List<Integer>>(huge)
-    var read = reader.read()
+    var reader = BinaryReader<List<Integer>>()
+    var read = reader.read(huge)
     crash not read
 }
 

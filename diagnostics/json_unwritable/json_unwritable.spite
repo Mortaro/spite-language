@@ -15,11 +15,12 @@ func JsonUnwritable() {
     var button_reader = JsonReader<Button>()
     var button = button_reader.read("\{}")
     crash button
-    var owner_bytes = BinaryReader<Owner>(null)
-    var read_owner = owner_bytes.read()
+    var owner_bytes = BinaryReader<Owner>()
+    var no_bytes = List<Byte>()
+    var read_owner = owner_bytes.read(no_bytes)
     crash read_owner
-    var button_writer = BinaryWriter(button)
-    var button_bytes = button_writer.write()
+    var button_writer = BinaryWriter<Button>()
+    var button_bytes = button_writer.write(button)
     var byte_count = button_bytes.count()
     console.print(owner_text, widget_text, button.label, read_owner.name, byte_count)
 }

@@ -110,7 +110,7 @@ func is_alive(): Boolean {
   `'Bundle.CounterButton(screen.id)' is constructed inside an argument of 'world.create_entity_from_bundle': a
   constructor call is never an argument, so make it first on a line of its own, 'var counter_button =
   Bundle.CounterButton(screen.id)', and pass 'counter_button'`. That goes for `Label(Font())` and
-  `buffers.set(List<String>())` too. A constructor read at once is fine (`BinaryWriter(order).write()`), and
+  `buffers.set(List<String>())` too. A constructor read at once is fine (`JsonWriter<Order>().write(order)`), and
   `Parallel(worker.run)` passes a function, not an object.
 - The two branches of an `if`/`else` never compute the same call (`'measure(2)' is computed in both branches`):
   compute it once before the `if`.
@@ -627,8 +627,9 @@ rename attributes to match foreign JSON, and is `null` on a value of the wrong k
 reads back only as a name the program already uses. Writing a `Float` or `Double` that is infinity or not-a-number
 to JSON crashes showing the value and the attribute (`shown=inf	path=Order.price`): check the number first
 if `null` is wanted. **Between Spite programs, and for files a Spite program reads back, use bytes instead**:
-`BinaryWriter(value).write(): List<Byte>` (or `append_to(bytes)` to add to a buffer you have) and
-`BinaryReader<T>(bytes).read(): T?`, which reads the next value each call and is `null` on bytes that are not a `T`;
+`BinaryWriter<T>()` with `write(value): List<Byte>` (or `append_to(value, bytes)` to add to a buffer you have) and
+`BinaryReader<T>()` with `read(bytes): T?`, `null` on bytes that are not exactly one `T`, and `read_from(bytes,
+start): T?` for the next value of many, starting at the last read's `position`; both are made once and reused;
 a quarter of JSON's size and more than ten times faster, with no keys, so both ends must be built from the same
 classes. `read_memory(address, count)` reads straight from a socket's buffer. To catch two ends built from
 different classes, write `writer.schema()` (a `Long` the compiler works out from the classes, free to ask) once at

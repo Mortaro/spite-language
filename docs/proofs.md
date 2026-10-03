@@ -655,7 +655,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   container): those attributes are let go where its scope ends, and `return` moves it to the heap whole. A generic
   class qualifies per instance: a constructor whose codegen values are inferred is fresh where the types of its
   arguments are known (numbers, names in scope and their attributes), and in a `return` of a function answering
-  that instance, which only that instance can be.
+  that instance, which only that instance can be; a constructor that writes its codegen values out
+  (`BinaryWriter<Order>()`) is fresh as a local wherever they name classes, not other codegen values.
 - **Buys.** No allocation; `.memory.section` answers `'stack'`. `benchmarks/game_maths` from 3 200 046 allocations
   to 37; `Vector3<Float>`, generic over its number class, stays in the frame as before
   (`conformance/stage6/generic_vectors`).
