@@ -95,7 +95,6 @@ when a page gains a rule that is not built yet, add it here.
 - D479: an unwinder written in Spite for the call chain of an `--optimized` crash on Linux and macOS.
 - D480: `Concurrent.cancel()`.
 - D481: a `Concurrent` made inside a `Parallel`'s work overlaps like any other.
-- D482: checked signedness changes, and `bits_as_unsigned()`/`bits_as_signed()`.
 - D483: every function of a class overridable, the compiler-added ones printed by `--final-classes` (backlog R8).
 - D484: a comment links a `.spite` file only inside a `--final-classes` folder (backlog C7).
 - D485: the compiler decides arenas, rings, structure of arrays and freeing; see
@@ -133,9 +132,6 @@ for a design):
 
 Also open, each a bug under D244, found cataloguing the compiler's proofs (proofs.md):
 
-- **A change of signedness at the same width or wider** (`var bits: UnsignedInteger = count` with a negative
-  `count`) keeps the bits unchecked: D162's "wider" leaves signedness out, and the hashes read words this way.
-  Whether it should halt, with a named function for reading the bits, waits for Mortaro (D359; proposed by Claude).
 - **A `while true` that can never leave but calls something** ends its function's paths for the missing-`return`
   check, and is reported only in work a `Parallel` reaches (when its function never waits) and in a locked singleton
   function: elsewhere a call inside it may end the program, so it is left alone, and one that never does is a hang.

@@ -1,0 +1,1 @@
+This program is meant to crash: a negative number stored in an unsigned type halts, naming the value, both types and the line, while bits_as_unsigned() and bits_as_signed() read the same bits with the other signedness

@@ -1,0 +1,16 @@
+var console = Console()
+
+func SignednessChange() {
+    var count = 0 - 3
+    var minus_one: Long = -1
+    var top = UnsignedLong.largest
+    var tiny: Tiny = -128
+    console.print(
+        "{count.bits_as_unsigned()} {minus_one.bits_as_unsigned()} {top.bits_as_signed()} {tiny.bits_as_unsigned()}",
+    )
+    var small: UnsignedShort = 65535
+    var widened: Integer = small
+    console.print(widened)
+    var unsigned_count: UnsignedInteger = count
+    console.print("never printed", unsigned_count)
+}

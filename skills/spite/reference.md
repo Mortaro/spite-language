@@ -678,8 +678,10 @@ text with `var color_text = ColorText()` then `color_text.read("#ff6347")` (also
 with `y_at_x(x)`, `var easing = Easing()` then `easing.in_out_cubic(amount)` and the rest, `Noise(seed)` with
 `gradient_2d(x, y)` and `interleaved_gradient`, and `value.to_half_precision()` / `bits.half_precision_to_float()`
 for 16-bit floats. A number's raw bits are `Float.bits(): UnsignedInteger` and `Double.bits(): Long`, and back
-`UnsignedInteger.bits_as_float()` and `Long`'s or `UnsignedLong`'s `bits_as_double()`; they cost nothing (a C
-union), so use them rather than writing a value into memory to read its bytes.
+`UnsignedInteger.bits_as_float()` and `Long`'s or `UnsignedLong`'s `bits_as_double()`, and the same width with the
+other signedness is `bits_as_unsigned()` on a signed number and `bits_as_signed()` on an unsigned one (storing a
+negative number in an unsigned type halts); they cost nothing (a C union), so use them rather than writing a value
+into memory to read its bytes.
 Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
 same name reopens it: `list.spite` adds a member template (`dictionary.spite` one over a dictionary's values,
 `member: Spite.AttributeDeclaration<$value_type>`), `integer.spite` a function on every `Integer`.

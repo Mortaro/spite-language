@@ -1,0 +1,3 @@
+spite: -3, an Integer, does not fit in an UnsignedInteger, at conformance/stage6/signedness_change/signedness_change.spite:14 in SignednessChange.SignednessChange
+4294967293 18446744073709551615 -1 128
+65535

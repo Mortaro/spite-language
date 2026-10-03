@@ -442,13 +442,13 @@ func _fill_segment(
         }
         var reference_lane = lane
         if pass > 0 or slice > 0 {
-            var high: UnsignedLong = random_value
+            var high = random_value.bits_as_unsigned()
             var lane_pick = high.shifted_right(32) % lanes
             reference_lane = lane_pick
         }
         var same_lane = reference_lane == lane
         var area = _reference_area(pass, slice, index, same_lane, lane_length, segment_length)
-        var low: UnsignedLong = random_value
+        var low = random_value.bits_as_unsigned()
         low = low.bits_and(4294967295)
         var squared = low * low
         squared = squared.shifted_right(32)
@@ -581,10 +581,10 @@ func _mix(
     var at_b = _offset(second, pair_step, word_step)
     var at_c = _offset(third, pair_step, word_step)
     var at_d = _offset(fourth, pair_step, word_step)
-    var word_a: UnsignedLong = start.read_long(at_a)
-    var word_b: UnsignedLong = start.read_long(at_b)
-    var word_c: UnsignedLong = start.read_long(at_c)
-    var word_d: UnsignedLong = start.read_long(at_d)
+    var word_a = start.read_long(at_a).bits_as_unsigned()
+    var word_b = start.read_long(at_b).bits_as_unsigned()
+    var word_c = start.read_long(at_c).bits_as_unsigned()
+    var word_d = start.read_long(at_d).bits_as_unsigned()
     word_a = _multiplied_sum(word_a, word_b)
     word_d = _rotated_exclusive_or(word_d, word_a, 32)
     word_c = _multiplied_sum(word_c, word_d)
@@ -593,10 +593,14 @@ func _mix(
     word_d = _rotated_exclusive_or(word_d, word_a, 16)
     word_c = _multiplied_sum(word_c, word_d)
     word_b = _rotated_exclusive_or(word_b, word_c, 63)
-    start.write_long(at_a, word_a)
-    start.write_long(at_b, word_b)
-    start.write_long(at_c, word_c)
-    start.write_long(at_d, word_d)
+    var signed_a = word_a.bits_as_signed()
+    start.write_long(at_a, signed_a)
+    var signed_b = word_b.bits_as_signed()
+    start.write_long(at_b, signed_b)
+    var signed_c = word_c.bits_as_signed()
+    start.write_long(at_c, signed_c)
+    var signed_d = word_d.bits_as_signed()
+    start.write_long(at_d, signed_d)
 }
 
 func _multiplied_sum(left: UnsignedLong, right: UnsignedLong): UnsignedLong {
@@ -733,12 +737,12 @@ func _blake_mix(
     var x_index = _blake_order[order]
     crash _blake_order[order + 1]
     var y_index = _blake_order[order + 1]
-    var message_x: UnsignedLong = block.read_long(x_index * 8)
-    var message_y: UnsignedLong = block.read_long(y_index * 8)
-    var word_a: UnsignedLong = work.read_long(first * 8)
-    var word_b: UnsignedLong = work.read_long(second * 8)
-    var word_c: UnsignedLong = work.read_long(third * 8)
-    var word_d: UnsignedLong = work.read_long(fourth * 8)
+    var message_x = block.read_long(x_index * 8).bits_as_unsigned()
+    var message_y = block.read_long(y_index * 8).bits_as_unsigned()
+    var word_a = work.read_long(first * 8).bits_as_unsigned()
+    var word_b = work.read_long(second * 8).bits_as_unsigned()
+    var word_c = work.read_long(third * 8).bits_as_unsigned()
+    var word_d = work.read_long(fourth * 8).bits_as_unsigned()
     word_a = word_a.wrapping_sum(word_b).wrapping_sum(message_x)
     word_d = _rotated_exclusive_or(word_d, word_a, 32)
     word_c = word_c.wrapping_sum(word_d)
@@ -747,8 +751,12 @@ func _blake_mix(
     word_d = _rotated_exclusive_or(word_d, word_a, 16)
     word_c = word_c.wrapping_sum(word_d)
     word_b = _rotated_exclusive_or(word_b, word_c, 63)
-    work.write_long(first * 8, word_a)
-    work.write_long(second * 8, word_b)
-    work.write_long(third * 8, word_c)
-    work.write_long(fourth * 8, word_d)
+    var signed_a = word_a.bits_as_signed()
+    work.write_long(first * 8, signed_a)
+    var signed_b = word_b.bits_as_signed()
+    work.write_long(second * 8, signed_b)
+    var signed_c = word_c.bits_as_signed()
+    work.write_long(third * 8, signed_c)
+    var signed_d = word_d.bits_as_signed()
+    work.write_long(fourth * 8, signed_d)
 }

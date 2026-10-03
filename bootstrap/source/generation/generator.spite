@@ -9057,7 +9057,7 @@ func checked_narrowing(code: String, from: Analysis.SpiteType, to: Analysis.Spit
     if not decimal and code_fits(code, to_scalar.kind) {
         return ""
     }
-    if not decimal and scalar_bits(from_scalar.kind) <= scalar_bits(to_scalar.kind) {
+    if not decimal and widens_without_check(from_scalar.kind, to_scalar.kind) {
         return ""
     }
     var value = next_temporary()
@@ -9079,6 +9079,20 @@ func checked_narrowing(code: String, from: Analysis.SpiteType, to: Analysis.Spit
     return "(\{ {c_type_name(from)} {value} = {code}; if (__builtin_expect({outside}, 0)) {failure}({widened}{value}, \"{from_name}\", \"{to_name}\", {where}); ({to_c_type}){value}; })"
 }
 
+func widens_without_check(from: Analysis.Types.NumericKind, to: Analysis.Types.NumericKind): Boolean {
+    var from_bits = scalar_bits(from)
+    var to_bits = scalar_bits(to)
+    if from_bits > to_bits {
+        return false
+    }
+    var from_signed = is_signed_kind(from)
+    var to_signed = is_signed_kind(to)
+    if from_signed == to_signed {
+        return true
+    }
+    return not from_signed and from_bits < to_bits
+}
+
 func code_literal(code: String): Long? {
     var digits = code
     while digits.starts_with("(") and digits.ends_with(")") {
@@ -9094,7 +9108,7 @@ func code_literal(code: String): Long? {
         var length = digits.length()
         digits = digits.slice(1, length - 1)
     }
-    assert not digits.is_empty() and digits.length() <= 18
+    assert not digits.is_empty() and digits.length() <= 19
     var index = 0
     while index < digits.length() {
         var character = digits.slice(index, index + 1)
@@ -9102,7 +9116,7 @@ func code_literal(code: String): Long? {
         index = index + 1
     }
     var magnitude = digits.to_long()
-    crash magnitude
+    assert magnitude
     if negative {
         return -magnitude
     }

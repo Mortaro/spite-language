@@ -102,10 +102,16 @@ func bit_view_members(stem: String): List<String> {
     switch stem {
         "float": return ["func bits(): UnsignedInteger", written]
         "double": return ["func bits(): Long", written]
-        "unsigned_integer": return ["func bits_as_float(): Float", written]
+        "unsigned_integer": return ["func bits_as_float(): Float", written, "func bits_as_signed(): Integer", written]
+        "integer": return ["func bits_as_unsigned(): UnsignedInteger", written]
+        "long": return ["func bits_as_double(): Double", written, "func bits_as_unsigned(): UnsignedLong", written]
+        "unsigned_long": return ["func bits_as_double(): Double", written, "func bits_as_signed(): Long", written]
+        "short": return ["func bits_as_unsigned(): UnsignedShort", written]
+        "unsigned_short": return ["func bits_as_signed(): Short", written]
+        "tiny": return ["func bits_as_unsigned(): Byte", written]
         _: {
-            if stem == "long" or stem == "unsigned_long" {
-                return ["func bits_as_double(): Double", written]
+            if stem == "byte" {
+                return ["func bits_as_signed(): Tiny", written]
             }
             return List<String>()
         }
@@ -113,7 +119,8 @@ func bit_view_members(stem: String): List<String> {
 }
 
 func is_bit_view(name: String): Boolean {
-    return name == "bits" or name == "bits_as_float" or name == "bits_as_double"
+    var views = ["bits", "bits_as_float", "bits_as_double", "bits_as_unsigned", "bits_as_signed"]
+    return views.contains(name)
 }
 
 func bit_view_body(c_name: String, from_c_type: String, to_c_type: String): String {

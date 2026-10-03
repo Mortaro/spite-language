@@ -352,6 +352,10 @@ func hash_of(key: $key_type): UnsignedLong {
             index = index + 1
         }
         return hash
+    } else if $key_type == Tiny or $key_type == Short or $key_type == Integer or $key_type == Long {
+        var bits = key.bits_as_unsigned()
+        var number: UnsignedLong = bits
+        return number.wrapping_multiply(6364136223846793005)
     } else {
         var number: UnsignedLong = key
         return number.wrapping_multiply(6364136223846793005)

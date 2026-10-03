@@ -183,7 +183,7 @@ func grow() {
     sizes = heap.allocate(new_capacity * 8)
     capacity = new_capacity
     var span: UnsignedLong = new_capacity
-    var largest: UnsignedLong = 0 - 1
+    var largest = UnsignedLong.largest
     divisor = largest / span + 1
     var index: Long = 0
     while index < new_capacity {
@@ -207,7 +207,7 @@ func grow() {
 }
 
 func slot_of(address: Long): Long {
-    var hashed: UnsignedLong = address
+    var hashed = address.bits_as_unsigned()
     return hashed.wrapping_multiply(6364136223846793005) / divisor
 }
 

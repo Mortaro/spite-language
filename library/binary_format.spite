@@ -15,10 +15,16 @@ func write(value: $value_type, output: BinaryOutput) {
         output.write_byte(value)
     } else if $value_type == Short or $value_type == UnsignedShort {
         output.write_short(value)
-    } else if $value_type == Integer or $value_type == UnsignedInteger {
+    } else if $value_type == Integer {
         output.write_integer(value)
-    } else if $value_type == Long or $value_type == UnsignedLong {
+    } else if $value_type == UnsignedInteger {
+        var bits = value.bits_as_signed()
+        output.write_integer(bits)
+    } else if $value_type == Long {
         output.write_long(value)
+    } else if $value_type == UnsignedLong {
+        var bits = value.bits_as_signed()
+        output.write_long(bits)
     } else if $value_type == Float {
         output.write_float(value)
     } else if $value_type == Double {
@@ -126,12 +132,16 @@ func read(input: BinaryInput): $value_type {
     } else if $value_type == UnsignedShort {
         var unsigned_short: $value_type = input.read_unsigned_short()
         return unsigned_short
-    } else if $value_type == Integer or $value_type == UnsignedInteger {
-        var whole: $value_type = input.read_integer()
-        return whole
-    } else if $value_type == Long or $value_type == UnsignedLong {
-        var long: $value_type = input.read_long()
-        return long
+    } else if $value_type == Integer {
+        return input.read_integer()
+    } else if $value_type == UnsignedInteger {
+        var whole = input.read_integer()
+        return whole.bits_as_unsigned()
+    } else if $value_type == Long {
+        return input.read_long()
+    } else if $value_type == UnsignedLong {
+        var long = input.read_long()
+        return long.bits_as_unsigned()
     } else if $value_type == Float {
         return input.read_float()
     } else if $value_type == Double {

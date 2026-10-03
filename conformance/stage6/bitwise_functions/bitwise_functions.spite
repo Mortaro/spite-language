@@ -13,7 +13,7 @@ func BitwiseFunctions() {
     console.print("int by 0 {eleven.shifted_left(0)} {eleven.shifted_right(0)}")
     console.print("int by 32 {eleven.shifted_left(32)} {eleven.shifted_right(32)} {all_ones.shifted_right(32)}")
     console.print("int by 100 {negative.shifted_right(100)} {negative.shifted_left(100)}")
-    var unsigned_ones: UnsignedInteger = 0 - 1
+    var unsigned_ones = UnsignedInteger.largest
     console.print(
         "unsigned int {unsigned_ones.shifted_right(31)} {unsigned_ones.shifted_left(31)} {unsigned_ones.shifted_right(32)}",
     )
@@ -38,7 +38,7 @@ func BitwiseFunctions() {
     var long_one: Long = 1
     var high_bit = long_one.shifted_left(40)
     console.print("long high bit {high_bit} {high_bit.leading_zero_count()} {high_bit.trailing_zero_count()}")
-    var unsigned_long: UnsignedLong = 0 - 1
+    var unsigned_long = UnsignedLong.largest
     console.print(
         "unsigned long {unsigned_long.shifted_right(63)} {unsigned_long.shifted_left(63)} {unsigned_long.shifted_right(64)}",
     )

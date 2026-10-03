@@ -1599,8 +1599,8 @@ runs and nothing is allocated when a program asks.
 
 ### A number's bits are read in place
 
-**What it does.** `Float.bits()`, `Double.bits()`, `UnsignedInteger.bits_as_float()`, `Long.bits_as_double()` and
-`UnsignedLong.bits_as_double()` are C macros over a union of the two types
+**What it does.** `Float.bits()`, `Double.bits()`, `UnsignedInteger.bits_as_float()`, `Long.bits_as_double()`,
+`UnsignedLong.bits_as_double()`, and every whole number's `bits_as_unsigned()` or `bits_as_signed()`, are C macros over a union of the two types
 ([values_and_types.md](values_and_types.md#rules-in-full)): the call is written where it is made
 and the value's bits are read as the other type, with no memory written and read back and nothing allocated. Going
 through a 4- or 8-byte block instead would also allocate nothing (the frame holds it), but the C would hold a block,

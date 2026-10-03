@@ -1119,8 +1119,11 @@ ordinary build and `--optimized` check exactly as `--debug-memory` does. The sam
     `conformance/stage6/narrowing_overflow`). A decimal is checked the same way, so not-a-number, an infinity and
     anything outside the range halts instead of becoming a value C leaves undefined (`spite: 99999997952, a Float,
     does not fit in an Integer, at ...`, `conformance/stage6/decimal_narrowing`); inside the range its fraction is
-    cut as before. `to_<type>()` on a number checks the same way. A change of signedness at the same width or wider
-    (`var bits: UnsignedLong = word` with a `Long` `word`) keeps the same bits and is not checked.
+    cut as before. `to_<type>()` on a number checks the same way. A change of signedness is checked like any
+    other: `-1` stored in an `UnsignedInteger`, or an `UnsignedLong` past the `Long` range stored in a `Long`, halts
+    (`spite: -3, an Integer, does not fit in an UnsignedInteger, at ...`, `conformance/stage6/signedness_change`). Only an unsigned value stored in a wider
+    signed type is never checked, since it always fits. To read the same bits with the other signedness, call
+    `bits_as_unsigned()` or `bits_as_signed()` (below).
   - An attribute of a singleton counted from many threads (`hits = hits + 1`) checks the atomic addition's answer.
   - A number written where it does not fit is a compile error naming the range:
     `300 does not fit in a Byte, whose numbers run from 0 to 255: store it in a wider type, or use a number that
@@ -1216,7 +1219,11 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
     (`diagnostics/bitwise_on_float`). `conformance/stage6/bitwise_functions` and `negative_shift` pin them.
 - **A number's bits are read as another type in place**: `Float.bits(): UnsignedInteger`, `Double.bits(): Long`,
   `UnsignedInteger.bits_as_float(): Float`, `Long.bits_as_double(): Double` and
-  `UnsignedLong.bits_as_double(): Double` give the same bits as the other type, with nothing converted. They are
+  `UnsignedLong.bits_as_double(): Double` give the same bits as the other type, with nothing converted. So do
+  `bits_as_unsigned()` on each signed whole number (`Tiny` to `Byte`, `Short` to `UnsignedShort`, `Integer` to
+  `UnsignedInteger`, `Long` to `UnsignedLong`) and `bits_as_signed()` on each unsigned one, back the other way:
+  `(-1).bits_as_unsigned()` is 4294967295, where storing `-1` in an `UnsignedInteger` halts. Hashes and binary
+  formats read words this way. They are
   bodiless declarations the compiler supplies, each a C macro over a union of the two types, so a call is
   written where it is made, touches no memory and allocates nothing, and a program that never calls one carries
   none of it. `conformance/stage6/half_precision` pins them.

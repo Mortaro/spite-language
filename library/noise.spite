@@ -160,9 +160,9 @@ func _lattice_value(cell_x: Integer, cell_y: Integer, cell_z: Integer): Float {
 }
 
 func _hash(cell_x: Integer, cell_y: Integer, cell_z: Integer): UnsignedInteger {
-    var first: UnsignedInteger = cell_x
-    var second: UnsignedInteger = cell_y
-    var third: UnsignedInteger = cell_z
+    var first = cell_x.bits_as_unsigned()
+    var second = cell_y.bits_as_unsigned()
+    var third = cell_z.bits_as_unsigned()
     var first_part = first.wrapping_multiply(374761393)
     var second_part = second.wrapping_multiply(668265263)
     var third_part = third.wrapping_multiply(2147483647)
