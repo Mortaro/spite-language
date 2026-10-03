@@ -1,0 +1,1 @@
+this program is meant to crash: 'crash' on a Boolean? asks for a flag that is there and true, as 'assert' does, so a false one halts

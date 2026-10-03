@@ -84,8 +84,8 @@ There is one rule, and every form below follows it.
 **Narrowing tests presence, never the value.** A `0`, a `0.0`, a `false` or a `""` that is there is present:
 `crash keys[index]` passes on an element holding `0.0`, and `if count` on an `Integer?` holding `0` runs its
 block. A plain `Boolean` condition is the only test of a value, which is why a `Boolean?` cannot be one
-([below](#reading-with--answers-t)), with one exception: `assert flag` on a `Boolean?` means the flag is true, so
-it passes only when the flag is there and not `false`, exactly as `assert flag` does on a `Boolean`.
+([below](#reading-with--answers-t)), with one exception: `assert flag` and `crash flag` on a `Boolean?` mean the
+flag is true, so they pass only when the flag is there and not `false`, exactly as they do on a `Boolean`.
 
 `assert value and other_condition` narrows too, and `other_condition` already sees the narrowed type. Each side of
 an `and` narrows on its own, for `assert`, `crash` and `if` alike, since each is known true when the whole is:
@@ -357,8 +357,8 @@ compiler also understands the usual proofs for the library's collections, so mos
 - **Checking a proven read again is an error** whose message names what already proved it, so the line can
   simply go.
 - A `Boolean?` cannot be a condition: `if flags[index]` would test that the element is there, not that it is true.
-  Prove it is there first, or compare it: `flags[index] == true`. Only `assert flags[index]` takes one, and it
-  passes when the element is there and `true`.
+  Prove it is there first, or compare it: `flags[index] == true`. Only `assert flags[index]` and `crash flags[index]`
+  take one, and they pass when the element is there and `true`.
 - **An unproven read names how to prove it.** `names[0].upper_case()` with nothing proving `names[0]` is
   `'names[0]' may be missing, since every '[ ]' answers a 'T?' (this one is a String?), so 'upper_case' cannot be
   called on it yet: narrow it first with 'crash names[0]', 'assert names[0]' or 'if names[0] { }', or prove the
@@ -1084,7 +1084,7 @@ to fix, not a style to document.
 | an index past the end, a key never set | `[]`, `first()`, `last()`, `remove_first()` answer a `T?` | [reading with `[]`](#reading-with--answers-t) |
 | a read a loop bound proved, with a counter gone below zero | halts naming the read and the line | [reading with `[]`](#reading-with--answers-t) |
 | a guard `assert` answering a `0`, `false`, `""` or default object the caller takes for a real answer | compile error unless the result can say "nothing" | [a default that looks like an answer](#a-default-that-looks-like-an-answer-is-an-error) |
-| a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is a condition only in `assert`, which asks for `true` | [null safety](#narrowing) |
+| a `false`, `0` or `""` taken for "missing" | narrowing tests presence, never the value; a `Boolean?` is a condition only in `assert` and `crash`, which ask for `true` | [null safety](#narrowing) |
 | text that is not a number, read as `0` | `to_integer()` and the other readings answer a `T?`; text assigned to a plain number is an error | [standard_library.md](standard_library.md#string) |
 | a function that declares a result reaching its end without a `return` | compile error at its last line naming the path | [every path ends in a `return`](#every-path-ends-in-a-return) |
 | a proof that went stale after an assignment or a call | the read must be proven again; in a loop, an error naming the call | [a call may undo a proof](#a-call-may-undo-a-proof) |
@@ -1139,7 +1139,7 @@ presence flag beside the value (`has_value`), a reference's `T?` is its pointer,
 `get_at`/`get`, which answer that flag, so no representation uses a sentinel and no value can be mistaken for
 absence (`conformance/stage6/present_zero`, which narrows zeros, `false` and `""` from lists, a dictionary, an
 `Integer?` result, `first()`/`last()` and `remove_first()` by `crash`, `assert`, `if` and `and`). A `Boolean?` is
-never a condition but in `assert`, which asks for `true` (below), so a `false` that is there is never taken for a
+never a condition but in `assert` and `crash`, which ask for `true` (below), so a `false` that is there is never taken for a
 missing one.
 
 `if` on a `T?` narrows the same way, in place, for the whole block: `if value { } else { }` runs the
@@ -1354,12 +1354,14 @@ How a read is proven:
   instead. A read used before it is narrowed is an error that names the read and the lines that would
   narrow it: `crash`, `assert` and `if` on the read itself, then the count or loop bound that proves it for a
   library collection ([above](#reading-with--answers-t), `diagnostics/index_reads`).
-- **A `Boolean?` cannot be a condition**, not in `if`, `while` or `crash`, and not under `not` or `or`: `if
+- **A `Boolean?` cannot be a condition**, not in `if` or `while`, and not under `not` or `or`: `if
   flags[index]` would test that the element is there, not that it is true, and the two mean opposite things for
   `false`. Prove the element is there first, or `switch` over it; `== true` also works, since comparing needs no
   narrowing.
 - **`assert flag` on a `Boolean?` means the flag is true**, as it does on a `Boolean`: it passes when the flag is
-  there and not `false`, and fails (the function answers "nothing") when it is `null` or `false`. A side of an
+  there and not `false`, and fails (the function answers "nothing") when it is `null` or `false`. **`crash flag`
+  reads it exactly the same way**: it halts unless the flag is there and `true`
+  (`conformance/stage6/crash_maybe_boolean`). A side of an
   `and` under `assert` reads the same way. After it the flag is a `Boolean`. Behaviour that depends on whether the
   flag is there is written by testing the value (`if flag == true`, `if flag == false`) or by a `switch`; there is
   no `flag != null` form (`conformance/stage6/assert_maybe_boolean`, `diagnostics/maybe_boolean_conditions`).

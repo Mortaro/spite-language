@@ -1,7 +1,6 @@
 var shape = Analysis.AstShape()
 var class_files = List<DiscoveredClass>()
 var has_error = false
-var comment_root = ""
 var error_message = ""
 var walking_library = false
 var language_folder = "."
@@ -279,7 +278,6 @@ func discover_program(entry_path: String, entry_source: String) {
         error_message = lex_failure(entry_path, lexer)
         return
     }
-    comment_root = directory_of(entry_path)
     check_comments(entry_path, lexer.tokens)
     assert not has_error
     var parser = Syntax.Parser(lexer.tokens)
@@ -599,7 +597,7 @@ func check_comments(path: String, tokens: List<Syntax.Token>) {
         }
         if token.kind == 'comment' and not has_error {
             var trimmed_text = token.text.trim()
-            var problem = comment_problem(trimmed_text, depth)
+            var problem = comment_problem(path, trimmed_text, depth)
             if not problem.is_empty() {
                 has_error = true
                 error_message = "{path}:{token.line}: error: {problem}"
@@ -609,7 +607,7 @@ func check_comments(path: String, tokens: List<Syntax.Token>) {
     }
 }
 
-func comment_problem(text: String, depth: Integer): String {
+func comment_problem(path: String, text: String, depth: Integer): String {
     if depth > 0 {
         return "a comment may not appear inside a function or a declaration body: a line that needs explaining becomes a named function instead. {comment_lesson()}"
     }
@@ -620,9 +618,10 @@ func comment_problem(text: String, depth: Integer): String {
     var markdown_path = text.slice(0, hash_position)
     var text_length = text.length()
     var anchor = text.slice(hash_position + 1, text_length)
-    var content = File("{comment_root}/{markdown_path}").read()
+    var folder = directory_of(path)
+    var content = File("{folder}/{markdown_path}").read()
     if not content {
-        return "this comment links to '{markdown_path}', which does not exist (the path is relative to the entry file's folder, like load)"
+        return "this comment links to '{markdown_path}', which does not exist (the path is relative to the folder of the file the comment is in, like load)"
     }
     if not markdown_anchors(content).contains(anchor) {
         return "this comment links to '{markdown_path}#{anchor}', but that file has no heading with that anchor"

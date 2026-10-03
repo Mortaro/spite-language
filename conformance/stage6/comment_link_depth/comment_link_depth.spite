@@ -1,0 +1,8 @@
+var console = Console()
+
+func CommentLinkDepth() {
+    load "kit"
+    var shelf = Shelves.Shelf()
+    var books = shelf.count()
+    console.print("a comment link resolves from its own file's folder:", books)
+}

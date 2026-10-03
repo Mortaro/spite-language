@@ -15,7 +15,7 @@ var last_header = ""
 var folded_count = 0
 var defined_names = Dictionary<Boolean>()
 
-# ../docs/optimizations.md#identical-functions-are-folded-into-one
+# ../../../docs/optimizations.md#identical-functions-are-folded-into-one
 func fold(typedef_text: String, bodies: String, main_function: String): String {
     main_text = main_function
     learn_names(typedef_text)
@@ -441,7 +441,7 @@ func fold_into(folded: Integer, kept: Integer) {
     )
 }
 
-# ../docs/optimizations.md#identical-functions-are-folded-into-one
+# ../../../docs/optimizations.md#identical-functions-are-folded-into-one
 func pointers(): String {
     return pointer_lines.join("\n")
 }

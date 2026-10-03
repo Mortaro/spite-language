@@ -158,7 +158,7 @@ func is_alive(): Boolean {
   below it and call it. The formatter (and so every compile) deletes one you write. An `if` whose only statement is a bare `return`
   is an error too: that is a precondition, and a precondition is written `assert condition`.
 - A comment is one line, outside functions, and nothing but a link to a markdown heading:
-  `# notes.md#why-this-exists` (relative to the entry file's folder; the file and the heading must exist).
+  `# notes.md#why-this-exists` (relative to the folder of the file it is in, like `load`; the file and the heading must exist).
   Anything else, including `//` and `/* */`, is an error. If the code already says it, do not write it.
 
 ## Values
@@ -420,8 +420,8 @@ func is_alive(): Boolean {
   proves nothing: remove the check`), and `crash list[index]` inside `while index < list.count()` (`'list[index]'
   is already proven by the loop condition`). Delete the line.
 - A `Boolean?` is not a condition (`which would only test that it is there, not that it is true`): narrow it
-  first, or compare it `== true`. The one exception is `assert flag`, which means the flag is there and `true`
-  (as on a `Boolean`); there is no `flag != null`. A `Concurrent` or `Parallel` handle of a `Boolean?` is refused
+  first, or compare it `== true`. The exceptions are `assert flag` and `crash flag`, which mean the flag is there
+  and `true` (as on a `Boolean`); there is no `flag != null`. A `Concurrent` or `Parallel` handle of a `Boolean?` is refused
   as a condition too: `if ready == true`.
 - There are no exceptions and no error values. Three outcomes only:
   - the compiler can know it: a compile error;

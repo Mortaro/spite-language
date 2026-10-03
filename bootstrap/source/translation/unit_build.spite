@@ -47,7 +47,7 @@ func built(header_code: String, units: List<String>, output_path: String): Boole
     return linked_all
 }
 
-# ../docs/compiler.md#translation-units-the-c-compiled-in-parallel-and-cached
+# ../../../docs/compiler.md#translation-units-the-c-compiled-in-parallel-and-cached
 func mark_used(stem: String) {
     used_stems.append(stem)
     File("{cache_folder}/{stem}.used").write("1")
@@ -160,7 +160,7 @@ func compile_process(key: String): Process {
     return with_messages(arguments)
 }
 
-# ../docs/compiler.md#what-the-c-compiler-says
+# ../../../docs/compiler.md#what-the-c-compiler-says
 func with_messages(arguments: List<String>): Process {
     var compile = Process(c_compiler, arguments)
     var line = "2>&1 {c_compiler}"

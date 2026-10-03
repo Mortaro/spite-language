@@ -676,7 +676,7 @@ Addresses are `Memory.Address`es, so a buffer is `heap.allocate(bytes)` and its 
 | Member | Does |
 |---|---|
 | `open()`, `open_locally(port)`, `open_everywhere(port)`, `open_at(host, port)` | opens on a port the system picks (a client), or on `port` of `127.0.0.1`, of every interface of both IPv4 and IPv6, or of the one interface a host name or address names (`"::1"`; a name with both kinds of address opens on its IPv4 one); port `0` is one the system picks; `false` when the port is taken or the name does not resolve |
-| `port: Integer` | get-only: the port the socket is open on, the one the system gave it after `open()` (asked of the system with `getsockname`), so a client can tell a server where to answer; reading it from a socket that is not open halts, since it has none |
+| `port: Integer` | get-only: the port the socket is open on, the one the system gave it after `open()` (asked of the system with `getsockname`), so a client can tell a server where to answer; reading it from a socket that is not open halts, since it has none, and a program that wants the number after `close()` keeps it in a `var` before closing, which says it means to |
 | `send_to(host, port, bytes): Boolean` | sends one datagram to a host name or an IPv4 or IPv6 address; a name with both kinds of address is sent to its IPv4 one; `false` when the name does not resolve to an address the socket can reach (an IPv6 one from `open_locally`) or the system refuses it |
 | `receive(): List<Byte>?` | waits for the next datagram; `null` when the socket is closed |
 | `receive_now(): List<Byte>?` | the next datagram if one has arrived, otherwise `null` at once |

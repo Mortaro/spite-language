@@ -1346,9 +1346,13 @@ That is all an enum is; the integer it compiles to is a representation detail.
 
 **An enum value may be given a number with `=`.**
 
-- One value per line as always: `'admin' = 99`. The number is a whole number, negative allowed, and fits an
+- One value per line as always: `'admin' = 99`. The number belongs to the declaration only: everywhere else the
+  value is written as any value is, `'admin'`, with no number after it. The number is a whole number, negative allowed, and fits an
   `Integer`; a value written without one counts on from the value before it, and the first value without one is 0.
   An enum with no number written is numbered 0, 1, 2 in its order.
+- **`to_integer()` answers a value's number**, the written one or the counted one: `role.to_integer()` is `99` for
+  `'admin'` above, and `100` for the value after it. It is how library code writes a value as its number (a binary
+  file, a C binding) (`conformance/stage6/enum_to_integer`).
 - Two values with one number are a compile error naming both and the number
   (`diagnostics/enum_numbers`), and so is a number, written or counted on, that does not fit an `Integer`:
   `'large' would be number 2147483648 of enum 'Size', which does not fit an Integer: an enum value's number is an

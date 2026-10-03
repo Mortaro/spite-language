@@ -1,4 +1,4 @@
-# ../docs/reflection.md#known-while-compiling
+# ../../../docs/reflection.md#known-while-compiling
 var c_name = ""
 var bindings = List<ReflectedBinding>()
 

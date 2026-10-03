@@ -1,1 +1,1 @@
-diagnostics/comment_missing_file/comment_missing_file.spite:1: error: this comment links to 'nowhere/missing.md', which does not exist (the path is relative to the entry file's folder, like load)
+diagnostics/comment_missing_file/comment_missing_file.spite:1: error: this comment links to 'nowhere/missing.md', which does not exist (the path is relative to the folder of the file the comment is in, like load)

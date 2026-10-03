@@ -1,0 +1,10 @@
+var console = Console()
+
+func CrashMaybeBoolean() {
+    var present: Boolean? = true
+    crash present
+    console.print("a Boolean? that is there and true passes:", present)
+    var flags = [true, false]
+    crash flags[1]
+    console.print("never printed")
+}

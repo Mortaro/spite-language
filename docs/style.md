@@ -190,8 +190,8 @@ a markdown file:
 func Game() {
 ```
 
-The path is resolved from the entry file's folder, and the compiler checks that the file exists and has that
-heading, so a link cannot rot silently. Prose in a comment, `//` and `/* */` are errors, and each one asks
+The path is resolved from the folder of the file the comment is in, as `load` resolves its folder, and the compiler
+checks that the file exists and has that heading, so a link cannot rot silently. Prose in a comment, `//` and `/* */` are errors, and each one asks
 whether the note is needed at all: if a reader could work it out from the code, delete it; if it is lasting
 knowledge, write the section and link to it; if it warns against a change, a test or a compile error pushes
 harder than prose. A line inside a function that seems to need explaining becomes a named function instead:
@@ -569,8 +569,9 @@ func Game() {
 ```
 
 - The link is a path to a markdown file plus a GitHub format anchor (lowercase, punctuation dropped, spaces to
-  hyphens, `-1`, `-2` for repeated headings) and no other text. The path is resolved from the entry file's folder,
-  the same rule `load` uses, so a local run and an automated one agree.
+  hyphens, `-1`, `-2` for repeated headings) and no other text. The path is resolved from the folder of the file the
+  comment is in, the same rule `load` uses, so a package's links resolve whichever program loads it, from whatever
+  depth (`conformance/stage6/comment_link_depth`).
 - The compiler checks that the file exists and has a heading with that anchor. A link that does not resolve fails
   the build, which is the point: prose in source rots into a lie, a link either resolves or stops you.
 - A comment may only appear outside functions and declaration bodies. A line that seems to need explaining

@@ -24,13 +24,6 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      `Float`'s (say `Long.bits_as_unsigned()` and `UnsignedLong.bits_as_signed()`), which the hashes would call.
      Recommendation: (b), since a negative count turning into four billion is the silent wrap D359 forbids, and the
      bit readings are few and all in `library/`. Blocks: nothing; today's reading is (a).
-266. **`crash flag` on a `Boolean?`** (D372). D372 makes `assert flag` mean "there and `true`" and names only
-     `assert`, so `crash flag` on a `Boolean?` is still an error. Options: (a) `crash flag` halts unless the flag
-     is there and `true`, as `assert` reads it; (b) keep it an error and write `crash flag == true`. Recommend (a):
-     one reading of a `Boolean?` condition everywhere.
-267. **`UdpSocket.port` of a closed socket** (D369 item 250). Options: (a) halts naming the closed socket, as
-     built; (b) answers `Integer?`, `null` once closed. Recommend (a): asking a closed socket is a developer
-     mistake (D199), and `0` would be a silent wrong value.
 268. **`clamp` and not-a-number** (D369 item 249). `minimum` and `maximum` now pass `nan` on; `clamp` was built the
      same way, answering `nan` when the value or either bound is `nan` (it used to answer the low bound). Recommend
      confirming: the same rule as `minimum` and `maximum`.
@@ -44,18 +37,6 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 271. **Member templates by class on a union list beyond `filter_`**: D330 names only `filter_<classes>()`;
      `count_`, `any_`, `all_` and `remove_where_` by member class are not built. Recommend allowing them the same
      way (one rule for every member template). Blocks nothing.
-272. **Is a numbered enum value written with its quotes?** D386's example reads `admin = 99`, while every enum
-     value is written single quoted (`'admin'`). Built as `'admin' = 99`, the existing form of a value with `=`
-     after it. Options: (a) `'admin' = 99`, as built; (b) `admin = 99` unquoted, only when numbered. Recommend (a):
-     one way to write a value.
-273. **Where a comment link resolves from.** A comment link resolves from the entry file's folder, while `load`
-     resolves from the file's own folder, so a program that loads a package from another depth fails on the
-     package's comment links. Options: (a) resolve a link from the file's own folder, as `load` does; (b) from the
-     entry folder, as today. Recommend (a).
-274. **How library Spite reads a numbered enum value's number** (D386). Binary files still write a value by its
-     position, since there is no decided spelling for its number. Options: (a) a get-only `number` on every enum
-     value; (b) `to_integer()`; (c) through reflection (`Spite.Enum`, D371). Recommend (a), which a binding and a
-     serializer both read.
 275. **Loading a subfolder of a package** (D364 says never `load "kal/physics"`). It is not enforced: when only the
      subfolder is loaded the compiler cannot tell that `kal/` is a package root. Options: (a) leave it unenforced;
      (b) refuse a load whose folder lies inside another loaded root, once both loads are seen. Recommend (a) now

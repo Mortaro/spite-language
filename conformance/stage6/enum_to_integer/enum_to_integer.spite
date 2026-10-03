@@ -1,0 +1,22 @@
+enum Role {
+    'guest'
+    'admin' = 99
+    'owner'
+}
+
+enum Phase {
+    'early'
+    'late'
+}
+
+var console = Console()
+
+func EnumToInteger() {
+    var role: Role = 'admin'
+    var owner: Role = 'owner'
+    var guest: Role = 'guest'
+    var phase: Phase = 'late'
+    var numbers = [guest.to_integer(), role.to_integer(), owner.to_integer(), phase.to_integer()]
+    var shown = numbers.join(" ")
+    console.print(shown)
+}

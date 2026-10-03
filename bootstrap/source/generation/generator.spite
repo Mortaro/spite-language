@@ -90,6 +90,7 @@ var world_gate_written = false
 var guard_count_asked = false
 var shape_boxes_written = List<String>()
 var hot_machine_names = List<String>()
+var enum_number_functions = List<String>()
 var shape_value_keys = List<String>()
 var shape_value_forwarders = List<String>()
 var shape_value_boxes = List<String>()
@@ -522,7 +523,7 @@ func list_package_error(line: String, package: String) {
     }
 }
 
-# ../docs/compiler.md#how-many-errors-are-listed
+# ../../../docs/compiler.md#how-many-errors-are-listed
 func listed_errors(): String {
     var shown = error_lines.copy()
     if own_errors_hidden > 0 {
@@ -3654,7 +3655,7 @@ func required_function_problem(
     return ""
 }
 
-# ../docs/values_and_types.md#inline-types-and-duck-typing-in-full
+# ../../../docs/values_and_types.md#inline-types-and-duck-typing-in-full
 func own_type_in_shape(
     information: Analysis.UnionInfo,
     wanted_type: Analysis.SpiteType,
@@ -7022,7 +7023,7 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
     return chained_read(read)
 }
 
-# ../docs/collections.md#a-members-own-function-in-a-templates-name
+# ../../../docs/collections.md#a-members-own-function-in-a-templates-name
 func chained_read(read: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
     if not bound_compared_value.is_empty() {
         var value: Syntax.Expressions.Expression = Syntax.Expressions.EnumLiteralExpression(bound_compared_value)
@@ -7347,7 +7348,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     information.declared_functions.append(function)
 }
 
-# ../docs/values_and_types.md#numbers-are-classes-and-this
+# ../../../docs/values_and_types.md#numbers-are-classes-and-this
 func report_from_declaration(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo) {
     var saved_line = current_line
     current_line = declaration.line
@@ -7358,7 +7359,7 @@ func report_from_declaration(declaration: Syntax.Statements.FunctionDeclaration,
     current_line = saved_line
 }
 
-# ../docs/functions_and_operators.md#functions-the-compiler-calls-by-name
+# ../../../docs/functions_and_operators.md#functions-the-compiler-calls-by-name
 func report_reserved_signature(
     declaration: Syntax.Statements.FunctionDeclaration,
     parameter_count: Integer,
@@ -10570,7 +10571,7 @@ func class_passed_as_object(
     return tested_class_of(expression, class_information)
 }
 
-# ../docs/proofs.md#proving-what-is-proven-is-an-error
+# ../../../docs/proofs.md#proving-what-is-proven-is-an-error
 func report_decided_class_test(
     binary: Syntax.Expressions.BinaryExpression,
     value_type: Analysis.SpiteType,
@@ -15845,6 +15846,13 @@ func generate_enum_method(
     object_result: ExpressionResult,
     arguments_ast: List<Syntax.Expressions.Expression>,
 ): ExpressionResult {
+    if name == "to_integer" and arguments_ast.is_empty() {
+        var numbering = enum_number_function(enum_type)
+        if not numbering.is_empty() {
+            var integer_spite_type = integer_type()
+            return ExpressionResult("{numbering}({object_result.code})", integer_spite_type)
+        }
+    }
     var enum_class = boxed_class_of(enum_type)
     crash enum_class
     var function = find_or_instantiate_function(enum_class, name)
@@ -15855,9 +15863,46 @@ func generate_enum_method(
         }
     }
     report(
-        "{type_with_article(enum_type)} value has no function '{name}': an enum value answers 'to_string()' and 'to_debug()'",
+        "{type_with_article(enum_type)} value has no function '{name}': an enum value answers 'to_string()', 'to_debug()' and 'to_integer()'",
     )
     return void_result()
+}
+
+func enum_number_function(enum_type: Analysis.SpiteType): String {
+    var enumeration = type_shape.as_enum(enum_type)
+    crash enumeration
+    var information = enums.find_by_c_name(enumeration.c_name)
+    crash information
+    var name = "{information.c_name}___number"
+    if not enum_number_functions.contains(name) {
+        enum_number_functions.append(name)
+        var lines = List<String>()
+        lines.append("static int32_t {name}({information.c_name} value) \{")
+        lines.append("switch (value) \{")
+        var index = 0
+        while index < information.values.count() {
+            var value_name = information.values[index]
+            var number = index
+            if information.is_numbered() {
+                crash information.numbers[index]
+                number = information.numbers[index]
+            }
+            lines.append("case {information.c_name}_{value_name}: return {number};")
+            index = index + 1
+        }
+        lines.append("default: break;")
+        lines.append("}")
+        lines.append("fflush(stdout);")
+        lines.append(
+            "fprintf(stderr, \"spite: a value of {information.simple_name} that the running code does not know has no number\\n\");",
+        )
+        lines.append("exit(1);")
+        lines.append("}")
+        builder.add_prototype("static int32_t {name}({information.c_name} value);")
+        var joined_lines = lines.join("\n")
+        builder.add_support(joined_lines)
+    }
+    return name
 }
 
 func generate_value_method(
@@ -17412,7 +17457,7 @@ func report_weak_across_threads() {
     }
 }
 
-# ../docs/concurrency.md#the-thread-pool
+# ../../../docs/concurrency.md#the-thread-pool
 func report_endless_parallel_work() {
     settle_wait_facts()
     var reported = Dictionary<Boolean>()
@@ -20748,7 +20793,7 @@ func report_reads_in_template(statements: List<Syntax.Statements.Statement>) {
     current_line = saved_line
 }
 
-# ../docs/failure.md#an-index-reads-nothing
+# ../../../docs/failure.md#an-index-reads-nothing
 func report_reads_in_indices(statement: Syntax.Statements.Statement) {
     assert not walked_statement_places.has("{current_path}:{current_line}")
     switch statement {
@@ -30085,7 +30130,7 @@ func address_parameter_names(function: Analysis.FunctionInfo): List<String> {
     return names
 }
 
-# ../docs/control_flow.md#nothing-after-a-return
+# ../../../docs/control_flow.md#nothing-after-a-return
 func report_after_return(statements: List<Syntax.Statements.Statement>, index: Integer) {
     assert index + 1 < statements.count()
     assert shape.as_return_statement(statements[index])
@@ -34781,7 +34826,7 @@ func check_keyword(check: Syntax.Statements.AssertStatement): String {
     return "assert"
 }
 
-# ../docs/proofs.md#proving-what-is-proven-is-an-error
+# ../../../docs/proofs.md#proving-what-is-proven-is-an-error
 func report_known_fact(
     condition_ast: Syntax.Expressions.Expression,
     condition_type: Analysis.SpiteType,
@@ -35094,7 +35139,7 @@ func generate_while_statement(
     builder.add_user("spite_coarse_{site}_leave();")
 }
 
-# ../docs/control_flow.md#while-is-the-only-loop
+# ../../../docs/control_flow.md#while-is-the-only-loop
 func report_spinning_loop(while_statement: Syntax.Statements.WhileStatement) {
     crash while_statement.condition
     assert shape.is_true_literal(while_statement.condition) and not can_leave(while_statement.body)
@@ -37322,7 +37367,7 @@ func generate_assert_statement(
         emit_folded_check(assert_statement, decided == true, scope, class_information, function_information)
         return decided == false
     }
-    asserting_boolean_truth = not assert_statement.is_crash
+    asserting_boolean_truth = true
     var guard = try_nullable_guard(assert_statement.value, scope, class_information)
     asserting_boolean_truth = false
     var guard_code = ""
@@ -37331,7 +37376,7 @@ func generate_assert_statement(
         guard_code = guard.guard_code
         narrow_by_guard(scope, guard, "'{check_keyword(assert_statement)} {guard.name}'")
         var guard_inner = guard.inner
-        if not assert_statement.is_crash and is_boolean_type(guard_inner) {
+        if is_boolean_type(guard_inner) {
             var truth = generate_expression(assert_statement.value, scope, class_information)
             guard_code = "({guard_code}) && ({truth.code})"
         }
@@ -37739,7 +37784,7 @@ func report_place(function_information: Analysis.FunctionInfo): String {
     return "{tab_text()}{escape_c_string(current_path)}:{current_line}{tab_text()}{current_owner}{tab_text()}{function_information.name}"
 }
 
-# ../docs/optimizations.md#identical-functions-are-folded-into-one
+# ../../../docs/optimizations.md#identical-functions-are-folded-into-one
 func reported_site(kind: String, ending: String, function_information: Analysis.FunctionInfo): String {
     var text = "{kind}{tab_text()}{current_site_id}{report_place(function_information)}{ending}"
     var free_path = version_free_path(current_path)
@@ -37979,7 +38024,7 @@ func generate_statement(
     return ended_in_return
 }
 
-# ../docs/proofs.md#proving-what-is-proven-is-an-error
+# ../../../docs/proofs.md#proving-what-is-proven-is-an-error
 func note_repeated_check(statement: Syntax.Statements.Statement, scope: Scope, clean: Boolean) {
     var check = shape.as_assert_statement(statement)
     if not check or check.condition_text.is_empty() or check.condition_text.contains("(") {
@@ -45654,7 +45699,7 @@ func ensure_byte_count_function(information: Analysis.ClassInfo): String {
     return name
 }
 
-# ../docs/reflection.md#known-while-compiling
+# ../../../docs/reflection.md#known-while-compiling
 func is_reflection_type(spite_type: Analysis.SpiteType): Boolean {
     var class_ref = type_shape.as_class_ref(spite_type)
     if not class_ref {

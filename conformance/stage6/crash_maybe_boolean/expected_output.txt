@@ -1,0 +1,5 @@
+spite.crash	3be0e5b5	conformance/stage6/crash_maybe_boolean/crash_maybe_boolean.spite:8	CrashMaybeBoolean	CrashMaybeBoolean	flags[1]=false	present=true
+spite.frame	conformance/stage6/crash_maybe_boolean/crash_maybe_boolean.spite:3	CrashMaybeBoolean	CrashMaybeBoolean
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
+a Boolean? that is there and true passes: true

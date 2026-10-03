@@ -1,0 +1,6 @@
+# ../notes.md#shelves
+var books = 3
+
+func count(): Integer {
+    return books
+}

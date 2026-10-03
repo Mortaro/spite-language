@@ -1,3 +1,3 @@
 diagnostics/print_without_to_string/print_without_to_string.spite:10: error: 'Crate' does not fit type 'Printable': it has no function 'to_string' (in PrintWithoutToString.PrintWithoutToString)
 diagnostics/print_without_to_string/print_without_to_string.spite:12: error: 'List<Integer>' does not fit type 'Printable': it has no function 'to_string' (in PrintWithoutToString.PrintWithoutToString)
-diagnostics/print_without_to_string/print_without_to_string.spite:14: error: a Weather value has no function 'upper_case': an enum value answers 'to_string()' and 'to_debug()' (in PrintWithoutToString.PrintWithoutToString)
+diagnostics/print_without_to_string/print_without_to_string.spite:14: error: a Weather value has no function 'upper_case': an enum value answers 'to_string()', 'to_debug()' and 'to_integer()' (in PrintWithoutToString.PrintWithoutToString)
