@@ -11,7 +11,7 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391, 263 by D394 (2026-10-02); 266 to 296 by D468 to D488, and 268, 269, 271 and 276 to 279 by D493 to D497, 298 by D498 (2026-10-03). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391, 263 by D394 (2026-10-02); 266 to 296 by D468 to D488, and 268, 269, 271 and 276 to 279 by D493 to D497, 298 by D498, 301 by D499 (2026-10-03). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
@@ -69,14 +69,6 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      the library writes `func normalized(): Vector3<Fraction<$number_type>>`; (b) a codegen value with a default
      worked out from another, `generic $fraction_type = $number_type.fraction`. Recommend (a): one type, readable where it is used, and nothing a program
      writes changes. Blocks building D486.
-301. **Should the binary pair be reused the same way?** (D478.) `JsonWriter<T>()` and `JsonReader<T>()` are now made
-     once and called with each value or text. `BinaryWriter(value)` and `BinaryReader<T>(bytes)` still take their
-     input in the constructor, since a binary reader is a cursor over one buffer (`position`, `remaining()`, many
-     values read in turn) and `append_to(bytes)` writes the value into a list the program has. Options: (a) keep the
-     binary pair as it is: the reader is a cursor, and the writer is one value; (b) the same shape as JSON,
-     `BinaryWriter<T>()` with `write(value)` and `append_to(value, bytes)`, and `BinaryReader<T>()` with
-     `read(bytes)`, giving up the cursor; (c) a writer like JSON's and the reader as a cursor. Recommend (c): a
-     reusable writer costs nothing, and the cursor is what reading many values from one socket buffer needs.
 302. **How a class file overrides a function of its class object** (D483, answering item 270: "anything can be
      overridden"). A class file's functions are its instances' functions: `func to_string()` in `gadget.spite` is how
      a gadget prints. `Spite.Class` declares functions of the class object too (`Gadget.has_function(name)`,
