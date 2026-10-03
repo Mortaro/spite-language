@@ -56,7 +56,7 @@ func including(point: Vector3<Float>): AxisAlignedBox {
     return AxisAlignedBox(grown_low, grown_high)
 }
 
-func transformed(matrix: Matrix4): AxisAlignedBox {
+func transformed(matrix: Matrix4<Float>): AxisAlignedBox {
     var middle = center()
     var half_x = (highest_x - lowest_x) * 0.5
     var half_y = (highest_y - lowest_y) * 0.5

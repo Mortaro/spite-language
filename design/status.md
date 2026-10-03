@@ -89,7 +89,6 @@ when a page gains a rule that is not built yet, add it here.
 ### Decided by Mortaro, not built yet
 
 - D476: `JsonValue` (backlog J3); its shape waits on item 297.
-- D477: `Quaternion` and the matrices generic over `Number`.
 - D478: the optional `keys` attribute of `JsonWriter<T>()`/`JsonReader<T>()` (the map waits on backlog J2); the
   reusable serializers with `write(value)`/`read(text)` are built.
 - D479: an unwinder written in Spite for the call chain of an `--optimized` crash on Linux and macOS.
@@ -660,9 +659,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - The whole section was tagged implemented; nothing is missing. Open point only: the names and conventions (layout,
   column-major, Vulkan clip space) were proposed by Claude and never confirmed by Mortaro (decision D214 says he picks
   names later). The page states them as decided.
-- Built: `Vector2`, `Vector3` and `Vector4` generic over `Number` (D355, D381, D???). Not decided: whether
-  `Quaternion`, the matrices, `Plane`, `Ray`, `AxisAlignedBox`, `Frustum` and `CubicBezier` are generic too; they hold
-  `Float`s and take `Vector3<Float>`. Proposed by Claude, unconfirmed (D???): `scaled` and `linear_interpolate` take
+- Built: `Vector2`, `Vector3`, `Vector4`, `Matrix3`, `Matrix4` and `Quaternion` generic over `Number` (D355, D381,
+  D477); `Plane`, `Ray`, `AxisAlignedBox`, `Frustum` and `CubicBezier` hold `Float`s (D477). The matrices and the
+  quaternion accept only `Float` and `Double` through a constant `crash` in their constructors, so the error names
+  the library line; a signature that names a fractional class (item 300) would move it to the user's line. Proposed by Claude, unconfirmed (D???): `scaled` and `linear_interpolate` take
   the vector's own class, a whole number's root is taken in `Double` and cut, and a decimal vector's `normalized()`
   multiplies by the inverse length as before.
 

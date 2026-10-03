@@ -1,0 +1,39 @@
+var console = Console()
+
+func DoubleMaths() {
+    var turn = Quaternion<Double>()
+    var up = Vector3<Double>(0.0, 1.0, 0.0)
+    var quarter: Double = 1.5707963267948966
+    turn.set_axis_angle(up, quarter)
+    var forward = Vector3<Double>(0.0, 0.0, -1.0)
+    var turned = turn.rotate(forward)
+    var x_error = turned.x + 1.0
+    var precise = x_error.absolute() < 0.000000000001
+    console.print("a quarter turn in Double is exact to 1e-12:", precise)
+    var model = Matrix4<Double>()
+    var offset = Vector3<Double>(1000000.0, 0.0, 0.0)
+    var size = Vector3<Double>(1.0, 1.0, 1.0)
+    model.set_transform(offset, turn, size)
+    var small = Vector3<Double>(0.0, 0.0, -0.000001)
+    var placed = model.transform_point(small)
+    var kept = placed.x - 1000000.0
+    var kept_small = kept < -0.0000009 and kept > -0.0000011
+    console.print("a micrometre a kilometre away survives:", kept_small)
+    var inverse = model.inverse()
+    crash inverse
+    var back = inverse.transform_point(placed)
+    var round_trip = back.z + 0.000001
+    var close = round_trip.absolute() < 0.000000001
+    console.print("the inverse brings it back:", close)
+    var normals = model.normal_matrix()
+    crash normals
+    var spun = Quaternion<Double>()
+    var angles = Vector3<Double>(0.0, quarter, 0.0)
+    spun.set_euler(angles, 'xyz')
+    var same = spun.dot(turn)
+    var agrees = same > 0.999999999999
+    console.print("set_euler agrees with set_axis_angle:", agrees)
+    var floats = Quaternion<Float>()
+    var spun_length = spun.length()
+    console.print("Float and Double are separate classes:", floats, spun_length)
+}

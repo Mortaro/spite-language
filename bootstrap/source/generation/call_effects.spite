@@ -262,6 +262,7 @@ func handed_list_kept(call: EffectCall, argument_index: Integer, seen: List<Stri
 }
 
 func record_fields(statements: List<Syntax.Statements.Statement>, class_name: String) {
+    var numbers = number_codegen_names(statements)
     var index = 0
     while index < statements.count() {
         var declared = shape.as_variable_declaration(statements[index])
@@ -274,7 +275,7 @@ func record_fields(statements: List<Syntax.Statements.Statement>, class_name: St
             if not declared_element.is_empty() {
                 element_classes["{class_name}#{declared.name}"] = declared_element
             }
-            if holds_plain_value(declared) {
+            if holds_plain_value(declared, numbers) {
                 plain_fields["{class_name}#{declared.name}"] = true
             } else {
                 counted_field_names[declared.name] = true
@@ -315,8 +316,28 @@ func record_type_fields(declared_type: Syntax.Statements.TypeDeclaration, class_
     }
 }
 
-func holds_plain_value(declaration: Syntax.Statements.VariableDeclaration): Boolean {
+func number_codegen_names(statements: List<Syntax.Statements.Statement>): List<String> {
+    var names = List<String>()
+    var index = 0
+    while index < statements.count() {
+        var declared = shape.as_generic_declaration(statements[index])
+        if declared and declared.constraint {
+            var constraint = shape.as_named_type(declared.constraint)
+            if constraint and constraint.arguments.is_empty() and constraint.path.join(".") == "Number" {
+                names.append(declared.name)
+            }
+        }
+        index = index + 1
+    }
+    return names
+}
+
+func holds_plain_value(declaration: Syntax.Statements.VariableDeclaration, numbers: List<String>): Boolean {
     if declaration.type_reference {
+        var codegen = shape.as_generic_type(declaration.type_reference)
+        if codegen {
+            return numbers.contains(codegen.name)
+        }
         var named = shape.as_named_type(declaration.type_reference)
         if not named or named.path.is_empty() {
             return false

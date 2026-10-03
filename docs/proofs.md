@@ -771,7 +771,10 @@ have moved.
   `return <list>[<index>]`, the list an attribute nothing assigns after the singleton is made, the
   index a whole-number parameter or literal; the rest of the block names every call it makes, none of which lets go
   of an object, removes from a list, assigns an attribute holding an object or calls a function value; and no class
-  whose objects may be let go meanwhile has a `drop()` reaching that singleton or list. With threads, the block takes
+  whose objects may be let go meanwhile has a `drop()` reaching that singleton or list. An operator in the block
+  counts as a call to every function of its name (`multiply` for `*`), and an attribute declared with a number class,
+  or with a codegen value such as `$number_type` constrained to `Number`, never holds an object, so writing it in
+  `Matrix4<$number_type>.multiply` lets nothing go. With threads, the block takes
   the singleton's readers' side or lock once, only when what it runs reaches no singleton and no wait.
 - **Buys.** One retain and one release per row, and the lock per call.
 - **Falls back.** The ordinary counted call; nothing is an error.

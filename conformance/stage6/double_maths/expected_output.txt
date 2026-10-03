@@ -1,0 +1,5 @@
+a quarter turn in Double is exact to 1e-12: true
+a micrometre a kilometre away survives: true
+the inverse brings it back: true
+set_euler agrees with set_axis_angle: true
+Float and Double are separate classes: (0, 0, 0, 1) 1

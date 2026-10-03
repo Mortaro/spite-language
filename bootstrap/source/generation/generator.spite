@@ -11321,17 +11321,18 @@ func report_wider_right(
     crash binary.left
     crash binary.right
     var printer = Syntax.SourcePrinter()
+    var written = printer.source_expression(binary)
     var left_text = printer.source_expression(binary.left)
-    var right_text = printer.source_expression(binary.right)
-    var symbol = binary_operator_symbol(binary.operator)
     var left_name = type_display_name(left_type)
     var right_name = type_display_name(right_type)
     var fix = "store the left side in {with_article(right_name)} first ('var wide: {right_name} = {left_text}')"
     if binary.operator == 'add' or binary.operator == 'multiply' {
-        fix = "write the {right_name} first ('{right_text} {symbol} {left_text}')"
+        var swapped = Syntax.Expressions.BinaryExpression(binary.operator, binary.right, binary.left)
+        var swapped_text = printer.source_expression(swapped)
+        fix = "write the {right_name} first ('{swapped_text}')"
     }
     report(
-        "'{left_text} {symbol} {right_text}' is {operation_name(binary.operator)} in {left_name}, since arithmetic takes the left side's type, and the right side is {with_article(right_name)}, which would be cut to fit: {fix}, or store the right side in {with_article(left_name)} first if it fits one",
+        "'{written}' is {operation_name(binary.operator)} in {left_name}, since arithmetic takes the left side's type, and the right side is {with_article(right_name)}, which would be cut to fit: {fix}, or store the right side in {with_article(left_name)} first if it fits one",
     )
 }
 
@@ -11343,14 +11344,14 @@ func report_wider_comparison(
     crash binary.left
     crash binary.right
     var printer = Syntax.SourcePrinter()
+    var written = printer.source_expression(binary)
     var left_text = printer.source_expression(binary.left)
     var right_text = printer.source_expression(binary.right)
-    var symbol = binary_operator_symbol(binary.operator)
     var mirrored = mirrored_comparison_symbol(binary.operator)
     var left_name = type_display_name(left_type)
     var right_name = type_display_name(right_type)
     report(
-        "'{left_text} {symbol} {right_text}' compares in {left_name}, since a comparison takes the left side's type, and the right side is {with_article(right_name)}, which would be cut to fit: write the {right_name} first ('{right_text} {mirrored} {left_text}'), or store the right side in {with_article(left_name)} first if it fits one",
+        "'{written}' compares in {left_name}, since a comparison takes the left side's type, and the right side is {with_article(right_name)}, which would be cut to fit: write the {right_name} first ('{right_text} {mirrored} {left_text}'), or store the right side in {with_article(left_name)} first if it fits one",
     )
 }
 
@@ -19250,10 +19251,27 @@ func type_display_names(first: Analysis.SpiteType, second: Analysis.SpiteType): 
         first_name = type_name_written(first, true)
         second_name = type_name_written(second, true)
     }
+    if first_name == second_name {
+        first_name = with_class_arguments(first, first_name)
+        second_name = with_class_arguments(second, second_name)
+    }
     var names = List<String>()
     names.append(first_name)
     names.append(second_name)
     return names
+}
+
+func with_class_arguments(spite_type: Analysis.SpiteType, name: String): String {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if not class_ref {
+        return name
+    }
+    var described = find_class_by_c_name(class_ref.c_name)
+    if not described or described.codegen_types.is_empty() {
+        return name
+    }
+    var names = display_names_of(described.codegen_types)
+    return "{name}<{names.join(", ")}>"
 }
 
 func type_name_written(spite_type: Analysis.SpiteType, qualified: Boolean): String {

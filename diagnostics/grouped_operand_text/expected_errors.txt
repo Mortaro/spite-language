@@ -1,0 +1,2 @@
+diagnostics/grouped_operand_text/grouped_operand_text.spite:6: error: '2.0 * (first + second)' is a multiplication in Float, since arithmetic takes the left side's type, and the right side is a Double, which would be cut to fit: write the Double first ('(first + second) * 2.0'), or store the right side in a Float first if it fits one (in GroupedOperandText.GroupedOperandText)
+diagnostics/grouped_operand_text/grouped_operand_text.spite:7: error: a Vector3<Float> cannot be used where a Vector3<Double> is needed (in GroupedOperandText.GroupedOperandText)

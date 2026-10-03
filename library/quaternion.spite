@@ -1,3 +1,5 @@
+generic $number_type: Number
+
 enum RotationOrder {
     'xyz'
     'xzy'
@@ -7,10 +9,14 @@ enum RotationOrder {
     'zyx'
 }
 
-var x: Float = 0.0
-var y: Float = 0.0
-var z: Float = 0.0
-var w: Float = 1.0
+var x: $number_type = 0.0
+var y: $number_type = 0.0
+var z: $number_type = 0.0
+var w: $number_type = 1.0
+
+func Quaternion() {
+    crash $number_type == Float or $number_type == Double
+}
 
 func set_identity() {
     x = 0.0
@@ -19,14 +25,14 @@ func set_identity() {
     w = 1.0
 }
 
-func set_parts(starting_x: Float, starting_y: Float, starting_z: Float, starting_w: Float) {
+func set_parts(starting_x: $number_type, starting_y: $number_type, starting_z: $number_type, starting_w: $number_type) {
     x = starting_x
     y = starting_y
     z = starting_z
     w = starting_w
 }
 
-func set_axis_angle(axis: Vector3<Float>, angle: Float) {
+func set_axis_angle(axis: Vector3<$number_type>, angle: $number_type) {
     var unit = axis.normalized()
     var half_angle = angle * 0.5
     var half_sine = half_angle.sine()
@@ -36,12 +42,12 @@ func set_axis_angle(axis: Vector3<Float>, angle: Float) {
     w = half_angle.cosine()
 }
 
-func set_euler(angles: Vector3<Float>, order: Quaternion.RotationOrder) {
-    var around_x = Quaternion()
+func set_euler(angles: Vector3<$number_type>, order: Quaternion.RotationOrder) {
+    var around_x = Quaternion<$number_type>()
     around_x.set_single_axis(0, angles.x)
-    var around_y = Quaternion()
+    var around_y = Quaternion<$number_type>()
     around_y.set_single_axis(1, angles.y)
-    var around_z = Quaternion()
+    var around_z = Quaternion<$number_type>()
     around_z.set_single_axis(2, angles.z)
     var combined = around_z * around_y * around_x
     if order == 'xzy' {
@@ -61,7 +67,7 @@ func set_euler(angles: Vector3<Float>, order: Quaternion.RotationOrder) {
     w = combined.w
 }
 
-func set_single_axis(axis_index: Integer, angle: Float) {
+func set_single_axis(axis_index: Integer, angle: $number_type) {
     var half_angle = angle * 0.5
     var half_sine = half_angle.sine()
     x = 0.0
@@ -78,50 +84,52 @@ func set_single_axis(axis_index: Integer, angle: Float) {
 }
 
 func set_rotation_columns(
-    column_0_row_0: Float,
-    column_0_row_1: Float,
-    column_0_row_2: Float,
-    column_1_row_0: Float,
-    column_1_row_1: Float,
-    column_1_row_2: Float,
-    column_2_row_0: Float,
-    column_2_row_1: Float,
-    column_2_row_2: Float,
+    column_0_row_0: $number_type,
+    column_0_row_1: $number_type,
+    column_0_row_2: $number_type,
+    column_1_row_0: $number_type,
+    column_1_row_1: $number_type,
+    column_1_row_2: $number_type,
+    column_2_row_0: $number_type,
+    column_2_row_1: $number_type,
+    column_2_row_2: $number_type,
 ) {
+    var quarter: $number_type = 0.25
+    var one: $number_type = 1.0
     var trace = column_0_row_0 + column_1_row_1 + column_2_row_2
     if trace > 0.0 {
         var root = trace + 1.0
         var twice = root.square_root() * 2.0
-        w = 0.25 * twice
+        w = quarter * twice
         x = (column_1_row_2 - column_2_row_1) / twice
         y = (column_2_row_0 - column_0_row_2) / twice
         z = (column_0_row_1 - column_1_row_0) / twice
     } else if column_0_row_0 > column_1_row_1 and column_0_row_0 > column_2_row_2 {
-        var root = 1.0 + column_0_row_0 - column_1_row_1 - column_2_row_2
+        var root = one + column_0_row_0 - column_1_row_1 - column_2_row_2
         var twice = root.square_root() * 2.0
         w = (column_1_row_2 - column_2_row_1) / twice
-        x = 0.25 * twice
+        x = quarter * twice
         y = (column_1_row_0 + column_0_row_1) / twice
         z = (column_2_row_0 + column_0_row_2) / twice
     } else if column_1_row_1 > column_2_row_2 {
-        var root = 1.0 + column_1_row_1 - column_0_row_0 - column_2_row_2
+        var root = one + column_1_row_1 - column_0_row_0 - column_2_row_2
         var twice = root.square_root() * 2.0
         w = (column_2_row_0 - column_0_row_2) / twice
         x = (column_1_row_0 + column_0_row_1) / twice
-        y = 0.25 * twice
+        y = quarter * twice
         z = (column_2_row_1 + column_1_row_2) / twice
     } else {
-        var root = 1.0 + column_2_row_2 - column_0_row_0 - column_1_row_1
+        var root = one + column_2_row_2 - column_0_row_0 - column_1_row_1
         var twice = root.square_root() * 2.0
         w = (column_0_row_1 - column_1_row_0) / twice
         x = (column_2_row_0 + column_0_row_2) / twice
         y = (column_2_row_1 + column_1_row_2) / twice
-        z = 0.25 * twice
+        z = quarter * twice
     }
 }
 
-func multiply(other: Quaternion): Quaternion {
-    var product = Quaternion()
+func multiply(other: Quaternion<$number_type>): Quaternion<$number_type> {
+    var product = Quaternion<$number_type>()
     product.w = w * other.w - x * other.x - y * other.y - z * other.z
     product.x = w * other.x + x * other.w + y * other.z - z * other.y
     product.y = w * other.y - x * other.z + y * other.w + z * other.x
@@ -129,61 +137,63 @@ func multiply(other: Quaternion): Quaternion {
     return product
 }
 
-func equals(other: Quaternion): Boolean {
+func equals(other: Quaternion<$number_type>): Boolean {
     return x == other.x and y == other.y and z == other.z and w == other.w
 }
 
-func rotate(vector: Vector3<Float>): Vector3<Float> {
-    var twice_x = 2.0 * (y * vector.z - z * vector.y)
-    var twice_y = 2.0 * (z * vector.x - x * vector.z)
-    var twice_z = 2.0 * (x * vector.y - y * vector.x)
+func rotate(vector: Vector3<$number_type>): Vector3<$number_type> {
+    var twice_x = (y * vector.z - z * vector.y) * 2.0
+    var twice_y = (z * vector.x - x * vector.z) * 2.0
+    var twice_z = (x * vector.y - y * vector.x) * 2.0
     var x_part = vector.x + w * twice_x + y * twice_z - z * twice_y
     var y_part = vector.y + w * twice_y + z * twice_x - x * twice_z
     var z_part = vector.z + w * twice_z + x * twice_y - y * twice_x
     return Vector3(x_part, y_part, z_part)
 }
 
-func dot(other: Quaternion): Float {
+func dot(other: Quaternion<$number_type>): $number_type {
     return x * other.x + y * other.y + z * other.z + w * other.w
 }
 
-func length(): Float {
+func length(): $number_type {
     var squared = x * x + y * y + z * z + w * w
     return squared.square_root()
 }
 
-func normalized(): Quaternion {
-    var unit = Quaternion()
+func normalized(): Quaternion<$number_type> {
+    var one: $number_type = 1.0
+    var unit = Quaternion<$number_type>()
     var squared = x * x + y * y + z * z + w * w
     if squared == 0.0 {
         return unit
     }
-    var inverse_length = 1.0 / squared.square_root()
+    var inverse_length = one / squared.square_root()
     unit.set_parts(x * inverse_length, y * inverse_length, z * inverse_length, w * inverse_length)
     return unit
 }
 
-func conjugate(): Quaternion {
-    var flipped = Quaternion()
+func conjugate(): Quaternion<$number_type> {
+    var flipped = Quaternion<$number_type>()
     flipped.set_parts(-x, -y, -z, w)
     return flipped
 }
 
-func inverse(): Quaternion? {
+func inverse(): Quaternion<$number_type>? {
+    var one: $number_type = 1.0
     var squared = x * x + y * y + z * z + w * w
     assert squared != 0.0
-    var scale = 1.0 / squared
-    var inverted = Quaternion()
+    var scale = one / squared
+    var inverted = Quaternion<$number_type>()
     inverted.set_parts(-x * scale, -y * scale, -z * scale, w * scale)
     return inverted
 }
 
-func normalized_interpolate(target: Quaternion, amount: Float): Quaternion {
-    var direction = 1.0
+func normalized_interpolate(target: Quaternion<$number_type>, amount: $number_type): Quaternion<$number_type> {
+    var direction: $number_type = 1.0
     if dot(target) < 0.0 {
         direction = -1.0
     }
-    var blended = Quaternion()
+    var blended = Quaternion<$number_type>()
     blended.set_parts(
         x + (target.x * direction - x) * amount,
         y + (target.y * direction - y) * amount,
@@ -193,9 +203,10 @@ func normalized_interpolate(target: Quaternion, amount: Float): Quaternion {
     return blended.normalized()
 }
 
-func spherical_interpolate(target: Quaternion, amount: Float): Quaternion {
+func spherical_interpolate(target: Quaternion<$number_type>, amount: $number_type): Quaternion<$number_type> {
+    var one: $number_type = 1.0
     var cosine = dot(target)
-    var direction = 1.0
+    var direction: $number_type = 1.0
     if cosine < 0.0 {
         cosine = -cosine
         direction = -1.0
@@ -205,11 +216,11 @@ func spherical_interpolate(target: Quaternion, amount: Float): Quaternion {
     }
     var angle = cosine.arc_cosine()
     var angle_sine = angle.sine()
-    var start_angle = (1.0 - amount) * angle
+    var start_angle = (one - amount) * angle
     var end_angle = amount * angle
     var start_weight = start_angle.sine() / angle_sine
     var end_weight = end_angle.sine() / angle_sine * direction
-    var blended = Quaternion()
+    var blended = Quaternion<$number_type>()
     blended.set_parts(
         x * start_weight + target.x * end_weight,
         y * start_weight + target.y * end_weight,
@@ -219,8 +230,8 @@ func spherical_interpolate(target: Quaternion, amount: Float): Quaternion {
     return blended
 }
 
-func to_matrix(): Matrix4 {
-    var matrix = Matrix4()
+func to_matrix(): Matrix4<$number_type> {
+    var matrix = Matrix4<$number_type>()
     matrix.rotation = this
     return matrix
 }

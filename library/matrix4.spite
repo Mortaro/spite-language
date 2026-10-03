@@ -1,19 +1,25 @@
-var column_0_row_0: Float = 1.0
-var column_0_row_1: Float = 0.0
-var column_0_row_2: Float = 0.0
-var column_0_row_3: Float = 0.0
-var column_1_row_0: Float = 0.0
-var column_1_row_1: Float = 1.0
-var column_1_row_2: Float = 0.0
-var column_1_row_3: Float = 0.0
-var column_2_row_0: Float = 0.0
-var column_2_row_1: Float = 0.0
-var column_2_row_2: Float = 1.0
-var column_2_row_3: Float = 0.0
-var column_3_row_0: Float = 0.0
-var column_3_row_1: Float = 0.0
-var column_3_row_2: Float = 0.0
-var column_3_row_3: Float = 1.0
+generic $number_type: Number
+
+var column_0_row_0: $number_type = 1.0
+var column_0_row_1: $number_type = 0.0
+var column_0_row_2: $number_type = 0.0
+var column_0_row_3: $number_type = 0.0
+var column_1_row_0: $number_type = 0.0
+var column_1_row_1: $number_type = 1.0
+var column_1_row_2: $number_type = 0.0
+var column_1_row_3: $number_type = 0.0
+var column_2_row_0: $number_type = 0.0
+var column_2_row_1: $number_type = 0.0
+var column_2_row_2: $number_type = 1.0
+var column_2_row_3: $number_type = 0.0
+var column_3_row_0: $number_type = 0.0
+var column_3_row_1: $number_type = 0.0
+var column_3_row_2: $number_type = 0.0
+var column_3_row_3: $number_type = 1.0
+
+func Matrix4() {
+    crash $number_type == Float or $number_type == Double
+}
 
 func set_identity() {
     column_0_row_0 = 1.0
@@ -34,8 +40,8 @@ func set_identity() {
     column_3_row_3 = 1.0
 }
 
-func multiply(other: Matrix4): Matrix4 {
-    var product = Matrix4()
+func multiply(other: Matrix4<$number_type>): Matrix4<$number_type> {
+    var product = Matrix4<$number_type>()
     product.column_0_row_0 = column_0_row_0 * other.column_0_row_0 + column_1_row_0 * other.column_0_row_1 + column_2_row_0 * other.column_0_row_2 + column_3_row_0 * other.column_0_row_3
     product.column_0_row_1 = column_0_row_1 * other.column_0_row_0 + column_1_row_1 * other.column_0_row_1 + column_2_row_1 * other.column_0_row_2 + column_3_row_1 * other.column_0_row_3
     product.column_0_row_2 = column_0_row_2 * other.column_0_row_0 + column_1_row_2 * other.column_0_row_1 + column_2_row_2 * other.column_0_row_2 + column_3_row_2 * other.column_0_row_3
@@ -55,7 +61,7 @@ func multiply(other: Matrix4): Matrix4 {
     return product
 }
 
-func transform(vector: Vector4<Float>): Vector4<Float> {
+func transform(vector: Vector4<$number_type>): Vector4<$number_type> {
     var x_part = column_0_row_0 * vector.x + column_1_row_0 * vector.y + column_2_row_0 * vector.z + column_3_row_0 * vector.w
     var y_part = column_0_row_1 * vector.x + column_1_row_1 * vector.y + column_2_row_1 * vector.z + column_3_row_1 * vector.w
     var z_part = column_0_row_2 * vector.x + column_1_row_2 * vector.y + column_2_row_2 * vector.z + column_3_row_2 * vector.w
@@ -63,8 +69,8 @@ func transform(vector: Vector4<Float>): Vector4<Float> {
     return Vector4(x_part, y_part, z_part, w_part)
 }
 
-func transposed(): Matrix4 {
-    var flipped = Matrix4()
+func transposed(): Matrix4<$number_type> {
+    var flipped = Matrix4<$number_type>()
     flipped.column_0_row_0 = column_0_row_0
     flipped.column_0_row_1 = column_1_row_0
     flipped.column_0_row_2 = column_2_row_0
@@ -84,7 +90,7 @@ func transposed(): Matrix4 {
     return flipped
 }
 
-func equals(other: Matrix4): Boolean {
+func equals(other: Matrix4<$number_type>): Boolean {
     return column_0_row_0 == other.column_0_row_0 and column_0_row_1 == other.column_0_row_1 and column_0_row_2 == other.column_0_row_2 and column_0_row_3 == other.column_0_row_3 and column_1_row_0 == other.column_1_row_0 and column_1_row_1 == other.column_1_row_1 and column_1_row_2 == other.column_1_row_2 and column_1_row_3 == other.column_1_row_3 and column_2_row_0 == other.column_2_row_0 and column_2_row_1 == other.column_2_row_1 and column_2_row_2 == other.column_2_row_2 and column_2_row_3 == other.column_2_row_3 and column_3_row_0 == other.column_3_row_0 and column_3_row_1 == other.column_3_row_1 and column_3_row_2 == other.column_3_row_2 and column_3_row_3 == other.column_3_row_3
 }
 
@@ -92,35 +98,36 @@ func to_string(): String {
     return "[{column_0_row_0} {column_1_row_0} {column_2_row_0} {column_3_row_0}; {column_0_row_1} {column_1_row_1} {column_2_row_1} {column_3_row_1}; {column_0_row_2} {column_1_row_2} {column_2_row_2} {column_3_row_2}; {column_0_row_3} {column_1_row_3} {column_2_row_3} {column_3_row_3}]"
 }
 
-func determinant(): Float {
+func determinant(): $number_type {
     var cofactor_0 = column_1_row_1 * column_2_row_2 * column_3_row_3 - column_1_row_1 * column_2_row_3 * column_3_row_2 - column_2_row_1 * column_1_row_2 * column_3_row_3 + column_2_row_1 * column_1_row_3 * column_3_row_2 + column_3_row_1 * column_1_row_2 * column_2_row_3 - column_3_row_1 * column_1_row_3 * column_2_row_2
-    var cofactor_4 = 0.0 - column_1_row_0 * column_2_row_2 * column_3_row_3 + column_1_row_0 * column_2_row_3 * column_3_row_2 + column_2_row_0 * column_1_row_2 * column_3_row_3 - column_2_row_0 * column_1_row_3 * column_3_row_2 - column_3_row_0 * column_1_row_2 * column_2_row_3 + column_3_row_0 * column_1_row_3 * column_2_row_2
+    var cofactor_4 = -column_1_row_0 * column_2_row_2 * column_3_row_3 + column_1_row_0 * column_2_row_3 * column_3_row_2 + column_2_row_0 * column_1_row_2 * column_3_row_3 - column_2_row_0 * column_1_row_3 * column_3_row_2 - column_3_row_0 * column_1_row_2 * column_2_row_3 + column_3_row_0 * column_1_row_3 * column_2_row_2
     var cofactor_8 = column_1_row_0 * column_2_row_1 * column_3_row_3 - column_1_row_0 * column_2_row_3 * column_3_row_1 - column_2_row_0 * column_1_row_1 * column_3_row_3 + column_2_row_0 * column_1_row_3 * column_3_row_1 + column_3_row_0 * column_1_row_1 * column_2_row_3 - column_3_row_0 * column_1_row_3 * column_2_row_1
-    var cofactor_12 = 0.0 - column_1_row_0 * column_2_row_1 * column_3_row_2 + column_1_row_0 * column_2_row_2 * column_3_row_1 + column_2_row_0 * column_1_row_1 * column_3_row_2 - column_2_row_0 * column_1_row_2 * column_3_row_1 - column_3_row_0 * column_1_row_1 * column_2_row_2 + column_3_row_0 * column_1_row_2 * column_2_row_1
+    var cofactor_12 = -column_1_row_0 * column_2_row_1 * column_3_row_2 + column_1_row_0 * column_2_row_2 * column_3_row_1 + column_2_row_0 * column_1_row_1 * column_3_row_2 - column_2_row_0 * column_1_row_2 * column_3_row_1 - column_3_row_0 * column_1_row_1 * column_2_row_2 + column_3_row_0 * column_1_row_2 * column_2_row_1
     return column_0_row_0 * cofactor_0 + column_0_row_1 * cofactor_4 + column_0_row_2 * cofactor_8 + column_0_row_3 * cofactor_12
 }
 
-func inverse(): Matrix4? {
-    var inverted = Matrix4()
+func inverse(): Matrix4<$number_type>? {
+    var one: $number_type = 1.0
+    var inverted = Matrix4<$number_type>()
     inverted.column_0_row_0 = column_1_row_1 * column_2_row_2 * column_3_row_3 - column_1_row_1 * column_2_row_3 * column_3_row_2 - column_2_row_1 * column_1_row_2 * column_3_row_3 + column_2_row_1 * column_1_row_3 * column_3_row_2 + column_3_row_1 * column_1_row_2 * column_2_row_3 - column_3_row_1 * column_1_row_3 * column_2_row_2
-    inverted.column_1_row_0 = 0.0 - column_1_row_0 * column_2_row_2 * column_3_row_3 + column_1_row_0 * column_2_row_3 * column_3_row_2 + column_2_row_0 * column_1_row_2 * column_3_row_3 - column_2_row_0 * column_1_row_3 * column_3_row_2 - column_3_row_0 * column_1_row_2 * column_2_row_3 + column_3_row_0 * column_1_row_3 * column_2_row_2
+    inverted.column_1_row_0 = -column_1_row_0 * column_2_row_2 * column_3_row_3 + column_1_row_0 * column_2_row_3 * column_3_row_2 + column_2_row_0 * column_1_row_2 * column_3_row_3 - column_2_row_0 * column_1_row_3 * column_3_row_2 - column_3_row_0 * column_1_row_2 * column_2_row_3 + column_3_row_0 * column_1_row_3 * column_2_row_2
     inverted.column_2_row_0 = column_1_row_0 * column_2_row_1 * column_3_row_3 - column_1_row_0 * column_2_row_3 * column_3_row_1 - column_2_row_0 * column_1_row_1 * column_3_row_3 + column_2_row_0 * column_1_row_3 * column_3_row_1 + column_3_row_0 * column_1_row_1 * column_2_row_3 - column_3_row_0 * column_1_row_3 * column_2_row_1
-    inverted.column_3_row_0 = 0.0 - column_1_row_0 * column_2_row_1 * column_3_row_2 + column_1_row_0 * column_2_row_2 * column_3_row_1 + column_2_row_0 * column_1_row_1 * column_3_row_2 - column_2_row_0 * column_1_row_2 * column_3_row_1 - column_3_row_0 * column_1_row_1 * column_2_row_2 + column_3_row_0 * column_1_row_2 * column_2_row_1
-    inverted.column_0_row_1 = 0.0 - column_0_row_1 * column_2_row_2 * column_3_row_3 + column_0_row_1 * column_2_row_3 * column_3_row_2 + column_2_row_1 * column_0_row_2 * column_3_row_3 - column_2_row_1 * column_0_row_3 * column_3_row_2 - column_3_row_1 * column_0_row_2 * column_2_row_3 + column_3_row_1 * column_0_row_3 * column_2_row_2
+    inverted.column_3_row_0 = -column_1_row_0 * column_2_row_1 * column_3_row_2 + column_1_row_0 * column_2_row_2 * column_3_row_1 + column_2_row_0 * column_1_row_1 * column_3_row_2 - column_2_row_0 * column_1_row_2 * column_3_row_1 - column_3_row_0 * column_1_row_1 * column_2_row_2 + column_3_row_0 * column_1_row_2 * column_2_row_1
+    inverted.column_0_row_1 = -column_0_row_1 * column_2_row_2 * column_3_row_3 + column_0_row_1 * column_2_row_3 * column_3_row_2 + column_2_row_1 * column_0_row_2 * column_3_row_3 - column_2_row_1 * column_0_row_3 * column_3_row_2 - column_3_row_1 * column_0_row_2 * column_2_row_3 + column_3_row_1 * column_0_row_3 * column_2_row_2
     inverted.column_1_row_1 = column_0_row_0 * column_2_row_2 * column_3_row_3 - column_0_row_0 * column_2_row_3 * column_3_row_2 - column_2_row_0 * column_0_row_2 * column_3_row_3 + column_2_row_0 * column_0_row_3 * column_3_row_2 + column_3_row_0 * column_0_row_2 * column_2_row_3 - column_3_row_0 * column_0_row_3 * column_2_row_2
-    inverted.column_2_row_1 = 0.0 - column_0_row_0 * column_2_row_1 * column_3_row_3 + column_0_row_0 * column_2_row_3 * column_3_row_1 + column_2_row_0 * column_0_row_1 * column_3_row_3 - column_2_row_0 * column_0_row_3 * column_3_row_1 - column_3_row_0 * column_0_row_1 * column_2_row_3 + column_3_row_0 * column_0_row_3 * column_2_row_1
+    inverted.column_2_row_1 = -column_0_row_0 * column_2_row_1 * column_3_row_3 + column_0_row_0 * column_2_row_3 * column_3_row_1 + column_2_row_0 * column_0_row_1 * column_3_row_3 - column_2_row_0 * column_0_row_3 * column_3_row_1 - column_3_row_0 * column_0_row_1 * column_2_row_3 + column_3_row_0 * column_0_row_3 * column_2_row_1
     inverted.column_3_row_1 = column_0_row_0 * column_2_row_1 * column_3_row_2 - column_0_row_0 * column_2_row_2 * column_3_row_1 - column_2_row_0 * column_0_row_1 * column_3_row_2 + column_2_row_0 * column_0_row_2 * column_3_row_1 + column_3_row_0 * column_0_row_1 * column_2_row_2 - column_3_row_0 * column_0_row_2 * column_2_row_1
     inverted.column_0_row_2 = column_0_row_1 * column_1_row_2 * column_3_row_3 - column_0_row_1 * column_1_row_3 * column_3_row_2 - column_1_row_1 * column_0_row_2 * column_3_row_3 + column_1_row_1 * column_0_row_3 * column_3_row_2 + column_3_row_1 * column_0_row_2 * column_1_row_3 - column_3_row_1 * column_0_row_3 * column_1_row_2
-    inverted.column_1_row_2 = 0.0 - column_0_row_0 * column_1_row_2 * column_3_row_3 + column_0_row_0 * column_1_row_3 * column_3_row_2 + column_1_row_0 * column_0_row_2 * column_3_row_3 - column_1_row_0 * column_0_row_3 * column_3_row_2 - column_3_row_0 * column_0_row_2 * column_1_row_3 + column_3_row_0 * column_0_row_3 * column_1_row_2
+    inverted.column_1_row_2 = -column_0_row_0 * column_1_row_2 * column_3_row_3 + column_0_row_0 * column_1_row_3 * column_3_row_2 + column_1_row_0 * column_0_row_2 * column_3_row_3 - column_1_row_0 * column_0_row_3 * column_3_row_2 - column_3_row_0 * column_0_row_2 * column_1_row_3 + column_3_row_0 * column_0_row_3 * column_1_row_2
     inverted.column_2_row_2 = column_0_row_0 * column_1_row_1 * column_3_row_3 - column_0_row_0 * column_1_row_3 * column_3_row_1 - column_1_row_0 * column_0_row_1 * column_3_row_3 + column_1_row_0 * column_0_row_3 * column_3_row_1 + column_3_row_0 * column_0_row_1 * column_1_row_3 - column_3_row_0 * column_0_row_3 * column_1_row_1
-    inverted.column_3_row_2 = 0.0 - column_0_row_0 * column_1_row_1 * column_3_row_2 + column_0_row_0 * column_1_row_2 * column_3_row_1 + column_1_row_0 * column_0_row_1 * column_3_row_2 - column_1_row_0 * column_0_row_2 * column_3_row_1 - column_3_row_0 * column_0_row_1 * column_1_row_2 + column_3_row_0 * column_0_row_2 * column_1_row_1
-    inverted.column_0_row_3 = 0.0 - column_0_row_1 * column_1_row_2 * column_2_row_3 + column_0_row_1 * column_1_row_3 * column_2_row_2 + column_1_row_1 * column_0_row_2 * column_2_row_3 - column_1_row_1 * column_0_row_3 * column_2_row_2 - column_2_row_1 * column_0_row_2 * column_1_row_3 + column_2_row_1 * column_0_row_3 * column_1_row_2
+    inverted.column_3_row_2 = -column_0_row_0 * column_1_row_1 * column_3_row_2 + column_0_row_0 * column_1_row_2 * column_3_row_1 + column_1_row_0 * column_0_row_1 * column_3_row_2 - column_1_row_0 * column_0_row_2 * column_3_row_1 - column_3_row_0 * column_0_row_1 * column_1_row_2 + column_3_row_0 * column_0_row_2 * column_1_row_1
+    inverted.column_0_row_3 = -column_0_row_1 * column_1_row_2 * column_2_row_3 + column_0_row_1 * column_1_row_3 * column_2_row_2 + column_1_row_1 * column_0_row_2 * column_2_row_3 - column_1_row_1 * column_0_row_3 * column_2_row_2 - column_2_row_1 * column_0_row_2 * column_1_row_3 + column_2_row_1 * column_0_row_3 * column_1_row_2
     inverted.column_1_row_3 = column_0_row_0 * column_1_row_2 * column_2_row_3 - column_0_row_0 * column_1_row_3 * column_2_row_2 - column_1_row_0 * column_0_row_2 * column_2_row_3 + column_1_row_0 * column_0_row_3 * column_2_row_2 + column_2_row_0 * column_0_row_2 * column_1_row_3 - column_2_row_0 * column_0_row_3 * column_1_row_2
-    inverted.column_2_row_3 = 0.0 - column_0_row_0 * column_1_row_1 * column_2_row_3 + column_0_row_0 * column_1_row_3 * column_2_row_1 + column_1_row_0 * column_0_row_1 * column_2_row_3 - column_1_row_0 * column_0_row_3 * column_2_row_1 - column_2_row_0 * column_0_row_1 * column_1_row_3 + column_2_row_0 * column_0_row_3 * column_1_row_1
+    inverted.column_2_row_3 = -column_0_row_0 * column_1_row_1 * column_2_row_3 + column_0_row_0 * column_1_row_3 * column_2_row_1 + column_1_row_0 * column_0_row_1 * column_2_row_3 - column_1_row_0 * column_0_row_3 * column_2_row_1 - column_2_row_0 * column_0_row_1 * column_1_row_3 + column_2_row_0 * column_0_row_3 * column_1_row_1
     inverted.column_3_row_3 = column_0_row_0 * column_1_row_1 * column_2_row_2 - column_0_row_0 * column_1_row_2 * column_2_row_1 - column_1_row_0 * column_0_row_1 * column_2_row_2 + column_1_row_0 * column_0_row_2 * column_2_row_1 + column_2_row_0 * column_0_row_1 * column_1_row_2 - column_2_row_0 * column_0_row_2 * column_1_row_1
     var whole = column_0_row_0 * inverted.column_0_row_0 + column_0_row_1 * inverted.column_1_row_0 + column_0_row_2 * inverted.column_2_row_0 + column_0_row_3 * inverted.column_3_row_0
     assert whole != 0.0
-    var scale = 1.0 / whole
+    var scale = one / whole
     inverted.column_0_row_0 = inverted.column_0_row_0 * scale
     inverted.column_0_row_1 = inverted.column_0_row_1 * scale
     inverted.column_0_row_2 = inverted.column_0_row_2 * scale
@@ -140,44 +147,47 @@ func inverse(): Matrix4? {
     return inverted
 }
 
-func transform_point(point: Vector3<Float>): Vector3<Float> {
+func transform_point(point: Vector3<$number_type>): Vector3<$number_type> {
     var x_part = column_0_row_0 * point.x + column_1_row_0 * point.y + column_2_row_0 * point.z + column_3_row_0
     var y_part = column_0_row_1 * point.x + column_1_row_1 * point.y + column_2_row_1 * point.z + column_3_row_1
     var z_part = column_0_row_2 * point.x + column_1_row_2 * point.y + column_2_row_2 * point.z + column_3_row_2
     return Vector3(x_part, y_part, z_part)
 }
 
-func project_point(point: Vector3<Float>): Vector3<Float> {
+func project_point(point: Vector3<$number_type>): Vector3<$number_type> {
+    var one: $number_type = 1.0
     var x_part = column_0_row_0 * point.x + column_1_row_0 * point.y + column_2_row_0 * point.z + column_3_row_0
     var y_part = column_0_row_1 * point.x + column_1_row_1 * point.y + column_2_row_1 * point.z + column_3_row_1
     var z_part = column_0_row_2 * point.x + column_1_row_2 * point.y + column_2_row_2 * point.z + column_3_row_2
     var w_part = column_0_row_3 * point.x + column_1_row_3 * point.y + column_2_row_3 * point.z + column_3_row_3
-    var inverse_w = 1.0 / w_part
+    var inverse_w = one / w_part
     return Vector3(x_part * inverse_w, y_part * inverse_w, z_part * inverse_w)
 }
 
-func transform_direction(direction: Vector3<Float>): Vector3<Float> {
+func transform_direction(direction: Vector3<$number_type>): Vector3<$number_type> {
     var x_part = column_0_row_0 * direction.x + column_1_row_0 * direction.y + column_2_row_0 * direction.z
     var y_part = column_0_row_1 * direction.x + column_1_row_1 * direction.y + column_2_row_1 * direction.z
     var z_part = column_0_row_2 * direction.x + column_1_row_2 * direction.y + column_2_row_2 * direction.z
     return Vector3(x_part, y_part, z_part)
 }
 
-func set_translation(offset: Vector3<Float>) {
+func set_translation(offset: Vector3<$number_type>) {
     set_identity()
     column_3_row_0 = offset.x
     column_3_row_1 = offset.y
     column_3_row_2 = offset.z
 }
 
-func set_scale(factor: Vector3<Float>) {
+func set_scale(factor: Vector3<$number_type>) {
     set_identity()
     column_0_row_0 = factor.x
     column_1_row_1 = factor.y
     column_2_row_2 = factor.z
 }
 
-func set_rotation(rotation: Quaternion) {
+func set_rotation(rotation: Quaternion<$number_type>) {
+    var one: $number_type = 1.0
+    var two: $number_type = 2.0
     var x_x = rotation.x * rotation.x
     var y_y = rotation.y * rotation.y
     var z_z = rotation.z * rotation.z
@@ -187,15 +197,15 @@ func set_rotation(rotation: Quaternion) {
     var w_x = rotation.w * rotation.x
     var w_y = rotation.w * rotation.y
     var w_z = rotation.w * rotation.z
-    column_0_row_0 = 1.0 - 2.0 * (y_y + z_z)
-    column_0_row_1 = 2.0 * (x_y + w_z)
-    column_0_row_2 = 2.0 * (x_z - w_y)
-    column_1_row_0 = 2.0 * (x_y - w_z)
-    column_1_row_1 = 1.0 - 2.0 * (x_x + z_z)
-    column_1_row_2 = 2.0 * (y_z + w_x)
-    column_2_row_0 = 2.0 * (x_z + w_y)
-    column_2_row_1 = 2.0 * (y_z - w_x)
-    column_2_row_2 = 1.0 - 2.0 * (x_x + y_y)
+    column_0_row_0 = one - two * (y_y + z_z)
+    column_0_row_1 = two * (x_y + w_z)
+    column_0_row_2 = two * (x_z - w_y)
+    column_1_row_0 = two * (x_y - w_z)
+    column_1_row_1 = one - two * (x_x + z_z)
+    column_1_row_2 = two * (y_z + w_x)
+    column_2_row_0 = two * (x_z + w_y)
+    column_2_row_1 = two * (y_z - w_x)
+    column_2_row_2 = one - two * (x_x + y_y)
     column_0_row_3 = 0.0
     column_1_row_3 = 0.0
     column_2_row_3 = 0.0
@@ -205,7 +215,11 @@ func set_rotation(rotation: Quaternion) {
     column_3_row_3 = 1.0
 }
 
-func set_transform(translation: Vector3<Float>, rotation: Quaternion, scale: Vector3<Float>) {
+func set_transform(
+    translation: Vector3<$number_type>,
+    rotation: Quaternion<$number_type>,
+    scale: Vector3<$number_type>,
+) {
     set_rotation(rotation)
     column_0_row_0 = column_0_row_0 * scale.x
     column_0_row_1 = column_0_row_1 * scale.x
@@ -221,11 +235,11 @@ func set_transform(translation: Vector3<Float>, rotation: Quaternion, scale: Vec
     column_3_row_2 = translation.z
 }
 
-func translation_part(): Vector3<Float> {
+func translation_part(): Vector3<$number_type> {
     return Vector3(column_3_row_0, column_3_row_1, column_3_row_2)
 }
 
-func scale_part(): Vector3<Float> {
+func scale_part(): Vector3<$number_type> {
     var x_squared = column_0_row_0 * column_0_row_0 + column_0_row_1 * column_0_row_1 + column_0_row_2 * column_0_row_2
     var x_part = x_squared.square_root()
     var y_squared = column_1_row_0 * column_1_row_0 + column_1_row_1 * column_1_row_1 + column_1_row_2 * column_1_row_2
@@ -239,15 +253,16 @@ func scale_part(): Vector3<Float> {
     return Vector3(x_part, y_part, z_part)
 }
 
-func rotation_part(): Quaternion {
+func rotation_part(): Quaternion<$number_type> {
+    var one: $number_type = 1.0
     var scale = scale_part()
-    var rotation = Quaternion()
+    var rotation = Quaternion<$number_type>()
     if scale.x == 0.0 or scale.y == 0.0 or scale.z == 0.0 {
         return rotation
     }
-    var inverse_x = 1.0 / scale.x
-    var inverse_y = 1.0 / scale.y
-    var inverse_z = 1.0 / scale.z
+    var inverse_x = one / scale.x
+    var inverse_y = one / scale.y
+    var inverse_z = one / scale.z
     var rotation_0_0 = column_0_row_0 * inverse_x
     var rotation_0_1 = column_0_row_1 * inverse_x
     var rotation_0_2 = column_0_row_2 * inverse_x
@@ -271,7 +286,7 @@ func rotation_part(): Quaternion {
     return rotation
 }
 
-func set_look_at(eye: Vector3<Float>, target: Vector3<Float>, up: Vector3<Float>) {
+func set_look_at(eye: Vector3<$number_type>, target: Vector3<$number_type>, up: Vector3<$number_type>) {
     var toward = target - eye
     var forward = toward.normalized()
     var sideways = forward.cross(up)
@@ -289,15 +304,16 @@ func set_look_at(eye: Vector3<Float>, target: Vector3<Float>, up: Vector3<Float>
     column_0_row_3 = 0.0
     column_1_row_3 = 0.0
     column_2_row_3 = 0.0
-    column_3_row_0 = 0.0 - side.dot(eye)
-    column_3_row_1 = 0.0 - true_up.dot(eye)
+    column_3_row_0 = -side.dot(eye)
+    column_3_row_1 = -true_up.dot(eye)
     column_3_row_2 = forward.dot(eye)
     column_3_row_3 = 1.0
 }
 
-func set_perspective(field_of_view: Float, aspect: Float, near: Float, far: Float) {
+func set_perspective(field_of_view: $number_type, aspect: $number_type, near: $number_type, far: $number_type) {
+    var one: $number_type = 1.0
     var half_angle = field_of_view * 0.5
-    var focal = 1.0 / half_angle.tangent()
+    var focal = one / half_angle.tangent()
     set_identity()
     column_0_row_0 = focal / aspect
     column_1_row_1 = -focal
@@ -307,18 +323,27 @@ func set_perspective(field_of_view: Float, aspect: Float, near: Float, far: Floa
     column_3_row_3 = 0.0
 }
 
-func set_orthographic(left: Float, right: Float, bottom: Float, top: Float, near: Float, far: Float) {
+func set_orthographic(
+    left: $number_type,
+    right: $number_type,
+    bottom: $number_type,
+    top: $number_type,
+    near: $number_type,
+    far: $number_type,
+) {
+    var one: $number_type = 1.0
+    var two: $number_type = 2.0
     set_identity()
-    column_0_row_0 = 2.0 / (right - left)
-    column_1_row_1 = -2.0 / (top - bottom)
-    column_2_row_2 = -1.0 / (far - near)
+    column_0_row_0 = two / (right - left)
+    column_1_row_1 = -two / (top - bottom)
+    column_2_row_2 = -one / (far - near)
     column_3_row_0 = -(right + left) / (right - left)
     column_3_row_1 = (top + bottom) / (top - bottom)
     column_3_row_2 = -near / (far - near)
 }
 
-func normal_matrix(): Matrix3? {
-    var upper = Matrix3()
+func normal_matrix(): Matrix3<$number_type>? {
+    var upper = Matrix3<$number_type>()
     upper.column_0_row_0 = column_0_row_0
     upper.column_0_row_1 = column_0_row_1
     upper.column_0_row_2 = column_0_row_2

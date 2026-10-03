@@ -1,0 +1,9 @@
+var console = Console()
+
+func GroupedOperandText() {
+    var first: Double = 1.5
+    var second: Double = 2.5
+    var doubled = 2.0 * (first + second)
+    var up: Vector3<Double> = Vector3(0.0, 1.0, 0.0)
+    console.print(doubled, up)
+}

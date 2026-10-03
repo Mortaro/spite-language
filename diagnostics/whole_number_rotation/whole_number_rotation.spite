@@ -1,0 +1,7 @@
+var console = Console()
+
+func WholeNumberRotation() {
+    var turn = Quaternion<Integer>()
+    var size = turn.length()
+    console.print(size)
+}

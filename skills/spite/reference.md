@@ -667,8 +667,8 @@ Game maths (docs/game_maths.md): `Vector2`, `Vector3`, `Vector4` are generic ove
 parts, `Vector3(1.0, 2.0, 3.0)` a `Vector3<Float>` and `Vector2(5, 1)` a `Vector2<Integer>` (never `Vector3i`), written
 `Vector3<Float>` where a type is named; every member answers the vector's own class (whole numbers truncate).
 Read as `x`, `y`, `z`, `w`, with `+ - * /` part by part, `scaled(factor)`,
-`dot`, `cross`, `length()`, `normalized()`, `distance_to`, `linear_interpolate(target, amount)`. `Matrix4()` and
-`Quaternion()` are the identity and are set in place: `matrix.set_transform(translation, rotation, scale)`,
+`dot`, `cross`, `length()`, `normalized()`, `distance_to`, `linear_interpolate(target, amount)`. `Matrix4<Float>()` and
+`Quaternion<Float>()` (or `<Double>`, never a whole-number class; always written, nothing infers it) are the identity and are set in place: `matrix.set_transform(translation, rotation, scale)`,
 `set_perspective(field_of_view, aspect, near, far)` (Vulkan: y down, depth 0 to 1), `set_look_at`,
 `rotation.set_axis_angle(axis, angle)`, `set_euler(angles, 'xyz')`; `a * b` applies `b` first;
 `matrix.transform_point(point)`, `rotation.rotate(vector)`, `inverse()` a `Matrix4?`. Matrices are column-major,

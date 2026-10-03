@@ -5,7 +5,7 @@ var top = Plane()
 var near = Plane()
 var far = Plane()
 
-func set_from_view_projection(matrix: Matrix4) {
+func set_from_view_projection(matrix: Matrix4<Float>) {
     left.set_parts(
         matrix.column_0_row_3 + matrix.column_0_row_0,
         matrix.column_1_row_3 + matrix.column_1_row_0,

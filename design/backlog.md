@@ -92,11 +92,9 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   not elided. Left: results into the caller's slot, temporaries and arguments not framed, call results not fresh,
   `Items<T>` choosing references, and the overflow checks N2 leaves (its hook is in
   `generation/optimization_report.spite`). **S.** No dependencies; M3 and N2 report into it.
-- **M5 The rest of the maths generic over `Number`** (D355, D381). `Vector2`, `Vector3` and `Vector4` are built
-  (D???); left: whether `Quaternion` (and `Matrix3`/`Matrix4`, `Plane`, `Ray`, `AxisAlignedBox`, `Frustum`,
-  `CubicBezier`) take `generic $number_type` too, which would make `Quaternion()` and `Matrix4()` name their class
-  (`Quaternion<Float>()`), so it waits for Mortaro; and migrating the game engine package to `Vector3<Float>`.
-  **M.** No dependencies.
+- **M5 The game engine package on the generic maths** (D355, D381, D477). The vectors, matrices and quaternion are
+  generic over `Number` and built; left: migrating the game engine package (outside this repository) to
+  `Vector3<Float>`, `Matrix4<Float>()` and `Quaternion<Float>()`. **S.** No dependencies.
 - **M7 Identical-function folding leftovers** (D340; status "Identical functions"). Fold a function differing only
   in which class of another layout it passes by reference, compare a boxed text constant by its text, and stop
   writing a foreign callback's site into the function. Files: `function_folder.spite`. **M.** No dependencies.

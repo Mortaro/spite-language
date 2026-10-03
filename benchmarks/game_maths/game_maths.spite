@@ -30,11 +30,11 @@ func vector_pass(): Vector3<Float> {
 }
 
 func matrix_pass(): Float {
-    var turn = Quaternion()
+    var turn = Quaternion<Float>()
     var axis = Vector3(0.0, 1.0, 0.0)
     turn.set_axis_angle(axis, 0.001)
     var step_matrix = turn.to_matrix()
-    var accumulated = Matrix4()
+    var accumulated = Matrix4<Float>()
     var step = 0
     while step < 200000 {
         accumulated = accumulated * step_matrix
@@ -44,7 +44,7 @@ func matrix_pass(): Float {
 }
 
 func transform_pass(): Float {
-    var model = Matrix4()
+    var model = Matrix4<Float>()
     var place = Vector3(1.0, 2.0, 3.0)
     model.translation = place
     var point = Vector3(0.5, 0.5, 0.5)

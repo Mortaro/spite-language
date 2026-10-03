@@ -75,7 +75,7 @@ moved`. Operators chain freely, `first + second - third`, because an operator is
 
 ## Matrices
 
-`Matrix4()` is the identity. Its sixteen parts are `column_0_row_0` to `column_3_row_3`, **column-major**: the
+`Matrix4<Float>()` is the identity. Its sixteen parts are `column_0_row_0` to `column_3_row_3`, **column-major**: the
 four parts of a column sit next to each other in memory, as Vulkan, OpenGL and glTF expect, and a point is a
 column the matrix multiplies from the left. `a * b` is `a` applied after `b`: with `var both = a * b`, `both.transform_point(point)` is
 `a.transform_point(b.transform_point(point))`. A matrix is set to a transform in place, the usual
@@ -89,9 +89,9 @@ from 0 at `near` to 1 at `far`.
 var console = Console()
 
 func GameMatricesBasics() {
-    var model = Matrix4()
+    var model = Matrix4<Float>()
     var place = Vector3(1.0, 2.0, 3.0)
-    var turn = Quaternion()
+    var turn = Quaternion<Float>()
     var size = Vector3(2.0, 2.0, 2.0)
     model.set_transform(place, turn, size)
     var corner = Vector3(1.0, 1.0, 1.0)
@@ -100,7 +100,7 @@ func GameMatricesBasics() {
     crash inverse
     var back = inverse.transform_point(corner)
     console.print("{back} {model.translation_part()} {model.scale_part()}")
-    var projection = Matrix4()
+    var projection = Matrix4<Float>()
     projection.set_orthographic(-2.0, 2.0, -1.0, 1.0, 1.0, 3.0)
     var seen = Vector3(2.0, 1.0, -1.0)
     var projected = projection.project_point(seen)
@@ -119,9 +119,33 @@ func GameMatricesBasics() {
 `normal_matrix()` is the `Matrix3` that turns normals under a scaled model. `Matrix3` has the same shape for three
 dimensions: `multiply`, `transform`, `transposed`, `determinant`, `inverse` and `set_rotation`.
 
+A matrix and a quaternion are generic over their number class, as a vector is, and nothing is inferred from an
+empty constructor, so the class is always written: `Matrix4<Float>()` for what a GPU reads, `Matrix4<Double>()`
+where a world is too large for `Float` (a millimetre a thousand kilometres from the origin is lost in a `Float` and
+kept in a `Double`). The two never mix: a `Matrix4<Double>` takes a `Vector3<Double>` and a `Quaternion<Double>`.
+Only `Float` and `Double` are offered, since a rotation of whole numbers is not a rotation: `Quaternion<Integer>()` is
+a compile error.
+
+```gdscript title=double_precision/double_precision.spite entry
+var console = Console()
+
+func DoublePrecision() {
+    var world = Matrix4<Double>()
+    var far_away = Vector3<Double>(1000000.0, 0.0, 0.0)
+    world.translation = far_away
+    var millimetre = Vector3<Double>(0.001, 0.0, 0.0)
+    var placed = world.transform_point(millimetre)
+    var kept = placed.x - 1000000.0
+    console.print("kept {kept > 0.0009 and kept < 0.0011}")
+}
+```
+```output
+kept true
+```
+
 ## Rotations
 
-A `Quaternion()` is no rotation. `set_axis_angle(axis, angle)` turns by `angle` radians about `axis`;
+A `Quaternion<Float>()` is no rotation. `set_axis_angle(axis, angle)` turns by `angle` radians about `axis`;
 `set_euler(angles, order)` turns about x, y and z by the parts of `angles`, applied in the order named: `'xyz'`
 turns about x first, then y, then z, as Blender's XYZ Euler does; the other orders are `'xzy'`, `'yxz'`, `'yzx'`,
 `'zxy'` and `'zyx'`. `rotate(vector)` turns a vector, `a * b` is the rotation `b` then `a`,
@@ -132,14 +156,14 @@ shorter way, and `to_matrix()` is the same rotation as a `Matrix4`.
 var console = Console()
 
 func GameRotationsBasics() {
-    var turn = Quaternion()
+    var turn = Quaternion<Float>()
     var axis = Vector3(0.0, 0.0, 1.0)
     var quarter_turn = Float.pi * 0.5
     turn.set_axis_angle(axis, quarter_turn)
     var along = Vector3(1.0, 0.0, 0.0)
     var turned = turn.rotate(along)
     console.print("{turned.x.absolute() < 0.001} {turned.y > 0.999}")
-    var still = Quaternion()
+    var still = Quaternion<Float>()
     var halfway = still.spherical_interpolate(turn, 0.5)
     var diagonal = halfway.rotate(along)
     console.print("{diagonal.x > 0.707} {diagonal.y > 0.707} {still}")
@@ -314,7 +338,7 @@ The standard library fills every maths gap a game needs, as a game engine packag
   uses `Vector3` carries only the functions it calls. Nothing runs at start-up and nothing is registered.
 - **Parts.** Vectors and quaternions: `x`, `y`, `z`, `w`, the axis names, which are the one
   exception to the rule against single letters ([style.md](style.md#names)). Matrices: `column_C_row_R`,
-  column-major, `Matrix4()` and `Matrix3()` the identity. A vector is made with all its parts
+  column-major, `Matrix4<Float>()` and `Matrix3<Float>()` the identity. A vector is made with all its parts
   (`Vector3(1.0, 2.0, 3.0)`); a quaternion and a matrix are made from their defaults and set.
 - **Vectors are generic over their number class**: `generic $number_type: Number`, inferred from the parts
   (`Vector3(1, 2, 3)` is a `Vector3<Integer>`, `Vector3(1.0, 2.0, 3.0)` a `Vector3<Float>`) and written out where a
@@ -322,8 +346,14 @@ The standard library fills every maths gap a game needs, as a game engine packag
   No `Vector3i`-style name exists. Every member answers the vector's own class and takes it (`scaled(factor)`,
   `linear_interpolate(target, amount)`): `length()`, `distance_to` and `normalized()` on whole numbers truncate as
   integer division does (the root is taken in `Double` and cut), and `normalized()` divides each part by the
-  length. Matrices, quaternions, planes, rays, boxes, frustums and curves hold `Float`s and take
-  `Vector2<Float>`, `Vector3<Float>` and `Vector4<Float>`.
+  length.
+- **Matrices and quaternions are generic over their number class too**: `generic $number_type: Number`, written
+  out at every construction since an empty constructor infers nothing (`Matrix4<Float>()`, `Quaternion<Double>()`),
+  and every member takes and answers its own class (`Matrix4<Double>.transform_point` takes a `Vector3<Double>`,
+  `set_rotation` a `Quaternion<Double>`). Only `Float` and `Double` are accepted: any other class is
+  "'crash $number_type == Float or $number_type == Double' always halts in Quaternion<Integer>: ...", reported by
+  the class's constructor. Planes, rays, boxes, frustums and curves hold `Float`s and take `Vector2<Float>`,
+  `Vector3<Float>`, `Vector4<Float>` and `Matrix4<Float>`.
 - **Vectors** (`Vector2`, `Vector3`, `Vector4`): `sum`, `subtract`, `multiply`, `divide` (part by part, and so the
   operators `+ - * /`), `negate` (unary `-`), `equals` (`==`, every part exactly), `scaled(factor)`,
   `dot(other)`, `cross(other)` (`Vector3` only), `length()`, `length_squared()`, `normalized()` (the zero vector
@@ -344,7 +374,7 @@ The standard library fills every maths gap a game needs, as a game engine packag
   the upper 3x3, `null` when it has no inverse), and `to_string()` row by row, `[1 0 0 0; ...]`.
 - **`Matrix3`**: `set_identity()`, `multiply`, `equals`, `transform(vector: Vector3)`, `transposed()`,
   `determinant()`, `inverse(): Matrix3?`, `set_rotation(rotation)`, `to_string()`.
-- **`Quaternion`** (x, y, z, then w; `Quaternion()` is no rotation): `set_identity()`, `set_parts(x, y, z, w)`,
+- **`Quaternion`** (x, y, z, then w; `Quaternion<Float>()` is no rotation): `set_identity()`, `set_parts(x, y, z, w)`,
   `set_axis_angle(axis, angle)` (the axis is normalized first), `set_euler(angles, order:
   Quaternion.RotationOrder)` (the six orders; `'xyz'` applies x first, as Blender's XYZ), `multiply(other)` (`*`:
   `a * b` rotates by `b` then `a`), `equals`, `rotate(vector)`, `dot`, `length()`, `normalized()` (the zero

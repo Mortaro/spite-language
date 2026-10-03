@@ -1,12 +1,18 @@
-var column_0_row_0: Float = 1.0
-var column_0_row_1: Float = 0.0
-var column_0_row_2: Float = 0.0
-var column_1_row_0: Float = 0.0
-var column_1_row_1: Float = 1.0
-var column_1_row_2: Float = 0.0
-var column_2_row_0: Float = 0.0
-var column_2_row_1: Float = 0.0
-var column_2_row_2: Float = 1.0
+generic $number_type: Number
+
+var column_0_row_0: $number_type = 1.0
+var column_0_row_1: $number_type = 0.0
+var column_0_row_2: $number_type = 0.0
+var column_1_row_0: $number_type = 0.0
+var column_1_row_1: $number_type = 1.0
+var column_1_row_2: $number_type = 0.0
+var column_2_row_0: $number_type = 0.0
+var column_2_row_1: $number_type = 0.0
+var column_2_row_2: $number_type = 1.0
+
+func Matrix3() {
+    crash $number_type == Float or $number_type == Double
+}
 
 func set_identity() {
     column_0_row_0 = 1.0
@@ -20,8 +26,8 @@ func set_identity() {
     column_2_row_2 = 1.0
 }
 
-func multiply(other: Matrix3): Matrix3 {
-    var product = Matrix3()
+func multiply(other: Matrix3<$number_type>): Matrix3<$number_type> {
+    var product = Matrix3<$number_type>()
     product.column_0_row_0 = column_0_row_0 * other.column_0_row_0 + column_1_row_0 * other.column_0_row_1 + column_2_row_0 * other.column_0_row_2
     product.column_0_row_1 = column_0_row_1 * other.column_0_row_0 + column_1_row_1 * other.column_0_row_1 + column_2_row_1 * other.column_0_row_2
     product.column_0_row_2 = column_0_row_2 * other.column_0_row_0 + column_1_row_2 * other.column_0_row_1 + column_2_row_2 * other.column_0_row_2
@@ -34,15 +40,15 @@ func multiply(other: Matrix3): Matrix3 {
     return product
 }
 
-func transform(vector: Vector3<Float>): Vector3<Float> {
+func transform(vector: Vector3<$number_type>): Vector3<$number_type> {
     var x_part = column_0_row_0 * vector.x + column_1_row_0 * vector.y + column_2_row_0 * vector.z
     var y_part = column_0_row_1 * vector.x + column_1_row_1 * vector.y + column_2_row_1 * vector.z
     var z_part = column_0_row_2 * vector.x + column_1_row_2 * vector.y + column_2_row_2 * vector.z
     return Vector3(x_part, y_part, z_part)
 }
 
-func transposed(): Matrix3 {
-    var flipped = Matrix3()
+func transposed(): Matrix3<$number_type> {
+    var flipped = Matrix3<$number_type>()
     flipped.column_0_row_0 = column_0_row_0
     flipped.column_0_row_1 = column_1_row_0
     flipped.column_0_row_2 = column_2_row_0
@@ -55,7 +61,7 @@ func transposed(): Matrix3 {
     return flipped
 }
 
-func equals(other: Matrix3): Boolean {
+func equals(other: Matrix3<$number_type>): Boolean {
     return column_0_row_0 == other.column_0_row_0 and column_0_row_1 == other.column_0_row_1 and column_0_row_2 == other.column_0_row_2 and column_1_row_0 == other.column_1_row_0 and column_1_row_1 == other.column_1_row_1 and column_1_row_2 == other.column_1_row_2 and column_2_row_0 == other.column_2_row_0 and column_2_row_1 == other.column_2_row_1 and column_2_row_2 == other.column_2_row_2
 }
 
@@ -63,18 +69,19 @@ func to_string(): String {
     return "[{column_0_row_0} {column_1_row_0} {column_2_row_0}; {column_0_row_1} {column_1_row_1} {column_2_row_1}; {column_0_row_2} {column_1_row_2} {column_2_row_2}]"
 }
 
-func determinant(): Float {
+func determinant(): $number_type {
     var first_minor = column_1_row_1 * column_2_row_2 - column_2_row_1 * column_1_row_2
     var second_minor = column_0_row_1 * column_2_row_2 - column_2_row_1 * column_0_row_2
     var third_minor = column_0_row_1 * column_1_row_2 - column_1_row_1 * column_0_row_2
     return column_0_row_0 * first_minor - column_1_row_0 * second_minor + column_2_row_0 * third_minor
 }
 
-func inverse(): Matrix3? {
+func inverse(): Matrix3<$number_type>? {
+    var one: $number_type = 1.0
     var whole = determinant()
     assert whole != 0.0
-    var scale = 1.0 / whole
-    var inverted = Matrix3()
+    var scale = one / whole
+    var inverted = Matrix3<$number_type>()
     inverted.column_0_row_0 = (column_1_row_1 * column_2_row_2 - column_2_row_1 * column_1_row_2) * scale
     inverted.column_0_row_1 = (column_2_row_1 * column_0_row_2 - column_0_row_1 * column_2_row_2) * scale
     inverted.column_0_row_2 = (column_0_row_1 * column_1_row_2 - column_1_row_1 * column_0_row_2) * scale
@@ -87,7 +94,9 @@ func inverse(): Matrix3? {
     return inverted
 }
 
-func set_rotation(rotation: Quaternion) {
+func set_rotation(rotation: Quaternion<$number_type>) {
+    var one: $number_type = 1.0
+    var two: $number_type = 2.0
     var x_x = rotation.x * rotation.x
     var y_y = rotation.y * rotation.y
     var z_z = rotation.z * rotation.z
@@ -97,13 +106,13 @@ func set_rotation(rotation: Quaternion) {
     var w_x = rotation.w * rotation.x
     var w_y = rotation.w * rotation.y
     var w_z = rotation.w * rotation.z
-    column_0_row_0 = 1.0 - 2.0 * (y_y + z_z)
-    column_0_row_1 = 2.0 * (x_y + w_z)
-    column_0_row_2 = 2.0 * (x_z - w_y)
-    column_1_row_0 = 2.0 * (x_y - w_z)
-    column_1_row_1 = 1.0 - 2.0 * (x_x + z_z)
-    column_1_row_2 = 2.0 * (y_z + w_x)
-    column_2_row_0 = 2.0 * (x_z + w_y)
-    column_2_row_1 = 2.0 * (y_z - w_x)
-    column_2_row_2 = 1.0 - 2.0 * (x_x + y_y)
+    column_0_row_0 = one - two * (y_y + z_z)
+    column_0_row_1 = two * (x_y + w_z)
+    column_0_row_2 = two * (x_z - w_y)
+    column_1_row_0 = two * (x_y - w_z)
+    column_1_row_1 = one - two * (x_x + z_z)
+    column_1_row_2 = two * (y_z + w_x)
+    column_2_row_0 = two * (x_z + w_y)
+    column_2_row_1 = two * (y_z - w_x)
+    column_2_row_2 = one - two * (x_x + y_y)
 }
