@@ -12,6 +12,9 @@ var build_values = Dictionary<String>()
 var entry_qualified = ""
 var entry_file_path = ""
 var loaded_folders = List<String>()
+var loaded_roots = List<String>()
+var loaded_root_sites = List<String>()
+var paths = Paths()
 var program_paths = List<String>()
 var program_texts = Dictionary<String>()
 var pending_files = List<Syntax.SourceFile>()
@@ -416,6 +419,8 @@ func load_root(entry_path: String, entry_directory: String, root_name: String, l
         root_folder = root_name.replace("\\", "/")
     }
     assert not loaded_folders.contains("{root_folder}/")
+    var canonical = paths.normalized(root_folder)
+    assert not loaded_roots.contains(canonical)
     if not from_repository and loads_from_repositories.escapes_checkout(entry_directory, root_folder, root_name) {
         has_error = true
         error_message = "{entry_path}:{line}: error: {loads_from_repositories.problem}"
@@ -438,6 +443,9 @@ func load_root(entry_path: String, entry_directory: String, root_name: String, l
     assert not has_error
     loaded_folders.append("{root_folder}/")
     note_loads_inside(root_folder)
+    assert not refuses_overlapping_load(canonical, "{entry_path}:{line}", root_name)
+    loaded_roots.append(canonical)
+    loaded_root_sites.append("{entry_path}:{line}")
     var empty_segments = List<String>()
     var no_skip: String? = null
     var no_exclusions = List<String>()
@@ -814,6 +822,45 @@ func walk_directory(
 
 func is_tool_folder(name: String): Boolean {
     return name == ".spite" or name == ".spite-cache" or name == ".git"
+}
+
+func refuses_overlapping_load(canonical: String, site: String, root_name: String): Boolean {
+    var index = 0
+    while index < loaded_roots.count() {
+        var earlier = loaded_roots[index]
+        var inner = canonical.starts_with("{earlier}/")
+        var outer = earlier.starts_with("{canonical}/")
+        var nested = canonical
+        if outer {
+            nested = earlier
+        }
+        if (inner or outer) and not walked_apart(nested) {
+            crash loaded_root_sites[index]
+            var earlier_site = loaded_root_sites[index]
+            var whole = earlier
+            var part = canonical
+            if outer {
+                whole = canonical
+                part = earlier
+            }
+            has_error = true
+            error_message = "{site}: error: 'load \"{root_name}\"' and the load at {earlier_site} both reach the files of '{part}', which lies inside '{whole}', so those files would be loaded twice: load only '{whole}', whose subfolders are already its namespaces"
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func walked_apart(folder: String): Boolean {
+    var index = 0
+    while index < loaded_inside.count() {
+        if paths.normalized(loaded_inside[index]) == folder {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func note_loads_inside(root_folder: String) {

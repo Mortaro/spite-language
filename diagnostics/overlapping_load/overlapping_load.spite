@@ -1,0 +1,8 @@
+var console = Console()
+
+func OverlappingLoad() {
+    load "kingdom"
+    load "kingdom/physics"
+    var castle = Castle()
+    console.print(castle.height)
+}

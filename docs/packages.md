@@ -467,6 +467,13 @@ package/engine/physics/physics.spite     ->  Engine.Physics.Physics()   (no file
   sibling file's `load "tools"` loads `tools/` as a package root (a `load` works in any file, and the entry
   file only names what runs first; `conformance/stage6/sibling_load`). The launcher class's own `load`s, printed
   into a `--final-classes` folder, are the launcher's and are not followed from there.
+- **No file is loaded twice.** Two `load`s whose folders overlap, one inside the other, would reach the same files
+  twice, and that is a compile error at the later one: "game.spite:5: error: 'load \"kingdom/physics\"' and the
+  load at game.spite:4 both reach the files of 'kingdom/physics', which lies inside 'kingdom', so those files would
+  be loaded twice: load only 'kingdom', whose subfolders are already its namespaces" (`diagnostics/overlapping_load`).
+  Loading the same folder again is not an overlap: two packages that both load a third load it once, however their
+  paths spell it. The one nesting that is allowed is a package's own `load` of a folder inside its own tree, below,
+  since that folder is then taken out of the package and loaded on its own.
 - **A folder named by a `load` inside its own tree is never also a namespace.** A package `kitchen/` whose file
   loads `"garnish/pepper"` gets `kitchen/garnish/pepper/` as a root of its
   own, and not also as the namespace `Garnish.Pepper`, as the program's own folder already did for what its top
