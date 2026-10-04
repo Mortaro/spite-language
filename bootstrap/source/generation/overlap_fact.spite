@@ -1,0 +1,28 @@
+var reads = Dictionary<Boolean>()
+var writes = Dictionary<Boolean>()
+var calls = List<String>()
+var loops = false
+var container = false
+var mutates = false
+
+func read(key: String) {
+    reads[key] = true
+}
+
+func write(key: String) {
+    writes[key] = true
+}
+
+func call(name: String) {
+    if not calls.contains(name) {
+        calls.append(name)
+    }
+}
+
+func merge(other: OverlapFact) {
+    other.reads.keys().each(read)
+    other.writes.keys().each(write)
+    if other.loops {
+        loops = true
+    }
+}

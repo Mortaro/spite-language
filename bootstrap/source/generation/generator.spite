@@ -151,6 +151,10 @@ var call_edge_callees = List<String>()
 var current_function_c_name = ""
 var report_outline = ReportOutline()
 var report_function_start = -1
+var overlap_allowed = false
+var generating_overlap = false
+var listed_ended_in_return = false
+var overlap_groups = 0
 var machine_candidate_names = List<String>()
 var machine_candidate_classes = List<Analysis.ClassInfo>()
 var machine_candidate_functions = List<Analysis.FunctionInfo>()
@@ -908,6 +912,7 @@ func generate(
     make_allocator_union()
     report_shadowed_functions(discovery.class_files)
     call_effects.study(discovery.class_files, this)
+    overlap_allowed = not hot_reload and not read_evaluate_print_loop and not development
     var string_layout_code = string_layout()
     builder.replace_typedef(string_layout_position, string_layout_code)
     check_number_memory()
@@ -1002,6 +1007,9 @@ func generate(
     emit_union_deep_copy_bodies()
     refresh_union_releases()
     finish_wait_questions()
+    if overlap_groups > 0 {
+        finish_overlap_groups()
+    }
     if parallel_used {
         finish_singleton_guards()
     }
@@ -13561,7 +13569,7 @@ func generate_constructor_call(
     if target_class.qualified_dotted == "ForeignCallback" {
         return generate_foreign_callback(target_class, arguments_ast, scope, class_information)
     }
-    if target_class.qualified_dotted == "Parallel" and target_class.is_instantiated {
+    if target_class.qualified_dotted == "Parallel" and target_class.is_instantiated and not generating_overlap {
         check_parallel_work(arguments_ast, scope, class_information)
     }
     if target_class.is_generic_template {
@@ -30481,44 +30489,30 @@ func generate_statement_list(
         candidate_index = candidate_index + 1
     }
     var index = 0
-    var ended_in_return = false
+    listed_ended_in_return = false
     var overlapped_reads = List<String>()
     while index < statements.count() {
-        if index > 0 {
-            report_template_walk(statements, index, scope, class_information)
-        }
-        report_value_chain(statements, index, scope, class_information)
-        report_returned_local(statements, index, class_information, function_information)
-        var statement = statements[index]
-        var read_name = overlapped_read_name(statement, overlapped_reads, scope, class_information)
-        if read_name.is_empty() {
+        var overlapping = overlap_run(statements, index, scope, class_information)
+        if overlapping >= 2 {
             join_overlapped_reads(overlapped_reads, scope)
+            emit_overlap_group(statements, index, overlapping, scope, class_information, function_information)
+            listed_ended_in_return = false
+            index = index + overlapping
+        } else {
+            index = generate_listed_statement(
+                statements,
+                index,
+                overlapped_reads,
+                scope,
+                class_information,
+                function_information,
+            )
         }
-        var overlaps = overlaps_next_read(statements, index, read_name, overlapped_reads, scope, class_information)
-        if overlaps {
-            statement = overlapped_declaration(statement)
-        }
-        choose_allocator_after(statements, index)
-        borrow_statements = statements
-        borrow_index = index
-        ended_in_return = generate_statement(statement, scope, class_information, function_information)
-        pending_allocator = null
-        if walked_row_filled {
-            walked_row_filled = false
-            index = index + 1
-        }
-        if overlaps {
-            overlapped_reads.append(read_name)
-        }
-        var folded_return = ended_in_return and (statements[index] == Syntax.Statements.IfStatement or statements[index] == Syntax.Statements.AssertStatement)
-        report_after_return(statements, index)
-        index = index + 1
-        if folded_return and index < statements.count() {
-            undo_proofs_after_calls(scope, class_information)
-            mark_rest_used(statements, index, scope)
+        if index < 0 {
             return true
         }
     }
+    var ended_in_return = listed_ended_in_return
     join_overlapped_reads(overlapped_reads, scope)
     if ended_in_return {
         pending_calls = List<Syntax.Expressions.Expression>()
@@ -30526,6 +30520,54 @@ func generate_statement_list(
     }
     undo_proofs_after_calls(scope, class_information)
     return ended_in_return
+}
+
+func generate_listed_statement(
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    overlapped_reads: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+): Integer {
+    var index = start
+    if index > 0 {
+        report_template_walk(statements, index, scope, class_information)
+    }
+    report_value_chain(statements, index, scope, class_information)
+    report_returned_local(statements, index, class_information, function_information)
+    var statement = statements[index]
+    crash statement
+    var read_name = overlapped_read_name(statement, overlapped_reads, scope, class_information)
+    if read_name.is_empty() {
+        join_overlapped_reads(overlapped_reads, scope)
+    }
+    var overlaps = overlaps_next_read(statements, index, read_name, overlapped_reads, scope, class_information)
+    if overlaps {
+        statement = overlapped_declaration(statement)
+    }
+    choose_allocator_after(statements, index)
+    borrow_statements = statements
+    borrow_index = index
+    var ended_in_return = generate_statement(statement, scope, class_information, function_information)
+    listed_ended_in_return = ended_in_return
+    pending_allocator = null
+    if walked_row_filled {
+        walked_row_filled = false
+        index = index + 1
+    }
+    if overlaps {
+        overlapped_reads.append(read_name)
+    }
+    var folded_return = ended_in_return and (statements[index] == Syntax.Statements.IfStatement or statements[index] == Syntax.Statements.AssertStatement)
+    report_after_return(statements, index)
+    index = index + 1
+    if folded_return and index < statements.count() {
+        undo_proofs_after_calls(scope, class_information)
+        mark_rest_used(statements, index, scope)
+        return -1
+    }
+    return index
 }
 
 func overlaps_next_read(
@@ -30623,6 +30665,315 @@ func overlapped_declaration(statement: Syntax.Statements.Statement): Syntax.Stat
     overlapped.line = declaration.line
     overlapped.source_path = declaration.source_path
     return overlapped
+}
+
+func overlap_run(
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Integer {
+    if not overlap_allowed or generating_overlap or class_information.is_singleton or current_path.starts_with("library/") {
+        return 0
+    }
+    var count = 0
+    var index = start
+    while index < statements.count() {
+        if not overlap_candidate(statements[index], scope, class_information) {
+            return count
+        }
+        count = count + 1
+        index = index + 1
+    }
+    return count
+}
+
+func overlap_candidate(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var expression_statement = shape.as_expression_statement(statement)
+    if not expression_statement or not expression_statement.value {
+        return false
+    }
+    var call = shape.as_call(expression_statement.value)
+    if not call or not call.arguments.is_empty() or not call.callee {
+        return false
+    }
+    var callee = shape.as_member(call.callee)
+    if not callee or not callee.object {
+        return false
+    }
+    var receiver_text = operand_text(callee.object)
+    if receiver_text.is_empty() or receiver_text.contains("(") or receiver_text.contains("[") {
+        return false
+    }
+    var saved_counter = temporary_counter
+    var receiver = generate_expression(callee.object, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var receiver_type = receiver.type
+    var receiver_class = type_shape.as_class_ref(receiver_type)
+    if not receiver_class {
+        return false
+    }
+    var owner = find_class_by_c_name(receiver_class.c_name)
+    if not owner or owner.is_singleton or is_library_class(owner) {
+        return false
+    }
+    var function = owner.find_function(callee.name)
+    if not function or not function.parameters.is_empty() or function.is_constructor {
+        return false
+    }
+    var returned = function.return_type
+    return type_shape.is_void(returned)
+}
+
+func emit_overlap_group(
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    count: Integer,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    overlap_groups = overlap_groups + 1
+    var group = overlap_groups
+    builder.add_user("/*spite_overlap_{group} sequential*/")
+    var index = start
+    while index < start + count {
+        crash statements[index]
+        generate_statement(statements[index], scope, class_information, function_information)
+        builder.add_user("/*spite_overlap_{group} step*/")
+        index = index + 1
+    }
+    builder.add_user("/*spite_overlap_{group} parallel*/")
+    builder.add_user("\{")
+    var inner = Scope(scope)
+    var threads_before = builder.threads
+    var parallel_before = parallel_used
+    generating_overlap = true
+    var handles = List<String>()
+    index = start
+    while index < start + count - 1 {
+        crash statements[index]
+        var handle_name = "spite_overlap_{group}_{index - start}"
+        var started = overlap_declaration(statements[index], handle_name)
+        generate_statement(started, inner, class_information, function_information)
+        inner.mark_used(handle_name)
+        handles.append(handle_name)
+        index = index + 1
+    }
+    var last_index = start + count - 1
+    crash statements[last_index]
+    generate_statement(statements[last_index], inner, class_information, function_information)
+    join_overlap_handles(handles, inner)
+    emit_scope_drops(inner, false)
+    generating_overlap = false
+    builder.threads = threads_before
+    parallel_used = parallel_before
+    builder.add_user("}")
+    builder.add_user("/*spite_overlap_{group} end*/")
+}
+
+func overlap_declaration(statement: Syntax.Statements.Statement, handle_name: String): Syntax.Statements.Statement {
+    var expression_statement = shape.as_expression_statement(statement)
+    crash expression_statement
+    crash expression_statement.value
+    var call = shape.as_call(expression_statement.value)
+    crash call
+    crash call.callee
+    var parallel: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("Parallel")
+    var started_arguments = List<Syntax.Expressions.Expression>()
+    started_arguments.append(call.callee)
+    var started: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(parallel, started_arguments)
+    var declared = Syntax.Statements.VariableDeclaration(handle_name, null, started)
+    declared.line = statement_line(statement)
+    declared.source_path = current_path
+    return declared
+}
+
+func join_overlap_handles(handles: List<String>, scope: Scope) {
+    var index = 0
+    while index < handles.count() {
+        var name = handles[index]
+        var handle_type = scope.lookup_type(name)
+        crash handle_type
+        var handle_reference = type_shape.as_class_ref(handle_type)
+        crash handle_reference
+        var handle = find_class_by_c_name(handle_reference.c_name)
+        crash handle
+        var joining = find_or_instantiate_function(handle, "_join")
+        crash joining
+        builder.add_user("{joining.c_name}({c_value_name(name)});")
+        index = index + 1
+    }
+}
+
+func finish_overlap_groups() {
+    var facts = OverlapFacts()
+    facts.read_program(
+        builder.typedefs,
+        builder.prototypes,
+        builder.support_bodies,
+        builder.user_bodies,
+        builder.main_lines,
+    )
+    var group = 1
+    while group <= overlap_groups {
+        settle_overlap_group(facts, group)
+        group = group + 1
+    }
+}
+
+func settle_overlap_group(facts: OverlapFacts, group: Integer) {
+    var sequential = "/*spite_overlap_{group} sequential*/"
+    var position = 0
+    while position < builder.user_bodies.count() {
+        var line = builder.user_at(position)
+        if line == sequential {
+            settle_overlap_at(facts, group, position)
+        }
+        position = position + 1
+    }
+}
+
+func settle_overlap_at(facts: OverlapFacts, group: Integer, start: Integer) {
+    var parallel_marker = "/*spite_overlap_{group} parallel*/"
+    var step_marker = "/*spite_overlap_{group} step*/"
+    var end_marker = "/*spite_overlap_{group} end*/"
+    var function_lines = enclosing_function_lines(start)
+    var steps = List<OverlapFact>()
+    var current = List<String>()
+    var position = start + 1
+    var middle = -1
+    while middle < 0 and position < builder.user_bodies.count() {
+        var line = builder.user_at(position)
+        if line == parallel_marker {
+            middle = position
+        } else if line == step_marker {
+            var context = function_lines.copy()
+            current.each(context.append)
+            var fact = facts.statement_fact(current, context)
+            steps.append(fact)
+            current = List<String>()
+        } else {
+            var split = line.split("\n")
+            split.each(current.append)
+        }
+        position = position + 1
+    }
+    var finish = middle
+    while finish < builder.user_bodies.count() and builder.user_at(finish) != end_marker {
+        finish = finish + 1
+    }
+    var overlapped = overlap_pays(facts, steps) and not inside_coarse_loop(function_lines)
+    if overlapped {
+        blank_user_range(start, middle + 1)
+        builder.replace_user(finish, "")
+        builder.threads = true
+        note_fact("flag threads")
+        parallel_used = true
+        note_fact("flag parallel_used")
+    } else {
+        blank_user_range(middle, finish + 1)
+        blank_markers(start, middle, step_marker)
+        builder.replace_user(start, "")
+    }
+}
+
+func overlap_pays(facts: OverlapFacts, steps: List<OverlapFact>): Boolean {
+    var index = 0
+    while index < steps.count() {
+        var step = steps[index]
+        if not step.loops {
+            return false
+        }
+        var other = index + 1
+        while other < steps.count() {
+            var compared = steps[other]
+            if not facts.independent(step, compared) {
+                return false
+            }
+            other = other + 1
+        }
+        index = index + 1
+    }
+    return steps.count() >= 2
+}
+
+func inside_coarse_loop(function_lines: List<String>): Boolean {
+    var depth = 0
+    var index = 0
+    while index < function_lines.count() {
+        var line = function_lines[index]
+        if line.starts_with("spite_coarse_") and line.ends_with("_enter();") {
+            depth = depth + 1
+        }
+        if line.starts_with("spite_coarse_") and line.ends_with("_leave();") {
+            depth = depth - 1
+        }
+        index = index + 1
+    }
+    return depth > 0
+}
+
+func enclosing_function_lines(position: Integer): List<String> {
+    var start = position
+    var found = false
+    while start > 0 and not found {
+        start = start - 1
+        var line = builder.user_at(start)
+        found = opens_function(line)
+    }
+    var lines = List<String>()
+    var index = start
+    while index < position {
+        var line = builder.user_at(index)
+        var split = line.split("\n")
+        split.each(lines.append)
+        index = index + 1
+    }
+    return lines
+}
+
+func opens_function(line: String): Boolean {
+    if line.is_empty() or not line.ends_with(") \{") {
+        return false
+    }
+    var first = line.code_at(0)
+    var letter = first == 95 or first >= 65 and first <= 90 or first >= 97 and first <= 122
+    var open = line.index_of("(")
+    if not letter or open < 0 {
+        return false
+    }
+    var before = line.slice(0, open)
+    var words = ["if", "while", "for", "switch", "else", "return"]
+    var first_word = before
+    var space = before.index_of(" ")
+    if space >= 0 {
+        first_word = before.slice(0, space)
+    }
+    return not words.contains(first_word) and not before.contains("=")
+}
+
+func blank_markers(start: Integer, end: Integer, marker: String) {
+    var index = start
+    while index < end {
+        var line = builder.user_at(index)
+        if line == marker {
+            builder.replace_user(index, "")
+        }
+        index = index + 1
+    }
+}
+
+func blank_user_range(start: Integer, end: Integer) {
+    var index = start
+    while index < end {
+        builder.replace_user(index, "")
+        index = index + 1
+    }
 }
 
 func join_overlapped_reads(pending: List<String>, scope: Scope) {

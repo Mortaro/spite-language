@@ -1,0 +1,9 @@
+var console = Console()
+
+func step() {
+    var index = 0
+    while index < 2 {
+        console.print("loud", index)
+        index = index + 1
+    }
+}

@@ -1,0 +1,21 @@
+var console = Console()
+var physics = Physics()
+var audio = Audio()
+var left = Tally()
+var right = Tally()
+var loud = Loud()
+
+func OverlappedCalls() {
+    physics.step()
+    audio.step()
+    var positions = physics.positions.count()
+    var samples = audio.samples.count()
+    console.print(positions, samples)
+    left.add()
+    right.add()
+    console.print(left.total, right.total)
+    physics.step()
+    loud.step()
+    var moved = physics.positions.count()
+    console.print(moved)
+}

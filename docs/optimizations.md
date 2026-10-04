@@ -1990,6 +1990,61 @@ every build, rather than leaving it to the C compiler or the linker.
   `--final-classes` is unchanged: it prints Spite, not C.
 - **Cost**: compile time only; the executable gets smaller.
 
+### Calls in a row run at once
+
+**What it does.** Statements in a row that each call a function on an object of the program, and share nothing
+one of them writes, run on the thread pool at once ([concurrency.md](concurrency.md#calls-in-a-row-run-at-once)).
+The compiler writes each such row of calls twice, once in order and once overlapped, and keeps one once the whole
+program is written: it works out what each call reads and writes from the code of every function it reaches,
+after every generic class is made for its values, so `Column<Position>` and `Column<Health>` are told apart.
+
+```gdscript title=calls_in_a_row/evens.spite
+var total: Long = 0
+
+func count() {
+    var index = 0
+    while index < 3000000 {
+        total = total + index * 2
+        index = index + 1
+    }
+}
+```
+```gdscript title=calls_in_a_row/odds.spite
+var total: Long = 0
+
+func count() {
+    var index = 0
+    while index < 3000000 {
+        total = total + index * 2 + 1
+        index = index + 1
+    }
+}
+```
+```gdscript title=calls_in_a_row/calls_in_a_row.spite entry
+var console = Console()
+var evens = Evens()
+var odds = Odds()
+
+func CallsInARow() {
+    evens.count()
+    odds.count()
+    console.print(evens.total, odds.total)
+}
+```
+```output
+8999997000000 9000000000000
+```
+
+`evens.count()` runs on a worker while `odds.count()` runs on the program's own thread, and the `print` waits for
+both. `console.print` is not part of the row: it prints, so it keeps its place.
+
+**When.** Every build but `--hot-reload`, `--repl` and `--development`, for the rows the rules allow. A program
+whose rows all stay in order never starts the thread pool for them.
+
+**What you notice.** Speed, when the calls are big enough: an entity system written with no `Parallel`, two systems
+over 200 000 entities, runs both at once. A program in which some row overlaps counts references atomically, as
+every program with threads does. Nothing a program prints changes.
+
 ### A crash's report is kept out of the way
 
 **What it does.** Every `crash`, failed `assert`, read outside a list and overflow has code that writes its report:

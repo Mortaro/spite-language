@@ -1,0 +1,9 @@
+var positions = List<Integer>()
+
+func step() {
+    var index = 0
+    while index < 1000 {
+        positions.append(index)
+        index = index + 1
+    }
+}

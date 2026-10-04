@@ -829,7 +829,19 @@ have moved.
 
 ## Threads and locks
 
-These apply only in a program that makes a `Parallel`, runs a `parallel_each_` pass or makes a `ForeignCallback`; any other program has no lock at all.
+These apply only in a program that uses threads: one that makes a `Parallel`, runs a `parallel_each_` pass or makes a `ForeignCallback`, or in which a row of calls runs at once; any other program has no lock at all.
+
+### Calls that share nothing written
+
+- **Proves.** Two calls in a row read and write nothing in common, through every function each one reaches.
+- **Rule.** [concurrency.md](concurrency.md#calls-in-a-row-run-at-once): each call's reads and writes of attributes
+  (by class), of list items (by the attribute holding a list made for it and never handed on, or by kind), of
+  memory reached through an address, and whether it prints, waits or calls outside the program, from the code of
+  every specialised function it reaches.
+- **Buys.** The calls run at once on the thread pool, with no `Parallel` written.
+- **Falls back.** Calls that touch the same thing, print, wait or call through a function value run in order, as
+  written. To overlap two calls, give each its own class and its own lists.
+- **Shows it.** [optimizations.md](optimizations.md#calls-in-a-row-run-at-once).
 
 ### Which singletons a `Parallel` reaches
 

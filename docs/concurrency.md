@@ -383,9 +383,11 @@ no call says it may run in parallel.
 
 Calls whose order can be seen stay in order: anything that prints, touches a file or a socket, or reads and writes
 the same state as another call. A call that does little (a few additions, no loop) is never handed to another
-thread, since starting it there would cost more than running it. If two calls that ran at once both crash, the
-crash reported is the one written first, so a crash report never depends on which thread was faster. The exact
-conditions are in [the rules](#concurrency-concurrent-parallel-and-hidden-waiting) ("Calls in a row run at once").
+thread, since starting it there would cost more than running it. Two objects of one class count as one: two
+`Counter`s each counting their own total share the attribute `total` as far as this rule sees, so they stay in
+order, while a `Physics` and an `Audio` overlap. The exact conditions are in
+[the rules](#concurrency-concurrent-parallel-and-hidden-waiting) ("Calls in a row run at once"), and
+[optimizations.md](optimizations.md#calls-in-a-row-run-at-once) shows one.
 
 ### The thread pool
 
@@ -1374,18 +1376,22 @@ uses the scheduler, so it is compiled with `SPITE_THREADS`; a program without tw
 before. A `Directory` listing is not a waiting call (it has no helper thread), so starting it early would not overlap
 anything, and it is left alone. `conformance/stage6/overlapped_reads`.
 
-**Calls in a row run at once.** Two or more statements in a row, each a call whose value is not used (a bare
-`receiver.function(...)` or `function(...)`), run at once on the thread pool when every pair of them is
-independent, and every one is joined before the next statement runs; the last one runs on the calling thread.
-Two calls are independent when neither writes an attribute, a singleton's state or an element the other reads or
-writes, taken through every function each one reaches; when neither prints, reads or writes a `File`, a
-`Directory` or a `Socket`, waits, or reaches a class whose objects stay on the thread that made them; and when the
-compiler knows every function each one reaches (a call through a function value or a `type` with more than one
-class is not independent of anything). A call is handed to another thread only when it reaches a loop, so work
-too small to pay for the hand-over stays where it is. The calls' arguments are worked out first, in written order,
-on the calling thread. When more than one of them crashes, the crash reported is the one of the call written
-first. A program in which no calls run at once compiles exactly as before, and one in which some do uses the
-thread pool, as a program that writes `Parallel` does.
+**Calls in a row run at once.** Two or more statements in a row, each `receiver.function()` with no arguments and
+its value unused, where `receiver` is a name or a path of attributes, the function answers nothing and belongs to a
+class of the program that is not a singleton, run at once when every pair of them is independent and each reaches
+a loop: every one but the last runs on the thread pool, the last on the calling thread, and all are joined before
+the next statement. Two calls are independent when neither writes what the other reads or writes, taken through
+every function each one reaches, the compiler's own code included: an attribute of a class (two objects of one
+class count as one), the items of a list or dictionary (two attributes holding lists count apart only when each
+holds a list made for it and never handed anywhere else, and two lists of one kind count as one otherwise), or
+memory reached through an address; and when neither prints, reads or writes a `File`, a `Directory` or a
+`Socket`, waits, calls anything outside the program but plain arithmetic, the clock and memory, or calls through a
+function value. Classes the program never makes are left out of the comparison. Nothing is overlapped inside a
+singleton's own functions, inside a counted loop that holds a singleton's lock, in the standard library, or in a
+`--hot-reload`, `--repl` or `--development` build. When an overlapped call crashes, the program halts with that
+call's report; if two crash at once, one of the two reports is printed. A program in which no calls run at once
+compiles exactly as before, and one in which some do uses the thread pool, as a program that writes `Parallel`
+does.
 
 ---
 
