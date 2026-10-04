@@ -48,9 +48,8 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
   `collections.md`, the diagnostic "write 'member: Symbol<$element_type>'") and about 120 name-keyed questions,
   plus the game engine package (17 files, outside this repository). Retires D114, D115, D180's pattern holes, D209,
   D219, D261, D288. **L.** Depends on R5, J1.
-- **R8 Overriding functions of `Spite.Class`** (status "Functions of `Spite.Class`"). The three override rules
-  (only what `Spite.Class` declares, a colliding instance function is an error, the override folds), and
-  `--final-classes` naming the root of a changed default (with C7). Files: generator.spite class-function
+- **R8 Reopening `Spite.Class`** (status "Functions of `Spite.Class`", D504). A class file never overrides its class
+  object's functions; left: `--final-classes` naming the root of a changed default of `Spite.Class` (with C7). Files: generator.spite class-function
   resolution, `library/spite/class.spite`. **M.** No dependencies.
 
 ### Serialization (D319, D320, D384)

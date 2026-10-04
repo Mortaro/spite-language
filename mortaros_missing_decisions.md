@@ -11,14 +11,10 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391, 263 by D394 (2026-10-02); 266 to 296 by D468 to D488, and 268, 269, 271 and 276 to 279 by D493 to D497, 298 by D498, 301 by D499, 291 by D500, 299 by D501 (2026-10-03). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391, 263 by D394 (2026-10-02); 266 to 296 by D468 to D488, and 268, 269, 271 and 276 to 279 by D493 to D497, 298 by D498, 301 by D499, 291 by D500, 299 by D501 (2026-10-03); 275 by D503, 302 by D504 (2026-10-04). Earlier answers are listed in each row of `design/decisions.md`.
 
 ## Open
 
-275. **Loading a subfolder of a package** (D364 says never `load "kal/physics"`). It is not enforced: when only the
-     subfolder is loaded the compiler cannot tell that `kal/` is a package root. Options: (a) leave it unenforced;
-     (b) refuse a load whose folder lies inside another loaded root, once both loads are seen. Recommend (a) now
-     and (b) when both loads are visible.
 280. **How a walk passes values beyond the element.** `each` hands only the element; a walk that needs more (a
      value, a writer) keeps it in attributes of the walking object today. Options: (a) that is the way (one
      argument, state in the walker, as D384's serializers do); (b) `each` with extra arguments. Recommend (a).
@@ -58,16 +54,6 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      the library writes `func normalized(): Vector3<Fraction<$number_type>>`; (b) a codegen value with a default
      worked out from another, `generic $fraction_type = $number_type.fraction`. Recommend (a): one type, readable where it is used, and nothing a program
      writes changes. Blocks building D486.
-302. **How a class file overrides a function of its class object** (D483, answering item 270: "anything can be
-     overridden"). A class file's functions are its instances' functions: `func to_string()` in `gadget.spite` is how
-     a gadget prints. `Spite.Class` declares functions of the class object too (`Gadget.has_function(name)`,
-     `Gadget.get_name()`, `to_string()` of the class itself), and today a class file cannot replace those, since the
-     same name in the file means the instance's function. Options: (a) a function the file marks as the class's own,
-     `func Gadget.has_function(name: String): Boolean`, a dotted name naming the class object; (b) a file
-     `gadget/class.spite` beside the class that reopens its class object; (c) only through reopening `Spite.Class`
-     for every class at once. Recommend (a): one line says what it replaces, and it reads like the call it changes.
-     Blocks the class-object half of D483 (backlog R8); the instance half (getters, setters, `to_string`, `copy`) is
-     replaceable today.
 303. **Does `move_to(path)` replace what is already there?** (D476, D244, D205; standard_library.md "Rename or move
      a file or folder".) Built so that it never does: when a file or folder is at `path` it answers `false` and
      changes nothing, since the system calls (`rename`, `MoveFileExA`) would silently replace a file. Options: (a)

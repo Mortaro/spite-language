@@ -96,7 +96,7 @@ when a page gains a rule that is not built yet, add it here.
   locals and temporaries alive there and cancels the frame being waited on, at each of the six kinds of wait site.
 - D483: every function of a class overridable, the compiler-added ones printed by `--final-classes` (backlog R8).
   A class's instance functions, its getters and setters included, are replaceable today; a class object's
-  functions wait on item 302, and printing the compiler-added ones (`get_<attribute>`, `copy`, `deep_copy`) as
+  functions change only by reopening `Spite.Class` (D504), and printing the compiler-added ones (`get_<attribute>`, `copy`, `deep_copy`) as
   Spite needs a Spite form for what is C today (a copy made without calling the constructor).
 - D485, D501: the compiler decides arenas, rings, structure of arrays and freeing; see
   [proposals/automatic_memory.md](proposals/automatic_memory.md). Built from it: an attribute atomic on its own
@@ -382,19 +382,6 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   being an "always holds" error.
 
 ### Functions of `Spite.Class`, and why there are no static functions
-- The three override rules (the functions a class file can override are exactly those `Spite.Class` declares; an
-  ordinary instance function whose name collides is a diagnostic naming `Spite.Class`; the override is evaluated at
-  compile time and must fold) are NOT built. Today a function a class file declares is always an instance function:
-  a class's own `has_function(name)` answers on its instances with no diagnostic, while `Gadget.has_function(...)`
-  still answers `Spite.Class`'s; a class's `to_string()`, which `Spite.Class` also declares, is how its instances
-  print. With `is_singleton()` now the `singleton` line, no class file overrides a function of `Spite.Class` today.
-- Open, blocking the rules above (found 2026-10-02): `library/spite/class.spite` declares the reflection getters
-  (`get_name`, `get_attributes`, ...), the old questions (`has_function`, `function_waits`, ...) and `to_string()`
-  and `to_debug()`, so "a class file defining one of those names overrides it" would turn every class's own
-  `to_string()` (how its instances print) and every `get_name()` getter into a class-object override that must fold.
-  Which of `Spite.Class`'s members are hooks needs Mortaro: only those a reopening of `Spite.Class` adds; all but
-  the members every object has and the reflection getters (those becoming reserved names like `attributes`); or a
-  spelling that marks a hook.
 - Reopening `Spite.Class` is only partly built. A program's `spite/class.spite` adds and replaces its functions,
   but that changes only what the class objects answer: `is_singleton()` returning `true` does not make
   `List<Integer>()` a singleton, since the `singleton` line decides that. A replacement that no longer reads

@@ -782,9 +782,11 @@ to every class object at once ([packages.md](packages.md#the-spite-namespace-is-
 There are no static functions: a class is an instance of `Spite.Class`, so a member that belongs to the class rather
 than to its instances is an ordinary member of `Spite.Class`, declared there with its default. `.is_singleton` is
 one: every class answers it, from its `singleton` line ([classes_and_files.md](classes_and_files.md#singletons)),
-and declaring it in a class is an error that says to write the `singleton` line instead. A reopening of
-`Spite.Class` changes what every class object answers, for the whole program. It is a foot you are allowed to
-shoot, and one that shows in `--final-classes`
+and declaring it in a class is an error that says to write the `singleton` line instead. A class's name, `Gadget`,
+is a constant that names one instance of `Spite.Class`; a class file's functions are its instances' functions, never
+its class object's, so no class answers a class question its own way. Reopening `Spite.Class` is the one way to
+change what a class object answers, and it changes it for every class in the program. It is a foot you are allowed
+to shoot, and one that shows in `--final-classes`
 ([the rules in full](#functions-of-spiteclass-and-why-there-are-no-static-functions)).
 
 ## Rules in full
@@ -990,27 +992,20 @@ func get_is_singleton(): Boolean {
 }
 ```
 
-A class file may **override** one of those members for its own class object, the same way any class reopens
-another ([Packages, namespaces, and mods](packages.md#packages-namespaces-and-loading)). A singleton says so with its
-`singleton` line ([classes_and_files.md](classes_and_files.md#singletons)), and declaring `is_singleton` in a class
-is "a class says it is a singleton with a 'singleton' line at the top of its file, not with a function: delete
-'is_singleton()' and write 'singleton' as the file's first line".
+**A class file cannot replace a function of its class object.** A class's name is a constant naming an instance
+of `Spite.Class`, as any constant names a value, so `Gadget.has_function(name)` is a call on that instance and runs
+`Spite.Class`'s function. Every function a class file declares belongs to the class's instances, whatever its name:
+a `to_string()` in `gadget.spite` is how a gadget prints, and `Gadget.to_string()` still answers what
+`Spite.Class` says. A singleton says what it is with its `singleton` line
+([classes_and_files.md](classes_and_files.md#singletons)), and declaring `is_singleton` in a class is "a class says
+it is a singleton with a 'singleton' line at the top of its file, not with a function: delete 'is_singleton()' and
+write 'singleton' as the file's first line".
 
-- **The members a class file can override are exactly those `Spite.Class` declares.** There is no keyword and no
-  marker: if the name is one of those, the definition belongs to the class object; otherwise it is an ordinary
-  instance function. Reading `Spite.Class` in the standard library is how you learn the full list.
-- A class wanting an ordinary instance function whose name collides with one of them is a diagnostic naming
-  `Spite.Class`. The list is deliberately short.
-- The override is **evaluated at compile time** and must fold to a constant. A `return` of a literal always folds;
-  a `return` of a codegen value (`return $shared`) folds too. Anything that cannot fold is a diagnostic.
-- `--final-classes` prints each class's overrides with the value they folded to; a singleton's is its `singleton`
-  line.
-- **`Spite.Class` is reopenable, like any other standard library class.** Reopening it changes a default of every
-  class object for the **whole program**, and adding a new member gives every class object that member, so a class
-  that already had an ordinary function by that name becomes an override of it. Nothing about this is silent: a name
-  that collides is a compile error naming `Spite.Class`, and a changed default shows per class in
-  `--final-classes`, with the root it came from. The compiler has no warnings ([Style](style.md#style)), so visible
-  generated output is the whole mitigation.
+- **`Spite.Class` is reopenable, like any other standard library class, and that is the only way to change what a
+  class object answers.** Reopening it changes a function or a default of every class object for the **whole
+  program**, and adding a member gives every class object that member. Nothing about this is silent: a changed
+  default shows per class in `--final-classes`, with the root it came from. The compiler has no warnings
+  ([Style](style.md#style)), so visible generated output is the whole mitigation.
 
 **Why a member and not a declaration**: it is the same philosophy as a configuration file being a class that gets
 reopened, rather than a static file. A static line can only state a value; a function can compute one, and it costs
