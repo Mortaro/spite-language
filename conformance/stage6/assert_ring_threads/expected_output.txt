@@ -1,37 +1,5 @@
 spite.crash	1c62d251	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:19	AssertRingThreads	AssertRingThreads	total=64000	index=64
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing
-spite.assert	earlier=63968
+spite.assert	2081995d	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:32	AssertRingThreads	refuse	answered=nothing	repeated=64000
 spite.frame	conformance/stage6/assert_ring_threads/assert_ring_threads.spite:3	AssertRingThreads	AssertRingThreads
 spite.frame	launcher/launcher.spite:3	Launcher	Launcher
 spite.frame	-	-	main

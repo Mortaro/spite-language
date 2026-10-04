@@ -825,7 +825,7 @@ crashed=$?
 reported=$(tr -d '\r' < "$work/crash_while_asserting.txt")
 if [ "$crashed" != "1" ] || [ "$(echo "$reported" | grep -c '^spite.crash	')" != "1" ] \
    || [ "$(echo "$reported" | grep -c '^spite.assert	[0-9a-f]\{8\}	')" -gt 32 ] \
-   || ! echo "$reported" | grep -v '^spite.frame	' | tail -1 | grep -qE '^spite.assert	earlier=[0-9]+$'; then
+   || ! echo "$reported" | grep -v '^spite.frame	' | tail -1 | grep -qE '^spite.assert	(earlier=[0-9]+|.*	repeated=[0-9]+)$'; then
   echo "FAILED: a crash while another thread fails asserts (exit $crashed, $(echo "$reported" | wc -l) lines)"; echo "$reported" | head -3; exit 1
 fi
 echo "crash reports: a crash while a pool thread keeps failing asserts reports the ring as it stood and exits"

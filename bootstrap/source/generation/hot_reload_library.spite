@@ -90,7 +90,15 @@ func symbol_table(declarations: String): String {
 }
 
 func shared_variables_in(text: String): List<String> {
-    var names = ["spite_program_arguments", "spite_check_point_wanted", "spite_assert_trace", "spite_assert_total"]
+    var names = [
+        "spite_program_arguments"
+        "spite_check_point_wanted"
+        "spite_assert_trace"
+        "spite_assert_runs"
+        "spite_assert_newest"
+        "spite_assert_newest_count"
+        "spite_assert_total"
+    ]
     var shared = List<String>()
     var index = 0
     while index < names.count() {

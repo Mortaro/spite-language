@@ -244,8 +244,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 ### Failure reports (D25, D33, D20, D379)
 
 - **X1 The rest of the crash report** (status "Three outcomes"). Built: the call chain (`spite.frame` lines), each
-  failed `assert`'s answer and the column in `.crashes`. Left: an assert's values stored raw in the ring (D33),
-  and the call chain of an `--optimized` crash on Linux and macOS, which keep no frame pointers. Files:
+  failed `assert`'s answer and the column in `.crashes`. Left: the call chain of an `--optimized` crash on Linux and macOS, which keep no frame pointers. Files:
   generator.spite crash and assert emission, `native_faults.spite`. **M.** No dependencies.
 - **X2 Spite's own allocator detects a corrupted heap** (D379's direction, per D361); the report through `SIGABRT`
   is built. Files: the allocator. **L**.

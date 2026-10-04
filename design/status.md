@@ -155,16 +155,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Failure: three outcomes and no others
 
-- The heading was tagged `[partial]`. Not built, from the decided design: an assert's values in the ring (D33; a
-  ring entry is still only a pointer to its site's fixed line); the call chain of an `--optimized` crash on Linux and
+- The heading was tagged `[partial]`. Not built, from the decided design: the call chain of an `--optimized` crash on Linux and
   macOS, which keep no frame pointers there (D25); crash ids that compare across targets other than native (targets.md: other targets are not
   built, so "the same id on the server bundle and the browser bundle" is decided, not built); the wrong-target compile
   error (D20) is planned (targets.md).
-- Not built, proposed by Claude and unconfirmed (D26 refinement), removed from the page: the trace would record
-  predicate asserts only. A narrowing assert firing is routine control flow (thousands an hour on a server), and on
-  concurrent work the last few would come from unrelated requests, reading as a causal chain that does not exist; a
-  per-site count would cover them instead. Today a failed narrowing `assert` (`assert found`) enters the ring like a
-  predicate one.
 
 ### assert is control flow
 

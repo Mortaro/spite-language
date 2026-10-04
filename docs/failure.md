@@ -973,7 +973,19 @@ carrying on, and a long run fails thousands of them, which would bury the one li
 report instead. To watch them as they fail, build with `--trace-asserts` (a `Build` field, `trace_asserts`): each
 failed `assert` of the program then also writes its `spite.assert` line to the error stream at once, after flushing
 what the program printed, and still enters the ring.
-The trace keeps only the latest failed asserts, in a fixed-size ring, so it never allocates and never grows.
+The trace keeps only the latest failed asserts, in a fixed-size ring, so it never allocates and never grows. An
+`assert` that fails again right after itself adds to its last line instead of taking a new one, which then ends in
+`repeated=<count>`: a guard that fails every frame is one line, and the 32 lines are 32 steps of the trail, not one
+step 32 times.
+
+```
+spite.assert	4b7a8666	conformance/stage6/assert_runs/assert_runs.spite:17	AssertRuns	name_at	answered=null	repeated=1000
+spite.assert	3a356b09	conformance/stage6/assert_runs/assert_runs.spite:22	AssertRuns	title_of	answered=null
+```
+
+A line carries no values. The assert's place, the `.crashes` map and its condition are what it says: a guard that
+narrows failed because something was not there, and one that tests a condition names its operands on that line,
+while the crash that ends the run prints every value at its own site.
 It holds the asserts of the program and of every package it `load`s, never those of the standard library: an
 `assert` in `library/` is how the library answers routine questions (a key that is not there, text that does not
 match, a read past the end), and those would push the program's own entries out of the ring. The compiler leaves
@@ -981,10 +993,10 @@ the record out of a library `assert` altogether, so it costs what an `if` costs.
 reports its own site.
 A crash reports the ring as it stood when the crash began. Other threads may still be failing asserts while it
 prints, such as a game's pool threads running their guards, and those never lengthen the report: it is the crash line,
-at most 32 `spite.assert` lines and the `earlier=` count, then the call chain of the thread that crashed, and then
+at most 32 `spite.assert` lines and the `earlier=` count of the lines before them, then the call chain of the thread that crashed, and then
 the program exits. In a program that starts
-threads, each failed `assert` takes its place in the ring with one atomic add, so asserts failing on several
-threads at once are all counted (`conformance/stage6/assert_ring_threads`); a program without threads pays a
+threads, each failed `assert` adds to the newest line or takes a new one with a compare-and-swap, so asserts
+failing on several threads at once are all counted, and one site failing on every thread is still one line (`conformance/stage6/assert_ring_threads`); a program without threads pays a
 plain add. Only the first thread to crash
 reports; one that crashes while that report is being written waits for the program to end, so two reports never
 interleave.
@@ -1541,7 +1553,8 @@ asserts are the causal trail explaining how the program reached the state that c
 frames earlier than the crash itself. The cost is only on the failure path (a passing `assert` already
 branches), and the trace is a fixed-size ring buffer with a total count, so it never allocates and cannot grow
 without bound. A report is the crash's own line, the asserts' lines (each with what its function answered:
-`answered=nothing`, `answered=null` or `answered=empty`) and the call chain, one `spite.frame` line per Spite
+`answered=nothing`, `answered=null` or `answered=empty`, and `repeated=<count>` when the same site failed several
+times in a row, which takes one line in the ring) and the call chain, one `spite.frame` line per Spite
 function on the crashing thread's stack, innermost first, written as a native fault writes its frames and walked
 the same way (frame pointers on Linux and macOS, so an `--optimized` build there has none; the unwind tables on
 64-bit Windows), leaving out the runtime's own functions above the first Spite one. Compile-time evaluation ([the functions of `Spite.Class`](reflection.md#functions-of-spiteclass-and-no-static-functions), [JSON is reflection, not a library](json.md#json-is-reflection-not-a-library)'s generated JSON) reports
@@ -1554,7 +1567,7 @@ stream only in a crash's report, or a native fault's. `trace_asserts` (`--trace-
 in to streaming: `SPITE_TRACE_ASSERT` then also flushes the program's output and writes the site's `spite.assert`
 line to the error stream when it fails, in a program that cannot crash too. It is the same fixed line the ring
 holds, with no values, and it covers the asserts the ring covers (the program's and its loaded packages', never
-`library/`'s). Cost: none without the flag, since the macro is the same one store and count; with it, a
+`library/`'s). Cost: none without the flag, since the ring's update is the same either way; with it, a
 flush and a write per failed `assert`. `conformance/stage6/quiet_asserts` (four calls, two failing: nothing but the
 program's lines), `conformance/stage6/trace_asserts` (the same with `--trace-asserts`),
 `conformance/stage6/quiet_asserts_optimized` (an `--optimized` build failing a guard 500 times: nothing but the
@@ -1567,7 +1580,11 @@ crash on one thread, while pool threads kept failing guard asserts, chase the co
 of the program would reach the error stream, and the crash would never reach its `exit`. A native fault's report reads the
 count once the same way. A crash first claims the report with one atomic exchange; a thread that crashes while
 another's report is being written waits for the program to end instead of interleaving a second report. Cost:
-only on the crash path; a failed `assert` still costs one store and one count.
+only on the crash path. A failed `assert` costs one call to the ring's update, kept out of line so the function
+around it stays small: a comparison with the newest line and a count, or a new line; in a program with threads, a
+compare-and-swap on a word that holds the site, the line's place and its count together, so a count can never land
+on another site's line. Measured with `--optimized`: a loop failing a guard two times in three, 200 million times,
+runs in the time it takes with no ring at all, within the machine's noise, so every build keeps the ring.
 
 An `assert` in `library/` never enters the trace. The trace explains how *the program* reached a crash,
 and the standard library's asserts are routine answers (a missing key, text that does not match, a read past the
@@ -1592,15 +1609,15 @@ executable, one line per site, sorted by id so archived maps diff cleanly: id, f
 class, function, kind (`crash`, `assert-predicate`, `assert-narrowing`), the condition source, and the
 operand names with their types (`value:Integer`). It opens with a `#` comment line carrying the format version
 and the build hash (`# spite crashes 1 2660c8aa`). At runtime a crash emits one tab-separated line prefixed
-`spite.crash`, and an assert `spite.assert`. **Values are rendered as text at crash time but stored raw in the
-ring buffer**: a crash happens once and then the program is dead, so it should be informative rather than fast,
-while an assert may fire thousands of times an hour and must stay cheap until something dumps it. A ring entry
-holds no values: it is a pointer to its site's fixed `spite.assert` line, so a failed
-`assert` stores one pointer and counts it, and its trace line names the site without values.
+`spite.crash`, and an assert `spite.assert`. **A crash renders its values as text; an assert keeps none**: a crash happens once and then the program is dead,
+so it should be informative rather than fast, while an assert may fire thousands of times an hour and must stay
+cheap until something dumps it. A ring line is a pointer to its site's fixed `spite.assert` line and how many times
+in a row it failed, so its report and its trace line name the site without values.
 
 A crash and its report work as follows. Crash and assert sites carry content-derived ids, every
 build writes `<program>.crashes`, and a crash prints the asserts that failed before it, oldest first, from a ring
-of 32, with a `spite.assert	earlier=<count>` line when more failed than it kept
+of 32 lines, a site failing several times in a row as one line with `repeated=<count>`, and a
+`spite.assert	earlier=<count>` line when the ring held more lines than it kept
 (`conformance/stage5/crash_report`). A firing `crash` flushes stdout, writes its line to stderr, and exits with
 status 1:
 

@@ -1,6 +1,5 @@
 spite.crash	64b935f1	conformance/stage5/crash_report/crash_report.spite:14	CrashReport	check	value=-9	limit=0
-spite.assert	0aae5005	conformance/stage5/crash_report/crash_report.spite:18	CrashReport	announce	answered=nothing
-spite.assert	0aae5005	conformance/stage5/crash_report/crash_report.spite:18	CrashReport	announce	answered=nothing
+spite.assert	0aae5005	conformance/stage5/crash_report/crash_report.spite:18	CrashReport	announce	answered=nothing	repeated=2
 spite.frame	conformance/stage5/crash_report/crash_report.spite:12	CrashReport	check
 spite.frame	conformance/stage5/crash_report/crash_report.spite:3	CrashReport	CrashReport
 spite.frame	launcher/launcher.spite:3	Launcher	Launcher

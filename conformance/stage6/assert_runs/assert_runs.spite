@@ -1,0 +1,24 @@
+var names = ["ada", "bo"]
+
+func AssertRuns() {
+    var index = 0
+    while index < 1000 {
+        var name = name_at(5)
+        if name {
+            index = 1000
+        }
+        index = index + 1
+    }
+    var title = title_of("")
+    crash title
+}
+
+func name_at(index: Integer): String? {
+    assert index < 2
+    return names[index]
+}
+
+func title_of(text: String): String? {
+    assert not text.is_empty()
+    return text
+}

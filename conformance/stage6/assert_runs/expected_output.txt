@@ -1,0 +1,6 @@
+spite.crash	47e66190	conformance/stage6/assert_runs/assert_runs.spite:13	AssertRuns	AssertRuns	title is null	index=1000
+spite.assert	4b7a8666	conformance/stage6/assert_runs/assert_runs.spite:17	AssertRuns	name_at	answered=null	repeated=1000
+spite.assert	3a356b09	conformance/stage6/assert_runs/assert_runs.spite:22	AssertRuns	title_of	answered=null
+spite.frame	conformance/stage6/assert_runs/assert_runs.spite:3	AssertRuns	AssertRuns
+spite.frame	launcher/launcher.spite:3	Launcher	Launcher
+spite.frame	-	-	main
