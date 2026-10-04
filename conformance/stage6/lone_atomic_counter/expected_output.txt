@@ -1,0 +1,4 @@
+round 0 read 4000
+round 1 read 8000
+round 2 read 12000
+round 2 noted at stage 3 marks 24

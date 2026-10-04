@@ -1,0 +1,18 @@
+singleton
+
+var stage = 0
+var notes = Dictionary<Integer>()
+var marks = 0
+
+func note(key: String) {
+    notes[key] = stage
+}
+
+func noted(key: String): Integer? {
+    return notes[key]
+}
+
+func mark_twice() {
+    marks = marks + 1
+    marks = marks + 1
+}

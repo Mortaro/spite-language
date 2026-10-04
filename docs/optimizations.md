@@ -901,7 +901,7 @@ class, and `Rules` takes no lock.
 
 **What it does.** For each singleton of the program's own that can change after it is made, the compiler picks
 the cheapest form that is as safe as the lock, from what that singleton's functions actually do. You write
-nothing; the source is the same in every form. The forms are tried in this order (the first three here, the rest
+nothing; the source is the same in every form. The forms are tried in this order (the first four here, the rest
 [below](#thread-safety-for-singletons-the-rest-of-the-plan)):
 
 1. **Nothing, because no `Parallel` reaches it.** The compiler walks the program's calls from every function a
@@ -926,6 +926,30 @@ nothing; the source is the same in every form. The forms are tried in this order
    as safe as the lock: the lock makes each function one indivisible step, and so does one atomic instruction.
 
 Only when none of these applies does the singleton take [the lock](#singletons-a-parallel-reaches-take-a-lock).
+
+4. **The lock, with one attribute read past it.** A locked singleton's whole-number or `Boolean` attribute that each
+   of its functions writes at most once (not inside a `while`, and not through another of its functions that writes
+   it too) is atomic on its own. Reading it from another class is one atomic load and takes no lock; the
+   singleton's functions still take their lock and read and write it atomically; a write to it from another class
+   still takes the lock. Since no write leaves it half done and every writer holds the lock, a reader that takes no
+   lock sees a value some locked step left, exactly as if it had waited for the lock and read it.
+
+```gdscript
+singleton
+
+var stage = 0
+var notes = Dictionary<Integer>()
+
+func note(key: String) {
+    notes[key] = stage
+}
+```
+
+`notes` keeps `Ledger` locked, while a task reading `ledger.stage` a thousand times takes no lock at all
+(`conformance/stage6/lone_atomic_counter`, where `marks`, written twice by one function, stays behind the lock).
+A game engine's stress example, 200 000 entities moved by two systems at once, reads its stage counter once per
+entity and component: with the counter read past the lock, a tick went from about 63 ms to about 20 ms on a 4-core
+machine, since both systems had been queuing for one lock to read one number.
 
 **Example.** `conformance/stage6/singleton_forms`: four `Parallel` workers and the program's own thread record
 41 000 hits into a `HitCounter` (atomics), read a `Settings` made once (nothing), while only the program's thread

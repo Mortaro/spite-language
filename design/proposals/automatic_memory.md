@@ -76,6 +76,27 @@ Every step is a choice of code made while compiling: an arena is a pointer bump 
 a ring is index arithmetic, structure of arrays is a different struct layout. A program that has no frame loop
 gets no arena; a list that is never a queue is never a ring. Nothing ships a scheduler or a collector.
 
+## Measured (2026-10-04, D501)
+
+The engine's stress example (200 000 entities, `Move` and `Regenerate` running at once), built `--optimized` on a
+4-core Linux machine, before anything below was built: a median tick of about 60 ms, the same as the compiler the
+engine was last validated against (`8e971f26`), so nothing had regressed. Where the time went:
+
+- **Not memory.** A tick makes about 96 objects whatever the entity count (20 more ticks made 1 920 more
+  allocations at 20 000 entities). A frame arena would save at most those, a few microseconds of a tick. The
+  `stress` loop calls `app.tick()` with no wait, so it has no frames to give an arena anyway. Step 1 stays the plan
+  for programs whose frames allocate; it buys this benchmark nothing.
+- **Locks.** Compiled with every singleton's lock left out, a tick took 10 to 17 ms: about three quarters of it was
+  locking. Nearly all of that was one lock: both systems read `Columns.stage_counter` once per entity and component
+  through `Columns`' lock, so two cores queued for one cache line to read one number. That is the proposal's "the
+  counter is the only shared state (atomic)" row, built as an attribute atomic on its own
+  ([optimizations.md](../../docs/optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form)): a tick
+  went from about 63 ms to about 20 ms.
+- **What is left.** The rest of the gap to the lock-free 10 to 17 ms is the row matcher's and the columns' locks,
+  taken once per entity and call although each system's runner is the only one using its row: holding them for
+  the whole stream (a counted loop taking several singletons' locks once, in a fixed order) is the next step for
+  this benchmark, ahead of structure of arrays.
+
 ## How it is measured
 
 The engine package's stress example, compiled by this tree's compiler, before and after each step, with the hand

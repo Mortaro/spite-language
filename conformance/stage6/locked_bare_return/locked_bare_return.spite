@@ -1,0 +1,24 @@
+var console = Console()
+var tally = Tally()
+
+func LockedBareReturn() {
+    var runs = List<Parallel<Integer>>()
+    var index = 0
+    while index < 8 {
+        var run = Parallel(add_many)
+        runs.append(run)
+        index = index + 1
+    }
+    runs.clear()
+    console.print("total", tally.total, "refused", tally.refused)
+}
+
+func add_many(): Integer {
+    var step = 0
+    while step < 100 {
+        tally.add(1)
+        tally.add(-1)
+        step = step + 1
+    }
+    return step
+}

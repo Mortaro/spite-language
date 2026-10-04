@@ -1,0 +1,41 @@
+var console = Console()
+var ledger = Ledger()
+
+func LoneAtomicCounter() {
+    var round = 0
+    while round < 3 {
+        ledger.stage = ledger.stage + 1
+        var runs = List<Parallel<Integer>>()
+        var index = 0
+        while index < 4 {
+            var run = Parallel(read_stage)
+            runs.append(run)
+            index = index + 1
+        }
+        var total = 0
+        index = 0
+        while index < runs.count() {
+            var seen: Integer = runs[index]
+            total = total + seen
+            index = index + 1
+        }
+        ledger.note("round {round}")
+        console.print("round", round, "read", total)
+        round = round + 1
+    }
+    var last = ledger.noted("round 2")
+    crash last
+    console.print("round 2 noted at stage", last, "marks", ledger.marks)
+}
+
+func read_stage(): Integer {
+    var total = 0
+    var step = 0
+    while step < 1000 {
+        total = total + ledger.stage
+        step = step + 1
+    }
+    ledger.note("task")
+    ledger.mark_twice()
+    return total
+}

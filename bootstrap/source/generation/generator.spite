@@ -123,6 +123,7 @@ var coarse_site_keys = List<String>()
 var coarse_site_starts = List<Integer>()
 var coarse_site_ends = List<Integer>()
 var atomic_fields = List<String>()
+var lone_atomic_answers = Dictionary<String>()
 var atomic_owner = ""
 var atomic_classes = List<Analysis.ClassInfo>()
 var atomic_class_names = List<String>()
@@ -30330,7 +30331,10 @@ func generate_store(
             builder.add_user("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
             target_code = field_place("({object_temporary})", target_class, member.name)
         }
-        if guards_outside_write(target_class) {
+        var lone_written = lone_atomic_fields(target_class)
+        if guards_outside_write(target_class) and lone_written.contains(member.name) {
+            emit_lone_atomic_write(target_class, target_code, field_type, assignment.value, scope, class_information)
+        } else if guards_outside_write(target_class) {
             emit_guarded_outside_write(
                 target_class,
                 target_code,
@@ -39592,6 +39596,12 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
             atomic_class_names.append(information.c_name)
             atomic_classes.append(information)
         }
+    } else if not function.is_constructor {
+        atomic_fields = lone_atomic_fields(information)
+        if not atomic_fields.is_empty() and not atomic_class_names.contains(information.c_name) {
+            atomic_class_names.append(information.c_name)
+            atomic_classes.append(information)
+        }
     }
     var guarded = guards_singleton(information, function)
     if guarded {
@@ -40939,7 +40949,7 @@ func report_returned_parallel(
     function: Analysis.FunctionInfo,
     locked_keys: Dictionary<String>,
 ) {
-    crash returned.value
+    assert returned.value
     var called = shape.as_call(returned.value)
     assert called
     assert called.arguments.count() == 1
@@ -41432,6 +41442,184 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
     return mutable
 }
 
+func lone_atomic_fields(information: Analysis.ClassInfo): List<String> {
+    var known = lone_atomic_answers[information.c_name]
+    if known {
+        return lone_atomic_list(known)
+    }
+    var names = List<String>()
+    var singleton = information.is_singleton and not information.is_stateless_singleton
+    var hot = is_hot_class(information) or hot_reload or read_evaluate_print_loop or remote_loop_port != 0
+    if singleton and not is_library_class(information) and not hot and atomic_singleton_fields(information).is_empty() {
+        var index = 0
+        while index < information.fields.count() {
+            var field = information.fields[index]
+            var field_type = field.type
+            if is_atomic_capable(field_type) and written_once_by_every_function(information, field.name) {
+                names.append(field.name)
+            }
+            index = index + 1
+        }
+    }
+    lone_atomic_answers[information.c_name] = ",{names.join(",")}"
+    return names
+}
+
+func lone_atomic_list(known: String): List<String> {
+    var names = List<String>()
+    var pieces = known.split(",")
+    var index = 0
+    while index < pieces.count() {
+        var piece = pieces[index]
+        if not piece.is_empty() {
+            names.append(piece)
+        }
+        index = index + 1
+    }
+    return names
+}
+
+func written_once_by_every_function(information: Analysis.ClassInfo, name: String): Boolean {
+    var index = 0
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
+        if not function.is_constructor and function.name != "drop" {
+            var visiting = List<String>()
+            if function_field_writes(information, function, name, visiting) > 1 {
+                return false
+            }
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func function_field_writes(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    name: String,
+    visiting: List<String>,
+): Integer {
+    if visiting.contains(function.name) {
+        return 2
+    }
+    var inner = visiting.copy()
+    inner.append(function.name)
+    return block_field_writes(function.body, information, name, inner)
+}
+
+func block_field_writes(
+    statements: List<Syntax.Statements.Statement>,
+    information: Analysis.ClassInfo,
+    name: String,
+    visiting: List<String>,
+): Integer {
+    var total = 0
+    var index = 0
+    while index < statements.count() {
+        total = total + statement_field_writes(statements[index], information, name, visiting)
+        index = index + 1
+    }
+    return total
+}
+
+func statement_field_writes(
+    statement: Syntax.Statements.Statement,
+    information: Analysis.ClassInfo,
+    name: String,
+    visiting: List<String>,
+): Integer {
+    var expressions = List<Syntax.Expressions.Expression>()
+    var total = 0
+    switch statement {
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            var written = operand_text(statement.target)
+            if written == name or written == "this.{name}" {
+                total = 1
+            }
+            add_optional_expression(statement.value, expressions)
+        }
+        Syntax.Statements.IfStatement: {
+            add_optional_expression(statement.condition, expressions)
+            total = block_field_writes(statement.then_branch, information, name, visiting)
+            total = total + block_field_writes(statement.else_branch, information, name, visiting)
+        }
+        Syntax.Statements.WhileStatement: {
+            var looped = List<Syntax.Expressions.Expression>()
+            add_optional_expression(statement.condition, looped)
+            var inside = block_field_writes(statement.body, information, name, visiting)
+            inside = inside + calls_field_writes(looped, information, name, visiting)
+            if inside > 0 {
+                return 2
+            }
+            return 0
+        }
+        Syntax.Statements.SwitchStatement: {
+            add_optional_expression(statement.subject, expressions)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                total = total + block_field_writes(statement.cases[case_index].body, information, name, visiting)
+                case_index = case_index + 1
+            }
+        }
+        _: collect_statement_expressions(statement, expressions)
+    }
+    return total + calls_field_writes(expressions, information, name, visiting)
+}
+
+func calls_field_writes(
+    expressions: List<Syntax.Expressions.Expression>,
+    information: Analysis.ClassInfo,
+    name: String,
+    visiting: List<String>,
+): Integer {
+    var calls = List<Syntax.Expressions.Expression>()
+    collect_each_expression_call(expressions, calls)
+    var total = 0
+    var index = 0
+    while index < calls.count() {
+        var call = shape.as_call(calls[index])
+        if call {
+            crash call.callee
+            var own = shape.as_identifier(call.callee)
+            if own {
+                var called = information.find_function(own.name)
+                if called {
+                    total = total + function_field_writes(information, called, name, visiting)
+                }
+            }
+        }
+        index = index + 1
+    }
+    return total
+}
+
+func emit_lone_atomic_write(
+    target_class: Analysis.ClassInfo,
+    target_code: String,
+    field_type: Analysis.SpiteType,
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var owner = target_class.c_name
+    if not atomic_class_names.contains(owner) {
+        atomic_class_names.append(owner)
+        atomic_classes.append(target_class)
+    }
+    if not outside_class_names.contains(owner) {
+        outside_class_names.append(owner)
+        outside_classes.append(target_class)
+    }
+    var value_code = coerce_for_store(value, field_type, scope, class_information)
+    var stored = next_temporary()
+    builder.add_user("{c_type_name(field_type)} {stored} = {value_code};")
+    builder.add_user("{owner}___outside_enter();")
+    builder.add_user("SPITE_SINGLETON_STORE({owner}, {target_code}, {stored});")
+    builder.add_user("{owner}___outside_leave();")
+}
+
 func is_atomic_capable(spite_type: Analysis.SpiteType): Boolean {
     var scalar = type_shape.as_scalar(spite_type)
     if not scalar {
@@ -41780,7 +41968,8 @@ func guarded_outside_read(
     lines.append("{c_type_name(object_type)} {object_temporary} = {object_result.code};")
     var place = field_place("({object_temporary})", target_class, field.name)
     var atomic = atomic_singleton_fields(target_class)
-    var loaded_atomically = atomic.contains(field.name)
+    var lone = lone_atomic_fields(target_class)
+    var loaded_atomically = atomic.contains(field.name) or lone.contains(field.name)
     if loaded_atomically {
         if not atomic_class_names.contains(owner) {
             atomic_class_names.append(owner)

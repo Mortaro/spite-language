@@ -874,6 +874,17 @@ fi
 if ! grep -q "^#define HitCounter___atomic 1$" "$work/singleton_forms.c" || grep -q "SpiteGuard [A-Za-z_]*___guard" "$work/singleton_forms.c"; then
   echo "FAILED: singleton_forms should make HitCounter atomic and lock no singleton"; exit 1
 fi
+# An attribute of a locked singleton that each of its functions writes at most once is atomic on its own: a read of
+# it from outside takes no lock (Ledger.stage in a task), while the singleton keeps its lock for the rest, and an
+# attribute one function writes twice (Ledger.marks) is still read under the lock.
+lone="$work/lone_atomic_counter.c"
+"$work/generation_two.exe" conformance/stage6/lone_atomic_counter --check --c-source --c-path="$lone" > /dev/null 2>&1 || {
+  echo "FAILED: lone_atomic_counter does not write its C"; exit 1; }
+if ! grep -q "^#define Ledger___atomic 1$" "$lone" || ! grep -q "SpiteGuard Ledger___guard" "$lone" \
+   || ! grep -q "SPITE_SINGLETON_LOAD(Ledger, (spite_temp_[0-9]*)->stage_)" "$lone" \
+   || grep -q "SPITE_SINGLETON_LOAD(Ledger, [^;]*marks_)" "$lone"; then
+  echo "FAILED: lone_atomic_counter should read Ledger.stage without the lock and keep the lock for Ledger.marks"; exit 1
+fi
 locks="$work/singleton_lock_calls.c"
 "$work/generation_two.exe" conformance/stage6/singleton_lock_calls --check --c-source --c-path="$locks" > /dev/null 2>&1 || {
   echo "FAILED: singleton_lock_calls does not write its C"; exit 1; }

@@ -847,16 +847,20 @@ These apply only in a program that makes a `Parallel`, runs a `parallel_each_` p
 
 ### Read-only and atomic singletons
 
-- **Proves.** A singleton never changes after it is made, or each of its functions touches its changing state once.
+- **Proves.** A singleton never changes after it is made, or each of its functions touches its changing state once,
+  or one of its attributes is never left half written.
 - **Rule.** Read-only: no function assigns an attribute outside the constructor, no other class assigns one, and it
   holds no list, dictionary, function value or object that can change. Atomic: every changing attribute is a whole
   number or `Boolean`, and each function touches it at most once (one read, one `count = count + step`, or one
-  store), not in a loop.
-- **Buys.** No lock: plain reads, or single atomic instructions.
-- **Falls back.** The lock.
+  store), not in a loop. Atomic on its own: in a singleton that keeps its lock, a whole-number or `Boolean`
+  attribute that each of its functions writes at most once, not in a loop and not through another of its functions
+  that writes it too.
+- **Buys.** No lock: plain reads, or single atomic instructions. Atomic on its own: a read of that attribute from
+  another class takes no lock (a game engine's tick, 63 to 20 ms), while the rest of the singleton stays locked.
+- **Falls back.** The lock; for an attribute atomic on its own, its writes from another class still take it.
 - **See.** [optimizations.md: Thread safety for singletons, the cheapest safe
   form](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form); `conformance/stage6/singleton_forms`,
-  `conformance/stage6/singleton_lock_calls`.
+  `conformance/stage6/singleton_lock_calls`, `conformance/stage6/lone_atomic_counter`.
 
 ### A function that touches no changing state takes no lock
 

@@ -98,8 +98,11 @@ when a page gains a rule that is not built yet, add it here.
   A class's instance functions, its getters and setters included, are replaceable today; a class object's
   functions wait on item 302, and printing the compiler-added ones (`get_<attribute>`, `copy`, `deep_copy`) as
   Spite needs a Spite form for what is C today (a copy made without calling the constructor).
-- D485: the compiler decides arenas, rings, structure of arrays and freeing; see
-  [proposals/automatic_memory.md](proposals/automatic_memory.md).
+- D485, D501: the compiler decides arenas, rings, structure of arrays and freeing; see
+  [proposals/automatic_memory.md](proposals/automatic_memory.md). Built from it: an attribute atomic on its own
+  (the shared-counter row). Not built: frame arenas (backlog E1; measured to buy the engine's stress example
+  nothing, since a tick makes about 96 objects), holding several singletons' locks once for a counted loop (the
+  next step for that benchmark), structure of arrays, rings and deferred freeing.
 - D486: a whole-number vector's fractional members answer a `Float` vector; waits on item 300 (how the signature
   names the fractional class).
 - D496: the test runner makes an instance of each test class and calls each test through
