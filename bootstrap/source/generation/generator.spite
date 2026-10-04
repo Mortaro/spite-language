@@ -149,6 +149,8 @@ var wait_mark_results = List<String>()
 var call_edge_callers = List<String>()
 var call_edge_callees = List<String>()
 var current_function_c_name = ""
+var report_outline = ReportOutline()
+var report_function_start = -1
 var machine_candidate_names = List<String>()
 var machine_candidate_classes = List<Analysis.ClassInfo>()
 var machine_candidate_functions = List<Analysis.FunctionInfo>()
@@ -875,7 +877,7 @@ func generate(
     var header_text = runtime_header_text.replace("/*spite_allocator*/", allocator)
     builder.add_typedef(header_text)
     builder.add_typedef(
-        "#define SPITE_COLD_PATH __attribute__((noinline))\nstatic const char* spite_assert_trace[32];\nstatic uint64_t spite_assert_runs[32];\nstatic int64_t spite_assert_total = 0;\nstatic const char* spite_assert_newest = 0;\nstatic uint64_t spite_assert_newest_count = 0;\nstatic inline uint64_t spite_assert_run(const char* spite_site, int64_t spite_entry) \{ return ((uint64_t)(uintptr_t)spite_site << 32) | (((uint64_t)spite_entry & 0xffu) << 24) | 1u; }\n#ifdef SPITE_THREADS\nstatic SPITE_COLD_PATH void spite_ring_assert(const char* spite_site) \{\nfor (int32_t spite_waited = 0; spite_waited < 1000;) \{\nint64_t spite_newest = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE) - 1;\nif (spite_newest < 0) break;\nuint64_t spite_run = __atomic_load_n(&spite_assert_runs[spite_newest % 32], __ATOMIC_ACQUIRE);\nif (((spite_run >> 24) & 0xffu) != ((uint64_t)spite_newest & 0xffu)) \{ spite_waited = spite_waited + 1; continue; }\nif ((uint32_t)(spite_run >> 32) != (uint32_t)(uintptr_t)spite_site || (spite_run & 0xffffffu) == 0xffffffu) break;\nif (__atomic_compare_exchange_n(&spite_assert_runs[spite_newest % 32], &spite_run, spite_run + 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return;\n}\nint64_t spite_taken = __atomic_fetch_add(&spite_assert_total, 1, __ATOMIC_ACQ_REL);\n__atomic_store_n(&spite_assert_trace[spite_taken % 32], spite_site, __ATOMIC_RELAXED);\n__atomic_store_n(&spite_assert_runs[spite_taken % 32], spite_assert_run(spite_site, spite_taken), __ATOMIC_RELEASE);\n}\nstatic uint64_t spite_assert_count(int64_t spite_index) \{ return __atomic_load_n(&spite_assert_runs[spite_index % 32], __ATOMIC_ACQUIRE) & 0xffffffu; }\n#else\nstatic SPITE_COLD_PATH void spite_ring_assert(const char* spite_site) \{\nif (spite_site == spite_assert_newest) \{ spite_assert_newest_count = spite_assert_newest_count + 1; return; }\nif (spite_assert_total > 0) spite_assert_runs[(spite_assert_total - 1) % 32] = spite_assert_newest_count;\nspite_assert_trace[spite_assert_total % 32] = spite_site;\nspite_assert_total = spite_assert_total + 1;\nspite_assert_newest = spite_site;\nspite_assert_newest_count = 1;\n}\nstatic uint64_t spite_assert_count(int64_t spite_index) \{ return spite_index == spite_assert_total - 1 ? spite_assert_newest_count : spite_assert_runs[spite_index % 32]; }\n#endif\n#define SPITE_RING_ASSERT(site) spite_ring_assert(site)\nstatic int32_t spite_crashing = 0;\nstatic void (*spite_crash_chain)(void) = 0;\nstatic inline void spite_crash_text(const char* spite_bytes, int64_t spite_length) \{\nint64_t spite_kept = spite_length > 80 ? 80 : spite_length;\nwhile (spite_kept > 0 && spite_kept < spite_length && (spite_bytes[spite_kept] & 0xC0) == 0x80) spite_kept = spite_kept - 1;\nfwrite(spite_bytes, 1, (size_t)spite_kept, stderr);\nif (spite_kept < spite_length) fprintf(stderr, \"...(%lld bytes)\", (long long)spite_length);\n}\nstatic void spite_crash_begin(void) \{\nif (__atomic_exchange_n(&spite_crashing, 1, __ATOMIC_ACQ_REL) != 0) \{ for (;;) \{ } }\n}\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_total = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE);\nint64_t spite_kept = spite_total < 32 ? spite_total : 32;\nfor (int64_t spite_index = spite_total - spite_kept; spite_index < spite_total; spite_index = spite_index + 1) \{\nconst char* spite_site = spite_assert_trace[spite_index % 32];\nif (spite_site == 0) continue;\nuint64_t spite_repeats = spite_assert_count(spite_index);\nwhile (spite_index + 1 < spite_total && spite_assert_trace[(spite_index + 1) % 32] == spite_site) \{ spite_index = spite_index + 1; spite_repeats = spite_repeats + spite_assert_count(spite_index); }\nif (spite_repeats > 1) \{ fwrite(spite_site, 1, strlen(spite_site) - 1, stderr); fprintf(stderr, \"\\trepeated=%llu\\n\", (unsigned long long)spite_repeats); } else \{ fputs(spite_site, stderr); }\n}\nif (spite_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_total - 32)); }\nif (spite_crash_chain != 0) spite_crash_chain();\n}",
+        "#define SPITE_COLD_PATH __attribute__((noinline))\n#define SPITE_CRASH_PATH __attribute__((cold))\n#define SPITE_CRASH_REPORT __attribute__((noinline, cold, noreturn))\nstatic const char* spite_assert_trace[32];\nstatic uint64_t spite_assert_runs[32];\nstatic int64_t spite_assert_total = 0;\nstatic const char* spite_assert_newest = 0;\nstatic uint64_t spite_assert_newest_count = 0;\nstatic inline uint64_t spite_assert_run(const char* spite_site, int64_t spite_entry) \{ return ((uint64_t)(uintptr_t)spite_site << 32) | (((uint64_t)spite_entry & 0xffu) << 24) | 1u; }\n#ifdef SPITE_THREADS\nstatic SPITE_COLD_PATH void spite_ring_assert(const char* spite_site) \{\nfor (int32_t spite_waited = 0; spite_waited < 1000;) \{\nint64_t spite_newest = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE) - 1;\nif (spite_newest < 0) break;\nuint64_t spite_run = __atomic_load_n(&spite_assert_runs[spite_newest % 32], __ATOMIC_ACQUIRE);\nif (((spite_run >> 24) & 0xffu) != ((uint64_t)spite_newest & 0xffu)) \{ spite_waited = spite_waited + 1; continue; }\nif ((uint32_t)(spite_run >> 32) != (uint32_t)(uintptr_t)spite_site || (spite_run & 0xffffffu) == 0xffffffu) break;\nif (__atomic_compare_exchange_n(&spite_assert_runs[spite_newest % 32], &spite_run, spite_run + 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return;\n}\nint64_t spite_taken = __atomic_fetch_add(&spite_assert_total, 1, __ATOMIC_ACQ_REL);\n__atomic_store_n(&spite_assert_trace[spite_taken % 32], spite_site, __ATOMIC_RELAXED);\n__atomic_store_n(&spite_assert_runs[spite_taken % 32], spite_assert_run(spite_site, spite_taken), __ATOMIC_RELEASE);\n}\nstatic uint64_t spite_assert_count(int64_t spite_index) \{ return __atomic_load_n(&spite_assert_runs[spite_index % 32], __ATOMIC_ACQUIRE) & 0xffffffu; }\n#else\nstatic SPITE_COLD_PATH void spite_ring_assert(const char* spite_site) \{\nif (spite_site == spite_assert_newest) \{ spite_assert_newest_count = spite_assert_newest_count + 1; return; }\nif (spite_assert_total > 0) spite_assert_runs[(spite_assert_total - 1) % 32] = spite_assert_newest_count;\nspite_assert_trace[spite_assert_total % 32] = spite_site;\nspite_assert_total = spite_assert_total + 1;\nspite_assert_newest = spite_site;\nspite_assert_newest_count = 1;\n}\nstatic uint64_t spite_assert_count(int64_t spite_index) \{ return spite_index == spite_assert_total - 1 ? spite_assert_newest_count : spite_assert_runs[spite_index % 32]; }\n#endif\n#define SPITE_RING_ASSERT(site) spite_ring_assert(site)\nstatic int32_t spite_crashing = 0;\nstatic void (*spite_crash_chain)(void) = 0;\nstatic inline void spite_crash_text(const char* spite_bytes, int64_t spite_length) \{\nint64_t spite_kept = spite_length > 80 ? 80 : spite_length;\nwhile (spite_kept > 0 && spite_kept < spite_length && (spite_bytes[spite_kept] & 0xC0) == 0x80) spite_kept = spite_kept - 1;\nfwrite(spite_bytes, 1, (size_t)spite_kept, stderr);\nif (spite_kept < spite_length) fprintf(stderr, \"...(%lld bytes)\", (long long)spite_length);\n}\nstatic SPITE_CRASH_PATH void spite_crash_begin(void) \{\nif (__atomic_exchange_n(&spite_crashing, 1, __ATOMIC_ACQ_REL) != 0) \{ for (;;) \{ } }\n}\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_total = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE);\nint64_t spite_kept = spite_total < 32 ? spite_total : 32;\nfor (int64_t spite_index = spite_total - spite_kept; spite_index < spite_total; spite_index = spite_index + 1) \{\nconst char* spite_site = spite_assert_trace[spite_index % 32];\nif (spite_site == 0) continue;\nuint64_t spite_repeats = spite_assert_count(spite_index);\nwhile (spite_index + 1 < spite_total && spite_assert_trace[(spite_index + 1) % 32] == spite_site) \{ spite_index = spite_index + 1; spite_repeats = spite_repeats + spite_assert_count(spite_index); }\nif (spite_repeats > 1) \{ fwrite(spite_site, 1, strlen(spite_site) - 1, stderr); fprintf(stderr, \"\\trepeated=%llu\\n\", (unsigned long long)spite_repeats); } else \{ fputs(spite_site, stderr); }\n}\nif (spite_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_total - 32)); }\nif (spite_crash_chain != 0) spite_crash_chain();\n}",
     )
     var traced = "#define SPITE_TRACE_ASSERT(site) (SPITE_RING_ASSERT(site))"
     var untraced = "#define SPITE_TRACE_ASSERT(site) ((void)0)"
@@ -38206,6 +38208,7 @@ func emit_check_failure(
     function_information: Analysis.FunctionInfo,
 ) {
     if assert_statement.is_crash {
+        var report_start = builder.user_count()
         builder.add_user("spite_crash_begin();")
         builder.add_user("fflush(stdout);")
         var crash_line = reported_site("spite.crash", "", function_information)
@@ -38219,6 +38222,7 @@ func emit_check_failure(
         builder.add_user("fputs(\"\\n\", stderr);")
         builder.add_user("spite_report_assert_trace();")
         builder.add_user("exit(1);")
+        outline_report(report_start)
         builder.add_user("}")
         return
     }
@@ -39637,6 +39641,9 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         builder.add_prototype("{named_signature(information, function, defined_name)};")
         note_dispatcher(information, function)
     }
+    var outer_report_start = report_function_start
+    var reports_before = report_outline.reports.count()
+    report_function_start = builder.user_count()
     builder.add_user("{named_signature(information, function, defined_name)} \{")
     if function.c_name == "Spite_Function_get_arguments" {
         builder.add_user("spite_function_arguments_described(self);")
@@ -39685,6 +39692,42 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         var guarded_end = builder.user_count()
         guarded_ends.append(guarded_end)
     }
+    report_function_start = outer_report_start
+    add_outlined_reports(reports_before)
+}
+
+func add_outlined_reports(first: Integer) {
+    var index = first
+    while index < report_outline.reports.count() {
+        builder.add_user(report_outline.reports[index])
+        index = index + 1
+    }
+}
+
+func outline_report(start: Integer) {
+    if report_function_start >= 0 and report_function_start < start and not hot_reload {
+        outline_report_from(start)
+    }
+}
+
+func outline_report_from(start: Integer) {
+    var body = builder.take_user_from(start)
+    var function_lines = List<String>()
+    var index = report_function_start
+    while index < start {
+        var line = builder.user_at(index)
+        function_lines.append(line)
+        index = index + 1
+    }
+    var call = report_outline.outlined_call(body, function_lines)
+    if call.is_empty() {
+        body.each(builder.add_user)
+        return
+    }
+    var prototype = report_outline.prototypes.last()
+    crash prototype
+    builder.add_prototype(prototype)
+    builder.add_user(call)
 }
 
 func returned_class_name(function: Analysis.FunctionInfo): String {

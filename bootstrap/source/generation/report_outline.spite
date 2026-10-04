@@ -1,0 +1,258 @@
+var made = 0
+var reports = List<String>()
+var prototypes = List<String>()
+var keywords = ["return", "else", "case", "goto", "sizeof", "if", "while", "do", "switch"]
+
+func outlined_call(body: List<String>, function_lines: List<String>): String {
+    var names = reported_names(body)
+    var parameters = List<String>()
+    var arguments = List<String>()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if declared_type(body, name).is_empty() {
+            var found = declared_type(function_lines, name)
+            if not found.is_empty() {
+                parameters.append("{found} {name}")
+                arguments.append(name)
+            } else if looks_local(name) {
+                return ""
+            }
+        }
+        index = index + 1
+    }
+    made = made + 1
+    var function_name = "spite_failed_{made}"
+    var listed = "void"
+    if not parameters.is_empty() {
+        listed = parameters.join(", ")
+    }
+    var lines = List<String>()
+    lines.append("static SPITE_CRASH_REPORT void {function_name}({listed}) \{")
+    body.each(lines.append)
+    lines.append("}")
+    var report = lines.join("\n")
+    reports.append(report)
+    prototypes.append("static SPITE_CRASH_REPORT void {function_name}({listed});")
+    return "{function_name}({arguments.join(", ")});"
+}
+
+func looks_local(name: String): Boolean {
+    return name == "self" or name.ends_with("_") or name.starts_with("spite_temp_") or name.starts_with("spite_frame")
+}
+
+func reported_names(lines: List<String>): List<String> {
+    var found = List<String>()
+    var index = 0
+    while index < lines.count() {
+        note_names(lines[index], found)
+        index = index + 1
+    }
+    return found
+}
+
+func note_names(line: String, found: List<String>) {
+    var length = line.length()
+    var position = 0
+    var quote = 0
+    while position < length {
+        var code = line.code_at(position)
+        if quote != 0 {
+            var quoted_end = quoted_step(code)
+            position = position + quoted_end
+            if code == quote {
+                quote = 0
+            }
+        } else if code == 34 or code == 39 {
+            quote = code
+            position = position + 1
+        } else if is_name_code(code) {
+            var start = position
+            position = name_end(line, position)
+            note_name(line, start, position, found)
+        } else {
+            position = position + 1
+        }
+    }
+}
+
+func quoted_step(code: Integer): Integer {
+    if code == 92 {
+        return 2
+    }
+    return 1
+}
+
+func name_end(line: String, start: Integer): Integer {
+    var length = line.length()
+    var position = start
+    while position < length {
+        var code = line.code_at(position)
+        if not is_name_code(code) {
+            return position
+        }
+        position = position + 1
+    }
+    return position
+}
+
+func note_name(line: String, start: Integer, end: Integer, found: List<String>) {
+    var first = line.code_at(start)
+    assert first < 48 or first > 57
+    assert not after_member(line, start) and not before_call(line, end)
+    var name = line.slice(start, end)
+    if not found.contains(name) {
+        found.append(name)
+    }
+}
+
+func is_name_code(code: Integer): Boolean {
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
+
+func after_member(line: String, start: Integer): Boolean {
+    var position = start - 1
+    while position >= 0 and line.code_at(position) == 32 {
+        position = position - 1
+    }
+    if position < 0 {
+        return false
+    }
+    var code = line.code_at(position)
+    if code == 46 {
+        return true
+    }
+    return code == 62 and position > 0 and line.code_at(position - 1) == 45
+}
+
+func before_call(line: String, end: Integer): Boolean {
+    var length = line.length()
+    var position = end
+    while position < length and line.code_at(position) == 32 {
+        position = position + 1
+    }
+    return position < length and line.code_at(position) == 40
+}
+
+func declared_type(lines: List<String>, name: String): String {
+    var index = lines.count() - 1
+    while index >= 0 {
+        crash lines[index]
+        var found = type_on_line(lines[index], name)
+        if not found.is_empty() {
+            return found
+        }
+        index = index - 1
+    }
+    return ""
+}
+
+func type_on_line(line: String, name: String): String {
+    var length = line.length()
+    var name_length = name.length()
+    var start = 0
+    var answer = ""
+    while start + name_length <= length {
+        var rest = line.slice(start, length)
+        var offset = rest.index_of(name)
+        if offset < 0 {
+            return answer
+        }
+        var position = start + offset
+        var end = position + name_length
+        if whole_name(line, position, end) {
+            var found = type_before(line, position, end)
+            if not found.is_empty() {
+                answer = found
+            }
+        }
+        start = end
+    }
+    return answer
+}
+
+func whole_name(line: String, position: Integer, end: Integer): Boolean {
+    if position > 0 {
+        var before = line.code_at(position - 1)
+        if is_name_code(before) {
+            return false
+        }
+    }
+    if end < line.length() {
+        var after = line.code_at(end)
+        if is_name_code(after) {
+            return false
+        }
+    }
+    return true
+}
+
+func type_before(line: String, position: Integer, end: Integer): String {
+    if not ends_declaration(line, end) {
+        return ""
+    }
+    var back = type_start(line, position)
+    if back >= 0 {
+        var stop = line.code_at(back)
+        if stop != 123 and stop != 59 and stop != 40 and stop != 44 {
+            return ""
+        }
+    }
+    var written = line.slice(back + 1, position).trim()
+    if written.is_empty() or not has_letter(written) {
+        return ""
+    }
+    var first_word = written
+    var space = written.index_of(" ")
+    if space >= 0 {
+        first_word = written.slice(0, space)
+    }
+    if keywords.contains(first_word) {
+        return ""
+    }
+    return written
+}
+
+func ends_declaration(line: String, end: Integer): Boolean {
+    var length = line.length()
+    var after = end
+    while after < length and line.code_at(after) == 32 {
+        after = after + 1
+    }
+    if after >= length {
+        return false
+    }
+    var next = line.code_at(after)
+    if next == 61 {
+        return not (after + 1 < length and line.code_at(after + 1) == 61)
+    }
+    return next == 59 or next == 44 or next == 41
+}
+
+func type_start(line: String, position: Integer): Integer {
+    var back = position - 1
+    while back >= 0 {
+        var code = line.code_at(back)
+        if not type_code(code) {
+            return back
+        }
+        back = back - 1
+    }
+    return back
+}
+
+func type_code(code: Integer): Boolean {
+    return is_name_code(code) or code == 32 or code == 42
+}
+
+func has_letter(text: String): Boolean {
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        if code == 95 or code >= 65 and code <= 90 or code >= 97 and code <= 122 {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}

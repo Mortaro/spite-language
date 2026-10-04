@@ -1990,6 +1990,46 @@ every build, rather than leaving it to the C compiler or the linker.
   `--final-classes` is unchanged: it prints Spite, not C.
 - **Cost**: compile time only; the executable gets smaller.
 
+### A crash's report is kept out of the way
+
+**What it does.** Every `crash`, failed `assert`, read outside a list and overflow has code that writes its report:
+the place, the values that failed, the attributes of the object it ran on. That code runs at most once, so the
+compiler moves each report out of the function that holds it, into a function of its own that is marked cold and
+is given exactly the values the report prints. What is left where the check is written is one comparison and a
+call that is never made.
+
+```gdscript title=cold_crash/cold_crash.spite entry
+var console = Console()
+
+func ColdCrash() {
+    var values = [3, 1, 4, 1, 5]
+    var picks = [4, 0, 2]
+    var total = 0
+    var index = 0
+    while index < picks.count() {
+        var pick = picks[index]
+        crash values[pick]
+        total = total + values[pick]
+        index = index + 1
+    }
+    console.print(total)
+}
+```
+```output
+12
+```
+
+The loop above is a comparison, two loads and an addition per pick; the report `crash values[pick]` would print
+(the place, `pick`, `index`, `total`) is a separate function, never loaded unless it runs.
+
+**When.** Every build but `--hot-reload`. A report that prints a value the compiler cannot name outside the
+function stays where it is.
+
+**What you notice.** Speed, and nothing else: a function with checks is small, so the C compiler copies more of
+them into their callers. `List.set_at`, whose two checks had kept it a call of its own, is now copied into every
+caller. An engine's row lookup, three `crash` lines and a few reads, went from 551 instructions to 235, and a
+naive entity system took 14% fewer instructions per tick. A report reads exactly as before.
+
 ### Other optimisations
 
 - **An appended item made in place**: `var slow = Velocity(1.0, 0.5)` and then `velocities.append(slow)` writes the

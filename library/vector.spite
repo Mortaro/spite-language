@@ -310,15 +310,19 @@ func reserve(wanted: Integer) {
 
 func make_room() {
     if item_count == capacity {
-        var grown = capacity * 2
-        if capacity == 0 {
-            grown = 4
-        }
-        var old_bytes = values.block_bytes(capacity)
-        var bytes = values.block_bytes(grown)
-        items = _resized(old_bytes, bytes)
-        capacity = grown
+        _grow()
     }
+}
+
+func _grow() {
+    var grown = capacity * 2
+    if capacity == 0 {
+        grown = 4
+    }
+    var old_bytes = values.block_bytes(capacity)
+    var bytes = values.block_bytes(grown)
+    items = _resized(old_bytes, bytes)
+    capacity = grown
 }
 
 func _resized(old_bytes: Long, new_bytes: Long): Memory.Address {
