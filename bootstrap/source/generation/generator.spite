@@ -30701,6 +30701,10 @@ func overlap_candidate(
     if not call or not call.arguments.is_empty() or not call.callee {
         return false
     }
+    var own = shape.as_identifier(call.callee)
+    if own {
+        return overlap_own_candidate(own.name, scope, class_information)
+    }
     var callee = shape.as_member(call.callee)
     if not callee or not callee.object {
         return false
@@ -30722,6 +30726,18 @@ func overlap_candidate(
         return false
     }
     var function = owner.find_function(callee.name)
+    if not function or not function.parameters.is_empty() or function.is_constructor {
+        return false
+    }
+    var returned = function.return_type
+    return type_shape.is_void(returned)
+}
+
+func overlap_own_candidate(name: String, scope: Scope, class_information: Analysis.ClassInfo): Boolean {
+    if scope.lookup_type(name) or is_library_class(class_information) {
+        return false
+    }
+    var function = find_or_instantiate_function(class_information, name)
     if not function or not function.parameters.is_empty() or function.is_constructor {
         return false
     }
@@ -30755,19 +30771,22 @@ func emit_overlap_group(
     generating_overlap = true
     var handles = List<String>()
     index = start
-    while index < start + count - 1 {
+    while index < start + count {
         crash statements[index]
-        var handle_name = "spite_overlap_{group}_{index - start}"
+        var item = index - start
+        var handle_name = "spite_overlap_{group}_{item}"
+        builder.add_user("/*spite_overlap_{group} job {item}*/")
         var started = overlap_declaration(statements[index], handle_name)
         generate_statement(started, inner, class_information, function_information)
         inner.mark_used(handle_name)
+        inner.forget_owned(handle_name)
         handles.append(handle_name)
+        builder.add_user("/*spite_overlap_{group} inline {item}*/")
+        generate_statement(statements[index], inner, class_information, function_information)
+        builder.add_user("/*spite_overlap_{group} item end*/")
         index = index + 1
     }
-    var last_index = start + count - 1
-    crash statements[last_index]
-    generate_statement(statements[last_index], inner, class_information, function_information)
-    join_overlap_handles(handles, inner)
+    join_overlap_handles(group, handles, inner)
     emit_scope_drops(inner, false)
     generating_overlap = false
     builder.threads = threads_before
@@ -30793,7 +30812,7 @@ func overlap_declaration(statement: Syntax.Statements.Statement, handle_name: St
     return declared
 }
 
-func join_overlap_handles(handles: List<String>, scope: Scope) {
+func join_overlap_handles(group: Integer, handles: List<String>, scope: Scope) {
     var index = 0
     while index < handles.count() {
         var name = handles[index]
@@ -30805,7 +30824,11 @@ func join_overlap_handles(handles: List<String>, scope: Scope) {
         crash handle
         var joining = find_or_instantiate_function(handle, "_join")
         crash joining
-        builder.add_user("{joining.c_name}({c_value_name(name)});")
+        var handle_code = c_value_name(name)
+        builder.add_user("/*spite_overlap_{group} join {index}*/")
+        builder.add_user("{joining.c_name}({handle_code});")
+        builder.add_user("{handle.c_name}___release({handle_code});")
+        builder.add_user("/*spite_overlap_{group} item end*/")
         index = index + 1
     }
 }
@@ -30867,39 +30890,105 @@ func settle_overlap_at(facts: OverlapFacts, group: Integer, start: Integer) {
     while finish < builder.user_bodies.count() and builder.user_at(finish) != end_marker {
         finish = finish + 1
     }
-    var overlapped = overlap_pays(facts, steps) and not inside_coarse_loop(function_lines)
-    if overlapped {
-        blank_user_range(start, middle + 1)
-        builder.replace_user(finish, "")
-        builder.threads = true
-        note_fact("flag threads")
-        parallel_used = true
-        note_fact("flag parallel_used")
-    } else {
+    var jobs = overlap_jobs(facts, steps)
+    if jobs.is_empty() or inside_coarse_loop(function_lines) {
         blank_user_range(middle, finish + 1)
         blank_markers(start, middle, step_marker)
         builder.replace_user(start, "")
+        return
+    }
+    blank_user_range(start, middle + 1)
+    builder.replace_user(finish, "")
+    keep_overlap_items(group, middle, finish, jobs)
+    builder.threads = true
+    note_fact("flag threads")
+    parallel_used = true
+    note_fact("flag parallel_used")
+}
+
+func keep_overlap_items(group: Integer, start: Integer, end: Integer, jobs: List<Boolean>) {
+    var item_end = "/*spite_overlap_{group} item end*/"
+    var index = start
+    var blanking = false
+    while index < end {
+        var line = builder.user_at(index)
+        var marker = overlap_item_marker(group, line)
+        if marker == "job" or marker == "join" {
+            var item = overlap_item_number(group, line)
+            blanking = jobs[item] != true
+            builder.replace_user(index, "")
+        } else if marker == "inline" {
+            var inline_item = overlap_item_number(group, line)
+            blanking = jobs[inline_item] == true
+            builder.replace_user(index, "")
+        } else if line == item_end {
+            blanking = false
+            builder.replace_user(index, "")
+        } else if blanking {
+            builder.replace_user(index, "")
+        }
+        index = index + 1
     }
 }
 
-func overlap_pays(facts: OverlapFacts, steps: List<OverlapFact>): Boolean {
+func overlap_item_marker(group: Integer, line: String): String {
+    var prefix = "/*spite_overlap_{group} "
+    if not line.starts_with(prefix) or not line.ends_with("*/") {
+        return ""
+    }
+    var prefix_length = prefix.length()
+    var line_length = line.length()
+    var rest = line.slice(prefix_length, line_length)
+    var space = rest.index_of(" ")
+    if space < 0 {
+        return ""
+    }
+    return rest.slice(0, space)
+}
+
+func overlap_item_number(group: Integer, line: String): Integer {
+    var prefix = "/*spite_overlap_{group} "
+    var prefix_length = prefix.length()
+    var line_length = line.length()
+    var rest = line.slice(prefix_length, line_length - 2)
+    var space = rest.index_of(" ")
+    var rest_length = rest.length()
+    var digits = rest.slice(space + 1, rest_length)
+    var number = digits.to_integer()
+    crash number
+    return number
+}
+
+func overlap_jobs(facts: OverlapFacts, steps: List<OverlapFact>): List<Boolean> {
+    var jobs = List<Boolean>()
+    var heavy = 0
+    var last_heavy = -1
     var index = 0
     while index < steps.count() {
         var step = steps[index]
-        if not step.loops {
-            return false
+        if step.loops {
+            heavy = heavy + 1
+            last_heavy = index
         }
         var other = index + 1
         while other < steps.count() {
             var compared = steps[other]
-            if not facts.independent(step, compared) {
-                return false
-            }
+            assert facts.independent(step, compared)
             other = other + 1
         }
         index = index + 1
     }
-    return steps.count() >= 2
+    if heavy < 2 {
+        return jobs
+    }
+    index = 0
+    while index < steps.count() {
+        var step = steps[index]
+        var job = step.loops and index != last_heavy
+        jobs.append(job)
+        index = index + 1
+    }
+    return jobs
 }
 
 func inside_coarse_loop(function_lines: List<String>): Boolean {
