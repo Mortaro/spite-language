@@ -433,6 +433,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Concurrency: `Concurrent`, `Parallel` and hidden waiting
 
+- Not built (D505): calls in a row that share nothing written run at once (concurrency.md "Calls in a row run at once").
 - Section was tagged implemented on Windows. The names and mechanism are decided; several details were only "proposed by Claude, unconfirmed": the written-handle-type rule covering only the declaration that starts the work (handle element types in `List<Parallel<Integer>>()` and parameters are still written), `finished`, `finished_value()` (name provisional, D216), `class`/`attributes`/`functions` staying a handle's own members, comparing handles (nothing has needed a way to compare the handles themselves), the debug text of handles, default-made handles, the `Concurrent` holding its function only while it runs, `Atomic<T>` (names provisional, D205/D214), and all of the ThreadPool, Lock, ThreadSlot and ThreadLocal shapes.
 - `Concurrent` is described as for "IO, sleeps, database calls later": no database classes exist yet.
 - Compiler-supplied members still have bodies written in C inside the compiler: `ThreadPool.entry_address()` and `address()`, `Concurrent._start_frame()`, `_frame_result()` and `_free_frame()`, `Scheduler.step_frame(frame)` and `release_work(frame)`. D147 decides that no compiler-supplied function stays bodiless and no Spite body holds C; turning them into Spite over the backend's primitives is not built. The page now states the rule as if done.

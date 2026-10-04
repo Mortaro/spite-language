@@ -360,6 +360,33 @@ func ParallelTour() {
 499999500000 4499998500000
 ```
 
+### Calls in a row run at once
+
+A program never has to write `Parallel` to run independent work side by side. When two or more calls in a row
+share nothing one of them writes, the compiler runs them on the thread pool at once and waits for all of them
+before the next statement:
+
+```gdscript
+func tick() {
+    physics.update_each()
+    animation.update_each()
+    audio.update_each()
+    renderer.draw_all()
+}
+```
+
+If `physics`, `animation` and `audio` each read and write only their own state, the first three run at once, and
+`renderer.draw_all()` starts after all three have finished, as written. The program reads as one step after
+another and runs as fast as the machine allows. The compiler decides it all while compiling, from what each call
+reads and writes through every function it reaches, so a program with nothing to overlap carries none of it and
+no call says it may run in parallel.
+
+Calls whose order can be seen stay in order: anything that prints, touches a file or a socket, or reads and writes
+the same state as another call. A call that does little (a few additions, no loop) is never handed to another
+thread, since starting it there would cost more than running it. If two calls that ran at once both crash, the
+crash reported is the one written first, so a crash report never depends on which thread was faster. The exact
+conditions are in [the rules](#concurrency-concurrent-parallel-and-hidden-waiting) ("Calls in a row run at once").
+
 ### The thread pool
 
 `ThreadPool()` (`library/thread_pool.spite`, a singleton) starts a worker thread for every core but one (the
@@ -1346,6 +1373,19 @@ reads followed by other work, or a read into a name that is assigned later, stay
 uses the scheduler, so it is compiled with `SPITE_THREADS`; a program without two reads in a row compiles as
 before. A `Directory` listing is not a waiting call (it has no helper thread), so starting it early would not overlap
 anything, and it is left alone. `conformance/stage6/overlapped_reads`.
+
+**Calls in a row run at once.** Two or more statements in a row, each a call whose value is not used (a bare
+`receiver.function(...)` or `function(...)`), run at once on the thread pool when every pair of them is
+independent, and every one is joined before the next statement runs; the last one runs on the calling thread.
+Two calls are independent when neither writes an attribute, a singleton's state or an element the other reads or
+writes, taken through every function each one reaches; when neither prints, reads or writes a `File`, a
+`Directory` or a `Socket`, waits, or reaches a class whose objects stay on the thread that made them; and when the
+compiler knows every function each one reaches (a call through a function value or a `type` with more than one
+class is not independent of anything). A call is handed to another thread only when it reaches a loop, so work
+too small to pay for the hand-over stays where it is. The calls' arguments are worked out first, in written order,
+on the calling thread. When more than one of them crashes, the crash reported is the one of the call written
+first. A program in which no calls run at once compiles exactly as before, and one in which some do uses the
+thread pool, as a program that writes `Parallel` does.
 
 ---
 
