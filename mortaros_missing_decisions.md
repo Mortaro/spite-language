@@ -52,8 +52,14 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      `$number_type`". Options: (a) a type the compiler works out, `Fraction<$number_type>` (`Float` for every whole
      number up to 32 bits, `Double` for `Long` and `UnsignedLong`, the class itself for `Float` and `Double`), so
      the library writes `func normalized(): Vector3<Fraction<$number_type>>`; (b) a codegen value with a default
-     worked out from another, `generic $fraction_type = $number_type.fraction`. Recommend (a): one type, readable where it is used, and nothing a program
-     writes changes. Blocks building D486.
+     worked out from another, `generic $fraction_type = $number_type.fraction`; (c) (asked by Mortaro, 2026-10-04)
+     every number's fractional class is `Float`, `Double` included, so the signature is just
+     `func normalized(): Vector3<Float>` and nothing new is needed. Against (c): a `Float` keeps about 7 significant
+     digits whatever its size, so being under 1 does not make it safe. Two `Double` directions less than about
+     0.014 degrees apart get a `Float` dot product of exactly 1, so the angle between them reads 0 (240 m off at
+     1000 km). That is a silent wrong value (D244), and a program that chose `Double` chose it for that precision.
+     Recommend (a): one type, readable where it is used, and nothing a program writes changes. Blocks building
+     D486.
 303. **Does `move_to(path)` replace what is already there?** (D476, D244, D205; standard_library.md "Rename or move
      a file or folder".) Built so that it never does: when a file or folder is at `path` it answers `false` and
      changes nothing, since the system calls (`rename`, `MoveFileExA`) would silently replace a file. Options: (a)
