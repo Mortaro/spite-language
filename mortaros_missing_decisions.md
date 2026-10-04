@@ -66,3 +66,20 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
      never replace (built); (b) replace, as the system calls do; (c) a second function that replaces. Recommend
      (a): a move that drops a file the program did not know was there is a lost write; a program that means to
      replace removes the old one first, in one more line that says so.
+304. **Who runs independent systems in parallel: the compiler, or a runner the program writes?** (D362, D388, D501
+     step 5; [automatic_memory.md](design/proposals/automatic_memory.md#proposed-path-cheapest-first-proposed-by-claude-unconfirmed).)
+     D362 says "a system runner" reads `function.accesses`, and the game engine package built that runner itself.
+     It now asks the language to do it, since D501 approved step 5 (scheduling), which is not built. Options:
+     (a) the compiler runs consecutive calls at once when it proves them independent. A frame function writes
+     `physics.update_each()`, then `animation.update_each()`, then `audio.update_each()`, as plain sequential
+     code. The compiler reads each call's reads and writes, through every function it reaches, and runs calls that
+     share nothing written on the pool, joined before the first statement that needs them. It does so only when
+     the work is big enough to pay: a loop over a list, not a few additions, since a blind parallel pass made light
+     bodies 2.4x slower. Anything with an order a person can see stays in written order: output, files, sockets,
+     and which crash is reported (the first in written order wins). Every grouping is decided while compiling, so
+     nothing ships but the pool a `Parallel` already uses, and a program with nothing to overlap carries none of
+     it. A component that declares `pinned_to_creating_thread()` keeps its systems on the creating thread.
+     (b) a standard-library template, `systems.update_each_in_parallel()` over a constant list of system classes,
+     folded into fixed stages while compiling; the program still names the pass. (c) the runner stays the
+     package's job (D362 as written). Recommend (a): the moron never chooses, and `Parallel` and `Concurrent` stay
+     only for work the compiler cannot see (D501). Blocks the engine dropping its runner.
