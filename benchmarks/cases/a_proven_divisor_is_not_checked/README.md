@@ -34,4 +34,13 @@ breaks it halts at that line instead of dividing by zero. The C compiler then fo
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 31 204 | 176 128 |
+| naive C: `naive.c`, `clang -O2` | 32 479 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 28 691 | 139 264 |
+
+Spite takes 0.96 times naive C's time and 1.09 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=31204 naive=32479 expert=28691 -->
 <!-- /timings -->

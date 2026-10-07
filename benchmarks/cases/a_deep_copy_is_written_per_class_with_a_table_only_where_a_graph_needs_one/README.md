@@ -41,4 +41,13 @@ a deep copy does not yet. Each copied list also grows from empty by `append` rat
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 66 230 | 189 440 |
+| naive C: `naive.c`, `clang -O2` | 113 274 | 143 872 |
+| expert C: `expert.c`, `clang -O2` | 1 579 | 142 336 |
+
+Spite takes 0.58 times naive C's time and 41.94 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=66230 naive=113274 expert=1579 -->
 <!-- /timings -->

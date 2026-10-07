@@ -41,4 +41,13 @@ while they wait; one run of the `-O2` builds `scripts/cases/check.sh` makes took
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 113 095 | 231 424 |
+| naive C: `naive.c`, `clang -O2` | 23 851 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 578 | 139 776 |
+
+Spite takes 4.74 times naive C's time and 195.67 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=113095 naive=23851 expert=578 -->
 <!-- /timings -->

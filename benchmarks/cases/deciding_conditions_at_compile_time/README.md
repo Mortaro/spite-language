@@ -35,4 +35,13 @@ untaken branch is absent whatever compiles the C, and it may even use what that 
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 12 745 | 176 640 |
+| naive C: `naive.c`, `clang -O2` | 9 466 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 8 435 | 139 264 |
+
+Spite takes 1.35 times naive C's time and 1.51 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=12745 naive=9466 expert=8435 -->
 <!-- /timings -->

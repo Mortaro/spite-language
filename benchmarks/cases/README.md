@@ -30,7 +30,9 @@ as developer effort against speed:
   number the compiler is working to bring to 1.00: every gap is work it could still do on its own.
 
 The time ratio is Spite's time divided by the C program's, so 1.00 is as fast, 2.00 takes twice as long, and lower
-is better. Where an optimisation cannot be shown as a time (tree shaking, crash text, what is worked out only while
+is better (0.00 is less than a two-hundredth of the time). A ratio far above 1.00 against naive C is worth reading
+in the case's README: in several, clang deletes the naive program's allocations itself, and in others the case
+found work the compiler still does that it could leave out. Where an optimisation cannot be shown as a time (tree shaking, crash text, what is worked out only while
 compiling), the case still has the three programs and its README says what to compare instead: the executable's
 size, the lines of C, the allocations, and why there is no time.
 
@@ -68,80 +70,80 @@ would claim a ceiling it is not.
 <!-- summary -->
 | case | Spite's time over naive C's | Spite's time over expert C's |
 |---|---|---|
-| [a_binary_schema_is_a_constant](a_binary_schema_is_a_constant/) | not measured yet | not measured yet |
-| [a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/) | not measured yet | not measured yet |
-| [a_crashs_report_is_kept_out_of_the_way](a_crashs_report_is_kept_out_of_the_way/) | not measured yet | not measured yet |
-| [a_decimal_literal_beside_a_float_is_a_float](a_decimal_literal_beside_a_float_is_a_float/) | not measured yet | not measured yet |
-| [a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/) | not measured yet | not measured yet |
-| [a_dictionary_hashes_a_key_once_cheaply](a_dictionary_hashes_a_key_once_cheaply/) | not measured yet | not measured yet |
-| [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | not measured yet | not measured yet |
-| [a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/) | not measured yet | not measured yet |
-| [a_foreign_name_is_never_copied](a_foreign_name_is_never_copied/) | not measured yet | not measured yet |
-| [a_function_taking_a_type_is_compiled_per_class](a_function_taking_a_type_is_compiled_per_class/) | not measured yet | not measured yet |
-| [a_function_value_describes_its_arguments_when_asked](a_function_value_describes_its_arguments_when_asked/) | not measured yet | not measured yet |
-| [a_list_item_read_only_to_test_it_is_not_counted](a_list_item_read_only_to_test_it_is_not_counted/) | not measured yet | not measured yet |
-| [a_lists_templates_read_its_elements_without_counting_them](a_lists_templates_read_its_elements_without_counting_them/) | not measured yet | not measured yet |
-| [a_local_list_of_known_size_lives_in_the_frame](a_local_list_of_known_size_lives_in_the_frame/) | not measured yet | not measured yet |
-| [a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked](a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/) | not measured yet | not measured yet |
-| [a_number_joined_into_text_is_written_in_place](a_number_joined_into_text_is_written_in_place/) | not measured yet | not measured yet |
-| [a_numbers_bits_are_read_in_place](a_numbers_bits_are_read_in_place/) | not measured yet | not measured yet |
-| [a_proven_divisor_is_not_checked](a_proven_divisor_is_not_checked/) | not measured yet | not measured yet |
-| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | not measured yet | not measured yet |
-| [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/) | not measured yet | not measured yet |
-| [a_release_is_inlined_in_every_unit](a_release_is_inlined_in_every_unit/) | not measured yet | not measured yet |
-| [a_reload_compiles_only_the_classes_that_changed](a_reload_compiles_only_the_classes_that_changed/) | not measured yet | not measured yet |
-| [a_row_of_borrowed_items_lives_in_the_frame](a_row_of_borrowed_items_lives_in_the_frame/) | not measured yet | not measured yet |
-| [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | not measured yet | not measured yet |
-| [a_singletons_reading_functions_do_not_exclude_each_other](a_singletons_reading_functions_do_not_exclude_each_other/) | not measured yet | not measured yet |
+| [a_binary_schema_is_a_constant](a_binary_schema_is_a_constant/) | 0.00 | 3.67 |
+| [a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/) | 0.15 | 22.94 |
+| [a_crashs_report_is_kept_out_of_the_way](a_crashs_report_is_kept_out_of_the_way/) | 1.55 | 1.83 |
+| [a_decimal_literal_beside_a_float_is_a_float](a_decimal_literal_beside_a_float_is_a_float/) | 0.06 | 1.98 |
+| [a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/) | 0.58 | 41.94 |
+| [a_dictionary_hashes_a_key_once_cheaply](a_dictionary_hashes_a_key_once_cheaply/) | 1.03 | 3.34 |
+| [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 2.14 | 2.27 |
+| [a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/) | 0.03 | 2.39 |
+| [a_foreign_name_is_never_copied](a_foreign_name_is_never_copied/) | not timed | not timed |
+| [a_function_taking_a_type_is_compiled_per_class](a_function_taking_a_type_is_compiled_per_class/) | 1.01 | 1.01 |
+| [a_function_value_describes_its_arguments_when_asked](a_function_value_describes_its_arguments_when_asked/) | 66.78 | 66.36 |
+| [a_list_item_read_only_to_test_it_is_not_counted](a_list_item_read_only_to_test_it_is_not_counted/) | 0.83 | 4.70 |
+| [a_lists_templates_read_its_elements_without_counting_them](a_lists_templates_read_its_elements_without_counting_them/) | 0.73 | 11.40 |
+| [a_local_list_of_known_size_lives_in_the_frame](a_local_list_of_known_size_lives_in_the_frame/) | 1.08 | 1.17 |
+| [a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked](a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/) | 0.25 | 2.23 |
+| [a_number_joined_into_text_is_written_in_place](a_number_joined_into_text_is_written_in_place/) | 0.24 | 5.01 |
+| [a_numbers_bits_are_read_in_place](a_numbers_bits_are_read_in_place/) | 0.76 | 2.97 |
+| [a_proven_divisor_is_not_checked](a_proven_divisor_is_not_checked/) | 0.96 | 1.09 |
+| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | 4.83 | 4.86 |
+| [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/) | 0.72 | 0.72 |
+| [a_release_is_inlined_in_every_unit](a_release_is_inlined_in_every_unit/) | not timed | not timed |
+| [a_reload_compiles_only_the_classes_that_changed](a_reload_compiles_only_the_classes_that_changed/) | not timed | not timed |
+| [a_row_of_borrowed_items_lives_in_the_frame](a_row_of_borrowed_items_lives_in_the_frame/) | 5.58 | 14.14 |
+| [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | 0.60 | 47.73 |
+| [a_singletons_reading_functions_do_not_exclude_each_other](a_singletons_reading_functions_do_not_exclude_each_other/) | 0.17 | 2.99 |
 | [a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/) | 0.69 | 1.37 |
-| [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | not measured yet | not measured yet |
-| [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | not measured yet | not measured yet |
-| [a_word_inflected_while_compiling](a_word_inflected_while_compiling/) | not measured yet | not measured yet |
-| [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | not measured yet | not measured yet |
-| [an_allocator_set_after_construction_is_where_the_object_is_made](an_allocator_set_after_construction_is_where_the_object_is_made/) | not measured yet | not measured yet |
-| [an_argument_its_caller_holds_is_passed_without_counting](an_argument_its_caller_holds_is_passed_without_counting/) | not measured yet | not measured yet |
-| [an_item_a_name_holds_from_its_list_is_not_counted](an_item_a_name_holds_from_its_list_is_not_counted/) | not measured yet | not measured yet |
-| [an_item_written_back_to_its_own_slot_is_not_written](an_item_written_back_to_its_own_slot_is_not_written/) | not measured yet | not measured yet |
-| [an_items_storage_is_chosen_while_compiling](an_items_storage_is_chosen_while_compiling/) | not measured yet | not measured yet |
-| [appending_to_text_in_place](appending_to_text_in_place/) | not measured yet | not measured yet |
-| [arithmetic_is_checked_in_every_build](arithmetic_is_checked_in_every_build/) | not measured yet | not measured yet |
-| [atomic_reference_counts_only_with_threads](atomic_reference_counts_only_with_threads/) | not measured yet | not measured yet |
-| [boxing_only_where_a_value_travels_as_a_shape](boxing_only_where_a_value_travels_as_a_shape/) | not measured yet | not measured yet |
-| [calls_in_a_row_run_at_once](calls_in_a_row_run_at_once/) | not measured yet | not measured yet |
-| [concurrency_machinery_only_where_it_is_used](concurrency_machinery_only_where_it_is_used/) | not measured yet | not measured yet |
-| [copies_that_cost_nothing](copies_that_cost_nothing/) | not measured yet | not measured yet |
-| [crash_text_out_of_the_binary](crash_text_out_of_the_binary/) | not measured yet | not measured yet |
-| [deciding_conditions_at_compile_time](deciding_conditions_at_compile_time/) | not measured yet | not measured yet |
-| [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | not measured yet | not measured yet |
-| [hidden_async_await_as_compile_time_state_machines](hidden_async_await_as_compile_time_state_machines/) | not measured yet | not measured yet |
-| [identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/) | not measured yet | not measured yet |
-| [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | not measured yet | not measured yet |
-| [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | not measured yet | not measured yet |
-| [objects_that_never_leave_their_function_live_in_the_frame](objects_that_never_leave_their_function_live_in_the_frame/) | not measured yet | not measured yet |
-| [other_optimisations](other_optimisations/) | not measured yet | not measured yet |
-| [plain_reference_counts_where_no_thread_reaches_a_class](plain_reference_counts_where_no_thread_reaches_a_class/) | not measured yet | not measured yet |
-| [proofs_that_survive_a_call](proofs_that_survive_a_call/) | not measured yet | not measured yet |
-| [reading_an_address_is_one_machine_operation](reading_an_address_is_one_machine_operation/) | not measured yet | not measured yet |
-| [reading_through_a_type_without_counting](reading_through_a_type_without_counting/) | not measured yet | not measured yet |
-| [reads_in_a_row_overlap](reads_in_a_row_overlap/) | not measured yet | not measured yet |
-| [reflection_on_constants_folds_and_unrolls](reflection_on_constants_folds_and_unrolls/) | not measured yet | not measured yet |
-| [reflection_symbols_and_registries_only_where_read](reflection_symbols_and_registries_only_where_read/) | not measured yet | not measured yet |
-| [repl_live_reload_and_debug_machinery_only_in_those_builds](repl_live_reload_and_debug_machinery_only_in_those_builds/) | not measured yet | not measured yet |
-| [short_symbols_are_inline_text](short_symbols_are_inline_text/) | not measured yet | not measured yet |
-| [short_text_lives_inside_the_string](short_text_lives_inside_the_string/) | not measured yet | not measured yet |
-| [singletons_a_parallel_reaches_take_a_lock](singletons_a_parallel_reaches_take_a_lock/) | not measured yet | not measured yet |
-| [singletons_made_on_first_use_never_counted](singletons_made_on_first_use_never_counted/) | not measured yet | not measured yet |
-| [singletons_that_hold_nothing_are_static_objects](singletons_that_hold_nothing_are_static_objects/) | not measured yet | not measured yet |
-| [smaller_ones](smaller_ones/) | not measured yet | not measured yet |
-| [template_chains_run_as_one_loop](template_chains_run_as_one_loop/) | not measured yet | not measured yet |
-| [text_joined_in_one_piece](text_joined_in_one_piece/) | not measured yet | not measured yet |
-| [the_c_is_compiled_in_parallel_units_and_cached](the_c_is_compiled_in_parallel_units_and_cached/) | not measured yet | not measured yet |
-| [the_compiler_places_memory](the_compiler_places_memory/) | not measured yet | not measured yet |
-| [the_fault_handler_is_in_every_program](the_fault_handler_is_in_every_program/) | not measured yet | not measured yet |
-| [the_thread_pool_only_where_a_parallel_is_made](the_thread_pool_only_where_a_parallel_is_made/) | not measured yet | not measured yet |
-| [thread_safety_for_singletons_the_cheapest_safe_form](thread_safety_for_singletons_the_cheapest_safe_form/) | not measured yet | not measured yet |
-| [thread_safety_for_singletons_the_rest_of_the_plan](thread_safety_for_singletons_the_rest_of_the_plan/) | not measured yet | not measured yet |
-| [tree_shaking_the_generated_c](tree_shaking_the_generated_c/) | not measured yet | not measured yet |
-| [what_a_hot_reload_build_carries_so_its_objects_can_move](what_a_hot_reload_build_carries_so_its_objects_can_move/) | not measured yet | not measured yet |
-| [while_no_task_runs_a_singletons_lock_is_skipped](while_no_task_runs_a_singletons_lock_is_skipped/) | not measured yet | not measured yet |
+| [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | 31.56 | 31.55 |
+| [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | 3.73 | 17.00 |
+| [a_word_inflected_while_compiling](a_word_inflected_while_compiling/) | 0.04 | 3.63 |
+| [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | 1.32 | 31.08 |
+| [an_allocator_set_after_construction_is_where_the_object_is_made](an_allocator_set_after_construction_is_where_the_object_is_made/) | 0.77 | 31.16 |
+| [an_argument_its_caller_holds_is_passed_without_counting](an_argument_its_caller_holds_is_passed_without_counting/) | 0.35 | 19.23 |
+| [an_item_a_name_holds_from_its_list_is_not_counted](an_item_a_name_holds_from_its_list_is_not_counted/) | 1.06 | 8.64 |
+| [an_item_written_back_to_its_own_slot_is_not_written](an_item_written_back_to_its_own_slot_is_not_written/) | 0.81 | 10.90 |
+| [an_items_storage_is_chosen_while_compiling](an_items_storage_is_chosen_while_compiling/) | 0.78 | 14.02 |
+| [appending_to_text_in_place](appending_to_text_in_place/) | 0.00 | 0.84 |
+| [arithmetic_is_checked_in_every_build](arithmetic_is_checked_in_every_build/) | 6.62 | 6.49 |
+| [atomic_reference_counts_only_with_threads](atomic_reference_counts_only_with_threads/) | 0.74 | 9.15 |
+| [boxing_only_where_a_value_travels_as_a_shape](boxing_only_where_a_value_travels_as_a_shape/) | 0.14 | 1.62 |
+| [calls_in_a_row_run_at_once](calls_in_a_row_run_at_once/) | 0.83 | 1.55 |
+| [concurrency_machinery_only_where_it_is_used](concurrency_machinery_only_where_it_is_used/) | 0.97 | 22.57 |
+| [copies_that_cost_nothing](copies_that_cost_nothing/) | 1.49 | 2.08 |
+| [crash_text_out_of_the_binary](crash_text_out_of_the_binary/) | not timed | not timed |
+| [deciding_conditions_at_compile_time](deciding_conditions_at_compile_time/) | 1.35 | 1.51 |
+| [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | 0.53 | 83.60 |
+| [hidden_async_await_as_compile_time_state_machines](hidden_async_await_as_compile_time_state_machines/) | not timed | not timed |
+| [identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/) | not timed | not timed |
+| [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | 0.91 | 4.64 |
+| [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | 0.49 | 4.82 |
+| [objects_that_never_leave_their_function_live_in_the_frame](objects_that_never_leave_their_function_live_in_the_frame/) | 0.01 | 1.00 |
+| [other_optimisations](other_optimisations/) | not timed | not timed |
+| [plain_reference_counts_where_no_thread_reaches_a_class](plain_reference_counts_where_no_thread_reaches_a_class/) | 0.62 | 1.87 |
+| [proofs_that_survive_a_call](proofs_that_survive_a_call/) | not timed | not timed |
+| [reading_an_address_is_one_machine_operation](reading_an_address_is_one_machine_operation/) | 3.64 | 5.27 |
+| [reading_through_a_type_without_counting](reading_through_a_type_without_counting/) | 3.23 | 5.70 |
+| [reads_in_a_row_overlap](reads_in_a_row_overlap/) | 1.41 | 1.56 |
+| [reflection_on_constants_folds_and_unrolls](reflection_on_constants_folds_and_unrolls/) | 0.96 | 4.75 |
+| [reflection_symbols_and_registries_only_where_read](reflection_symbols_and_registries_only_where_read/) | not timed | not timed |
+| [repl_live_reload_and_debug_machinery_only_in_those_builds](repl_live_reload_and_debug_machinery_only_in_those_builds/) | not timed | not timed |
+| [short_symbols_are_inline_text](short_symbols_are_inline_text/) | not timed | not timed |
+| [short_text_lives_inside_the_string](short_text_lives_inside_the_string/) | 0.16 | 2.86 |
+| [singletons_a_parallel_reaches_take_a_lock](singletons_a_parallel_reaches_take_a_lock/) | 4.74 | 195.67 |
+| [singletons_made_on_first_use_never_counted](singletons_made_on_first_use_never_counted/) | 0.08 | 3.30 |
+| [singletons_that_hold_nothing_are_static_objects](singletons_that_hold_nothing_are_static_objects/) | not timed | not timed |
+| [smaller_ones](smaller_ones/) | 2.72 | 3.04 |
+| [template_chains_run_as_one_loop](template_chains_run_as_one_loop/) | 0.17 | 11.38 |
+| [text_joined_in_one_piece](text_joined_in_one_piece/) | 0.37 | 10.37 |
+| [the_c_is_compiled_in_parallel_units_and_cached](the_c_is_compiled_in_parallel_units_and_cached/) | not timed | not timed |
+| [the_compiler_places_memory](the_compiler_places_memory/) | 0.45 | 1.74 |
+| [the_fault_handler_is_in_every_program](the_fault_handler_is_in_every_program/) | not timed | not timed |
+| [the_thread_pool_only_where_a_parallel_is_made](the_thread_pool_only_where_a_parallel_is_made/) | 1.44 | 1.48 |
+| [thread_safety_for_singletons_the_cheapest_safe_form](thread_safety_for_singletons_the_cheapest_safe_form/) | 0.07 | 11.44 |
+| [thread_safety_for_singletons_the_rest_of_the_plan](thread_safety_for_singletons_the_rest_of_the_plan/) | 2.87 | 23.46 |
+| [tree_shaking_the_generated_c](tree_shaking_the_generated_c/) | not timed | not timed |
+| [what_a_hot_reload_build_carries_so_its_objects_can_move](what_a_hot_reload_build_carries_so_its_objects_can_move/) | not timed | not timed |
+| [while_no_task_runs_a_singletons_lock_is_skipped](while_no_task_runs_a_singletons_lock_is_skipped/) | 0.69 | 18.76 |
 <!-- /summary -->

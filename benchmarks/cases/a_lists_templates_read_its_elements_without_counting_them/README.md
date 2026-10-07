@@ -31,4 +31,13 @@ the two passes of a round into one.
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 29 290 | 182 784 |
+| naive C: `naive.c`, `clang -O2` | 39 866 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 2 570 | 139 776 |
+
+Spite takes 0.73 times naive C's time and 11.40 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=29290 naive=39866 expert=2570 -->
 <!-- /timings -->

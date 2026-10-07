@@ -29,4 +29,13 @@ arrays of numbers and no pointers.
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 18 997 | 178 688 |
+| naive C: `naive.c`, `clang -O2` | 113 430 | 140 288 |
+| expert C: `expert.c`, `clang -O2` | 1 669 | 139 776 |
+
+Spite takes 0.17 times naive C's time and 11.38 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=18997 naive=113430 expert=1669 -->
 <!-- /timings -->

@@ -52,4 +52,12 @@ the C written with `--check --c-source --optimized`:
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | not timed | 170 496 |
+| naive C: `naive.c`, `clang -O2` | not timed | 138 240 |
+| expert C: `expert.c`, `clang -O2` | not timed | 139 776 |
+
+Measured 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured untimed -->
 <!-- /timings -->

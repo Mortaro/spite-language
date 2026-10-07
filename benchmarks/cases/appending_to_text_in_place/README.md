@@ -29,4 +29,13 @@ the compiler arrives at, without the checks for the inline and shared forms.
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 165 | 175 104 |
+| naive C: `naive.c`, `clang -O2` | 88 282 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 196 | 139 264 |
+
+Spite takes 0.00 times naive C's time and 0.84 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=165 naive=88282 expert=196 -->
 <!-- /timings -->

@@ -42,4 +42,13 @@ have been written in place of.
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 33 475 | 186 368 |
+| naive C: `naive.c`, `clang -O2` | 42 852 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 2 388 | 139 776 |
+
+Spite takes 0.78 times naive C's time and 14.02 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=33475 naive=42852 expert=2388 -->
 <!-- /timings -->

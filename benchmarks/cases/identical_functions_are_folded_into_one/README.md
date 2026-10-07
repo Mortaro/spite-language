@@ -36,4 +36,12 @@ layout, and with every package loaded in two versions.
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | not timed | 175 616 |
+| naive C: `naive.c`, `clang -O2` | not timed | 139 264 |
+| expert C: `expert.c`, `clang -O2` | not timed | 139 264 |
+
+Measured 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured untimed -->
 <!-- /timings -->

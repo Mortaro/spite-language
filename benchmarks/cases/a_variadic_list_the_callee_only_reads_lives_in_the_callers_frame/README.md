@@ -45,4 +45,13 @@ something, on the heap.
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 130 925 | 175 616 |
+| naive C: `naive.c`, `clang -O2` | 4 149 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 4 150 | 139 264 |
+
+Spite takes 31.56 times naive C's time and 31.55 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=130925 naive=4149 expert=4150 -->
 <!-- /timings -->

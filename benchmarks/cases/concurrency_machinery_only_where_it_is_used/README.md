@@ -43,4 +43,13 @@ counted by `--debug-memory`:
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 37 798 | 179 200 |
+| naive C: `naive.c`, `clang -O2` | 39 005 | 157 696 |
+| expert C: `expert.c`, `clang -O2` | 1 675 | 142 848 |
+
+Spite takes 0.97 times naive C's time and 22.57 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=37798 naive=39005 expert=1675 -->
 <!-- /timings -->

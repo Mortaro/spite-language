@@ -33,4 +33,13 @@ other cases aim for, since making it longer would take `naive.c` past a second.
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 2 229 | 197 632 |
+| naive C: `naive.c`, `clang -O2` | 459 504 | 140 288 |
+| expert C: `expert.c`, `clang -O2` | 607 | 140 800 |
+
+Spite takes 0.00 times naive C's time and 3.67 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=2229 naive=459504 expert=607 -->
 <!-- /timings -->

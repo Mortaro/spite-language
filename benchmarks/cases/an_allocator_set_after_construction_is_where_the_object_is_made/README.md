@@ -39,4 +39,13 @@ smaller buffers stay until the arena goes. `expert.c` frees the round's block in
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 64 161 | 178 176 |
+| naive C: `naive.c`, `clang -O2` | 82 922 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 2 059 | 139 776 |
+
+Spite takes 0.77 times naive C's time and 31.16 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=64161 naive=82922 expert=2059 -->
 <!-- /timings -->

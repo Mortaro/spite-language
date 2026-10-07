@@ -37,4 +37,13 @@ held in the `String` itself ([short text](../short_text_lives_inside_the_string/
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 20 380 | 176 640 |
+| naive C: `naive.c`, `clang -O2` | 150 885 | 142 848 |
+| expert C: `expert.c`, `clang -O2` | 12 572 | 140 288 |
+
+Spite takes 0.14 times naive C's time and 1.62 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=20380 naive=150885 expert=12572 -->
 <!-- /timings -->

@@ -42,4 +42,13 @@ twice (once to test it, once for the value) where the remainders are read straig
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 29 150 | 174 592 |
+| naive C: `naive.c`, `clang -O2` | 26 885 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 24 939 | 139 264 |
+
+Spite takes 1.08 times naive C's time and 1.17 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=29150 naive=26885 expert=24939 -->
 <!-- /timings -->

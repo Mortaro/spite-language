@@ -32,4 +32,13 @@ costs one store; `expert.c` has no slots at all.
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 44 608 | 177 664 |
+| naive C: `naive.c`, `clang -O2` | 54 766 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 4 091 | 139 776 |
+
+Spite takes 0.81 times naive C's time and 10.90 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=44608 naive=54766 expert=4091 -->
 <!-- /timings -->

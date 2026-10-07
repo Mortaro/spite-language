@@ -38,4 +38,13 @@ between the Spite and `expert.c`. `naive.c` takes a mutex and makes the same two
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 147 814 | 234 496 |
+| naive C: `naive.c`, `clang -O2` | 244 546 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 3 097 | 139 776 |
+
+Spite takes 0.60 times naive C's time and 47.73 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=147814 naive=244546 expert=3097 -->
 <!-- /timings -->

@@ -39,4 +39,13 @@ plain values whose loop reads its count once), and keeps every operation's overf
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 56 239 | 177 664 |
+| naive C: `naive.c`, `clang -O2` | 351 738 | 142 336 |
+| expert C: `expert.c`, `clang -O2` | 19 692 | 139 776 |
+
+Spite takes 0.16 times naive C's time and 2.86 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=56239 naive=351738 expert=19692 -->
 <!-- /timings -->

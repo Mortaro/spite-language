@@ -35,4 +35,13 @@ Spite program's C holds no walk whatever compiles it. `expert.c` has no walk to 
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 13 980 | 179 200 |
+| naive C: `naive.c`, `clang -O2` | 14 561 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 2 944 | 139 776 |
+
+Spite takes 0.96 times naive C's time and 4.75 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=13980 naive=14561 expert=2944 -->
 <!-- /timings -->

@@ -41,4 +41,13 @@ lists, apart from its slots.
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 38 957 | 186 368 |
+| naive C: `naive.c`, `clang -O2` | 18 173 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 17 174 | 139 264 |
+
+Spite takes 2.14 times naive C's time and 2.27 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+<!-- measured spite=38957 naive=18173 expert=17174 -->
 <!-- /timings -->
