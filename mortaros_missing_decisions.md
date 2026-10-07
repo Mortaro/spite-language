@@ -38,6 +38,9 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
 - **D512, the naive engine's language gaps**: assets that finish in a later frame are the compiler's job (until
   then asset loading keeps `Parallel`); bytes and foreign structs get plain library forms; thread-pinned classes are
   a fact the compiler respects; the engine keeps stages, and commands flush between them.
+- **Engine, the waiting-system write rule**: with plain `List<T>` columns, the engine's rule refusing a waiting
+  (IO) system that writes `Vector`-fitting components of its rows has lost its reason. Kept for now (it refuses,
+  never silently drops); it goes when the compiler arranges waiting itself (D512).
 
 ## Open
 
