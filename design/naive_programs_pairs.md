@@ -10,6 +10,18 @@ what it generates. **Falls back** is what happens when the proof fails (always t
 is the hand code in the engine package it makes unnecessary. **Backend** is what an own backend could add that C cannot
 say.
 
+**Granularity (D518).** Every row below decides per use (a list, a loop, a creation site), not per class: a class
+may become several classes after compilation, and one list may have different shapes in different places. Pairs
+built so far per class (C5, M6) are a first step; their per-site forms are rows to add.
+
+| # | Naive code | Proof | Faster form | Falls back |
+|---|---|---|---|---|
+| S1 | a generic loop driven by lists that never change after setup | the lists' contents are fixed once setup ends, known per configuration | the loop specialised per configuration into direct code (partial evaluation) | the generic loop |
+| S2 | a class whose fields fall into groups read or written by different loops | access sets per field from every loop | one storage per group | one storage |
+| S3 | the same list read field by field in one phase and whole in another | the phases and the conversion cost | each phase reads its own shape; a compiled conversion between them | one shape |
+| S4 | objects of one class made where threads reach them and where they do not | per creation site flow | two classes after compilation, each with its own counts and pool | one class |
+| S5 | a procedural loop over uniform records with independent steps | records are uniform; steps share nothing written | a pipeline of passes over columns | the loop as written |
+
 ## Already built (the base everything else stands on)
 
 | Pair | Where it is documented |

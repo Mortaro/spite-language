@@ -43,6 +43,27 @@ one with the proof that enables it, and [Proofs](proofs.md) lists every fact the
 
 None of this changes what your program prints or computes. It changes only how fast it runs and how big it is.
 
+## A class is what you mean, not how it is stored
+
+The class you write is the meaning: which values belong together and what you can do with them. It is not a
+memory layout, and the compiler is not bound to keep it as one. Behind the scenes it may:
+
+- **split one class into several**, when some fields are read together in hot loops and others rarely, or when two
+  groups of fields are written by different work;
+- **merge objects into their owner**, when an object only ever belongs to one other;
+- **store the same list two ways in two places**, when one part of the program walks a `List<Monster>` field by
+  field and another reads whole monsters, and converting between the two costs less than either form alone;
+- **reshape a whole program**, so that a plain script that reads a file record by record runs as a pipeline of
+  passes over columns, the way an entity system would lay it out, if that is what is fastest.
+
+So no decision is made "for a class" as a whole. It is made for each place a value is used: what is read there,
+what is written, how often, and what the rest of the program needs to see. Two lists of the same class can sit in
+memory in different shapes, and one object can be a different shape at different points of the program. What
+stays the same everywhere is what the program computes.
+
+This is why you should not shape a class for speed. Group fields by what they mean; the compiler groups them by
+how they are used.
+
 ## No runtime, so it runs anywhere
 
 All of that happens while compiling. Nothing ships beside your program to do it while it runs: no scheduler, no

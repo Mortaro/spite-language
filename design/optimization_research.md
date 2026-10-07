@@ -37,6 +37,32 @@ The argument the whole project rests on, to be tested:
 The limit is where a hand optimisation depends on knowledge no analysis can recover (intent about future data,
 domain facts). Finding where that line is, is the research.
 
+## Representation per use, not per class (D518)
+
+Mortaro, 2026-10-07: optimising "by class" is too coarse. A class is meaning; its storage is chosen per use.
+
+- **Class splitting by access sets.** Partition a class's fields by the loops that read and write them; each
+  partition becomes its own storage (and its own pool, its own count discipline). A field set written by one
+  system and read by another may become two columns even inside one "component".
+- **Different shapes of one list in different places.** A `List<Monster>` walked field by field in one phase and
+  read whole in another: keep both forms, or convert at the phase boundary when the conversion is cheaper than
+  the slow form. The cost model decides; the conversion is a compiled loop, never a runtime.
+- **Per-site variants of a class.** C5 (plain counts) and M6 (pools) are decided per class today. A class used by
+  threaded work in one place and only on one thread in another could be two classes after compilation: objects
+  made where no thread reaches them get plain counts and a pool; the others do not. Requires knowing, per object
+  creation site, where the object can flow.
+- **Objects that only one owner holds merged into it** (inline), per owner field, not per class.
+- **Procedural programs restructured into passes.** A record-by-record script (parsing a file, transforming each
+  record, writing it) can become a pipeline of column passes, an ECS in all but name, when the data per record is
+  uniform and the steps are independent. The program never mentions entities.
+- **Specialising generic machinery.** A generic loop driven by lists that never change after setup (an ECS
+  runner's headers, kinds and keys) is partially evaluated per configuration into direct code. This is the
+  biggest measured gap in the naive engine (about 70% of its stress tick).
+
+Research questions: how to represent "the same value in two shapes" in the compiler's IR; when a split pays
+(access counts, cache-line footprints, write sharing); how to prove the conversion points preserve every observable
+result (identity, `==`, reflection, `--debug-memory` counts).
+
 ## Threads and parallelism
 
 - **Independent loops in bands.** Idea: a loop whose passes write only their own item runs on the pool. Proof:
