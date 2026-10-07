@@ -131,8 +131,11 @@ func study_assignment(assignment: Syntax.Statements.AssignmentStatement) {
         add_release_key(class_name, target_name.name)
         return
     }
-    if shape.as_index(assignment.target) {
+    var stored_slot = shape.as_index(assignment.target)
+    if stored_slot {
         add_key("release")
+        var stored = stored_key(stored_slot)
+        add_key(stored)
     }
     var target_member = shape.as_member(assignment.target)
     assert target_member
@@ -273,6 +276,7 @@ func study_method_call(
     }
     if member.name == "release_value" {
         add_key("release")
+        add_key("release:value")
     }
     if is_shrinking(member.name) {
         var shrunk = classify(member.object)
@@ -610,6 +614,16 @@ func growing_key(key: String): String {
         return ""
     }
     return "grow:{key}"
+}
+
+# ../../../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted
+func stored_key(written: Syntax.Expressions.IndexExpression): String {
+    crash written.object
+    var listed = classify(written.object)
+    if listed.starts_with("shrink:") or listed.starts_with("parameter:") {
+        return "store:{listed}"
+    }
+    return "store:*"
 }
 
 func add_release_key(owner: String, field: String) {

@@ -1,0 +1,106 @@
+var console = Console()
+var points = List<Point>()
+var spare = List<Point>()
+var marks = List<Integer>()
+var last_seen: Point? = null
+var cursor = 0
+
+func HeldItems() {
+    var index = 0
+    while index < 3 {
+        var made = Point(index)
+        points.append(made)
+        marks.append(0)
+        index = index + 1
+    }
+    var extra = Point(50)
+    spare.append(extra)
+    var passed_x = passed(1)
+    console.print("passed", passed_x)
+    var marked_x = marked(2)
+    console.print("marked", marked_x)
+    var remembered_x = remembered(1)
+    crash last_seen
+    console.print("remembered", remembered_x, last_seen.x)
+    var kept_x = kept(0)
+    console.print("kept", kept_x)
+    var aliased_x = aliased(1)
+    console.print("aliased", aliased_x)
+    var first = Point(0)
+    var second = Point(0)
+    var pair: Pair = {left: first, right: second}
+    cursor = 0
+    fill_attributes(pair, 5)
+    console.print("filled", pair.left.x, pair.right.x)
+    var report = points.map_xes().join(" ")
+    console.print("points", report)
+}
+
+func passed(index: Integer): Integer {
+    crash points[index]
+    var point = points[index]
+    var doubled = twice(point)
+    point.moved(1)
+    return doubled + point.x
+}
+
+func twice(point: Point): Integer {
+    return point.x * 2
+}
+
+func marked(index: Integer): Integer {
+    crash points[index]
+    var point = points[index]
+    marks[index] = point.x
+    crash marks[index]
+    return marks[index] + point.moves
+}
+
+func remembered(index: Integer): Integer {
+    crash points[index]
+    var point = points[index]
+    remember(point)
+    return point.x
+}
+
+func remember(point: Point) {
+    last_seen = point
+}
+
+func kept(index: Integer): Integer {
+    crash points[index]
+    var point = points[index]
+    swap_in(index)
+    return point.x
+}
+
+func swap_in(index: Integer) {
+    crash spare[0]
+    points[index] = spare[0]
+}
+
+func aliased(index: Integer): Integer {
+    crash points[index]
+    var point = points[index]
+    var same = points
+    overwrite(same, index)
+    return point.x
+}
+
+func overwrite(list: List<Point>, index: Integer) {
+    var fresh = Point(70)
+    list[index] = fresh
+}
+
+func fill_attribute(attribute: Symbol<Pair>, row: Pair, entity: Integer) {
+    var position = cursor
+    cursor = cursor + 1
+    crash points[position]
+    var source = points[position]
+    row.attributes[attribute] = picked(source, entity)
+}
+
+func picked(source: Point, entity: Integer): Point {
+    source.moved(entity)
+    return source
+}

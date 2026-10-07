@@ -1509,8 +1509,8 @@ index_ = (index_ + 1);
 ```
 
 What may come between, and what stops it, is [the proof](proofs.md#an-item-written-back-to-its-own-slot-is-the-slot):
-in short, nothing there may assign the name, the index or the path of the list, write into a list with `[]`, let go
-of an object, remove from or reorder a list, call through a function value or wait. When one of those is there,
+in short, nothing there may assign the name, the index or the path of the list, write into this list with `[]`,
+remove from or reorder a list, call through a function value or wait. When one of those is there,
 the write-back and the counted read are kept exactly as written, so the program means the same either way: a
 `points.reverse()` between the read and the write still puts the read object back at its index.
 
@@ -1578,6 +1578,87 @@ still read and counted.
 **What you notice.** Speed: the naive engine's stress test, whose matcher tests three items of its rows' lists
 for every entity and component, ticks in 43.8 ms instead of 48.1 (40.3 instead of 43.3 as one C file). What a
 crash report says, allocations and everything a program prints are the same.
+
+### An item a name holds from its list is not counted
+
+**What it does.** A name read from a list and used for a while is the commonest way a plain program looks at an
+item:
+
+```gdscript title=held_names/column.spite
+var name = ""
+var hits = 0
+
+func Column(column_name: String) {
+    name = column_name
+}
+
+func hit() {
+    hits = hits + 1
+}
+```
+```gdscript title=held_names/held_names.spite entry
+var console = Console()
+var columns = List<Column>()
+var weights = List<Integer>()
+
+func HeldNames() {
+    var first = Column("position")
+    var second = Column("velocity")
+    columns.append(first)
+    columns.append(second)
+    weights.append(0)
+    weights.append(0)
+    var round = 0
+    while round < 3 {
+        visit(0)
+        visit(1)
+        round = round + 1
+    }
+    crash weights[1]
+    console.print(first.hits, second.hits, weights[1])
+}
+
+func visit(index: Integer) {
+    crash columns[index]
+    var column = columns[index]
+    column.hit()
+    weights[index] = weight(column)
+}
+
+func weight(column: Column): Integer {
+    return column.hits * 10
+}
+```
+```output
+3 3 30
+```
+
+`column` would count the item up when it is read and down when `visit` ends. The list holds the item the whole
+time: nothing in `visit` writes `columns`, and nothing it calls can (`hit()` changes a number, `weight()` only
+reads, and the write into `weights` is into a list of numbers, which can never be `columns`). So the read is the
+item's address, and `weight(column)` passes it the way a caller passes a name it holds:
+
+```c
+Column* column_ = ({ List_Column* list = self->columns_; int32_t at = index_;
+    if (__builtin_expect(at < 0 || at >= list->item_count_, 0)) spite_outside_list("columns[index]", ...);
+    ((Column**)(intptr_t)list->items_)[at]; });
+Column_hit(column_);
+List_Integer_set_at(self->weights_, index_, HeldNames_weight___held_0(self, column_));
+```
+
+The proof is the [write-back's](#an-item-written-back-to-its-own-slot-is-not-written), from the read to the end of
+the block ([the rule](proofs.md#an-item-a-name-holds-from-its-list-is-not-counted)). Assigning another object's
+attribute is allowed between, since that lets go of another object, never of the one the slot holds. A call that
+writes into a list that may be this one keeps the count: `columns[index] = other`, a function handed `columns` (or
+a local naming it) that writes into what it is handed, and a generic class writing into a list of its own item,
+which could be any class. So does keeping the name: assigning it, returning it, or naming it in another `var`.
+
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port` and `--development`, in the program's own
+classes, for a `List` of a class read with `[]` into a `var`.
+
+**What you notice.** Speed: the naive engine's stress test, whose matcher and row filler hold a column's header
+from a list while they look an entity up, ticks in 41.2 ms instead of 43.6 (38.1 instead of 40.0 as one C file).
+Allocations, the order of everything a program can see and what it prints are the same.
 
 ### A number joined into text is written in place
 

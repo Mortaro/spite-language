@@ -869,8 +869,12 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   functions (the naive engine's runner fills a row in one function and stores it in another, with the system
   called between, so its stress test does not change); a copy written back (`var row = list[index].copy()`, changed,
   then `list[index] = row`), which is the slot only when no other name can hold the stored object (pair L1's proof);
-  a `Dictionary` slot; an uncounted read whose name is passed, kept, compared or returned; the optimisation report
-  does not yet say why a write-back was kept.
+  a `Dictionary` slot; an uncounted read whose name is kept, compared or returned; a call that writes into a list
+  of a generic class's own item (`Column<$component_type>.values`) keeps the count even when no instance of that
+  class could hold the read item's list, since the call effects are studied per generic class and not per
+  instance (the naive engine's `store_attribute`); an item read with `[]` and used at once, without a name
+  (`candidates[index].count()`, `changes.stamp_written(headers[index], entity)`), is still counted; the
+  optimisation report does not yet say why a write-back was kept or a read counted.
 
 ### A list item read only to test it is not counted
 

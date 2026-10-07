@@ -8,6 +8,7 @@ var entry_parameters = List<Boolean>()
 var override_names = List<String>()
 var override_codes = List<String>()
 var owned = List<OwnedLocal>()
+var held_names = List<String>()
 var narrowed_paths = List<String>()
 var bound_paths = List<String>()
 var bound_reasons = List<String>()
@@ -188,7 +189,7 @@ func holds_for_call(name: String): Boolean {
     while index >= 0 {
         if entry_names[index] == name {
             crash index < entry_parameters.count()
-            if entry_parameters[index] {
+            if entry_parameters[index] or held_names.contains(name) {
                 return true
             }
             var owned_index = owned.count() - 1

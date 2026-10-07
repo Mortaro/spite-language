@@ -904,12 +904,31 @@ fi
 tested_items="$work/tested_items.c"
 "$work/generation_two.exe" conformance/stage6/tested_items --check --c-source --c-path="$tested_items" > /dev/null 2>&1 || {
   echo "FAILED: tested_items does not write its C"; exit 1; }
-tested_bodies=$(awk '/^void TestedItems_report_(points|maybe|names)\(TestedItems\* self\) \{$/ { inside = 1 }
-  inside && /^}$/ { inside = 0 }
+tested_bodies=$(awk '/^void TestedItems_report_(points|maybe|names)\(TestedItems\* self\) \{$/ { inside = 1; next }
+  /^[A-Za-z_][A-Za-z_0-9]*[*]? [A-Za-z_][A-Za-z_0-9]*[(].*[)] [{]$/ { inside = 0 }
   inside { print }' "$tested_items")
 if [ -z "$tested_bodies" ] || echo "$tested_bodies" | grep -q "path_narrowed" \
    || ! echo "$tested_bodies" | grep -q "((Point\*\*)(intptr_t)"; then
   echo "FAILED: tested_items should test its list items in their slots, without counting them"; exit 1
+fi
+# An item a name holds from its list is not counted (pair B1): held_items's passed(), marked(), remembered() and
+# fill_left() read their item uncounted and pass it as held, while kept() and aliased(), whose calls write the
+# list, keep the count.
+held_items="$work/held_items.c"
+"$work/generation_two.exe" conformance/stage6/held_items --check --c-source --c-path="$held_items" > /dev/null 2>&1 || {
+  echo "FAILED: held_items does not write its C"; exit 1; }
+held_body() {
+  awk -v wanted="HeldItems_$1" '
+    index($0, wanted) && /[)] [{]$/ { split($0, parts, "("); name = parts[1]; sub(/.*[ *]/, "", name)
+      if (name == wanted || index(name, wanted "___") == 1) { inside = 1; next } }
+    inside && /^[A-Za-z_][A-Za-z_0-9]*[*]? [A-Za-z_][A-Za-z_0-9]*[(].*[)] [{]$/ { exit }
+    inside { print }' "$held_items"
+}
+held_counts() { held_body "$1" | grep -c "List_Point_get_at"; }
+if [ "$(held_counts passed)" != 0 ] || [ "$(held_counts marked)" != 0 ] || [ "$(held_counts remembered)" != 0 ] \
+   || [ "$(held_counts fill_left)" != 0 ] || [ "$(held_counts kept)" == 0 ] || [ "$(held_counts aliased)" == 0 ] \
+   || ! held_body passed | grep -q "HeldItems_twice___held_0(self, point_)"; then
+  echo "FAILED: held_items should read the items of passed(), marked(), remembered() and fill_left() uncounted, and count kept()'s and aliased()'s"; exit 1
 fi
 # Objects of one class a list holds sit together (pair M6): class_pools takes every Point from Point's own pool and
 # gives it back there, keeps Label (no list holds one) and Mark (a worker makes and counts them) on the C library's

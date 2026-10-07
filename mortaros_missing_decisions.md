@@ -66,6 +66,11 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   slot in place and count nothing. Why: the count up and down was two writes to the item's object for a test that
   only reads the slot (a stress tick 48.1 ms to 43.8). Nothing runs between the read and the test, so it holds in
   every build.
+- **D519, an item a name holds from its list**: `var item = list[index]` takes no count while nothing to the end
+  of the block can write that list, and `item` may be passed to calls, which take it as held. A call that assigns
+  attributes (letting go of other objects) no longer stops it; a store into a list the call is handed, a local
+  list or a generic class's list of its own item does. Why: the slot holds the item the whole time, so its count
+  is two writes for nothing (a stress tick 43.6 ms to 41.2). The same rule now decides D515's write-back.
 
 ## Open
 

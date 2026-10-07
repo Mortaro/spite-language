@@ -8,6 +8,7 @@ var uncounted = false
 var write_back_allowed = false
 var constructs = false
 var object_locals = false
+var element: Analysis.SpiteType? = null
 
 func SlotWatch(watched_name: String, watched_slot: String, watched_list: String) {
     name = watched_name

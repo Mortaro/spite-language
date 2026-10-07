@@ -110,7 +110,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Held arguments](#an-argument-its-caller-holds-is-passed-uncounted) | no count on the argument | the counted call |
 | [A singleton attribute that never changes](#a-singleton-attribute-that-never-changes-is-read-in-place) | no count, no lock | the counted, locked read |
 | [List templates read uncounted](#a-lists-templates-read-their-elements-uncounted) | no count per element | the counted read |
-| [An item written back to its own slot](#an-item-written-back-to-its-own-slot-is-the-slot) | no write-back; no count on the read | the counted read and the write |
+| [An item written back to its own slot](#an-item-written-back-to-its-own-slot-is-the-slot) | no write-back | the write |
+| [An item a name holds from its list](#an-item-a-name-holds-from-its-list-is-not-counted) | no count on the read, none on the calls it is passed to | the counted read |
 | [A list item read only to test it](#a-list-item-read-only-to-test-it-is-not-counted) | no count for the test | the counted read |
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
 | [Objects a list holds, made on one thread](#objects-a-list-holds-made-on-one-thread) | a pool per class | the C library's allocator |
@@ -839,12 +840,15 @@ have moved.
   names, and while `item` is in use nothing can let that object go.
 - **Rule.** `list` is a `List` named by a path of attributes or locals, `index` a local, a parameter or a number,
   and the read and the write are in the same block. Nothing between them assigns `item`, `index` or any name of
-  the path, writes into a list with `[]` (but the same write-back), or calls anything that may let go of an object,
-  remove from or reorder a list (`remove_*`, `clear`, `truncate`, `swap`, `reverse`), write the attributes along
-  the path, change a list passed to it, call through a function value, or wait; every call is one the compiler can
-  name. In a program where a `drop()` may let go of an object, nothing between them makes an object or calls
-  anything. For the uncounted read, the same holds from the read to the end of the block, and `item` is used only
-  to read and write its attributes, call its functions, narrow it or write it back.
+  the path, writes with `[]` into a list that may be this one (but the same write-back), or calls anything that
+  may: write with `[]` into a list that may be this one, remove from or reorder a list (`remove_*`, `clear`,
+  `truncate`, `swap`, `reverse`), write the attributes along the path, change a list passed to it, call a library
+  collection's function that lets go of an item (`set_at`), call through a function value, or wait; every call is
+  one the compiler can name. A list of numbers, and an attribute declared as a list of another class, is never
+  this one; a list passed as an argument, a local list or a list of a generic class's own item may be. Letting go
+  of other objects (assigning an attribute that holds one) is allowed: the slot still holds its reference. In a
+  program where a `drop()` may let go of an object, nothing between them makes an object or calls anything. The
+  uncounted read is [the next section](#an-item-a-name-holds-from-its-list-is-not-counted).
 - **Buys.** The write-back is not written: no bounds check, no count up and down, no release of the slot. The read
   is the item's address with its bounds check and no count, so a loop that changes each item of a list in place
   touches only the items.
@@ -852,6 +856,24 @@ have moved.
   itself (`list[index].x = ...` or a `var` you change and leave), which needs no write-back at all.
 - **See.** [optimizations.md: An item written back to its own slot is not
   written](optimizations.md#an-item-written-back-to-its-own-slot-is-not-written);
+  `conformance/stage6/slot_write_backs`.
+
+### An item a name holds from its list is not counted
+
+- **Proves.** While a name read with `var item = list[index]` is in use, its slot keeps holding the object, so
+  the name needs no reference of its own.
+- **Rule.** The read is the whole value of a `var` with no declared class, `list` a `List` of a class named by a
+  path of attributes or locals, `index` a local, a parameter or a number. From the read to the end of the block,
+  what [the write-back](#an-item-written-back-to-its-own-slot-is-the-slot) forbids between its read and its write
+  is not there, and `item` is used only to read and write its attributes, call its functions, pass it to a call,
+  narrow it or write it back: never assigned, kept in a `var`, returned or compared.
+- **Buys.** The read is the item's address after its bounds check, with no count up and down; a call it is passed
+  to takes it as an [argument its caller holds](#an-argument-its-caller-holds-is-passed-uncounted).
+- **Falls back.** The ordinary counted read; nothing is an error. A call that may write into the list (directly,
+  through a list it is handed, or through a generic class's list whose item could be this one), or a statement
+  that keeps the name, keeps the count.
+- **See.** [optimizations.md: An item a name holds from its list is not
+  counted](optimizations.md#an-item-a-name-holds-from-its-list-is-not-counted); `conformance/stage6/held_items`,
   `conformance/stage6/slot_write_backs`.
 
 ### A list item read only to test it is not counted

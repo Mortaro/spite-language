@@ -24631,7 +24631,7 @@ func effect_changes(
 }
 
 func dependency_changes(effect: String, dependency: String): Boolean {
-    if effect == "release" or effect.starts_with("grow:") {
+    if effect == "release" or effect.starts_with("grow:") or effect.starts_with("release:") or effect.starts_with("store:") {
         return false
     }
     var is_list = dependency.starts_with("list:")
@@ -25126,6 +25126,7 @@ func generate_variable_declaration(
         mark_names_used_in(declaration.value, scope)
         builder.add_user("{c_type_name(read_type)} {c_value_name(declaration.name)} = {uncounted};")
         scope.declare(declaration.name, read_type)
+        scope.held_names.append(declaration.name)
         scope.check_last(current_line)
         check_value_name(declaration.name, "variable")
         return
@@ -28942,6 +28943,7 @@ func slot_watch_for(
     var index_name = shape.as_identifier(read.index)
     assert index_name or shape.as_integer_literal(read.index)
     var watch = SlotWatch(name, slot_text, list_text)
+    watch.element = element
     watch.guarded = list_text.split(".")
     if index_name {
         watch.guarded.append(index_name.name)
@@ -29137,7 +29139,14 @@ func slot_target_holds(
         }
         return true
     }
-    if shape.as_index(target) {
+    var written_slot = shape.as_index(target)
+    if written_slot {
+        if is_bound_member_index(written_slot) {
+            return bound_attribute_write(watch, written_slot, value, scope, class_information)
+        }
+        if plain_list_write(watch, written_slot, value, scope, class_information) {
+            return true
+        }
         watch.object_locals = true
         return watch.write_back_allowed and operand_text(target) == watch.slot_text and is_identifier_named(value, watch.name)
     }
@@ -29173,6 +29182,71 @@ func slot_target_holds(
     return true
 }
 
+# ../../../docs/optimizations.md#an-item-a-name-holds-from-its-list-is-not-counted
+func bound_attribute_write(
+    watch: SlotWatch,
+    written: Syntax.Expressions.IndexExpression,
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash written.object
+    var member = shape.as_member(written.object)
+    if not member or bound_through_caller or bound_member_is_function() {
+        return false
+    }
+    if not bound_compared_value.is_empty() or not bound_chain_method.is_empty() {
+        return false
+    }
+    if watch.guarded.contains(bound_field_name) or watch.name == bound_field_name {
+        return false
+    }
+    crash member.object
+    if not is_identifier_named(member.object, watch.name) {
+        if not slot_expression_holds(watch, member.object, scope, class_information) {
+            return false
+        }
+    }
+    if not bound_field_type {
+        watch.object_locals = true
+        return slot_expression_holds(watch, value, scope, class_information)
+    }
+    if type_needs_drop(bound_field_type) {
+        watch.object_locals = true
+    }
+    return slot_expression_holds(watch, value, scope, class_information)
+}
+
+func plain_list_write(
+    watch: SlotWatch,
+    written: Syntax.Expressions.IndexExpression,
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash written.object
+    crash written.index
+    var written_type = receiver_type_of(written.object, scope, class_information)
+    if not written_type {
+        return false
+    }
+    var written_list = type_shape.as_list(written_type)
+    if not written_list {
+        return false
+    }
+    var written_element = written_list.element
+    if type_needs_drop(written_element) {
+        return false
+    }
+    if not slot_expression_holds(watch, written.object, scope, class_information) {
+        return false
+    }
+    if not slot_expression_holds(watch, written.index, scope, class_information) {
+        return false
+    }
+    return slot_expression_holds(watch, value, scope, class_information)
+}
+
 func slot_expressions_hold(
     watch: SlotWatch,
     expressions: List<Syntax.Expressions.Expression>,
@@ -29183,11 +29257,12 @@ func slot_expressions_hold(
     while index < expressions.count() {
         var expression = expressions[index]
         var passed = operand_text(expression)
+        var held_item = watch.uncounted and is_identifier_named(expression, watch.name)
         if passed.is_empty() and not shape.as_identifier(expression) and not shape.as_member(expression) {
             if not slot_expression_holds(watch, expression, scope, class_information) {
                 return false
             }
-        } else {
+        } else if not held_item {
             if passed == watch.list_text or watch.list_text.starts_with("{passed}.") {
                 return false
             }
@@ -29253,6 +29328,10 @@ func slot_expression_holds(
         Syntax.Expressions.IndexExpression: {
             crash expression.object
             crash expression.index
+            if is_bound_member_index(expression) {
+                var bound_read = bound_member_expression(expression)
+                return slot_expression_holds(watch, bound_read, scope, class_information)
+            }
             var indexed_type = receiver_type_of(expression.object, scope, class_information)
             if not indexed_type {
                 return false
@@ -29315,7 +29394,10 @@ func slot_key_holds(watch: SlotWatch, key: String): Boolean {
     var index = 0
     while index < effects.keys.count() {
         var effect = effects.keys[index]
-        if effect == "release" or effect == "field:*" or effect == "grow:*" {
+        if effect == "release:value" or effect == "field:*" or effect == "grow:*" {
+            return false
+        }
+        if effect.starts_with("store:") and store_may_reach(watch, effect) {
             return false
         }
         if effect.starts_with("shrink:") or effect.starts_with("parameter:") or effect.starts_with("grow:parameter:") {
@@ -29332,6 +29414,56 @@ func slot_key_holds(watch: SlotWatch, key: String): Boolean {
     }
     watch.keys.append(key)
     return true
+}
+
+# ../../../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted
+func store_may_reach(watch: SlotWatch, effect: String): Boolean {
+    var effect_length = effect.length()
+    var stored = effect.slice(6, effect_length)
+    if not stored.starts_with("shrink:") or stored.ends_with("[]") {
+        return true
+    }
+    var stored_length = stored.length()
+    var path = stored.slice(7, stored_length)
+    var parts = path.split("#")
+    if parts.count() != 2 {
+        return true
+    }
+    var writer_name = parts[0]
+    var field_name = parts[1]
+    if watch.guarded.contains(field_name) or writer_name == "*" {
+        return true
+    }
+    var owner = find_class_by_qualified(writer_name)
+    if not owner {
+        return true
+    }
+    var field = owner.find_field(field_name)
+    if not field {
+        return true
+    }
+    if type_shape.as_dictionary(field.type) {
+        return false
+    }
+    var listed = type_shape.as_list(field.type)
+    if not listed {
+        return true
+    }
+    var stored_element = listed.element
+    if not type_needs_drop(stored_element) {
+        return false
+    }
+    if not watch.element {
+        return true
+    }
+    var stored_reference = type_shape.as_class_ref(stored_element)
+    if not stored_reference {
+        return true
+    }
+    if not find_class_by_c_name(stored_reference.c_name) {
+        return true
+    }
+    return types_equal(stored_element, watch.element)
 }
 
 func slot_watch_settles(watch: SlotWatch): Boolean {

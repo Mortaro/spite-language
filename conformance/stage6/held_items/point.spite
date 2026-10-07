@@ -1,0 +1,11 @@
+var x = 0
+var moves = 0
+
+func Point(starting_x: Integer) {
+    x = starting_x
+}
+
+func moved(by: Integer) {
+    x = x + by
+    moves = moves + 1
+}

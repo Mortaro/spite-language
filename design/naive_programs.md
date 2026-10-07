@@ -264,6 +264,25 @@ matcher passes its `rows` attribute to `match_into` (counted, 4%), `stamp_writte
 `changes.stamp_written` (3%), and the `header` locals of `find_row`, `fill_attribute` and `store_attribute` are
 counted reads (B1).
 
+**Built: B1 for named items** (D519): the `header` of `find_row` and `fill_attribute` is the slot's item, passed to
+`present_in`, `passes_tracking` and `slot.fetch` as held. What made it possible is a finer call effect: a store
+with `[]` now says which list it writes, so `found[index] = row` (a `List<Integer>`) and `fill_from`'s attribute
+writes no longer count as letting go of anything the matcher holds. `store_attribute` keeps its count: it calls
+`Column<$component_type>.write_at`, whose list of the generic class's own item could, as far as the per-class
+effects know, be any list.
+
+| | before | after |
+|---|---|---|
+| stress tick, split build | 43.6 ms | 41.2 ms |
+| stress tick, one C file | 40.0 ms | 38.1 ms |
+| physics step | 8.1 ms | 8.2 ms (noise: its changed system, `SortColliders`, 662 to 650 µs; the unchanged `MoveCharacters` moves 1% between builds) |
+| `benchmarks/versus_c` (all five) | | the same C |
+
+The profile after B1, inclusive, both systems summed: writing rows back 38%, matching 21% (`find_row` 15%), filling
+rows 20%, the candidate list 12%, `choose` 9%, `stamp_written` 8%. The `ColumnIndex` counts are now all in
+`stamp_written`, which passes `headers[index]` straight to a call; with `choose`'s two reads of `candidates[index]`
+(4% in their `List<Integer>` counts) they are items used at once without a name (pair B1t, proposed).
+
 ### Stage 2: effects as a language-level fact (medium, foundation)
 
 D505's proof reads the generated C. Every later pair needs the same facts earlier and finer: for every function,

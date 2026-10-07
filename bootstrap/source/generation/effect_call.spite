@@ -29,6 +29,15 @@ func translated(key: String): String {
         }
         return "grow:{passed}"
     }
+    if key.starts_with("store:parameter:") and not passes_parameters {
+        var stored_length = key.length()
+        var stored_parameter = key.slice(6, stored_length)
+        var stored_passed = translated(stored_parameter)
+        if stored_passed.is_empty() {
+            return ""
+        }
+        return "store:{stored_passed}"
+    }
     if passes_parameters or not key.starts_with("parameter:") {
         return key
     }
