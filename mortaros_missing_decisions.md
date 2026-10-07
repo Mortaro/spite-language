@@ -31,6 +31,10 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   objects told apart by class. Widening them is planned work, not a question.
 - **D510, D508's run-time branch**: an optimisation may leave one branch between two forms compiled in advance,
   on a fact only the run knows (a list's length). Never a scheduler.
+- **D511, the spec wins**: when a docs page and `specs/` disagree, the spec is right and the page is the bug.
+- **Which section of values_and_types.md was outdated**: the link had no anchor, so the agent fixing it took the
+  "Inline types and duck typing" section (a `type`'s functions taught as dispatched function values, replaced by
+  "always mono it") and checked the rest of the page against the compiler. Say if you meant another section.
 
 ## Open
 
