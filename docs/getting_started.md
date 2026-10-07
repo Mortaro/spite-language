@@ -118,4 +118,4 @@ language. Keep [compiler.md](compiler.md) at hand for every command-line option.
 
 ---
 
-Next: [Classes and files](classes_and_files.md), what a file, a class and a folder are.
+Next: [Write it plainly](write_it_plainly.md), why you write the plain program and the compiler decides how it runs.

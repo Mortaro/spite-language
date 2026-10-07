@@ -61,8 +61,8 @@ upstream to pull; per D507 it is only a benchmark now and is not changed for fea
 
 ## How every step is judged
 
-1. **The naive form is the reference.** A step starts by writing the naive version of a piece of the engine (in a
-   worktree folder that `load`s the engine and reopens only what it changes, D156) and measuring it against the
+1. **The naive form is the reference.** A step starts by writing the naive version of a piece of the engine (on the engine
+   package's `naive` branch) and measuring it against the
    hand version with `--optimized`.
 2. **A gap names a pair.** Each place the naive form is slower is one missing optimisation and the proof it needs.
    It goes into the pair catalogue before it is built.
@@ -85,14 +85,13 @@ order below is by what the measurements so far say pays most.
 
 - Run `bash check.sh` on `master` to confirm `669adde7` is green on Windows.
 - Fix the stale D505 line in `design/status.md`.
-- Write the docs for D506 and D507: a section that teaches writing the plain program and lists what the compiler
-  does with it, linked from the reading order (where it lives is question Q1 below).
+- Write the docs for D506 to D508 (done: `docs/write_it_plainly.md` and the README's philosophy).
 - Clear the inbox (done with this plan: D507 row recorded).
 
 ### Stage 1: the naive engine and its baseline (medium, the most important stage)
 
-- A worktree folder beside the engine package, `naive/`, that loads the engine and reopens the classes that use
-  `Parallel`, `Concurrent`, `Memory` and hand allocators, rewritten as plain lists, loops and classes.
+- A branch of the engine package, `naive`, where the classes that use `Parallel`, `Concurrent`, `Memory` and
+  hand allocators are rewritten as plain lists, loops and classes. It replaces the main branch once it is as fast.
 - Run every engine benchmark for both forms; record the table in this file. The table is the work queue: every
   row where naive loses is a pair to build.
 - Expected (from the proposal and the stress measurements): locks, per-field layout and loop parallelism dominate;
@@ -146,15 +145,24 @@ not now"), and the engine and the game use none of them.
 The pair catalogue is the specification the own backend (D397) rebuilds from. Its last column says, for each
 pair, what the backend can do that C cannot express (no-alias facts per field, proven bounds, layout freedom).
 
-## Questions for Mortaro
+## Answered (2026-10-07, D508)
 
-- **Q1.** Where do D506 and D507 live in the docs: a new page in the reading order ("Writing for speed: write it
-  plainly"), or the top of `docs/optimizations.md`? Recommend a new short page, since it is how to write code,
-  and `optimizations.md` stays the list of what the compiler does.
-- **Q2.** May an automatic optimisation decide at run time between two compiled forms, by one branch on a number
-  only the run knows (a list's length for parallel or serial)? Recommend yes: it is a branch, not a scheduler, and
-  the page says so.
-- **Q3.** Does the naive engine replace the engine package's `main` once it is as fast, with the hand version kept only as a
-  tagged baseline? Recommend yes; until then the naive form lives in a worktree folder.
+- **Q1, docs**: the moron philosophy sits in the docs README's philosophy and on a new page,
+  `docs/write_it_plainly.md`, second in the reading order. Optimisations and their proofs stay on
+  `optimizations.md` (each section names its proof) and `proofs.md`.
+- **Q2, run-time choices**: as much as possible at compile time, because Spite is general purpose (operating
+  systems to web pages) and a runtime would hurt embedded and WebAssembly targets. A branch between forms
+  compiled in advance remains the only run-time choice allowed, as proposed by Claude and unconfirmed beyond that.
+- **Q3, the engine**: the naive engine lives on its own branch of the engine package (`naive`) until it is as
+  fast, then replaces its main branch. This supersedes the worktree folder of stage 1.
+- **The game** is only a benchmark until real games are built: it should look like the original so the comparison
+  with the engine the original was made in is honest. It is not changed for features.
+- **Scope**: concurrent and parallel code, CPU alignment and every optimisation technique there is. Theories go
+  into [optimization_research.md](optimization_research.md), where no idea is a bad one: the question is how far
+  moron-written code can beat expert hand-tailored code.
+- Language changes are pushed to the remote as they land.
+
+## Still open
+
 - **Q4.** D505's conditions beyond the decision itself (only bare calls, only calls that reach a loop, only
   objects told apart by class) are proposed by Claude, unconfirmed. Confirm, or say what to change.

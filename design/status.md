@@ -5,6 +5,20 @@ page, with what was said on each page before its status was moved here. The docs
 and say nothing about status; this page is where status lives. When something here is built, delete its line;
 when a page gains a rule that is not built yet, add it here.
 
+## [write_it_plainly.md](../docs/write_it_plainly.md)
+
+The page teaches D506, D507 and D508 as the language; most of what it says the compiler does is not built. The
+plan and its order are [naive_programs.md](naive_programs.md), the work items [naive_programs_pairs.md](naive_programs_pairs.md).
+
+- Built: calls in a row run at once (D505, see concurrency below), placement in the frame, proven reads, tree
+  shaking, singleton lock elision. Not built: independent loops run in parallel, reductions, layout chosen by the
+  compiler (structure of arrays, hot and cold splitting, field order and cache-line alignment), waiting arranged by
+  the compiler outside a `Concurrent`, frame arenas, rings and deferred freeing.
+- "A plain program must reach the hand-written speed": not yet true of the engine package; its naive branch and
+  the benchmark table in naive_programs.md track it.
+- `optimizations.md` now says every section names its proof; most existing sections do not yet name one. Each
+  needs a line linking its entry in `proofs.md` (or a new entry there).
+
 ## [classes_and_files.md](../docs/classes_and_files.md)
 
 ### One instance per argument values
@@ -433,9 +447,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Concurrency: `Concurrent`, `Parallel` and hidden waiting
 
-- D505, calls in a row run at once: built for `receiver.function()` with no arguments. Not built: calls with
-  arguments, calls to the class's own functions (`function()`), rows with one light call among heavy ones (the
-  whole row stays in order), telling two objects of one class apart, and a cost model finer than "reaches a loop".
+- D505, calls in a row run at once: built for `receiver.function()` and the class's own `function()` with no
+  arguments, including rows that mix light and heavy calls. Not built: calls with arguments, telling two objects
+  of one class apart, and a cost model finer than "reaches a loop".
   The conditions beyond D505 itself are proposed by Claude, unconfirmed.
 - Section was tagged implemented on Windows. The names and mechanism are decided; several details were only "proposed by Claude, unconfirmed": the written-handle-type rule covering only the declaration that starts the work (handle element types in `List<Parallel<Integer>>()` and parameters are still written), `finished`, `finished_value()` (name provisional, D216), `class`/`attributes`/`functions` staying a handle's own members, comparing handles (nothing has needed a way to compare the handles themselves), the debug text of handles, default-made handles, the `Concurrent` holding its function only while it runs, `Atomic<T>` (names provisional, D205/D214), and all of the ThreadPool, Lock, ThreadSlot and ThreadLocal shapes.
 - `Concurrent` is described as for "IO, sleeps, database calls later": no database classes exist yet.

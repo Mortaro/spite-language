@@ -5,6 +5,13 @@ does, when it applies, and what, if anything, you could ever notice. For almost 
 **you do not need to do anything**. Write the plain program; the compiler does the rest, and the program means exactly
 what its source says.
 
+Why the compiler does this instead of you is on [Write it plainly](write_it_plainly.md). Here is what it does.
+
+**Every optimisation stands on a proof.** The compiler only changes how a program runs where it has proven, while
+compiling, that the change cannot alter what the program prints, computes or crashes on. Each section below names
+that proof, and [Proofs](proofs.md) states each proof in full: its rule, when it does not hold, and what the
+compiler generates then. Where the proof fails, the plain form is generated, which is slower but never wrong.
+
 Two rules decide what belongs here.
 
 **Zero runtime, and everything tree-shakeable.** A program that does not use a feature carries none of it.

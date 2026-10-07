@@ -37,6 +37,10 @@ the docs, the docs win.
     parallel streams;
   - [`design/open_questions.md`](design/open_questions.md): decided work that has no page yet, and open questions;
   - [`design/proposals/`](design/proposals/): proposals under review;
+  - [`design/naive_programs.md`](design/naive_programs.md): the plan for making naive programs fast, with its
+    pairs of optimisation and proof in [`design/naive_programs_pairs.md`](design/naive_programs_pairs.md);
+  - [`design/optimization_research.md`](design/optimization_research.md): the open notebook of optimisation
+    theories, where every idea is welcome and agents record what they find;
   - [`design/KNOWN_ISSUES.md`](design/KNOWN_ISSUES.md): where the compiler falls short of the docs;
   - [`design/self_hosting.md`](design/self_hosting.md): how the compiler builds itself, and what proves it;
 - `skills/spite/` is the skill for an AI that writes Spite: [`SKILL.md`](skills/spite/SKILL.md) and the whole
