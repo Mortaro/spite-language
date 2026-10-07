@@ -7529,6 +7529,7 @@ func ensure_world_gate() {
     assert not world_gate_written
     world_gate_written = true
     ensure_check_point_flag()
+    builder.add_typedef("#include <time.h>")
     builder.add_prototype("void spite_world_enter(void);")
     builder.add_prototype("void spite_world_leave(void);")
     builder.add_prototype("void spite_world_park(void);")
@@ -23134,6 +23135,11 @@ func owned_c_text(text: String): String {
     return "spite_string_from_cstring_owned(\"{escape_c_string(text)}\")"
 }
 
+# ../../../docs/optimizations.md#a-foreign-name-is-never-copied
+func static_c_text(text: String): String {
+    return "((SpiteString)SPITE_STATIC_STRING(\"{escape_c_string(text)}\", {text.length()}))"
+}
+
 func report_singleton_circles() {
     var reported = List<String>()
     var index = 0
@@ -23410,7 +23416,7 @@ func emit_foreign_libraries() {
         lines.append("SPITE_LOCK({accessor}_lock);")
         lines.append("if ({accessor}_cache == 0) \{")
         lines.append(
-            "DynamicLibrary* made = DynamicLibrary___make({owned_c_text(foreign_library_files[library])}, {ensure_symbol(foreign_library_namings[library])}, {owned_c_text(foreign_library_headers[library])});",
+            "DynamicLibrary* made = DynamicLibrary___make({static_c_text(foreign_library_files[library])}, {ensure_symbol(foreign_library_namings[library])}, {static_c_text(foreign_library_headers[library])});",
         )
         lines.append("{accessor}_tracked = spite_singleton_tracked();")
         lines.append("(void)&DynamicLibrary_find_symbol;")
@@ -23421,7 +23427,7 @@ func emit_foreign_libraries() {
             if foreign_symbol_libraries[index] == library {
                 var binding = builder.add_binding(
                     "spite_foreign_{library}_{index}",
-                    "spite_foreign_{library}_{index} = (void*)(intptr_t)DynamicLibrary_find_symbol(made, {owned_c_text(foreign_symbol_names[index])}, {owned_c_text(foreign_symbol_wanted[index])});",
+                    "spite_foreign_{library}_{index} = (void*)(intptr_t)DynamicLibrary_find_symbol(made, {static_c_text(foreign_symbol_names[index])}, {static_c_text(foreign_symbol_wanted[index])});",
                 )
                 lines.append(binding)
             }

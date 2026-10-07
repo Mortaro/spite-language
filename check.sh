@@ -174,11 +174,12 @@ job_program() {
     # balance line because a crash halts before the program would have released anything. A native fault names where
     # it stopped as module+offset (D244), and the offset is the C compiler's, so it is compared without it; so is an
     # address on the stack, which the system places anew on every run, and so is a 'Memory.Address' attribute or a
-    # thread a crash line shows in decimal (a collection's 'items=', the scheduler's 'frame=' and 'scheduler_thread='). A corrupted heap is reported alike on every system (D379), so
+    # thread a crash line shows in decimal (a collection's 'items=', the scheduler's 'frame=' and 'scheduler_thread=',
+    # which on Windows is a thread id of a few digits rather than an address). A corrupted heap is reported alike on every system (D379), so
     # what still differs is left out: the C library's own message and the shell's 'Aborted' notice, and the
     # heap-corruption line's exception code or signal and the system file it stopped in, both written 'status=...'
     # and 'at=...'.
-    actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g; s/address=0x[0-9a-f]{6,}/address=0x.../g; s/\t([a-z_]+)=[0-9]{9,}/\t\1=.../g' \
+    actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g; s/address=0x[0-9a-f]{6,}/address=0x.../g; s/\t([a-z_]+)=[0-9]{9,}/\t\1=.../g; s/\tscheduler_thread=[0-9]+/\tscheduler_thread=.../g' \
       | sed -E '/^(free|malloc|realloc|calloc|munmap_chunk|double free|corrupted)[^\t]*$/d; /malloc: \*\*\*/d; /^(Aborted|Abort trap: 6)( \(core dumped\))?$/d' \
       | sed -E 's/^(spite\.fault\theap-corruption\t[^\t]*\t[^\t]*\t[^\t]*)\t(code|signal)=[^\t]*\tat=[^\t]*/\1\tstatus=...\tat=.../')
     [ "$actual" == "$expected" ] && exit 0
@@ -1526,7 +1527,6 @@ export port
 {
   echo places
   echo git_load
-  echo units
   echo threads
   echo production_c
   echo wire
@@ -1540,6 +1540,13 @@ export port
 } | awk '{ print NR, $0 }' > "$work/jobs.txt"
 run_pool
 report_pool
+pooled_failures=$failures
+# The translation units check counts and evicts what is in the object cache, which every build from this checkout
+# shares, so it runs alone: a build in another job adding or evicting objects at the same time would fail it.
+echo "1 units" > "$work/jobs.txt"
+run_pool
+report_pool
+failures=$((failures + pooled_failures))
 [ "$failures" == "0" ] || { echo "FAILED: $failures checks failed"; exit 1; }
 
 # Each operating system has its own seed, the compiler's C written for it: this system's is generation 2 itself, and

@@ -708,7 +708,7 @@ func type_of(expression: String, lines: List<String>): String {
         return ""
     }
     if is_identifier(text) {
-        return outline.declared_type(lines, text)
+        return outline.declared_type(lines, text, true)
     }
     return ""
 }

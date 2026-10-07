@@ -1,0 +1,5 @@
+var system_library = DynamicLibrary("libc.so.6", 'identity', "")
+
+func close_library(library: Long) {
+    system_library.dlclose(library)
+}

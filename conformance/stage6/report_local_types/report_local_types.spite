@@ -1,0 +1,10 @@
+var console = Console()
+
+func ReportLocalTypes() {
+    var spread = 1.5
+    var axis = 2.0
+    var next = axis * spread + 1.0
+    var flat = 1.0 - spread * spread
+    crash next < 100.0 and spread < 100.0 and flat < 100.0
+    console.print(next, flat)
+}

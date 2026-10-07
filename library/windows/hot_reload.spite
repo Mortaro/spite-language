@@ -1,0 +1,5 @@
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+
+func close_library(library: Long) {
+    kernel.FreeLibrary(library)
+}
