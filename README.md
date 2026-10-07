@@ -81,9 +81,10 @@ up while the program runs, and whatever it does not call is not in the executabl
 
 ## Reading order
 
-[`docs/`](docs/README.md) is both the tutorial and the definition of the language: each page teaches one part and
-ends with its rules in full, and every titled program on it is compiled and run by `bash check.sh`. Read it in
-this order, from a first program to what the compiler proves; each page ends with a link to the next:
+[`docs/`](docs/README.md) is the tutorial: each page teaches one part of the language, and every titled program on
+it is compiled and run by `bash check.sh`. The formal definition is [`specs/`](specs/README.md), one page per docs
+page with every rule, edge case and exact error text. Read the docs in this order, from a first program to what the
+compiler proves; each page ends with a link to the next:
 
 1. [Getting started](docs/getting_started.md): build the compiler, run hello world, a program of two classes.
 2. [Write it plainly](docs/write_it_plainly.md): why you write the plain program and the compiler decides
@@ -206,9 +207,10 @@ listed in [design/status.md](design/status.md).
   conventions for shared files when more than one agent is running).
 - [`SPITE.md`](SPITE.md): things that cause Mortaro spite, with what to do instead. Read it before proposing
   a language feature or a way of working; it is the point of the project.
-- [`docs/`](docs/README.md): the language, normative, for people learning it: one page per topic that teaches it
-  and then states its rules in full. When anything else disagrees with the docs, the docs win. Every titled
-  Spite code block in `docs/` is compiled and checked as part of `bash check.sh`.
+- [`docs/`](docs/README.md): the tutorial, for people learning the language: one page per topic that teaches it.
+  Every titled Spite code block in `docs/` is compiled and checked as part of `bash check.sh`.
+- [`specs/`](specs/README.md): the language specification, normative: one page per docs page, with every rule,
+  edge case and exact error text. When anything else disagrees with the specification, the specification wins.
 - [`design/`](design/): for the people building Spite: the [decision log](design/decisions.md), what is
   [not built yet](design/status.md), [open questions](design/open_questions.md), proposals,
   [known issues](design/KNOWN_ISSUES.md), and [how the compiler builds itself](design/self_hosting.md).

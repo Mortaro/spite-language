@@ -540,7 +540,7 @@ func list_package_error(line: String, package: String) {
     }
 }
 
-# ../../../docs/compiler.md#how-many-errors-are-listed
+# ../../../specs/compiler.md#how-many-errors-are-listed
 func listed_errors(): String {
     var shown = error_lines.copy()
     if own_errors_hidden > 0 {
@@ -3674,7 +3674,7 @@ func required_function_problem(
     return ""
 }
 
-# ../../../docs/values_and_types.md#inline-types-and-duck-typing-in-full
+# ../../../specs/values_and_types.md#inline-types-and-duck-typing-in-full
 func own_type_in_shape(
     information: Analysis.UnionInfo,
     wanted_type: Analysis.SpiteType,
@@ -7362,7 +7362,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     information.declared_functions.append(function)
 }
 
-# ../../../docs/values_and_types.md#numbers-are-classes-and-this
+# ../../../specs/values_and_types.md#numbers-are-classes-and-this
 func report_from_declaration(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo) {
     var saved_line = current_line
     current_line = declaration.line
@@ -32314,7 +32314,7 @@ func report_shadow(name: String, what: String, function_names: List<String>) {
     )
 }
 
-# ../../../docs/standard_library.md#the-string-class
+# ../../../specs/standard_library.md#the-string-class
 func read_inflection_words(declaration: Syntax.Statements.VariableDeclaration) {
     crash declaration.value
     if declaration.name == "uncountables" {

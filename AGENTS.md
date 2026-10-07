@@ -1,7 +1,7 @@
 # Working on Spite
 
 **Read [`mortaros_notes.md`](mortaros_notes.md) first, every time.** It is Mortaro's inbox. For each note: record the
-decision (the rule in the docs page that teaches that part of the language, and a row in
+decision (the rule in the spec page for that part of the language, the teaching in its docs page, and a row in
 [`design/decisions.md`](design/decisions.md)) or act on it, then delete the note, so the inbox only ever holds
 what nobody has handled yet. Questions only Mortaro can answer go to
 [`mortaros_missing_decisions.md`](mortaros_missing_decisions.md).
@@ -19,16 +19,21 @@ something is missing. Each is a bug to fix, not a style to document. When you fi
 it into the "still open" list of [design/status.md](design/status.md).
 
 Read [`SPITE.md`](SPITE.md) first. It lists what Mortaro hates and what to do instead, and it is the point of the
-project. Then the docs, in the [reading order](docs/README.md#reading-order). **The docs are normative** (D193):
-each page teaches its part of the language and ends with its rules in full, and when anything else disagrees with
-the docs, the docs win.
+project. Then the docs, in the [reading order](docs/README.md#reading-order). **The specification is normative**
+(D511): `docs/` is the tutorial, each page teaching its part of the language and ending with a link to the next, and
+`specs/` holds the formal rules, one page per docs page, with every edge case and exact error text. When anything
+else disagrees with the specification, the specification wins; a docs page that disagrees with it is the bug.
 
 ## Where things live
 
 - `docs/` is documentation for people learning Spite, and nothing else. It holds no notes to AI writers, no
   implementation status ("not built", "planned", "being replaced"), no decision numbers or open-question
   bookkeeping, and no mention of third-party packages. Each page teaches the language as decided and ends with a
-  link to the next page in the [reading order](docs/README.md#reading-order).
+  link to the next page in the [reading order](docs/README.md#reading-order). It does not repeat the rules in
+  full: it links the spec page for the edge cases and the error texts.
+- `specs/` is the formal language specification ([`specs/README.md`](specs/README.md)): one page per docs page,
+  named after it, holding every rule, edge case and exact error text of that part of the language. It is
+  normative and user-facing like `docs/`, with the same limits: no status, no decision numbers, no notes to agents.
 - `design/` is for the people and agents who build Spite:
   - [`design/decisions.md`](design/decisions.md): the append-only decision log, every decision with when and why;
   - [`design/status.md`](design/status.md): what is decided but not built, or only partly built, page by page,
@@ -118,23 +123,23 @@ the fallback for what only the run can know, and the page that documents it says
 A change that adds a proof (a fact the compiler establishes while compiling to accept code, drop a run-time check,
 choose cheaper code or refuse code) or changes what an existing proof covers updates
 [`docs/proofs.md`](docs/proofs.md) in the same commit (D276): what it proves, the rule, what it buys, when it does
-**not** apply and what the user writes then, and a program that shows it. The rule itself stays on the page that
-teaches it; `proofs.md` summarises and links.
+**not** apply and what the user writes then, and a program that shows it. The rule itself stays on the spec page for
+that part of the language; `proofs.md` summarises and links.
 
 ## Decisions
 
-The docs are the record of the language, and the decision log is the record of why. Every language decision goes,
-when it is made, into the rules of the docs page that teaches that part of the language (its "Rules in full"
-section, and its teaching too where that changes) **and** into the decision log,
+The specification is the record of the language, and the decision log is the record of why. Every language decision
+goes, when it is made, into the spec page that states its rule (`specs/<page>.md`), into the teaching of the docs
+page of the same name where that changes, **and** into the decision log,
 [`design/decisions.md`](design/decisions.md), as a new row: a decision that exists only in a conversation will be
-re-litigated. The page states the rule without its decision number. A rule belongs to exactly one page; a decision
+re-litigated. The spec states the rule without its decision number. A rule belongs to exactly one page; a decision
 that fits no page yet goes into [`design/open_questions.md`](design/open_questions.md) until its page exists. Mortaro decides
 what cannot be undone cheaply; an agent decides anything that can be changed later without losing work (D509),
 records it as "decided by Claude under D509", and lists it under "To confirm" in `mortaros_missing_decisions.md`.
 A proposal not yet decided is marked "(proposed by Claude, unconfirmed)".
 
-`mortaros_notes.md` is Mortaro's inbox, nothing else: read it, move what it contains into the docs (the page and a
-decision-log row), clear it. Agent-owned state belongs in an agent-owned file.
+`mortaros_notes.md` is Mortaro's inbox, nothing else: read it, move what it contains into the specification and the
+docs (the spec page, the teaching and a decision-log row), clear it. Agent-owned state belongs in an agent-owned file.
 
 ## Shared files, when more than one agent is running
 
@@ -155,9 +160,10 @@ decision-log row), clear it. Agent-owned state belongs in an agent-owned file.
 ## The project
 
 - `SPITE.md`: what Mortaro hates, and what to do instead.
-- `docs/`: the language, normative. Each page teaches one part and ends with its rules in full. Every titled
-  code block in it is a program `check.sh` runs too (`scripts/docs_corpus` writes them out), so a page cannot
-  drift from the compiler without failing. A program for something not built yet carries no title.
+- `docs/`: the tutorial. Each page teaches one part of the language. Every titled code block in it is a program
+  `check.sh` runs too (`scripts/docs_corpus` writes them out), so a page cannot drift from the compiler without
+  failing. A program for something not built yet carries no title.
+- `specs/`: the language, normative: one page per docs page with that part's rules in full.
 - `design/`: decisions, status, open questions, proposals and known issues (above).
 - `PLAN.md`: milestones and implementation status.
 - `bootstrap/COMPILER_PLAN.md`: the compiler's own plan, design notes and progress log.

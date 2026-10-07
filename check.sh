@@ -196,8 +196,8 @@ job_program() {
   echo "FAILED: $name"; echo "$actual" | head -8; exit 1
 }
 
-# Every program written in docs/ and README.md is a program: scripts/docs_corpus (itself Spite) writes each titled
-# code block out, and each one has to compile, run, print its ```output block and free everything it took.
+# Every program written in docs/, specs/ and README.md is a program: scripts/docs_corpus (itself Spite) writes each
+# titled code block out, and each one has to compile, run, print its ```output block and free everything it took.
 # A block marked `error` must fail to compile with its ```diagnostic text somewhere in the message.
 job_documentation() {
   local folder=$1 name flags actual expected body balance
@@ -1035,7 +1035,7 @@ if grep -q "___for_0_" "$work/number_parameter_hot.c" || ! grep -q "^Number_Numb
   echo "FAILED: a --hot-reload build should compile doubled as written, its '+' a switch over the classes that fit Number"; exit 1
 fi
 echo "number parameters: a function taking Number is compiled per number class, its operators plain arithmetic"
-# A class test admits nothing to a type (docs/values_and_types.md#inline-types-and-duck-typing-in-full): tested_classes
+# A class test admits nothing to a type (specs/values_and_types.md#inline-types-and-duck-typing-in-full): tested_classes
 # asks 'item == Ghost' on an Anything no Ghost ever reaches, so its production C has no copy, no case and no Ghost.
 "$work/generation_two.exe" conformance/stage6/tested_classes --check --c-source --c-path="$work/tested_classes.c" > /dev/null 2>&1 || {
   echo "FAILED: tested_classes does not write its C"; exit 1; }

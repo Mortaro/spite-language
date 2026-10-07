@@ -8,8 +8,9 @@ while compiling and emits nothing of its own; what a proof costs, if anything, i
 it does not hold.
 
 This page is the catalogue of every such proof. It is a catalogue, not a second home for the rules: each entry
-says in a few lines what the proof is, and links the page that teaches it and states it in full. Where an entry
-and that page differ, the page decides.
+says in a few lines what the proof is, and links the page that teaches it and the
+[specification](../specs/README.md) that states it in full. Where an entry and the specification differ, the
+specification decides.
 
 **Why the fallback matters most.** A proof that does not apply never fails silently: either
 the compiler refuses the code and says what to write, or it keeps the run-time check. So each entry ends with
@@ -387,7 +388,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
   constant outside the `Integer` range are not proofs. The smallest signed value divided by `-1` halts as
   [arithmetic that does not fit](#arithmetic-that-does-not-fit-halts) does, even where the divisor is proven.
 - **See.** [optimizations.md: A proven divisor is not checked](optimizations.md#a-proven-divisor-is-not-checked),
-  [values_and_types.md: Numeric types](values_and_types.md#numeric-types);
+  [values_and_types.md: Numeric types](../specs/values_and_types.md#numeric-types);
   `conformance/stage6/division_by_zero`.
 
 ### A divisor written as zero is an error
@@ -397,7 +398,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
   to `0`.
 - **Buys.** `'total / 0' divides by zero, which always halts the program ...` at compile time.
 - **Falls back.** None.
-- **See.** [values_and_types.md](values_and_types.md#numeric-types);
+- **See.** [values_and_types.md](../specs/values_and_types.md#numeric-types);
   `diagnostics/division_by_constant_zero`.
 
 ### Arithmetic that does not fit halts
@@ -574,7 +575,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Buys.** A certain halt becomes a build error; a check that holds costs nothing.
 - **Falls back.** A folded `crash` in an instance nothing calls is left alone; a condition that also reads a run-time
   value through `or` is a run-time check.
-- **See.** [metaprogramming.md: Codegen values](metaprogramming.md#codegen-values-);
+- **See.** [metaprogramming.md: Codegen values](../specs/metaprogramming.md#codegen-values-);
   `diagnostics/folded_crash`, `conformance/stage6/folded_crash_uncalled`.
 
 ### Tree shaking: what `main` can reach
@@ -639,7 +640,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Buys.** No allocation: a slot of the frame, and `free` does nothing.
 - **Falls back.** The heap, for a size over 256 bytes known only at run time, any other use, a recursive call, or a
   `--hot-reload` build.
-- **See.** [memory.md: Placement](memory.md#placement-the-compiler-decides-where-memory-lives);
+- **See.** [memory.md: Placement](../specs/memory.md#placement-the-compiler-decides-where-memory-lives);
   `conformance/stage6/lent_buffers`, `conformance/stage6/kept_buffer_address`.
 
 ### Objects that never leave their function live in the frame
@@ -699,7 +700,7 @@ have moved.
 - **Buys.** No count and no copy: `layout.order = 3` writes the stored item.
 - **Falls back.** Each way of keeping one is an error naming `copy()`, an independent object.
 - **See.** [memory.md: Borrowed items of a
-  `Vector<T>`](memory.md#borrowed-items-of-a-vectort); `diagnostics/vector_borrows`,
+  `Vector<T>`](../specs/memory.md#borrowed-items-of-a-vectort); `diagnostics/vector_borrows`,
   `conformance/stage6/vector_items`.
 
 ### No borrowed read past a resize
@@ -715,7 +716,7 @@ have moved.
   compiler cannot place (a nullable, a union, a call's result, a reassigned parameter) is followed into every
   function of that name, and a function value may do anything.
 - **See.** [memory.md: Borrowed items of a
-  `Vector<T>`](memory.md#borrowed-items-of-a-vectort); `diagnostics/dispatched_resizes`,
+  `Vector<T>`](../specs/memory.md#borrowed-items-of-a-vectort); `diagnostics/dispatched_resizes`,
   `diagnostics/vector_reserve_borrows`, `conformance/stage6/queued_borrows`.
 
 ### Rows of borrowed items
@@ -780,7 +781,7 @@ have moved.
 - **Buys.** One retain and one release per row, and the lock per call.
 - **Falls back.** The ordinary counted call; nothing is an error.
 - **See.** [memory.md: Borrowed items of a
-  `Vector<T>`](memory.md#borrowed-items-of-a-vectort) (a reference column's element);
+  `Vector<T>`](../specs/memory.md#borrowed-items-of-a-vectort) (a reference column's element);
   `conformance/stage6/lent_list_elements`, `conformance/stage6/lent_list_elements_parallel`.
 
 ### An argument its caller holds is passed uncounted
@@ -922,7 +923,7 @@ counter, one load per call, not a proof: [optimizations.md](optimizations.md#whi
 - **Falls back.** Not seen: a handle that escapes (stored, switched on, put in a literal), work reached through a
   function value, a union or an unknown receiver, a `parallel_each_` pass, and generic singletons. Do not wait inside
   a locked function for work that calls back into it.
-- **See.** [concurrency.md: Rules in full](concurrency.md#rules-in-full); `diagnostics/locked_wait`,
+- **See.** [concurrency.md: the specification](../specs/concurrency.md); `diagnostics/locked_wait`,
   `diagnostics/endless_locked_loop`.
 
 ### A loop that can never end is an error
@@ -961,7 +962,7 @@ counter, one load per call, not a proof: [optimizations.md](optimizations.md#whi
   `Concurrent`, a class with `drop()`).
 - **Buys.** A write that is lost when the function lets the object go becomes a build error at the write.
 - **Falls back.** An object that has escaped, or one the compiler cannot prove is only held here, is not refused.
-- **See.** [failure.md: Nothing fails silently](failure.md#nothing-fails-silently-the-rule);
+- **See.** [failure.md: Nothing fails silently](../specs/failure.md#nothing-fails-silently-the-rule);
   `diagnostics/lost_writes`.
 
 ### What a `Parallel` may reach
@@ -1001,13 +1002,13 @@ counter, one load per call, not a proof: [optimizations.md](optimizations.md#whi
 
 ## Other refusals built on an analysis
 
-Each reads the program while compiling and accepts, speeds up or refuses code; each is taught in full on its
-own page, and none has a fallback beyond the error it gives.
+Each reads the program while compiling and accepts, speeds up or refuses code; each is taught on its own page
+and stated in full in its specification, and none has a fallback beyond the error it gives.
 
 - **Unused is an error**: a name, parameter or attribute that is only written and never read. It judges the source,
   so reads inside a folded-away branch still count; a function nobody calls is not reported, and a loaded
   package's attributes are shaken rather than reported ([style.md: Nothing unused](style.md#nothing-unused); `diagnostics/unused_names`, `diagnostics/written_not_read`).
-- **A constructed object must be kept and used** ([classes_and_files.md](classes_and_files.md#a-constructed-object-must-be-kept-and-used);
+- **A constructed object must be kept and used** ([classes_and_files.md](../specs/classes_and_files.md#a-constructed-object-must-be-kept-and-used);
   `diagnostics/dropped_construction`).
 - **Singletons that make each other in a circle** are an error; a circle only a constructor's body closes is not
   followed, and halts naming it at run time ([classes_and_files.md: Singletons](classes_and_files.md#singletons);
@@ -1026,7 +1027,7 @@ own page, and none has a fallback beyond the error it gives.
   name is called directly ([collections.md: Member templates](collections.md#member-templates-loops-you-do-not-write);
   `diagnostics/member_template_mistakes`, `diagnostics/passed_functions`).
 - **A value can be written**: the `T` of a `JsonWriter`, `JsonReader`, `BinaryWriter` or `BinaryReader` holds no union,
-  `type` or function value anywhere, so writing never fails at run time, and a binary schema is a constant ([json.md](json.md#json-is-reflection-not-a-library); `diagnostics/json_unwritable`).
+  `type` or function value anywhere, so writing never fails at run time, and a binary schema is a constant ([json.md](../specs/json.md#json-is-reflection-not-a-library); `diagnostics/json_unwritable`).
 - **What crosses into C**: numbers, `Boolean`, enums, text, lists of numbers, number-only `type`s and function values;
   a callback's parameters and context are checked ([foreign_libraries.md: What crosses](foreign_libraries.md#what-crosses); `diagnostics/foreign_call_mistakes`,
   `diagnostics/foreign_callback_mistakes`).

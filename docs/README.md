@@ -4,10 +4,10 @@ Spite is a small, opinionated language meant to be written mostly by AI and skim
 to do each thing, no macros, and metaprogramming instead of loops wherever it reads better. It compiles to C, and
 its compiler is written in Spite.
 
-**These pages are the language's definition, not only its tutorial.** Each page teaches its part of the language
-first and then states it in a closing **Rules in full** section: every rule, edge case and exact error text. There
-is no other reference to check a page against: the rules on the page decide, and where the teaching above them
-disagrees, the teaching is the bug.
+**These pages are the tutorial.** Each page teaches its part of the language, with programs that run, and ends with
+a link to the next page. The formal definition of the language is [the specification](../specs/README.md): one page
+for each page here, holding every rule, edge case and exact error text. The specification is normative: where a
+page here and the specification disagree, the specification decides and the page is the bug.
 
 Every titled Spite program on these pages is real: `bash check.sh` extracts each one, compiles it, runs it and
 compares what it prints with the output written under it (or checks that it fails with the error written under
@@ -32,7 +32,7 @@ reads it best (`func`, `var`, `name: Type`, `#` comments). The code is Spite thr
 - No abbreviations, anywhere, except the language keywords themselves (`var`, `func`, `enum`).
 - Compilation speed and live reload matter more than anything else in the toolchain.
 - Spite compiles to C. The compiler is written in Spite and compiles itself, and so is the standard library:
-  [Pure Spite](standard_library.md#pure-spite-dissolving-the-runtime).
+  [Pure Spite](../specs/standard_library.md#pure-spite-dissolving-the-runtime).
 
 ## Reading order
 

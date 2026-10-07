@@ -175,7 +175,7 @@ test of a codegen type, `attribute.class`, `functions[...]`, `.is_resumable`, `.
 `any_attribute_fits_vector`, `.arguments.count()` or `.is_mutated`, a `Build` field, or a class test the value's
 type already answers (`item == $wanted_type`), and `not`, `and` and `or` over them. A check that holds writes
 nothing, and one that fails writes its failure (the default returned, or the crash report) with no test, the rest
-of its block not compiled ([metaprogramming.md](metaprogramming.md#codegen-values-)). So a `crash` on a `Build`
+of its block not compiled ([metaprogramming.md](../specs/metaprogramming.md#codegen-values-)). So a `crash` on a `Build`
 field that is false, or on a class test that is false for one instantiation, in a function the program reaches, is
 the compile error a folded `crash` is (`diagnostics/folded_build_crash`), rather than a halt when it runs.
 
@@ -389,7 +389,7 @@ abc a
 
 **What it does.** A program has one way to ask for raw memory, `heap.allocate(bytes)` on `Memory.Heap()`, and one way
 to give it back, `heap.free(address)`. Where the bytes live is the compiler's choice
-([Placement](memory.md#placement-the-compiler-decides-where-memory-lives)):
+([Placement](../specs/memory.md#placement-the-compiler-decides-where-memory-lives)):
 
 - **Register:** a number's own memory (`var _memory = Memory.Bytes(4)` in `library/integer.spite`) is its C
   scalar. A number is never an object.
@@ -732,7 +732,7 @@ functions, no event loop and no helper threads; its waits are the plain system c
   through a function value in a state machine costs a comparison of its function against each function made into a
   value of that signature that waits; a union's or a `type`'s call, one class test per class. The few waits that
   still run the event loop where they are, as waits outside a `Concurrent` do
-  ([concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting) lists them), hold their place
+  ([concurrency.md](../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting) lists them), hold their place
   until the wait is over while the other `Concurrent`s keep going. Two such waits that each wait for the other could
   never end, since the one further down the stack resumes only once the one above it returns, so a join that waits
   in place for a `Concurrent` whose state machine is running further down the same stack halts at the join
@@ -1381,7 +1381,7 @@ table is one block, twice as large.
 **What it does.** The compiler writes one deep copy function per class it is used on. A class whose attributes can
 lead back to itself, lead to a `Weak`, or that some `Weak` holds, gets a copy that looks each object up in a table
 of the objects copied during that `deep_copy()` call, so an object reached twice is copied once and the copy keeps
-the original's cycles and weak references ([memory.md](memory.md#the-memory-model)). Every other class gets a plain
+the original's cycles and weak references ([memory.md](../specs/memory.md#the-memory-model)). Every other class gets a plain
 copy: allocate, copy each attribute, return, with no table and no lookup.
 
 **When.** Every build, for each class `deep_copy()` reaches. **What you notice.** A tree or a list of plain records
@@ -1393,7 +1393,7 @@ copies a class that needs the table carries none of it.
 
 **What it does.** `pluralize()` or `singularize()` called on a text literal of lower-case letters and underscores
 (`"cactus".pluralize()`) is worked out while compiling, through the same rules and the same
-[`String.Inflection`](standard_library.md#the-string-class) table the call would read at run time, and the program
+[`String.Inflection`](../specs/standard_library.md#the-string-class) table the call would read at run time, and the program
 holds the answer as a constant (`"cacti"`): no call, no table read, no allocation.
 
 **When.** Every build, for a literal receiver of lower-case letters and underscores, while the program's
@@ -1582,7 +1582,7 @@ proven `whole / pieces` carries no check in its C.
 ### Arithmetic is checked in every build
 
 Every `+`, `-` and `*` done in a whole number, signed or unsigned, is the C compiler's overflow builtin in that type,
-and an answer that does not fit halts ([values_and_types.md](values_and_types.md#numeric-types)); so is a `-` in
+and an answer that does not fit halts ([values_and_types.md](../specs/values_and_types.md#numeric-types)); so is a `-` in
 front of a whole number, the smallest signed value divided by `-1`, and a value put into a narrower name (a compare
 against the narrower type's range and a branch). The ordinary build and `--optimized` check exactly as
 `--debug-memory` does: there is no unchecked mode, so a benchmark measures the program as it ships. The
@@ -1635,7 +1635,7 @@ long text needs anyway (where its characters are, and how many).
 
 ### Maths on constants is worked out while compiling
 
-**What it does.** A maths function of a number class ([standard_library.md](standard_library.md#maths))
+**What it does.** A maths function of a number class ([standard_library.md](../specs/standard_library.md#maths))
 whose operands are all constants is worked out by the compiler, and the C gets the answer: `(0.5).sine()` is
 `(0x1.eaee880000000p-2f)` in the C, not a call. A constant here is a decimal or whole literal, a negated one, a
 number class's constant (`Float.pi`), or another folded call, so `Float.pi.sine()` and
@@ -1674,7 +1674,7 @@ runs and nothing is allocated when a program asks.
 
 **What it does.** `Float.bits()`, `Double.bits()`, `UnsignedInteger.bits_as_float()`, `Long.bits_as_double()`,
 `UnsignedLong.bits_as_double()`, and every whole number's `bits_as_unsigned()` or `bits_as_signed()`, are C macros over a union of the two types
-([values_and_types.md](values_and_types.md#rules-in-full)): the call is written where it is made
+([values_and_types.md](../specs/values_and_types.md)): the call is written where it is made
 and the value's bits are read as the other type, with no memory written and read back and nothing allocated. Going
 through a 4- or 8-byte block instead would also allocate nothing (the frame holds it), but the C would hold a block,
 a write and a read for the C compiler to see through.
@@ -2097,7 +2097,7 @@ naive entity system took 14% fewer instructions per tick. A report reads exactly
 - **An appended item made in place**: `var slow = Velocity(1.0, 0.5)` and then `velocities.append(slow)` writes the
   constructor's attributes straight into the vector's block, when the object is used for nothing else, so filling
   a vector allocates only when the block grows
-  ([collections.md](collections.md#vectort)).
+  ([collections.md](../specs/collections.md#vectort)).
 - **A build report of what could not be optimised**, written only when asked with
   `--optimization-report=file` ([compiler.md](compiler.md#read-what-was-not-optimised)): not "400 copies elided"
   but "3 copies could not be elided, and the line that lets each go", so every line is actionable. It lists each

@@ -1,8 +1,8 @@
 # Spite compiler plan
 
-Source of truth for language design is `docs/` (D193: each page's rules in full, and the decision log in
+Source of truth for language design is `specs/` (D511: one page per docs page with its rules in full, and the decision log in
 `design/decisions.md`). This file tracks implementation milestones and decisions
-Source of truth for language design is `docs/` (D193). This file tracks what the compiler still has to build.
+Source of truth for language design is `specs/` (D511). This file tracks what the compiler still has to build.
 The compiler is written in Spite and compiles itself, emitting C.
 
 ## Layout

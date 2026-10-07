@@ -40,7 +40,7 @@ these five are what is left, with where each stands today.
 ## Open questions
 
 1. **(Answered by D236: `var x: T = null` on a non-nullable `T` is a compile error naming `T?` and `T()`, and a
-   generic class writes `$name()` for its default; [values_and_types.md](../docs/values_and_types.md#variables-and-values).
+   generic class writes `$name()` for its default; [values_and_types.md](../specs/values_and_types.md#variables-and-values).
    The history below is kept.)** `var damage: $damage_type = null`: `null` otherwise only exists for `T?`. PROVISIONAL: the compiler treats
    `= null` on a `$generic`-typed variable/field as "the default value of whatever type the generic is bound to" (not
    `T?`). This is implemented but still provisional; revisit it if it reads confusingly once more code exists.
@@ -48,21 +48,21 @@ these five are what is left, with where each stands today.
    literal with each attribute at its own default, admitted to the shape, so writes through it are kept
    (proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/shape_defaults`). A `type` that requires a
    function has no default object, since no literal can supply the function, so that case is a compile error
-   naming the attribute (D211, [metaprogramming.md](../docs/metaprogramming.md#codegen-values-)).
-3. **(Answered: a comparison whose right side is wider than its left is a compile error naming the comparison turned around, as D162 made it for arithmetic; decided by Claude under D205, [values_and_types.md](../docs/values_and_types.md#casting).)** Right-to-left casting made `age > 0.5` with an Integer `age` mean `age > 0`.
+   naming the attribute (D211, [metaprogramming.md](../specs/metaprogramming.md#codegen-values-)).
+3. **(Answered: a comparison whose right side is wider than its left is a compile error naming the comparison turned around, as D162 made it for arithmetic; decided by Claude under D205, [values_and_types.md](../specs/values_and_types.md#casting).)** Right-to-left casting made `age > 0.5` with an Integer `age` mean `age > 0`.
    - The abbreviation lint has no escape hatch for names that must mirror an external spelling (`keyword_var`). Keep it absolute, or allow a per line `# spelled: keyword_var` style exemption.
 6. **(Answered by D136 and D137: `_` means unused on purpose only on a parameter and private everywhere else, and
-   an unread local, parameter or attribute is always an error, [Unused is an error](../docs/style.md#unused-is-an-error).)**
-   `_` now means two things: private ([Lexical structure](../docs/classes_and_files.md#lexical-structure)) and intentionally unused ([Unused is an error](../docs/style.md#unused-is-an-error)). They mostly agree (an unused
+   an unread local, parameter or attribute is always an error, [Unused is an error](../specs/style.md#unused-is-an-error).)**
+   `_` now means two things: private ([Lexical structure](../specs/classes_and_files.md#lexical-structure)) and intentionally unused ([Unused is an error](../specs/style.md#unused-is-an-error)). They mostly agree (an unused
    private function is fine either way), but an unused PUBLIC function cannot be an error (libraries are full of them; tree
    shaking removes them), so "unused" is only enforced for locals, parameters and private functions. Confirm.
    D118 adds attributes, where `_` already meant private: an unread `_name` attribute is never reported, since the
-   prefix says both things at once, so a dead private attribute passes ([Unused is an error](../docs/style.md#unused-is-an-error), `mortaros_missing_decisions.md`
+   prefix says both things at once, so a dead private attribute passes ([Unused is an error](../specs/style.md#unused-is-an-error), `mortaros_missing_decisions.md`
    item 111).
 8. **An unrelated `get_<attribute>()` silently intercepts a read.** Found by the 2026-09-20 reflection port, in
    this compiler's own `NullableType`: a class with an attribute `inner` and a zero-argument function `get_inner()`
    written for an unrelated purpose has every outside read of `.inner` routed through that function, because that
-   is exactly what attribute interception ([Operators](../docs/functions_and_operators.md#operators)) says to do. It is the rule working as specified and it is
+   is exactly what attribute interception ([Operators](../specs/functions_and_operators.md#operators)) says to do. It is the rule working as specified and it is
    still a trap, since nothing announces it.
    - **Keep it.** The rule is uniform and a reader who knows it can see the collision.
    - **Make it a compile error when the function's return type differs from the attribute's** (proposed by
@@ -70,13 +70,13 @@ these five are what is left, with where each stands today.
      catches the accidents and leaves the genuinely ambiguous case (same name, same type) being treated as
      a getter, which is defensible. It is also the shape this language reaches for everywhere else: something
      the compiler can know becomes a compile error naming the fix, rather than a warning or a convention
-     ([Style](../docs/style.md#style): the compiler has no warnings; D24).
+     ([Style](../specs/style.md#style): the compiler has no warnings; D24).
    The residual case neither option catches is an unrelated function whose return type coincides with the
    attribute's. Claude would accept that.
 9. **Text with `${name}` in it prints a stray `$`** (found 2026-09-20 by writing the programs an AI would write;
    restated 2026-09-25). Text holds its values in `{ }` (`"hello {name}"`), so JavaScript's `"hello ${name}"`
    is a literal `$` followed by a hole and prints `hello $world`. The mistake is silent, which a compiler that
-   has no warnings ([Style](../docs/style.md#style)) should never allow. `$` is already the codegen sigil, so
+   has no warnings ([Style](../specs/style.md#style)) should never allow. `$` is already the codegen sigil, so
    `${` inside text is unlikely to be meant literally.
    - **Make `${` inside text a compile error** naming `"hello {name}"` (proposed by Claude). A dollar before a
      brace has no other use, and text that genuinely needs one can hold the dollar in a value
@@ -87,7 +87,7 @@ these five are what is left, with where each stands today.
     reopening must not be silent, and `--final-classes` is where it stops being silent. But what it writes is
     a *program*: running the printed entry file runs the same program, which is what makes it proof rather than
     a report. Provenance cannot be a comment, because a comment is only ever a link to a markdown heading
-    ([Style](../docs/style.md#style)), and it cannot be a declaration without changing the program.
+    ([Style](../specs/style.md#style)), and it cannot be a declaration without changing the program.
     - **A separate manifest** beside the printed classes (proposed by Claude): one line per declaration with the
       root it came from. Keeps the printed source a program, and the thing you grep is a table rather than
       prose scattered through files.
@@ -105,7 +105,7 @@ these five are what is left, with where each stands today.
     - For: one kind of member, and it composes: a shape could then require a function value it will *store*,
       which `hit(): Integer` cannot express.
 
-12. **(Answered by D87: `generic $name` header lines. Built 2026-09-24, [Codegen values (`$`)](../docs/metaprogramming.md#codegen-values-).)** **A header form for generics, with constraints** (Mortaro, 2026-09-23, asked to be argued with). The proposal:
+12. **(Answered by D87: `generic $name` header lines. Built 2026-09-24, [Codegen values (`$`)](../specs/metaprogramming.md#codegen-values-).)** **A header form for generics, with constraints** (Mortaro, 2026-09-23, asked to be argued with). The proposal:
     `generic $type` lines at the top of the file beside `singleton`, and a described generic
     `generic $sub_type { initial_value: Spite.Function<$sub_type> }` that narrows what may be supplied. The
     problem it solves is real: a class that takes codegen values must have a constructor to declare them, even
@@ -127,11 +127,11 @@ these five are what is left, with where each stands today.
     - **The example's `var opened = $sub_type`** reads as assigning a class to a variable. Claude assumes
       `var opened: $sub_type` was meant.
 13. **(Answered by D275 and D293: a conversion is the source's `to_<type>()`, never a `from_` function, and a class
-    becomes castable by defining `to_<type>()`; [values_and_types.md](../docs/values_and_types.md#numbers-are-classes-and-this).)**
+    becomes castable by defining `to_<type>()`; [values_and_types.md](../specs/values_and_types.md#numbers-are-classes-and-this).)**
     **How casting works, so a class can define its own casts, and how to name a variable's class as a type**
     (Mortaro, 2026-09-23: "a thing for you to ask me later"). Example shape then: a `from_` function, now refused. Not argued yet; waiting to be asked. D59 (arguments cast to their parameter type) is where it
     will first matter.
-14. **(Answered by D90: `...args: List<Type or Class>`. Built 2026-09-24, [Variadic arguments](../docs/functions_and_operators.md#variadic-arguments-the-rules).)** **An ABI for variadic arguments** (Mortaro, 2026-09-23, "fight me on this before we implement"). Proposed:
+14. **(Answered by D90: `...args: List<Type or Class>`. Built 2026-09-24, [Variadic arguments](../specs/functions_and_operators.md#variadic-arguments-the-rules).)** **An ABI for variadic arguments** (Mortaro, 2026-09-23, "fight me on this before we implement"). Proposed:
     `func hello(world: String, ...args: List<Spite.Argument<String>>)`, which would make `Spite.Argument` generic.
     Claude argues against the `Spite.Argument` part (proposed by Claude, unconfirmed): `Spite.Argument` is the
     *reflection* of a parameter (a name and a class, known at compile time) and a variadic argument is a
@@ -140,7 +140,7 @@ these five are what is left, with where each stands today.
     function receives. For `Console.print`, which takes anything, the element type is a `type` every printable
     value satisfies, `...values: List<Printable>`. The language needs no new class, only `...`.
 15. **(Answered by D171: it stays, and a `while` doing only what a member template does is an error. Built
-    2026-09-25, [Control flow](../docs/control_flow.md#control-flow-in-full).)** **Whether `while` can go** (Mortaro, 2026-09-23: investigate every use; if it can be rewritten with
+    2026-09-25, [Control flow](../specs/control_flow.md#control-flow-in-full).)** **Whether `while` can go** (Mortaro, 2026-09-23: investigate every use; if it can be rewritten with
     metaprogramming, make it an error). Measured on 2026-09-23 over the compiler, `library/`, `scripts/`, the
     tests, the examples and the corpus: 259 `while` loops, and 199 of them are the same shape: an index from 0
     to `list.count()`, reading `list[index]`. Every one of those is a member template (`each_`, `map_`,
@@ -179,7 +179,7 @@ these five are what is left, with where each stands today.
     `get_name()` is an attribute read, and a write to it with no `set_name()` is an error saying the attribute
     is read-only. The storage behind it is a private `_attributes`, which the compiler fills as it fills
     `attributes` today. **The mechanism is built (2026-09-23):** a read that finds no attribute but finds `get_name()` reads through it, and a write with no `set_name()` is an error calling the attribute read-only (`tests/interception_tests`, `diagnostics/read_only_attribute`). Moving `Spite.Class`'s own members onto it is left for Mortaro to confirm.
-20. **(Answered by D170: it is. Built 2026-09-25, [Control flow](../docs/control_flow.md#control-flow-in-full).)** **Whether a nested `if`/`else` is an error** (Mortaro, 2026-09-23: "we should discuss"). Claude's view: nesting
+20. **(Answered by D170: it is. Built 2026-09-25, [Control flow](../specs/control_flow.md#control-flow-in-full).)** **Whether a nested `if`/`else` is an error** (Mortaro, 2026-09-23: "we should discuss"). Claude's view: nesting
     is where generated code becomes unreadable, and the language already removes the common cases: a
     precondition is `assert` (D54), and a choice between kinds is a `switch` over a union or enum. What remains is a
     genuine decision tree, and forbidding it pushes it into a helper function, which is usually the right call.

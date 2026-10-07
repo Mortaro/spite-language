@@ -12,7 +12,8 @@ version, compile, and do exactly what the compiler says.
 The whole language, every rule the compiler enforces and the habits from other languages it rejects, is in
 [reference.md](reference.md) beside this file. Read it before writing more than a few lines of Spite: each habit
 it lists costs a compile round trip to rediscover. The full documentation is
-[docs/](https://github.com/Mortaro/spite-language/blob/master/docs/README.md).
+[docs/](https://github.com/Mortaro/spite-language/blob/master/docs/README.md), and every rule with its exact error
+text is in the specification, [specs/](https://github.com/Mortaro/spite-language/blob/master/specs/README.md).
 
 ## How to iterate: keep the program running
 

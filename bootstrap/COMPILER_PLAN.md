@@ -2,7 +2,7 @@
 
 The compiler is written in Spite and compiles itself. This file is the single source of truth for how it is built,
 how to work on it, what it supports, and what comes next. Every working session reads it first and appends to the
-progress log before it ends. `docs/` is the language (D193); this file is the compiler.
+progress log before it ends. `specs/` is the language (D511); this file is the compiler.
 
 ## How it builds itself
 

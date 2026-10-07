@@ -5,7 +5,7 @@ never warns: it errors or it is fine. A file that does not parse is reported as
 `path:line:column: message`; once everything parses, every error of the program comes in one run as
 `path:line: error: message (in Class.function)`. Every compile first rewrites your files into the one style
 (`formatted path` is printed), so what you read back may differ from what you wrote.
-The other pages are the reference, each ending in its rules in full ([README.md](https://github.com/Mortaro/spite-language/blob/master/docs/README.md)); this page is the
+The specification is the reference, a page of rules in full for each page of the documentation ([specs/README.md](https://github.com/Mortaro/spite-language/blob/master/specs/README.md)); this page is the
 working set.
 
 Code blocks are fenced as `gdscript` only so GitHub colours them: GitHub has no Spite highlighter yet. Every

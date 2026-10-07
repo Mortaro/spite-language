@@ -1,8 +1,9 @@
 # Implementation status
 
-What the [docs](../docs/README.md) describe but the compiler does not build yet, or builds only in part, page by
-page, with what was said on each page before its status was moved here. The docs teach the language as decided
-and say nothing about status; this page is where status lives. When something here is built, delete its line;
+What the [docs](../docs/README.md) and the [specification](../specs/README.md) describe but the compiler does not
+build yet, or builds only in part, page by page (a docs page and its spec page share a name and a section here),
+with what was said on each page before its status was moved here. The docs and the specification state the
+language as decided and say nothing about status; this page is where status lives. When something here is built, delete its line;
 when a page gains a rule that is not built yet, add it here.
 
 ## [write_it_plainly.md](../docs/write_it_plainly.md)
@@ -50,7 +51,7 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
 
 ## [values_and_types.md](../docs/values_and_types.md)
 
-### Symbol codegen and enums (Rules in full: Enums in full)
+### Symbol codegen and enums (specification: Enums in full)
 - Not built: calling a template with a symbol written out, `person.set_attribute('age', 2)`. Today it is the error "'Person' does not define 'set_attribute'"; a template is reached only through the names it answers. The page no longer mentions it.
 - Not built: environments as a reopenable, walkable enum (D180). The page now says "Environments are an enum too" in the decided tense.
 - Not built (D386): a numbered enum's number as its identity in binary files and on the network. `BinaryFormat`
@@ -607,7 +608,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - The class named `Vector` in `examples/vectors`, `conformance/stage6/operators` and `benchmarks/small_allocations`
   was renamed `Displacement`; page no longer records this.
 
-### Rules in full
+### Specification (formerly the page's Rules in full)
 - The page no longer says its rules were moved from the language manual when D193 dissolved it, nor that a `D`
   number is a row of the decision log.
 
@@ -639,7 +640,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Member names `attribute.camel_case_name`, `attribute.pascal_case_name`, `append_to`,
   `read_memory`, `reserve` were proposed by Claude and never confirmed by Mortaro (names are his to pick later).
 
-### Rules in full
+### Specification (formerly the page's Rules in full)
 - Removed history: the old `Json` class was split into `JsonWriter` and `JsonReader` by D208; `Vector<Byte>` was
   folded into `List<Byte>` by D225.
 
@@ -749,7 +750,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### Inspect merged classes
 - Not built: `--final-classes` output does not show which root supplied each declaration. It cannot be a comment (a comment is only ever a link to a markdown heading), so it needs a form of its own (open question 10, open_questions.md). The paragraph saying so was removed from the page.
 
-### Rules in full
+### Specification (formerly the page's Rules in full)
 - Removed the history note that these rules were moved whole from the language manual when D193 dissolved it, and the maintainer note that a disagreement between teaching and rules means the page has a bug.
 
 ### Outputs, Flags and settings, and other rules (decision status removed)
@@ -896,7 +897,7 @@ recorded below.
   its fallback, its status, and the program that shows it; the rule itself goes on the page that teaches that part of
   the language; a proof that is also an optimisation is described on optimizations.md too (D185); a proof that
   contradicts a rule on another page is recorded in `mortaros_missing_decisions.md` for Mortaro.
-- The page has no "Rules in full" section, so the closing link follows the last proof section.
+- The page has no spec page of its own, so the closing link follows the last proof section.
 - Links to other pages with status words in their anchors are kept as they were and need fixing when those headings
   change: `values_and_types.md#numeric-types--implemented-provisional`,
   `memory.md#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed`,

@@ -160,7 +160,7 @@ func compile_process(key: String): Process {
     return with_messages(arguments)
 }
 
-# ../../../docs/compiler.md#what-the-c-compiler-says
+# ../../../specs/compiler.md#what-the-c-compiler-says
 func with_messages(arguments: List<String>): Process {
     var compile = Process(c_compiler, arguments)
     var line = "2>&1 {c_compiler}"

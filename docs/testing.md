@@ -22,7 +22,7 @@ func test_append_and_prepend_keep_order() {
 A runner finds every test itself, through reflection: `Spite.Class.instances` is every class in the program, and
 each class's `.functions` its functions ([reflection.md](reflection.md)). Nothing registers a test, and there is no
 manifest to keep in step. A test package is a folder like any program: its tests in classes of their own (the entry
-class lists no functions, [below](#rules-in-full)), and an entry class that runs them:
+class lists no functions, [the rules](../specs/testing.md)), and an entry class that runs them:
 
 ```gdscript title=test_package/text_tests.spite
 func test_trim_removes_the_spaces_around_text() {
@@ -161,44 +161,6 @@ spite tests --debug-memory
 
 Nothing of this is in a program that is not a test: the runner is the test package's own entry class, and the
 reflection it reads (`.instances`, `.functions`) is generated only because it reads it.
-
-## Rules in full
-
-The normative rules for this part of the language, in full: what the sections above teach, with the edge
-cases, the exact error texts and the notes on how it is built. Where the teaching above and these rules
-disagree, the rules win.
-
-### How testing works
-
-- **A test is a package that crashes, not a framework.** There is no `expect`, no
-  matcher vocabulary, no reporter and no summary. A test is ordinary Spite shipped beside the project as a program
-  that `load`s it, and an expectation is `crash <condition>`, which halts on a false condition and reports the
-  condition's source text with every operand's value ([What a crash reports](failure.md#what-a-crash-reports)).
-  The testing story needs no language feature of its own: `crash`, `load` and reflection are the whole of it.
-- **Discovery is reflection.** `Spite.Class.instances` is every class in the program and a class object's
-  `.functions` its functions, so a runner finds each `test_` function of each class named `...Tests` without
-  registration. The names are the repository's convention, not a rule of the language: the runner decides them.
-  The program's entry class has no stand-in instance, so its `.functions` is empty
-  ([reflection.md](reflection.md)): tests go in a class of their own.
-- **A test runs on an instance the runner makes**: the runner calls the walked class (`tested()`, as any walk of
-  classes makes an object, [reflection.md](reflection.md)), which runs the test class's constructor, and runs each
-  test through `Spite.Call(declaration, instance)` and `call.call()`, the one way a declaration is called. The
-  program decides what each test's instance holds and when it is let go, and every call is known while compiling,
-  so a test compiles and runs like the rest of the program. A test takes no arguments; one that does is the
-  unfilled-argument error of `Spite.Call`. A value a test returns is dropped.
-- **Running one test, one class or a folder** is the runner's business, through `Arguments()`: the runner on this
-  page and the repository's `tests/` run only the class or test named by the first argument, and crash when it
-  names nothing, so a mistyped name never passes. A folder of tests is one program, named on the command line.
-- **Fail-fast is deliberate**: the first failing `crash` ends the run. A person wants every failure at once
-  to batch the work; an AI wants one precise failure to fix before running again, since a list of mostly
-  cascading failures invites shotgun fixes. The crash report is the test output.
-- **Every test is a leak test** in the repository's runner: each test runs twice, and the second run must leave
-  `program.live_allocations()` where it was, and a run of `tests/` with `--debug-memory` prints nothing and
-  balances its allocations.
-- **The constructor is the set-up**: the instance is made by its constructor, so a test class sets up what its
-  tests share there, or in an attribute's default (`var creatures = [Creature("rat", 3, true), ...]` in
-  `tests/member_tests.spite`), and a test that needs its own state makes it in its body. Loading another program to
-  test it does not run that program's entry ([reflection.md](reflection.md)).
 
 ---
 

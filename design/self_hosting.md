@@ -30,7 +30,7 @@ it. The first Linux seed was written by the Windows seed itself, run once on Lin
 the eight Windows functions the compiler calls, and it compiled to a Linux compiler whose own C was the same. The compiler is a program like any other, named by its folder: `bootstrap/`, whose entry
 is `bootstrap/bootstrap.spite` (class `Bootstrap`). Its C goes to the default place,
 `.spite/build/bootstrap/bootstrap.c` (D283), because every `Build` field is a constant in what is built: a `--c-path` naming some other file would be written into the C, and the next
-generation would differ ([compiler.md](../docs/compiler.md#outputs)).
+generation would differ ([compiler.md](../specs/compiler.md#outputs)).
 
 ## What proves it
 
