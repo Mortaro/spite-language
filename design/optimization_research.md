@@ -206,6 +206,42 @@ template says is already refused, so record loops tend to arrive as chains. Open
 per field enough to prove record independence for a hand-written loop, and whether a written-order merge for file
 writes exists (only T3 plans one).
 
+**R6, overflow checks proven unneeded.** Today only `counter + 1` / `counter - 1` under a `<` / `>` narrowing and
+constant operands skip the check (`proven_to_fit`, `checked_overflow` in generator.spite); index bounds are tracked
+as symbolic paths in `Scope`, not intervals. Proposal: an interval `[lo, hi]` per local seeded from types and
+literals, propagated through `+ - *` with intersection on the true branch of a comparison and widening at loop
+joins; `while index < bound` with a known bound gives `[0, bound - 1]`, so `index * 7` under 500,000 fits an
+`Integer`. Plugs into `proven_to_fit` after the existing test; every kept check still reported. Open: the cost of
+cloning intervals per block, one table of every number type's limits.
+
+**R7, independent loop passes on several cores (T1).** D505's facts are keyed by class and field, so every pass of
+one loop collides with itself. Add a key for writes whose receiver is the loop's own item (`self_indexed`); then a
+pass is independent when each write is self-indexed, a recognised reduction (T2) or a per-band scratch (T8), and
+`io`, `raw` or `unknown` refuse. The emitted form already exists: `parallel_each_` writes a `piece(first, end)` loop
+run through `ThreadPool.run_pieces`. Reductions exact in any order: integer sum, count, min, max, and, or; decimal
+min, max, count. (The model said a banded decimal sum is not allowed; the docs say otherwise: a decimal's last bits
+are never a promise, and loops already reassociate decimal sums unless the loop compares decimals with `==`. A
+banded decimal sum is therefore allowed under the same rule.) Cost model: weight the body (loop 8, call its own
+weight, count 2, load/store 1, check 1), split when `weight * count` passes a threshold measured at build time
+(light bodies lost 2.4x, a 200-step body won 24x); a count known while compiling folds the branch. Warning: today
+`parallel_each_` sets threads for the whole program, which makes every count atomic unless C5 keeps it local.
+
+**R8, small functions not inlined across C units (C4).** Folded functions are called through a `static` pointer
+that the unit splitter turns into an external, writable global defined only in unit 0, so link-time optimisation
+sees an indirect call. Units are cut by a hash of the function name, so nearly every call crosses units. Fixes:
+(A) emit folded pointers as `static const` in the shared header, which any `-O1` build turns into a direct call;
+(B) a `static inline` trampoline instead of a pointer (not in hot-reload or REPL builds); (C) cut units by call-graph
+affinity using the folder's call edges, with stable tie-breaks for the object cache; (D) a ThinLTO cache directory
+and skipping the link when no object changed.
+
+**R9, two count disciplines per class by creation site (S4).** One struct type (layout and `class_id` stay one), two
+count pairs `X___retain`/`X___release` and `X___retain_plain`/`X___release_plain`; each count site picks from the
+origin set of its value; a value whose origins mix counts atomically (correct for both, no tag, no branch). A list
+holding both kinds counts atomically. Pools per site only when every creation site of the class is pooled (one free
+path), otherwise a header bit; never promote by copying (changes identity). Nodes: creation sites (`___allocate`
+calls, boxes, frames); edges: stores, arguments, returns, reads, captures; anything leaving the analysis (foreign,
+reflection, `type`, `Weak`) keeps all-atomic and is reported.
+
 ## Outside the constraints (recorded, not pursued)
 
 Ideas that would need a runtime or could change a result, kept so they are not rediscovered as new:
