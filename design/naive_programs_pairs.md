@@ -46,6 +46,7 @@ say.
 | L4 | a component read by disjoint systems | the systems' field sets are disjoint | the component split into columns per set | one column | hand column headers | |
 | L5 | removing from a list whose order is never read | no loop or read depends on order | swap-remove | ordered remove | hand swap-remove | |
 | L6 | a list cleared every tick then refilled | no item is read before it is written again | reset the count, keep the storage | free and remake | generation stamps instead of clearing | |
+| L8 | a list built by one loop and read once, in order, by the next | the list is read nowhere else | the two loops fused, the list never made | both loops | a matcher that filled rows in place | |
 | L7 | a plain-value list in a loop | values fit a vector lane, no alias | SIMD over the arrays of L1 | scalar | | explicit vector code without C intrinsics |
 
 ## Memory
@@ -63,6 +64,7 @@ say.
 | # | Naive code | Proof | Faster form | Falls back | Retires | Backend |
 |---|---|---|---|---|---|---|
 | B1 | `var row = list[index]` then reads of `row` | nothing writes the list or that slot before the local's last use | no reference counted for the read | counted read | hand borrowed reads | |
+| B2 | `var row = list[i]`, change it, `list[i] = row` | nothing else touches the slot between the copy and the write-back | the slot itself is changed, no copy | copy and write back | the runner's `Stream` | |
 | C5 | any class in a program with threads | no task can reach an object of the class | plain counts, not atomic | atomic counts | | |
 
 ## Waiting
@@ -79,6 +81,7 @@ say.
 | C1 | any function over lists | no two parameters alias | `restrict` on the C pointers | alias facts per field, not per pointer |
 | C2 | a loop whose bound is proven | bounds proven, count known | unrolled or vectorised by the C compiler with hints | own unrolling by cost |
 | C3 | a hot path with rare branches | a branch only reaches a crash or a cold call | the branch marked cold, its code moved out (built for crashes) | layout by profile from benchmarks |
+| C6 | every program | a release is a count-down with a rare free | the release emitted `static inline` in the header with the free out of line, in every C unit; the same for small list accessors | a call | | own inlining by cost |
 | C4 | a call to a small function | its body fits a size bound | inlined in the generated C, across the parallel C units too (the split build lost about 5 ms of stress) | |
 
 ## Open threads in this catalogue

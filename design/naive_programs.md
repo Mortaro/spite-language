@@ -131,6 +131,30 @@ The gaps, by time, are the work queue for stages 2 to 5 (pairs in [naive_program
 8. Colliders as objects instead of parallel arrays: L1 across several lists of one class, then L2.
 9. 10,000 navigation requests in one tick: T8, then T1 with a cost model that counts memory.
 
+**Second pass (2026-10-07, engine `naive` at 81b0e20).** The runner's hand paths by row shape became one plain
+loop over the matched rows, and each column a plain `List<T>`. Behaviour is the same; speed is not:
+
+| | stage 1 | plain loop | plain lists | hand |
+|---|---|---|---|---|
+| stress tick (ms) | 25.3 | 99.4 | 112.1 | 7.0 |
+| stress despawn, sixty ticks (ms) | 59.9 | 59.1 | 143.4 | 22.8 |
+| physics tick (ms) | 10.7 | 15.7 | 16.1 | 6.4 |
+
+Stress is now 16x the hand form. That is the honest size of what the compiler must do. Measured on hand-edited C:
+
+- **C5** (plain counts where no task reaches the class) alone takes the one-file plain-lists build from 101.2 to
+  65.6 ms, the largest single cost.
+- **C6** (a release inlined in every C unit): the "unexplained 4 ms" was one function placed in another C unit,
+  where link-time inlining refused the release. Regenerate and Move are the same C; one file gives both 11.5 ms.
+- **B2** (a copy written back to its own slot is the slot): the plain loop copies each component out and back,
+  800,000 allocations and frees a tick.
+- **L8** (a list built by one loop and read once in order by the next is one loop): each entity is matched twice
+  and a 200,000-entry list is built every tick.
+- **L1** for `List<T>` columns: despawn is 2.4x slower from freeing 800,000 component objects.
+
+So the compiler order is now: C5, C6, B2, L8, then T4b and T1 (running at once only pays after the single-core
+form is close to the hand one), then L1, B1, L6, M3.
+
 Language gaps it found, and what was decided (under D509, D512):
 
 - **Work that may finish in a later frame** (a synchronous asset load inside a system): the compiler arranges it

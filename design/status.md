@@ -131,6 +131,10 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
 
 ### Nothing fails silently: still open
 
+- (found 2026-10-07 by the naive engine) A component read out of a plain `List<T>` column into a local
+  (`var x = lookup.of(entity)`) and then assigned (`x = made`) compiles and stores nothing in the list. Must be a
+  compile error naming the list write to use, as the borrowed-items rule did for `Items<T>`.
+
 Moved whole from the old "Still open" list under the rule (each is a bug under D244, recorded so it is not mistaken
 for a design):
 
