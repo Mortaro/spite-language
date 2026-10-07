@@ -78,6 +78,8 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   any other value is decided while compiling (its operand still read). Why: it needs no proof that a "setup" phase
   ends, since the fact holds at every moment, and it is the first step of S1, partial evaluation per configuration
   (a stress tick 39.0 ms to 35.4 as one C file).
+- **D524, the layout after the Spite-only benchmarks go**: the cases move up to `benchmarks/<case>/` (no `cases/`
+  level), and the `versus_c` programs become cases with an expert C each.
 
 ## Open
 
