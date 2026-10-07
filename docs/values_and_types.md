@@ -5,13 +5,18 @@
 There is no cast syntax. **The right side always casts toward the left side**: in a binary operation,
 assignment, a function argument (toward the parameter type), and `return` (toward the return type).
 
-| Type | C type | | Type | C type |
-|---|---|---|---|---|
-| `Tiny` | `int8_t` | | `Byte` | `uint8_t` |
-| `Short` | `int16_t` | | `UnsignedShort` | `uint16_t` |
-| `Integer` (default integer) | `int32_t` | | `UnsignedInteger` | `uint32_t` |
-| `Long` | `int64_t` | | `UnsignedLong` | `uint64_t` |
-| `Float` (default decimal) | `float` (32-bit) | | `Double` | `double` (64-bit) |
+| Type | C type |
+|---|---|
+| `Tiny` | `int8_t` |
+| `Short` | `int16_t` |
+| `Integer` (default integer) | `int32_t` |
+| `Long` | `int64_t` |
+| `Byte` | `uint8_t` |
+| `UnsignedShort` | `uint16_t` |
+| `UnsignedInteger` | `uint32_t` |
+| `UnsignedLong` | `uint64_t` |
+| `Float` (default decimal) | `float` (32-bit) |
+| `Double` | `double` (64-bit) |
 
 An integer literal is `Integer`; one too big for `Integer` becomes `Long` automatically. **A number never
 silently wraps.** Arithmetic whose answer does not fit its type halts, unsigned exactly as signed, and so does a

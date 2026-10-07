@@ -161,13 +161,18 @@ func shout(...words: String) {
 
 Every operator is a shortcut for a function a class can define to support it:
 
-| Operator | Function | | Operator | Function |
-|---|---|---|---|---|
-| `a + b` | `sum(b)` | | `a == b` / `a != b` | `equals(b)` (negated for `!=`) |
-| `a - b` | `subtract(b)` | | `a < b` / `a > b` | `less_than(b)` / `greater_than(b)` |
-| `a * b` | `multiply(b)` | | `a <= b` / `a >= b` | derived from the two above, no own function |
-| `a / b` | `divide(b)` | | unary `-a` | `negate()` |
-| `a % b` | `remainder(b)` | | `a[x]` / `a[x] = v` | `get_at(x)` / `set_at(x, v)` |
+| Operator | Function |
+|---|---|
+| `a + b` | `sum(b)` |
+| `a - b` | `subtract(b)` |
+| `a * b` | `multiply(b)` |
+| `a / b` | `divide(b)` |
+| `a % b` | `remainder(b)` |
+| `a == b` / `a != b` | `equals(b)` (negated for `!=`) |
+| `a < b` / `a > b` | `less_than(b)` / `greater_than(b)` |
+| `a <= b` / `a >= b` | derived from the two above, no own function |
+| unary `-a` | `negate()` |
+| `a[x]` / `a[x] = v` | `get_at(x)` / `set_at(x, v)` |
 
 `a[x]` is `get_at(x)`, so any class that declares `get_at` can be indexed, and since every `[]` answers a value
 that may be absent, `get_at` answers a `T?`: `func get_at(index: Integer): Integer?`,

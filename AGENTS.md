@@ -62,6 +62,9 @@ yet is still described on its page as the language; `design/status.md` is where 
 - **No em dashes, anywhere** (SPITE.md): not the character, and not two hyphens between spaces standing in for
   one, in code, comments, docs, diagnostics or commit messages. End the sentence, or use a colon, a comma or
   parentheses. `check.sh` and the `commit-msg` hook refuse them.
+- **Tables have one set of columns** (Mortaro, 2026-10-07): never two tables side by side in one, repeating the
+  columns across a row (`| Type | C type | | Type | C type |`). It is hard to read on a phone. Write one row per
+  item, and split into two tables if the rows fall into two groups.
 - **No third-party package names in this repository** (SPITE.md): examples, tests and benchmarks use neutral
   invented packages. `check.sh` refuses them too.
 
