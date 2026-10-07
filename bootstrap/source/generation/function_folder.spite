@@ -429,6 +429,7 @@ func fold_into(folded: Integer, kept: Integer) {
     crash headers[folded] == headers[kept]
     var folded_name = names[folded_position]
     var kept_name = names[kept_position]
+    assert not pieces[folded_position].starts_with("static inline ")
     folded_count = folded_count + 1
     if written_alike(pieces[folded_position], folded_name, pieces[kept_position], kept_name) {
         replacements[folded_name] = kept_name

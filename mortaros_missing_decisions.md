@@ -44,6 +44,8 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
 - **D513, plain counts per class**: in a program with threads, a class no other thread can count is counted with
   plain arithmetic; one used by threaded work stays atomic for all of its objects. Why: atomic counts were the
   largest single cost of the naive engine's stress test (105 ms a tick to 73), and the fallback is always atomic.
+- **D514, inline releases**: every class's release is a `static inline` count-down with its freeing out of line,
+  in every build but the reloadable ones. Why: a release in another C unit was not inlined (73 ms a tick to 66).
 
 ## Open
 

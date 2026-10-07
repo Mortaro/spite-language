@@ -91,6 +91,7 @@ emit nothing.
 | [Objects that never leave their function live in the frame](#objects-that-never-leave-their-function-live-in-the-frame) | every but the inspectable ones | fewer allocations; `.memory.section` answers `'stack'` |
 | [The C is compiled in parallel units, and cached](#the-c-is-compiled-in-parallel-units-and-cached) | every but `--hot-reload` | nothing but build time; `.spite/objects` grows to 1 GiB |
 | [A release build is `-O3` with link-time optimisation](#a-release-build-is--o3-with-link-time-optimisation) | `--optimized` | nothing but speed, and a slower link |
+| [A release is inlined in every unit](#a-release-is-inlined-in-every-unit) | every but `--hot-reload`, `--repl`, `--repl-port` | nothing but speed |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | every but `--hot-reload`, decided per program | no lock where one is not needed |
 | [Copies that cost nothing](#copies-that-cost-nothing) | every | fewer allocations |
 | [Other optimisations](#other-optimisations) | every | fewer allocations |
@@ -2061,6 +2062,71 @@ and it and a `--hot-reload` build add `-march=native`, so they use every instruc
 where they run; an `--optimized` build, the one shipped, adds nothing of the kind and runs on any processor
 ([compiler.md](compiler.md#release-builds)). The measurements are in
 [benchmarks/README.md](../benchmarks/README.md#release-builds).
+
+### A release is inlined in every unit
+
+**What it does.** Letting go of a reference is a count-down and, rarely, the freeing of the object and everything it
+holds. The compiler writes each class's retain and release as a small `static inline` function in the header that
+every [translation unit](#the-c-is-compiled-in-parallel-units-and-cached) includes, and the freeing as a function
+of its own beside them. So the C compiler copies the count-down into every call, in every unit, and calls out only
+when the count reaches zero. Before, a release was one function holding both paths, too big for link-time
+optimisation to copy into another unit, so a loop that let go of an object in another unit paid a call for every
+count-down.
+
+```gdscript title=inlined_release/mover.spite
+var speed = 0
+
+func Mover(starting_speed: Integer) {
+    speed = starting_speed
+}
+```
+```gdscript title=inlined_release/inlined_release.spite entry
+var console = Console()
+
+func InlinedRelease() {
+    var movers = List<Mover>()
+    var index = 0
+    while index < 1000 {
+        var mover = Mover(index)
+        movers.append(mover)
+        index = index + 1
+    }
+    var every_other = List<Mover>()
+    var total = 0
+    var position = 0
+    while position < movers.count() {
+        var mover = movers[position]
+        total = total + mover.speed
+        every_other.append(mover)
+        position = position + 2
+    }
+    movers.clear()
+    var kept = every_other.count()
+    console.print(kept, total)
+}
+```
+```output
+500 249500
+```
+
+Each `Mover` kept in the second list is counted up, and `movers.clear()` counts every `Mover` down, freeing the ones
+not kept. The release is written as:
+
+```c
+static inline void Mover___release(Mover* self) {
+if (self == 0) return;
+if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
+Mover___free(self);
+}
+```
+
+and `Mover___free` releases its attributes and frees it, out of line.
+
+**When.** Every build but `--hot-reload`, `--repl` and `--repl-port`, whose releases stay ordinary functions a reload
+can replace. A singleton keeps its release, which does nothing. [Identical functions are folded into
+one](#identical-functions-are-folded-into-one) leaves the inline functions alone, so a call to one is never made
+through a pointer. **What you notice.** Speed, and only in a build of several units: the game engine's stress test
+went from 73 ms a tick to 66 ms, and its physics step from 11.5 to 10.1 ms.
 
 ### Thread safety for singletons, the rest of the plan
 

@@ -39411,6 +39411,22 @@ func constant_scalar_code(code: String): Boolean {
     return true
 }
 
+# ../../../docs/optimizations.md#a-release-is-inlined-in-every-unit
+func counts_inline(information: Analysis.ClassInfo): Boolean {
+    var inspected = hot_reload or read_evaluate_print_loop or reload_host
+    return not inspected and not information.is_singleton and not information.is_stateless_singleton
+}
+
+func emit_inline_counts(information: Analysis.ClassInfo) {
+    var name = information.c_name
+    builder.add_support(
+        "static inline {name}* {name}___retain({name}* self) \{\nif (self != 0) SPITE_COUNT_UP(self->header.ref_count);\nreturn self;\n}",
+    )
+    builder.add_support(
+        "static inline void {name}___release({name}* self) \{\nif (self == 0) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{name}___free(self);\n}",
+    )
+}
+
 func emit_class_prototypes(information: Analysis.ClassInfo) {
     builder.add_prototype("void {information.c_name}___init({information.c_name}* self);")
     builder.add_prototype("{information.c_name}* {information.c_name}___allocate(void);")
@@ -39418,8 +39434,16 @@ func emit_class_prototypes(information: Analysis.ClassInfo) {
     builder.add_prototype(
         "{information.c_name}* {information.c_name}___make({constructor_parameter_list(information)});",
     )
-    builder.add_prototype("{information.c_name}* {information.c_name}___retain({information.c_name}* self);")
-    builder.add_prototype("void {information.c_name}___release({information.c_name}* self);")
+    if counts_inline(information) {
+        builder.add_prototype(
+            "static inline {information.c_name}* {information.c_name}___retain({information.c_name}* self);",
+        )
+        builder.add_prototype("static inline void {information.c_name}___release({information.c_name}* self);")
+        builder.add_prototype("void {information.c_name}___free({information.c_name}* self);")
+    } else {
+        builder.add_prototype("{information.c_name}* {information.c_name}___retain({information.c_name}* self);")
+        builder.add_prototype("void {information.c_name}___release({information.c_name}* self);")
+    }
     if not information.find_function("copy") {
         builder.add_prototype("{information.c_name}* {information.c_name}_copy({information.c_name}* self);")
     }
@@ -39545,16 +39569,24 @@ func emit_class_support(information: Analysis.ClassInfo) {
         var destroyed = singleton_destroyed(information)
         builder.add_support(destroyed)
     }
-    builder.add_support(
-        "{information.c_name}* {information.c_name}___retain({information.c_name}* self) \{ {retain_body} }",
-    )
+    var inline = counts_inline(information)
+    if inline {
+        emit_inline_counts(information)
+        release_name = "free"
+    } else {
+        builder.add_support(
+            "{information.c_name}* {information.c_name}___retain({information.c_name}* self) \{ {retain_body} }",
+        )
+    }
     release_lines.append("void {information.c_name}___{release_name}({information.c_name}* self) \{")
-    release_lines.append("if (self == 0) return;")
-    if not information.is_singleton {
+    if not inline {
+        release_lines.append("if (self == 0) return;")
+    }
+    if not information.is_singleton and not inline {
         release_lines.append("if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;")
-        if information.drop_function {
-            release_lines.append("{information.drop_function.c_name}(self);")
-        }
+    }
+    if not information.is_singleton and information.drop_function {
+        release_lines.append("{information.drop_function.c_name}(self);")
     }
     var drop_field_index = 0
     while drop_field_index < information.fields.count() {

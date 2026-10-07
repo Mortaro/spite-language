@@ -852,6 +852,14 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   every program with threads; a function value is matched to the calls that may run it by its number of arguments
   only, not by its types; an inspectable build counts every class atomically.
 
+### A release is inlined in every unit
+
+- Built (pair C6 of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm).
+  Not built: the small list accessors (`get_at`, `set_at`, `count`) are left to link-time optimisation, which
+  inlines them across units, but [folding](#identical-functions-are-folded-into-one) can call one through a
+  pointer kept in another unit, which is not measured yet (`spite_folded_List_Integer_count` in the naive engine's runner); a shape's or
+  union's retain and release stay ordinary functions.
+
 ### Identical functions are folded into one
 
 - Built (D296, D340). Proposed by Claude, unconfirmed: the normalisation details (layout equality by attribute order and type, numbered temporaries, texts by content, a site shared by two versions or instances reporting the first one met); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values; no folding in `--hot-reload` builds and the REPL.

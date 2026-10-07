@@ -22,6 +22,7 @@ say.
 | Singleton locks: skipped with no task in flight, shared by readers, taken once per counted loop, atomic counters | [optimizations](../docs/optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form) |
 | Crash reports in cold functions | [optimizations](../docs/optimizations.md#a-crashs-report-is-kept-out-of-the-way) |
 | C5: plain counts for every class no other thread can count | [optimizations](../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class), [proofs](../docs/proofs.md#no-other-thread-counts-a-class) |
+| C6: a release is a `static inline` count-down in every unit, its freeing out of line | [optimizations](../docs/optimizations.md#a-release-is-inlined-in-every-unit) |
 
 ## Threads
 
@@ -81,7 +82,6 @@ say.
 | C1 | any function over lists | no two parameters alias | `restrict` on the C pointers | alias facts per field, not per pointer |
 | C2 | a loop whose bound is proven | bounds proven, count known | unrolled or vectorised by the C compiler with hints | own unrolling by cost |
 | C3 | a hot path with rare branches | a branch only reaches a crash or a cold call | the branch marked cold, its code moved out (built for crashes) | layout by profile from benchmarks |
-| C6 | every program | a release is a count-down with a rare free | the release emitted `static inline` in the header with the free out of line, in every C unit; the same for small list accessors | a call | | own inlining by cost |
 | C4 | a call to a small function | its body fits a size bound | inlined in the generated C, across the parallel C units too (the split build lost about 5 ms of stress) | |
 
 ## Open threads in this catalogue

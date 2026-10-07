@@ -147,6 +147,7 @@ Stress is now 16x the hand form. That is the honest size of what the compiler mu
   105 to 73 ms (`List<Integer>` stays atomic, since the asset loader's `Parallel` uses it too).
 - **C6** (a release inlined in every C unit): the "unexplained 4 ms" was one function placed in another C unit,
   where link-time inlining refused the release. Regenerate and Move are the same C; one file gives both 11.5 ms.
+  Built: 73 to 66 ms a tick on the split build.
 - **B2** (a copy written back to its own slot is the slot): the plain loop copies each component out and back,
   800,000 allocations and frees a tick.
 - **L8** (a list built by one loop and read once in order by the next is one loop): each entity is matched twice
