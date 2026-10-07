@@ -304,6 +304,99 @@ then the existing proofs run on the folded code (the item read in its slot, the 
 dropped, the call inlined). The fallback is the generic loop, for a configuration that cannot be folded (a list
 written after setup, a key computed from data). [naive_programs_pairs.md](naive_programs_pairs.md) has the rows.
 
+### S1 design (2026-10-07)
+
+Proposed by Claude, decided under D509 for the parts built. The aim is general: a table a program fills with a few
+known values and then only reads (a parser's character classes, a pipeline's steps, a state machine's transitions,
+a matcher's kinds), not anything an entity system owns.
+
+**What the 4.0 ms hand edit is made of.** Measured on the same one-file C (`clang -O3`, medians of 5 interleaved,
+against 38.5 ms that day):
+
+| Hand edit of the two matchers (`Row<Moving>`, `Row<Mending>`) | Stress tick |
+|---|---|
+| `headers.count()` and `kinds.count()` read as 2 | 37.1 ms |
+| every comparison of a kind with a number it can never be folded (kinds are 0 or 3), including `passes_tracking`'s `kind` | 34.5 ms |
+| the same without `passes_tracking` (a parameter) | 36.8 ms |
+| the kinds and counts read as the constants 0, 0 and 2 | 32.8 ms |
+
+So folding the configuration into the matcher buys 15%; the rest of the 4.0 ms is the runner itself (no candidate
+list, no row object, no write-back, the system's body inlined), which is L8b, B2b and keeping the row in registers,
+not S1. S1 is built in three steps.
+
+**What "setup" is: no phase, an invariant.** Proving that a phase ends before the hot loop needs the whole program's
+order of calls. Instead the compiler proves a fact that holds at every moment: every value the list can ever hold
+comes from a write it can see, and it can list them. A list attribute qualifies when, in the whole program:
+
+- it is declared `var name = List<T>()` (empty) and never assigned;
+- the only calls that put a value into it are `name.append(v)`, `name.prepend(v)` and `name.insert(i, v)`, written
+  in its own class (the attribute itself, not a copy of it);
+- everywhere else it is only read: `count()`, `is_empty()`, `contains(...)`, `index_of(...)`, `first()`, `last()`,
+  `copy()`, a `[]` read, a test of a `[]` read, or shrunk (`clear()`, `remove_...`, `truncate`, `swap`), or passed
+  to a program function whose parameter is only read in those ways;
+- no reflection reaches its class's attributes (no walk over them, no `attributes[...]`, no run-time attribute
+  list, no serialiser for the class).
+
+Then every item it holds, at any time, is one of the values its writes can append. Since nothing is assumed about
+when the writes run, there is no window "before setup" to get wrong, no flag and no run-time test.
+
+**Where the values come from.** The value each write appends is worked out while compiling, as a set of constants
+or "unknown": a whole-number or enum literal; an item of another such list; a parameter of a function every call
+of which the compiler sees (its set is the union of what each call passes); a local (the union of everything
+assigned to it in its function); or what a function returns (the union of its `return`s, following the branches a
+codegen question decides, so `Slot<Position>.tracking_kind()` returns only 0). Anything else is unknown, and one
+unknown write makes the whole list unknown. Sets hold at most 16 values.
+
+**Step 1 (built, the fifth pass): tests against values a list never holds fold.** A comparison `item == c` or
+`item != c`, where `item` is a `[]` read of such a list, a parameter or a local whose set is known and `c` is a
+literal outside the set, is `false` or `true`; a set of the one value `c` decides it the other way. The comparisons
+are written into the C as they are and decided once the whole program has been generated (every write and every
+call seen), the way tree shaking's guards are, so there is no second pass. Falls back: the comparison is tested
+at run time, as before. Cost: nothing at run time; the branch a folded test removes stays in the C text and the C
+compiler drops it, so a function only that branch calls is still compiled.
+
+**Step 2 (designed, not built): the configuration folded, a copy per configuration.** Exact contents need the
+count and the order, so they need setup after all: the writes run in a function that runs at most once per object
+(its constructor, or one that starts `assert not prepared` then `prepared = true`, with `prepared` written nowhere
+else), each write unconditional at the top level of its function. Then a list whose count is the number of writes
+holds the writes' values in order and never changes again. Each function that reads the lists gets one copy per
+configuration (the product of the positions' sets, at most 4), in which a read is the constant and the count is a
+number, and a compiled dispatch at the functions other code calls picks the copy (`count == 2 and items == 0, 0`)
+or the generic body: a branch between forms compiled in advance. Measured by hand: 34.5 to 32.8 ms over step 1.
+
+**Step 3 (other pairs): the runner made direct.** With the matcher folded, the runner's loop is still a candidate
+list, a row object filled and written back, and a call: L8b, B2b and the row kept in registers take it the rest of
+the way to the hand edit's 4.0 ms.
+
+### Fifth pass (2026-10-07)
+
+Engine `naive` at 81b0e20, Spite from 3bc157e9, the same machine (slower this afternoon: the base tick measured 39.0 ms
+as one C file against 38.2 earlier), `--optimized`, medians of 7 interleaved runs.
+
+**Built: S1 step 1** ([the design](#s1-design-2026-10-07)): the values a list only its class fills can hold are
+listed while compiling, and a `==` or `!=` against any other value is decided. In the engine the matcher's `kinds`
+of every row with plain components are 0 or 3 (`tracking_kind()` returns 0 for them, and `describe_attribute`
+may set 3), and `passes_tracking`'s `kind` is only ever passed an item of `kinds`, so the tests for kinds 1, 2, 4
+and 5 in `find_row`, `smallest_header`, `removal_candidates` and `passes_tracking` are gone (87 tests over the
+stress program, the setup's included).
+
+| | before | after |
+|---|---|---|
+| stress tick, one C file | 39.0 ms | 35.4 ms |
+| stress tick, split build | 41.9 ms | 41.3 ms |
+| physics step | 9.2 ms | 8.9 ms |
+| `benchmarks/versus_c` (all five) | | the same C |
+
+The split build gains less: `passes_tracking` and `find_row` sit in units of their own there and are not folded
+into their callers, which is pair C4. Every headless check of the engine's baseline prints the same before and after, but for
+timings and the counts that follow them and differ between two runs of one build too (`animation_check`'s skipped
+throttle ticks, `replication_check`'s busy one, `unreliable_check`'s datagrams, `clock_check`'s game times);
+`stream_bench`'s rows are 3 to 6% faster and `relations_check`'s tick 10.2 to 9.8 ms.
+
+What remains of S1 is step 2 (a copy per configuration with a compiled dispatch, 35.4 to about 33.5 ms by the hand
+edit's ratio) and step 3, the runner made direct (L8b, B2b, the row kept in registers), which is where the rest of
+the hand edit's 4.0 ms is.
+
 ### Stage 2: effects as a language-level fact (medium, foundation)
 
 D505's proof reads the generated C. Every later pair needs the same facts earlier and finer: for every function,

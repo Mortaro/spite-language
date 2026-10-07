@@ -1,0 +1,26 @@
+var steps = List<Integer>()
+
+func add(step: Integer) {
+    steps.append(step)
+}
+
+func run(price: Integer): Integer {
+    var total = price
+    var index = 0
+    while index < steps.count() {
+        if steps[index] == 1 {
+            total = total - total / 10
+        }
+        if steps[index] == 2 {
+            total = total + total / 5
+        }
+        if steps[index] == 3 {
+            total = total / 100 * 100
+        }
+        if steps[index] != 4 {
+            total = total + 1
+        }
+        index = index + 1
+    }
+    return total
+}

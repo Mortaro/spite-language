@@ -472,6 +472,11 @@ var pending_constraint_owners = List<String>()
 var pending_constraint_functions = List<String>()
 var failed_constraints = List<String>()
 var call_effects = CallEffects()
+var item_values = ItemValues()
+var item_values_on = false
+var item_function: Analysis.FunctionInfo? = null
+var item_function_scope: Scope? = null
+var item_local_terms = Dictionary<List<String>>()
 var parameter_writes = ParameterWrites()
 var writes_reasons = List<String>()
 var schema_hash = SchemaHash()
@@ -912,6 +917,10 @@ func generate(
     make_allocator_union()
     report_shadowed_functions(discovery.class_files)
     call_effects.study(discovery.class_files, this)
+    item_values_on = studies_item_values()
+    if item_values_on {
+        item_values.study(discovery.class_files)
+    }
     overlap_allowed = not hot_reload and not read_evaluate_print_loop and not development
     var string_layout_code = string_layout()
     builder.replace_typedef(string_layout_position, string_layout_code)
@@ -1059,6 +1068,10 @@ func generate(
     builder.counts_by_class = not hot_reload and not read_evaluate_print_loop and not reload_host
     builder.debug_memory = debug_memory
     builder.constant_texts = constant_texts
+    if item_values_on {
+        item_values.settle()
+        builder.apply_item_values(item_values)
+    }
     var rendered = ""
     if renders_program {
         rendered = builder.render()
@@ -6529,6 +6542,7 @@ func template_attribute_names(information: Analysis.ClassInfo, template: Analysi
     }
     var range_class = template_range_class(information, template)
     if range_class {
+        item_values.reflect(range_class.qualified_dotted)
         return range_class.fields.map_names()
     }
     var range_shape = template_range_shape(information, template)
@@ -10723,6 +10737,552 @@ func generate_binary(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
+    var result = generate_unfolded_binary(binary, scope, class_information)
+    if item_values_on and (binary.operator == 'equal' or binary.operator == 'not_equal') {
+        item_fold(binary, result, scope, class_information)
+    }
+    return result
+}
+
+func studies_item_values(): Boolean {
+    if hot_reload or read_evaluate_print_loop or remote_loop_port != 0 or keeps_internals or development {
+        return false
+    }
+    if reload_host {
+        return false
+    }
+    return true
+}
+
+# ../../../docs/proofs.md#a-list-only-its-class-fills-holds-only-what-it-fills
+func item_fold(
+    binary: Syntax.Expressions.BinaryExpression,
+    result: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    crash binary.left
+    crash binary.right
+    var right_literal = item_literal(binary.right)
+    var left_literal = item_literal(binary.left)
+    if not right_literal.is_empty() and left_literal.is_empty() {
+        item_fold_side(binary, binary.left, right_literal, result, scope, class_information)
+    } else if not left_literal.is_empty() and right_literal.is_empty() {
+        item_fold_side(binary, binary.right, left_literal, result, scope, class_information)
+    }
+}
+
+func item_fold_side(
+    binary: Syntax.Expressions.BinaryExpression,
+    operand: Syntax.Expressions.Expression,
+    literal: String,
+    result: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert not result.code.contains(item_values.opening)
+    var function = item_scope_function(scope)
+    var parts = item_term(operand, scope, class_information, function, 0)
+    assert not parts.contains("?")
+    var operator = "=="
+    if binary.operator == 'not_equal' {
+        operator = "!="
+    }
+    var position = item_values.fold_site(parts, operator, literal)
+    result.code = "{item_values.opening}{position}*/{result.code}{item_values.closing}"
+}
+
+func item_literal(expression: Syntax.Expressions.Expression): String {
+    var enum_literal = shape.as_enum_literal(expression)
+    if enum_literal {
+        return "e:{enum_literal.value}"
+    }
+    var negated = shape.as_unary(expression)
+    if negated {
+        crash negated.operand
+        if negated.operator != 'negate' or not shape.as_integer_literal(negated.operand) {
+            return ""
+        }
+    } else if not shape.as_integer_literal(expression) {
+        return ""
+    }
+    var value = literal_value(expression)
+    crash value
+    return "i:{value}"
+}
+
+func item_plain(spite_type: Analysis.SpiteType): Boolean {
+    if type_shape.as_enum(spite_type) {
+        return true
+    }
+    var scalar = type_shape.as_scalar(spite_type)
+    if not scalar {
+        return false
+    }
+    var whole = [
+        'integer_kind'
+        'long_kind'
+        'tiny_kind'
+        'short_kind'
+        'byte_kind'
+        'unsigned_short_kind'
+        'unsigned_integer_kind'
+        'unsigned_long_kind'
+    ]
+    return whole.contains(scalar.kind)
+}
+
+func item_scope_function(scope: Scope): Analysis.FunctionInfo? {
+    assert item_function and item_function_scope
+    assert item_root_scope(scope) == item_function_scope
+    return item_function
+}
+
+func item_root_scope(scope: Scope): Scope {
+    if scope.parent {
+        return item_root_scope(scope.parent)
+    }
+    return scope
+}
+
+func item_reflect_type(spite_type: Analysis.SpiteType) {
+    var described = class_of_type(spite_type)
+    assert described
+    item_values.reflect(described.qualified_dotted)
+}
+
+func item_note_insert(
+    member: Syntax.Expressions.MemberExpression,
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert (member.name == "append" or member.name == "prepend" or member.name == "insert") and not arguments.is_empty()
+    crash member.object
+    var listed = shape.as_identifier(member.object)
+    assert listed and not scope.written_type(listed.name)
+    assert item_values.listed(class_information.qualified_dotted, listed.name)
+    var field = class_information.find_field(listed.name)
+    assert field
+    var list_type = type_shape.as_list(field.type)
+    assert list_type
+    var element = list_type.element
+    assert item_plain(element)
+    var value = arguments.last()
+    crash value
+    var function = item_scope_function(scope)
+    var parts = item_term(value, scope, class_information, function, 0)
+    var atom = item_values.items_atom(class_information.c_name, class_information.qualified_dotted, listed.name)
+    item_values.note_term(atom, parts)
+}
+
+func item_note_call(
+    target: Analysis.FunctionInfo,
+    owner: Analysis.ClassInfo,
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    if arguments.count() != target.parameters.count() {
+        item_values.untrust(target.name)
+        return
+    }
+    var function = item_scope_function(scope)
+    var index = 0
+    while index < arguments.count() {
+        crash target.parameters[index]
+        var parameter_type = target.parameters[index].type
+        if item_plain(parameter_type) {
+            var parts = item_term(arguments[index], scope, class_information, function, 0)
+            var atom = item_values.parameter_atom(target.c_name, owner.qualified_dotted, target.name, index)
+            item_values.note_term(atom, parts)
+        }
+        index = index + 1
+    }
+}
+
+func item_term(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope?,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo?,
+    depth: Integer,
+): List<String> {
+    if depth > 6 {
+        return ["?"]
+    }
+    var literal = item_literal(expression)
+    if not literal.is_empty() {
+        return [literal]
+    }
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        return item_name_term(identifier.name, scope, information, function, depth)
+    }
+    var indexed = shape.as_index(expression)
+    if indexed {
+        return item_index_term(indexed, information, function)
+    }
+    var call = shape.as_call(expression)
+    if call {
+        return item_call_term(call, scope, information, function, depth)
+    }
+    return ["?"]
+}
+
+func item_parameter_position(function: Analysis.FunctionInfo, name: String): Integer {
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        if parameter.name == name {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func item_declarations(statements: List<Syntax.Statements.Statement>, name: String): Integer {
+    var found = 0
+    var index = 0
+    while index < statements.count() {
+        found = found + item_declared_in(statements[index], name)
+        index = index + 1
+    }
+    return found
+}
+
+func item_declared_in(statement: Syntax.Statements.Statement, name: String): Integer {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            if statement.name == name {
+                return 1
+            }
+            return 0
+        }
+        Syntax.Statements.IfStatement: return item_declarations(statement.then_branch, name) + item_declarations(statement.else_branch, name)
+        Syntax.Statements.WhileStatement: return item_declarations(statement.body, name)
+        Syntax.Statements.SwitchStatement: {
+            var found = 0
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                var switch_case = statement.cases[case_index]
+                found = found + item_declarations(switch_case.body, name)
+                case_index = case_index + 1
+            }
+            return found
+        }
+        _: return 0
+    }
+}
+
+func item_name_term(
+    name: String,
+    scope: Scope?,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo?,
+    depth: Integer,
+): List<String> {
+    if not function {
+        return ["?"]
+    }
+    var position = item_parameter_position(function, name)
+    var declared = item_declarations(function.body, name)
+    if position >= 0 {
+        if declared > 0 or assigns_name(function.body, name) {
+            return ["?"]
+        }
+        crash function.parameters[position]
+        if not item_plain(function.parameters[position].type) {
+            return ["?"]
+        }
+        return [item_values.parameter_atom(function.c_name, information.qualified_dotted, function.name, position)]
+    }
+    if declared != 1 {
+        return ["?"]
+    }
+    var key = "{function.c_name}#{name}"
+    var cached = item_local_terms[key]
+    if cached {
+        return cached
+    }
+    item_local_terms[key] = ["?"]
+    var parts = List<String>()
+    item_assigned(function.body, name, parts, scope, information, function, depth)
+    if parts.contains("?") {
+        parts = ["?"]
+    }
+    item_local_terms[key] = parts
+    return parts
+}
+
+func item_assigned(
+    statements: List<Syntax.Statements.Statement>,
+    name: String,
+    parts: List<String>,
+    scope: Scope?,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    depth: Integer,
+) {
+    var index = 0
+    while index < statements.count() {
+        item_assigned_in(statements[index], name, parts, scope, information, function, depth)
+        index = index + 1
+    }
+}
+
+func item_assigned_in(
+    statement: Syntax.Statements.Statement,
+    name: String,
+    parts: List<String>,
+    scope: Scope?,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    depth: Integer,
+) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            if statement.name == name {
+                crash statement.value
+                var declared_parts = item_term(statement.value, scope, information, function, depth + 1)
+                item_merge(parts, declared_parts)
+            }
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            var target = shape.as_identifier(statement.target)
+            if target {
+                if target.name == name {
+                    crash statement.value
+                    var assigned_parts = item_term(statement.value, scope, information, function, depth + 1)
+                    item_merge(parts, assigned_parts)
+                }
+            }
+        }
+        Syntax.Statements.IfStatement: {
+            item_assigned(statement.then_branch, name, parts, scope, information, function, depth)
+            item_assigned(statement.else_branch, name, parts, scope, information, function, depth)
+        }
+        Syntax.Statements.WhileStatement: item_assigned(statement.body, name, parts, scope, information, function, depth)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                var switch_case = statement.cases[case_index]
+                item_assigned(switch_case.body, name, parts, scope, information, function, depth)
+                case_index = case_index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func item_merge(parts: List<String>, more: List<String>) {
+    var index = 0
+    while index < more.count() {
+        var part = more[index]
+        if not parts.contains(part) {
+            parts.append(part)
+        }
+        index = index + 1
+    }
+}
+
+func item_index_term(
+    indexed: Syntax.Expressions.IndexExpression,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo?,
+): List<String> {
+    crash indexed.object
+    var listed = shape.as_identifier(indexed.object)
+    if not listed {
+        return ["?"]
+    }
+    if function {
+        if item_parameter_position(function, listed.name) >= 0 or item_declarations(function.body, listed.name) > 0 {
+            return ["?"]
+        }
+    }
+    var field = information.find_field(listed.name)
+    if not field {
+        return ["?"]
+    }
+    var list_type = type_shape.as_list(field.type)
+    if not list_type {
+        return ["?"]
+    }
+    var element = list_type.element
+    if not item_plain(element) or not item_values.listed(information.qualified_dotted, listed.name) {
+        return ["?"]
+    }
+    return [item_values.items_atom(information.c_name, information.qualified_dotted, listed.name)]
+}
+
+func item_call_term(
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope?,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo?,
+    depth: Integer,
+): List<String> {
+    crash call.callee
+    var callee = shape.as_identifier(call.callee)
+    if callee {
+        if function {
+            if item_parameter_position(function, callee.name) >= 0 or item_declarations(function.body, callee.name) > 0 {
+                return ["?"]
+            }
+        }
+        var own = information.find_function(callee.name)
+        if not own {
+            return ["?"]
+        }
+        return item_returns(own, information, depth + 1)
+    }
+    var member = shape.as_member(call.callee)
+    if not member {
+        return ["?"]
+    }
+    crash member.object
+    var receiver = item_receiver_class(member.object, scope, information, function)
+    if not receiver {
+        return ["?"]
+    }
+    var target = receiver.find_function(member.name)
+    if not target {
+        return ["?"]
+    }
+    return item_returns(target, receiver, depth + 1)
+}
+
+func item_receiver_class(
+    object: Syntax.Expressions.Expression,
+    scope: Scope?,
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo?,
+): Analysis.ClassInfo? {
+    var named = shape.as_identifier(object)
+    assert named
+    if function {
+        var position = item_parameter_position(function, named.name)
+        var declared = item_declarations(function.body, named.name)
+        if position >= 0 and declared == 0 {
+            crash function.parameters[position]
+            return class_of_type(function.parameters[position].type)
+        }
+        assert position < 0 and declared <= 1
+        if declared == 1 {
+            assert scope
+            var local_type = scope.written_type(named.name)
+            assert local_type
+            return class_of_type(local_type)
+        }
+    }
+    var field = information.find_field(named.name)
+    assert field
+    return class_of_type(field.type)
+}
+
+func item_returns(target: Analysis.FunctionInfo, owner: Analysis.ClassInfo, depth: Integer): List<String> {
+    if depth > 6 or not target.has_body {
+        return ["?"]
+    }
+    var return_type = target.return_type
+    if not item_plain(return_type) {
+        return ["?"]
+    }
+    var parts = List<String>()
+    item_returned(target.body, owner, target, depth, parts)
+    if parts.contains("?") {
+        return ["?"]
+    }
+    return parts
+}
+
+func item_returned(
+    statements: List<Syntax.Statements.Statement>,
+    owner: Analysis.ClassInfo,
+    target: Analysis.FunctionInfo,
+    depth: Integer,
+    parts: List<String>,
+) {
+    var index = 0
+    while index < statements.count() {
+        item_returned_from(statements[index], owner, target, depth, parts)
+        index = index + 1
+    }
+}
+
+func item_returned_from(
+    statement: Syntax.Statements.Statement,
+    owner: Analysis.ClassInfo,
+    target: Analysis.FunctionInfo,
+    depth: Integer,
+    parts: List<String>,
+) {
+    switch statement {
+        Syntax.Statements.ReturnStatement: {
+            crash statement.value
+            var returned = item_term(statement.value, null, owner, target, depth + 1)
+            item_merge(parts, returned)
+        }
+        Syntax.Statements.AssertStatement: {
+            if not statement.is_crash {
+                var defaulted = item_default_of(target)
+                item_merge(parts, defaulted)
+            }
+        }
+        Syntax.Statements.IfStatement: item_returned_if(statement, owner, target, depth, parts)
+        Syntax.Statements.WhileStatement: item_returned(statement.body, owner, target, depth, parts)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                var switch_case = statement.cases[case_index]
+                item_returned(switch_case.body, owner, target, depth, parts)
+                case_index = case_index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func item_default_of(target: Analysis.FunctionInfo): List<String> {
+    var return_type = target.return_type
+    if type_shape.as_scalar(return_type) {
+        return ["i:0"]
+    }
+    return ["?"]
+}
+
+func item_returned_if(
+    statement: Syntax.Statements.IfStatement,
+    owner: Analysis.ClassInfo,
+    target: Analysis.FunctionInfo,
+    depth: Integer,
+    parts: List<String>,
+) {
+    crash statement.condition
+    if asks_only_codegen(statement.condition) {
+        var unscoped = Scope(null)
+        var decided = constant_condition(statement.condition, unscoped, owner)
+        if decided == true {
+            item_returned(statement.then_branch, owner, target, depth, parts)
+            return
+        }
+        if decided == false {
+            item_returned(statement.else_branch, owner, target, depth, parts)
+            return
+        }
+    }
+    item_returned(statement.then_branch, owner, target, depth, parts)
+    item_returned(statement.else_branch, owner, target, depth, parts)
+}
+
+func generate_unfolded_binary(
+    binary: Syntax.Expressions.BinaryExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
     crash binary.left
     crash binary.right
     if binary.operator == 'equal' or binary.operator == 'not_equal' {
@@ -14016,6 +14576,9 @@ func generate_own_function_call(
     }
     var found = find_or_instantiate_function(class_information, name)
     if found {
+        if item_values_on {
+            item_note_call(found, class_information, arguments_ast, scope, class_information)
+        }
         var specialised = specialised_call(found, arguments_ast, scope, class_information)
         if specialised {
             return specialised
@@ -15399,6 +15962,7 @@ func method_call_on(
     }
     var object_union = type_shape.as_union(object_result_type)
     if object_union {
+        item_values.untrust(member.name)
         var union_information = find_union_by_c_name(object_union.c_name)
         crash union_information
         return generate_union_dispatch(
@@ -15528,6 +16092,9 @@ func method_call_on(
             report(missed)
         }
         return void_result()
+    }
+    if item_values_on {
+        item_note_call(found, target_class, arguments_ast, scope, class_information)
     }
     var asks_functions = member.name == "has_function" or member.name == "function_waits" or member.name == "argument_count"
     if asks_functions and target_class.c_name == "Spite_Class" {
@@ -19364,6 +19931,7 @@ func spite_class_type(): Analysis.SpiteType {
 }
 
 func ensure_attributes_function(information: Analysis.ClassInfo): String {
+    item_values.reflect(information.qualified_dotted)
     if information.qualified_dotted == "List" and information.codegen_types.count() == 1 {
         return ensure_list_attributes_function(information.codegen_types[0])
     }
@@ -19604,6 +20172,7 @@ func returned_class_object_call(function: Analysis.FunctionInfo): String {
 }
 
 func ensure_functions_function(information: Analysis.ClassInfo): String {
+    item_values.untrust_class(information.qualified_dotted)
     var function_c_name = "{information.c_name}___functions"
     if functions_function_names.contains(function_c_name) {
         return function_c_name
@@ -23482,6 +24051,9 @@ func generate_call(
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
+        if item_values_on {
+            item_note_insert(member, call.arguments, scope, class_information)
+        }
         var unrolled = unrolled_walk(member, call.arguments, scope, class_information)
         if unrolled {
             return unrolled
@@ -24019,6 +24591,7 @@ func generate_member_read_raw(
         }
     }
     if member.name == "memory" {
+        item_reflect_type(object_result_type)
         var in_frame = not framed_object_name(member.object, scope).is_empty()
         var memory_read = generate_memory_read(object_result, member.object, in_frame)
         if memory_read {
@@ -41245,6 +41818,10 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         builder.add_user("self->_waits_ = spite_function_waits(self->spite_typed_call);")
     }
     var scope = parameter_scope(function)
+    var outer_item_function = item_function
+    var outer_item_scope = item_function_scope
+    item_function = function
+    item_function_scope = scope
     terminal_if = terminal_if_of(function.body)
     body_narrowed_names = List<String>()
     body_assigned_paths = List<String>()
@@ -41252,6 +41829,8 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     var outer_leaving = leaving_statements
     leaving_statements = List<Syntax.Statements.Statement>()
     var ended_in_return = generate_statement_list(function.body, scope, information, function)
+    item_function = outer_item_function
+    item_function_scope = outer_item_scope
     terminal_if = null
     report_unused(scope)
     if not ended_in_return {
@@ -47047,11 +47626,17 @@ func emit_resumable_function(information: Analysis.ClassInfo, function: Analysis
     fact_owner = information.c_name
     var start = builder.user_count()
     var scope = parameter_scope(function)
+    var outer_item_function = item_function
+    var outer_item_scope = item_function_scope
+    item_function = function
+    item_function_scope = scope
     terminal_if = terminal_if_of(function.body)
     body_narrowed_names = List<String>()
     body_assigned_paths = List<String>()
     collect_body_facts(function.body)
     var ended_in_return = generate_statement_list(function.body, scope, information, function)
+    item_function = outer_item_function
+    item_function_scope = outer_item_scope
     terminal_if = null
     var return_type = function.return_type
     var returns_value = not type_shape.is_void(return_type)
@@ -49123,6 +49708,7 @@ func reflected_enum_values(described: Analysis.SpiteType): Reflected? {
 }
 
 func reflected_attributes(described_class: Analysis.ClassInfo): Reflected {
+    item_values.reflect(described_class.qualified_dotted)
     var attributes = List<Reflected>()
     var index = 0
     while index < described_class.fields.count() and not described_class.is_value_class {
@@ -49139,6 +49725,7 @@ func reflected_attributes(described_class: Analysis.ClassInfo): Reflected {
 }
 
 func reflected_functions(described_class: Analysis.ClassInfo): Reflected {
+    item_values.untrust_class(described_class.qualified_dotted)
     var functions = List<Reflected>()
     var declared = declared_functions_of(described_class)
     var index = 0

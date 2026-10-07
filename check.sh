@@ -940,6 +940,24 @@ if [ "$(held_counts passed)" != 0 ] || [ "$(held_counts marked)" != 0 ] || [ "$(
    || ! held_body passed | grep -q "HeldItems_twice___held_0(self, point_)"; then
   echo "FAILED: held_items should read the items of passed(), marked(), remembered() and fill_left() uncounted, and count kept()'s and aliased()'s"; exit 1
 fi
+# A test against a value a list never holds is decided while compiling (pair S1, step 1): listed_values's Pipeline
+# never holds 3 or 4 and Codes never 7, while Leaky's lists, which escape or hold values the compiler cannot list,
+# keep every test.
+listed="$work/listed_values.c"
+"$work/generation_two.exe" conformance/stage6/listed_values --check --c-source --c-path="$listed" > /dev/null 2>&1 || {
+  echo "FAILED: listed_values does not write its C"; exit 1; }
+listed_body() {
+  awk -v wanted="$1" '
+    index($0, wanted) && /[)] [{]$/ { split($0, parts, "("); name = parts[1]; sub(/.*[ *]/, "", name)
+      if (name == wanted || index(name, wanted "___") == 1) { inside = 1; next } }
+    inside && /^[A-Za-z_][A-Za-z_0-9]*[*]? [A-Za-z_][A-Za-z_0-9]*[(].*[)] [{]$/ { exit }
+    inside { print }' "$listed"
+}
+if [ "$(listed_body Pipeline_run | grep -c '), 0)))')" != 1 ] || [ "$(listed_body Pipeline_run | grep -c '), 1)))')" != 1 ] \
+   || [ "$(listed_body Codes_named | grep -c '), 0)))')" != 1 ] || listed_body Leaky_fives | grep -q '((void)(' \
+   || listed_body Leaky_doubled | grep -q '((void)(' || listed_body Leaky_counted | grep -q '((void)('; then
+  echo "FAILED: listed_values should decide Pipeline's tests of 3 and 4 and Codes's of 7, and keep every test of Leaky's lists"; exit 1
+fi
 # Objects of one class a list holds sit together (pair M6): class_pools takes every Point from Point's own pool and
 # gives it back there, keeps Label (no list holds one) and Mark (a worker makes and counts them) on the C library's
 # allocator, and an --optimized build, the only kind that has pools, prints what the --debug-memory run printed.

@@ -888,6 +888,19 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   (`crash rows[index].owner` tests `rows[index]` in its slot but still reads the item counted to test `owner`); an
   index that calls a function.
 
+### A test against a value a list never holds is decided while compiling
+
+- Built (step 1 of pair S1 of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to
+  confirm). Not built: step 2, a copy of the functions that read such lists per configuration they can hold (count
+  and values, with a compiled dispatch between the copies and the generic body), designed in
+  [naive_programs.md](naive_programs.md#s1-design-2026-10-07); a `switch` on such an item, whose cases for values
+  the list never holds stay; `<`, `<=`, `>` and `>=`; lists of `Boolean`, `Float` or text; a list declared with
+  items (`[1, 2]`) or in a library class; a value passed through a `type`, a generic class's own item or a field;
+  removing a folded branch before tree shaking, so a function only it calls is still compiled; the optimisation
+  report does not yet say which lists' values are known, or what stopped one. Its case,
+  `benchmarks/cases/a_test_against_a_value_a_list_never_holds_is_decided_while_compiling`, runs in 0.69 of naive C's
+  time and 1.37 of expert C's.
+
 ### Objects of one class sit together
 
 - Built (pair M6 of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm).

@@ -1,0 +1,3 @@
+priced 1082
+codes word space
+leaky 1 1 1

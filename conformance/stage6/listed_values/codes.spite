@@ -1,0 +1,37 @@
+var kinds = List<Integer>()
+
+func Codes() {
+    var word = code_of("word")
+    kinds.append(word)
+    var space = code_of(" ")
+    kinds.append(space)
+}
+
+func code_of(text: String): Integer {
+    if text == " " {
+        return 0
+    }
+    return 1
+}
+
+func describe(): String {
+    var names = List<String>()
+    var index = 0
+    while index < kinds.count() {
+        var kind = kinds[index]
+        var name = named(kind)
+        names.append(name)
+        index = index + 1
+    }
+    return names.join(" ")
+}
+
+func named(kind: Integer): String {
+    if kind == 7 {
+        return "digit"
+    }
+    if kind == 1 {
+        return "word"
+    }
+    return "space"
+}

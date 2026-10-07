@@ -93,6 +93,7 @@ would claim a ceiling it is not.
 | [a_row_of_borrowed_items_lives_in_the_frame](a_row_of_borrowed_items_lives_in_the_frame/) | not measured yet | not measured yet |
 | [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | not measured yet | not measured yet |
 | [a_singletons_reading_functions_do_not_exclude_each_other](a_singletons_reading_functions_do_not_exclude_each_other/) | not measured yet | not measured yet |
+| [a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/) | 0.69 | 1.37 |
 | [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | not measured yet | not measured yet |
 | [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | not measured yet | not measured yet |
 | [a_word_inflected_while_compiling](a_word_inflected_while_compiling/) | not measured yet | not measured yet |

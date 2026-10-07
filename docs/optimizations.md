@@ -1746,6 +1746,87 @@ classes, for a `List` of a class read with `[]` into a `var`.
 from a list while they look an entity up, ticks in 41.2 ms instead of 43.6 (38.1 instead of 40.0 as one C file).
 Allocations, the order of everything a program can see and what it prints are the same.
 
+### A test against a value a list never holds is decided while compiling
+
+**The case:** [benchmarks/cases/a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](../benchmarks/cases/a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/).
+
+**What it does.** A list a program fills with a few known values, and from then on only reads, is a table: a
+pipeline's steps, a tokenizer's character classes, the kinds a matcher checks. Every test of one of its items
+against a value it can never hold is answered while compiling, so the branch behind it costs nothing:
+
+```gdscript title=listed_steps/pipeline.spite
+enum Step {
+    'discount'
+    'tax'
+    'rounding'
+}
+
+var steps = List<Step>()
+
+func add(step: Step) {
+    steps.append(step)
+}
+
+func price(amount: Integer): Integer {
+    var total = amount
+    var index = 0
+    while index < steps.count() {
+        if steps[index] == 'discount' {
+            total = total - total / 10
+        }
+        if steps[index] == 'tax' {
+            total = total + total / 5
+        }
+        if steps[index] == 'rounding' {
+            total = total / 100 * 100
+        }
+        index = index + 1
+    }
+    return total
+}
+```
+```gdscript title=listed_steps/listed_steps.spite entry
+var console = Console()
+
+func ListedSteps() {
+    var checkout = Pipeline()
+    checkout.add('discount')
+    checkout.add('tax')
+    var total = checkout.price(1250)
+    console.print("total", total)
+}
+```
+```output
+total 1350
+```
+
+Only `add` puts anything into `steps`, and every call of `add` in the program passes `'discount'` or `'tax'`, so
+no item is ever `'rounding'`. The third test is `false` without looking, and the C compiler drops the branch:
+
+```c
+if ((((void)((({ ... List_Pipeline_Step_get_at(self->steps_, index_) ... }) == Pipeline_Step_rounding)), 0))) {
+```
+
+The read stays, so an index outside the list still halts as it would have; only the answer is known. The values a
+list can hold come from the program's own code: a whole number or an enum value written out, an item of another
+such list, a parameter of a function whose every call the compiler sees, a local (everything assigned to it), or
+what a function returns, following the branches a codegen question decides, so `Slot<Position>`'s
+`if $slot_type.has_function("tracking_kind") { ... } return 0` returns 0. The same test of such a parameter or
+local folds too. [Proofs](proofs.md#a-list-only-its-class-fills-holds-only-what-it-fills) has the rule.
+
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port` and `--development`, for a list of whole numbers
+or of an enum declared `var name = List<T>()` in one of the program's own classes, tested with `==` or `!=`
+against a value written out. Not for a list anything else can reach (`var alias = steps`, a function handed it that
+appends to it), a list filled with a value the compiler cannot list (`index * 2`, a value read from a file), a
+parameter some call reaches in a way it cannot follow (a function value, a union, `Concurrent`, a class-level
+function), a class whose attributes reflection walks, or a `switch`.
+
+**What you notice.** Speed, and nothing else: what the test would have answered is what it answers. The naive
+engine's stress test, whose matcher tests each column's tracking kind against every kind it knows while its rows
+only ever hold two of them, ticks in 35.4 ms instead of 39.0 as one C file (41.3 instead of 41.9 split), and its
+physics step takes 8.9 ms instead of 9.2. A function only a folded branch calls is still in the C, since the branch
+is removed by the C compiler and not before tree shaking.
+
 ### A number joined into text is written in place
 
 **The case:** [benchmarks/cases/a_number_joined_into_text_is_written_in_place](../benchmarks/cases/a_number_joined_into_text_is_written_in_place/).

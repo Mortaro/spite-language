@@ -18,6 +18,13 @@ built so far per class (C5, M6) are a first step; their per-site forms are rows 
 |---|---|---|---|---|
 | S1 | a generic loop driven by lists that never change after setup | the lists' contents are fixed once setup ends, known per configuration | the loop specialised per configuration into direct code (partial evaluation) | the generic loop |
 
+S1 is built in steps ([naive_programs.md](naive_programs.md#s1-design-2026-10-07)). **Step 1 is built**: the values
+a list only its class fills can hold are listed while compiling, and a test against any other value is decided
+([optimizations](../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling),
+[proofs](../docs/proofs.md#a-list-only-its-class-fills-holds-only-what-it-fills)): stress 39.0 to 35.4 ms a tick as
+one C file, 41.9 to 41.3 split. Step 2 (a copy per configuration, with a compiled dispatch) and step 3 (the
+runner made direct, with L8b and B2b) are not built.
+
 S1 measured by hand on the stress C after B1 (the fourth pass of [naive_programs.md](naive_programs.md#fourth-pass-2026-10-07)):
 `Runner<Move>` and `Runner<Regenerate>` specialised for the configuration `prepare()` leaves in their matchers'
 `headers`, `kinds` and `keys` take the tick from 37.9 ms to 4.0 ms, against the hand engine's 7.0 ms on two
@@ -45,6 +52,7 @@ loop.
 | B2: an item written back to its own slot is not written, and B1's uncounted read where the same proof holds to the end of the block (same block only; the engine's runner reads and stores in different functions) | [optimizations](../docs/optimizations.md#an-item-written-back-to-its-own-slot-is-not-written), [proofs](../docs/proofs.md#an-item-written-back-to-its-own-slot-is-the-slot) |
 | M6: objects of a class a list holds come from that class's own pool, side by side (stress 64.0 to 47.6 ms a tick, despawning 113 to 21 ms, physics 9.5 to 8.5 ms) | [optimizations](../docs/optimizations.md#objects-of-one-class-sit-together), [proofs](../docs/proofs.md#objects-a-list-holds-made-on-one-thread) |
 | B1 for named items: an item a name holds from its list is not counted while nothing can write the list, the name passed to calls as held (stress 43.6 to 41.2 ms a tick, 40.0 to 38.1 as one C file) | [optimizations](../docs/optimizations.md#an-item-a-name-holds-from-its-list-is-not-counted), [proofs](../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted) |
+| S1 step 1: a test against a value a list only its class fills never holds is decided while compiling (stress 39.0 to 35.4 ms a tick as one C file, 41.9 to 41.3 split, physics 9.2 to 8.9 ms) | [optimizations](../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling), [proofs](../docs/proofs.md#a-list-only-its-class-fills-holds-only-what-it-fills) |
 | B3: a list item read only to test it is not counted, the slot tested in place (stress 48.1 to 43.8 ms a tick, 43.3 to 40.3 as one C file, physics 8.4 to 8.1 ms) | [optimizations](../docs/optimizations.md#a-list-item-read-only-to-test-it-is-not-counted), [proofs](../docs/proofs.md#a-list-item-read-only-to-test-it-is-not-counted) |
 
 ## Threads

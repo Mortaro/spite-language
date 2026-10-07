@@ -1,0 +1,771 @@
+var shape = Analysis.AstShape()
+var candidates = Dictionary<Boolean>()
+var refused = Dictionary<Boolean>()
+var refused_names = Dictionary<Boolean>()
+var candidate_names = Dictionary<Boolean>()
+var declarations = Dictionary<Syntax.Statements.FunctionDeclaration>()
+var declared_twice = Dictionary<Boolean>()
+var constructors = Dictionary<Boolean>()
+var untrusted_names = Dictionary<Boolean>()
+var untrusted_classes = Dictionary<Boolean>()
+var reflected = Dictionary<Boolean>()
+var trusted_owners = Dictionary<Boolean>()
+var untrusted_owners = Dictionary<Boolean>()
+var terms = Dictionary<List<String>>()
+var atom_owners = Dictionary<String>()
+var atom_kinds = Dictionary<String>()
+var resolved = Dictionary<List<String>>()
+var unknown = Dictionary<Boolean>()
+var fold_parts = List<List<String>>()
+var fold_operators = List<String>()
+var fold_values = List<String>()
+var decisions = List<String>()
+var class_name = ""
+var shadowed = List<String>()
+var watched_parameter = ""
+var parameter_failed = false
+var settled = false
+var opening = ""
+var closing = ""
+
+func ItemValues() {
+    var opened = ["/*spite_", "item "]
+    opening = opened.join("")
+    var closed = ["/*spite_", "done*/"]
+    closing = closed.join("")
+}
+
+# ../../../docs/proofs.md#a-list-only-its-class-fills-holds-only-what-it-fills
+func study(class_files: List<Discovery.DiscoveredClass>) {
+    var index = 0
+    var supplied = Dictionary<Boolean>()
+    while index < class_files.count() {
+        var discovered = class_files[index]
+        var file = discovered.file
+        if file.path.starts_with("library/") or file.path.starts_with("launcher/") {
+            supplied[discovered.qualified_dotted] = true
+        }
+        if discovered.qualified_dotted == "Spite.Class" {
+            untrust_declared(file.statements)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < class_files.count() {
+        var discovered = class_files[index]
+        if not supplied.has(discovered.qualified_dotted) {
+            note_declarations(discovered.file.statements, discovered.qualified_dotted)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < class_files.count() {
+        var discovered = class_files[index]
+        study_class(discovered.file.statements, discovered.qualified_dotted)
+        index = index + 1
+    }
+}
+
+func untrust_declared(statements: List<Syntax.Statements.Statement>) {
+    var index = 0
+    while index < statements.count() {
+        var function = shape.as_function_declaration(statements[index])
+        if function {
+            untrusted_names[function.name] = true
+        }
+        index = index + 1
+    }
+}
+
+func note_declarations(statements: List<Syntax.Statements.Statement>, qualified: String) {
+    var dotted = qualified.split(".")
+    var simple = dotted.last()
+    crash simple
+    var index = 0
+    while index < statements.count() {
+        var declared = shape.as_variable_declaration(statements[index])
+        if declared {
+            crash declared.value
+            if makes_empty_list(declared.value) {
+                candidates["{qualified}#{declared.name}"] = true
+                candidate_names[declared.name] = true
+            } else {
+                refused["{qualified}#{declared.name}"] = true
+            }
+        }
+        var function = shape.as_function_declaration(statements[index])
+        if function {
+            var key = "{qualified}#{function.name}"
+            if declarations.has(key) {
+                declared_twice[key] = true
+            }
+            declarations[key] = function
+            if function.name == simple {
+                constructors[key] = true
+            }
+        }
+        index = index + 1
+    }
+}
+
+func makes_empty_list(value: Syntax.Expressions.Expression): Boolean {
+    var constructed = shape.as_generic_call(value)
+    if not constructed or not constructed.arguments.is_empty() {
+        return false
+    }
+    crash constructed.callee
+    var callee = shape.as_identifier(constructed.callee)
+    if not callee {
+        return false
+    }
+    return callee.name == "List"
+}
+
+func study_class(statements: List<Syntax.Statements.Statement>, qualified: String) {
+    class_name = qualified
+    var index = 0
+    while index < statements.count() {
+        var declared = shape.as_variable_declaration(statements[index])
+        if declared {
+            shadowed = List<String>()
+            crash declared.value
+            visit_value(declared.value)
+        }
+        var function = shape.as_function_declaration(statements[index])
+        if function {
+            shadowed = declared_names(function)
+            shadowed.each(refuse_shadowed)
+            visit_block(function.body)
+        }
+        index = index + 1
+    }
+}
+
+func refuse_shadowed(name: String) {
+    var key = "{class_name}#{name}"
+    if candidates.has(key) {
+        refused[key] = true
+    }
+}
+
+func declared_names(function: Syntax.Statements.FunctionDeclaration): List<String> {
+    var names = function.parameters.map_names()
+    collect_locals(function.body, names)
+    return names
+}
+
+func collect_locals(statements: List<Syntax.Statements.Statement>, names: List<String>) {
+    var index = 0
+    while index < statements.count() {
+        collect_local(statements[index], names)
+        index = index + 1
+    }
+}
+
+func collect_local(statement: Syntax.Statements.Statement, names: List<String>) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: names.append(statement.name)
+        Syntax.Statements.IfStatement: {
+            collect_locals(statement.then_branch, names)
+            collect_locals(statement.else_branch, names)
+        }
+        Syntax.Statements.WhileStatement: collect_locals(statement.body, names)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                var switch_case = statement.cases[case_index]
+                collect_locals(switch_case.body, names)
+                case_index = case_index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func visit_block(statements: List<Syntax.Statements.Statement>) {
+    statements.each(visit_statement)
+}
+
+func visit_statement(statement: Syntax.Statements.Statement) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: visit_optional(statement.value)
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            visit_target(statement.target)
+            visit_optional(statement.value)
+        }
+        Syntax.Statements.IfStatement: {
+            visit_optional(statement.condition)
+            visit_block(statement.then_branch)
+            visit_block(statement.else_branch)
+        }
+        Syntax.Statements.WhileStatement: {
+            visit_optional(statement.condition)
+            visit_block(statement.body)
+        }
+        Syntax.Statements.SwitchStatement: {
+            visit_optional(statement.subject)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                var switch_case = statement.cases[case_index]
+                visit_block(switch_case.body)
+                case_index = case_index + 1
+            }
+        }
+        Syntax.Statements.AssertStatement: visit_optional(statement.value)
+        Syntax.Statements.ReturnStatement: visit_optional(statement.value)
+        Syntax.Statements.ExpressionStatement: visit_optional(statement.value)
+        _: return
+    }
+}
+
+func visit_optional(expression: Syntax.Expressions.Expression?) {
+    assert expression
+    visit_value(expression)
+}
+
+func visit_target(target: Syntax.Expressions.Expression) {
+    if is_list_reference(target) {
+        refuse_reference(target)
+        return
+    }
+    var member = shape.as_member(target)
+    if member {
+        untrusted_names["set_{member.name}"] = true
+        visit_optional(member.object)
+        return
+    }
+    var indexed = shape.as_index(target)
+    assert indexed
+    crash indexed.object
+    if is_list_reference(indexed.object) {
+        refuse_reference(indexed.object)
+    } else {
+        visit_value(indexed.object)
+    }
+    visit_optional(indexed.index)
+}
+
+func is_list_reference(expression: Syntax.Expressions.Expression): Boolean {
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        if not watched_parameter.is_empty() {
+            return identifier.name == watched_parameter
+        }
+        return candidates.has("{class_name}#{identifier.name}") and not shadowed.contains(identifier.name)
+    }
+    if not watched_parameter.is_empty() {
+        return false
+    }
+    var member = shape.as_member(expression)
+    if member {
+        return candidate_names.has(member.name)
+    }
+    return false
+}
+
+func refuse_reference(expression: Syntax.Expressions.Expression) {
+    if not watched_parameter.is_empty() {
+        parameter_failed = true
+        return
+    }
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        refused["{class_name}#{identifier.name}"] = true
+        return
+    }
+    var member = shape.as_member(expression)
+    crash member
+    refused_names[member.name] = true
+    visit_optional(member.object)
+}
+
+func visit_value(expression: Syntax.Expressions.Expression) {
+    if is_list_reference(expression) {
+        refuse_reference(expression)
+        return
+    }
+    switch expression {
+        Syntax.Expressions.CallExpression: visit_call(expression)
+        Syntax.Expressions.GenericCallExpression: visit_construction(expression)
+        Syntax.Expressions.BinaryExpression: {
+            visit_optional(expression.left)
+            visit_optional(expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: visit_optional(expression.operand)
+        Syntax.Expressions.MemberExpression: {
+            untrusted_names[expression.name] = true
+            visit_optional(expression.object)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            if not is_list_reference(expression.object) {
+                visit_value(expression.object)
+            }
+            visit_optional(expression.index)
+        }
+        Syntax.Expressions.IdentifierExpression: {
+            if declarations.has("{class_name}#{expression.name}") and not shadowed.contains(expression.name) {
+                untrusted_names[expression.name] = true
+            }
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var element_index = 0
+            while element_index < expression.elements.count() {
+                var element = expression.elements[element_index]
+                visit_optional(element.value)
+                element_index = element_index + 1
+            }
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var field_index = 0
+            while field_index < expression.fields.count() {
+                var field = expression.fields[field_index]
+                visit_optional(field.value)
+                field_index = field_index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func visit_construction(construction: Syntax.Expressions.GenericCallExpression) {
+    visit_arguments(construction.arguments, "")
+}
+
+func visit_call(call: Syntax.Expressions.CallExpression) {
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    if member {
+        crash member.object
+        if is_list_reference(member.object) {
+            var own = watched_parameter.is_empty() and is_bare(member.object)
+            if not reads_list(member.name) and not (own and inserts_into_list(member.name)) {
+                refuse_reference(member.object)
+            }
+            var through = shape.as_member(member.object)
+            if through {
+                visit_optional(through.object)
+            }
+        } else {
+            visit_value(member.object)
+        }
+        visit_arguments(call.arguments, "")
+        return
+    }
+    var callee = shape.as_identifier(call.callee)
+    if callee {
+        if callee.name == "Concurrent" or callee.name == "Parallel" {
+            call.arguments.each(untrust_called)
+        }
+        visit_arguments(call.arguments, callee.name)
+        return
+    }
+    visit_value(call.callee)
+    visit_arguments(call.arguments, "")
+}
+
+func is_bare(expression: Syntax.Expressions.Expression): Boolean {
+    if shape.as_identifier(expression) {
+        return true
+    }
+    return false
+}
+
+func untrust_called(argument: Syntax.Expressions.Expression) {
+    var called = shape.as_call(argument)
+    assert called
+    crash called.callee
+    var named = shape.as_identifier(called.callee)
+    if named {
+        untrusted_names[named.name] = true
+        return
+    }
+    var member = shape.as_member(called.callee)
+    assert member
+    untrusted_names[member.name] = true
+}
+
+func visit_arguments(arguments: List<Syntax.Expressions.Expression>, callee: String) {
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        if is_list_reference(argument) {
+            visit_listed_argument(argument, callee, index)
+        } else {
+            visit_value(argument)
+        }
+        index = index + 1
+    }
+}
+
+func visit_listed_argument(argument: Syntax.Expressions.Expression, callee: String, position: Integer) {
+    if callee.is_empty() or not watched_parameter.is_empty() or not parameter_only_read(callee, position) {
+        refuse_reference(argument)
+        return
+    }
+    var through = shape.as_member(argument)
+    assert through
+    visit_optional(through.object)
+}
+
+func parameter_only_read(callee: String, position: Integer): Boolean {
+    var function = declarations["{class_name}#{callee}"]
+    if not function or position >= function.parameters.count() or declared_twice.has("{class_name}#{callee}") {
+        return false
+    }
+    var parameter = function.parameters[position]
+    if parameter.is_variadic {
+        return false
+    }
+    var outer_shadowed = shadowed
+    shadowed = declared_names(function)
+    watched_parameter = parameter.name
+    parameter_failed = false
+    visit_block(function.body)
+    var failed = parameter_failed
+    watched_parameter = ""
+    parameter_failed = false
+    shadowed = outer_shadowed
+    return not failed
+}
+
+func reads_list(name: String): Boolean {
+    var reading = [
+        "count"
+        "is_empty"
+        "contains"
+        "index_of"
+        "first"
+        "last"
+        "copy"
+        "clear"
+        "remove_at"
+        "remove_first"
+        "remove_last"
+        "remove"
+        "truncate"
+        "swap"
+        "remove_swapping"
+    ]
+    return reading.contains(name)
+}
+
+func inserts_into_list(name: String): Boolean {
+    return name == "append" or name == "prepend" or name == "insert"
+}
+
+func reflect(qualified: String) {
+    reflected[qualified] = true
+}
+
+func untrust(name: String) {
+    untrusted_names[name] = true
+}
+
+func untrust_class(qualified: String) {
+    untrusted_classes[qualified] = true
+}
+
+func listed(qualified: String, attribute: String): Boolean {
+    return candidates.has("{qualified}#{attribute}")
+}
+
+func items_atom(instance: String, qualified: String, attribute: String): String {
+    var atom = "items:{instance}#{attribute}"
+    atom_owners[atom] = "{qualified}#{attribute}"
+    atom_kinds[atom] = "items"
+    return atom
+}
+
+func parameter_atom(function_c_name: String, qualified: String, name: String, position: Integer): String {
+    var atom = "param:{base_name(function_c_name)}#{position}"
+    atom_owners[atom] = "{qualified}#{name}"
+    atom_kinds[atom] = "param"
+    return atom
+}
+
+func base_name(function_c_name: String): String {
+    var suffix = function_c_name.index_of("___")
+    if suffix < 0 {
+        return function_c_name
+    }
+    return function_c_name.slice(0, suffix)
+}
+
+func note_term(atom: String, parts: List<String>) {
+    crash not settled
+    if not terms.has(atom) {
+        terms[atom] = List<String>()
+    }
+    var kept = terms[atom]
+    crash kept
+    var index = 0
+    while index < parts.count() {
+        var part = parts[index]
+        if not kept.contains(part) {
+            kept.append(part)
+        }
+        index = index + 1
+    }
+}
+
+func fold_site(parts: List<String>, operator: String, value: String): Integer {
+    crash not settled
+    var position = fold_parts.count()
+    fold_parts.append(parts)
+    fold_operators.append(operator)
+    fold_values.append(value)
+    return position
+}
+
+func trusted(owner: String): Boolean {
+    if trusted_owners.has(owner) {
+        return true
+    }
+    if untrusted_owners.has(owner) {
+        return false
+    }
+    if trusted_now(owner) {
+        trusted_owners[owner] = true
+        return true
+    }
+    untrusted_owners[owner] = true
+    return false
+}
+
+func trusted_now(owner: String): Boolean {
+    var function = declarations[owner]
+    if not function or constructors.has(owner) or declared_twice.has(owner) {
+        return false
+    }
+    var parts = owner.split("#")
+    var qualified = parts.first()
+    crash qualified
+    if untrusted_classes.has(qualified) {
+        return false
+    }
+    var name = function.name
+    if untrusted_names.has(name) or name.starts_with("_") or name.starts_with("set_") or implicitly_called(name) {
+        return false
+    }
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        if parameter.is_variadic {
+            return false
+        }
+        crash parameter.type_reference
+        if names_a_reflection(parameter.type_reference) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func names_a_reflection(type_reference: Syntax.Types.Type): Boolean {
+    var named = shape.as_named_type(type_reference)
+    if not named {
+        return true
+    }
+    var last = named.path.last()
+    crash last
+    return last == "Symbol" or last.starts_with("Attribute") or named.path.contains("Spite")
+}
+
+func implicitly_called(name: String): Boolean {
+    var implied = [
+        "get_at"
+        "set_at"
+        "to_string"
+        "to_debug"
+        "copy"
+        "deep_copy"
+        "drop"
+        "free"
+        "allocate"
+        "get_memory"
+        "missing_function"
+        "text"
+        "largest"
+        "negate"
+        "equals"
+        "compare"
+        "hash"
+        "sum"
+        "subtract"
+        "multiply"
+        "divide"
+        "remainder"
+        "less_than"
+        "greater_than"
+        "source_folder"
+        "timer_start"
+        "timer_over"
+        "offload_start"
+        "offload_over"
+        "joins"
+        "check_point"
+    ]
+    return implied.contains(name)
+}
+
+func valid(atom: String): Boolean {
+    var owner = atom_owners[atom]
+    crash owner
+    var kind = atom_kinds[atom]
+    crash kind
+    if kind == "param" {
+        return trusted(owner)
+    }
+    var parts = owner.split("#")
+    var qualified = parts.first()
+    var attribute = parts.last()
+    crash qualified
+    crash attribute
+    return candidates.has(owner) and not refused.has(owner) and not refused_names.has(attribute) and not reflected.has(qualified)
+}
+
+func settle() {
+    settled = true
+    var atoms = atom_owners.keys()
+    var index = 0
+    while index < atoms.count() {
+        var atom = atoms[index]
+        resolved[atom] = List<String>()
+        if not valid(atom) {
+            unknown[atom] = true
+        }
+        index = index + 1
+    }
+    var changed = true
+    while changed {
+        changed = false
+        index = 0
+        while index < atoms.count() {
+            if widen(atoms[index]) {
+                changed = true
+            }
+            index = index + 1
+        }
+    }
+    index = 0
+    while index < fold_parts.count() {
+        var decision = decided(index)
+        decisions.append(decision)
+        index = index + 1
+    }
+}
+
+func widen(atom: String): Boolean {
+    if unknown.has(atom) {
+        return false
+    }
+    var values = resolved[atom]
+    crash values
+    var before = values.count()
+    var parts = terms[atom]
+    if not parts {
+        unknown[atom] = true
+        return true
+    }
+    if not gather(parts, values) {
+        unknown[atom] = true
+        return true
+    }
+    return values.count() != before
+}
+
+func gather(parts: List<String>, values: List<String>): Boolean {
+    var index = 0
+    while index < parts.count() {
+        var part = parts[index]
+        if part == "?" {
+            return false
+        }
+        if part.starts_with("items:") or part.starts_with("param:") {
+            if unknown.has(part) or not resolved.has(part) {
+                return false
+            }
+            var known = resolved[part]
+            crash known
+            var known_index = 0
+            while known_index < known.count() {
+                var value = known[known_index]
+                if not values.contains(value) {
+                    values.append(value)
+                }
+                known_index = known_index + 1
+            }
+        } else if not values.contains(part) {
+            values.append(part)
+        }
+        if values.count() > 16 {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func decided(position: Integer): String {
+    var parts = fold_parts[position]
+    crash parts
+    var values = List<String>()
+    if not gather(parts, values) {
+        return ""
+    }
+    var value = fold_values[position]
+    crash value
+    if values.contains(value) {
+        return ""
+    }
+    var operator = fold_operators[position]
+    crash operator
+    if operator == "==" {
+        return "0"
+    }
+    return "1"
+}
+
+func applied(text: String): String {
+    if not text.contains(opening) {
+        return text
+    }
+    var pieces = text.split(opening)
+    var result = List<String>()
+    var index = 0
+    while index < pieces.count() {
+        var piece = pieces[index]
+        if index == 0 {
+            result.append(piece)
+        } else {
+            var decided_piece = applied_piece(piece)
+            result.append(decided_piece)
+        }
+        index = index + 1
+    }
+    return result.join("")
+}
+
+func applied_piece(piece: String): String {
+    var close = piece.index_of("*/")
+    var digits = piece.slice(0, close)
+    var position = digits.to_integer()
+    crash position
+    var piece_length = piece.length()
+    var rest = piece.slice(close + 2, piece_length)
+    var end = rest.index_of(closing)
+    crash end >= 0
+    var rest_length = rest.length()
+    var closing_length = closing.length()
+    var after = rest.slice(end + closing_length, rest_length)
+    var inner = rest.slice(0, end)
+    var decision = decisions[position]
+    crash decision
+    if decision.is_empty() {
+        return inner + after
+    }
+    return "((void)({inner}), {decision})" + after
+}

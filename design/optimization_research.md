@@ -57,7 +57,10 @@ Mortaro, 2026-10-07: optimising "by class" is too coarse. A class is meaning; it
   uniform and the steps are independent. The program never mentions entities.
 - **Specialising generic machinery.** A generic loop driven by lists that never change after setup (an ECS
   runner's headers, kinds and keys) is partially evaluated per configuration into direct code. This is the
-  biggest measured gap in the naive engine (about 70% of its stress tick).
+  biggest measured gap in the naive engine (about 70% of its stress tick). Found while building its first step:
+  most of that gap is not the configuration but the runner around it (folding the matcher's kinds and counts by
+  hand bought 15%); the configuration's domain, the values each list can hold, is a whole-program fact that needs
+  no "setup" phase at all, and is enough to fold tests against values a list never holds.
 
 Research questions: how to represent "the same value in two shapes" in the compiler's IR; when a split pays
 (access counts, cache-line footprints, write sharing); how to prove the conversion points preserve every observable

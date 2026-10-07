@@ -254,6 +254,36 @@ func any_kept(guard: String, shaker: TreeShaker): Boolean {
     return shaker.guard_holds(guard)
 }
 
+# ../../../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling
+func apply_item_values(values: ItemValues) {
+    applied_in(support_bodies, values)
+    applied_in(user_bodies, values)
+    applied_in(main_lines, values)
+    applied_in(slot_lines, values)
+    applied_in(guard_lines, values)
+    applied_in(guard_otherwise, values)
+    var names = binding_lines.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var line = binding_lines[name]
+        crash line
+        binding_lines[name] = values.applied(line)
+        index = index + 1
+    }
+}
+
+func applied_in(lines: List<String>, values: ItemValues) {
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        if line.contains(values.opening) {
+            lines[index] = values.applied(line)
+        }
+        index = index + 1
+    }
+}
+
 func add_shaken_macro(name: String) {
     shaken_macros[name] = true
 }

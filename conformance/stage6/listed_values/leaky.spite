@@ -1,0 +1,60 @@
+var marks = List<Integer>()
+var flags = List<Integer>()
+var sizes = List<Integer>()
+
+func Leaky() {
+    marks.append(1)
+    var alias = marks
+    alias.append(3)
+    flags.append(1)
+    grow(flags)
+    var index = 0
+    while index < 3 {
+        sizes.append(index * 2)
+        index = index + 1
+    }
+}
+
+func grow(values: List<Integer>) {
+    values.append(5)
+}
+
+func threes(): Integer {
+    return counted(marks, 3)
+}
+
+func fives(): Integer {
+    var found = 0
+    var index = 0
+    while index < flags.count() {
+        if flags[index] == 5 {
+            found = found + 1
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func doubled(): Integer {
+    var found = 0
+    var index = 0
+    while index < sizes.count() {
+        if sizes[index] == 4 {
+            found = found + 1
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func counted(values: List<Integer>, wanted: Integer): Integer {
+    var found = 0
+    var index = 0
+    while index < values.count() {
+        if values[index] == wanted {
+            found = found + 1
+        }
+        index = index + 1
+    }
+    return found
+}

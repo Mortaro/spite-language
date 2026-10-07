@@ -113,6 +113,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [An item written back to its own slot](#an-item-written-back-to-its-own-slot-is-the-slot) | no write-back | the write |
 | [An item a name holds from its list](#an-item-a-name-holds-from-its-list-is-not-counted) | no count on the read, none on the calls it is passed to | the counted read |
 | [A list item read only to test it](#a-list-item-read-only-to-test-it-is-not-counted) | no count for the test | the counted read |
+| [A list only its class fills](#a-list-only-its-class-fills-holds-only-what-it-fills) | a test against a value it never holds decided while compiling | the test runs |
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
 | [Objects a list holds, made on one thread](#objects-a-list-holds-made-on-one-thread) | a pool per class | the C library's allocator |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
@@ -889,6 +890,28 @@ have moved.
   that is a call's result. Nothing is an error.
 - **See.** [optimizations.md: A list item read only to test it is not
   counted](optimizations.md#a-list-item-read-only-to-test-it-is-not-counted); `conformance/stage6/tested_items`.
+
+### A list only its class fills holds only what it fills
+
+- **Proves.** Every item a list ever holds, at any moment of the run, is one of a few values the compiler can list.
+- **Rule.** The list is an attribute declared `var name = List<T>()`, `T` a whole number class or an enum, of one
+  of the program's own classes. In the whole program it is never assigned; the only calls that put a value into it
+  are `name.append(value)`, `name.prepend(value)` and `name.insert(index, value)` in its own class; every other use
+  reads it (`count()`, `is_empty()`, `contains`, `index_of`, `first()`, `last()`, `copy()`, a `[]` read or a test of
+  one), shrinks it (`clear()`, `truncate`, `swap`, the `remove_` forms) or passes it to a function of the same class
+  whose parameter is used only in those ways; and nothing walks its class's attributes or reads its memory by
+  reflection. Each value put in is one the compiler can list: a whole number or an enum value written out, an item
+  of another such list, a parameter of a function of the program (not a constructor, a template, a class-level
+  function, an operator's function or a setter, and never used as a value, called through a union or handed to
+  `Concurrent` or `Parallel`) whose every call passes such a value, a local whose every assignment is one, or a
+  call of a function every `return` of which is one (the branches a codegen question decides are followed, and an
+  `assert` in it adds the default it returns). Sixteen values at most.
+- **Buys.** A `==` or `!=` between such an item, parameter or local and a value written out that is not among them
+  is decided: `false` or `true`, while the item is still read, so a read outside the list halts as before.
+- **Falls back.** The test runs, as it is written. Nothing is an error.
+- **See.** [optimizations.md: A test against a value a list never holds is decided while
+  compiling](optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling);
+  `conformance/stage6/listed_values`.
 
 ## Threads and locks
 

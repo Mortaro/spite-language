@@ -1,0 +1,17 @@
+var console = Console()
+
+func ListedValues() {
+    var pipeline = Pipeline()
+    pipeline.add(1)
+    pipeline.add(2)
+    var priced = pipeline.run(1000)
+    console.print("priced", priced)
+    var codes = Codes()
+    var described = codes.describe()
+    console.print("codes", described)
+    var leaky = Leaky()
+    var threes = leaky.threes()
+    var fives = leaky.fives()
+    var doubled = leaky.doubled()
+    console.print("leaky", threes, fives, doubled)
+}
