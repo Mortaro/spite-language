@@ -1,3 +1,0 @@
-func update_each(health: Component.Health, regeneration: Component.Regeneration) {
-    health.amount = health.amount + regeneration.per_tick
-}

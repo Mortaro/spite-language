@@ -1,3 +1,0 @@
-var entity = Entity(0)
-var health = Component.Health()
-var regeneration = Component.Regeneration()

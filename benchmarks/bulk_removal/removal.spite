@@ -1,6 +1,0 @@
-enum Removal {
-    'swap_remove_each'
-    'swap_remove_listed'
-    'remove_where'
-    'swap_and_truncate'
-}

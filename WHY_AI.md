@@ -21,12 +21,13 @@ designed so a moron's code still comes out correct and fast. That is the case fo
   not in the executable. The full list, with every remaining cost, is
   [docs/optimizations.md](docs/optimizations.md).
 - When the source changes, the optimisations are redone. Nothing goes stale.
-- Measured, Spite `--optimized` against hand-written C at `-O3`
-  ([benchmarks/README.md](benchmarks/README.md#spite-against-c)): Spite takes 1.06 to 1.96 times as long as
-  hand-written C (Spite's time over C's; 1.00 is equal, lower is better): particles stepped in place 1.06;
-  `Vector3` maths 1.25; quicksort 1.30; text building 1.62; integer-keyed dictionary 1.96. The `Vector3` program
-  went from 4.33 times as long as C to 1.25 with no change to its source, when the compiler learned to keep non-escaping objects in
-  the frame.
+- Measured, Spite `--optimized` against the same program written plainly in C and tuned by hand in C, both at
+  `clang -O2` ([benchmarks/README.md](benchmarks/README.md)); Spite's time over naive C's, then over expert C's
+  (1.00 is equal, lower is better), on a machine other work was loading: particles stepped in place 0.74 and 1.25;
+  quicksort 1.20 and 7.52; text building 1.77 and 15.48; `Vector3` maths 2.40 and 3.23; integer-keyed dictionary
+  3.79 and 6.94. The `Vector3` program once went from 4.33 times as long as C to 1.25 with no change to its source,
+  when the compiler learned to keep non-escaping objects in the frame; `normalized()`'s answer now falls back to the
+  heap, a bug the case found.
 - Not yet: a `List` of a class is still a list of references. The goal is that every list gets its packed layout
   and that the compiler reports any it could not optimise.
 

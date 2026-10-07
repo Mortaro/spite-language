@@ -1,6 +1,6 @@
 #!/bin/bash
-# Checks each case of benchmarks/cases (benchmarks/cases/README.md) the way check.sh does: naive/ compiles, the C it
-# compiles to still holds what its generated.c shows (scripts/cases/extract.sh), and naive/, naive.c and expert.c,
+# Checks each case of benchmarks/ (benchmarks/README.md) the way check.sh does: naive/ compiles, the C it compiles to
+# is still what its generated.c and highlights.c hold (scripts/cases/extract.sh), and naive/, naive.c and expert.c,
 # each built with the C compiler at -O2, print the same answer. Nothing is timed. Run from anywhere:
 #   bash scripts/cases/check.sh [--compiler=path] [case ...]
 # With no case, every case. The compiler defaults to .spite/spite_development.exe; CC chooses the C compiler, and
@@ -15,7 +15,7 @@ for argument in "$@"; do
     esac
 done
 if [ ${#names[@]} -eq 0 ]; then
-    for folder in benchmarks/cases/*/; do names+=("$(basename "$folder")"); done
+    for folder in benchmarks/*/; do names+=("$(basename "$folder")"); done
 fi
 export CASES_WORK=${CASES_WORK:-.spite/cases}
 work=$CASES_WORK
@@ -32,7 +32,8 @@ if [ -z "$C_COMPILER" ]; then
     fi
 fi
 maths_library="-lm"
-case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) maths_library="" ;; esac
+on_windows=false
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) maths_library=""; on_windows=true ;; esac
 # a program that hangs fails by name; CHECK_TIMEOUT sets the limit in seconds, as in check.sh
 limit=${CHECK_TIMEOUT:-300}
 run_limited() {
@@ -40,16 +41,24 @@ run_limited() {
 }
 failures=0
 for name in "${names[@]}"; do
-    folder="benchmarks/cases/$name"
+    folder="benchmarks/$name"
     failed() { echo "FAILED: case $name: $1"; [ -n "$2" ] && echo "$2" | head -6; failures=$((failures + 1)); }
-    errors=$("$compiler" "$folder/naive" --check --c-source --optimized --c-path="$work/$name.c" 2>&1) || {
+    # the files a case keeps are the C for Windows, so they are the same on every machine
+    errors=$("$compiler" "$folder/naive" --check --c-source --optimized --target-operating-system=windows \
+        --c-path="$work/$name.c" 2>&1) || {
         failed "naive/ does not compile" "$errors"; continue; }
     errors=$(bash scripts/cases/extract.sh --check --from-c="$work/$name.c" "$name" 2>&1) || {
-        failed "generated.c" "$errors"; continue; }
+        failed "generated.c or highlights.c" "$errors"; continue; }
+    runnable="$work/$name.c"
+    if ! $on_windows; then
+        runnable="$work/${name}_here.c"
+        errors=$("$compiler" "$folder/naive" --check --c-source --optimized --c-path="$runnable" 2>&1) || {
+            failed "naive/ does not compile for this system" "$errors"; continue; }
+    fi
     built=true
     for form in spite naive expert; do
         source="$folder/$form.c"
-        [ "$form" == "spite" ] && source="$work/$name.c"
+        [ "$form" == "spite" ] && source="$runnable"
         errors=$("$C_COMPILER" -O2 -w "$source" -o "$work/${name}_$form.exe" $maths_library 2>&1) || {
             failed "the $form C does not compile" "$errors"; built=false; break; }
     done

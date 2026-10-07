@@ -390,7 +390,7 @@ members are [the table under `Items<T>`](../docs/collections.md#itemst-the-stora
   ([optimizations.md](../docs/optimizations.md#a-lists-templates-read-its-elements-without-counting-them)). The range
   check of `[]` is one comparison that answers `null`, small enough for the C compiler to inline, and a proven
   read uses the item without testing that answer again. A program that makes no `Items` carries none of it. Measured in
-  `benchmarks/items_storage`.
+  `benchmarks/an_items_storage_is_chosen_while_compiling`.
 
 `conformance/stage6/items_columns`, `conformance/stage6/plain_items`, `conformance/stage6/vector_find_sort`,
 `diagnostics/items_borrows`, `diagnostics/plain_items`, `diagnostics/text_items_passed`.
@@ -411,8 +411,8 @@ members are [the table under `Items<T>`](../docs/collections.md#itemst-the-stora
   still counts it. So whatever the test does to the collection (read it, append to it, even remove from it),
   nothing can be released twice or read after it was released; it only sees the elements in a different order.
   Moving an element down would leave its old slot holding a second copy that a test could release, or a blank that
-  is no valid element. The exchange costs one more copy per element that stays, which measured about a third
-  slower than moving at half removed and the same at nine in ten (`benchmarks/bulk_removal`).
+  is no valid element. The exchange costs one more copy per element that stays
+  (`benchmarks/removing_many_at_once` measures `remove_where` against C, which moves).
 - **`truncate(count)`** keeps the first `count` elements and releases the rest; a `count` below zero or not below
   the size does nothing. **`swap(first, second)`** exchanges two elements, doing nothing when either index is out
   of range; with `truncate` it is how a pass of the program's own removes by something other than a function of
@@ -434,7 +434,7 @@ members are [the table under `Items<T>`](../docs/collections.md#itemst-the-stora
   340 µs against 370 µs for a `remove_swapping` per removed row while walking the rows and 530 µs for one per
   entity of a despawn list; nine in ten removed, 290 µs against 490 µs and 930 µs.
 
-`conformance/stage6/bulk_removal`, `diagnostics/bulk_removal`, `benchmarks/bulk_removal`.
+`conformance/stage6/bulk_removal`, `diagnostics/bulk_removal`, `benchmarks/removing_many_at_once`.
 
 ## There is no `Heap<T>`
 

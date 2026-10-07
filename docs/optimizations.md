@@ -100,7 +100,7 @@ emit nothing.
 
 ### Tree shaking the generated C
 
-**The case:** [benchmarks/cases/tree_shaking_the_generated_c](../benchmarks/cases/tree_shaking_the_generated_c/).
+**The case:** [benchmarks/tree_shaking_the_generated_c](../benchmarks/tree_shaking_the_generated_c/).
 
 **What it does.** After the program is generated, the compiler keeps only the C that `main` can reach: every
 function nothing calls, from your classes, `library/` or the compiler's own prelude, is dropped along with its
@@ -144,7 +144,7 @@ the program when the library opens. An inspectable build is not shaken, so it lo
 
 ### Deciding conditions at compile time
 
-**The case:** [benchmarks/cases/deciding_conditions_at_compile_time](../benchmarks/cases/deciding_conditions_at_compile_time/).
+**The case:** [benchmarks/deciding_conditions_at_compile_time](../benchmarks/deciding_conditions_at_compile_time/).
 
 **What it does.** A condition the compiler can answer while compiling is answered then, and only the branch taken
 is generated. The branch not taken is not in the program at all, not skipped at run time but *absent*, so it may
@@ -251,7 +251,7 @@ instantiation.
 
 ### Reflection, symbols and registries only where read
 
-**The case:** [benchmarks/cases/reflection_symbols_and_registries_only_where_read](../benchmarks/cases/reflection_symbols_and_registries_only_where_read/).
+**The case:** [benchmarks/reflection_symbols_and_registries_only_where_read](../benchmarks/reflection_symbols_and_registries_only_where_read/).
 
 **What it does.** Reflection is decided at compile time, so the compiler knows exactly what a program reads and
 emits only that: a class object's `.attributes`, `.functions` and
@@ -275,7 +275,7 @@ exit, so `--debug-memory` does not count it.
 
 ### Reflection on constants folds and unrolls
 
-**The case:** [benchmarks/cases/reflection_on_constants_folds_and_unrolls](../benchmarks/cases/reflection_on_constants_folds_and_unrolls/).
+**The case:** [benchmarks/reflection_on_constants_folds_and_unrolls](../benchmarks/reflection_on_constants_folds_and_unrolls/).
 
 **What it does.** A reflection object the compiler can identify (a class named in the code, `$T`, `value.class`
 of a class-typed value, and everything read from them) is a constant
@@ -289,7 +289,7 @@ run-time list, and one copy per element in `--final-classes`.
 
 ### Template chains run as one loop
 
-**The case:** [benchmarks/cases/template_chains_run_as_one_loop](../benchmarks/cases/template_chains_run_as_one_loop/).
+**The case:** [benchmarks/template_chains_run_as_one_loop](../benchmarks/template_chains_run_as_one_loop/).
 
 **What it does.** `teams.filter_is_active().map_leads().sum_age()` reads as three steps, and that is what it means,
 but the compiler writes it as one loop over `teams` with no list in between: each element is tested, mapped and
@@ -367,7 +367,7 @@ above. Member functions a template reads should not depend on that order; ones t
 
 ### Appending to text in place
 
-**The case:** [benchmarks/cases/appending_to_text_in_place](../benchmarks/cases/appending_to_text_in_place/).
+**The case:** [benchmarks/appending_to_text_in_place](../benchmarks/appending_to_text_in_place/).
 
 **What it does.** `text = text + piece`, or `text = "{text}{piece}"`, would copy the whole text on every
 append, which makes the most common loop there is quietly quadratic. When nothing but that variable holds the
@@ -402,7 +402,7 @@ abc a
 
 ### The compiler places memory
 
-**The case:** [benchmarks/cases/the_compiler_places_memory](../benchmarks/cases/the_compiler_places_memory/).
+**The case:** [benchmarks/the_compiler_places_memory](../benchmarks/the_compiler_places_memory/).
 
 **What it does.** A program has one way to ask for raw memory, `heap.allocate(bytes)` on `Memory.Heap()`, and one way
 to give it back, `heap.free(address)`. Where the bytes live is the compiler's choice
@@ -469,7 +469,7 @@ yourself: there is no second way to allocate, so there is no address to keep pas
 
 ### Reading an address is one machine operation
 
-**The case:** [benchmarks/cases/reading_an_address_is_one_machine_operation](../benchmarks/cases/reading_an_address_is_one_machine_operation/).
+**The case:** [benchmarks/reading_an_address_is_one_machine_operation](../benchmarks/reading_an_address_is_one_machine_operation/).
 
 **What it does.** `address.read_long(16)`, `address.write_float(8, value)` and the other reads, writes and atomics of
 `Memory.Address` are primitives of the language, like `+`: the compiler writes each one where it is called, as the
@@ -483,7 +483,7 @@ reads its memory this way.
 
 ### An allocator set after construction is where the object is made
 
-**The case:** [benchmarks/cases/an_allocator_set_after_construction_is_where_the_object_is_made](../benchmarks/cases/an_allocator_set_after_construction_is_where_the_object_is_made/).
+**The case:** [benchmarks/an_allocator_set_after_construction_is_where_the_object_is_made](../benchmarks/an_allocator_set_after_construction_is_where_the_object_is_made/).
 
 **What it does.** `var spark = Particle("spark", 1.5)` followed by `spark.memory.allocator = arena` reads as
 though it made the particle on the heap and then moved it. The compiler makes it in `arena` from the start: the
@@ -508,7 +508,7 @@ never given one answers `Memory.Heap` with no hidden pointers: reading it is one
 
 ### Singletons: made on first use, never counted
 
-**The case:** [benchmarks/cases/singletons_made_on_first_use_never_counted](../benchmarks/cases/singletons_made_on_first_use_never_counted/).
+**The case:** [benchmarks/singletons_made_on_first_use_never_counted](../benchmarks/singletons_made_on_first_use_never_counted/).
 
 **What it does.** A singleton is made the first time something asks for it, not when the program starts, so a
 program pays only for the singletons it reaches. It is never reference counted:
@@ -580,7 +580,7 @@ names an object a program leaked, even one that points at a singleton.
 
 ### Singletons that hold nothing are static objects
 
-**The case:** [benchmarks/cases/singletons_that_hold_nothing_are_static_objects](../benchmarks/cases/singletons_that_hold_nothing_are_static_objects/).
+**The case:** [benchmarks/singletons_that_hold_nothing_are_static_objects](../benchmarks/singletons_that_hold_nothing_are_static_objects/).
 
 **What it does.** A singleton with no attributes and no `drop()` (`Memory.Heap`, `TypedMemory<T>`, one per element
 type, and `Build`, whose attributes are all settings folded into the program) is one static object: never
@@ -630,7 +630,7 @@ answers the folded settings in both.
 
 ### Atomic reference counts only with threads
 
-**The case:** [benchmarks/cases/atomic_reference_counts_only_with_threads](../benchmarks/cases/atomic_reference_counts_only_with_threads/).
+**The case:** [benchmarks/atomic_reference_counts_only_with_threads](../benchmarks/atomic_reference_counts_only_with_threads/).
 
 **What it does.** Retaining and releasing a reference is plain arithmetic, except in a program that can share an
 object between threads: one that makes a `Concurrent` or a `Parallel` (reads in a row included), runs a
@@ -643,7 +643,7 @@ thread never pays for atomics. In a program that does, only the classes another 
 
 ### Plain reference counts where no thread reaches a class
 
-**The case:** [benchmarks/cases/plain_reference_counts_where_no_thread_reaches_a_class](../benchmarks/cases/plain_reference_counts_where_no_thread_reaches_a_class/).
+**The case:** [benchmarks/plain_reference_counts_where_no_thread_reaches_a_class](../benchmarks/plain_reference_counts_where_no_thread_reaches_a_class/).
 
 **What it does.** An atomic count costs a locked instruction at every retain and release, and most classes of a
 program with threads never need one: an engine's components are moved by the program's own thread while a worker
@@ -732,7 +732,7 @@ above, whose C `check.sh` reads.
 
 ### A function taking a `type` is compiled per class
 
-**The case:** [benchmarks/cases/a_function_taking_a_type_is_compiled_per_class](../benchmarks/cases/a_function_taking_a_type_is_compiled_per_class/).
+**The case:** [benchmarks/a_function_taking_a_type_is_compiled_per_class](../benchmarks/a_function_taking_a_type_is_compiled_per_class/).
 
 **What it does.** A function whose parameter is a `type` (`Anything`, `Printable`, a shape of your own) is compiled
 once for each class that reaches it, following calls through the whole program. A call whose argument's class is
@@ -760,7 +760,7 @@ program only tests for is not in the C at all.
 
 ### Boxing only where a value travels as a shape
 
-**The case:** [benchmarks/cases/boxing_only_where_a_value_travels_as_a_shape](../benchmarks/cases/boxing_only_where_a_value_travels_as_a_shape/).
+**The case:** [benchmarks/boxing_only_where_a_value_travels_as_a_shape](../benchmarks/boxing_only_where_a_value_travels_as_a_shape/).
 
 **What it does.** A number, `Boolean`, enum value, `Symbol` or `String` is a plain value everywhere the compiler can
 see its type, including where it is passed to a function that takes a `type`
@@ -783,7 +783,7 @@ pointer.
 
 ### A variadic list the callee only reads lives in the caller's frame
 
-**The case:** [benchmarks/cases/a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](../benchmarks/cases/a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/).
+**The case:** [benchmarks/a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](../benchmarks/a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/).
 
 **What it does.** The `...values` of a variadic call arrive in a `List`. When the call is a statement of its own
 (`console.print(name, count)`), the value of a `var` or of an assignment (`var biggest = largest(a, b, c)`) or what a
@@ -801,7 +801,7 @@ caller's frame it takes as long as plain C (1.01).
 
 ### Concurrency machinery only where it is used
 
-**The case:** [benchmarks/cases/concurrency_machinery_only_where_it_is_used](../benchmarks/cases/concurrency_machinery_only_where_it_is_used/).
+**The case:** [benchmarks/concurrency_machinery_only_where_it_is_used](../benchmarks/concurrency_machinery_only_where_it_is_used/).
 
 **What it does.** The scheduler, the state machines, the helper threads and the wrappers around every call that can
 wait (`Program.sleep`, `Console.read_line`, `File.read`/`write`/`append`,
@@ -816,7 +816,7 @@ machines ([below](#hidden-asyncawait-as-compile-time-state-machines)). [concurre
 
 ### Hidden async/await as compile-time state machines
 
-**The case:** [benchmarks/cases/hidden_async_await_as_compile_time_state_machines](../benchmarks/cases/hidden_async_await_as_compile_time_state_machines/).
+**The case:** [benchmarks/hidden_async_await_as_compile_time_state_machines](../benchmarks/hidden_async_await_as_compile_time_state_machines/).
 
 **What it does.** Waiting on IO is written as an ordinary call and the compiler turns it into a point where other
 work runs. It is done at compile time, with no stacks to switch: every function that can reach a wait from inside
@@ -880,7 +880,7 @@ functions, no event loop and no helper threads; its waits are the plain system c
 
 ### Reads in a row overlap
 
-**The case:** [benchmarks/cases/reads_in_a_row_overlap](../benchmarks/cases/reads_in_a_row_overlap/).
+**The case:** [benchmarks/reads_in_a_row_overlap](../benchmarks/reads_in_a_row_overlap/).
 
 **What it does.** Two or more `var name = file.read()` (or `socket.read_line()`) written one after another, none
 naming a variable an earlier one declared, are started together: every read but the last becomes a `Concurrent`,
@@ -900,7 +900,7 @@ allocate 19 times in 1 511 lines.
 
 ### REPL, live reload and debug machinery only in those builds
 
-**The case:** [benchmarks/cases/repl_live_reload_and_debug_machinery_only_in_those_builds](../benchmarks/cases/repl_live_reload_and_debug_machinery_only_in_those_builds/).
+**The case:** [benchmarks/repl_live_reload_and_debug_machinery_only_in_those_builds](../benchmarks/repl_live_reload_and_debug_machinery_only_in_those_builds/).
 
 **What it does.** Everything that exists to look inside a running program is compiled only into the builds that
 ask for it:
@@ -932,7 +932,7 @@ points.
 
 ### A reload compiles only the classes that changed
 
-**The case:** [benchmarks/cases/a_reload_compiles_only_the_classes_that_changed](../benchmarks/cases/a_reload_compiles_only_the_classes_that_changed/).
+**The case:** [benchmarks/a_reload_compiles_only_the_classes_that_changed](../benchmarks/a_reload_compiles_only_the_classes_that_changed/).
 
 **What it does.** `spite reload` (the running program's `reload`, and its file watcher) compiles the functions of
 the classes the changed files declare and nothing else of the program: every class is still read and checked,
@@ -955,7 +955,7 @@ each class's `functions` list is written once more at the end of compiling when 
 
 ### What a `--hot-reload` build carries so its objects can move
 
-**The case:** [benchmarks/cases/what_a_hot_reload_build_carries_so_its_objects_can_move](../benchmarks/cases/what_a_hot_reload_build_carries_so_its_objects_can_move/).
+**The case:** [benchmarks/what_a_hot_reload_build_carries_so_its_objects_can_move](../benchmarks/what_a_hot_reload_build_carries_so_its_objects_can_move/).
 
 **What it does.** Nothing faster: this is the price of [moving live objects to new
 attributes](repl.md#changing-a-classs-attributes), paid only in a `--hot-reload` build. Each object
@@ -981,7 +981,7 @@ own.
 
 ### The thread pool only where a `Parallel` is made
 
-**The case:** [benchmarks/cases/the_thread_pool_only_where_a_parallel_is_made](../benchmarks/cases/the_thread_pool_only_where_a_parallel_is_made/).
+**The case:** [benchmarks/the_thread_pool_only_where_a_parallel_is_made](../benchmarks/the_thread_pool_only_where_a_parallel_is_made/).
 
 **What it does.** `ThreadPool` is a singleton made the first time a `Parallel` (or a `parallel_each_` pass) needs
 it, and it starts its worker threads then, once.
@@ -995,7 +995,7 @@ its `get()` never locks, and only a thread's `set` does
 
 ### Singletons a `Parallel` reaches take a lock
 
-**The case:** [benchmarks/cases/singletons_a_parallel_reaches_take_a_lock](../benchmarks/cases/singletons_a_parallel_reaches_take_a_lock/).
+**The case:** [benchmarks/singletons_a_parallel_reaches_take_a_lock](../benchmarks/singletons_a_parallel_reaches_take_a_lock/).
 
 **What it does.** In a program that makes a `Parallel`, every singleton of the program's own that can change after it
 is made gets a lock of its own, taken around every one of its functions that touches what can change (which functions,
@@ -1048,7 +1048,7 @@ class, and `Rules` takes no lock.
 
 ### Thread safety for singletons, the cheapest safe form
 
-**The case:** [benchmarks/cases/thread_safety_for_singletons_the_cheapest_safe_form](../benchmarks/cases/thread_safety_for_singletons_the_cheapest_safe_form/).
+**The case:** [benchmarks/thread_safety_for_singletons_the_cheapest_safe_form](../benchmarks/thread_safety_for_singletons_the_cheapest_safe_form/).
 
 **What it does.** For each singleton of the program's own that can change after it is made, the compiler picks
 the cheapest form that is as safe as the lock, from what that singleton's functions actually do. You write
@@ -1121,7 +1121,7 @@ a write, two steps.
 
 ### While no task runs, a singleton's lock is skipped
 
-**The case:** [benchmarks/cases/while_no_task_runs_a_singletons_lock_is_skipped](../benchmarks/cases/while_no_task_runs_a_singletons_lock_is_skipped/).
+**The case:** [benchmarks/while_no_task_runs_a_singletons_lock_is_skipped](../benchmarks/while_no_task_runs_a_singletons_lock_is_skipped/).
 
 **What it does.** Every function a singleton's lock wraps first asks whether any work is on the thread pool: the pool
 counts every task from the moment it is handed out until it has run (`spite_tasks_in_flight`, one add and one
@@ -1137,9 +1137,9 @@ singleton locked exactly as it would have, and nothing it can see differs.
 before. Writes and reads of attributes from other classes and counted loops keep their lock.
 
 **What you notice.** Speed where the program's own thread calls a locked singleton while nothing runs on the pool, an
-engine applying queued inserts between stages for example: `benchmarks/singleton_unshared`, ten million calls on the
-program's thread with no task in flight, 19 ns a call with the lock, 9 ns with the skip, against 4 ns with no lock at
-all written by hand. In a spawn-shaped program doing real work per call (`Column<T>` inserts: growing a list,
+engine applying queued inserts between stages for example: [its case](../benchmarks/while_no_task_runs_a_singletons_lock_is_skipped/),
+ten million calls on the program's thread with no task in flight, takes 52.6 ms, against 76.4 ms for naive C, which
+takes a mutex on every call, and 2.8 ms for expert C, which keeps the tally in registers. In a spawn-shaped program doing real work per call (`Column<T>` inserts: growing a list,
 appending to an `Items`, reading a row) the lock was about 1 ns of 14 ns a call, so there it measures 13 ns. Each call
 reads one counter no thread writes while it is zero, and each task costs two atomic additions.
 
@@ -1153,7 +1153,7 @@ a `memcpy` in the machine code, and what is left is its allocation (about 39 ns 
 
 ### A singleton's reading functions do not exclude each other
 
-**The case:** [benchmarks/cases/a_singletons_reading_functions_do_not_exclude_each_other](../benchmarks/cases/a_singletons_reading_functions_do_not_exclude_each_other/).
+**The case:** [benchmarks/a_singletons_reading_functions_do_not_exclude_each_other](../benchmarks/a_singletons_reading_functions_do_not_exclude_each_other/).
 
 **What it does.** A locked singleton's function that only reads its state (an engine column's `at(row)`, a lookup)
 does not take the lock itself. It takes the readers' side: it adds one to a count of its own thread's (one of 32
@@ -1181,9 +1181,10 @@ a counted loop that calls only reading functions takes the readers' side once fo
 holds the writers' side reads without counting, so a writing function calling out to code that reads back is not
 held up by itself.
 
-**What you notice.** Speed where several threads read one singleton: `benchmarks/singleton_reads`, eight `Parallel`
-systems each reading 15 000 rows of one column through `at(row)`, went from 202 ns to 6 ns per row read (24 ms to 0.75
-ms a tick). A reading call on one thread costs about the same as a plain lock (a locked add on a line only that thread
+**What you notice.** Speed where several threads read one singleton:
+[its case](../benchmarks/a_singletons_reading_functions_do_not_exclude_each_other/), eight `Parallel` systems each
+reading 15 000 rows of one singleton through `at(row)` for 20 ticks, takes 17.4 ms, against 103.0 ms for naive C,
+whose eight threads queue on one mutex for every read, and 5.8 ms for expert C, which reads a column with no lock. A reading call on one thread costs about the same as a plain lock (a locked add on a line only that thread
 writes, instead of a compare-and-swap on a shared one). A write also looks at the 32 counts once per outermost call:
 about 32 loads that stay in the writing core's cache while nothing reads. Each singleton with reading functions
 carries 2 KiB of counts. What a program computes is unchanged: a reading function still sees the singleton's state
@@ -1191,7 +1192,7 @@ whole, never half-way through a write.
 
 ### A counted loop of calls to one singleton takes its lock once
 
-**The case:** [benchmarks/cases/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](../benchmarks/cases/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/).
+**The case:** [benchmarks/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](../benchmarks/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/).
 
 **What it does.** A `while` that calls functions of one locked singleton many times (a worker removing rows through
 `columns.remove_row(entity)`, a system adding to a tally) takes that singleton's lock once around the whole loop
@@ -1218,9 +1219,10 @@ holds, so that the lock held longer can neither deadlock nor wait on anything:
   only functions that touch no changing state, or a singleton that takes no lock, is left as it was.
 
 Not in a `--hot-reload`, `--repl` or `--repl-port` build, nor in the resumable copy of a function a `Concurrent`
-runs. **What you notice.** Speed: `benchmarks/singleton_locks`, 800 000 calls from eight workers, went from 2.3 ms to
-0.35 ms with a singleton per worker and from 51 ms to 0.6 ms with one singleton for all of them (the lock handed
-between cores on every call); one thread, 1.7 ms to 0.4 ms. Nothing a program prints changes: the loop's calls run
+runs. **What you notice.** Speed:
+[its case](../benchmarks/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/), four workers each making 5
+million calls on one shared singleton, takes 77.2 ms, against 500.5 ms for naive C, which takes the mutex on every
+call and hands it between cores, and 3.4 ms for expert C, where each thread keeps a tally of its own. Nothing a program prints changes: the loop's calls run
 exactly as before, and other threads' calls on the singleton wait until the loop is over instead of slipping in
 between two of its calls, which is one of the orders they could already run in. A long counted loop keeps other
 threads that want the singleton waiting for all of it. In the C, the loop is between `spite_coarse_<n>_enter()` and
@@ -1228,7 +1230,7 @@ threads that want the singleton waiting for all of it. In the C, the loop is bet
 
 ### An argument its caller holds is passed without counting
 
-**The case:** [benchmarks/cases/an_argument_its_caller_holds_is_passed_without_counting](../benchmarks/cases/an_argument_its_caller_holds_is_passed_without_counting/).
+**The case:** [benchmarks/an_argument_its_caller_holds_is_passed_without_counting](../benchmarks/an_argument_its_caller_holds_is_passed_without_counting/).
 
 **What it does.** Passing an object to a function counts it once more for the callee's own name and lets that
 count go when the callee returns: two atomic operations on the object's header in a program with threads. When
@@ -1246,15 +1248,17 @@ that parameter itself; not for a constructor, and not where the call's result is
 frame-made result keeps the ordinary function). Keeping the parameter needs nothing extra: storing it, returning it or
 passing it to a function that keeps it counts it there, as storing any name does.
 
-**What you notice.** Speed: `benchmarks/held_arguments`, a `Vector` passed on through two calls for each of a
-million entities in a program with threads, 18 ns to 13 ns an entity. A `___held_` function appears in the C
+**What you notice.** Speed:
+[its case](../benchmarks/an_argument_its_caller_holds_is_passed_without_counting/), a list passed on through two calls
+for each of 3 million entities in a `Parallel`, takes 13.5 ms, against 38.2 ms for naive C, which counts the list up
+and down atomically in every function it is handed to, and 0.7 ms for expert C, which keeps it on the stack. A `___held_` function appears in the C
 beside the ordinary one for each set of positions a program passes this way (about 3% more C in the compiler
 compiling itself), and the ordinary one is shaken out when nothing else calls it. Allocations and results are the
 same (`conformance/stage6/held_arguments`: a bag passed on, kept, returned and assigned over).
 
 ### A singleton's attribute that never changes is read in place
 
-**The case:** [benchmarks/cases/a_singletons_attribute_that_never_changes_is_read_in_place](../benchmarks/cases/a_singletons_attribute_that_never_changes_is_read_in_place/).
+**The case:** [benchmarks/a_singletons_attribute_that_never_changes_is_read_in_place](../benchmarks/a_singletons_attribute_that_never_changes_is_read_in_place/).
 
 **What it does.** Reading an attribute of a singleton from another class (`Column<Heat>().values[place]`,
 `column.values.count()`) would count the attribute's object for the expression and, in a program where a `Parallel`
@@ -1269,8 +1273,10 @@ This also takes the lock out of a loop that only reads through such an attribute
 attribute has no getter. Whether anything assigns the attribute is read from the call effects of the whole program
 (`generation/call_effects.spite`), the same facts the singleton locks are decided from.
 
-**What you notice.** Speed: `benchmarks/singleton_attributes`, a million items read through a column's attribute
-in a `Parallel`, 6.0 ns to 3.2 ns a read; in a game engine's `stream_bench` each inline component of a row cost a
+**What you notice.** Speed:
+[its case](../benchmarks/a_singletons_attribute_that_never_changes_is_read_in_place/), a million boxes read four times
+through a singleton's list from a `Parallel`, takes 147.8 ms, against 244.5 ms for naive C, which takes a mutex and
+counts the box for every read, and 3.1 ms for expert C, which reads a column of weights; in a game engine's `stream_bench` each inline component of a row cost a
 count, a lock and a release per row. Nothing a program prints or allocates changes
 (`conformance/stage6/singleton_attribute_reads`: `names` is read in place from a `Parallel`, while `current`,
 which a function replaces, is still read under the lock).
@@ -1285,7 +1291,7 @@ system writing its components' numbers does not count as letting go of objects.
 
 ### The fault handler is in every program
 
-**The case:** [benchmarks/cases/the_fault_handler_is_in_every_program](../benchmarks/cases/the_fault_handler_is_in_every_program/).
+**The case:** [benchmarks/the_fault_handler_is_in_every_program](../benchmarks/the_fault_handler_is_in_every_program/).
 
 **What it is.** The one piece of C nothing tree-shakes: a program can meet a native fault (a null read inside a
 foreign library, a stack overflow) whatever it uses, and a silent end is a bug, so every
@@ -1323,7 +1329,7 @@ kilobytes larger.
 
 ### Short symbols are inline text
 
-**The case:** [benchmarks/cases/short_symbols_are_inline_text](../benchmarks/cases/short_symbols_are_inline_text/).
+**The case:** [benchmarks/short_symbols_are_inline_text](../benchmarks/short_symbols_are_inline_text/).
 
 **What it is.** A symbol whose text is 15 bytes or fewer is written into the symbol table as an inline `String`
 (its bytes inside the 16-byte value, the form any short text built at run time takes) rather than as a pointer
@@ -1338,7 +1344,7 @@ shows it: `static SpiteString spite_symbol_4 = { (int64_t)0x00000065756c6176ULL,
 
 ### A foreign name is never copied
 
-**The case:** [benchmarks/cases/a_foreign_name_is_never_copied](../benchmarks/cases/a_foreign_name_is_never_copied/).
+**The case:** [benchmarks/a_foreign_name_is_never_copied](../benchmarks/a_foreign_name_is_never_copied/).
 
 **What it does.** The first call into a foreign library opens it and looks up every function the program calls in
 it, all at once. The library's file name and each function's name, and the name of the Spite function that calls it
@@ -1373,7 +1379,7 @@ allocation table itself opens before it counts, so there the counts are as they 
 
 ### Crash text out of the binary
 
-**The case:** [benchmarks/cases/crash_text_out_of_the_binary](../benchmarks/cases/crash_text_out_of_the_binary/).
+**The case:** [benchmarks/crash_text_out_of_the_binary](../benchmarks/crash_text_out_of_the_binary/).
 
 **What it is.** A `crash` or `assert` site's condition text lives only in the `<output>.crashes` map written
 beside the executable: no build writes it into the program. An
@@ -1388,7 +1394,7 @@ and `spite.assert<TAB>id<TAB>answered=...` in an optimised build, and `grep <id>
 
 ### Smaller ones
 
-**The case:** [benchmarks/cases/smaller_ones](../benchmarks/cases/smaller_ones/).
+**The case:** [benchmarks/smaller_ones](../benchmarks/smaller_ones/).
 
 None of these needs anything from you:
 
@@ -1418,7 +1424,7 @@ None of these needs anything from you:
 
 ### Proofs that survive a call
 
-**The case:** [benchmarks/cases/proofs_that_survive_a_call](../benchmarks/cases/proofs_that_survive_a_call/).
+**The case:** [benchmarks/proofs_that_survive_a_call](../benchmarks/proofs_that_survive_a_call/).
 
 A proof (`assert target`, `crash list[index]`, a bound in a `while`) lets the reads after it skip the null test and
 the narrowing. A call between the proof and the read keeps it unless the compiler, following the called function and
@@ -1439,7 +1445,7 @@ again, and a call through a function value keeps no proof about attributes or li
 
 ### Text joined in one piece
 
-**The case:** [benchmarks/cases/text_joined_in_one_piece](../benchmarks/cases/text_joined_in_one_piece/).
+**The case:** [benchmarks/text_joined_in_one_piece](../benchmarks/text_joined_in_one_piece/).
 
 **What it does.** `"line {index} of {round};"` and `prefix + name + suffix` are one join, not a chain of pairs:
 every piece is computed in order, left to right as written, and the text is made once, at its final length. Before,
@@ -1452,13 +1458,12 @@ walk) are joined while compiling, and empty ones are dropped, so `"{index} of"` 
 still grows `text` in place ([above](#appending-to-text-in-place)).
 
 **What you notice.** Fewer allocations under `--debug-memory` (two per piece that a chain of joins would make:
-`conformance/stage6/text_building` allocates 39 times instead of 43, `benchmarks/reflection_walks` 11 756 022
-instead of 16 356 022), and a text built only from pieces the compiler knows answers `'constant'` to `.memory.section`
+`conformance/stage6/text_building` allocates 39 times instead of 43), and a text built only from pieces the compiler knows answers `'constant'` to `.memory.section`
 instead of `'heap'`, as a written text does.
 
 ### Defaults the constructor replaces are never made
 
-**The case:** [benchmarks/cases/defaults_the_constructor_replaces_are_never_made](../benchmarks/cases/defaults_the_constructor_replaces_are_never_made/).
+**The case:** [benchmarks/defaults_the_constructor_replaces_are_never_made](../benchmarks/defaults_the_constructor_replaces_are_never_made/).
 
 **What it does.** A class with `var owner = Owner(0)` and a constructor whose first lines are `owner = new_owner`
 would make an `Owner`, then throw it away. The object is made with that attribute empty instead, and the constructor's
@@ -1474,13 +1479,13 @@ prints is not.
 for objects made by their constructor; an object given an allocator on the next line still makes its defaults.
 
 **What you notice.** Fewer allocations under `--debug-memory`, one per discarded object and those it holds:
-`benchmarks/fused_chain`, which makes 100 000 items that each replace their default `Owner`, went from 300 009 to
-200 009, and `benchmarks/reflection_walks`, whose `.attributes` walk makes a `Spite.Attribute` per attribute, from
-10 620 024 to 7 620 024. Nothing else: the discarded default was never reachable.
+[its case](../benchmarks/defaults_the_constructor_replaces_are_never_made/), which makes 500 000 items that each
+replace their default `Owner`, makes 1 000 026 allocations, one per item and one per owner it is given, and none for
+the defaults. Nothing else: the discarded default was never reachable.
 
 ### A function value describes its arguments when asked
 
-**The case:** [benchmarks/cases/a_function_value_describes_its_arguments_when_asked](../benchmarks/cases/a_function_value_describes_its_arguments_when_asked/).
+**The case:** [benchmarks/a_function_value_describes_its_arguments_when_asked](../benchmarks/a_function_value_describes_its_arguments_when_asked/).
 
 **What it does.** A function value is its own reflection object, with `.arguments`, a list of
 `Spite.Argument`s. Filling that list when the value is made would cost two objects per argument, and each
@@ -1492,9 +1497,8 @@ so two threads reading it at once see one list).
 function passed on. A `.functions` list is reflection read on purpose, so its values are still described at once.
 
 **What you notice.** Fewer allocations: with the defaults above, a `Parallel` makes 10 where it made 25
-(`conformance/stage6/singleton_counts`, two `Parallel`s, went from 134 to 104; `benchmarks/parallel_calls` from
-52 per round of two `Summer`s and two `Parallel`s to 22), and passing a function value makes 2 instead of 10: the
-value and its empty list (`benchmarks/function_values`, from 2 000 019 to 400 019). `.arguments` answers the
+(`conformance/stage6/singleton_counts`, two `Parallel`s, went from 134 to 104), and passing a function value makes
+2 instead of 10: the value and its empty list. `.arguments` answers the
 same list, in the same order, whenever it is read.
 
 **A value its callee only calls is not made at all.** When the function a value is passed to does nothing with
@@ -1506,12 +1510,12 @@ holds only the owner and the function: no allocation, no count, no description, 
 `___held_` copy, which lets nothing go, and once that copy is inlined the C compiler sees which function the value
 holds and calls it directly. A callee that reads `.name` or `.arguments`, keeps the value, passes it on or names it
 in text gets a value on the heap as before, and so does a value whose owner is a temporary.
-`benchmarks/cases/a_function_value_describes_its_arguments_when_asked` makes 2 000 000 such calls: 4 000 014
+`benchmarks/a_function_value_describes_its_arguments_when_asked` makes 2 000 000 such calls: 4 000 014
 allocations and 66.8 times plain C's time before, 14 allocations and 0.65 of plain C's time now.
 
 ### A list's templates read its elements without counting them
 
-**The case:** [benchmarks/cases/a_lists_templates_read_its_elements_without_counting_them](../benchmarks/cases/a_lists_templates_read_its_elements_without_counting_them/).
+**The case:** [benchmarks/a_lists_templates_read_its_elements_without_counting_them](../benchmarks/a_lists_templates_read_its_elements_without_counting_them/).
 
 **What it does.** Every member template of `List` (`sum_price()`, `filter_is_active()`, `each(step)`, `copy()`)
 and every fused chain would read each element with `values.read_value(items, index)`, which raises the element's
@@ -1524,7 +1528,7 @@ attribute is fine), removes from or replaces into a list or dictionary, or calls
 object the pass makes and lets go of runs its `drop()` while the element is held, so when a `drop()` of the
 program's own classes may do any of that, the pass borrows only if nothing it runs makes an object of the
 program's own classes or copies one (`conformance/stage6/template_lend_drop`); a `drop()` somewhere else in the
-program costs nothing to a pass that only reads (`benchmarks/gathered_objects`). A
+program costs nothing to a pass that only reads. A
 member read from a borrowed element (`map_owner`) is borrowed the same way. Anything that keeps the element
 (`collected.append(item)`, `return item`) still counts it.
 
@@ -1533,18 +1537,18 @@ templates reopening `List`, and fused chains), when the proof above holds; other
 before. `parallel_each_` passes borrow too, which saves an atomic increment and decrement per element in a
 program with threads.
 
-**What you notice.** Speed: `benchmarks/fused_chain`, four chains over 100 000 objects run 300 times, went from
-332 ms to 185 ms. Allocations and everything a program prints are the same.
+**What you notice.** Speed: [its case](../benchmarks/a_lists_templates_read_its_elements_without_counting_them/),
+100 rounds of two template passes over 200 000 bodies spread through memory, takes 29.3 ms, against 39.9 ms for
+naive C, which walks the same pointers and counts nothing, and 2.6 ms for expert C, which walks columns of numbers.
+Allocations and everything a program prints are the same.
 
 A function called on the element is looked up on the element's own class, not by its name among every class, so
 `List<Particle>.each_step()` does not count its elements merely because another class, such as the library's
-`ReadEvaluatePrintLoop`, has a `step` that lets go of things. `benchmarks/one_list`'s `each_step` over 200 000
-particles, in a program whose counts are atomic, takes 211-252 µs a pass, against 833-896 µs when the name alone
-decided.
+`ReadEvaluatePrintLoop`, has a `step` that lets go of things.
 
 ### An item written back to its own slot is not written
 
-**The case:** [benchmarks/cases/an_item_written_back_to_its_own_slot_is_not_written](../benchmarks/cases/an_item_written_back_to_its_own_slot_is_not_written/).
+**The case:** [benchmarks/an_item_written_back_to_its_own_slot_is_not_written](../benchmarks/an_item_written_back_to_its_own_slot_is_not_written/).
 
 **What it does.** A plain loop over a list often reads an item into a name, changes it, and puts it back:
 
@@ -1620,7 +1624,7 @@ classes, for a `List` item read with `[]` into a `var` in the same block as the 
 
 ### A list item read only to test it is not counted
 
-**The case:** [benchmarks/cases/a_list_item_read_only_to_test_it_is_not_counted](../benchmarks/cases/a_list_item_read_only_to_test_it_is_not_counted/).
+**The case:** [benchmarks/a_list_item_read_only_to_test_it_is_not_counted](../benchmarks/a_list_item_read_only_to_test_it_is_not_counted/).
 
 **What it does.** `crash list[index]`, `assert list[index]`, `if list[index]` and `if not list[index]` read an item
 only to ask whether it is there:
@@ -1680,7 +1684,7 @@ crash report says, allocations and everything a program prints are the same.
 
 ### An item a name holds from its list is not counted
 
-**The case:** [benchmarks/cases/an_item_a_name_holds_from_its_list_is_not_counted](../benchmarks/cases/an_item_a_name_holds_from_its_list_is_not_counted/).
+**The case:** [benchmarks/an_item_a_name_holds_from_its_list_is_not_counted](../benchmarks/an_item_a_name_holds_from_its_list_is_not_counted/).
 
 **What it does.** A name read from a list and used for a while is the commonest way a plain program looks at an
 item:
@@ -1763,7 +1767,7 @@ Allocations, the order of everything a program can see and what it prints are th
 
 ### A test against a value a list never holds is decided while compiling
 
-**The case:** [benchmarks/cases/a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](../benchmarks/cases/a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/).
+**The case:** [benchmarks/a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](../benchmarks/a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/).
 
 **What it does.** A list a program fills with a few known values, and from then on only reads, is a table: a
 pipeline's steps, a tokenizer's character classes, the kinds a matcher checks. Every test of one of its items
@@ -1844,7 +1848,7 @@ is removed by the C compiler and not before tree shaking.
 
 ### A number joined into text is written in place
 
-**The case:** [benchmarks/cases/a_number_joined_into_text_is_written_in_place](../benchmarks/cases/a_number_joined_into_text_is_written_in_place/).
+**The case:** [benchmarks/a_number_joined_into_text_is_written_in_place](../benchmarks/a_number_joined_into_text_is_written_in_place/).
 
 **What it does.** `"line {index} of {round};"` would turn `index` and `round` into texts of their own (two
 allocations each) only to copy them into the result and free them. An `Integer` or `Long` piece of a text join,
@@ -1855,12 +1859,14 @@ reopens `Integer` or `Long` with a `to_string()` of its own keeps calling it.
 **When.** Every build, for whole numbers of those two classes. A number cast to text on its own (`var key: String =
 index`) still makes one text, since that text is the result.
 
-**What you notice.** Fewer allocations: `conformance/stage6/text_building` went from 39 to 35, and
-`benchmarks/text_building` from 5 500 225 to 800 267.
+**What you notice.** Fewer allocations, and speed: `conformance/stage6/text_building` went from 39 to 35, and
+[its case](../benchmarks/a_number_joined_into_text_is_written_in_place/), two million lines
+`"line {index} of {round};"`, takes 84.3 ms, against 350.7 ms for naive C, which makes each number a text of its
+own with `snprintf`, and 16.8 ms for expert C, which writes each line into one buffer on the stack.
 
 ### Allocation is the C library's, counted only where read
 
-**The case:** [benchmarks/cases/allocation_is_the_c_librarys_counted_only_where_read](../benchmarks/cases/allocation_is_the_c_librarys_counted_only_where_read/).
+**The case:** [benchmarks/allocation_is_the_c_librarys_counted_only_where_read](../benchmarks/allocation_is_the_c_librarys_counted_only_where_read/).
 
 **What it does.** Every Spite object is made with `SPITE_MALLOC` and let go with `SPITE_FREE`, and what those are is
 decided per program. In an ordinary build they are the C library's `malloc`, `realloc` and `free`, with nothing beside
@@ -1886,12 +1892,12 @@ repeatable gain on a game engine, the program it was for. Against the plain C al
 nine interleaved runs on one machine: `examples/stress` ticks 42.9 ms with it and 41.9 without in parallel,
 49.0 and 50.9 single-threaded, 60 ticks after despawning 87.7 and 87.2 ms; only the 200 000 spawns (449 and 504
 ms) and `flex_layout` (about 3 ms of 70) were faster; the Vulkan UI tests (`click_counter_test`,
-`text_field_test`) did not move beyond noise. It sped up the small benchmarks (`small_allocations` 84 against 140
-ms) at the cost of up to 2 MB kept per thread; `benchmarks/README.md` has both sets of numbers.
+`text_field_test`) did not move beyond noise. It sped up small programs that make and drop objects in a loop, at
+the cost of up to 2 MB kept per thread.
 
 ### Objects of one class sit together
 
-**The case:** [benchmarks/cases/objects_of_one_class_sit_together](../benchmarks/cases/objects_of_one_class_sit_together/).
+**The case:** [benchmarks/objects_of_one_class_sit_together](../benchmarks/objects_of_one_class_sit_together/).
 
 **What it does.** Every object of a class that a list holds is made from that class's own pool: blocks the size of
 one object, side by side, handed out in order, and taken back by the class when an object is let go, for its next
@@ -1974,20 +1980,22 @@ of one class, lets them all go and then makes a million of another holds room fo
 
 ### A dictionary hashes a key once, cheaply
 
-**The case:** [benchmarks/cases/a_dictionary_hashes_a_key_once_cheaply](../benchmarks/cases/a_dictionary_hashes_a_key_once_cheaply/).
+**The case:** [benchmarks/a_dictionary_hashes_a_key_once_cheaply](../benchmarks/a_dictionary_hashes_a_key_once_cheaply/).
 
 **What it does.** A dictionary hashes a key with a multiply and an exclusive or per character on an
 `UnsignedLong` (FNV-1a), keeps 32 bits of that hash in the slot beside the key's position, and
 compares key texts only when those bits match, where hashing with a multiply and a division by a prime for every
 character and comparing the whole key text on a hit is slower.
 
-**When.** Every `Dictionary`, in every build. **What you notice.** Speed: `benchmarks/dictionary_keys` takes 282 ms,
-against 413 ms with the slower hash. Keys, values and their order are the same, and so is every allocation: the slot
+**When.** Every `Dictionary`, in every build. **What you notice.** Speed:
+[its case](../benchmarks/a_dictionary_hashes_a_key_once_cheaply/), two million lookups by name in a dictionary of
+5 000 names, takes 102.6 ms, against 99.6 ms for naive C, a chained table with `hash * 31 + character` and `strcmp`,
+and 30.8 ms for expert C. Keys, values and their order are the same, and so is every allocation: the slot
 table is one block, twice as large.
 
 ### A deep copy is written per class, with a table only where a graph needs one
 
-**The case:** [benchmarks/cases/a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](../benchmarks/cases/a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/).
+**The case:** [benchmarks/a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](../benchmarks/a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/).
 
 **What it does.** The compiler writes one deep copy function per class it is used on. A class whose attributes can
 lead back to itself, lead to a `Weak`, or that some `Weak` holds, gets a copy that looks each object up in a table
@@ -2002,7 +2010,7 @@ copies a class that needs the table carries none of it.
 
 ### A word inflected while compiling
 
-**The case:** [benchmarks/cases/a_word_inflected_while_compiling](../benchmarks/cases/a_word_inflected_while_compiling/).
+**The case:** [benchmarks/a_word_inflected_while_compiling](../benchmarks/a_word_inflected_while_compiling/).
 
 **What it does.** `pluralize()` or `singularize()` called on a text literal of lower-case letters and underscores
 (`"cactus".pluralize()`) is worked out while compiling, through the same rules and the same
@@ -2018,7 +2026,7 @@ makes 5 allocations, against 19 when the calls run).
 
 ### A dictionary written out and only read by literal keys is folded
 
-**The case:** [benchmarks/cases/a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](../benchmarks/cases/a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/).
+**The case:** [benchmarks/a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](../benchmarks/a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/).
 
 **What it does.** A local made from a dictionary literal whose keys and values are all literals of one kind, and that
 the rest of its block only ever reads with a literal key (`plurals["cactus"]`), is never made: each read is replaced
@@ -2035,7 +2043,7 @@ the dictionary would.
 
 ### A dictionary keyed by numbers hashes the numbers
 
-**The case:** [benchmarks/cases/a_dictionary_keyed_by_numbers_hashes_the_numbers](../benchmarks/cases/a_dictionary_keyed_by_numbers_hashes_the_numbers/).
+**The case:** [benchmarks/a_dictionary_keyed_by_numbers_hashes_the_numbers](../benchmarks/a_dictionary_keyed_by_numbers_hashes_the_numbers/).
 
 **What it does.** A `Dictionary` the program gives whole-number keys
 ([collections.md](collections.md#keyed-by-numbers)) is compiled as its own form of `library/dictionary.spite`, whose
@@ -2053,16 +2061,18 @@ key is compiled a second time with them known (a third or more only when a dicti
 generic classes are made, at most eight); a program with only text keys is compiled once, the compiler itself
 included.
 
-**What you notice.** Speed and allocations: `benchmarks/number_keys` does a million lookups in 8 ms keyed by the
-number, against 66 ms keyed by `index.to_string()` and 106 ms when a number key was quietly turned
-into text; `conformance/stage6/number_keys` pins its 158 allocations, with a thousand number keys making none.
+**What you notice.** Speed and allocations:
+[its case](../benchmarks/a_dictionary_keyed_by_numbers_hashes_the_numbers/), four million lookups in a dictionary of
+100 000 number keys, takes 39.0 ms, against 18.2 ms for naive C, a chained table with the key modulo the bucket
+count, and 17.2 ms for expert C, an open-addressed table made once at its size; the whole program
+[number_dictionary](../benchmarks/number_dictionary/) measures the same against a C programmer's open-addressed
+table. `conformance/stage6/number_keys` pins its 158 allocations, with a thousand number keys making none.
 `keys()` answers the numbers, and a mixed dictionary is a compile error. Compiling a program with number keys
-costs the second pass: `benchmarks/number_keys` compiles to C in about 300 ms against about 200 ms in one pass
-(reading and parsing are not repeated).
+costs the second pass (reading and parsing are not repeated).
 
 ### Reading through a `type` without counting
 
-**The case:** [benchmarks/cases/reading_through_a_type_without_counting](../benchmarks/cases/reading_through_a_type_without_counting/).
+**The case:** [benchmarks/reading_through_a_type_without_counting](../benchmarks/reading_through_a_type_without_counting/).
 
 **What it does.** A system's `moving.position.left = moving.position.left + moving.velocity.across` reads `position`
 through the `type` `Moving`, which answers the component retained (or, when the value's class has no such attribute, a
@@ -2077,12 +2087,13 @@ component is itself held for the whole statement.
 **When.** Every build but `--hot-reload`, for a plain attribute of a class read through a `type` attribute:
 `moving.position.left`, not `moving.position` passed on or kept.
 
-**What you notice.** Speed, in systems that walk components through a `type`: `benchmarks/stress`'s
-`update_each` functions no longer count anything. Allocations and results are the same.
+**What you notice.** Speed, in systems that walk components through a `type`: their functions no longer count
+anything. [Its case](../benchmarks/reading_through_a_type_without_counting/), 200 ticks over 100 000 entities, takes
+35.5 ms, against 11.0 ms for naive C and 6.2 ms for expert C. Allocations and results are the same.
 
 ### A row of borrowed items lives in the frame
 
-**The case:** [benchmarks/cases/a_row_of_borrowed_items_lives_in_the_frame](../benchmarks/cases/a_row_of_borrowed_items_lives_in_the_frame/).
+**The case:** [benchmarks/a_row_of_borrowed_items_lives_in_the_frame](../benchmarks/a_row_of_borrowed_items_lives_in_the_frame/).
 
 **What it does.** An object literal of borrowed `Vector` items (a row,
 [memory.md](memory.md#a-row-of-borrowed-items-for-one-call)) is not allocated: it is a struct in the frame of the
@@ -2095,9 +2106,11 @@ by the callee.
 **When.** Every build, for every row; the rules that make it safe are compile errors, not conditions of the
 optimisation.
 
-**What you notice.** No allocation per row (`conformance/stage6/vector_rows` pins its count), and
-`benchmarks/vector_rows`: 2.4 ms a tick over 200 000 entities with `Vector` columns and rows, against 6.0 ms with
-`List` columns and a row object reused across the tick. A `__lent_` function appears in the C beside the ordinary
+**What you notice.** No allocation per row (`conformance/stage6/vector_rows` pins its count).
+[Its case](../benchmarks/a_row_of_borrowed_items_lives_in_the_frame/), 100 000 entities in four `Vector` columns
+and two systems, takes 46.6 ms (20 000 000 rows, none allocated), against 8.4 ms for naive C, whose `malloc` per
+row clang removes once it inlines the system, and 3.3 ms for expert C; the cost Spite still pays is around the row,
+not in it, as the case's README lists. A `__lent_` function appears in the C beside the ordinary
 one, which is shaken out when no ordinary call reaches it.
 
 A row filled by a `Symbol` walk is the same struct: the compiler writes the walk out as the literal it
@@ -2116,8 +2129,10 @@ row ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call); `conformance/s
 allocations). Any other counted
 attribute, such as a reference read from a reference column, is counted once when the row is made and let go at
 the end of the row's block. **What you notice.** No allocation per row for a frame-made attribute
-(`conformance/stage6/sparse_rows` pins its count), and `benchmarks/sparse_rows`: 200 000 entities, two systems,
-7.4 ms a tick against 24.0 ms with reference columns and a reused row object. A frame-made object is not
+(`conformance/stage6/sparse_rows` pins its count); the walked rows over sparse columns of
+[a walked crash line's case](../benchmarks/a_walked_crash_lines_read_is_the_rows_read/), 100 000 entities and 50
+ticks, take 81.0 ms, against 21.7 ms for naive C and 4.8 ms for expert C, the gap being finding the places, not the
+row. A frame-made object is not
 registered with `--debug-memory`'s table, like the row itself, and is not in `.instances`.
 
 **A reference column's element is lent to the row.** When that counted attribute is the result of a function that only
@@ -2139,10 +2154,8 @@ loop](#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once)), so holdin
 row calls the ordinary function and counts the element, as before. Which of the three it is is decided with the
 column's lock, when the program is finished: the C calls `spite_lend_<n>_read(...)` between `spite_lend_<n>_enter()`
 and `spite_lend_<n>_leave(...)`, macros that are nothing, the readers' side or lock, or the ordinary counted call and
-its release. **What you notice.** Speed, most where the system does not touch the reference:
-`benchmarks/lent_elements`, 100 000 rows of an inline and a reference component run in a `Parallel`, 83 ns to 14 ns a
-row reading the reference and 35 ns to 9 ns not reading it (with the two optimisations below; best of twenty ticks,
-`--optimized`). Nothing a program prints or allocates changes (`conformance/stage6/lent_list_elements`,
+its release. **What you notice.** Speed, most where the system does not touch the reference: no count, and no
+lock taken per row. Nothing a program prints or allocates changes (`conformance/stage6/lent_list_elements`,
 `conformance/stage6/lent_list_elements_parallel`: a system that removes from the column, or reads the column itself,
 keeps its count).
 
@@ -2154,9 +2167,7 @@ argument in order, and calls the function's `___lent_<positions>` copy, in which
 neither retained nor released. The template is not called for that call, so it is not compiled for it; an argument
 whose body has any other shape is its template's ordinary call, as before, and a call none of whose arguments borrows
 is left exactly as it was (a game engine's `examples/stress` compiles to the same C). **What you notice.** No copy, no
-allocation and no count per argument that borrows (`conformance/stage6/lent_arguments` pins its count), and
-`benchmarks/lent_arguments`: 200 000 entities in sparse sets over `Items` columns, systems of one and two component
-arguments, 6.9 ms a tick against 34.3 ms when each argument is copied out of its column, passed and stored back.
+allocation and no count per argument that borrows (`conformance/stage6/lent_arguments` pins its count).
 
 Any borrowed item passed as an ordinary argument ([memory.md](memory.md#an-item-lent-to-a-call)) takes the
 same `___lent_<positions>` copy: `apply(event, mouse, keyboard)` with `mouse` and `keyboard` read from a row calls
@@ -2169,7 +2180,7 @@ when no caller passes it a counted object.
 
 ### An `Items`' storage is chosen while compiling
 
-**The case:** [benchmarks/cases/an_items_storage_is_chosen_while_compiling](../benchmarks/cases/an_items_storage_is_chosen_while_compiling/).
+**The case:** [benchmarks/an_items_storage_is_chosen_while_compiling](../benchmarks/an_items_storage_is_chosen_while_compiling/).
 
 **What it does.** `Items<T>` ([collections.md](collections.md#itemst-the-storage-chosen-for-you)) is one
 class in `library/items.spite` whose every body that touches an item folds on `$element_type.is_fixed_size`.
@@ -2184,18 +2195,16 @@ the C compiler to inline where it is called.
 **When.** Every build, for every `Items<T>`; the choice is a fact of `T`, so it cannot change while the program
 runs, and a program that makes no `Items` carries none of it.
 
-**What you notice.** Speed the same as the storage chosen, or better: `benchmarks/items_storage` (200 000 items,
-`clang -O2`, three rounds) runs the member templates of `Items<Velocity>` in 193-212 µs a tick against 201-218 µs
-for `Vector<Velocity>`, and of `Items<Trail>` in 515-668 µs against 534-645 µs for `List<Trail>` over the same
-objects; 200 000 random `[]` reads and writes take 510-533 µs against a `Vector`'s 573-601 µs, and 818-948 µs
-against `List.get_at`'s 911-1518 µs, the difference being the inlined read. A walked-row runner over
-`Items` columns (`benchmarks/sparse_rows` with `Column`'s `Vector` swapped for an `Items`) ran 6.9 ms a tick
-against 7.2 ms. An `Items` object holds one pointer more than a `Vector` or `List` (both helper singletons are
+**What you notice.** Speed the same as the storage chosen: the C of an `Items<Velocity>` is a `Vector`'s and that
+of an `Items<Trail>` a `List`'s, with `[]` inlined where it is called. [Its case](../benchmarks/an_items_storage_is_chosen_while_compiling/),
+a generic column holding an `Items` made for an inline and a reference component, 100 000 of each and 100 ticks,
+takes 33.5 ms, against 42.9 ms for naive C, a generic array of `malloc`ed components, and 2.4 ms for expert C. An
+`Items` object holds one pointer more than a `Vector` or `List` (both helper singletons are
 attributes); nothing is added per item. A crash out of range is reported from `Items._out_of_range`.
 
 ### A proven divisor is not checked
 
-**The case:** [benchmarks/cases/a_proven_divisor_is_not_checked](../benchmarks/cases/a_proven_divisor_is_not_checked/).
+**The case:** [benchmarks/a_proven_divisor_is_not_checked](../benchmarks/a_proven_divisor_is_not_checked/).
 
 A whole-number `/` or `%` checks its divisor for zero ([values_and_types.md](values_and_types.md)),
 unless the divisor is a constant other than zero, or a proof in scope says it is not zero: `assert parts != 0`,
@@ -2206,7 +2215,7 @@ proven `whole / pieces` carries no check in its C.
 
 ### Arithmetic is checked in every build
 
-**The case:** [benchmarks/cases/arithmetic_is_checked_in_every_build](../benchmarks/cases/arithmetic_is_checked_in_every_build/).
+**The case:** [benchmarks/arithmetic_is_checked_in_every_build](../benchmarks/arithmetic_is_checked_in_every_build/).
 
 Every `+`, `-` and `*` done in a whole number, signed or unsigned, is the C compiler's overflow builtin in that type,
 and an answer that does not fit halts ([values_and_types.md](../specs/values_and_types.md#numeric-types)); so is a `-` in
@@ -2218,18 +2227,17 @@ hash written with them costs what it did with the wrapping operator. The check i
 `while index < count` loop), of one stepped down while a `>` is, and of arithmetic on constants
 ([proofs.md](proofs.md#arithmetic-that-does-not-fit-halts)): in the compiler's own C that removes 1 145 of its
 2 595 checks. What you can observe: a halt instead of a wrapped answer, and a loop whose sum the C compiler
-vectorised before may no longer be vectorised, since each addition can now stop the program. **Cost, measured**
-(best of seven interleaved runs, each benchmark built with `--optimized` before the checks and after, gcc, on a
-four-processor Linux machine other work was loading, so a few percent either way is noise): `plain_loops` 323 to
-352 ms (its `Integer` sum, vectorised before, 248 to 640 microseconds a pass), `number_dictionary` 131 to 151 ms,
-`number_keys` 188 to 192 ms, `dictionary_keys` 132 to 132 ms, `text_building` 59 to 60 ms, `stress` 39 to 38 ms,
-`sorting` 291 to 287 ms, `vector_maths` 109 to 107 ms, `fused_chain` 286 to 224 ms. `particles` measured 91 to
-107 ms with gcc, but 93 ms with every counter still checked, so dropping those checks made gcc lay the loop out
-worse; with clang it is 103 to 104 ms.
+vectorised before may no longer be vectorised, since each addition can now stop the program. **Cost, measured** in
+[its case](../benchmarks/arithmetic_is_checked_in_every_build/): 400 rounds of adding up `value * 3 + round` over
+100 000 numbers take 21.7 ms, against 3.3 ms for naive C and for expert C, whose unchecked sums the C compiler
+vectorises. Where a loop does more than add, the checks cost a few percent; the whole programs
+[number_dictionary](../benchmarks/number_dictionary/), [text_building](../benchmarks/text_building/),
+[sorting](../benchmarks/sorting/), [vector_maths](../benchmarks/vector_maths/) and
+[particles](../benchmarks/particles/) are built with them and timed against C.
 
 ### Short text lives inside the `String`
 
-**The case:** [benchmarks/cases/short_text_lives_inside_the_string](../benchmarks/cases/short_text_lives_inside_the_string/).
+**The case:** [benchmarks/short_text_lives_inside_the_string](../benchmarks/short_text_lives_inside_the_string/).
 
 **What it does.** A `String` is sixteen bytes wherever it is kept (a local, an attribute, a list's element, a
 parameter), and text of up to 15 bytes of UTF-8 is kept in those sixteen bytes themselves: no allocation, no
@@ -2253,18 +2261,18 @@ text made while the program runs answers `'stack'` when the text is short and he
 read from an attribute, where the value lives in its object) and `'heap'` when it is long; written text is
 `'constant'`, as before. Text passed where a `type` shape is wanted (a `Printable` given to `console.print`,
 `attribute.value`) is put in a box, one allocation (written text has a box in the program and allocates nothing) ([below](#boxing-only-where-a-value-travels-as-a-shape)). A `List<String>` holds sixteen bytes
-per element instead of an eight-byte pointer. Speed: `benchmarks/dictionary_keys` allocates 1 032 times instead of
-1 104 014, `text_building` 165 instead of 800 227 and `reflection_walks` 3 999 918 instead of 7 596 024, and each
-is 15-25% faster; a game engine's `stress` allocates 5.6 million times instead of 7.2. The cost that remains: a
-`Dictionary` looked up by a key longer than 15 bytes is about 10% slower, since the key travels as sixteen bytes
-and is compared through its form ([benchmarks/README.md](../benchmarks/README.md)). Why 15 and not 22: of the 4.7
+per element instead of an eight-byte pointer. Speed: [its case](../benchmarks/short_text_lives_inside_the_string/),
+20 rounds of 100 000 short labels, takes 56.2 ms, against 351.7 ms for naive C, which `malloc`s each label, and
+19.7 ms for expert C, which writes them into one array of 16-byte slots; a game engine's `stress` allocates 5.6
+million times instead of 7.2. The cost that remains: a `Dictionary` looked up by a key longer than 15 bytes is about
+10% slower, since the key travels as sixteen bytes and is compared through its form. Why 15 and not 22: of the 4.7
 million texts the compiler makes compiling itself, 68% are 15 bytes or fewer and 78% are 22 or fewer, and 22 would
 take a third machine word in every `String` (a `List<String>` half as large again), where 15 fits in the two a
 long text needs anyway (where its characters are, and how many).
 
 ### Maths on constants is worked out while compiling
 
-**The case:** [benchmarks/cases/maths_on_constants_is_worked_out_while_compiling](../benchmarks/cases/maths_on_constants_is_worked_out_while_compiling/).
+**The case:** [benchmarks/maths_on_constants_is_worked_out_while_compiling](../benchmarks/maths_on_constants_is_worked_out_while_compiling/).
 
 **What it does.** A maths function of a number class ([standard_library.md](../specs/standard_library.md#maths))
 whose operands are all constants is worked out by the compiler, and the C gets the answer: `(0.5).sine()` is
@@ -2295,7 +2303,7 @@ only the transcendental functions can differ, by at most that last bit.
 
 ### A binary schema is a constant
 
-**The case:** [benchmarks/cases/a_binary_schema_is_a_constant](../benchmarks/cases/a_binary_schema_is_a_constant/).
+**The case:** [benchmarks/a_binary_schema_is_a_constant](../benchmarks/a_binary_schema_is_a_constant/).
 
 **What it does.** `BinaryWriter<T>.schema()` and `BinaryReader<T>.schema()` ([json.md](json.md#the-schema-hash)) are
 worked out while compiling: the compiler writes the attribute walk of `T` as text, hashes it with FNV-1a, and the C
@@ -2305,7 +2313,7 @@ runs and nothing is allocated when a program asks.
 
 ### A number's bits are read in place
 
-**The case:** [benchmarks/cases/a_numbers_bits_are_read_in_place](../benchmarks/cases/a_numbers_bits_are_read_in_place/).
+**The case:** [benchmarks/a_numbers_bits_are_read_in_place](../benchmarks/a_numbers_bits_are_read_in_place/).
 
 **What it does.** `Float.bits()`, `Double.bits()`, `UnsignedInteger.bits_as_float()`, `Long.bits_as_double()`,
 `UnsignedLong.bits_as_double()`, and every whole number's `bits_as_unsigned()` or `bits_as_signed()`, are C macros over a union of the two types
@@ -2315,13 +2323,14 @@ through a 4- or 8-byte block instead would also allocate nothing (the frame hold
 a write and a read for the C compiler to see through.
 
 **When.** Every build, for every call; a program that calls none carries none of them. **What you notice.** Nothing
-but speed in an unoptimised build: `benchmarks/half_precision` (ten million `to_half_precision` and back) takes
-416 ms against 482 ms with `clang -O0`, and 13 ms either way from `-O1`, where clang already sees through the block;
-it allocates nothing per conversion either way.
+but speed in an unoptimised build, since from `-O1` clang already sees through either form; it allocates nothing
+per conversion either way. [Its case](../benchmarks/a_numbers_bits_are_read_in_place/), thirty million round trips
+through a half, takes 73.2 ms, against 96.0 ms for naive C, which reads the bits with `memcpy`, and 24.7 ms for
+expert C, which uses the processor's half-precision instructions.
 
 ### A local list of known size lives in the frame
 
-**The case:** [benchmarks/cases/a_local_list_of_known_size_lives_in_the_frame](../benchmarks/cases/a_local_list_of_known_size_lives_in_the_frame/).
+**The case:** [benchmarks/a_local_list_of_known_size_lives_in_the_frame](../benchmarks/a_local_list_of_known_size_lives_in_the_frame/).
 
 **What it does.** A local list made by a literal (`var sizes = [3, 5, 8]`) or by `List<T>()` whose size is known
 while compiling and which never leaves its function is not allocated: its header and its items are in the
@@ -2370,7 +2379,7 @@ four items, which would grow its buffer while it was filled): `conformance/stage
 
 ### A loop over plain values reads its count once and its items unchecked
 
-**The case:** [benchmarks/cases/a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked](../benchmarks/cases/a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/).
+**The case:** [benchmarks/a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked](../benchmarks/a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/).
 
 **What it does.** A `while index < values.count()` over a `List` of numbers or `Boolean` (the only list that holds
 them), with `values` a local or a parameter named bare, not an attribute or any other expression, is written as
@@ -2411,18 +2420,14 @@ compiler adds no `restrict`, since
 two names may hold the same list and the C compiler checks for overlap once, before the loop, itself; and no
 alignment claim, which nothing proves.
 
-**What you notice.** Speed only. `benchmarks/plain_loops` (a million items, `clang -O2`, µs a pass): `into[index] =
-from.get_at(index) * 1.5 + 0.25` over two `List<Float>` 668-697 before, 181-207 after; the same in place over a
-`Vector<Float>` 2 628-2 782 before, 178-195 after (a `List<Float>` runs at the same speed); a `Float` sum 640-673
-either way (it stays in order); an
-`Integer` sum 112-137 either way (it was already vectorised). Then, with the multiply-add fused, the sum reordered
-and the literals in `Float` ([below](#a-decimal-literal-beside-a-float-is-a-float)), on Linux, `clang -O3`
-(`--optimized`), on a busy machine: the two-list loop 407-602 to 313-346 µs, the loop in place 382-403 to 160-181,
-and the `Float` sum 727-739 to 137-150, with the same printed checks.
+**What you notice.** Speed only. [Its case](../benchmarks/a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/),
+2 000 rounds of scaling one list of 100 000 `Float`s into another and adding it up, takes 39.5 ms, against 159.9 ms
+for naive C, which reads each item through the list's pointer and count, and 17.7 ms for expert C, which fuses the
+scaling and the sum into one pass over `restrict` arrays.
 
 ### A decimal literal beside a `Float` is a `Float`
 
-**The case:** [benchmarks/cases/a_decimal_literal_beside_a_float_is_a_float](../benchmarks/cases/a_decimal_literal_beside_a_float_is_a_float/).
+**The case:** [benchmarks/a_decimal_literal_beside_a_float_is_a_float](../benchmarks/a_decimal_literal_beside_a_float_is_a_float/).
 
 **What it does.** `value * 1.5 + 0.25` with a `Float` `value` is written `value * 1.5f + 0.25f` in the C, so the
 arithmetic stays in `Float` precision instead of being widened to `Double` and back, which would halve how many
@@ -2437,7 +2442,7 @@ comparison means what it reads as: after `var tenth: Float = 0.1`, `tenth == 0.1
 
 ### A proven read tests only its bounds
 
-**The case:** [benchmarks/cases/a_proven_read_tests_only_its_bounds](../benchmarks/cases/a_proven_read_tests_only_its_bounds/).
+**The case:** [benchmarks/a_proven_read_tests_only_its_bounds](../benchmarks/a_proven_read_tests_only_its_bounds/).
 
 **What it does.** Every `[]` answers a `T?`, and a read the compiler proves (a loop bound `index < list.count()`, a
 proven count, a list literal's indices, the effects of calls, a bound past the index such as `at + 2 < list.count()`,
@@ -2446,8 +2451,9 @@ element through the collection's `get_at` and takes the value directly, with one
 never taken, which halts naming the read if the index was outside the list after all (a bound proves only the top of
 an index, so a counter that went negative is caught, [failure.md](failure.md#reading-with--answers-t)). A read inside
 a counted loop ([above](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked)) proves both ends and
-is a plain indexed load, `spite_temp[index_]`, with no call and no test at all (`counted_loops`), and
-`benchmarks/plain_loops`' two loops compile to the same plain loads.
+is a plain indexed load, `spite_temp[index_]`, with no call and no test at all (`counted_loops`), and the two loops
+of [that section's case](../benchmarks/a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/)
+compile to the same plain loads.
 
 **When.** Every build, for a read of a `List`, `Vector` or `Items` that a range proof narrows. A read narrowed by
 `crash`, `assert` or `if` is unwrapped with no test, since that line tested it. A program's own `get_at` is never
@@ -2458,7 +2464,7 @@ the same halt, named by the read (`conformance/stage6/proven_read_outside`).
 
 ### A walked `crash` line's read is the row's read
 
-**The case:** [benchmarks/cases/a_walked_crash_lines_read_is_the_rows_read](../benchmarks/cases/a_walked_crash_lines_read_is_the_rows_read/).
+**The case:** [benchmarks/a_walked_crash_lines_read_is_the_rows_read](../benchmarks/a_walked_crash_lines_read_is_the_rows_read/).
 
 **What it does.** Every `[]` answers a `T?`, so a walked row's template states each read with
 a `crash` line before the fill ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call)): `var stored_row =
@@ -2475,12 +2481,10 @@ more for itself as it always did (`conformance/stage6/sparse_rows` reads its ref
 `ReferenceColumn<attribute.class>().at(stored_row)`).
 
 **What you notice.** Speed only: a walked row costs the one compare per read that a halting `[]` makes.
-`benchmarks/sparse_rows`, `matched_rows` and `lent_arguments`, run alternately against a compiler without the
-compare, show no tick slower beyond the run-to-run noise.
 
 ### Objects that never leave their function live in the frame
 
-**The case:** [benchmarks/cases/objects_that_never_leave_their_function_live_in_the_frame](../benchmarks/cases/objects_that_never_leave_their_function_live_in_the_frame/).
+**The case:** [benchmarks/objects_that_never_leave_their_function_live_in_the_frame](../benchmarks/objects_that_never_leave_their_function_live_in_the_frame/).
 
 **What it does.** Every class is passed by reference, so `var moved = position +
 velocity.scaled(delta)` reads as two new objects. When the compiler can prove an object never outlives the call
@@ -2547,12 +2551,13 @@ slot, a temporary and a copy used as a value stay limited to classes of numbers.
 and a held object, allocates 3 029 times in all (4 032 without).
 
 **What you notice.** Fewer allocations under `--debug-memory`, and `value.memory.section` answering `'stack'` for a
-local that lives in the frame ([memory.md](memory.md#where-a-value-lives-memory)). `benchmarks/game_maths` (a million
-`position + velocity.scaled(delta)` steps, 200 000 `Matrix4` products, a million `transform_point`s): 3 200 046
-allocations without it, 37 with it, and the hand-written C with the same structs in
-`benchmarks/game_maths/game_maths.c` is the measure of speed (see [the
-benchmarks](../benchmarks/README.md)); `small_allocations` makes 3 004 007 (9 004 007 without), and
-every other benchmark the same. On a game engine whose `Math.Matrix4` holds its two singletons as attributes:
+local that lives in the frame ([memory.md](memory.md#where-a-value-lives-memory)).
+[Its case](../benchmarks/objects_that_never_leave_their_function_live_in_the_frame/), 20 000 000 steps of a falling
+point, makes 6 allocations in all and takes 15.3 ms, against 1 132.8 ms for naive C, which `malloc`s every answer,
+and 15.2 ms for expert C, which holds the numbers by value. The whole program
+[game_maths](../benchmarks/game_maths/) (a million `position + velocity.scaled(delta)` steps, 200 000 `Matrix4`
+products, a million `transform_point`s) measures the library's `Vector3` and `Matrix4` against the same passes in C
+with plain structs. On a game engine whose `Math.Matrix4` holds its two singletons as attributes:
 `flex_layout` makes 99 789 allocations (100 514 without), `scene_probe` 32 413 (32 518), `render_parity` 14 142 (14
 171), with the same output; `stress` keeps its components in columns and makes the same 5 606 191. In `conformance/`,
 `lent_arguments` allocates 122 times (130 without), because the `Entity` a generic runner makes for each entity it
@@ -2566,7 +2571,7 @@ in a program that starts threads), and the count is never read.
 
 ### The C is compiled in parallel units, and cached
 
-**The case:** [benchmarks/cases/the_c_is_compiled_in_parallel_units_and_cached](../benchmarks/cases/the_c_is_compiled_in_parallel_units_and_cached/).
+**The case:** [benchmarks/the_c_is_compiled_in_parallel_units_and_cached](../benchmarks/the_c_is_compiled_in_parallel_units_and_cached/).
 
 In a default build and an `--optimized` one alike, the C of a program bigger than 1.5 MB is split into a header and up to 64 translation
 units, compiled as many at once as the machine has processors and linked, and each unit's object is kept under the
@@ -2580,19 +2585,19 @@ not inlined by the C compiler (which the default `-O0` build never does anyway, 
 
 ### A release build is `-O3` with link-time optimisation
 
-**The case:** [benchmarks/cases/a_release_build_is_o3_with_link_time_optimisation](../benchmarks/cases/a_release_build_is_o3_with_link_time_optimisation/).
+**The case:** [benchmarks/a_release_build_is_o3_with_link_time_optimisation](../benchmarks/a_release_build_is_o3_with_link_time_optimisation/).
 
 `--optimized` asks the C compiler for `-O3`, and a build from several units adds
 ThinLTO (`-flto=thin`, clang) or `-flto=auto` (gcc) so functions are still inlined across units. What you could
 notice: the link takes longer, since it is where the optimisation across units happens. The default build is `-O0`,
 and it and a `--hot-reload` build add `-march=native`, so they use every instruction of the machine that built them,
 where they run; an `--optimized` build, the one shipped, adds nothing of the kind and runs on any processor
-([compiler.md](compiler.md#release-builds)). The measurements are in
-[benchmarks/README.md](../benchmarks/README.md#release-builds).
+([compiler.md](compiler.md#release-builds)). The measurements of each optimisation level are in
+[its case's README](../benchmarks/a_release_build_is_o3_with_link_time_optimisation/#each-optimisation-level).
 
 ### A release is inlined in every unit
 
-**The case:** [benchmarks/cases/a_release_is_inlined_in_every_unit](../benchmarks/cases/a_release_is_inlined_in_every_unit/).
+**The case:** [benchmarks/a_release_is_inlined_in_every_unit](../benchmarks/a_release_is_inlined_in_every_unit/).
 
 **What it does.** Letting go of a reference is a count-down and, rarely, the freeing of the object and everything it
 holds. The compiler writes each class's retain and release as a small `static inline` function in the header that
@@ -2659,7 +2664,7 @@ went from 73 ms a tick to 66 ms, and its physics step from 11.5 to 10.1 ms.
 
 ### Thread safety for singletons, the rest of the plan
 
-**The case:** [benchmarks/cases/thread_safety_for_singletons_the_rest_of_the_plan](../benchmarks/cases/thread_safety_for_singletons_the_rest_of_the_plan/).
+**The case:** [benchmarks/thread_safety_for_singletons_the_rest_of_the_plan](../benchmarks/thread_safety_for_singletons_the_rest_of_the_plan/).
 
 A singleton reached from a `Parallel` is made thread-safe by the compiler, with no keyword, and the compiler picks
 the cheapest form that is safe for what that singleton's functions actually do. The forms above are nothing for
@@ -2672,7 +2677,7 @@ nothing.
 
 ### Copies that cost nothing
 
-**The case:** [benchmarks/cases/copies_that_cost_nothing](../benchmarks/cases/copies_that_cost_nothing/).
+**The case:** [benchmarks/copies_that_cost_nothing](../benchmarks/copies_that_cost_nothing/).
 
 Every class is passed by reference and `copy()` gives an independent one; that is the whole API, and the compiler
 optimises behind it: a copy used only once is passed by value instead of allocated; a copy that is never changed
@@ -2688,7 +2693,7 @@ shared.
 
 ### Identical functions are folded into one
 
-**The case:** [benchmarks/cases/identical_functions_are_folded_into_one](../benchmarks/cases/identical_functions_are_folded_into_one/).
+**The case:** [benchmarks/identical_functions_are_folded_into_one](../benchmarks/identical_functions_are_folded_into_one/).
 
 Two versions of one dependency are two different libraries
 ([packages.md](packages.md#two-versions-of-one-repository)), and what that duplicates must cost nothing. So the
@@ -2723,7 +2728,7 @@ every build, rather than leaving it to the C compiler or the linker.
 
 ### Calls in a row run at once
 
-**The case:** [benchmarks/cases/calls_in_a_row_run_at_once](../benchmarks/cases/calls_in_a_row_run_at_once/).
+**The case:** [benchmarks/calls_in_a_row_run_at_once](../benchmarks/calls_in_a_row_run_at_once/).
 
 **What it does.** Statements in a row that each call a function on an object of the program, and share nothing
 one of them writes, run on the thread pool at once ([concurrency.md](concurrency.md#calls-in-a-row-run-at-once)).
@@ -2781,7 +2786,7 @@ overlapped calls count, as every program with threads does
 
 ### A crash's report is kept out of the way
 
-**The case:** [benchmarks/cases/a_crashs_report_is_kept_out_of_the_way](../benchmarks/cases/a_crashs_report_is_kept_out_of_the_way/).
+**The case:** [benchmarks/a_crashs_report_is_kept_out_of_the_way](../benchmarks/a_crashs_report_is_kept_out_of_the_way/).
 
 **What it does.** Every `crash`, failed `assert`, read outside a list and overflow has code that writes its report:
 the place, the values that failed, the attributes of the object it ran on. That code runs at most once, so the
@@ -2823,7 +2828,7 @@ naive entity system took 14% fewer instructions per tick. A report reads exactly
 
 ### Other optimisations
 
-**The case:** [benchmarks/cases/other_optimisations](../benchmarks/cases/other_optimisations/).
+**The case:** [benchmarks/other_optimisations](../benchmarks/other_optimisations/).
 
 - **An appended item made in place**: `var slow = Velocity(1.0, 0.5)` and then `velocities.append(slow)` writes the
   constructor's attributes straight into the vector's block, when the object is used for nothing else, so filling

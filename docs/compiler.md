@@ -218,8 +218,9 @@ spite game              # -O0, for this machine's processor
 spite game --optimized  # release: -O3 and link-time optimisation, for any processor
 ```
 
-How fast each build is, against C written by hand, is `bash benchmarks/versus_c/run.sh`
-([benchmarks/README.md](../benchmarks/README.md#spite-against-c)).
+How fast a release build is, against the same program written in C plainly and tuned by hand, is
+`bash benchmarks/run.sh` ([benchmarks/README.md](../benchmarks/README.md)); what each optimisation level costs is in
+[its case](../benchmarks/a_release_build_is_o3_with_link_time_optimisation/#each-optimisation-level).
 
 ### Measure only a production build
 
@@ -275,8 +276,8 @@ game's edit was in a generic class, which changes every instantiation of it. A d
 rule and compiles each unit at `-O0`, linked without link-time optimisation: on a busier day than the table's, the
 compiler took 19.0 s from one file and 22.5 cold, 12.8 warm and 13.3 after one edit from units, so the build you
 repeat all day, after an edit, is the faster one. How they were measured, and the unit counts tried, are in
-[benchmarks/README.md](../benchmarks/README.md#compile-time-at-scale); `bash benchmarks/build_times.sh` measures
-them again.
+[the case of translation units](../benchmarks/the_c_is_compiled_in_parallel_units_and_cached/#compile-time-at-scale);
+`bash scripts/build_times.sh` measures them again.
 
 ## Compile for another system
 

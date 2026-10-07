@@ -1,8 +1,0 @@
-singleton
-
-var textures = List<Texture>()
-
-func load_texture(name: String) {
-    var texture = Texture(name)
-    textures.append(texture)
-}

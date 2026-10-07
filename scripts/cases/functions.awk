@@ -1,5 +1,5 @@
 # Prints the definitions a case names in its functions.txt, taken from the C the compiler wrote for it:
-#   awk -f scripts/cases/functions.awk benchmarks/cases/<case>/functions.txt <generated C>
+#   awk -f scripts/cases/functions.awk benchmarks/<case>/functions.txt <generated C>
 # A line of functions.txt is a function's name, "struct <Name>" for a struct, or "lines <start>" for every line of the
 # C that starts with <start> (a declaration, a macro), in the order the C has them. A name ending in "*", such as
 # spite_failed_*, is every function the compiler numbered that way (spite_failed_110, ...), so a case never names a

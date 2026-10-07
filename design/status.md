@@ -85,7 +85,7 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
 ### Inline types and duck typing: a function taking a `type` is compiled per class (D321)
 - Built: a copy per class for a call whose argument's class is known while compiling, and a `switch` over the
   shape's closed set for a value read at run time, with the function as written compiled under another name and
-  shaken out (`conformance/stage6/shape_copies`, `conformance/stage6/number_parameter`, `benchmarks/shape_calls`).
+  shaken out (`conformance/stage6/shape_copies`, `conformance/stage6/number_parameter`, `benchmarks/a_function_taking_a_type_is_compiled_per_class`).
 - Built: a call through a shape, on a value of a class no case was compiled for, halts naming the shape and the
   function instead of answering a default.
 - Built: a `type` that requires no attributes is a tagged value (a class id and the object or the plain value), so a
@@ -133,7 +133,7 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
 
 - (suspected 2026-10-07, read-only research, not yet reproduced) A frame object whose caller-slot claim fails (for
   example a member callee such as `normalized()` in `velocity = nudged.normalized()`) silently falls back to a heap
-  object copied into the slot, with no `--optimization-report` line. Reproduce on `benchmarks/versus_c/vector_maths`;
+  object copied into the slot, with no `--optimization-report` line. Reproduce on `benchmarks/vector_maths`;
   every fallback must be reported.
 
 - (found 2026-10-07 by the naive engine; the common forms are refused since D515) A local read from a list and
@@ -616,7 +616,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Rule details (which templates, how a name is read, error texts) are proposed by Claude, unconfirmed.
 
 ### Vector<T>
-- The class named `Vector` in `examples/vectors`, `conformance/stage6/operators` and `benchmarks/small_allocations`
+- The class named `Vector` in `examples/vectors` and `conformance/stage6/operators`
   was renamed `Displacement`; page no longer records this.
 
 ### Specification (formerly the page's Rules in full)
@@ -898,13 +898,13 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   items (`[1, 2]`) or in a library class; a value passed through a `type`, a generic class's own item or a field;
   removing a folded branch before tree shaking, so a function only it calls is still compiled; the optimisation
   report does not yet say which lists' values are known, or what stopped one. Its case,
-  `benchmarks/cases/a_test_against_a_value_a_list_never_holds_is_decided_while_compiling`, runs in 0.69 of naive C's
+  `benchmarks/a_test_against_a_value_a_list_never_holds_is_decided_while_compiling`, runs in 0.69 of naive C's
   time and 1.37 of expert C's.
 
 ### Objects of one class sit together
 
 - Built (pair M6 of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm).
-  Not built: a pool for a class no list holds (the short-lived `Vector3` objects of `benchmarks/versus_c/vector_maths`
+  Not built: a pool for a class no list holds (the short-lived `Vector3` objects of `benchmarks/vector_maths`
   run in 0.57 of the time from a pool, but pooling every class made `particles` 4% slower, from where its one
   `Vector` header landed, so only listed classes are pooled); a pool per thread, so a class a worker makes keeps the C
   library's allocator; giving a run of blocks back once every object in it is let go; the optimisation report does
@@ -932,7 +932,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Allocation is the C library's, counted only where read
 
-- Built and taken out again (2026-09-25): keeping each freed object of up to 256 bytes on a per-thread free list for reuse. Not a clear, repeatable gain on the game engine package; `benchmarks/README.md` has both sets of numbers. The page keeps the measurements as a description of what the compiler does not do.
+- Built and taken out again (2026-09-25): keeping each freed object of up to 256 bytes on a per-thread free list for reuse. Not a clear, repeatable gain on the game engine package. The page keeps the measurements as a description of what the compiler does not do.
 
 ### A `--hot-reload` build, reloads
 
@@ -945,9 +945,22 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### The optimisation cases (D521)
 
-- Every section of the page has its case in [benchmarks/cases](../benchmarks/cases/README.md), checked by
-  `check.sh`. Not measured yet: the timings of the cases (`bash benchmarks/cases/run.sh`), to be run while nothing
-  else is benchmarking on the machine.
+- Every section of the page has its case in [benchmarks/](../benchmarks/README.md), checked by `check.sh`, which
+  also regenerates each case's whole `generated.c` and its `highlights.c` (D525). The cases' timings were taken on a
+  machine other sessions were benchmarking on; take them again (`bash benchmarks/run.sh`) while nothing else runs.
+- D524: the Spite-only benchmarks are gone, and with them these numbers the docs quoted, which no case measures
+  against C yet (each would need a case of its own): a row's reference-column element lent instead of counted
+  (`lent_elements`, D269-D271), the arguments a plural value template fills written out in the caller
+  (`lent_arguments`, D220), places read from another object's list instead of copied (`matched_rows`, D221), a walked
+  `crash` line costing no tick, the bit views at `-O0` (`half_precision`), an `Items`' `[]` against a `Vector`'s and a
+  `List`'s, a dictionary key longer than 15 bytes being about 10% slower, JSON's write and read speed and its second
+  camel-case walk (`serialisation`), a `console.print` line written out against one buffered (`console_lines`), the
+  maths functions against a game engine's stopgaps (`maths_stopgaps`), what small-block reuse sped up
+  (`small_allocations`), a `drop()` elsewhere in the program costing a template pass nothing (`gathered_objects`), a
+  function called on an element looked up on its class (`one_list`), the allocations of the replaced defaults of
+  `Spite.Attribute` (`reflection_walks`) and of two `Parallel`s (`parallel_calls`), a program with number keys taking
+  a second compile pass (`number_keys`), and what checked arithmetic costs each whole program. What a singleton's
+  lock costs one thread a call is now said without a number.
 - Found by the cases, each written in the case's README: a frame object passed to an operator (`velocity +
   pulled`) is still counted, since the `___held_` copy is used only for a call by name
   (objects_that_never_leave_their_function_live_in_the_frame); a local passed only to a function taking a `type`,
@@ -984,7 +997,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   `Items` is allocated, copied in and freed (a_row_of_borrowed_items_lives_in_the_frame); the lint that names
   `bodies.each(mover.update_each)` for a `while` points at a line that is an error when the function takes a `type`
   the element fits; and skills/spite/reference.md names `is_fixed_size` and says there are no `Symbol` walks while
-  `benchmarks/sparse_rows` and the conformance programs still use `fits_vector()` and `Symbol` walks.
+  the conformance programs still use `fits_vector()` and `Symbol` walks. The whole-program cases add: a `Matrix4`
+  product assigned back over its operand, `accumulated = accumulated * step_matrix`, is made on the heap every pass
+  and `step_matrix` counted around each call (game_maths); and `velocity = nudged.normalized()` allocates each pass
+  (vector_maths, the frame object fallback under failure.md above).
 
 ## [proofs.md](../docs/proofs.md)
 

@@ -68,7 +68,7 @@ upstream to pull; per D507 it is only a benchmark now and is not changed for fea
    It goes into the pair catalogue before it is built.
 3. **Kept only if at least as fast** as the hand form it replaces (D501, D214), on the engine's benchmarks:
    `stress`, `physics_bench`, `navigation_bench`, `render_bench`, `replication_bench`, `animation_bench`,
-   `props_bench`, and `benchmarks/versus_c` in this repository.
+   `props_bench`, and the five whole programs of `benchmarks/` in this repository.
 4. **Zero runtime, tree-shakeable** (D147, D176): every pair is a choice of code made while compiling. Where only
    the run can know something (a list's length), the page says why and the cost is one branch, never a scheduler.
 5. **Nothing silent** (D244): an optimisation that cannot be applied falls back to the plain, correct form and
@@ -228,7 +228,7 @@ made in turn, gets them side by side.
 | stress spawn | 163 ms | 98 ms |
 | stress peak memory | 96 MB | 67 MB |
 | physics step | 9.5 ms | 8.5 ms |
-| `benchmarks/versus_c` (all five) | | the same C, byte for byte: no class there is both held in a list and made as an object |
+| the five whole programs of `benchmarks/` (`vector_maths`, `particles`, `number_dictionary`, `text_building`, `sorting`) | | the same C, byte for byte: no class there is both held in a list and made as an object |
 
 Pooling every class instead of the ones a list holds was measured too: `vector_maths` ran in 0.57 of the time (its
 `Vector3` temporaries reuse one block), but `particles` ran 4% slower, traced to where its single `Vector` header
@@ -255,7 +255,7 @@ build; 43.3 ms as one C file), physics 8.4 ms.
 | stress tick, split build | 48.1 ms | 43.8 ms |
 | stress tick, one C file | 43.3 ms | 40.3 ms |
 | physics step | 8.4 ms | 8.1 ms |
-| `benchmarks/versus_c` (all five) | | the same C, but for the numbers of its temporaries |
+| the five whole programs of `benchmarks/` (`vector_maths`, `particles`, `number_dictionary`, `text_building`, `sorting`) | | the same C, but for the numbers of its temporaries |
 
 The profile after B3, inclusive, both systems summed: writing rows back 36%, matching 23% (`find_row` 17%), filling
 rows 19%, the candidate list 13%, `choose` 9%. The counts left are in reads that are not tests: `choose` reads
@@ -276,7 +276,7 @@ effects know, be any list.
 | stress tick, split build | 43.6 ms | 41.2 ms |
 | stress tick, one C file | 40.0 ms | 38.1 ms |
 | physics step | 8.1 ms | 8.2 ms (noise: its changed system, `SortColliders`, 662 to 650 µs; the unchanged `MoveCharacters` moves 1% between builds) |
-| `benchmarks/versus_c` (all five) | | the same C |
+| the five whole programs of `benchmarks/` (`vector_maths`, `particles`, `number_dictionary`, `text_building`, `sorting`) | | the same C |
 
 The profile after B1, inclusive, both systems summed: writing rows back 38%, matching 21% (`find_row` 15%), filling
 rows 20%, the candidate list 12%, `choose` 9%, `stamp_written` 8%. The `ColumnIndex` counts are now all in
@@ -385,7 +385,7 @@ stress program, the setup's included).
 | stress tick, one C file | 39.0 ms | 35.4 ms |
 | stress tick, split build | 41.9 ms | 41.3 ms |
 | physics step | 9.2 ms | 8.9 ms |
-| `benchmarks/versus_c` (all five) | | the same C |
+| the five whole programs of `benchmarks/` (`vector_maths`, `particles`, `number_dictionary`, `text_building`, `sorting`) | | the same C |
 
 The split build gains less: `passes_tracking` and `find_row` sit in units of their own there and are not folded
 into their callers, which is pair C4. Every headless check of the engine's baseline prints the same before and after, but for

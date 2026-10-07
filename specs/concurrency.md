@@ -409,7 +409,7 @@ singleton's functions it calls, is compiled between `spite_coarse_<n>_enter()` a
 while holding this one (the singleton's own functions already take theirs under it), and holds it across no wait,
 which is also what the locked-wait check above enforces from the other side. The full conditions and measurements are in
 [optimizations.md](../docs/optimizations.md#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once)
-(`conformance/stage6/coarse_locks`, `benchmarks/singleton_locks`). The compiler cannot take no lock at all where one
+(`conformance/stage6/coarse_locks`, `benchmarks/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once`). The compiler cannot take no lock at all where one
 `Parallel`'s work is the only thread touching a singleton while it runs: which other threads run at the same time
 is not known while compiling, since any function a `Parallel` reaches may be running on another worker.
 
@@ -427,8 +427,9 @@ zero (`spite_guard_enter_writing`). Reads and writes of its attributes from othe
 writing function still runs alone, and a reading one never beside it. No lock at all while every `Parallel`
 reaching a singleton only reads it, with writes only between stages, cannot be proven at compile time (a handle
 kept in an attribute or a list may still be running when the program writes), so the readers' side is what the
-compiler uses, measured on the shape of a game engine's columns (`benchmarks/singleton_reads`: eight
-systems reading one column per row, 202 ns to 6 ns a row). `conformance/stage6/singleton_reads` reads while the
+compiler uses, measured on the shape of a game engine's columns
+(`benchmarks/a_singletons_reading_functions_do_not_exclude_each_other`: eight systems reading one singleton per row,
+17 ms against 103 ms for C taking a mutex per read). `conformance/stage6/singleton_reads` reads while the
 main thread writes.
 
 **While no task is in flight, the lock is skipped.** The pool counts each task from `submit` until its work has returned

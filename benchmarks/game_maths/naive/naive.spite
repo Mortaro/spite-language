@@ -1,0 +1,58 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var moved = vector_pass()
+    var combined = matrix_pass()
+    var transformed = transform_pass()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var ended_x: Long = moved.x * 1000.0
+    var ended_y: Long = moved.y * 1000.0
+    var ended_z: Long = moved.z * 1000.0
+    var diagonal: Long = combined * 1000000.0
+    var total: Long = transformed
+    console.print("ended at", ended_x, ended_y, ended_z, "diagonal", diagonal, "total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func vector_pass(): Vector3<Float> {
+    var position = Vector3(0.0, 0.0, 0.0)
+    var velocity = Vector3(1.0, 0.5, 0.25)
+    var step = 0
+    while step < 1000000 {
+        var moved = velocity.scaled(0.001)
+        position = position + moved
+        step = step + 1
+    }
+    return position
+}
+
+func matrix_pass(): Float {
+    var turn = Quaternion<Float>()
+    var axis = Vector3(0.0, 1.0, 0.0)
+    turn.set_axis_angle(axis, 0.001)
+    var step_matrix = turn.to_matrix()
+    var accumulated = Matrix4<Float>()
+    var step = 0
+    while step < 200000 {
+        accumulated = accumulated * step_matrix
+        step = step + 1
+    }
+    return accumulated.column_0_row_0 + accumulated.column_1_row_1 + accumulated.column_2_row_2
+}
+
+func transform_pass(): Float {
+    var model = Matrix4<Float>()
+    var place = Vector3(1.0, 2.0, 3.0)
+    model.translation = place
+    var point = Vector3(0.5, 0.5, 0.5)
+    var total = 0.0
+    var step = 0
+    while step < 1000000 {
+        var moved = model.transform_point(point)
+        total = total + moved.x
+        step = step + 1
+    }
+    return total
+}

@@ -1,4 +1,0 @@
-func update_each(position: Component.Position, velocity: Component.Velocity) {
-    position.left = position.left + velocity.across
-    position.top = position.top + velocity.down
-}

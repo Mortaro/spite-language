@@ -75,7 +75,7 @@ benchmarks and people working on the compiler use them.
 - **`SPITE_TRANSLATION_UNITS=<n>`**, an environment variable, forces the number of
   [translation units](../docs/compiler.md#translation-units-the-c-compiled-in-parallel-and-cached) the compiler
   otherwise chooses (D349): `check.sh` splits small programs into 4 to hold the split to running the same, and
-  `benchmarks/build_times.sh` builds from one file to compare. Proposed by Claude, unconfirmed.
+  `scripts/build_times.sh` builds from one file to compare. Proposed by Claude, unconfirmed.
 
 ### The seed's own flags
 

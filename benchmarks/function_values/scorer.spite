@@ -1,9 +1,0 @@
-var bonus = 3
-
-func score(value: Integer): Integer {
-    return value * 2 + bonus
-}
-
-func is_even(value: Integer): Boolean {
-    return value % 2 == 0
-}

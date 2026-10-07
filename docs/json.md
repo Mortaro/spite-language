@@ -454,15 +454,9 @@ func JsonValues() {
 
 ## How fast and how small
 
-`benchmarks/serialisation` writes 100 000 small objects (an `Integer` id, a short name, two `Float`s, a `Short`,
-a `Boolean` and an enum) and reads them back, as JSON (one text each) and as binary (all appended to one
-`List<Byte>`). `clang -O2`, on a Windows machine, with the allocations `--debug-memory` counts for the
-100 000 writes and reads:
-
-| | size | write | read | allocations |
-|---|---|---|---|---|
-| JSON | 9 380 963 bytes (94 per object) | 217 ms | 238 ms | 9 347 676 |
-| binary | 2 389 000 bytes (24 per object) | 16 ms | 8 ms | 300 010 |
+A small object (an `Integer` id, a short name, two `Float`s, a `Short`, a `Boolean` and an enum) is about 94 bytes
+of JSON and 24 bytes of binary. What testing a binary schema costs against C is in
+[its case](../benchmarks/a_binary_schema_is_a_constant/).
 
 JSON's cost is making and parsing text: every number is formatted and parsed, every key written and matched, and
 every member is a `String` of its own. The binary writer stores each number with one instruction and reads it

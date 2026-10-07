@@ -175,8 +175,7 @@ has no function 'sqrt': Spite spells it 'square_root', since no name is abbrevia
 `tan`, `asin`, `acos`, `atan`, `atan2`, `pow`, `exp`, `log`, `ln`, `log2`, `log10`, `ceil`, `trunc`, `abs`,
 `fabs`, `min`, `max`, `isnan`, `isinf` and `isfinite` (`diagnostics/maths_other_spellings`).
 `conformance/stage6/maths_functions` pins the values and the edges, and `maths_precision` what `Float` loses
-against `Double`. `benchmarks/maths_stopgaps` times them against the pure-Spite versions a game engine package wrote while
-they were missing ([benchmarks/README.md](../benchmarks/README.md)).
+against `Double`.
 
 ### System classes
 
@@ -238,10 +237,8 @@ the two streams keep the order they were written in when they reach one file; an
 `write`, `error` or `debug` writes and hands it to the operating system in one piece, so two threads printing at
 once never split each other's lines; a program with one thread writes
 each piece as it comes. The C library already writes
-a terminal's output promptly, so nothing changes there. Chosen as the cheapest way that shows every line:
-`benchmarks/console_lines` prints 200 000 lines, and on Windows to a file it takes about 700 ms flushed per line
-against about 140 ms buffered until exit (to a pipe or the null device the two cost the same, about 450 and 530
-ms): about 3 microseconds per line, one `WriteFile` or `write`. The alternatives cost the same or do not show
+a terminal's output promptly, so nothing changes there. Chosen as the cheapest way that shows every line: one
+`WriteFile` or `write` per line. The alternatives cost the same or do not show
 every line: line buffering (`setvbuf` with `_IOLBF`) is one system call per line too, and the Windows C library
 treats it as full buffering; flushing on a timer, or only where the program waits, leaves the last line of a
 program that computes without waiting in the buffer. A program that prints a great deal to a file and does not

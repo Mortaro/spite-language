@@ -1,5 +1,0 @@
-singleton
-
-generic $component_type
-
-var current = $component_type()

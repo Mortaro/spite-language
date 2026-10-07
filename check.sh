@@ -115,7 +115,7 @@ cp "$work/generation_two.exe" .spite/spite_development.exe   # the freshly built
 $seed_before_check && cp "$work/generation_two.exe" .spite/spite.exe
 
 # Everything below that only needs generation 2 is one job of a pool, and the pool runs `jobs` of them at once:
-# generation 3, the corpus and examples, the documentation's programs, the diagnostics, the benchmarks, the tests,
+# generation 3, the corpus and examples, the documentation's programs, the diagnostics, the benchmark cases, the tests,
 # the compiler's own memory, each operating system's library, the fast reloads, --final-classes and the launcher.
 # Each job's output and exit code go into its own files, and the report reads them in the order of the job list,
 # so it never depends on which job ended first.
@@ -241,24 +241,9 @@ job_diagnostic() {
   echo "FAILED diagnostics: $name"; echo "$actual" | head -8; exit 1
 }
 
-# The benchmarks (benchmarks/README.md) are timed by hand with benchmarks/run.sh; here they only have to compile.
-job_benchmark() {
-  local folder=$1 name errors
-  name=$(basename "$folder")
-  # a program measured against C (benchmarks/versus_c/run.sh) brings its C twin, which has to compile too
-  if [ -f "$folder/twin.c" ]; then
-    errors=$("$CC_BIN" -fsyntax-only -w "$folder/twin.c" 2>&1) || {
-      echo "FAILED: the C twin of benchmark $name does not compile"; echo "$errors" | head -5; exit 1; }
-  fi
-  errors=$("$work/generation_two.exe" "$folder" --check --c-source --c-path="$work/benchmark_$name.c" 2>&1) || {
-    echo "FAILED: benchmark $name does not compile"; echo "$errors" | head -5; exit 1; }
-  errors=$("$CC_BIN" -fsyntax-only -w "$work/benchmark_$name.c" 2>&1) || {
-    echo "FAILED: the C of benchmark $name does not compile"; echo "$errors" | head -5; exit 1; }
-}
-
-# A case of an optimisation (benchmarks/cases/README.md): naive/ compiles, the C it compiles to still holds what its
-# generated.c shows, and naive/, naive.c and expert.c print the same answer (scripts/cases/check.sh). Timing them is
-# benchmarks/cases/run.sh's, by hand.
+# A case of benchmarks/ (benchmarks/README.md): naive/ compiles, the C it compiles to is still what its generated.c
+# and highlights.c hold, and naive/, naive.c and expert.c print the same answer (scripts/cases/check.sh). Timing them
+# is benchmarks/run.sh's, by hand.
 job_case() {
   CASES_WORK="$work/cases" bash scripts/cases/check.sh --compiler="$work/generation_two.exe" "$1" || exit 1
 }
@@ -425,10 +410,7 @@ mkdir -p "$work/unformatted" && cp -r diagnostics "$work/unformatted/"
   echo "final_classes conformance/stage6/symbol_codegen"
   for folder in conformance/*/*/ examples/*/; do echo "program $folder"; done   # the examples are held to the same standard as the corpus
   for folder in .spite/docs/*/; do echo "documentation $folder"; done
-  for folder in benchmarks/*/ benchmarks/versus_c/*/; do
-    case "$(basename "$folder")" in versus_c|cases) ;; *) echo "benchmark $folder" ;; esac   # a suite of programs, each checked on its own
-  done
-  for folder in benchmarks/cases/*/; do echo "case $folder"; done
+  for folder in benchmarks/*/; do echo "case $folder"; done
   for folder in diagnostics/*/; do echo "diagnostic $folder"; done
 } | awk '{ print NR, $0 }' > "$work/jobs.txt"
 
@@ -443,7 +425,7 @@ run_pool() {
 # The report prints each job's output in the order of the job list, never in the order the jobs ended, and counts
 # the results of each kind; a job that left no exit code failed.
 report_pool() {
-  failures=0; passed=0; failed=0; skipped=0; documented=0; undocumented=0; checked=0; wrong=0; benchmarked=0; cased=0
+  failures=0; passed=0; failed=0; skipped=0; documented=0; undocumented=0; checked=0; wrong=0; cased=0
   while read -r index kind rest; do
     status=""; [ -f "$work/results/$index.status" ] && read -r status < "$work/results/$index.status"
     [ -s "$work/results/$index.txt" ] && tr -d '\r' < "$work/results/$index.txt"
@@ -458,14 +440,13 @@ report_pool() {
       program) if [ "$status" == "0" ]; then passed=$((passed+1)); else failed=$((failed+1)); fi ;;
       documentation) if [ "$status" == "0" ]; then documented=$((documented+1)); else undocumented=$((undocumented+1)); fi ;;
       diagnostic) checked=$((checked+1)); [ "$status" == "0" ] || wrong=$((wrong+1)) ;;
-      benchmark) [ "$status" == "0" ] && benchmarked=$((benchmarked+1)) ;;
       case) [ "$status" == "0" ] && cased=$((cased+1)) ;;
     esac
   done < "$work/jobs.txt"
 }
 
 echo "3/4 generation 2 compiles the compiler sources again (generation 3), while the programs are checked: must be byte identical"
-echo "4/4 conformance corpus, examples, documentation, diagnostics, benchmarks and tests with generation 2, $jobs at a time"
+echo "4/4 conformance corpus, examples, documentation, diagnostics, benchmark cases and tests with generation 2, $jobs at a time"
 run_pool
 generated=""; [ -f "$work/results/1.status" ] && read -r generated < "$work/results/1.status"
 if [ "$generated" == "0" ] && ! cmp -s "$work/generation_two.c" "$work/generation_three.c"; then
@@ -486,8 +467,7 @@ report_pool
 echo "conformance and examples: $passed passed, $failed failed, $skipped skipped"
 echo "documentation: $documented passed, $undocumented failed"
 echo "diagnostics: $checked checked, $wrong wrong"
-echo "benchmarks: $benchmarked compile"
-echo "optimisation cases: $cased compile, keep their generated C, and answer alike in Spite, naive C and expert C"
+echo "benchmark cases: $cased compile, keep their generated C and highlights, and answer alike in Spite, naive C and expert C"
 [ "$failures" == "0" ] || { echo "FAILED: $failures jobs failed"; exit 1; }
 echo "generation 3: byte identical to generation 2"
 echo "tests: passed"

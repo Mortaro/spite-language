@@ -43,22 +43,26 @@ them is listed in [docs/optimizations.md](docs/optimizations.md).
 In other languages you choose elegant or fast. In Spite you write the elegant one, and the compiler ships the
 fast one.
 
-**The proof, measured.** Five programs in [benchmarks/versus_c](benchmarks/README.md#spite-against-c) each have a
-twin written in C the way a C programmer would, Spite built `--optimized` against C at `-O3`. Each number is
-how long Spite takes to do the work divided by how long hand-written C takes: 1.00 is equal, lower is better.
+**The proof, measured.** Every benchmark in [benchmarks/](benchmarks/README.md) is one program written three
+ways: plainly in Spite, plainly in C the way a C programmer would (naive C), and in C tuned by hand (expert C).
+Spite is built `--optimized`, both C programs with `clang -O2`. Each number is how long Spite takes to do the work
+divided by how long the C program takes: 1.00 is equal, lower is better. The five whole programs, measured on
+2026-10-07 on a machine other work was loading:
 
-| program | Spite's time over C's (1.00 is equal, lower is better) |
-|---|---|
-| 100 000 particles stepped in place, 300 ticks | 1.06 |
-| 5 million steps of `Vector3` maths | 1.25 |
-| quicksort of 2 million integers | 1.30 |
-| 3 million text appends, a million words joined | 1.62 |
-| 5 million lookups in a dictionary of 500 000 integer keys | 1.96 |
+| program | Spite's time over naive C's | Spite's time over expert C's |
+|---|---|---|
+| 100 000 particles stepped in place, 300 ticks | 0.74 | 1.25 |
+| quicksort of 2 million integers | 1.20 | 7.52 |
+| 3 million text appends, a million words joined | 1.77 | 15.48 |
+| 5 million steps of `Vector3` maths | 2.40 | 3.23 |
+| 5 million lookups in a dictionary of 500 000 integer keys | 3.79 | 6.94 |
 
-The `Vector3` row is the argument in one line. `Vector3` is a class, so every `scaled`, `+` and `cross` made a new
-object, and the program took 4.33 times as long as C. Then the compiler learned to keep an object that never leaves its
-function in the frame, and the same source, unchanged, took 1.25 times as long. Nobody rewrote it. The last three rows are
-where Spite still loses, and nobody has studied why yet: they are the baseline to beat.
+Against expert C, the gap is the work the compiler could still do on its own, and each case's README says where
+it goes. The `Vector3` row shows both sides of it. `Vector3` is a class, so every `scaled`, `+` and `cross` made a
+new object, and the program took 4.33 times as long as C. Then the compiler learned to keep an object that never
+leaves its function in the frame, and the same source, unchanged, took 1.25 times as long. Today `normalized()`'s
+answer falls back to the heap again, which is why the row is at 2.40: the case found it, and it is a bug to fix.
+The 80-odd cases of single optimisations are in the [summary](benchmarks/README.md#summary).
 
 ## One way to do each thing
 
@@ -169,7 +173,7 @@ thread-safe by the compiler, in its cheapest safe form ([docs/concurrency.md](do
 
 The default build is for iterating: the C is compiled at `-O0`, because you rebuild it all day. `--optimized` is
 for shipping: `-O3`, link-time optimisation, and the C split into units compiled in parallel and cached. The
-numbers, from [benchmarks/README.md](benchmarks/README.md#compile-time-at-scale) and
+numbers, from [the translation units' case](benchmarks/the_c_is_compiled_in_parallel_units_and_cached/README.md#compile-time-at-scale) and
 [docs/compiler.md](docs/compiler.md#compile-time):
 
 - The compiler (written in Spite) compiles itself to C in 1.7 seconds of CPU time.
@@ -202,9 +206,10 @@ page by page, is in [design/status.md](design/status.md).
 
 ## Questions
 
-**How fast is it?** Spite takes 1.06 to 1.96 times as long as hand-written C on the five programs above (1.00 is
-equal, lower is better): 1.06 on a plain loop over packed items, 1.25 to 1.96 on the other four. No comparison with Rust, Go or Zig has been measured.
-[benchmarks/README.md](benchmarks/README.md)
+**How fast is it?** On the five whole programs above, Spite takes 0.74 to 3.79 times as long as the same program
+written plainly in C, and 1.25 to 15.48 times as long as C tuned by hand (1.00 is equal, lower is better): it beats
+plain C on a loop over packed items, and loses most where the C was tuned. No comparison with Rust, Go or Zig has
+been measured. [benchmarks/README.md](benchmarks/README.md)
 
 **How fast does it compile?** The compiler compiles itself to C in 1.7 seconds of CPU; a default build of the
 compiler, C included, takes about 11 seconds, and of a 209 206-line program about 15.

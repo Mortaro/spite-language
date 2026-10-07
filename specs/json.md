@@ -135,8 +135,7 @@ The details:
   name. The spellings are compile-time constants a walked attribute answers, `attribute.camel_case_name` and
   `attribute.pascal_case_name` ([metaprogramming.md](metaprogramming.md#templates)),
   and `JsonReader` compares them in a second walk, `created.attributes.each(read_camel_attribute)`, that runs only
-  for a key the first walk did not match: snake_case input runs the same comparisons it did before (`benchmarks/serialisation`, JSON
-  read, best of eight alternating runs on a loaded machine: 269 ms before, 267 ms after), and a program that reads
+  for a key the first walk did not match: snake_case input runs the same comparisons it did before, and a program that reads
   no JSON carries none of it (`conformance/stage6/json_camel_case`).
 - **A key that is not an attribute's name comes from the serializer's optional `keys` attribute, a map keyed by
   attribute objects and set before the serializer's first use**: `{MeshRecord.attributes['minimum_level_of_detail']: "min_lod"}`. `JsonWriter` writes the attribute

@@ -408,7 +408,8 @@ compile time that it is never kept past its use. The rules:
   vector release the `String`s of the items they remove.
 - **Run-time cost.** None beyond the block: every rule above is proven while compiling, a borrowed item is
   one address, and a program that makes no `Vector` carries none of `library/vector.spite` or `InlineMemory`.
-  Measured in `benchmarks/vector_items`.
+  Measured in `benchmarks/particles`, a `Vector` of particles stepped in place against the same array of structs
+  in C.
 - **A row of borrowed items.** An object literal written as `var row = {...}` or `var row: Moving = {...}`
   whose attributes include a borrowed item (`positions[index]`, or a name already borrowed from a vector) is a
   **row**: each attribute is a borrowed item or a plain value (a number, `Boolean` or enum), and anything else is
@@ -446,8 +447,8 @@ compile time that it is never kept past its use. The rules:
   - **Cost.** The row is a struct in the frame of the function that makes it, with a header whose count is never
     touched, and a read through the parameter is the `type`'s uncounted read, one class test and a load
     ([optimizations.md](../docs/optimizations.md#a-row-of-borrowed-items-lives-in-the-frame)). A program that makes no
-    row carries none of it. `benchmarks/vector_rows`: 200 000 entities, two systems, 2.4 ms a tick with `Vector`
-    columns and rows against 6.0 ms with `List` columns and a reused row object (best of five, `clang -O2`).
+    row carries none of it. `benchmarks/a_row_of_borrowed_items_lives_in_the_frame`: 20 000 000 rows over four
+    `Vector` columns, none allocated, measured against C making a row per call.
 - **A row filled by a walk.** A local declared as a `type` with `= null` (`var row: $row_type = null`) and filled on the very next
   line by a plural walk of its own class (`fill_attributes(row, index)`, whose template ranges over that `type`
   with `attribute: Symbol<$row_type>`) is a row when the walk writes out to one: the template's body is the
@@ -475,9 +476,7 @@ compile time that it is never kept past its use. The rules:
   read), so each line narrows the very read the literal makes. Cost: a walked `crash` line
   reads the item once into a local and tests it, and the literal (or the lent argument) uses that local instead
   of reading again, so a row costs one compare per read; the borrowed items, the
-  frame-made row and the resize check are unchanged (`benchmarks/matched_rows`, `benchmarks/sparse_rows`,
-  `benchmarks/lent_arguments`: no tick is slower beyond the run-to-run
-  noise). The template is not called, so it is not
+  frame-made row and the resize check are unchanged (`benchmarks/a_walked_crash_lines_read_is_the_rows_read`). The template is not called, so it is not
   compiled for that walk. A walk of any other shape leaves the local an ordinary `type` value, and storing a
   borrowed item in it is the error for keeping one. Nothing runs for it: the rewrite is done while compiling.
 - **A walked row over sparse columns.** A walk that fills a
@@ -494,9 +493,7 @@ compile time that it is never kept past its use. The rules:
     own, so the list may be any object's: the runner's own attribute, a walk argument such
     as `matcher.rows`, or `matcher.rows[attribute.index]` read in the line itself. It is read once, when the row is
     made, and no rule of the row reaches it, so a runner does not copy another object's places into its own
-    vector first. `benchmarks/matched_rows`: 200 000 entities, two systems, 6.8 ms a tick reading the places
-    from the matcher against 8.2 ms copying them into the runner's vector first (best of three rounds of three,
-    `clang -O2`). Read elsewhere, it is `'attribute.index' is the attribute's place among
+    vector first. Read elsewhere, it is `'attribute.index' is the attribute's place among
     the attributes walked, so it is read in a function a walk of attributes calls, such as 'fill_attribute(attribute:
     Symbol<Row>, ...)'`. The line's parts are `<value>.attributes[attribute]`, attribute reads, `[ ]`, calls
     (constructions included), the walk's parameters, `attribute.index` and whole numbers; anything else in the line
@@ -539,13 +536,12 @@ compile time that it is never kept past its use. The rules:
     and counts its result as above. Nothing is an error: every other caller of the function, and every line that
     keeps the element, counts it as before. **Cost**: none; the lock or readers' side is taken once for the block
     where the call would have taken it once. `conformance/stage6/lent_list_elements`,
-    `conformance/stage6/lent_list_elements_parallel`, `benchmarks/lent_elements`
+    `conformance/stage6/lent_list_elements_parallel`
     ([optimizations.md](../docs/optimizations.md#a-row-of-borrowed-items-lives-in-the-frame)).
   - **Cost.** Nothing runs for any of it: the singleton is the one a program would reach anyway, `attribute.index`
     is a constant, the choice is made while compiling, and the frame-made object is a struct in the frame.
-    `benchmarks/sparse_rows`: 200 000 entities, two systems, sparse sets for every component, 7.4 ms a tick with
-    `Vector` columns and walked rows against 24.0 ms with reference columns and a reused row object (best of five,
-    `clang -O2`).
+    `benchmarks/a_walked_crash_lines_read_is_the_rows_read` walks rows over sparse columns and measures them
+    against C.
 - **Items of an `Items<T>`.** An [`Items<T>`](collections.md#itemst) whose `T` fits a
   `Vector` lends its items exactly as a `Vector` does: `items[index]`, `get_at(index)` and the item a template
   visits are borrowed, and every rule above applies to them, rows and walked rows included; `remove_swapping`
@@ -591,8 +587,7 @@ compile time that it is never kept past its use. The rules:
   over the arguments of 'phase_each' may hand back a borrowed item only through its plural, as the whole argument
   list of the one call it fills: 'phase_each(made_arguments(...))'` (`diagnostics/lent_arguments`).
   **Cost.** The written-out arguments cost what the walked line costs; the template is not called, so it is not
-  compiled for that call. `benchmarks/lent_arguments`: 6.9 ms a tick against 34.3 ms copying each argument out and
-  back ([optimizations.md](../docs/optimizations.md#a-row-of-borrowed-items-lives-in-the-frame);
+  compiled for that call ([optimizations.md](../docs/optimizations.md#a-row-of-borrowed-items-lives-in-the-frame);
   `conformance/stage6/lent_arguments`).
 - **An item lent to the caller.** A function one of whose `return`s reads an item straight from a singleton's
   storage (`return column.values[row]` or `return values[index]`, `get_at` too, where the path is attributes

@@ -441,9 +441,8 @@ func is_despawned(entity: Integer): Boolean {
 ```
 
 Each costs one walk over the collection, however many go: every element that stays is moved down at most once,
-and the ones removed are released at the end. Removing half of 200 000 items by a despawn list one
-`remove_swapping` at a time took 530 µs, against 340 µs for `remove_where`, and removing nine in ten 930 µs
-against 290 µs (`benchmarks/bulk_removal`). What stays keeps its order, which one `remove_swapping` per item does
+and the ones removed are released at the end ([its benchmark](../benchmarks/removing_many_at_once/) measures it
+against the same removal written in C). What stays keeps its order, which one `remove_swapping` per item does
 not. A test that is not a function of the element alone (a mask read by row) is written as the loop above:
 `swap` each row that stays down to the next free place, then `truncate`.
 

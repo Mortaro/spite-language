@@ -562,28 +562,27 @@ Start the `Parallel` and read it in the class that asks for the despawn, and let
 ### What a singleton's lock costs
 
 The lock is a word of its own on a cache line of its own, taken with one compare-and-swap and let go with one
-store, re-entered for free by the thread that holds it. Taken by one thread only, it costs about 2 ns a call:
-800 000 calls to a locked function took 1.7 ms on one thread against 0.4 ms with the lock taken once for the
-whole loop (`benchmarks/singleton_locks`).
+store, re-entered for free by the thread that holds it. Taken by one thread only, it costs a few nanoseconds a call.
 Taken by several threads at once it costs far more, because each call hands the line from core to core and the
-threads waiting spin: eight workers making 100 000 calls each to one shared singleton took 51 ms, against 2 ms for
-the same calls on one thread. So:
+threads waiting spin. So:
 
 - **Give each worker its own singleton** where the state splits (a generic singleton per column, `Column<T>`,
   rather than one `Columns` every worker calls), and the locks are never contended.
 - **Call it from a counted loop.** A `while index < count` loop whose calls are all to one singleton (and to lists
   of plain values), with nothing else locked or waited on in it, takes the lock once around the whole loop and
   calls the unlocked bodies inside it ([optimizations.md](optimizations.md#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once)):
-  the eight workers above then take 0.6 ms for the shared singleton and 0.35 ms for their own, as if unlocked.
+  four workers making 5 million calls each to one shared singleton take 77 ms that way, where C taking a mutex on
+  every call takes 501 ms ([the case](../benchmarks/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/)).
 - **Keep its reads apart from its writes.** A function that only reads the singleton's state (`at(row)`, a lookup)
   takes the readers' side of the lock: a count on its own thread's cache line, so readers on different threads
   never slow each other down, and only a function that writes waits for them
   ([optimizations.md](optimizations.md#a-singletons-reading-functions-do-not-exclude-each-other)). Eight systems
-  reading 15 000 rows each of one column through `at(row)` went from 202 ns to 6 ns a row
-  (`benchmarks/singleton_reads`). Anything a function calls or assigns beyond reading makes it a writing function,
+  reading 15 000 rows each of one singleton through `at(row)`, 20 ticks, take 17 ms, where C taking a mutex for
+  every read takes 103 ms ([the case](../benchmarks/a_singletons_reading_functions_do_not_exclude_each_other/)). Anything a function calls or assigns beyond reading makes it a writing function,
   so keep lookups small and separate from the functions that change the singleton.
 - **Nothing to do between stages.** While no task is on the thread pool, a locked function runs without its lock
-  (19 ns to 9 ns a call, `benchmarks/singleton_unshared`), so code that fills or flushes a singleton on the
+  ([the case](../benchmarks/while_no_task_runs_a_singletons_lock_is_skipped/): ten million calls in 53 ms, where C
+  taking a mutex on every call takes 76 ms), so code that fills or flushes a singleton on the
   program's own thread between `Parallel`s pays almost nothing for it.
 - **Or let it take no lock.** A singleton whose changing state is one counter or flag per function becomes atomics,
   one that never changes takes nothing, and one no `Parallel` reaches takes nothing

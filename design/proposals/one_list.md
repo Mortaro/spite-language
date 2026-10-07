@@ -28,7 +28,7 @@ until the compiler can prove ownership at `append` and report every refusal ([be
 
 ## How it was measured
 
-- **Where lists are, and what they could be:** `benchmarks/one_list/list_sites.py` reads Spite source line by line
+- **Where lists are, and what they could be:** `scripts/list_sites.py` reads Spite source line by line
   (a file is a class, one statement a line) and, for every `List` site (an attribute or a local whose type is a
   `List`), decides which layout it could get and why the others were refused. It follows a list into the
   functions it is passed to, to the attributes it is stored in and back to the callers it is returned to, and
@@ -38,8 +38,8 @@ until the compiler can prove ownership at `append` and report every refusal ([be
   the 20 benchmarks (29), and a read-only copy of the engine package (`engine/`, `plugins/`, `examples/`, 417 files, 298
   sites) in `.spite`.
 - **Speed:** the engine package's `examples/stress` compiled by this tree's compiler (`--optimized`, `clang -O2`, 200 000
-  entities, 20 ticks, parallel stage); `benchmarks/one_list/layouts.c`, the layouts written by hand in C so each
-  costs only what the layout costs; `benchmarks/one_list` (Spite), `each_` against `parallel_each_` on 200 000
+  entities, 20 ticks, parallel stage); `benchmarks/one_list/layouts.c` (removed with the Spite-only benchmarks, D524; at commit f1bd370e), the layouts written by hand in C so each
+  costs only what the layout costs; `benchmarks/one_list` (Spite, removed the same way), `each_` against `parallel_each_` on 200 000
   elements with a light and a heavy body; and a small probe of `List<Float>` and `Vector<Float>` loops, read with
   clang's vectoriser remarks. A Windows machine with 32 logical cores, clang 19.1.5. Times move 5-15% between
   runs on this machine; ranges are given where they did.
@@ -416,13 +416,13 @@ fails on the code that matters) held under every correction made to the script w
 ## Reproducing
 
 ```
-python benchmarks/one_list/list_sites.py compiler bootstrap
-python benchmarks/one_list/list_sites.py library library
-python benchmarks/one_list/list_sites.py conformance --each conformance/stage1 conformance/stage2 conformance/stage3 conformance/stage4 conformance/stage5 conformance/stage6
-python benchmarks/one_list/list_sites.py benchmarks --each benchmarks
-python benchmarks/one_list/list_sites.py engine <copy>/engine <copy>/plugins <copy>/examples
-clang -O2 benchmarks/one_list/layouts.c -o layouts.exe && ./layouts.exe
-bash benchmarks/run.sh .spite/spite_development.exe one_list
+python scripts/list_sites.py compiler bootstrap
+python scripts/list_sites.py library library
+python scripts/list_sites.py conformance --each conformance/stage1 conformance/stage2 conformance/stage3 conformance/stage4 conformance/stage5 conformance/stage6
+python scripts/list_sites.py benchmarks --each benchmarks   (the benchmarks of the time; benchmarks/ now holds cases)
+python scripts/list_sites.py engine <copy>/engine <copy>/plugins <copy>/examples
+git show f1bd370e:benchmarks/one_list/layouts.c > layouts.c && clang -O2 layouts.c -o layouts.exe && ./layouts.exe
+(the Spite program benchmarks/one_list was removed with the Spite-only benchmarks, D524; it is at f1bd370e)
 ```
 
 `--sites` prints every site with its verdict and the reasons it was refused; `--loops` every loop over a list. The

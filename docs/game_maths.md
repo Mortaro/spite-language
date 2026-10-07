@@ -318,11 +318,11 @@ the function that made it writes it straight there
 `var offset = first - second` read only by `offset.length()`. An answer that is stored (in an attribute, a list, a `Vector<T>` column) or printed
 is an object on the heap, one allocation, as any object is.
 
-`benchmarks/game_maths` measures it against the same passes written in C with plain structs
-(`benchmarks/game_maths/game_maths.c`), `clang -O2`: a million `position +
-velocity.scaled(delta)` steps take about 0.7 ms, as the C does (35-46 ms and two allocations a step before objects
-went into the frame); 200 000 `Matrix4` products about 1.5 ms against 1 ms in C (8-11 ms before); a million
-`transform_point`s about 0.7 ms either way. The whole program makes 37 allocations, where it made 3 200 046.
+[Its benchmark](../benchmarks/game_maths/) measures it against the same passes written in C with plain structs: a
+million `position + velocity.scaled(delta)` steps, 200 000 `Matrix4` products and a million `transform_point`s take
+7.2 ms in all, against 2.3 ms in plain C and 1.8 ms in C tuned by hand. The vector steps and the transforms live in
+the frame; a product assigned back over its own operand, `accumulated = accumulated * step_matrix`, is made on the
+heap each time, and that is most of the difference.
 
 ---
 

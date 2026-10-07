@@ -15,7 +15,7 @@ How to use it, for agents sent to investigate:
   optimisation never changes what a program prints, computes or crashes on, D244) and **zero runtime** (nothing
   ships beside the program; a run-time choice is at most a branch between forms compiled in advance, D147, D176,
   D508). An idea that needs a runtime goes under "Outside the constraints" with what it would need.
-- Measure against the hand-tailored form, on the engine package's benchmarks and `benchmarks/versus_c`, in an
+- Measure against the hand-tailored form, on the engine package's benchmarks and the cases of `benchmarks/` (each against naive and expert C), in an
   `--optimized` build. Write the numbers here.
 
 Each idea: **Idea**, **Proof it needs**, **Why it might win**, **Risks**, **Status**.

@@ -1,0 +1,53 @@
+var console = Console()
+var clock = Clock()
+var despawns = Despawns()
+var item_total = 200000
+var velocities = Items<Velocity>()
+var entities = List<Integer>()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var checksum: Long = 0
+    var round = 0
+    while round < 40 {
+        var removed_in_ten = 5
+        if round % 2 == 1 {
+            removed_in_ten = 9
+        }
+        despawns.mark_every(item_total, removed_in_ten)
+        fill()
+        velocities.remove_where_despawned()
+        entities.remove_where(despawns.marked)
+        checksum = checksum + kept_sum()
+        round = round + 1
+    }
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("checksum", checksum)
+    console.error("microseconds {microseconds}")
+}
+
+func fill() {
+    velocities.clear()
+    entities.clear()
+    var entity = 0
+    while entity < item_total {
+        var despawned_now = despawns.marked(entity)
+        var velocity = Velocity(entity, 1.0 * entity, despawned_now)
+        velocities.append(velocity)
+        entities.append(entity)
+        entity = entity + 1
+    }
+}
+
+func kept_sum(): Long {
+    var sum: Long = 0
+    var row = 0
+    while row < velocities.count() {
+        var velocity = velocities[row]
+        crash entities[row]
+        var entity = entities[row]
+        sum = sum + velocity.entity + entity
+        row = row + 1
+    }
+    return sum
+}

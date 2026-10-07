@@ -1,5 +1,0 @@
-var weight = 0
-
-func Gadget(starting_weight: Integer) {
-    weight = starting_weight
-}

@@ -97,7 +97,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **M7 Identical-function folding leftovers** (D340; status "Identical functions"). Fold a function differing only
   in which class of another layout it passes by reference, compare a boxed text constant by its text, and stop
   writing a foreign callback's site into the function. Files: `function_folder.spite`. **M.** No dependencies.
-- **M8 Benchmark gap analysis** (D398). For each benchmark, compare the generated C with the hand-written C and rank
+- **M8 Benchmark gap analysis** (D398). For each benchmark, compare the generated C with the naive and expert C and rank
   every source of extra work by measured cost: allocation, reference counting, checks, the library's algorithm,
   missing aliasing hints. The ranking orders M9 to M11. Files: `benchmarks/`. **M.** No dependencies; first.
 - **M9 Escape analysis removes allocations and counting** (D398). An object proven not to escape or not to be

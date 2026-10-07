@@ -1,9 +1,0 @@
-singleton
-
-var total: Long = 0
-var calls = 0
-
-func note(amount: Integer) {
-    total = total + amount
-    calls = calls + 1
-}

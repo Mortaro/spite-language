@@ -376,7 +376,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   only declares and assigns plain locals, reads and writes items of plain-value lists, and calls those lists' reading
   functions and maths. A second list indexed by the counter is checked once, before the loop.
 - **Buys.** The count is read once and items are read and written as a C array, which the C compiler vectorises;
-  `benchmarks/plain_loops` from about 680 to 190 µs.
+  [its case](../benchmarks/a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/) runs in 39.5 ms
+  against naive C's 159.9 ms.
 - **Falls back.** The ordinary loop, every read checked. Any other call (an `append`), a counter starting from a
   parameter, a `Long` counter, a list held in an attribute, a `--repl`, `--repl-port` or `--hot-reload` build, or a
   function that waits keeps it ordinary. A body with an `assert` or `crash` keeps the second list's checks.
@@ -666,8 +667,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   arguments are known (numbers, names in scope and their attributes), and in a `return` of a function answering
   that instance, which only that instance can be; a constructor that writes its codegen values out
   (`BinaryWriter<Order>()`) is fresh as a local wherever they name classes, not other codegen values.
-- **Buys.** No allocation; `.memory.section` answers `'stack'`. `benchmarks/game_maths` from 3 200 046 allocations
-  to 37; `Vector3<Float>`, generic over its number class, stays in the frame as before
+- **Buys.** No allocation; `.memory.section` answers `'stack'`. [its case](../benchmarks/objects_that_never_leave_their_function_live_in_the_frame/)
+  makes 6 allocations for 20 000 000 steps, where naive C makes 80 000 003; `Vector3<Float>`, generic over its number class, stays in the frame as before
   (`conformance/stage6/generic_vectors`).
 - **Falls back.** An ordinary heap object when it is stored, returned as another type, given a second name, passed to
   a function that keeps it (a foreign or built-in function, a recursive call, a variadic list, a `Parallel` or
@@ -704,7 +705,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
   `.arguments`, not stored, not passed on, not in a text hole.
 - **Buys.** The value is a struct in the caller's frame holding the owner and the function, passed to the callee's
   `___held_` copy: no allocation and no count, and once the callee is inlined the C compiler sees which function is
-  called and calls it directly. `benchmarks/cases/a_function_value_describes_its_arguments_when_asked` from 66.8
+  called and calls it directly. `benchmarks/a_function_value_describes_its_arguments_when_asked` from 66.8
   times plain C's time to 0.65.
 - **Falls back.** The value on the heap, as before, when the callee reads or keeps it in any other way, when the
   owner is a temporary or an item borrowed from a list, for a library function, and in the builds and functions held
@@ -758,8 +759,8 @@ have moved.
   attribute class and mix borrowed items with other values; a plural's arguments may carry borrowed items into
   the one call it fills. The template's branch may name a value with `var` (`var stored_row =
   rows[attribute.index]`); the name is walked as the value it names.
-- **Buys.** The row is a struct in the frame and its reads are uncounted: `benchmarks/sparse_rows` 7.4 ms a tick
-  against 24.0 ms.
+- **Buys.** The row is a struct in the frame and its reads are uncounted: [its
+  case](../benchmarks/a_row_of_borrowed_items_lives_in_the_frame/) makes 20 000 000 rows and allocates none of them.
 - **Falls back.** Refused as above; a walk of any other shape leaves an ordinary `type` value, and a counted value
   in a walked row is counted once for the row's block.
 - **See.** [memory.md: A row of borrowed items, for one
@@ -820,8 +821,9 @@ have moved.
   function with a body, called by name, not a constructor, that never assigns that parameter; the parameter is a
   class, list or dictionary (not text, a union or variadic); the call passes every parameter. The call goes to
   `<name>___held_<positions>`, which does not let those parameters go.
-- **Buys.** One retain and one release per argument, atomic with threads: 18 to 13 ns an entity in
-  `benchmarks/held_arguments`.
+- **Buys.** One retain and one release per argument, atomic with threads: [its
+  case](../benchmarks/an_argument_its_caller_holds_is_passed_without_counting/) runs in 13.5 ms against naive C's
+  38.2 ms, which counts the list in every function it is handed to.
 - **Falls back.** The counted call: in `--hot-reload`, `--repl`, `--repl-port` and `--development` builds, the
   resumable copy of a function a `Concurrent` runs, a library function, and a call whose result is made in the
   caller's frame.
@@ -849,7 +851,8 @@ have moved.
   the rest of its pass only assigns locals and makes calls the compiler can name, none of which may let go of an
   object or assign an attribute through an unknown class, and, when a `drop()` of the program's own classes may let
   go of an object, makes no object of the program's own classes and copies none.
-- **Buys.** One retain and one release per element (`benchmarks/fused_chain` 332 to 185 ms).
+- **Buys.** One retain and one release per element ([its case](../benchmarks/a_lists_templates_read_its_elements_without_counting_them/):
+  29.3 ms against naive C's 39.9 ms).
 - **Falls back.** The counted read, in `--hot-reload` builds, for a nullable element, and for a pass that makes or
   copies an object of the program's own classes in a program one of whose classes has a `drop()` that may let go
   of an object.

@@ -1,519 +1,183 @@
 # Benchmarks
 
-Small, ordinary Spite programs that each lean on one thing the compiler emits, so a change to the generated C can
-be measured instead of guessed. `check.sh` only compiles them; timing them is done by hand:
+Every benchmark here compares Spite with C; none compares Spite only with Spite. Each folder is one case: one small
+program in Spite, the same program in naive C and in expert C, and the C the compiler writes for it, so you can see
+what the compiler does to a plain program and what it is worth against the C a person would write. Most cases are
+named after a section of [docs/optimizations.md](../docs/optimizations.md), in snake_case, and show that one
+optimisation; a few are whole programs that exercise several at once (below).
 
-```
-bash benchmarks/run.sh [compiler] [benchmark ...]
-```
+| file | what it is |
+|---|---|
+| `naive/` | the plain Spite program, written the obvious way: the entry file is `naive/naive.spite`, and its other classes are beside it |
+| `naive.c` | the same program written in C the way a person writes it without tuning: the same loops, the same objects allocated the same way (`malloc` per object, a `struct` per class), the same calls; no `restrict`, no columns instead of objects, no inlining by hand |
+| `expert.c` | the same computation tuned by hand by someone who knows the machine: any layout, any loop, as long as it does all the work the program asks for |
+| `generated.c` | all of the C the compiler writes from `naive/`, as an `--optimized` build for Windows writes it: tree-shaken, so a few thousand lines for a small program, with the compiler's own numbered names numbered again from 1 |
+| `highlights.c` | only the functions of that C that show the optimisation, copied out of it by [scripts/cases/extract.sh](../scripts/cases/extract.sh) |
+| `functions.txt` | the names of those functions (or `struct <Name>`), one per line |
+| `README.md` | what the case shows, links to its section and its proof, what to look at in `highlights.c`, and the timings with both ratios |
 
-`run.sh` has the compiler write each program's C, builds it with `clang -O2`, prints the best of seven runs, and
-builds the program once more with `--debug-memory` to print how many allocations it makes. The compiler
-defaults to `.spite/spite_development.exe`, the one `check.sh` last built. Times are wall-clock milliseconds
-on Mortaro's Windows machine and move by 10-20% from run to run; the allocation counts are exact.
+All three programs print the same answer on their standard output, and each times its own work with the same clock
+([clock.h](clock.h)) and prints `microseconds <n>` on its error output, so starting a process is not counted.
+
+## How to read the numbers
+
+The two C programs are two amounts of effort. `naive.c` is what you get for the effort of writing the Spite program:
+the same objects, the same steps, nothing tuned. `expert.c` is what you get for an expert's effort: the data laid
+out for the loop, the loops fused, the checks dropped by hand. Each case is timed against both, so its numbers read
+as developer effort against speed:
+
+- **Spite's time over naive C's** says what writing it plainly in Spite buys over writing it plainly in C. Below
+  1.00 the compiler's optimisation did work a C programmer would have had to do by hand; above it, Spite pays for
+  something C at the same effort does not (its checks, its counts).
+- **Spite's time over expert C's** says how far the plain program is from the best a person can do. It is the
+  number the compiler is working to bring to 1.00: every gap is work it could still do on its own.
+
+The time ratio is Spite's time divided by the C program's, so 1.00 is as fast, 2.00 takes twice as long, and lower
+is better (0.00 is less than a two-hundredth of the time). A ratio far above 1.00 against naive C is worth reading
+in the case's README: in several, clang deletes the naive program's allocations itself, and in others the case
+found work the compiler still does that it could leave out. Where an optimisation cannot be shown as a time (tree
+shaking, crash text, what is worked out only while compiling), the case still has the three programs and its README
+says what to compare instead: the executable's size, the lines of C, the allocations, and why there is no time.
 
 **Measure only production builds.** REPL and live-reload builds are slower on purpose (every function in a slot,
 breakpoints, live inspection), and a `--debug-memory` build counts every allocation, so a time taken from any of
-them describes the tooling, not the program. Every timing here comes from C built with `clang -O2`, with no REPL
-and no hot reload ([docs/compiler.md](../docs/compiler.md#measure-only-a-production-build)); `--debug-memory` is used only
-for the allocation counts.
+them describes the tooling, not the program ([docs/compiler.md](../docs/compiler.md#measure-only-a-production-build)).
 
-| Benchmark | What it leans on |
-|---|---|
-| `fused_chain` | 100 000 objects walked 300 times by fused `filter_`/`map_`/`sum_`/`count_` chains |
-| `gathered_objects` | `fused_chain`'s walk (100 000 sprites, 300 frames of fused `filter_`/`map_`/`sum_`/`count_` chains) in a program where one class, never made in the loop, has a `drop()` that removes from a list. Such a `drop()` once made every pass count its elements (best of seven 283 ms against 226 ms without the `drop()`); now only a pass that makes or copies a program object does, and both read 218 ms against 212 ms |
-| `dictionary_keys` | a `Dictionary` keyed by 50 000 numbers (by text made from them before D224) and one by 2 000 names, set and read |
-| `number_keys` | 100 000 entries set and a million lookups, once keyed by the number itself and once by text made from it (`index.to_string()`); prints the milliseconds of each |
-| `text_building` | appending to text in a loop, `"word{index}"` pieces and `join` |
-| `reflection_walks` | a Symbol walk (`show_attributes`), a `.attributes` walk reading `.value`, and `JsonWriter` |
-| `serialisation` | 100 000 small objects written and read back as JSON (`JsonWriter`/`JsonReader`, one text each) and as bytes (`BinaryWriter.append_to` into one `List<Byte>`, a `Vector<Byte>` before D225, `BinaryReader`); prints the sizes and the milliseconds of each step |
-| `function_values` | `each(f)`, `filter(f)`, `sum(f)`, `count(f)` and a function value passed 200 000 times |
-| `small_allocations` | three small objects made and dropped per pass, three million passes, and `copy()` |
-| `parallel_calls` | 20 000 rounds of two `Parallel`s |
-| `vector_items` | 200 000 `Velocity` items in a `List<Velocity>` and in a `Vector<Velocity>`, 100 ticks of `each_integrate()` and a fused `filter_moving().sum_across()` on each; prints the microseconds per tick of both |
-| `vector_rows` | 200 000 entities with position and velocity, half with health and regeneration, `Move` and `Regenerate` systems taking a `type` row per entity for 20 ticks: once from four `Vector` columns as rows of borrowed items (D206), once from four `List` columns through a reused row object; prints the microseconds per tick of both |
-| `sparse_rows` | 200 000 entities kept in sparse sets (a generic singleton `Column<T>` per component, each entity at a different place in each), position and velocity for all, health and regeneration for half, `Move` and `Regenerate` taking a walked row per entity for 20 ticks: once with `Vector` columns and rows filled by D217's walk (borrowed items, an `Entity` made in the frame), once with every column a `List` of references and a row object reused across the tick; prints the microseconds per tick of both |
-| `items_storage` | 200 000 `Velocity` items (they fit a `Vector`) in a `Vector` and an `Items`, and 200 000 `Trail` objects (they hold a `List`) in a `List` and an `Items` sharing the same objects: filling, 100 ticks of `each_integrate()` and a fused `filter_moving().sum_across()`, and 100 ticks of 200 000 `[]` reads and writes at scattered places; three rounds, each printing microseconds per tick of all four |
-| `matched_rows` | A game engine's walked-row shape: 200 000 entities in sparse sets over `Vector` columns, `Move` and `Regenerate` taking a walked row per entity for 20 ticks, each entity's places found by a `Matcher<$row_type>` object into its own `List<Integer>` (a `Vector<Integer>` before D225): once passing `matcher.rows` straight to the walk (D221), once copying the places into the runner's vector first, as a runner had to before; three rounds, each printing microseconds per tick of both |
-| `lent_arguments` | 200 000 entities in sparse sets over `Items` columns, systems taking their components as arguments (`Move(position, velocity)`, `Regenerate(health, regeneration)`, `Drift(velocity)`), 20 ticks: once with `system.phase_each(made_arguments(found))` passing borrowed items (D220), once copying each argument out of its column, passing it and storing it back; three rounds, each printing microseconds per tick of both. Measured 6.9 ms against 34.3 ms a tick (best of five, `clang -O2`) |
-| `bulk_removal` | 200 000 `Velocity` items in an `Items` with a `List<Integer>` of their entities beside them, half and then nine in ten of them removed four ways, best of nine each: a `remove_swapping` per removed row walking the rows, one per entity of a despawn list (a game engine's shape), `remove_where` on both columns, and a pass of `swap` and `truncate` by a mask (D263); prints the microseconds of each |
-| `singleton_locks` | A game engine's per-column shape: eight `Parallel` workers each making 100 000 calls in a counted loop, once to a generic singleton `Column<T>` of its own and once to one `Shared` singleton for all, and the same 800 000 calls on one thread; best of seven, in microseconds. Measures D183's per-call lock and D265's one lock per counted loop (2.3 ms against 0.35 ms per column, 51 ms against 0.6 ms shared) |
-| `singleton_reads` | A game engine's reference-column shape: eight `Parallel` systems each reading all 15 000 rows of one generic singleton `Column<Transform>` through `at(row)` per row, 20 ticks with a write between them; prints the best tick and the nanoseconds per row read. Measures D266's readers' side (202 ns to 6 ns a row) |
-| `singleton_unshared` | 10 000 000 calls to a locked singleton's function on the program's own thread after the program's one `Parallel` has been read, best of five; prints nanoseconds per call. Measures D267: 19 ns with the lock, 9 ns with no task in flight (4 ns with no lock at all, by hand) |
-| `lent_elements` | A game engine's `stream_bench` shape: 100 000 rows of an inline component (an `Items` column) and a reference component (a `List` column read through `at(row)`), walked rows run in a `Parallel`, one system reading the reference and one not; best of twenty ticks, nanoseconds per row. Measures D269 with D270 and D271: 83 to 14 ns reading it, 35 to 9 ns not |
-| `held_arguments` | a `Vector` passed on through two calls (`match_into`, then `find_row` per column) for each of a million entities, in a `Parallel` so counts are atomic; best of seven, nanoseconds per entity. Measures D270: 18 to 13 ns |
-| `singleton_attributes` | a million items read through a column singleton's `values` attribute in a `Parallel`; best of seven, nanoseconds per 1 000 reads. Measures D271: 6 000 to 3 200 ns |
-| `stress` | A game engine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
-| `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../specs/standard_library.md#system-classes)) |
-| `game_maths` | a million `position + velocity.scaled(delta)` steps on `Vector3`, 200 000 `Matrix4` products and a million `transform_point`s, printing microseconds; each answer is a new object, so the allocation count is the point. `game_maths.c` beside it is the same program in C with plain structs, built and run by hand (`clang -O2 benchmarks/game_maths/game_maths.c`), the number "as fast as C" is measured against |
-| `half_precision` | ten million `Float.to_half_precision()` and `half_precision_to_float()` round trips, over the bit views `Float.bits()` and `UnsignedInteger.bits_as_float()` (D215); prints the milliseconds. Before the bit views were C unions: 482 ms at `-O0`, 13 ms from `-O1`; after: 416 ms and 13 ms; 15 allocations either way, none per conversion |
-| `maths_stopgaps` | two million passes of sine, cosine, arc tangent, square root, floor and a power of two on a `Float`, first through the pure-Spite stopgaps a game engine wrote while Spite had no maths (`engine/math/scalar.spite`, copied in as `stopgap_scalar.spite`), then through the number classes' own maths functions; prints the milliseconds of each and the largest error of the stopgap `sine` over one turn |
-| `plain_loops` | a million `Float`s and `Integer`s: `into[index] = from[index] * 1.5 + 0.25` over two `List<Float>`, the same in place over one `List<Float>` (a `Vector<Float>` before D225, printed as `Vector scale` then and `in place` now), a `Float` sum and an `Integer` sum, each a plain `while` over `count()`; three rounds, each printing microseconds per pass of all four. The loops the C compiler vectorises once the count is read once and the items unchecked ([optimizations.md](../docs/optimizations.md#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked)) |
+## Whole programs
 
-## Optimisation cases
+Five cases are whole programs, each of which leans on several optimisations at once, so they belong to no one
+section of the page. Their `naive.c` is the C a C programmer writes for the same work, a plain struct held by value
+where the Spite has a class of numbers; their `expert.c` is that program tuned:
 
-`cases/` holds one folder per section of [docs/optimizations.md](../docs/optimizations.md): the plain Spite
-program, the same program in naive C and in expert C, and the C the compiler writes for it, so each optimisation
-can be read before and after and timed against both kinds of C ([cases/README.md](cases/README.md)).
+- [vector_maths](vector_maths/): 5 million steps of `scaled`, `+`, `cross`, `normalized` and `dot` on `Vector3`.
+- [particles](particles/): 100 000 particles in a `Vector<Particle>`, 300 ticks of `each_step()`.
+- [number_dictionary](number_dictionary/): 500 000 integer keys and 5 million lookups.
+- [text_building](text_building/): 3 million appends, and a million words joined.
+- [sorting](sorting/): a quicksort of 2 million `Integer`s in a `List<Integer>`.
+
+Two more cases measure parts of the library against C: [game_maths](game_maths/), the library's `Vector3`,
+`Quaternion` and `Matrix4` against the same passes on plain structs, and
+[removing_many_at_once](removing_many_at_once/), `remove_where` on an `Items` and a `List`
+([collections.md](../docs/collections.md#removing-many-at-once)).
+
+What the compiler costs to run is not a benchmark of Spite against C, so it is measured by scripts beside the
+compiler's other tools, and the numbers are kept with the case they belong to: `bash scripts/build_times.sh` times
+builds from one C file and from translation units
+([the_c_is_compiled_in_parallel_units_and_cached](the_c_is_compiled_in_parallel_units_and_cached/#compile-time-at-scale)),
+`bash scripts/executable_size.sh` prints executables' sizes and functions
+([identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/#executable-size)), and each
+optimisation level's speed is in
+[a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/#each-optimisation-level).
+
+## Running them
 
 ```
-bash benchmarks/cases/run.sh [case ...]
+bash scripts/cases/check.sh [case ...]      what check.sh runs for every case: compile, generated.c and highlights.c, same answers
+bash scripts/cases/extract.sh [case ...]    write generated.c and highlights.c again after a compiler change
+bash benchmarks/run.sh [case ...]           time the three forms and write the tables below and in each case
 ```
 
-## Spite against C
+`check.sh` compiles every case with the compiler it built, regenerates `generated.c` and `highlights.c` and compares
+them with the ones here, so a case cannot drift from the compiler, and runs the three programs once to compare their
+answers. It times nothing. When a compiler change alters what a case compiles to, run `extract.sh` and read the
+difference: in `highlights.c` it is the change the optimisation section should describe. `extract.sh` writes a file
+only when its content changes, so a case whose C did not change is not touched. The compiler's own numbered names
+(`spite_temp_9028`, `spite_site_1128`) are numbered again from 1 in each file, so a change elsewhere that only shifts
+those numbers does not touch a case. Both files hold the C for Windows (`--target-operating-system=windows`), so they
+are the same on every machine; on another system `check.sh` builds the program it runs from that system's C.
 
-`versus_c/` holds five programs, each beside a C twin (`twin.c`) that does the same work the way a C programmer
-writes it: `Vector3` maths with the vectors held by value, an array of particle structs stepped in place, an
-open-addressing hash table keyed by integers, text built in a growable buffer, and the same quicksort on an `int32`
-array. Each program times its own work with the same clock and prints the microseconds on its error output, so
-starting the process (slow and noisy on Windows) is not counted, and both must print the same answer.
+`run.sh` builds `naive/` with `--optimized` (the release build: `-O3` with link-time optimisation) and both C
+programs with `clang -O2`, runs the three seven times in turn, keeps the best time of each, and writes the table of
+each case's README and the summary below, each only when its numbers change. The machine and the date are written
+beside every table. The numbers were taken on a machine other sessions were compiling and benchmarking on at the
+same time, so read a few percent either way as noise.
 
-```
-bash benchmarks/versus_c/run.sh [compiler] [program ...]
-```
+## Summary
 
-The Spite side is built with `--optimized`, the C side with `-O3`; the ratio is Spite's time over C's, so 1.00 is
-as fast as C, higher is slower and lower is better (1.25 means Spite takes 1.25 times as long as C). Best of seven interleaved runs, clang 19.1.5 on Mortaro's Windows machine (32 logical processors)
-while other sessions were compiling on it:
-
-| program | Spite µs | C µs | Spite's time over C's | tuned, Spite's time over C's |
-|---|---|---|---|---|
-| `vector_maths`: 5 million steps of `scaled`, `+`, `cross`, `normalized` and `dot` on `Vector3` | 83 298 | 66 526 | 1.25 | not re-measured |
-| `particles`: 100 000 particles in a `Vector<Particle>`, 300 ticks of `each_step()` | 59 873 | 56 381 | 1.06 | 1.05 |
-| `number_dictionary`: 500 000 integer keys, 5 million lookups | 69 531 | 35 419 | 1.96 | 2.17 |
-| `text_building`: 3 million appends, a million words joined | 157 732 | 97 193 | 1.62 | 1.70 |
-| `sorting`: quicksort of 2 million `Integer`s in a `List<Integer>` | 164 259 | 126 411 | 1.30 | 1.36 |
-
-"tuned" is both sides with `-march=native`, measured when a release build could still be tuned for the machine (it now stays portable), which sped both sides up by about the same
-(particles 10-15%, the rest within the noise), so the ratios hardly move. What the ratios say: a plain loop over a
-`Vector` of items is C (1.06). `Vector3` is a class, so every `scaled`, `+`, `cross` and `normalized` allocated its
-answer, and that took four times as long as C (290 598 µs, 4.33); since escape analysis puts an answer that never leaves its
-function in the frame ([optimizations.md](../docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)),
-it is 83 298 µs against C's 66 526, 1.25 (1.26 on a second run; measured 2026-09-27 after the merge, the other rows
-are from before it). Where the dictionary, the text and
-the sort lose their 30-100% has not been studied yet: these numbers are the baseline to beat.
-
-### Release builds
-
-The Spite programs' own C (`--c-source`), built at each optimisation level, best of five, microseconds:
-
-| program | `-O0` (default build) | `-O2` (the old `--optimized`) | `-O3` (`--optimized`) | `-O3 -march=native` |
-|---|---|---|---|---|
-| `vector_maths` | 1 081 065 | 312 885 | 323 404 | 298 152 |
-| `particles` | 199 393 | 60 972 | 61 007 | 51 148 |
-| `number_dictionary` | 725 624 | 109 304 | 90 113 | 92 474 |
-| `text_building` | 496 976 | 178 327 | 155 558 | 160 818 |
-| `sorting` | 496 780 | 164 525 | 167 291 | 165 973 |
-
-The compiler compiling itself (`spite bootstrap --check`), best of five, in CPU milliseconds (the process's own
-time, since starting a process took up to two seconds on the loaded machine):
-
-| the compiler built | CPU ms |
-|---|---|
-| one file, `-O0` (the default build; `check.sh` builds generation 2 this way, from translation units) | 5 875 |
-| one file, `-O1` | 1 938 |
-| one file, `-O2` (the old `--optimized`) | 1 656 |
-| one file, `-O3` | 1 766 |
-| eight translation units, `-O3 -flto=thin` (`--optimized`) | 1 766 |
-
-The default build is three to seven times slower than `-O2` on every program here; `-O3` against `-O2` is a wash
-(the dictionary and text 10-18% faster, the compiler 6% slower, the rest equal); and the split `--optimized` build
-runs exactly as fast as one file at `-O3`, so ThinLTO gets back the inlining across units.
-
-## Executable size
-
-`executable_size.sh` builds each program with `--optimized` (`-O3` and link-time optimisation) and prints the
-executable's size and how many functions its C defines, so two compilers can be compared:
-
-```
-bash benchmarks/executable_size.sh [compiler] [program ...]
-```
-
-Identical function folding ([optimizations.md](../docs/optimizations.md#identical-functions-are-folded-into-one)),
-before and after, on Windows with clang:
-
-| program | bytes before | bytes after | functions before | functions after |
-|---|---|---|---|---|
-| the compiler (`bootstrap`) | 9 211 392 | 9 197 056 | 4 894 | 4 614 |
-| `sparse_rows` | 246 784 | 244 224 | 437 | 404 |
-| `matched_rows` | 211 968 | 210 944 | 277 | 259 |
-
-About 6% of the functions fold away, but an `-O3` build had already inlined most of the small ones they are, so the
-executable shrinks by 0.2% to 1%. The folding pays most where whole functions are duplicated: two versions of one
-dependency, and generic classes over classes of the same layout.
-
-## Compile time at scale
-
-`build_times.sh` times building an executable (the whole `spite` command, the Spite compile to C included) from
-one C file and from [translation units](../docs/compiler.md#translation-units-the-c-compiled-in-parallel-and-cached):
-cold (the object cache emptied), warm (built again, nothing changed) and after editing one function's body.
-
-```
-bash benchmarks/build_times.sh [compiler] [program ...]
-```
-
-Wall-clock milliseconds on Mortaro's machine (32 logical processors, clang 19.1.5, other sessions compiling at
-the same time), the compiler itself built `--optimized`. `kal_character` is a game engine's biggest example (14 MB of
-C), built from a copy, with its edit in `engine/column.spite`; the synthetic program is 209 206 lines in 401 files
-(400 classes of 30 small functions), written by the script:
-
-| program | C | build | one file | cold | warm | one edit |
-|---|---|---|---|---|---|---|
-| the compiler (`bootstrap`) | 7.2 MB | default (`-O0`) | 18 989 | 22 467 | 12 799 | 13 298 |
-| the compiler (`bootstrap`) | 7.2 MB | `--optimized` | 37 673 | 14 495 | 11 392 | 13 348 |
-| `kal_character` | 14.1 MB | default (`-O0`), one file only | 26 071 | 23 546 | 23 971 | 27 202 |
-| `kal_character` | 14.1 MB | `--optimized` | 80 127 | 45 670 | 30 696 | 67 173 |
-| synthetic, 209 206 lines | 20.5 MB | default (`-O0`) | 31 577 | 32 067 | 17 417 | 19 939 |
-| synthetic, 209 206 lines | 20.5 MB | `--optimized` | 181 193 | 49 965 | 34 260 | 37 330 |
-
-The two default rows of the compiler and the synthetic program were measured again on 2026-09-30, when default
-builds started splitting by the same size rule, with the machine busier than for the other rows (the compiler's
-`--optimized` one-file build took 140.9 s in that run). Split at `-O0`, a cold build costs about what one file
-does (22.5 s against 19.0 for the compiler, 32.1 against 31.6 for the synthetic program), since every unit reads
-the whole header and `-O0` spends its time reading; a warm build or a one-function edit then compiles one unit or
-none, 12.8 and 13.3 s against 19.0 for the compiler, 17.4 and 19.9 s against 31.6 for the synthetic program. The
-`kal_character` default row is from before, built from one file whatever the number (its spread is the machine's
-noise). An `--optimized` build is split: the compiler
-cold in 14.5 s instead of 37.7 (forced to 4, 8, 16 and 32 units: 23-26, 13-22, 23-26 and 27-32 s, so eight is the
-size rule's choice for it), and a warm or one-edit build is then the Spite compile plus ThinLTO's link, which
-optimises the whole program again every time. `kal_character`'s edit is slower than its warm build because
-`column.spite` is a generic class, and every instantiation of it changed.
-
-## Results
-
-### All four steps: the compiler before this work against the compiler after it
-
-Each side compiled in its own tree, so each reads its own `library/`; best of nine interleaved runs.
-
-| benchmark | before ms | after ms | before allocations | after allocations |
-|---|---|---|---|---|
-| fused_chain | 216 | 143 | 300 009 | 200 009 |
-| dictionary_keys | 391 | 197 | 2 208 012 | 1 104 014 |
-| text_building | 276 | 155 | 5 500 265 | 800 227 |
-| reflection_walks | 602 | 260 | 16 356 022 | 7 596 024 |
-| function_values | 119 | 67 | 2 000 019 | 400 019 |
-| small_allocations | 146 | 82 | 9 004 013 | 9 004 013 |
-| parallel_calls | 163 | 138 | 1 040 077 | 440 074 |
-| stress | 106 | 106 | 150 049 | 150 049 |
-
-Compiling the compiler (the compiler built with `clang -O1`, best of seven): 1 831 ms before, 1 318 ms after.
-
-Each step is one commit; `before` is the compiler before it. Best of nine interleaved runs.
-
-### Step 1: text joined in one piece, replaced defaults never made, function arguments described on demand
-
-| benchmark | before ms | after ms | before allocations | after allocations |
-|---|---|---|---|---|
-| fused_chain | 279 | 289 | 300 009 | 200 009 |
-| dictionary_keys | 446 | 416 | 2 208 012 | 1 108 012 |
-| text_building | 329 | 326 | 5 500 265 | 5 500 225 |
-| reflection_walks | 659 | 505 | 16 356 022 | 11 756 022 |
-| function_values | 140 | 107 | 2 000 019 | 1 000 019 |
-| small_allocations | 167 | 166 | 9 004 013 | 9 004 013 |
-| parallel_calls | 197 | 179 | 1 040 077 | 680 074 |
-| stress | 142 | 147 | 150 049 | 150 049 |
-
-### Step 2: list templates borrow the elements they only read; the compiler finds classes by name in one lookup
-
-| benchmark | before ms | after ms | before allocations | after allocations |
-|---|---|---|---|---|
-| fused_chain | 284 | 168 | 200 009 | 200 009 |
-| dictionary_keys | 400 | 415 | 1 108 012 | 1 108 012 |
-| text_building | 349 | 352 | 5 500 225 | 5 500 225 |
-| reflection_walks | 547 | 587 | 11 756 022 | 11 756 022 |
-| function_values | 110 | 110 | 1 000 019 | 1 000 019 |
-| small_allocations | 184 | 172 | 9 004 013 | 9 004 013 |
-| parallel_calls | 219 | 201 | 680 074 | 680 074 |
-| stress | 190 | 200 | 150 049 | 150 049 |
-
-Only `fused_chain` walks a list of objects through a template, and it is the one that moved; the rest is noise.
-Compiling the compiler (`spite bootstrap --check --c-source`, the compiler built with `clang -O1`, best of
-seven): 2 352 ms before this work, 2 198 ms after step 1, 1 953 ms after step 2. Finding a class by its name
-or its C name was a walk over every class, and is now one dictionary lookup.
-
-### Step 3: numbers written into text in place, freed small objects kept for reuse, a cheaper dictionary hash, and the replaced defaults of `Spite.Function` and `Spite.Attribute`
-
-| benchmark | before ms | after ms | before allocations | after allocations |
-|---|---|---|---|---|
-| fused_chain | 139 | 149 | 200 009 | 200 009 |
-| dictionary_keys | 350 | 191 | 1 108 012 | 1 104 014 |
-| text_building | 270 | 156 | 5 500 225 | 800 227 |
-| reflection_walks | 435 | 261 | 11 756 022 | 7 596 024 |
-| function_values | 87 | 64 | 1 000 019 | 400 019 |
-| small_allocations | 143 | 78 | 9 004 013 | 9 004 013 |
-| parallel_calls | 150 | 126 | 680 074 | 440 074 |
-| stress | 103 | 105 | 150 049 | 150 049 |
-
-The machine was quieter for this step, so its `before` column is lower than step 2's `after`. `dictionary_keys`
-is timed against the step-2 compiler with the step-2 `library/dictionary.spite`; the other rows share the
-library, which a compiler reads from beside itself. Compiling the compiler: 1 905 ms before this work, 1 484 ms
-after step 2, 1 339 ms after step 3 (same machine state, best of seven).
-
-`stress` has not moved: its cost is reading `moving.position.left` through a `type`, where each read of the shape
-raises and lowers the component's count, which none of these steps removes.
-
-### Step 4: plain attributes read and written through a `type` borrow the component
-
-| benchmark | before ms | after ms | before allocations | after allocations |
-|---|---|---|---|---|
-| stress | 110 | 114 | 150 049 | 150 049 |
-| stress, counts atomic (`SPITE_THREADS`, as in a program that makes a `Parallel`) | 162 | 129 | 150 049 | 150 049 |
-
-In a program without threads a retain is one plain add and `stress` spends its time filling rows and spawning, so
-nothing moves; with atomic counts, as a game engine has whenever it runs systems in parallel, the ticks are a fifth
-faster. The second row is the same two C files built with `-DSPITE_THREADS` prepended.
-
-### Taken out again: freed small blocks kept for reuse (step 3)
-
-Mortaro's rule for step 3's small-block reuse was to keep it only if it is a measured gain for a game engine. It was
-measured on a copy of a game engine: each program's C written once by the compiler, then built with `clang -O2`
-twice, as written (reuse) and with `SPITE_MALLOC`, `SPITE_REALLOC` and `SPITE_FREE` defined as the C library's
-`malloc`, `realloc` and `free` (plain, what every build now does), and run interleaved, nine times each. A game engine
-runs systems in parallel, so these programs count references atomically. Best of nine; the medians agree, and the
-ordinary machine noise is 2-5% (the UI tests and `flex_layout` also have occasional runs 250 ms slower on both
-sides).
-
-| game engine program | reuse | plain |
+<!-- summary -->
+| case | Spite's time over naive C's | Spite's time over expert C's |
 |---|---|---|
-| `stress`, average tick, parallel | 42.9 ms | 41.9 ms |
-| `stress`, average tick, single-threaded (`--parallel=false`) | 49.0 ms | 50.9 ms |
-| `stress`, spawning 200 000 bodies | 449 ms | 504 ms |
-| `stress`, 60 ticks after despawning them | 87.7 ms | 87.2 ms |
-| `flex_layout`, whole run | 68.9 ms | 72.4 ms |
-| `click_counter_test`, whole run (Vulkan, validation on) | 1 008 ms | 1 020 ms |
-| `text_field_test`, whole run | 827 ms | 820 ms |
-
-Three rounds agreed: the parallel tick, which is what a game engine runs, was 1-3% slower with reuse every time; the
-single-threaded tick 0-4% faster; only spawning (11%) and `flex_layout` (about 3 ms) were clearly faster, both
-one-off work. Not a clear gain on the engine, so it is gone, with up to 2 MB it kept per thread. The benchmarks
-here, the same way (best of nine, same C, only the allocator differs), are where it had helped:
-
-| benchmark | reuse ms | plain ms |
-|---|---|---|
-| fused_chain | 139 | 138 |
-| dictionary_keys | 185 | 185 |
-| text_building | 159 | 151 |
-| reflection_walks | 264 | 349 |
-| function_values | 67 | 72 |
-| small_allocations | 84 | 140 |
-| parallel_calls | 162 | 141 |
-| stress | 108 | 101 |
-
-After the change `run.sh` reports the same allocation counts as the "after" column at the top, every one: taking
-the reuse out, and leaving the counter out of builds that do not read it, change no allocation.
-
-### `Vector<T>`: items inline
-
-`vector_items`, best of seven, the compiler of the commit that adds `Vector<T>`:
-
-| layout | microseconds per tick | allocations while ticking |
-|---|---|---|
-| `List<Velocity>` | 443 | 0 |
-| `Vector<Velocity>` | 211 | 0 |
-
-A tick is `each_integrate()` over 200 000 items and a fused `filter_moving().sum_across()`. The list's objects were
-made one after another, so they sit close together on the heap, which is the best case for a list; the vector reads
-12 bytes per item where the list reads an 8-byte reference and then a 20-byte object somewhere else. The 200 149
-allocations are filling: the 200 000 `Velocity` objects the list holds, each also copied into the vector's block,
-which grows by doubling (a vector filled on its own would make each object only to copy it and let it go, which a
-planned optimisation in [optimizations.md](../docs/optimizations.md#other-optimisations) removes).
-
-Shaped like a game engine's `examples/stress` (200 000 bodies, `Move` adding velocity to position and `Regenerate`
-adding to health, 20 ticks, one thread), with each component in its own column indexed by row: 1.0 ms per tick with
-four `Vector` columns against 5.9 ms with four `List` columns (whose objects were made interleaved). That engine's own
-column code could not be moved to `Vector` as it is: its `Row` keeps each component in an attribute of a `type` row
-for the whole system call, which is exactly the keeping a borrowed item may not do (D204); its stress example runs at
-51 ms per tick on the same machine.
-
-### Rows of borrowed items (D206)
-
-`vector_rows`, the program's own two timers (best of five runs, `clang -O2`, the compiler of the commit that adds
-rows). Each entity's columns are found through a `Vector<Integer>` per component, the same for both layouts, so the
-difference is only where the components live and how the system is handed them:
-
-| layout | microseconds per tick |
-|---|---|
-| four `Vector` columns, a row of borrowed items per entity (in the frame, nothing counted) | 2 381 |
-| four `List` columns, one row object reused across the tick (two counted assignments per entity) | 5 823 |
-
-The 600 171 allocations are filling: 200 000 positions and velocities, 100 000 healths and regenerations, each
-kept in its list and copied into its vector, and the two row objects per list tick; the rows make none. The same
-walk written by hand in one loop, each item named with `var position = positions[row]` and no system call, ran at
-about 2.0 ms a tick in a copy of the program: the row and the call through the `type` cost a fifth more than
-indexing the columns directly, in exchange for systems that are ordinary functions over a `type`. (The 1.0 ms
-quoted in D206 is the earlier, different program described at the end of the `Vector<T>` section above.)
-
-`stress` itself keeps its generic `Row` singleton, which fills a row by a Symbol walk and holds it in an
-attribute, so it cannot hold borrowed items (D212 makes a local filled by a Symbol walk a row; `stress` still keeps
-its row in an attribute). A copy with `Vector` columns and a hand-written runner that builds a row literal per
-entity for each system ran the whole program (50 000 entities, 20 ticks) in 89 ms against `stress`'s 129 ms, best
-of seven interleaved.
-
-### Walked rows over sparse columns (D217)
-
-`sparse_rows`, the program's own two timers (best of five runs, `clang -O2`, the compiler of the commit that builds
-D217). Both sides keep every component in a sparse set and find each entity's place in each column with the same
-generic walk; they differ only in where the components live and how the row is made:
-
-| layout | microseconds per tick |
-|---|---|
-| `Vector` columns, a walked row per entity (borrowed items, an `Entity` made in the frame, nothing counted) | 7 417 |
-| `List` columns of references (an `Entity` column too), one row object reused across the tick, filled by the ordinary walk | 24 022 |
-
-The 800 115 allocations are filling: 200 000 entities, positions and velocities and 100 000 healths and
-regenerations, each kept in its reference column and copied into its vector, and the sparse sets; the walked rows
-make none. Most of the 7.4 ms is finding the places, a sparse lookup through a generic singleton per attribute,
-which both sides pay.
-
-### Places read from another object (D221)
-
-`matched_rows`, `clang -O2`, three runs of three rounds each on Mortaro's machine. The compiler before D221 could
-not write the walk that takes `matcher.rows` (the row fell back to an ordinary `type` value and keeping a borrowed
-item in it was an error), so its program has the copying runner in both places:
-
-| compiler | walk over `matcher.rows`, µs per tick | places copied first, µs per tick |
-|---|---|---|
-| before (`c1edb49`) | none | 8 012-8 391 |
-| after | 6 701-6 943 | 8 038-8 352 |
-
-The copy was a loop of `append`s per entity through a vector the runner kept; reading the places where they are
-removes it, about 17% of the tick. `sparse_rows` and `lent_arguments` compile to the same C before and after.
-
-### `Items<T>`: storage chosen while compiling (D218)
-
-`items_storage`, the program's own timers, three rounds in one run (`clang -O2`, the compiler of the commit that
-builds D218, on a machine another session was also using). `Items<Velocity>` is inline, `Items<Trail>`
-references; the `List<Trail>` and `Items<Trail>` hold the same 200 000 objects:
-
-| collection | fill µs | template tick µs | `[]` tick µs |
-|---|---|---|---|
-| `Vector<Velocity>` | 6 788 | 201-218 | 573-601 |
-| `Items<Velocity>` | 6 967 | 193-212 | 510-533 |
-| `List<Trail>` | 15 481 | 534-645 | 911-1 518 |
-| `Items<Trail>` | 15 466 | 515-668 | 818-948 |
-
-The templates are the same C either way. `[]` is faster than both because `Items.get_at` keeps its crash report
-in a function of its own and is inlined where it is called; with the report inside it (the first build), the
-`Items<Trail>` reads took 1 600-2 400 µs against the list's 1 000-1 900, because `List.get_at` was inlined and
-`Items.get_at` was not. `benchmarks/sparse_rows` with its `Column` holding an `Items` instead of a `Vector` ran
-6 863-7 010 µs a tick against 7 190-7 471 µs, five runs each, alternating.
-
-### Short text inside the `String` (D203)
-
-A `String` is a sixteen-byte value and keeps text of up to 15 bytes in itself
-([optimizations.md](../docs/optimizations.md#short-text-lives-inside-the-string)). `before` is the compiler at
-`1e1162d`, each side in its own tree; best of three interleaved rounds of seven runs, on a machine other sessions
-were loading (the same binary moved by up to 80% between rounds, so a row within 10% has not moved). The
-allocation counts are exact.
-
-| benchmark | before ms | after ms | before allocations | after allocations |
-|---|---|---|---|---|
-| fused_chain | 154 | 155 | 200 009 | 200 007 |
-| dictionary_keys | 207 | 177 | 1 104 014 | 1 032 |
-| text_building | 173 | 143 | 800 227 | 165 |
-| reflection_walks | 298 | 219 | 7 596 024 | 3 999 918 |
-| function_values | 85 | 85 | 400 019 | 400 013 |
-| small_allocations | 100 | 99 | 9 004 013 | 9 004 009 |
-| parallel_calls | 176 | 164 | 440 074 | 440 041 |
-| stress | 127 | 128 | 150 049 | 150 043 |
-
-Compiling the compiler: 1 372 ms before, 1 295 ms after (best of five, interleaved). Of the 4.7 million texts it
-makes compiling itself, 68% are 15 bytes or fewer.
-
-Each example of a game engine, from a copy, built `--optimized` with `clang -O2` (best of five whole runs) and once more
-with `--debug-memory` for the count:
-
-| example | before ms | after ms | before allocations | after allocations |
-|---|---|---|---|---|
-| `stress` (200 000 entities) | 1 518 | 1 485 | 7 202 769 | 5 602 651 |
-| `click_counter_test` (Vulkan, hidden window) | 975 | 984 | 78 363 | 63 883 |
-| `flex_layout` | 71 | 73 | 127 330 | 99 824 |
-
-In `stress`, spawning (463 → 455 ms) and the average tick (43.0 → 42.6 ms) did not get slower, but the ticks right
-after despawning everything, which look each column up by a name of 16 to 22 bytes once per entity, did: 89 → 100
-ms for sixty ticks. A dictionary lookup by a key longer than 15 bytes is about 10% slower than before (a lookup
-loop over four such keys: 190 → 210 ms), because the key is passed as sixteen bytes rather than a pointer and
-compared through the form it takes. Before `code_at` became the compiler's (the third D203 commit) the same loop
-took 315 ms: the hash re-copied the key for every character.
-
-### JSON and binary (D208)
-
-`serialisation`, the compiler of the commit that adds `BinaryWriter` and `BinaryReader`, `clang -O2`: 100 000
-objects of seven attributes (an `Integer`, a short `String`, two `Float`s, a `Short`, a `Boolean`, an enum). The
-allocations are those of the writes and reads alone, counted with `--debug-memory` by a copy of the program that
-does one half at a time.
-
-| format | size | write ms | read ms | allocations |
-|---|---|---|---|---|
-| JSON, one text per object | 9 380 963 bytes | 212 | 241 | 9 347 676 |
-| binary, all appended to one `Vector<Byte>` | 2 389 000 bytes | 16 | 8 | 300 010 |
-
-The binary side allocates three times per object: the `BinaryWriter`, its cursor, and the object read back; its
-walk is a singleton that holds nothing, so it allocates nothing itself.
-
-### Maths functions against a game engine's stopgaps
-
-`maths_stopgaps`, built with `clang -O2` by the compiler that added the maths functions, best of seven runs on
-Mortaro's Windows machine (the C library is the Universal C Runtime's). Both passes add up the same six results
-per angle, so they do the same work.
-
-| pass | milliseconds |
-|---|---|
-| the stopgaps: a Taylor series for `sine` and `cosine`, a polynomial `arc_tangent`, 24 Newton steps for `square_root`, doubling and a series for `power_of_two` | 199 |
-| the maths functions: `sinf`, `cosf`, `atan2f`, `sqrtf`, `floorf` and `powf`, written where they are called | 97 |
-
-Without the power of two the two passes took 187 and 40 ms: `powf` is the one call here that costs more than a few
-nanoseconds. The stopgap `sine` is also off by up to 3.6e-6 over one turn, where `sinf` is within one unit in the
-last place.
-
-### Game maths (D213)
-
-`game_maths`, `clang -O2`, best of five on Mortaro's machine, with `--debug-memory` for the count: 3 200 067
-allocations: one per answer, so two per vector step, one per matrix product and one per `transform_point`.
-
-| pass | milliseconds |
-|---|---|
-| a million `position + velocity.scaled(delta)` on `Vector3` | 26 |
-| 200 000 `Matrix4` products | 6 |
-| a million `Matrix4.transform_point` | 0 (clang removes the allocation and the loop, since only a sum survives) |
-
-After objects that never leave their function went into the frame
-([optimizations.md](../docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)), the
-program prints microseconds. Best of five interleaved runs, `clang -O2`, on a machine other sessions were loading;
-the C column is `game_maths.c`, the same passes with `Vector3` and `Matrix4` as structs passed by value:
-
-| pass | before µs | after µs | C µs |
-|---|---|---|---|
-| a million `position + velocity.scaled(delta)` | 34 748 | 656 | 660 |
-| 200 000 `Matrix4` products | 8 049 | 1 502 | 935 |
-| a million `Matrix4.transform_point` | 709 | 665 | 667 |
-| allocations, whole program | 3 200 046 | 37 | none |
-
-The whole of `run.sh`, the compiler before and after, prints the same answers and the same allocation counts for
-every benchmark but two: `game_maths` (3 200 046 → 37) and `small_allocations` (9 004 007 → 3 004 007: each pass's
-`step` and `scaled_step` are in the frame, while `moved`, which is kept in a list and becomes `sum`, stays on the
-heap). The machine was running several other compilers' checks at the time, so `run.sh`'s milliseconds moved by up
-to three times between runs of the same binary and are not reported; the table above comes from interleaved runs.
-
-Every answer prints the same. The vector steps and the transforms are the C program's speed. The products take
-about 1.6 times as long as the C: each product is written into a slot and then copied into `accumulated` (64 bytes), where
-the C compiler keeps the struct in registers across the loop, and `step_matrix` is still counted up and down
-around each call.
-
-### Dictionaries keyed by numbers (D224)
-
-A dictionary given whole-number keys stores and hashes the numbers ([collections.md](../docs/collections.md#keyed-by-numbers),
-[optimizations.md](../docs/optimizations.md#a-dictionary-keyed-by-numbers-hashes-the-numbers)). `clang -O2` on
-Mortaro's Windows machine, best of five runs of `number_keys` (100 000 entries, a million lookups), the same source
-compiled before D224 (when `dictionary[index]` quietly turned the number into text) and after:
-
-| step | before ms | after ms |
-|---|---|---|
-| fill, keyed by the number | 10 | 5 |
-| a million lookups, keyed by the number | 106 | 8 |
-| a million lookups, keyed by `index.to_string()` | 65 | 66 |
-| the whole program | 459 | 184 |
-
-The text-keyed half does not move: a dictionary given text keys compiles to the code it did before. A lookup by
-the number itself is about eight times faster than one by the text made from it. `dictionary_keys`, whose
-50 000 number-derived keys are now the numbers, went from 179 to 142 ms, the 2 000 names unchanged.
+| [a_binary_schema_is_a_constant](a_binary_schema_is_a_constant/) | 0.00 | 3.67 |
+| [a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/) | 0.15 | 22.94 |
+| [a_crashs_report_is_kept_out_of_the_way](a_crashs_report_is_kept_out_of_the_way/) | 1.55 | 1.83 |
+| [a_decimal_literal_beside_a_float_is_a_float](a_decimal_literal_beside_a_float_is_a_float/) | 0.06 | 1.98 |
+| [a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/) | 0.58 | 41.94 |
+| [a_dictionary_hashes_a_key_once_cheaply](a_dictionary_hashes_a_key_once_cheaply/) | 1.03 | 3.34 |
+| [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 2.14 | 2.27 |
+| [a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/) | 0.03 | 2.39 |
+| [a_foreign_name_is_never_copied](a_foreign_name_is_never_copied/) | not timed | not timed |
+| [a_function_taking_a_type_is_compiled_per_class](a_function_taking_a_type_is_compiled_per_class/) | 1.01 | 1.01 |
+| [a_function_value_describes_its_arguments_when_asked](a_function_value_describes_its_arguments_when_asked/) | 0.65 | 0.67 |
+| [a_list_item_read_only_to_test_it_is_not_counted](a_list_item_read_only_to_test_it_is_not_counted/) | 0.83 | 4.70 |
+| [a_lists_templates_read_its_elements_without_counting_them](a_lists_templates_read_its_elements_without_counting_them/) | 0.73 | 11.40 |
+| [a_local_list_of_known_size_lives_in_the_frame](a_local_list_of_known_size_lives_in_the_frame/) | 1.08 | 1.17 |
+| [a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked](a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/) | 0.25 | 2.23 |
+| [a_number_joined_into_text_is_written_in_place](a_number_joined_into_text_is_written_in_place/) | 0.24 | 5.01 |
+| [a_numbers_bits_are_read_in_place](a_numbers_bits_are_read_in_place/) | 0.76 | 2.97 |
+| [a_proven_divisor_is_not_checked](a_proven_divisor_is_not_checked/) | 0.96 | 1.09 |
+| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | 4.83 | 4.86 |
+| [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/) | 0.72 | 0.72 |
+| [a_release_is_inlined_in_every_unit](a_release_is_inlined_in_every_unit/) | not timed | not timed |
+| [a_reload_compiles_only_the_classes_that_changed](a_reload_compiles_only_the_classes_that_changed/) | not timed | not timed |
+| [a_row_of_borrowed_items_lives_in_the_frame](a_row_of_borrowed_items_lives_in_the_frame/) | 5.58 | 14.14 |
+| [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | 0.60 | 47.73 |
+| [a_singletons_reading_functions_do_not_exclude_each_other](a_singletons_reading_functions_do_not_exclude_each_other/) | 0.17 | 2.99 |
+| [a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/) | 0.69 | 1.37 |
+| [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | 1.01 | 0.96 |
+| [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | 3.73 | 17.00 |
+| [a_word_inflected_while_compiling](a_word_inflected_while_compiling/) | 0.04 | 3.63 |
+| [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | 1.32 | 31.08 |
+| [an_allocator_set_after_construction_is_where_the_object_is_made](an_allocator_set_after_construction_is_where_the_object_is_made/) | 0.77 | 31.16 |
+| [an_argument_its_caller_holds_is_passed_without_counting](an_argument_its_caller_holds_is_passed_without_counting/) | 0.35 | 19.23 |
+| [an_item_a_name_holds_from_its_list_is_not_counted](an_item_a_name_holds_from_its_list_is_not_counted/) | 1.06 | 8.64 |
+| [an_item_written_back_to_its_own_slot_is_not_written](an_item_written_back_to_its_own_slot_is_not_written/) | 0.81 | 10.90 |
+| [an_items_storage_is_chosen_while_compiling](an_items_storage_is_chosen_while_compiling/) | 0.78 | 14.02 |
+| [appending_to_text_in_place](appending_to_text_in_place/) | 0.00 | 0.84 |
+| [arithmetic_is_checked_in_every_build](arithmetic_is_checked_in_every_build/) | 6.62 | 6.49 |
+| [atomic_reference_counts_only_with_threads](atomic_reference_counts_only_with_threads/) | 0.74 | 9.15 |
+| [boxing_only_where_a_value_travels_as_a_shape](boxing_only_where_a_value_travels_as_a_shape/) | 0.14 | 1.62 |
+| [calls_in_a_row_run_at_once](calls_in_a_row_run_at_once/) | 0.83 | 1.55 |
+| [concurrency_machinery_only_where_it_is_used](concurrency_machinery_only_where_it_is_used/) | 0.97 | 22.57 |
+| [copies_that_cost_nothing](copies_that_cost_nothing/) | 1.49 | 2.08 |
+| [crash_text_out_of_the_binary](crash_text_out_of_the_binary/) | not timed | not timed |
+| [deciding_conditions_at_compile_time](deciding_conditions_at_compile_time/) | 1.35 | 1.51 |
+| [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | 0.53 | 83.60 |
+| [game_maths](game_maths/) | 3.19 | 4.11 |
+| [hidden_async_await_as_compile_time_state_machines](hidden_async_await_as_compile_time_state_machines/) | not timed | not timed |
+| [identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/) | not timed | not timed |
+| [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | 0.91 | 4.64 |
+| [number_dictionary](number_dictionary/) | 3.79 | 6.94 |
+| [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | 0.49 | 4.82 |
+| [objects_that_never_leave_their_function_live_in_the_frame](objects_that_never_leave_their_function_live_in_the_frame/) | 0.01 | 1.00 |
+| [other_optimisations](other_optimisations/) | not timed | not timed |
+| [particles](particles/) | 0.74 | 1.25 |
+| [plain_reference_counts_where_no_thread_reaches_a_class](plain_reference_counts_where_no_thread_reaches_a_class/) | 0.62 | 1.87 |
+| [proofs_that_survive_a_call](proofs_that_survive_a_call/) | not timed | not timed |
+| [reading_an_address_is_one_machine_operation](reading_an_address_is_one_machine_operation/) | 3.64 | 5.27 |
+| [reading_through_a_type_without_counting](reading_through_a_type_without_counting/) | 3.23 | 5.70 |
+| [reads_in_a_row_overlap](reads_in_a_row_overlap/) | 1.41 | 1.56 |
+| [reflection_on_constants_folds_and_unrolls](reflection_on_constants_folds_and_unrolls/) | 0.96 | 4.75 |
+| [reflection_symbols_and_registries_only_where_read](reflection_symbols_and_registries_only_where_read/) | not timed | not timed |
+| [removing_many_at_once](removing_many_at_once/) | 3.57 | 4.21 |
+| [repl_live_reload_and_debug_machinery_only_in_those_builds](repl_live_reload_and_debug_machinery_only_in_those_builds/) | not timed | not timed |
+| [short_symbols_are_inline_text](short_symbols_are_inline_text/) | not timed | not timed |
+| [short_text_lives_inside_the_string](short_text_lives_inside_the_string/) | 0.16 | 2.86 |
+| [singletons_a_parallel_reaches_take_a_lock](singletons_a_parallel_reaches_take_a_lock/) | 4.74 | 195.67 |
+| [singletons_made_on_first_use_never_counted](singletons_made_on_first_use_never_counted/) | 0.08 | 3.30 |
+| [singletons_that_hold_nothing_are_static_objects](singletons_that_hold_nothing_are_static_objects/) | not timed | not timed |
+| [smaller_ones](smaller_ones/) | 2.72 | 3.04 |
+| [sorting](sorting/) | 1.20 | 7.52 |
+| [template_chains_run_as_one_loop](template_chains_run_as_one_loop/) | 0.17 | 11.38 |
+| [text_building](text_building/) | 1.77 | 15.48 |
+| [text_joined_in_one_piece](text_joined_in_one_piece/) | 0.37 | 10.37 |
+| [the_c_is_compiled_in_parallel_units_and_cached](the_c_is_compiled_in_parallel_units_and_cached/) | not timed | not timed |
+| [the_compiler_places_memory](the_compiler_places_memory/) | 0.45 | 1.74 |
+| [the_fault_handler_is_in_every_program](the_fault_handler_is_in_every_program/) | not timed | not timed |
+| [the_thread_pool_only_where_a_parallel_is_made](the_thread_pool_only_where_a_parallel_is_made/) | 1.44 | 1.48 |
+| [thread_safety_for_singletons_the_cheapest_safe_form](thread_safety_for_singletons_the_cheapest_safe_form/) | 0.07 | 11.44 |
+| [thread_safety_for_singletons_the_rest_of_the_plan](thread_safety_for_singletons_the_rest_of_the_plan/) | 2.87 | 23.46 |
+| [tree_shaking_the_generated_c](tree_shaking_the_generated_c/) | not timed | not timed |
+| [vector_maths](vector_maths/) | 2.40 | 3.23 |
+| [what_a_hot_reload_build_carries_so_its_objects_can_move](what_a_hot_reload_build_carries_so_its_objects_can_move/) | not timed | not timed |
+| [while_no_task_runs_a_singletons_lock_is_skipped](while_no_task_runs_a_singletons_lock_is_skipped/) | 0.69 | 18.76 |
+<!-- /summary -->

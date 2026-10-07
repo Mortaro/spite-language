@@ -1,9 +1,0 @@
-var age = 0
-
-func Owner(new_age: Integer) {
-    age = new_age
-}
-
-func is_adult(): Boolean {
-    return age >= 18
-}

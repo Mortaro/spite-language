@@ -71,8 +71,9 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   attributes (letting go of other objects) no longer stops it; a store into a list the call is handed, a local
   list or a generic class's list of its own item does. Why: the slot holds the item the whole time, so its count
   is two writes for nothing (a stress tick 43.6 ms to 41.2). The same rule now decides D515's write-back.
-- **D521, where the cases live**: `benchmarks/cases/<optimisation>/`, each with `naive.spite`, `naive.c`,
-  `expert.c`, the extracted generated C, and a README; the docs page links to each case.
+- **D521, where the cases live**: `benchmarks/cases/<optimisation>/` (moved up to `benchmarks/<optimisation>/`
+  by D524, below), each with `naive.spite`, `naive.c`, `expert.c`, the extracted generated C, and a README; the
+  docs page links to each case.
 - **D523, a test against a value a list never holds**: a list of numbers or of an enum that only its own class
   fills, and that nothing else can reach, holds only the values its writes can put in, and a `==` or `!=` against
   any other value is decided while compiling (its operand still read). Why: it needs no proof that a "setup" phase

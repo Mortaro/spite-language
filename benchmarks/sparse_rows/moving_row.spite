@@ -1,3 +1,0 @@
-var entity = Entity(0)
-var position = Component.Position()
-var velocity = Component.Velocity()

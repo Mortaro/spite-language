@@ -104,13 +104,13 @@ The standard library fills every maths gap a game needs, as a game engine packag
   and `UnsignedInteger.bits_as_float(): Float`, which reinterpret the four bytes and which a program may use too,
   as it may `Double.bits(): Long`, `Long.bits_as_double(): Double` and `UnsignedLong.bits_as_double(): Double`.
   **Cost**: none beyond the arithmetic. Each bit view is a primitive the compiler writes in place, a C union of
-  the two types, so no memory is touched and nothing is allocated; `benchmarks/half_precision`
-  (ten million round trips) takes 13 ms with `clang -O2` and makes no allocation of its own.
+  the two types, so no memory is touched and nothing is allocated; `benchmarks/a_numbers_bits_are_read_in_place`
+  (thirty million round trips through a half) measures it against C.
 - **Cost.** These classes hold only numbers, so an answer that never leaves the function that asked for it lives
   in that function's frame and is written there by the function that makes it; one that is stored or printed is
   one heap allocation ([optimizations.md](../docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame)).
   The `set_` functions write in place.
-  `benchmarks/game_maths` measures both against the same passes in C (`game_maths.c`).
+  `benchmarks/game_maths` measures both against the same passes in C (`naive.c` and `expert.c`).
 - `conformance/stage6/game_vectors`, `game_matrices`, `game_geometry`, `game_colors`, `game_curves` and `half_precision` pin every function, rounding what goes through a sine to
   four places so the C library's last bit does not show.
 
