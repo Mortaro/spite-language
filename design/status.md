@@ -131,6 +131,11 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
 
 ### Nothing fails silently: still open
 
+- (suspected 2026-10-07, read-only research, not yet reproduced) A frame object whose caller-slot claim fails (for
+  example a member callee such as `normalized()` in `velocity = nudged.normalized()`) silently falls back to a heap
+  object copied into the slot, with no `--optimization-report` line. Reproduce on `benchmarks/versus_c/vector_maths`;
+  every fallback must be reported.
+
 - (found 2026-10-07 by the naive engine; the common forms are refused since D515) A local read from a list and
   assigned a value nothing reads is a compile error ([specs/memory.md](../specs/memory.md#assigning-a-name-read-from-a-list-changes-only-the-name)),
   but two forms still compile without a word: the assignment inside a `while` loop whose local is declared outside

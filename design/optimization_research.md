@@ -152,6 +152,60 @@ target: what the smallest program costs in bytes; what thread, waiting and memor
 some chips, one thread on the web unless workers are used); how the same plain program picks a different form per
 target from `target_operating_system` and the target's facts, all at compile time.
 
+## Findings, 2026-10-07 (read-only research by free models; unverified until measured)
+
+Each finding below came from a model reading the code without building or running it. File and line citations
+were spot-checked, not proven. A Claude agent measures before any becomes a pair.
+
+**R3, `number_dictionary` against its C twin** (the README row says 1.96x; the recent run 2.9x). Differences by
+likely cost:
+1. The program reads `scores[key]` twice (test, then read); C does one lookup. Pair: reuse a dictionary read whose
+   dictionary and key are unchanged in the block (the read writes nothing; nothing between writes either).
+2. A probe reads three arrays (slot table, `entry_keys`, `entry_values`, each through a checked, nullable `get_at`);
+   C reads one interleaved slot. Pair: a number-keyed dictionary stored as one interleaved slot table (layout is
+   unobservable when only `keys()`, `values()`, `count()` are read).
+3. A nullable round trip inside the probe (`entry_keys[stored - 1] == key` compares `T?` with `T`) where the slot is
+   proven in range.
+4. Load factor 0.5 and a table four times the count: about twice C's memory. Grow at 0.75 (capacity is never
+   observable).
+5. Growth zeroes slot by slot; C uses one zeroed allocation.
+6. Insert probes twice (exists, then place) and hashes twice.
+7. Checked arithmetic on loop counters with a provable range.
+8. Bounds checks per probe step, provable from the table's invariant.
+9. A hash fragment is written and read for number keys although the docs say number keys keep none: check it.
+Reference counts are not a cost here (`Integer` keys and values are not counted).
+
+**R4, `vector_maths` against its C twin.** The loop is the frame rule's own example, and `Vector3<Float>` holds only
+numbers, so its temporaries should live in the frame. Two suspects:
+1. Every call in the loop is to a library function, and the uncounted `___held_` argument form applies only to the
+   program's own functions, so each call counts its receiver and arguments up and down (about 20 count operations
+   an iteration). Pair: pass a frame-owned object uncounted to a library callee proven not to keep it.
+2. A failed caller-slot claim falls back to a heap object copied into the frame slot and released, with no line
+   in `--optimization-report` (the status page admits the assignment case is not reported). That is a silent
+   fallback (D244): pooling every class made this benchmark 1.75x faster, which says something still allocates.
+   Pair: claim the slot for member callees too, and report every fallback.
+
+**R2, splitting a class by access sets (S2).** Reusable facts: per-function member reads and writes
+(`function_effects`, `call_effects`), field-level reach sets of the D505 proof, thread reachability (C5), pool
+eligibility (M6), escape facts (frame objects, borrows, lent copies), and `field_place`, through which every field
+read already goes (it already redirects for hot-reload moves). Whole-object uses and what each needs: identity `==`
+(keep one header, parts behind it), custom `equals` / `to_string` / `to_debug` / serializers (a compiled join at the
+call), `copy` and `deep_copy` (per-part copy), `Weak` (refuse while a `Weak` of the class exists, unless the box keys
+on the header), run-time reflection (join at that point), crash reports (follow the part addresses),
+`--debug-memory` counts (one entry for the parts, or refuse in those builds), foreign calls (class instances never
+cross). Proposed IR: one header and count per logical object, `Class__Part0` and `Class__Part1` storages, a fat join
+used only at conversion points, `field_place` choosing the part by field; S4 picks the header kind per creation site.
+
+**R5, record loops into column passes and back (S5).** Splitting is allowed when records are uniform and not
+reordered during the passes, each pass writes only its own record and reads nothing another pass writes, and no
+step prints, writes a file or can crash in an order the split would change (a decode crash on record 5 must still
+come before a transform crash on record 3 if the record loop reached it first); column buffers are compiled loops,
+and an unknown record count is a branch between compiled forms. Fusing (the existing chain fusion, L8) is allowed
+when the intermediate is never named and per-element order is kept. A hand-written `while` that only does what a
+template says is already refused, so record loops tend to arrive as chains. Open: whether the effect analysis is
+per field enough to prove record independence for a hand-written loop, and whether a written-order merge for file
+writes exists (only T3 plans one).
+
 ## Outside the constraints (recorded, not pursued)
 
 Ideas that would need a runtime or could change a result, kept so they are not rediscovered as new:
