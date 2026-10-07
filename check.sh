@@ -1506,7 +1506,7 @@ echo "breakpoints: a breakpoint compiled into a running loop stopped it with its
 job_formatting() {
 formatting_tool="$work/formatting_tool"
 mkdir -p "$formatting_tool/scripts" "$formatting_tool/bootstrap"
-cp -r scripts/formatting "$formatting_tool/scripts/" && cp -r docs "$formatting_tool/docs" && cp -r bootstrap/source "$formatting_tool/bootstrap/" || {
+cp -r scripts/formatting "$formatting_tool/scripts/" && cp -r docs "$formatting_tool/docs" && cp -r specs "$formatting_tool/specs" && cp -r bootstrap/source "$formatting_tool/bootstrap/" || {
   echo "FAILED: could not copy scripts/formatting"; exit 1; }
 "$work/generation_two.exe" "$formatting_tool/scripts/formatting" --build --executable-path="$work/formatting.exe" > /dev/null || {
   echo "FAILED: scripts/formatting does not build"; exit 1; }
