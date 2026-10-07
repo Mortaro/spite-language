@@ -107,6 +107,11 @@ Nothing is copied, so a worktree costs only the files it changes.
 
 ## Changing the compiler: every optimisation and every proof is documented in the same commit
 
+**The benchmarks' generated C is committed with the change that alters it** (D525 to D527). Every folder in
+`benchmarks/` keeps the whole C the compiler generates from its Spite program. A compiler change regenerates those
+files in the same commit, and only the ones whose content changed, so `git log -p` on a benchmark shows exactly how
+each compiler change rewrote its C. `check.sh` fails when one is out of date.
+
 A change that makes the compiler optimise something on its own, or builds a planned optimisation, updates
 [`docs/optimizations.md`](docs/optimizations.md) in the same commit (D185, D102): what it does, when it applies,
 and anything a user could observe (allocation counts under `--debug-memory`, reflection, order of calls). Whether
