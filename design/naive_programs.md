@@ -283,6 +283,27 @@ rows 20%, the candidate list 12%, `choose` 9%, `stamp_written` 8%. The `ColumnIn
 `stamp_written`, which passes `headers[index]` straight to a call; with `choose`'s two reads of `candidates[index]`
 (4% in their `List<Integer>` counts) they are items used at once without a name (pair B1t, proposed).
 
+**Measured by hand after B1, not built: the runner matching each entity once.** Three hand edits of the one-file C
+(the same C otherwise, `clang -O3`, medians of 5 interleaved runs on a quiet machine, against 37.9 ms):
+
+| Hand edit | What it stands for | Stress tick |
+|---|---|---|
+| the 23 items read with `[]` and used at once as a receiver (`choose`'s two among them) read uncounted | B1t | 37.8 ms: noise |
+| `Runner<Move>` and `Runner<Regenerate>` walk the driver column themselves, match each entity once and fill, run and store it at once: no candidate list, no `choose`, no second `matches` in `fill_into` | L8b, the narrow form of L8 for the runner | 31.0 ms |
+| the same two runners specialised for the one configuration their matcher's `headers`, `kinds` and `keys` hold after setup: the smaller column walked, the other looked up with `row_of`, the components read in their slots, the system's body inlined, each entity stamped as written; no matcher, row object, candidate list or write-back | S1 (D518's partial evaluation per configuration) | 4.0 ms |
+
+S1 is the pair that pays: a single thread at 4.0 ms against the hand engine's 7.0 ms on two threads (12.8 ms on
+one), the matcher's whole machinery gone. B1t is not worth building before it. L8b is a special case of S1 (it
+removes the matching twice but keeps the generic matcher), so it is not built either.
+
+What S1 needs, phrased per use: the runner's loop and the matcher it calls are driven by `headers`, `kinds` and
+`keys`, lists filled once by `prepare()` from the row's attribute classes and never written after (so their
+contents are a function of the configuration, the row class, known while compiling); a specialised copy of the
+runner's `run_<phase>_each` for that configuration, with every read of those lists folded to the column it names;
+then the existing proofs run on the folded code (the item read in its slot, the write-back of the same object
+dropped, the call inlined). The fallback is the generic loop, for a configuration that cannot be folded (a list
+written after setup, a key computed from data). [naive_programs_pairs.md](naive_programs_pairs.md) has the rows.
+
 ### Stage 2: effects as a language-level fact (medium, foundation)
 
 D505's proof reads the generated C. Every later pair needs the same facts earlier and finer: for every function,

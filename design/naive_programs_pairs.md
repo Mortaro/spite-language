@@ -17,6 +17,13 @@ built so far per class (C5, M6) are a first step; their per-site forms are rows 
 | # | Naive code | Proof | Faster form | Falls back |
 |---|---|---|---|---|
 | S1 | a generic loop driven by lists that never change after setup | the lists' contents are fixed once setup ends, known per configuration | the loop specialised per configuration into direct code (partial evaluation) | the generic loop |
+
+S1 measured by hand on the stress C after B1 (the fourth pass of [naive_programs.md](naive_programs.md#fourth-pass-2026-10-07)):
+`Runner<Move>` and `Runner<Regenerate>` specialised for the configuration `prepare()` leaves in their matchers'
+`headers`, `kinds` and `keys` take the tick from 37.9 ms to 4.0 ms, against the hand engine's 7.0 ms on two
+threads. For the runner the configuration is a function of the row class alone (`prepare()` reads only the
+attribute classes), so the specialised copy is one per runner instance, and the loop over entities stays a run-time
+loop.
 | S2 | a class whose fields fall into groups read or written by different loops | access sets per field from every loop | one storage per group | one storage |
 | S3 | the same list read field by field in one phase and whole in another | the phases and the conversion cost | each phase reads its own shape; a compiled conversion between them | one shape |
 | S4 | objects of one class made where threads reach them and where they do not | per creation site flow | two classes after compilation, each with its own counts and pool | one class |
@@ -65,6 +72,7 @@ built so far per class (C5, M6) are a first step; their per-site forms are rows 
 | L5 | removing from a list whose order is never read | no loop or read depends on order | swap-remove | ordered remove | hand swap-remove | |
 | L6 | a list cleared every tick then refilled | no item is read before it is written again | reset the count, keep the storage | free and remake | generation stamps instead of clearing | |
 | L8 | a list built by one loop and read once, in order, by the next | the list is read nowhere else | the two loops fused, the list never made | both loops | a matcher that filled rows in place | |
+| L8b | a list an attribute holds, cleared and filled by one call (`candidates.append(row.candidates())`), then read once in order by the caller's next loop (`choose(combination)` in the runner) | the list is read nowhere else; the consumer loop's body writes nothing the producer loop reads (per key: stamps and rows of the entity in hand); a call the body repeats with the same arguments and nothing changed between (`matches(entity)` in `fill_into`) answers and writes the same | the producer's loop inside the consumer's, the list never made, the repeated call dropped | both loops | the hand engine's driver column walked once | by hand on the stress C after B1: 37.9 to 31.0 ms a tick; S1 covers it and pays more |
 | L7 | a plain-value list in a loop | values fit a vector lane, no alias | SIMD over the arrays of L1 | scalar | | explicit vector code without C intrinsics |
 
 ## Memory
@@ -110,5 +118,7 @@ built so far per class (C5, M6) are a first step; their per-site forms are rows 
   after M6: B3 takes a stress tick from 43.1 to 39.7 ms, and dropping the first match (what L8 would remove) from
   43.1 to 37.8 ms. The engine's candidate list is an attribute of its runner read through `choose`, not a local
   list read in order by the next loop, so L8 as written does not reach it yet.
+- B1t (an item used at once without a name) measured within noise by hand after B1 (37.9 to 37.8 ms): not worth
+  building before S1.
 - Rows that change observable order (T3's merge, M3's timing of `drop`) keep written order or are refused; any that
   cannot will go to Mortaro.
