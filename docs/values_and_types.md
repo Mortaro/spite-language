@@ -880,11 +880,10 @@ so nothing is compiled for it.
 A `type` can also be the element of a variadic parameter, `...items: List<Renderable>`, so a call takes any number
 of values of any classes that fit ([functions_and_operators.md](functions_and_operators.md#variadic-arguments)).
 
-Read through a `type`, a required function named without calling it is a function value bound to the value, as
-it is for a class ([functions_and_operators.md](functions_and_operators.md#functions-are-values)), so
-`Parallel(stage.run_once)` works on a `List<Stage>`'s element typed by shape. A `List` of a `type` answers the
-member templates too, over the attributes and the argument-free functions the type names: `map_names()`,
-`filter_active()`, `count_active()`:
+A `type` has no functions of its own. A required function says only what a class must have, so a call through a
+`type` is always the function of the class the value really is, compiled in that class's copy: `jobs[0].finish()`
+below is `Job`'s own `finish`. A `List` of a `type` answers the member templates too, over the attributes and the
+argument-free functions the type names: `map_names()`, `filter_done()`, `count_done()`:
 
 ```gdscript title=shape_values_doc/job.spite
 var name = ""
@@ -922,8 +921,7 @@ func ShapeValuesDoc() {
 
 func finish_first(jobs: List<Work>) {
     assert jobs[0]
-    var finishing = jobs[0].finish
-    finishing()
+    jobs[0].finish()
 }
 ```
 ```output
@@ -1254,13 +1252,13 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   `==` or `!=` (or a value whose type the compiler does not know there) keeps its operations as written, so an
   exact comparison sees exact values; nothing that writes to a file can run inside such a loop.
 - **Every number class fits the library's `type Number`** (`library/number.spite`): `sum`, `subtract`, `multiply`,
-  `divide`, `less_than` and `greater_than`, each taking and answering the class itself (`Boolean` for the two
+  `divide`, `remainder`, `less_than` and `greater_than`, each taking and answering the class itself (`Boolean` for the two
   comparisons), and `to_long(): Long` and `to_double(): Double`. A number class declares no function for an
   operator: the compiler's own arithmetic answers it, so the class fits. `Boolean` and `Memory.Address` do not fit,
   and neither does anything else unless it declares those functions. `$value_type == Number` is decided while
   compiling ([metaprogramming.md](metaprogramming.md#codegen-values-)). A generic constrained by `Number` is compiled
   once per number class it is given, with plain values and no box. **A parameter typed `Number` takes the
-  operators `+`, `-`, `*`, `/`, `<`, `>`, `<=` and `>=`**: the function is compiled once per number class that
+  operators `+`, `-`, `*`, `/`, `%`, `<`, `>`, `<=` and `>=`**: the function is compiled once per number class that
   reaches it, and in each copy the operator is that class's arithmetic, with that class's rules (an `Integer` copy
   of `value + 0.5` is the "would be cut to fit" error). A conversion is called on the value's class. In a
   `--hot-reload`, `--repl` or `--repl-port` build the function is compiled as written, and an operator on a value
@@ -1457,9 +1455,9 @@ knows of.
 #### Inline types and duck typing in full
 
 ```gdscript
-type System {
-    query: Query
-    with: Dictionary<Class>
+type Labeled {
+    label: String
+    width: Integer
 }
 ```
 
@@ -1470,7 +1468,8 @@ commas. The single-line form is what would have needed commas, so removing it re
 A `type` is a class matched by shape: any value with the same attributes and types is accepted, including object
 literals. `.class` read through a `type`-shaped or union-typed value is answered from the object's own tag at run
 time, so it names the class the value really is (`Widget`), not the shape it is being read through (`Labeled`).
-An object literal has no class of its own, so it answers `Object`. A call through a `type` compares that tag
+An object literal has no class of its own, so it answers `Object`. A call through a `type` on a value whose class
+is known only at run time compares that tag
 against the classes admitted to the shape (only the classes the program actually passes to it), so nothing
 is registered or looked up by name at run time. A class test admits nothing: `item == Ghost` on an `Anything` that
 no `Ghost` ever reaches is false for every value, and the program carries no copy, no case and no code for `Ghost`
@@ -1510,9 +1509,13 @@ function that waits, and the functions of `List`, `Dictionary` and the other con
 `--repl`, `--repl-port` or `--hot-reload` build compiles the function as written and no copies, since a class the
 compiler has not seen may reach it later.
 
-**A shape's members behave as a class's do**: a required function
-read without calling it is a function value bound to the value, dispatched on the value's class when it is
-called, so `Parallel(stages[index].run_once)` infers its codegen value from it; and a `List` of a `type` answers
+**A `type` has no functions of its own.** A required function is not an attribute holding a function value, and a
+`type` has no dispatch object: a call through a `type` is always the function of the class the value really is,
+compiled in that class's copy, and a `--repl`, `--repl-port` or `--hot-reload` build reaches that same function
+through the dispatch the compiler writes. A required function named without calling it (`sleepy.nap`) is that
+class's function bound to the value, as on any instance
+([functions_and_operators.md](functions_and_operators.md#functions-are-values)); the value is held in a box of its
+own, released with the function value (`conformance/stage6/type_function_values`). A `List` of a `type` answers
 the member templates over the attributes and the argument-free functions the type names
 (`conformance/stage6/shape_members`).
 
