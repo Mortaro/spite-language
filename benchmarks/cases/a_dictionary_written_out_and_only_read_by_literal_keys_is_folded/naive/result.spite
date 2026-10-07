@@ -1,0 +1,9 @@
+var golds = 0
+var silvers = 0
+var bronzes = 0
+
+func Result(new_golds: Integer, new_silvers: Integer, new_bronzes: Integer) {
+    golds = new_golds
+    silvers = new_silvers
+    bronzes = new_bronzes
+}

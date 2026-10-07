@@ -933,32 +933,26 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### The optimisation cases (D521)
 
 - Built: [benchmarks/cases](../benchmarks/cases/README.md), its scripts (`scripts/cases/extract.sh`,
-  `scripts/cases/check.sh`, `benchmarks/cases/run.sh`) and its check in `check.sh`, with 21 of the page's 75 sections
-  as cases. Not built: a case for each of the other 54 sections: tree_shaking_the_generated_c,
-  deciding_conditions_at_compile_time, reflection_symbols_and_registries_only_where_read,
-  reflection_on_constants_folds_and_unrolls, the_compiler_places_memory, reading_an_address_is_one_machine_operation,
-  an_allocator_set_after_construction_is_where_the_object_is_made, singletons_made_on_first_use_never_counted,
+  `scripts/cases/check.sh`, `benchmarks/cases/run.sh`) and its check in `check.sh`, with 37 of the page's 75 sections
+  as cases. Not built: a case for each of the other 38 sections: singletons_made_on_first_use_never_counted,
   singletons_that_hold_nothing_are_static_objects, atomic_reference_counts_only_with_threads,
-  boxing_only_where_a_value_travels_as_a_shape, a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame,
-  concurrency_machinery_only_where_it_is_used, hidden_async_await_as_compile_time_state_machines,
-  reads_in_a_row_overlap, repl_live_reload_and_debug_machinery_only_in_those_builds,
-  a_reload_compiles_only_the_classes_that_changed, what_a_hot_reload_build_carries_so_its_objects_can_move,
-  the_thread_pool_only_where_a_parallel_is_made, singletons_a_parallel_reaches_take_a_lock,
-  thread_safety_for_singletons_the_cheapest_safe_form, while_no_task_runs_a_singletons_lock_is_skipped,
-  an_argument_its_caller_holds_is_passed_without_counting, a_singletons_attribute_that_never_changes_is_read_in_place,
-  the_fault_handler_is_in_every_program, short_symbols_are_inline_text, a_foreign_name_is_never_copied,
-  crash_text_out_of_the_binary, proofs_that_survive_a_call, defaults_the_constructor_replaces_are_never_made,
-  a_function_value_describes_its_arguments_when_asked, allocation_is_the_c_librarys_counted_only_where_read,
+  boxing_only_where_a_value_travels_as_a_shape, concurrency_machinery_only_where_it_is_used,
+  hidden_async_await_as_compile_time_state_machines, reads_in_a_row_overlap,
+  repl_live_reload_and_debug_machinery_only_in_those_builds, a_reload_compiles_only_the_classes_that_changed,
+  what_a_hot_reload_build_carries_so_its_objects_can_move, the_thread_pool_only_where_a_parallel_is_made,
+  singletons_a_parallel_reaches_take_a_lock, thread_safety_for_singletons_the_cheapest_safe_form,
+  while_no_task_runs_a_singletons_lock_is_skipped, an_argument_its_caller_holds_is_passed_without_counting,
+  a_singletons_attribute_that_never_changes_is_read_in_place, the_fault_handler_is_in_every_program,
+  short_symbols_are_inline_text, a_foreign_name_is_never_copied, crash_text_out_of_the_binary,
+  proofs_that_survive_a_call, a_function_value_describes_its_arguments_when_asked,
   a_dictionary_hashes_a_key_once_cheaply, a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one,
-  a_word_inflected_while_compiling, a_dictionary_written_out_and_only_read_by_literal_keys_is_folded,
   a_dictionary_keyed_by_numbers_hashes_the_numbers, reading_through_a_type_without_counting,
   a_row_of_borrowed_items_lives_in_the_frame, an_items_storage_is_chosen_while_compiling,
   a_proven_divisor_is_not_checked, arithmetic_is_checked_in_every_build, short_text_lives_inside_the_string,
-  maths_on_constants_is_worked_out_while_compiling, a_binary_schema_is_a_constant, a_numbers_bits_are_read_in_place,
-  a_local_list_of_known_size_lives_in_the_frame, a_decimal_literal_beside_a_float_is_a_float,
+  a_numbers_bits_are_read_in_place, a_decimal_literal_beside_a_float_is_a_float,
   a_walked_crash_lines_read_is_the_rows_read, the_c_is_compiled_in_parallel_units_and_cached,
-  thread_safety_for_singletons_the_rest_of_the_plan, copies_that_cost_nothing, a_crashs_report_is_kept_out_of_the_way,
-  other_optimisations. Not measured yet: the timings of every case (`bash benchmarks/cases/run.sh`).
+  thread_safety_for_singletons_the_rest_of_the_plan, a_crashs_report_is_kept_out_of_the_way, other_optimisations. Not
+  measured yet: the timings of every case (`bash benchmarks/cases/run.sh`).
 - Found by the cases, each written in the case's README: a frame object passed to an operator (`velocity +
   pulled`) is still counted, since the `___held_` copy is used only for a call by name
   (objects_that_never_leave_their_function_live_in_the_frame); a local passed only to a function taking a `type`,
@@ -967,7 +961,16 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   own with atomic instructions, and a singleton whose only changing state is such counters (which should take
   atomics and no lock) still got the loop's lock (a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once);
   a system reading a column through `at(row)` from a `Parallel` counts each element it is answered
-  (a_singletons_reading_functions_do_not_exclude_each_other).
+  (a_singletons_reading_functions_do_not_exclude_each_other); a variadic call whose answer is kept, `var biggest =
+  largest(a, b, c, d)`, makes its list on the heap every call, where the same call as a statement keeps it in the
+  frame, so the commonest shape is left out (a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame);
+  `Lamp.instances.count()` copies the registry into a new list to count it
+  (reflection_symbols_and_registries_only_where_read); tree shaking leaves `typedef`s and `SPITE_ALLOCATOR_` macros
+  of dropped classes behind (tree_shaking_the_generated_c); an object made in an arena still counts the arena and is
+  given back one by one when its list goes (an_allocator_set_after_construction_is_where_the_object_is_made); a
+  `List`'s `drop` tests for an arena while the program runs even in a program that makes none, and base64's digit
+  writer counts its alphabet text per digit (reading_an_address_is_one_machine_operation); a class seen only through
+  `BinaryWriter<T>` and `schema()` has its attributes reported as never read (a_binary_schema_is_a_constant).
 
 ## [proofs.md](../docs/proofs.md)
 

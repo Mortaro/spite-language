@@ -1,0 +1,3 @@
+var sensor = 0
+var level = 0.0
+var label = ""

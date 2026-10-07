@@ -1,0 +1,48 @@
+var console = Console()
+var clock = Clock()
+var writer = BinaryWriter<Reading>()
+var reader = BinaryReader<Reading>()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var headers = received_headers(200000)
+    var accepted = 0
+    var round = 0
+    while round < 10 {
+        accepted = accepted + headers.count(is_current)
+        round = round + 1
+    }
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var sensor = sent_and_read_back(7)
+    console.print("accepted", accepted, "sensor", sensor)
+    var schema = writer.schema()
+    console.print("schema", schema)
+    console.error("microseconds {microseconds}")
+}
+
+func received_headers(count: Integer): List<Long> {
+    var headers = List<Long>()
+    var index = 0
+    while index < count {
+        var header = writer.schema()
+        if index % 10 == 0 {
+            header = index
+        }
+        headers.append(header)
+        index = index + 1
+    }
+    return headers
+}
+
+func is_current(header: Long): Boolean {
+    return header == reader.schema()
+}
+
+func sent_and_read_back(sensor: Integer): Integer {
+    var reading = Reading()
+    reading.sensor = sensor
+    var bytes = writer.write(reading)
+    var read = reader.read(bytes)
+    crash read
+    return read.sensor
+}

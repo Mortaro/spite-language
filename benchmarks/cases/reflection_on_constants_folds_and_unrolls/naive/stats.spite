@@ -1,0 +1,11 @@
+var strength = 0
+var agility = 0
+var wisdom = 0
+var stamina = 0
+
+func Stats(seed: Integer) {
+    strength = seed % 20
+    agility = seed % 17
+    wisdom = seed % 13
+    stamina = seed % 11
+}

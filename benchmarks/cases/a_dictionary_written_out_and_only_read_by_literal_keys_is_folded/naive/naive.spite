@@ -1,0 +1,41 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var results = List<Result>()
+    var index = 0
+    while index < 200000 {
+        var result = Result(index % 4, index % 7, index % 11)
+        results.append(result)
+        index = index + 1
+    }
+    var total = totals(results)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("points", total)
+    console.error("microseconds {microseconds}")
+}
+
+func totals(results: List<Result>): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 40 {
+        var index = 0
+        while index < results.count() {
+            var result = results[index]
+            var points = points_for(result)
+            total = total + points
+            index = index + 1
+        }
+        round = round + 1
+    }
+    return total
+}
+
+func points_for(result: Result): Integer {
+    var points = {"gold": 50, "silver": 20, "bronze": 5}
+    crash points["gold"]
+    crash points["silver"]
+    crash points["bronze"]
+    return result.golds * points["gold"] + result.silvers * points["silver"] + result.bronzes * points["bronze"]
+}

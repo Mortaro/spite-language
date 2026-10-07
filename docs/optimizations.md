@@ -100,6 +100,8 @@ emit nothing.
 
 ### Tree shaking the generated C
 
+**The case:** [benchmarks/cases/tree_shaking_the_generated_c](../benchmarks/cases/tree_shaking_the_generated_c/).
+
 **What it does.** After the program is generated, the compiler keeps only the C that `main` can reach: every
 function nothing calls, from your classes, `library/` or the compiler's own prelude, is dropped along with its
 prototype (`bootstrap/source/generation/tree_shaker.spite`). So is every class nothing reachable uses: its
@@ -141,6 +143,8 @@ since each lookup makes two short-lived strings, and a missing symbol that only 
 the program when the library opens. An inspectable build is not shaken, so it looks up every symbol.
 
 ### Deciding conditions at compile time
+
+**The case:** [benchmarks/cases/deciding_conditions_at_compile_time](../benchmarks/cases/deciding_conditions_at_compile_time/).
 
 **What it does.** A condition the compiler can answer while compiling is answered then, and only the branch taken
 is generated. The branch not taken is not in the program at all, not skipped at run time but *absent*, so it may
@@ -247,6 +251,8 @@ instantiation.
 
 ### Reflection, symbols and registries only where read
 
+**The case:** [benchmarks/cases/reflection_symbols_and_registries_only_where_read](../benchmarks/cases/reflection_symbols_and_registries_only_where_read/).
+
 **What it does.** Reflection is decided at compile time, so the compiler knows exactly what a program reads and
 emits only that: a class object's `.attributes`, `.functions` and
 `.namespace`, `value.attributes`, `value.memory`, `attribute.value`, the per-class `Person.instances` registry (a
@@ -268,6 +274,8 @@ of it. The list behind `.instances` is the compiler's bookkeeping, like the list
 exit, so `--debug-memory` does not count it.
 
 ### Reflection on constants folds and unrolls
+
+**The case:** [benchmarks/cases/reflection_on_constants_folds_and_unrolls](../benchmarks/cases/reflection_on_constants_folds_and_unrolls/).
 
 **What it does.** A reflection object the compiler can identify (a class named in the code, `$T`, `value.class`
 of a class-typed value, and everything read from them) is a constant
@@ -394,6 +402,8 @@ abc a
 
 ### The compiler places memory
 
+**The case:** [benchmarks/cases/the_compiler_places_memory](../benchmarks/cases/the_compiler_places_memory/).
+
 **What it does.** A program has one way to ask for raw memory, `heap.allocate(bytes)` on `Memory.Heap()`, and one way
 to give it back, `heap.free(address)`. Where the bytes live is the compiler's choice
 ([Placement](../specs/memory.md#placement-the-compiler-decides-where-memory-lives)):
@@ -459,6 +469,8 @@ yourself: there is no second way to allocate, so there is no address to keep pas
 
 ### Reading an address is one machine operation
 
+**The case:** [benchmarks/cases/reading_an_address_is_one_machine_operation](../benchmarks/cases/reading_an_address_is_one_machine_operation/).
+
 **What it does.** `address.read_long(16)`, `address.write_float(8, value)` and the other reads, writes and atomics of
 `Memory.Address` are primitives of the language, like `+`: the compiler writes each one where it is called, as the
 single load, store or atomic instruction, with no call and no check. `copy_to` and `compare_bytes` are written the
@@ -470,6 +482,8 @@ reads its memory this way.
 **What you notice.** Nothing: there is no other way these could run.
 
 ### An allocator set after construction is where the object is made
+
+**The case:** [benchmarks/cases/an_allocator_set_after_construction_is_where_the_object_is_made](../benchmarks/cases/an_allocator_set_after_construction_is_where_the_object_is_made/).
 
 **What it does.** `var spark = Particle("spark", 1.5)` followed by `spark.memory.allocator = arena` reads as
 though it made the particle on the heap and then moved it. The compiler makes it in `arena` from the start: the
@@ -760,6 +774,8 @@ printed. A `List` of a `type` without attributes holds sixteen bytes per element
 pointer.
 
 ### A variadic list the callee only reads lives in the caller's frame
+
+**The case:** [benchmarks/cases/a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](../benchmarks/cases/a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/).
 
 **What it does.** The `...values` of a variadic call arrive in a `List`. When the call is a statement of its own
 (`console.print(name, count)`), outside `and`/`or` and outside a function that waits, and the function called only
@@ -1397,6 +1413,8 @@ instead of `'heap'`, as a written text does.
 
 ### Defaults the constructor replaces are never made
 
+**The case:** [benchmarks/cases/defaults_the_constructor_replaces_are_never_made](../benchmarks/cases/defaults_the_constructor_replaces_are_never_made/).
+
 **What it does.** A class with `var owner = Owner(0)` and a constructor whose first lines are `owner = new_owner`
 would make an `Owner`, then throw it away. The object is made with that attribute empty instead, and the constructor's
 line fills it: the default is never made. It applies to each attribute the constructor sets in its opening run of
@@ -1702,6 +1720,8 @@ index`) still makes one text, since that text is the result.
 
 ### Allocation is the C library's, counted only where read
 
+**The case:** [benchmarks/cases/allocation_is_the_c_librarys_counted_only_where_read](../benchmarks/cases/allocation_is_the_c_librarys_counted_only_where_read/).
+
 **What it does.** Every Spite object is made with `SPITE_MALLOC` and let go with `SPITE_FREE`, and what those are is
 decided per program. In an ordinary build they are the C library's `malloc`, `realloc` and `free`, with nothing beside
 them: no counter, no table, no list of kept blocks. A program that reads `Memory.Heap.live_allocations()` (or
@@ -1838,6 +1858,8 @@ copies a class that needs the table carries none of it.
 
 ### A word inflected while compiling
 
+**The case:** [benchmarks/cases/a_word_inflected_while_compiling](../benchmarks/cases/a_word_inflected_while_compiling/).
+
 **What it does.** `pluralize()` or `singularize()` called on a text literal of lower-case letters and underscores
 (`"cactus".pluralize()`) is worked out while compiling, through the same rules and the same
 [`String.Inflection`](../specs/standard_library.md#the-string-class) table the call would read at run time, and the program
@@ -1851,6 +1873,8 @@ inflections are literals carries none of the inflection code or its table (`conf
 makes 5 allocations, against 19 when the calls run).
 
 ### A dictionary written out and only read by literal keys is folded
+
+**The case:** [benchmarks/cases/a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](../benchmarks/cases/a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/).
 
 **What it does.** A local made from a dictionary literal whose keys and values are all literals of one kind, and that
 the rest of its block only ever reads with a literal key (`plurals["cactus"]`), is never made: each read is replaced
@@ -2082,6 +2106,8 @@ long text needs anyway (where its characters are, and how many).
 
 ### Maths on constants is worked out while compiling
 
+**The case:** [benchmarks/cases/maths_on_constants_is_worked_out_while_compiling](../benchmarks/cases/maths_on_constants_is_worked_out_while_compiling/).
+
 **What it does.** A maths function of a number class ([standard_library.md](../specs/standard_library.md#maths))
 whose operands are all constants is worked out by the compiler, and the C gets the answer: `(0.5).sine()` is
 `(0x1.eaee880000000p-2f)` in the C, not a call. A constant here is a decimal or whole literal, a negated one, a
@@ -2111,6 +2137,8 @@ only the transcendental functions can differ, by at most that last bit.
 
 ### A binary schema is a constant
 
+**The case:** [benchmarks/cases/a_binary_schema_is_a_constant](../benchmarks/cases/a_binary_schema_is_a_constant/).
+
 **What it does.** `BinaryWriter<T>.schema()` and `BinaryReader<T>.schema()` ([json.md](json.md#the-schema-hash)) are
 worked out while compiling: the compiler writes the attribute walk of `T` as text, hashes it with FNV-1a, and the C
 gets a macro that is the number, with the text beside it in a comment. **When.** Every build, for each `T` a writer or
@@ -2132,6 +2160,8 @@ but speed in an unoptimised build: `benchmarks/half_precision` (ten million `to_
 it allocates nothing per conversion either way.
 
 ### A local list of known size lives in the frame
+
+**The case:** [benchmarks/cases/a_local_list_of_known_size_lives_in_the_frame](../benchmarks/cases/a_local_list_of_known_size_lives_in_the_frame/).
 
 **What it does.** A local list made by a literal (`var sizes = [3, 5, 8]`) or by `List<T>()` whose size is known
 while compiling and which never leaves its function is not allocated: its header and its items are in the
@@ -2473,6 +2503,8 @@ compile-time check at `return`. All of it is absent from a program that never ma
 nothing.
 
 ### Copies that cost nothing
+
+**The case:** [benchmarks/cases/copies_that_cost_nothing](../benchmarks/cases/copies_that_cost_nothing/).
 
 Every class is passed by reference and `copy()` gives an independent one; that is the whole API, and the compiler
 optimises behind it: a copy used only once is passed by value instead of allocated; a copy that is never changed

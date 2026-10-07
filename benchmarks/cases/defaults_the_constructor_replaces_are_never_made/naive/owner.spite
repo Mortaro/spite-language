@@ -1,0 +1,5 @@
+var age = 0
+
+func Owner(new_age: Integer) {
+    age = new_age
+}

@@ -1,0 +1,5 @@
+var is_open = false
+
+func Door(starts_open: Boolean) {
+    is_open = starts_open
+}

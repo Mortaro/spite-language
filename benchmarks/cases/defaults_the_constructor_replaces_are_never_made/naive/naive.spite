@@ -1,0 +1,34 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var total = all_rounds(10)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func all_rounds(rounds: Integer): Long {
+    var total: Long = 0
+    var round = 0
+    while round < rounds {
+        var sum = one_round(round)
+        total = total + sum
+        round = round + 1
+    }
+    return total
+}
+
+func one_round(round: Integer): Integer {
+    var items = List<Item>()
+    var index = 0
+    while index < 50000 {
+        var owner = Owner((index + round) % 90)
+        var item = Item(index % 1000, owner)
+        items.append(item)
+        index = index + 1
+    }
+    var ages = items.map_owners().sum_age()
+    return items.sum_price() + ages
+}

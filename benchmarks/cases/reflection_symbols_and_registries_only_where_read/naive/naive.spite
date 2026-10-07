@@ -1,0 +1,32 @@
+var console = Console()
+
+func Naive() {
+    var lamps = make_lamps(1000)
+    var doors = make_doors(1000)
+    var lit = lamps.count_is_lit()
+    var open = doors.count_is_open()
+    var tracked = Lamp.instances.count()
+    console.print("lamps lit", lit, "doors open", open, "lamps alive", tracked)
+}
+
+func make_lamps(count: Integer): List<Lamp> {
+    var lamps = List<Lamp>()
+    var index = 0
+    while index < count {
+        var lamp = Lamp(index % 3 == 0)
+        lamps.append(lamp)
+        index = index + 1
+    }
+    return lamps
+}
+
+func make_doors(count: Integer): List<Door> {
+    var doors = List<Door>()
+    var index = 0
+    while index < count {
+        var door = Door(index % 4 == 0)
+        doors.append(door)
+        index = index + 1
+    }
+    return doors
+}

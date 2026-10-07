@@ -1,0 +1,3 @@
+Naive_total_of___held_0
+Naive_add_attribute_for_strength___held_0
+Naive_add_attribute_for_agility___held_0

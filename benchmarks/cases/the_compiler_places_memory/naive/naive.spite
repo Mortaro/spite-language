@@ -1,0 +1,41 @@
+var console = Console()
+var clock = Clock()
+var heap = Memory.Heap()
+var longs = TypedMemory<Long>()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var total = sum_rounds(1000000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func sum_rounds(rounds: Integer): Long {
+    var total: Long = 0
+    var round = 0
+    while round < rounds {
+        var squares = sum_of_squares(32, round % 1000)
+        total = total + squares
+        round = round + 1
+    }
+    return total
+}
+
+func sum_of_squares(count: Integer, offset: Integer): Long {
+    var squares = heap.allocate(count * 8)
+    var index = 0
+    while index < count {
+        var value: Long = index + offset
+        longs.write_value(squares, index, value * value)
+        index = index + 1
+    }
+    var total: Long = 0
+    index = 0
+    while index < count {
+        total = total + longs.read_value(squares, index)
+        index = index + 1
+    }
+    heap.free(squares)
+    return total
+}

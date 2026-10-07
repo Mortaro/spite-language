@@ -1,0 +1,6 @@
+lines #define SPITE_TRACKS_
+lines static Lamp** spite_instances_Lamp
+spite_track_Lamp
+Lamp___allocate
+Door___allocate
+Lamp___instances

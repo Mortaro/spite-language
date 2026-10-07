@@ -1,0 +1,4 @@
+lines #define BinaryWriter__Reading_schema
+lines #define BinaryReader__Reading_schema
+Naive_is_current
+Naive_received_headers

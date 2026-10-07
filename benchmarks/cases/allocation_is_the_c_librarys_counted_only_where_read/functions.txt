@@ -1,0 +1,4 @@
+lines #define SPITE_MALLOC
+lines #define SPITE_FREE
+Node___allocate
+Node___free

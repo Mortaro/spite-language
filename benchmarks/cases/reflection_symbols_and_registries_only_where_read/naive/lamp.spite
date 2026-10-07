@@ -1,0 +1,5 @@
+var is_lit = false
+
+func Lamp(starts_lit: Boolean) {
+    is_lit = starts_lit
+}

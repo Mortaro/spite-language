@@ -1,0 +1,23 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var origin = Point(3, -4)
+    var total = all_trials(origin, 20000000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total, "origin", origin.x, origin.y)
+    console.error("microseconds {microseconds}")
+}
+
+func all_trials(origin: Point, trials: Integer): Long {
+    var total: Long = 0
+    var trial = 0
+    while trial < trials {
+        var moved = origin.copy()
+        moved.move_by(trial % 7 - 3, trial % 5 - 2)
+        total = total + moved.distance_from_origin()
+        trial = trial + 1
+    }
+    return total
+}

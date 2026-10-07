@@ -1,0 +1,43 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var total = all_rounds(2000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func all_rounds(rounds: Integer): Long {
+    var total: Long = 0
+    var round = 0
+    while round < rounds {
+        var chain = made_chain(1000, round)
+        var sum = chain_sum(chain)
+        total = total + sum
+        round = round + 1
+    }
+    return total
+}
+
+func made_chain(length: Integer, round: Integer): Node {
+    var head = Node(round, null)
+    var index = 1
+    while index < length {
+        var added = Node(index + round, head)
+        head = added
+        index = index + 1
+    }
+    return head
+}
+
+func chain_sum(head: Node): Integer {
+    var total = 0
+    var current: Node? = head
+    while current {
+        total = total + current.value
+        current = current.next
+    }
+    return total
+}

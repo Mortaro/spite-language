@@ -1,0 +1,29 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var total = characters(1000000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("characters", total)
+    console.error("microseconds {microseconds}")
+}
+
+func characters(count: Integer): Long {
+    var total: Long = 0
+    var index = 0
+    while index < count {
+        var shown = label(index % 50)
+        total = total + shown.length()
+        index = index + 1
+    }
+    return total
+}
+
+func label(count: Integer): String {
+    if count == 1 {
+        return "1 cactus"
+    }
+    var plural = "cactus".pluralize()
+    return "{count} {plural}"
+}

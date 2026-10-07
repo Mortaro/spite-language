@@ -1,0 +1,2 @@
+Naive_turn
+List_Point_each_turn_for_naive

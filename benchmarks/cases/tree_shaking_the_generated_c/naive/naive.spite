@@ -1,0 +1,23 @@
+var console = Console()
+
+func Naive() {
+    var names = List<String>()
+    names.append("ann")
+    names.append("bob")
+    names.append("cy")
+    var joined = names.join(", ")
+    var longest = longest_length(names)
+    console.print(joined, longest)
+}
+
+func longest_length(names: List<String>): Integer {
+    var longest = 0
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var length = name.length()
+        longest = longest.maximum(length)
+        index = index + 1
+    }
+    return longest
+}

@@ -1,0 +1,16 @@
+var x = 0
+var y = 0
+
+func Point(starting_x: Integer, starting_y: Integer) {
+    x = starting_x
+    y = starting_y
+}
+
+func move_by(across: Integer, down: Integer) {
+    x = x + across
+    y = y + down
+}
+
+func distance_from_origin(): Integer {
+    return x.absolute() + y.absolute()
+}

@@ -1,0 +1,35 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var total = all_rounds(200)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func all_rounds(rounds: Integer): Long {
+    var total: Long = 0
+    var round = 0
+    while round < rounds {
+        var sum = one_round(round)
+        total = total + sum
+        round = round + 1
+    }
+    return total
+}
+
+func one_round(round: Integer): Integer {
+    var arena = Memory.Arena(65536)
+    var particles = List<Particle>()
+    particles.memory.allocator = arena
+    var index = 0
+    while index < 10000 {
+        var particle = Particle(index + round, index % 5)
+        particle.memory.allocator = arena
+        particles.append(particle)
+        index = index + 1
+    }
+    return particles.sum_position() + particles.sum_speed()
+}

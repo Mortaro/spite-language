@@ -1,0 +1,37 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var values = make_values(1000000)
+    var plain = Meter<false>()
+    var squared = Meter<true>()
+    var round = 0
+    while round < 20 {
+        measure(values, plain, squared)
+        round = round + 1
+    }
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("sum", plain.total, "squares", squared.total)
+    console.error("microseconds {microseconds}")
+}
+
+func make_values(count: Integer): List<Integer> {
+    var values = List<Integer>()
+    var index = 0
+    while index < count {
+        values.append(index % 1000)
+        index = index + 1
+    }
+    return values
+}
+
+func measure(values: List<Integer>, plain: Meter<false>, squared: Meter<true>) {
+    var index = 0
+    while index < values.count() {
+        var value = values[index]
+        plain.add(value)
+        squared.add(value)
+        index = index + 1
+    }
+}

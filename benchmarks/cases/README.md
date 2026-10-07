@@ -68,25 +68,41 @@ would claim a ceiling it is not.
 <!-- summary -->
 | case | Spite's time over naive C's | Spite's time over expert C's |
 |---|---|---|
+| [a_binary_schema_is_a_constant](a_binary_schema_is_a_constant/) | not measured yet | not measured yet |
 | [a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/) | not measured yet | not measured yet |
+| [a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/) | not measured yet | not measured yet |
 | [a_function_taking_a_type_is_compiled_per_class](a_function_taking_a_type_is_compiled_per_class/) | not measured yet | not measured yet |
 | [a_list_item_read_only_to_test_it_is_not_counted](a_list_item_read_only_to_test_it_is_not_counted/) | not measured yet | not measured yet |
 | [a_lists_templates_read_its_elements_without_counting_them](a_lists_templates_read_its_elements_without_counting_them/) | not measured yet | not measured yet |
+| [a_local_list_of_known_size_lives_in_the_frame](a_local_list_of_known_size_lives_in_the_frame/) | not measured yet | not measured yet |
 | [a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked](a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/) | not measured yet | not measured yet |
 | [a_number_joined_into_text_is_written_in_place](a_number_joined_into_text_is_written_in_place/) | not measured yet | not measured yet |
 | [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | not measured yet | not measured yet |
 | [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/) | not measured yet | not measured yet |
 | [a_release_is_inlined_in_every_unit](a_release_is_inlined_in_every_unit/) | not measured yet | not measured yet |
 | [a_singletons_reading_functions_do_not_exclude_each_other](a_singletons_reading_functions_do_not_exclude_each_other/) | not measured yet | not measured yet |
+| [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | not measured yet | not measured yet |
+| [a_word_inflected_while_compiling](a_word_inflected_while_compiling/) | not measured yet | not measured yet |
+| [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | not measured yet | not measured yet |
+| [an_allocator_set_after_construction_is_where_the_object_is_made](an_allocator_set_after_construction_is_where_the_object_is_made/) | not measured yet | not measured yet |
 | [an_item_a_name_holds_from_its_list_is_not_counted](an_item_a_name_holds_from_its_list_is_not_counted/) | not measured yet | not measured yet |
 | [an_item_written_back_to_its_own_slot_is_not_written](an_item_written_back_to_its_own_slot_is_not_written/) | not measured yet | not measured yet |
 | [appending_to_text_in_place](appending_to_text_in_place/) | not measured yet | not measured yet |
 | [calls_in_a_row_run_at_once](calls_in_a_row_run_at_once/) | not measured yet | not measured yet |
+| [copies_that_cost_nothing](copies_that_cost_nothing/) | not measured yet | not measured yet |
+| [deciding_conditions_at_compile_time](deciding_conditions_at_compile_time/) | not measured yet | not measured yet |
+| [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | not measured yet | not measured yet |
 | [identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/) | not measured yet | not measured yet |
+| [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | not measured yet | not measured yet |
 | [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | not measured yet | not measured yet |
 | [objects_that_never_leave_their_function_live_in_the_frame](objects_that_never_leave_their_function_live_in_the_frame/) | not measured yet | not measured yet |
 | [plain_reference_counts_where_no_thread_reaches_a_class](plain_reference_counts_where_no_thread_reaches_a_class/) | not measured yet | not measured yet |
+| [reading_an_address_is_one_machine_operation](reading_an_address_is_one_machine_operation/) | not measured yet | not measured yet |
+| [reflection_on_constants_folds_and_unrolls](reflection_on_constants_folds_and_unrolls/) | not measured yet | not measured yet |
+| [reflection_symbols_and_registries_only_where_read](reflection_symbols_and_registries_only_where_read/) | not measured yet | not measured yet |
 | [smaller_ones](smaller_ones/) | not measured yet | not measured yet |
 | [template_chains_run_as_one_loop](template_chains_run_as_one_loop/) | not measured yet | not measured yet |
 | [text_joined_in_one_piece](text_joined_in_one_piece/) | not measured yet | not measured yet |
+| [the_compiler_places_memory](the_compiler_places_memory/) | not measured yet | not measured yet |
+| [tree_shaking_the_generated_c](tree_shaking_the_generated_c/) | not measured yet | not measured yet |
 <!-- /summary -->

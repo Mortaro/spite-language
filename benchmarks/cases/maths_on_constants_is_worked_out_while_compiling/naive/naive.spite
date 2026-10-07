@@ -1,0 +1,37 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var points = make_points(100000)
+    var round = 0
+    while round < 200 {
+        points.each(turn)
+        round = round + 1
+    }
+    var total = points.sum_across()
+    var whole: Integer = total.round()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("across", whole)
+    console.error("microseconds {microseconds}")
+}
+
+func make_points(count: Integer): List<Point> {
+    var points = List<Point>()
+    var index = 0
+    while index < count {
+        var across: Float = index % 100
+        var down: Float = index % 37
+        var point = Point(across, down)
+        points.append(point)
+        index = index + 1
+    }
+    return points
+}
+
+func turn(point: Point) {
+    var turned_across = point.across * 0.5.cosine() - point.down * 0.5.sine()
+    var turned_down = point.across * 0.5.sine() + point.down * 0.5.cosine()
+    point.across = turned_across
+    point.down = turned_down
+}

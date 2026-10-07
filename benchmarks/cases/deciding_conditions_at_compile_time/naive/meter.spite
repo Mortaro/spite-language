@@ -1,0 +1,12 @@
+generic $is_squared
+
+var total: Long = 0
+
+func add(value: Integer) {
+    if $is_squared {
+        var square: Long = value
+        total = total + square * value
+    } else {
+        total = total + value
+    }
+}

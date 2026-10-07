@@ -1,0 +1,7 @@
+var price = 0
+var owner = Owner(0)
+
+func Item(new_price: Integer, new_owner: Owner) {
+    price = new_price
+    owner = new_owner
+}
