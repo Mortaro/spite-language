@@ -2319,7 +2319,9 @@ against the narrower type's range and a branch). The ordinary build and `--optim
 `wrapping_sum`, `wrapping_subtract` and `wrapping_multiply` functions are one plain C operation on the bits, so a
 hash written with them costs what it did with the wrapping operator. The check is left out of a local counter stepped by one while a `<` on it is in force (`index = index + 1` in a
 `while index < count` loop), of one stepped down while a `>` is, and of arithmetic on constants
-([proofs.md](proofs.md#arithmetic-that-does-not-fit-halts)): in the compiler's own C that removes 1 145 of its
+([proofs.md](proofs.md#arithmetic-that-does-not-fit-halts)). A call between the comparison and the step keeps it
+out, whatever the call does, since no call can change a local or a parameter's number: `apply(scorer.score, index)`
+before `index = index + 1`, a call through a function value, leaves the step plain. In the compiler's own C these remove 1 145 of its
 2 595 checks. What you can observe: a halt instead of a wrapped answer, and a loop whose sum the C compiler
 vectorised before may no longer be vectorised, since each addition can now stop the program. **Cost, measured** in
 [its case](../benchmarks/arithmetic_is_checked_in_every_build/): 400 rounds of adding up `value * 3 + round` over

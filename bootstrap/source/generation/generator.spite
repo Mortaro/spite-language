@@ -25180,6 +25180,9 @@ func undo_proofs_after_call(
         var path = paths[path_index]
         var dependencies = proof_dependencies(path, scope, class_information)
         var effect = changing_effect(effects, dependencies, path, arguments)
+        if path.starts_with("~+[") or path.starts_with("~-[") {
+            effect = ""
+        }
         if not effect.is_empty() {
             var crossed_loop_readers = List<String>()
             if scope.forget_path(path, true, crossed_loop_readers) {

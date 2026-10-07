@@ -38,13 +38,13 @@ int64_t Naive_apply_all___held_0(Naive* self, Scorer* scorer_, int32_t count_) {
     while (((index_ < count_))) {
         int32_t scored_ = Naive_apply___held_0(self, &(Spite_Function){ .spite_owner = (void*)(scorer_), .spite_typed_call = (void*)Scorer_score }, (index_ % 100));
         applied_ = ({ int64_t spite_temp_2 = applied_; int64_t spite_temp_3 = SpiteInteger_to_long(scored_); int64_t spite_temp_4; if (__builtin_expect(__builtin_add_overflow(spite_temp_2, spite_temp_3, &spite_temp_4), 0)) spite_overflowed("applied + scored", "a Long", "+", (int64_t)spite_temp_2, (int64_t)spite_temp_3, spite_site_1()); spite_temp_4; });
-        index_ = ({ int32_t spite_temp_5 = index_; int32_t spite_temp_6 = 1; int32_t spite_temp_7; if (__builtin_expect(__builtin_add_overflow(spite_temp_5, spite_temp_6, &spite_temp_7), 0)) spite_overflowed("index + 1", "an Integer", "+", (int64_t)spite_temp_5, (int64_t)spite_temp_6, spite_site_2()); spite_temp_7; });
+        index_ = (index_ + 1);
     }
-    int64_t spite_temp_8 = applied_;
-    return spite_temp_8;
+    int64_t spite_temp_5 = applied_;
+    return spite_temp_5;
 }
 
 int32_t Naive_apply___held_0(Naive* self, Spite_Function* change_, int32_t value_) {
-    int32_t spite_temp_9 = ({ Spite_Function* spite_temp_10 = change_; int32_t spite_temp_11 = ((int32_t (*)(void*, int32_t))spite_temp_10->spite_typed_call)(spite_temp_10->spite_owner, value_); spite_temp_11; });
-    return spite_temp_9;
+    int32_t spite_temp_6 = ({ Spite_Function* spite_temp_7 = change_; int32_t spite_temp_8 = ((int32_t (*)(void*, int32_t))spite_temp_7->spite_typed_call)(spite_temp_7->spite_owner, value_); spite_temp_8; });
+    return spite_temp_6;
 }

@@ -42,19 +42,19 @@ turn, as `expert.c` does by hand.
 `--debug-memory` counts 14 allocations for the run, none of them in the loop; before the value lived in the frame
 it counted 4 000 014, the value and its empty list at each of the 2 000 000 calls, and Spite took 66.8 times
 `naive.c`'s time (`naive.c`'s four `malloc`s and their `free`s per call are removed by clang, which sees that the
-value never leaves `apply_all` once `apply` is inlined). `index = index + 1` keeps its overflow check here, though
-`index < count` is in force.
+value never leaves `apply_all` once `apply` is inlined). `index = index + 1` is the plain `index_ + 1`, since
+`index < count` is in force and no call can change a local, even one through a function value.
 
 ## Timings
 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 852 | 194 560 |
-| naive C: `naive.c`, `clang -O2` | 1 304 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 1 273 | 139 264 |
+| Spite: `naive/`, `--optimized` | 812 | 194 560 |
+| naive C: `naive.c`, `clang -O2` | 1 258 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 1 255 | 139 264 |
 
-Spite takes 0.65 times naive C's time and 0.67 times expert C's (lower is faster).
+Spite takes 0.65 times naive C's time and 0.65 times expert C's (lower is faster).
 Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=852 naive=1304 expert=1273 -->
+<!-- measured spite=812 naive=1258 expert=1255 -->
 <!-- /timings -->

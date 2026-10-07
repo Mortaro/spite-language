@@ -418,7 +418,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   smallest signed value divided by `-1`, and a value put into a narrower name halt if the answer does not fit. The
   check is left out of `counter + 1` where a condition in force says `counter < bound`, and out of `counter - 1`
   where one says `counter > bound`: `counter` is a local or a parameter, the condition is a `while`'s, an `if`'s or
-  one side of an `and` in either, and the step comes before any assignment to `counter` in that loop pass. The
+  one side of an `and` in either, and the step comes before any assignment to `counter` in that loop pass; a call
+  in between, even one through a function value, keeps it, since no call can assign a local or a parameter. The
   comparison is done in `counter`'s type, so `bound` is at most its largest value and `counter + 1` fits (and at
   least its smallest, so `counter - 1` fits). It is also left out where both operands are constants, which the
   compiler has already worked out (and refused if they do not fit). A constant expression that does not fit its
