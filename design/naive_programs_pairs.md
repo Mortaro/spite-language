@@ -10,7 +10,7 @@ what it generates. **Falls back** is what happens when the proof fails (always t
 is the hand code in the engine package it makes unnecessary. **Backend** is what an own backend could add that C cannot
 say.
 
-**Granularity (D518).** Every row below decides per use (a list, a loop, a creation site), not per class: a class
+**Granularity (D520).** Every row below decides per use (a list, a loop, a creation site), not per class: a class
 may become several classes after compilation, and one list may have different shapes in different places. Pairs
 built so far per class (C5, M6) are a first step; their per-site forms are rows to add.
 

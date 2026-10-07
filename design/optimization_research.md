@@ -37,7 +37,7 @@ The argument the whole project rests on, to be tested:
 The limit is where a hand optimisation depends on knowledge no analysis can recover (intent about future data,
 domain facts). Finding where that line is, is the research.
 
-## Representation per use, not per class (D518)
+## Representation per use, not per class (D520)
 
 Mortaro, 2026-10-07: optimising "by class" is too coarse. A class is meaning; its storage is chosen per use.
 
