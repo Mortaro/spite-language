@@ -562,14 +562,17 @@ func swap_in(library_path: String, state_path: String, told: String): String {
     var missing = install(library)
     var missing_length = missing.length()
     if missing.starts_with("waits: ") {
+        close_library(library)
         return missing.slice(7, missing_length)
     }
     if missing.starts_with("refused: ") {
+        close_library(library)
         var refusal = missing.slice(9, missing_length)
         tell(false, "the program keeps the code it runs: {refusal}")
         return ""
     }
     if not missing.is_empty() {
+        close_library(library)
         tell(false, "the program keeps the code it runs: it has no '{missing}', which the new code calls")
         return ""
     }
